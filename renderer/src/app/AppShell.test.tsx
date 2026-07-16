@@ -156,6 +156,51 @@ describe("AppShell", () => {
     }
   });
 
+  it("keeps reporting the companion target width after it becomes a canvas", async () => {
+    const originalMatchMedia = window.matchMedia;
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1_100 });
+    window.matchMedia = vi.fn((query: string) => {
+      const max = Number(query.match(/max-width:\s*(\d+)px/)?.[1] || Number.POSITIVE_INFINITY);
+      return {
+        matches: window.innerWidth <= max,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(() => true),
+        addListener: vi.fn(),
+        removeListener: vi.fn()
+      } as MediaQueryList;
+    });
+    try {
+      const { container } = render(
+        <ResponsiveLayoutProvider>
+          <AppShell
+            page="creative"
+            navigate={vi.fn()}
+            onOpenSearch={vi.fn()}
+            navCollapsed={false}
+            setNavCollapsed={vi.fn()}
+            repoRoot="/repo"
+            runtime="linux"
+            environment={{ mode: "desktop" }}
+            pendingApprovals={0}
+            aiMode="default"
+            aiSidebar={<aside className="ai-sidebar layout-companion-canvas" data-layout-width={420}>AI</aside>}
+          >
+            <div>Creative</div>
+          </AppShell>
+        </ResponsiveLayoutProvider>
+      );
+      await waitFor(() => expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-canvas")).toBe(true));
+      expect(container.querySelector(".app-shell")?.classList.contains("layout-shell-rail")).toBe(true);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
+  });
+
   it("places the conversation module between core nav and settings on the AI page", () => {
     render(
       <AppShell

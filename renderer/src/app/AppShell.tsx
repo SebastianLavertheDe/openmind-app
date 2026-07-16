@@ -70,16 +70,22 @@ export function AppShell({
     const shell = shellRef.current;
     if (!shell) return;
     const measure = () => {
-      const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar:not(.layout-companion-canvas)");
+      const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
+      const preferredWidth = Number(companion?.dataset.layoutWidth);
       reportComposition({
         viewportWidth: shell.getBoundingClientRect().width || window.innerWidth,
-        companionWidth: companion?.getBoundingClientRect().width || 0
+        // Fullscreen and collapsed modes do not consume a grid column. Default
+        // and wide keep reporting their preferred width while on a canvas so
+        // the composition-aware state cannot oscillate back to a docked pane.
+        companionWidth: aiMode === "default" || aiMode === "wide"
+          ? Number.isFinite(preferredWidth) && preferredWidth > 0 ? preferredWidth : 0
+          : 0
       });
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(shell);
-    const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar:not(.layout-companion-canvas)");
+    const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
     if (companion) observer?.observe(companion);
     return () => observer?.disconnect();
   }, [aiMode, aiSidebar, reportComposition, responsiveLayout.companion]);

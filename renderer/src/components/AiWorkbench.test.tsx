@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSession, AiSnapshot, ApprovalRequest, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../ai-context";
 import { AiSessionNavigation, AiWorkbench } from "./AiWorkbench";
+import { FILE_PREVIEW_LAYOUT_STORAGE_KEY } from "../features/ai-console/file-preview-layout";
 
 const sessions: AiSession[] = [
   {
@@ -208,6 +209,7 @@ describe("AI workbench session list", () => {
       readContent,
       writeContent
     } as unknown as DesktopApi;
+    window.localStorage.setItem(FILE_PREVIEW_LAYOUT_STORAGE_KEY, JSON.stringify({ schemaVersion: 1, ratio: 0.62 }));
 
     render(<AiProvider initial={previewSnapshot}><AiSessionNavigation /><AiWorkbench /></AiProvider>);
 
@@ -217,6 +219,20 @@ describe("AI workbench session list", () => {
     expect(screen.getByText("空闲")).toBeTruthy();
     expect(previewPane).toBeTruthy();
     expect(screen.getByRole("heading", { name: "预览标题" })).toBeTruthy();
+
+    const previewSeparator = screen.getByRole("separator", { name: "文件预览宽度" });
+    expect(previewSeparator.getAttribute("aria-valuemin")).toBe("34");
+    expect(previewSeparator.getAttribute("aria-valuemax")).toBe("70");
+    expect(previewSeparator.getAttribute("aria-valuenow")).toBe("62");
+    fireEvent.keyDown(previewSeparator, { key: "ArrowLeft" });
+    expect(Number(previewSeparator.getAttribute("aria-valuenow"))).toBeGreaterThan(62);
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(FILE_PREVIEW_LAYOUT_STORAGE_KEY) || "null") as { schemaVersion?: number; ratio?: number } | null;
+      expect(stored?.schemaVersion).toBe(1);
+      expect(stored?.ratio).toBeGreaterThan(0.62);
+    });
+    fireEvent.keyDown(previewSeparator, { key: "Home" });
+    expect(previewSeparator.getAttribute("aria-valuenow")).toBe("56");
 
     const modeToggle = within(previewPane).getByRole("toolbar", { name: "文件查看模式" });
     await user.click(within(modeToggle).getByRole("button", { name: "编辑文件" }));

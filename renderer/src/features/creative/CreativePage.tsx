@@ -27,7 +27,7 @@ import { useResponsiveLayout } from "../../app/responsive-layout";
 import { EmptyState, ErrorState, PageHeader, Skeleton, StatusBadge } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
-import { useThreePaneLayout } from "../../components/useThreePaneLayout";
+import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
 import { AnalyticsView, HistoryView, ReleaseLogView } from "./history-release";
 import { PublishForm, TopicWorkspace, WritingStats } from "./panels";
 import { InlineAiBar } from "./InlineAiBar";
@@ -96,10 +96,13 @@ export function CreativeWorkspacePage({
   const [editorSelection, setEditorSelection] = useState<EditorSelectionSnapshot>({ start: 0, end: 0, text: "" });
   const [compactListOpen, setCompactListOpen] = useState(true);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
-  const layout = useThreePaneLayout("cctools.three-pane.creative.v2", { filterWidth: 280, itemWidth: 340, filterCollapsed: false, itemCollapsed: false });
-  const columns = `${layout.layout.filterCollapsed ? 0 : layout.layout.filterWidth}px ${layout.layout.filterCollapsed ? 0 : 3}px minmax(0, 1fr)`;
+  const layout = useListDetailLayout(
+    "cctools.list-detail.creative.v1",
+    { listWidth: 280, listCollapsed: false },
+    { legacyStorageKeys: ["cctools.three-pane.creative.v2"] }
+  );
   const hasCompactDetail = Boolean(selectedTopicFilePath || selectedTopic || selectedProject);
-  const listVisible = compactWorkspace ? compactListOpen : !layout.layout.filterCollapsed;
+  const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
 
   useEffect(() => {
     if (!compactWorkspace) return;
@@ -380,7 +383,10 @@ export function CreativeWorkspacePage({
       {view === "analytics" ? (
         <AnalyticsView analytics={analytics} loading={loading} />
       ) : (
-        <div className={`creative-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}`} style={{ "--three-pane-columns": columns } as CSSProperties}>
+        <div
+          className={`creative-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}${layout.isResizing ? " is-resizing-list" : ""}`}
+          style={{ "--list-detail-columns": layout.columns } as CSSProperties}
+        >
           <aside className={`creative-list-pane${listVisible ? "" : " collapsed"}`}>
             {!listVisible ? null : (
               <>
@@ -414,7 +420,20 @@ export function CreativeWorkspacePage({
               </>
             )}
           </aside>
-          <ColumnSplitter side="left" collapsed={!listVisible} ariaLabel="内容流宽度" toggle={layout.toggleFilter} resize={layout.resizeFilter} reset={layout.reset} />
+          <ColumnSplitter
+            side="left"
+            collapsed={!listVisible}
+            ariaLabel="内容流宽度"
+            ariaValueMin={LIST_WIDTH_MIN}
+            ariaValueMax={LIST_WIDTH_MAX}
+            ariaValueNow={layout.layout.listWidth}
+            toggle={layout.toggleList}
+            resize={layout.resizeList}
+            reset={layout.reset}
+            onResizeStart={layout.beginListResize}
+            onResizeCancel={layout.cancelListResize}
+            onResizeActiveChange={layout.onResizeActiveChange}
+          />
           <main className={`creative-main-pane${listVisible ? "" : " list-collapsed"}`}>
             {!listVisible ? (
               <button
@@ -423,7 +442,7 @@ export function CreativeWorkspacePage({
                 aria-label="展开内容列表"
                 title="展开内容列表"
                 data-motion="icon"
-                onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleFilter()}
+                onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
               ><PanelLeftOpen size={17} /></button>
             ) : null}
             <div key={creativeDetailMotionKey} className="creative-detail-transition">

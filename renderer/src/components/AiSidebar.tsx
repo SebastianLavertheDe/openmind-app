@@ -1,22 +1,71 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Maximize2, MessageSquare, Minimize2, PanelRightClose, PanelRightOpen, Plus, Rows3 } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAi } from "../ai-context";
 import { Select, Tooltip, useModalFocusScope } from "../design-system/components";
-import { useResponsiveLayout } from "../app/responsive-layout";
+import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 
 const WIDTHS_KEY = "cctools.ai.sidebar-widths.v1";
 const SIDEBAR_MIN_WIDTH = 380;
 const SIDEBAR_MAX_WIDTH = 960;
-const MAIN_MIN_WIDTH = 820;
+const WIDTHS_SCHEMA_VERSION = 1;
+const DEFAULT_SIDEBAR_WIDTHS = { default: 420, wide: 760 } as const;
 
-function clampSidebarWidth(width: number, detached: boolean): number {
-  if (typeof window === "undefined") return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
-  const available = detached ? window.innerWidth - 64 : window.innerWidth - MAIN_MIN_WIDTH;
-  const max = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, available));
-  return Math.min(max, Math.max(SIDEBAR_MIN_WIDTH, width));
+type SidebarMode = keyof typeof DEFAULT_SIDEBAR_WIDTHS;
+type SidebarWidths = Record<SidebarMode, number>;
+
+function clampPreferredWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
+}
+
+function normalizeSidebarWidths(value: unknown): SidebarWidths | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const source = "schemaVersion" in record
+    ? record.schemaVersion === WIDTHS_SCHEMA_VERSION && record.widths && typeof record.widths === "object"
+      ? record.widths as Record<string, unknown>
+      : null
+    : record;
+  if (!source) return null;
+  const defaultWidth = source.default;
+  const wideWidth = source.wide;
+  if (typeof defaultWidth !== "number" || !Number.isFinite(defaultWidth)
+    || typeof wideWidth !== "number" || !Number.isFinite(wideWidth)) return null;
+  return {
+    default: clampPreferredWidth(defaultWidth),
+    wide: clampPreferredWidth(wideWidth)
+  };
+}
+
+function readSidebarWidths(): SidebarWidths {
+  return normalizeSidebarWidths(storageJson<unknown>(WIDTHS_KEY, null))
+    || { ...DEFAULT_SIDEBAR_WIDTHS };
+}
+
+function currentViewportWidth(): number {
+  if (typeof window === "undefined") return Number.POSITIVE_INFINITY;
+  return window.visualViewport?.width || window.innerWidth;
+}
+
+function maximumRenderedWidth(
+  viewportWidth: number,
+  overlay: boolean,
+  shell: ResponsiveLayout["shell"]
+): number {
+  if (overlay) return SIDEBAR_MAX_WIDTH;
+  const navigationWidth = shell === "expanded"
+    ? RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth
+    : shell === "rail"
+      ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
+      : 0;
+  const available = viewportWidth - navigationWidth - RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth;
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, available));
+}
+
+function clampRenderedWidth(width: number, viewportWidth: number, overlay: boolean, shell: ResponsiveLayout["shell"]): number {
+  return Math.min(maximumRenderedWidth(viewportWidth, overlay, shell), clampPreferredWidth(width));
 }
 
 export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
@@ -24,43 +73,57 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
   const responsiveLayout = useResponsiveLayout();
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
-  const [widths, setWidths] = useState(() => storageJson(WIDTHS_KEY, { default: 420, wide: 760 }));
-  const previousMode = useRef<"default" | "wide">("default");
+  const [widths, setWidths] = useState<SidebarWidths>(readSidebarWidths);
+  const [viewportWidth, setViewportWidth] = useState(currentViewportWidth);
+  const previousMode = useRef<SidebarMode>("default");
   const panelModeRef = useRef(ai.panelMode);
   const sidebarRef = useRef<HTMLElement>(null);
   const railTriggerRef = useRef<HTMLButtonElement>(null);
   const full = ai.panelMode === "full";
+  const modal = detached || full;
+  const mode: SidebarMode = ai.panelMode === "default"
+    ? "default"
+    : ai.panelMode === "wide" ? "wide" : previousMode.current;
+  const preferredWidth = widths[mode];
+  const renderedMaxWidth = maximumRenderedWidth(viewportWidth, modal, responsiveLayout.shell);
+  const renderedWidth = clampRenderedWidth(preferredWidth, viewportWidth, modal, responsiveLayout.shell);
   panelModeRef.current = ai.panelMode;
 
-  const dismissCanvas = useCallback(() => {
+  const dismissModal = useCallback(() => {
     if (panelModeRef.current === "full") ai.setPanelMode(previousMode.current);
     else ai.setPanelMode("collapsed");
   }, [ai.setPanelMode]);
 
   useModalFocusScope({
-    open: detached && ai.panelMode !== "collapsed",
+    open: modal && ai.panelMode !== "collapsed",
     containerRef: sidebarRef,
     triggerRef: railTriggerRef,
-    onDismiss: dismissCanvas
+    onDismiss: dismissModal
   });
 
-  useEffect(() => writeStorage(WIDTHS_KEY, widths), [widths]);
+  useEffect(() => writeStorage(WIDTHS_KEY, {
+    schemaVersion: WIDTHS_SCHEMA_VERSION,
+    widths
+  }), [widths]);
   useEffect(() => {
     if (ai.panelMode === "default" || ai.panelMode === "wide") previousMode.current = ai.panelMode;
-    if (ai.panelMode === "default") document.documentElement.style.setProperty("--ai-sidebar-width", `${clampSidebarWidth(widths.default, detached)}px`);
-    if (ai.panelMode === "wide") document.documentElement.style.setProperty("--ai-sidebar-width", `${clampSidebarWidth(widths.wide, detached)}px`);
-  }, [ai.panelMode, detached, widths]);
+  }, [ai.panelMode]);
+  useLayoutEffect(() => {
+    if (ai.panelMode === "default" || ai.panelMode === "wide") {
+      document.documentElement.style.setProperty("--ai-sidebar-width", `${renderedWidth}px`);
+    }
+  }, [ai.panelMode, renderedWidth]);
   useEffect(() => {
-    if (detached || !full) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") ai.setPanelMode(previousMode.current);
+    const updateViewportWidth = () => setViewportWidth(currentViewportWidth());
+    window.addEventListener("resize", updateViewportWidth, { passive: true });
+    window.visualViewport?.addEventListener("resize", updateViewportWidth, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updateViewportWidth);
+      window.visualViewport?.removeEventListener("resize", updateViewportWidth);
     };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [ai.setPanelMode, detached, full]);
+  }, []);
 
   if (ai.panelMode === "collapsed") return <button ref={railTriggerRef} className="ai-rail" data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ai.setPanelMode("default")}><MessageSquare size={18} /></button>;
-  const mode = ai.panelMode === "wide" ? "wide" : previousMode.current;
   // Once the viewport selects a single canvas it remains the visual surface,
   // even if a persisted/fullscreen panel mode is active.
   const presentationClass = detached ? " layout-companion-canvas" : full ? "" : ` layout-companion-${presentation}`;
@@ -68,10 +131,11 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
     <aside
       ref={sidebarRef}
       className={`ai-sidebar mode-${ai.panelMode}${presentationClass}`}
-      role={detached ? "dialog" : undefined}
-      aria-modal={detached ? "true" : undefined}
-      aria-label={detached ? "AI Assistant" : undefined}
-      tabIndex={detached ? -1 : undefined}
+      data-layout-width={preferredWidth}
+      role={modal ? "dialog" : undefined}
+      aria-modal={modal ? "true" : undefined}
+      aria-label={modal ? "AI Assistant" : undefined}
+      tabIndex={modal ? -1 : undefined}
     >
         {!full && !detached ? (
           <div
@@ -79,35 +143,63 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
             role="separator"
             aria-label={m.ai.sidebar.width}
             aria-orientation="vertical"
+            aria-valuemin={SIDEBAR_MIN_WIDTH}
+            aria-valuemax={renderedMaxWidth}
+            aria-valuenow={renderedWidth}
             tabIndex={0}
-            onDoubleClick={() => setWidths((current) => ({ ...current, [mode]: mode === "wide" ? 860 : 520 }))}
+            onDoubleClick={() => setWidths((current) => ({ ...current, [mode]: DEFAULT_SIDEBAR_WIDTHS[mode] }))}
             onKeyDown={(event) => {
-              if (event.key === "ArrowLeft") setWidths((current) => ({ ...current, [mode]: clampSidebarWidth(current[mode] + 20, detached) }));
-              if (event.key === "ArrowRight") setWidths((current) => ({ ...current, [mode]: Math.max(SIDEBAR_MIN_WIDTH, current[mode] - 20) }));
+              if (event.key === "Home") {
+                event.preventDefault();
+                setWidths((current) => ({ ...current, [mode]: DEFAULT_SIDEBAR_WIDTHS[mode] }));
+                return;
+              }
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              const delta = event.key === "ArrowLeft" ? 20 : -20;
+              const width = clampRenderedWidth(renderedWidth + delta, viewportWidth, false, responsiveLayout.shell);
+              setWidths((current) => ({ ...current, [mode]: width }));
             }}
             onPointerDown={(event) => {
+              if (event.button > 0 || event.isPrimary === false) return;
+              event.preventDefault();
               const element = event.currentTarget;
-              element.setPointerCapture(event.pointerId);
+              element.setPointerCapture?.(event.pointerId);
+              const shell = element.closest(".app-shell");
+              shell?.classList.add("ai-sidebar-resizing");
               const startX = event.clientX;
-              const startWidth = element.parentElement?.getBoundingClientRect().width || widths[mode];
+              const startWidth = renderedWidth;
               const move = (moveEvent: PointerEvent) => {
-                const width = clampSidebarWidth(startWidth + startX - moveEvent.clientX, detached);
+                const width = clampRenderedWidth(
+                  startWidth + startX - moveEvent.clientX,
+                  viewportWidth,
+                  false,
+                  responsiveLayout.shell
+                );
                 setWidths((current) => ({ ...current, [mode]: width }));
+              };
+              const cleanup = () => {
+                if (element.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture(event.pointerId);
+                shell?.classList.remove("ai-sidebar-resizing");
+                window.removeEventListener("pointermove", move);
+                window.removeEventListener("pointerup", up);
+                window.removeEventListener("pointercancel", cancel);
+                window.removeEventListener("keydown", key);
+              };
+              const finish = (restore: boolean) => {
+                if (restore) setWidths((current) => ({ ...current, [mode]: startWidth }));
+                cleanup();
               };
               const key = (keyEvent: KeyboardEvent) => {
                 if (keyEvent.key !== "Escape") return;
-                setWidths((current) => ({ ...current, [mode]: startWidth }));
-                up();
+                keyEvent.preventDefault();
+                finish(true);
               };
-              const up = () => {
-                window.removeEventListener("pointermove", move);
-                window.removeEventListener("pointerup", up);
-                window.removeEventListener("pointercancel", up);
-                window.removeEventListener("keydown", key);
-              };
+              const up = () => finish(false);
+              const cancel = () => finish(true);
               window.addEventListener("pointermove", move);
               window.addEventListener("pointerup", up, { once: true });
-              window.addEventListener("pointercancel", up, { once: true });
+              window.addEventListener("pointercancel", cancel, { once: true });
               window.addEventListener("keydown", key);
             }}
           />
@@ -128,8 +220,10 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
           <div>
             <Tooltip content={m.ai.sidebar.openWorkbench}><button className="sidebar-open-workbench" data-motion="icon" aria-label={m.ai.sidebar.openWorkbench} onClick={openWorkbench}><PanelRightOpen size={15} /></button></Tooltip>
             <Tooltip content={m.ai.session.new}><button data-motion="icon" aria-label={m.ai.session.new} onClick={() => void ai.setActiveSession(null)}><Plus size={15} /></button></Tooltip>
-            <Tooltip content={m.ai.sidebar.toggleWide}><button data-motion="icon" aria-label={m.ai.sidebar.toggleWide} onClick={() => ai.setPanelMode(ai.panelMode === "wide" ? "default" : "wide")}><Rows3 size={15} /></button></Tooltip>
-            <Tooltip content={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen}><button data-motion="icon" aria-label={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen} onClick={() => ai.setPanelMode(full ? previousMode.current : "full")}>{full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></Tooltip>
+            {!detached ? <>
+              <Tooltip content={m.ai.sidebar.toggleWide}><button data-motion="icon" aria-label={m.ai.sidebar.toggleWide} onClick={() => ai.setPanelMode(ai.panelMode === "wide" ? "default" : "wide")}><Rows3 size={15} /></button></Tooltip>
+              <Tooltip content={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen}><button data-motion="icon" aria-label={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen} onClick={() => ai.setPanelMode(full ? previousMode.current : "full")}>{full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></Tooltip>
+            </> : null}
             <Tooltip content={m.ai.sidebar.collapse}><button data-motion="icon" aria-label={m.ai.sidebar.collapse} onClick={() => ai.setPanelMode("collapsed")}><PanelRightClose size={15} /></button></Tooltip>
           </div>
         </header>

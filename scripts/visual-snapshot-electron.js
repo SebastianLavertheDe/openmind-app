@@ -108,6 +108,8 @@ async function run() {
     }
   }
 
+  await captureCompanionLayoutContracts(win, report);
+
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
   await captureEmptySources(win, report);
@@ -124,6 +126,324 @@ async function run() {
   }
   console.log(`Visual snapshots passed: ${report.snapshots.length} screenshots, report .build/visual-snapshot-report.json.`);
   app.quit();
+}
+
+async function captureCompanionLayoutContracts(win, report) {
+  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  win.webContents.setZoomFactor(1);
+  win.setSize(1600, 900);
+  await settle();
+  await clickNav(win, "创作");
+  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+  await ensureExpandedNavigation(win);
+
+  const expandedGeometry = await inspectCompanionGeometry(win);
+
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-docked-1600",
+    "docked",
+    "Expanded navigation, usable workspace, and default AI companion",
+    {
+      expandedShell: expandedGeometry.shellClass.includes("layout-shell-expanded"),
+      expandedNavigation: Boolean(expandedGeometry.nav && Math.abs(expandedGeometry.nav.width - 260) <= 2),
+      defaultCompanionWidth: expandedGeometry.layoutWidth === 420 && expandedGeometry.separatorValue === 420
+    }
+  );
+
+  await clickCompanionAction(win, "全屏");
+  await settle();
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-fullscreen-1600",
+    "fullscreen",
+    "Fullscreen AI companion covers and isolates the complete application"
+  );
+  await clickCompanionAction(win, "退出全屏");
+  await settle();
+
+  win.setSize(1280, 800);
+  await settle();
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+  const beforeResize = await inspectCompanionGeometry(win);
+  await dragCompanionResizer(win, -80);
+  const afterResize = await inspectCompanionGeometry(win);
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-resize-1280",
+    "docked",
+    "AI companion expands to the available bound without shrinking the workspace below its contract",
+    {
+      widthExpanded: Boolean(afterResize.sidebar && beforeResize.sidebar && afterResize.sidebar.width > beforeResize.sidebar.width),
+      workspacePreserved: afterResize.stageTrackWidth >= 759.5,
+      beforeResize,
+      afterResize
+    }
+  );
+  await resetCompanionWidth(win);
+
+  for (const scenario of [
+    { width: 1100, height: 800, id: "companion-canvas-1100" },
+    { width: 841, height: 800, id: "companion-canvas-841" },
+    { width: 840, height: 800, id: "companion-canvas-840" }
+  ]) {
+    win.setSize(scenario.width, scenario.height);
+    await settle();
+    await ensureDefaultCompanion(win);
+    await captureCompanionGeometryState(
+      win,
+      report,
+      scenario.id,
+      "canvas",
+      `Composition-aware AI canvas at ${scenario.width}px`
+    );
+  }
+
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const collapse = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      if (collapse instanceof HTMLButtonElement) collapse.click();
+    })()
+  `);
+  await settle();
+}
+
+async function ensureExpandedNavigation(win) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const state = await win.webContents.executeJavaScript(`
+      (() => {
+        const shell = document.querySelector('.app-shell');
+        const nav = document.querySelector('.app-nav');
+        if (!shell?.classList.contains('layout-shell-expanded')) return 'waiting';
+        if (!nav?.classList.contains('collapsed')) return 'ready';
+        const expand = nav.querySelector('button[aria-label="展开导航"]');
+        if (expand instanceof HTMLButtonElement) {
+          expand.click();
+          return 'expanding';
+        }
+        return 'missing-control';
+      })()
+    `);
+    if (state === "ready") return;
+    if (state === "missing-control") break;
+    await settle();
+  }
+  throw new Error("Primary navigation could not reach the expanded 260px state for layout audit.");
+}
+
+async function ensureDefaultCompanion(win) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const state = await win.webContents.executeJavaScript(`
+      (() => {
+        const sidebar = document.querySelector('.ai-sidebar');
+        if (!sidebar) {
+          const expand = document.querySelector('.ai-rail, button[aria-label="展开 AI 侧栏"]');
+          if (expand instanceof HTMLButtonElement) expand.click();
+          return 'expanding';
+        }
+        if (sidebar.classList.contains('mode-full')) {
+          const exit = sidebar.querySelector('button[aria-label="退出全屏"]');
+          if (exit instanceof HTMLButtonElement) exit.click();
+          return 'exiting-full';
+        }
+        if (sidebar.classList.contains('mode-wide')) {
+          const wide = sidebar.querySelector('button[aria-label="切换宽屏"]');
+          if (wide instanceof HTMLButtonElement) wide.click();
+          return 'exiting-wide';
+        }
+        return sidebar.classList.contains('mode-default') ? 'ready' : 'waiting';
+      })()
+    `);
+    if (state === "ready") return;
+    await settle();
+  }
+  throw new Error("AI companion could not reach default mode for layout audit.");
+}
+
+async function resetCompanionWidth(win) {
+  const reset = await win.webContents.executeJavaScript(`
+    (() => {
+      const splitter = document.querySelector('.ai-sidebar-resizer');
+      if (!(splitter instanceof HTMLElement)) return false;
+      splitter.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  if (!reset) throw new Error("Docked AI companion splitter was not available for reset.");
+  await settle();
+  const widths = await win.webContents.executeJavaScript(`
+    (() => {
+      const sidebar = document.querySelector('.ai-sidebar');
+      const splitter = sidebar?.querySelector('.ai-sidebar-resizer');
+      return {
+        layout: Number(sidebar?.getAttribute('data-layout-width')),
+        separator: Number(splitter?.getAttribute('aria-valuenow'))
+      };
+    })()
+  `);
+  if (widths.layout !== 420 || widths.separator !== 420) {
+    throw new Error(`AI companion reset did not restore the 420px default width: ${JSON.stringify(widths)}.`);
+  }
+}
+
+async function clickCompanionAction(win, label) {
+  const clicked = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.ai-sidebar button[aria-label=${JSON.stringify(label)}]');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!clicked) throw new Error(`AI companion action was not found: ${label}`);
+}
+
+async function dragCompanionResizer(win, deltaX) {
+  win.focus();
+  await delay(60);
+  const point = await win.webContents.executeJavaScript(`
+    (() => {
+      const splitter = document.querySelector('.ai-sidebar-resizer');
+      if (!(splitter instanceof Element)) return null;
+      const rect = splitter.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    })()
+  `);
+  if (!point) throw new Error("Docked AI companion splitter was not available for pointer resize.");
+  win.webContents.sendInputEvent({ type: "mouseMove", x: point.x, y: point.y });
+  await delay(30);
+  win.webContents.sendInputEvent({ type: "mouseDown", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  await delay(30);
+  win.webContents.sendInputEvent({ type: "mouseMove", x: point.x + deltaX, y: point.y, movementX: deltaX, movementY: 0 });
+  await delay(30);
+  win.webContents.sendInputEvent({ type: "mouseUp", x: point.x + deltaX, y: point.y, button: "left", clickCount: 1 });
+  await settle();
+}
+
+async function inspectCompanionGeometry(win) {
+  return win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.documentElement;
+      const body = document.body;
+      const shell = document.querySelector('.app-shell');
+      const nav = document.querySelector('.app-nav');
+      const stage = document.querySelector('.app-stage');
+      const sidebar = document.querySelector('.ai-sidebar');
+      const splitter = sidebar?.querySelector('.ai-sidebar-resizer');
+      const numberAttribute = (element, name) => {
+        const value = Number(element?.getAttribute(name));
+        return Number.isFinite(value) ? value : null;
+      };
+      const rect = (element) => {
+        if (!(element instanceof Element)) return null;
+        const value = element.getBoundingClientRect();
+        return Object.fromEntries(['left', 'top', 'right', 'bottom', 'width', 'height'].map((key) => [key, Math.round(value[key] * 10) / 10]));
+      };
+      const visible = (element) => {
+        if (!(element instanceof Element)) return false;
+        const style = getComputedStyle(element);
+        const value = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && value.width > 0 && value.height > 0;
+      };
+      const marginBoxWidth = (element) => {
+        if (!(element instanceof Element)) return 0;
+        const value = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return Math.round((
+          value.width
+          + (Number.parseFloat(style.marginLeft) || 0)
+          + (Number.parseFloat(style.marginRight) || 0)
+        ) * 10) / 10;
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        shellClass: shell?.className || '',
+        sidebarClass: sidebar?.className || '',
+        nav: rect(nav),
+        stage: rect(stage),
+        stageTrackWidth: marginBoxWidth(stage),
+        sidebar: rect(sidebar),
+        workspaceInset: Number.parseFloat(getComputedStyle(root).getPropertyValue('--workspace-inset')) || 0,
+        layoutWidth: numberAttribute(sidebar, 'data-layout-width'),
+        separatorValue: numberAttribute(splitter, 'aria-valuenow'),
+        splitterVisible: visible(splitter),
+        role: sidebar?.getAttribute('role') || null,
+        ariaModal: sidebar?.getAttribute('aria-modal') || null,
+        stageInert: Boolean(stage?.inert),
+        navInert: Boolean(nav?.inert),
+        wideControlVisible: visible(sidebar?.querySelector('button[aria-label="切换宽屏"]')),
+        fullscreenControlVisible: visible(sidebar?.querySelector('button[aria-label="全屏"]')),
+        exitFullscreenControlVisible: visible(sidebar?.querySelector('button[aria-label="退出全屏"]')),
+        horizontalOverflow: Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth)
+      };
+    })()
+  `);
+}
+
+async function captureCompanionGeometryState(win, report, id, expected, description, additionalChecks = {}) {
+  await settle();
+  const geometry = await inspectCompanionGeometry(win);
+  const fillsViewport = geometry.sidebar
+    && Math.abs(geometry.sidebar.left) <= 1
+    && Math.abs(geometry.sidebar.top) <= 1
+    && Math.abs(geometry.sidebar.right - geometry.viewport.width) <= 2
+    && Math.abs(geometry.sidebar.bottom - geometry.viewport.height) <= 2;
+  const checks = expected === "docked" ? {
+    sidebarPresent: Boolean(geometry.sidebar),
+    splitterVisible: geometry.splitterVisible,
+    workspaceMinimum: geometry.stageTrackWidth >= 759.5,
+    sidebarAtRightEdge: Boolean(
+      geometry.sidebar
+      && Math.abs(geometry.sidebar.right - (geometry.viewport.width - geometry.workspaceInset)) <= 2
+    ),
+    backgroundInteractive: !geometry.stageInert && !geometry.navInert,
+    notModal: geometry.role !== "dialog" && geometry.ariaModal !== "true",
+    noHorizontalOverflow: geometry.horizontalOverflow <= 2,
+    ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
+  } : expected === "canvas" ? {
+    fillsViewport: Boolean(fillsViewport),
+    modalSemantics: geometry.role === "dialog" && geometry.ariaModal === "true",
+    backgroundIsolated: geometry.stageInert && geometry.navInert,
+    splitterHidden: !geometry.splitterVisible,
+    noNoopWidthControls: !geometry.wideControlVisible && !geometry.fullscreenControlVisible,
+    noHorizontalOverflow: geometry.horizontalOverflow <= 2,
+    ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
+  } : {
+    fillsViewport: Boolean(fillsViewport),
+    modalSemantics: geometry.role === "dialog" && geometry.ariaModal === "true",
+    backgroundIsolated: geometry.stageInert && geometry.navInert,
+    splitterHidden: !geometry.splitterVisible,
+    exitControlVisible: geometry.exitFullscreenControlVisible,
+    noHorizontalOverflow: geometry.horizontalOverflow <= 2,
+    ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
+  };
+  const ok = Object.values(checks).every(Boolean);
+  const image = await win.webContents.capturePage();
+  const file = path.join(outputRoot, `state-${id}.png`);
+  fs.writeFileSync(file, image.toPNG());
+  const item = {
+    id,
+    label: "创作",
+    description,
+    file: path.relative(appRoot, file),
+    width: geometry.viewport.width,
+    height: geometry.viewport.height,
+    zoom: 1,
+    ok,
+    reason: ok ? null : `companion checks failed: ${Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(', ')}`,
+    checks,
+    geometry,
+    details: Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value !== "boolean"))
+  };
+  report.stateSnapshots.push(item);
+  if (!ok) report.failures.push(item);
+  return item;
 }
 
 async function clickNav(win, label) {

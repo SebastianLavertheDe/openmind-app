@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
@@ -16,9 +16,12 @@ import * as creative from "./lib/creative";
 import { messages } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { WorkflowAutomationCoordinator } from "./workflow-automation";
+import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
+const DEFAULT_WINDOW_SIZE = { width: 1600, height: 1000 };
+const WINDOW_STATE_SAVE_DELAY_MS = 240;
 
 let mainWindow: BrowserWindow | null = null;
 let aiWorker: AiWorkerClient | null = null;
@@ -185,10 +188,52 @@ function registerIpc(): void {
   );
 }
 
+function windowStatePath(): string {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function displayWorkAreas(): WindowBounds[] {
+  const primary = screen.getPrimaryDisplay();
+  return [primary, ...screen.getAllDisplays().filter((display) => display.id !== primary.id)]
+    .map((display) => ({ ...display.workArea }));
+}
+
+function registerWindowStatePersistence(window: BrowserWindow): void {
+  let timer: NodeJS.Timeout | null = null;
+  const flush = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    if (window.isDestroyed()) return;
+    try {
+      // Keep the restorable geometry while the window itself is maximized.
+      saveWindowState(windowStatePath(), window.getNormalBounds(), window.isMaximized());
+    } catch (error) {
+      console.warn("Unable to save desktop window state:", error);
+    }
+  };
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, WINDOW_STATE_SAVE_DELAY_MS);
+  };
+
+  window.on("move", schedule);
+  window.on("resize", schedule);
+  window.on("maximize", flush);
+  window.on("unmaximize", flush);
+  window.on("close", flush);
+  window.once("closed", () => {
+    if (timer) clearTimeout(timer);
+    if (mainWindow === window) mainWindow = null;
+  });
+}
+
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 1000,
+  const workAreas = displayWorkAreas();
+  const restoredState = PACKAGED_SMOKE_TEST
+    ? normalizeWindowState(null, workAreas, DEFAULT_WINDOW_SIZE, DESKTOP_WINDOW_MIN_SIZE)
+    : loadWindowState(windowStatePath(), workAreas, DEFAULT_WINDOW_SIZE, DESKTOP_WINDOW_MIN_SIZE);
+  const window = new BrowserWindow({
+    ...restoredState.bounds,
     minWidth: DESKTOP_WINDOW_MIN_SIZE.width,
     minHeight: DESKTOP_WINDOW_MIN_SIZE.height,
     autoHideMenuBar: true,
@@ -201,16 +246,18 @@ function createWindow(): void {
       sandbox: true
     }
   });
-  mainWindow.setMenuBarVisibility(false);
-  mainWindow.setAutoHideMenuBar(true);
+  mainWindow = window;
+  window.setMenuBarVisibility(false);
+  window.setAutoHideMenuBar(true);
+  if (!PACKAGED_SMOKE_TEST) registerWindowStatePersistence(window);
   if (PACKAGED_SMOKE_TEST) {
     const timeout = setTimeout(() => {
       console.error("Packaged smoke test timed out before the renderer bridge became ready.");
       app.exit(1);
     }, 15_000);
-    mainWindow.webContents.once("did-finish-load", async () => {
+    window.webContents.once("did-finish-load", async () => {
       try {
-        const bridgeReady = await mainWindow?.webContents.executeJavaScript(
+        const bridgeReady = await window.webContents.executeJavaScript(
           "Boolean(window.cctools && typeof window.cctools.getBootstrap === 'function')"
         );
         clearTimeout(timeout);
@@ -227,16 +274,19 @@ function createWindow(): void {
         app.exit(1);
       }
     });
-    mainWindow.webContents.once("did-fail-load", (_event, code, description) => {
+    window.webContents.once("did-fail-load", (_event, code, description) => {
       clearTimeout(timeout);
       console.error(`Packaged smoke test failed to load renderer (${code}): ${description}`);
       app.exit(1);
     });
   } else {
-    mainWindow.once("ready-to-show", () => mainWindow?.show());
+    window.once("ready-to-show", () => {
+      if (restoredState.maximized) window.maximize();
+      window.show();
+    });
   }
-  void mainWindow.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  void window.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });

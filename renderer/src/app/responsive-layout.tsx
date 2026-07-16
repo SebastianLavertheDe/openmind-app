@@ -52,7 +52,11 @@ function readLayout(media: Record<keyof typeof RESPONSIVE_LAYOUT_QUERIES, MediaQ
     + RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
     + composition.companionWidth;
   const shell = media.shellDrawer.matches ? "drawer" : composition.viewportWidth < expandedWidth ? "rail" : "expanded";
-  const companion = media.shellDrawer.matches
+  const companionNeedsCanvas = composition.companionWidth > 0
+    && composition.viewportWidth < RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
+      + RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
+      + Math.max(RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth, composition.companionWidth);
+  const companion = media.shellDrawer.matches || companionNeedsCanvas
     ? "canvas"
     : media.companionCompact.matches
       ? "compact"

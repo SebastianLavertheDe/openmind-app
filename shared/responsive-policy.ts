@@ -9,6 +9,8 @@ export const RESPONSIVE_LAYOUT_BREAKPOINTS = {
   shellDrawer: 840,
   narrowDensity: 720,
   expandedNavigationWidth: 260,
+  railNavigationWidth: 60,
+  minimumCompanionWidth: 380,
   minimumWorkspaceWidth: 760
 } as const;
 

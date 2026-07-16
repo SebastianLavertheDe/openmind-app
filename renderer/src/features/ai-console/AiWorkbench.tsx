@@ -13,6 +13,13 @@ import { useExitPresence } from "../../design-system/use-exit-presence";
 import { ContentPreview } from "../../components/ContentPreview";
 import { Chat } from "./Chat";
 import { FilePreviewProvider } from "./file-preview-context";
+import {
+  DEFAULT_PREVIEW_RATIO,
+  MAX_PREVIEW_RATIO,
+  MIN_PREVIEW_RATIO,
+  loadPreviewRatio,
+  savePreviewRatio
+} from "./file-preview-layout";
 
 type PreviewState = {
   path: string;
@@ -24,15 +31,18 @@ type PreviewState = {
 type PreviewMode = "preview" | "edit";
 
 const FILE_PREVIEW_SPLITTER_WIDTH = 4;
-const DEFAULT_PREVIEW_RATIO = 0.56;
-const MIN_PREVIEW_RATIO = 0.34;
-const MAX_PREVIEW_RATIO = 0.7;
 
 export function AiWorkbench() {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
   const [preview, setPreview] = useState<PreviewState | null>(null);
-  const [previewRatio, setPreviewRatio] = useState(DEFAULT_PREVIEW_RATIO);
+  const [previewRatio, setPreviewRatio] = useState(() => {
+    try {
+      return loadPreviewRatio(window.localStorage);
+    } catch {
+      return DEFAULT_PREVIEW_RATIO;
+    }
+  });
   const [previewMode, setPreviewMode] = useState<PreviewMode>("preview");
   const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -46,6 +56,8 @@ export function AiWorkbench() {
   const [historyPosition, setHistoryPosition] = useState<{ left: number; top: number } | null>(null);
   const historyPresence = useExitPresence(historyOpen, 160);
   const workbenchRef = useRef<HTMLDivElement>(null);
+  const previewRatioRef = useRef(previewRatio);
+  const previewResizeStartRatio = useRef(previewRatio);
   const previewRequest = useRef(0);
   const dirtyRef = useRef(false);
   const previewSnapshot = useRef<PreviewState | null>(null);
@@ -54,6 +66,24 @@ export function AiWorkbench() {
   const displayedPreview = preview || previewSnapshot.current;
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => {
+    previewRatioRef.current = previewRatio;
+    const timeout = window.setTimeout(() => {
+      try {
+        savePreviewRatio(window.localStorage, previewRatio);
+      } catch {
+        // Accessing localStorage itself can be blocked in hardened renderers.
+      }
+    }, 120);
+    return () => window.clearTimeout(timeout);
+  }, [previewRatio]);
+  useEffect(() => () => {
+    try {
+      savePreviewRatio(window.localStorage, previewRatioRef.current);
+    } catch {
+      // Preserve in-memory behavior when storage access is unavailable.
+    }
+  }, []);
   useLayoutEffect(() => {
     if (preview) previewSnapshot.current = preview;
   }, [preview]);
@@ -161,6 +191,12 @@ export function AiWorkbench() {
   const resizePreview = useCallback((delta: number) => {
     const width = workbenchRef.current?.getBoundingClientRect().width || window.innerWidth || 1200;
     setPreviewRatio((value) => Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, value - delta / Math.max(1, width))));
+  }, []);
+  const startPreviewResize = useCallback(() => {
+    previewResizeStartRatio.current = previewRatio;
+  }, [previewRatio]);
+  const cancelPreviewResize = useCallback(() => {
+    setPreviewRatio(previewResizeStartRatio.current);
   }, []);
 
   const savePreview = useCallback(async () => {
@@ -304,7 +340,12 @@ export function AiWorkbench() {
               toggle={closePreview}
               resize={resizePreview}
               reset={() => setPreviewRatio(DEFAULT_PREVIEW_RATIO)}
+              onResizeStart={startPreviewResize}
+              onResizeCancel={cancelPreviewResize}
               onResizeActiveChange={setPreviewResizing}
+              ariaValueMin={Math.round(MIN_PREVIEW_RATIO * 100)}
+              ariaValueMax={Math.round(MAX_PREVIEW_RATIO * 100)}
+              ariaValueNow={Math.round(previewRatio * 100)}
             />
             <aside
               className="ai-file-preview"

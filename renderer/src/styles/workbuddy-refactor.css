@@ -1067,12 +1067,6 @@ select:focus-visible,
 
 /* Inbox and reading */
 
-.three-pane { background: var(--page-bg); }
-
-.three-pane > .filter-pane,
-.three-pane > .item-pane,
-.three-pane > .reader-pane { border-right-color: var(--border); }
-
 .filter-pane,
 .item-pane,
 .reader-pane { background: var(--page-bg); }
@@ -2189,7 +2183,7 @@ select:focus-visible,
 
 @media (min-width: 921px) and (max-width: 1380px) {
   .creative-workspace {
-    grid-template-columns: var(--three-pane-columns, 280px 8px minmax(0, 1fr)) !important;
+    grid-template-columns: var(--list-detail-columns, 280px 3px minmax(0, 1fr)) !important;
   }
 }
 
@@ -2796,8 +2790,8 @@ select:focus-visible,
 .responsive-nav-toggle { margin-right: auto; }
 
 /* The shell keeps the companion in the same layout grammar from wide through
-   intermediate windows. Its compact track follows the viewport continuously;
-   only the genuinely narrow canvas state leaves the grid. */
+   intermediate windows. React owns the resolved companion width and decides
+   when the remaining workspace requires a canvas; CSS does not clamp it again. */
 .app-shell.with-ai-default,
 .app-shell.with-ai-wide {
   --ai-layout-column: var(--ai-sidebar-width);
@@ -2805,8 +2799,10 @@ select:focus-visible,
   transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
 
-.app-shell.layout-companion-compact {
-  --ai-layout-column: min(var(--ai-sidebar-width), clamp(380px, 38vw, 620px));
+.app-shell.ai-sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+  transition: none;
 }
 
 .app-shell.layout-companion-canvas {
@@ -2829,6 +2825,17 @@ select:focus-visible,
   height: auto;
   box-shadow: var(--workspace-shadow);
   transition: margin var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), border-radius var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+}
+
+.app-shell > .ai-sidebar.mode-full {
+  position: fixed;
+  z-index: 145;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
 }
 
 .app-shell > .ai-sidebar.layout-companion-canvas {

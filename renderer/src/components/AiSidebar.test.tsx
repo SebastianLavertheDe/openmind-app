@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../ai-context";
@@ -85,11 +85,24 @@ describe("AiSidebar", () => {
     fireEvent.click(wideBtn);
   });
 
-  it("enters and exits fullscreen via the fullscreen button", () => {
-    renderSidebar();
+  it("treats fullscreen as a focus-contained modal over the whole shell", async () => {
+    render(
+      <AiProvider initial={snapshot}>
+        <div data-testid="covered-workspace"><button>工作区操作</button></div>
+        <AiSidebar openWorkbench={vi.fn()} />
+      </AiProvider>
+    );
     const fullscreenBtn = screen.getByRole("button", { name: /全屏/ });
     fireEvent.click(fullscreenBtn);
-    fireEvent.click(screen.getByRole("button", { name: /全屏|退出/ }));
+
+    const dialog = screen.getByRole("dialog", { name: "AI Assistant" });
+    expect(dialog.classList.contains("mode-full")).toBe(true);
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    await waitFor(() => expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(true));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "AI Assistant" })).toBeNull());
+    expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);
   });
 
   it("collapses to the rail via the collapse button", () => {
@@ -100,7 +113,108 @@ describe("AiSidebar", () => {
 
   it("persists sidebar widths to localStorage on mount", () => {
     renderSidebar();
-    expect(window.localStorage.getItem("cctools.ai.sidebar-widths.v1")).toBeTruthy();
+    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+      schemaVersion: 1,
+      widths: { default: 420, wide: 760 }
+    });
+  });
+
+  it("migrates legacy widths and clamps persisted values to the supported schema", () => {
+    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 2_000, wide: 100 }));
+    renderSidebar();
+
+    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+      schemaVersion: 1,
+      widths: { default: 960, wide: 380 }
+    });
+  });
+
+  it("rejects damaged or unknown width schemas", () => {
+    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({
+      schemaVersion: 99,
+      widths: { default: 640, wide: 800 }
+    }));
+    renderSidebar();
+
+    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+      schemaVersion: 1,
+      widths: { default: 420, wide: 760 }
+    });
+  });
+
+  it("rejects damaged values inside the current width schema", () => {
+    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({
+      schemaVersion: 1,
+      widths: { default: "broken", wide: 800 }
+    }));
+    renderSidebar();
+
+    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+      schemaVersion: 1,
+      widths: { default: 420, wide: 760 }
+    });
+  });
+
+  it("resets both modes to their real defaults and exposes separator values", () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
+    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 900 }));
+    try {
+      renderSidebar();
+      let separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
+      expect(separator.getAttribute("aria-valuemin")).toBe("380");
+      expect(separator.getAttribute("aria-valuemax")).toBe("960");
+      expect(separator.getAttribute("aria-valuenow")).toBe("600");
+
+      fireEvent.doubleClick(separator);
+      expect(separator.getAttribute("aria-valuenow")).toBe("420");
+      fireEvent.keyDown(separator, { key: "ArrowLeft" });
+      expect(separator.getAttribute("aria-valuenow")).toBe("440");
+      fireEvent.keyDown(separator, { key: "Home" });
+      expect(separator.getAttribute("aria-valuenow")).toBe("420");
+
+      fireEvent.click(screen.getByRole("button", { name: /切换宽屏/ }));
+      separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
+      expect(separator.getAttribute("aria-valuenow")).toBe("900");
+      fireEvent.doubleClick(separator);
+      expect(separator.getAttribute("aria-valuenow")).toBe("760");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
+  });
+
+  it("restores the actual drag-start width on Escape and disables shell transition while dragging", () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
+    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 760 }));
+    try {
+      const { container } = render(
+        <div className="app-shell">
+          <AiProvider initial={snapshot}><AiSidebar openWorkbench={vi.fn()} /></AiProvider>
+        </div>
+      );
+      const shell = container.querySelector(".app-shell") as HTMLElement;
+      const separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
+
+      const pointerDown = new Event("pointerdown", { bubbles: true });
+      Object.defineProperties(pointerDown, {
+        button: { value: 0 },
+        isPrimary: { value: true },
+        pointerId: { value: 1 },
+        clientX: { value: 1_000 }
+      });
+      fireEvent(separator, pointerDown);
+      expect(shell.classList.contains("ai-sidebar-resizing")).toBe(true);
+      const pointerMove = new Event("pointermove");
+      Object.defineProperties(pointerMove, { pointerId: { value: 1 }, clientX: { value: 900 } });
+      fireEvent(window, pointerMove);
+      expect(separator.getAttribute("aria-valuenow")).toBe("700");
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(separator.getAttribute("aria-valuenow")).toBe("600");
+      expect(shell.classList.contains("ai-sidebar-resizing")).toBe(false);
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
   });
 
   it("uses a full-canvas panel without a scrim on compact windows", () => {
@@ -132,6 +246,8 @@ describe("AiSidebar", () => {
       expect(canvas.getAttribute("aria-modal")).toBe("true");
       expect(container.querySelector(".ai-sidebar-scrim")).toBeNull();
       expect(container.querySelector(".ai-sidebar-resizer")).toBeNull();
+      expect(screen.queryByRole("button", { name: /切换宽屏/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^全屏$/ })).toBeNull();
       expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(true);
       expect(screen.getByTestId("covered-workspace").getAttribute("aria-hidden")).toBe("true");
 

@@ -134,6 +134,36 @@ describe("ResponsiveLayoutProvider", () => {
     }
   });
 
+  it("moves the companion to a canvas when the rail and minimum workspace no longer fit", () => {
+    const viewport = installViewportQueries(1_600);
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    try {
+      const { rerender } = render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/split/comfortable/compact");
+
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_100, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+
+      // Reporting the target width while detached makes the transition stable
+      // and allows the companion to dock again when enough space returns.
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/split/comfortable/compact");
+
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 760 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+    } finally {
+      viewport.restore();
+    }
+  });
+
   it("moves through docked, compact, single-workspace, canvas, and narrow states without regressing", () => {
     const media = installResponsiveQueries();
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });

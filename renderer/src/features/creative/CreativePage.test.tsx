@@ -203,7 +203,7 @@ describe("CreativeWorkspacePage", () => {
 
   it("uses the full workspace width without the project inspector column", async () => {
     const api = makeApi();
-    renderCreative(api);
+    const { container } = renderCreative(api);
 
     fireEvent.click(await screen.findByRole("button", { name: /创作中/ }));
     fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
@@ -213,6 +213,13 @@ describe("CreativeWorkspacePage", () => {
     expect(screen.queryByText("稿件素材")).toBeNull();
     expect(screen.queryByRole("button", { name: "概览" })).toBeNull();
     expect(screen.queryByRole("separator", { name: "稿件信息栏宽度" })).toBeNull();
+    const workspace = container.querySelector<HTMLElement>(".creative-workspace");
+    expect(workspace?.style.getPropertyValue("--list-detail-columns")).toBe("280px 3px minmax(0, 1fr)");
+    expect(workspace?.children).toHaveLength(3);
+    const listSeparator = screen.getByRole("separator", { name: "内容流宽度" });
+    expect(listSeparator.getAttribute("aria-valuemin")).toBe("160");
+    expect(listSeparator.getAttribute("aria-valuemax")).toBe("280");
+    expect(listSeparator.getAttribute("aria-valuenow")).toBe("280");
   });
 
   it("fully hides the content list and restores it from the document area", async () => {

@@ -1459,6 +1459,10 @@
   transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
 
+.ai-workbench.is-resizing-preview {
+  transition: none;
+}
+
 .ai-workbench.with-file-preview > .column-splitter,
 .ai-workbench.with-file-preview > .ai-file-preview {
   min-width: 0;

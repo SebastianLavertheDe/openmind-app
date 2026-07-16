@@ -15,11 +15,15 @@ function setupLeft(overrides: Partial<{
   toggle: () => void;
   resize: (delta: number) => void;
   reset: () => void;
+  onResizeStart: () => void;
+  onResizeCancel: () => void;
   onResizeActiveChange: (active: boolean) => void;
 }> = {}) {
   const toggle = overrides.toggle ?? vi.fn();
   const resize = overrides.resize ?? vi.fn();
   const reset = overrides.reset ?? vi.fn();
+  const onResizeStart = overrides.onResizeStart ?? vi.fn();
+  const onResizeCancel = overrides.onResizeCancel ?? vi.fn();
   render(
     <ColumnSplitter
       side="left"
@@ -28,18 +32,37 @@ function setupLeft(overrides: Partial<{
       toggle={toggle}
       resize={resize}
       reset={reset}
+      onResizeStart={onResizeStart}
+      onResizeCancel={onResizeCancel}
       onResizeActiveChange={overrides.onResizeActiveChange}
     />
   );
-  return { toggle, resize, reset };
+  return { toggle, resize, reset, onResizeStart, onResizeCancel };
 }
 
 describe("ColumnSplitter", () => {
-  it("renders as a separator with the provided aria label", () => {
-    setupLeft();
+  it("renders as a separator with the provided aria label and value range", () => {
+    render(
+      <ColumnSplitter
+        side="left"
+        collapsed={false}
+        ariaLabel="筛选栏宽度"
+        ariaValueMin={160}
+        ariaValueMax={280}
+        ariaValueNow={220}
+        toggle={vi.fn()}
+        resize={vi.fn()}
+        reset={vi.fn()}
+        onResizeStart={vi.fn()}
+        onResizeCancel={vi.fn()}
+      />
+    );
     const separator = screen.getByRole("separator", { name: "筛选栏宽度" });
     expect(separator).toBeTruthy();
     expect(separator.getAttribute("aria-orientation")).toBe("vertical");
+    expect(separator.getAttribute("aria-valuemin")).toBe("160");
+    expect(separator.getAttribute("aria-valuemax")).toBe("280");
+    expect(separator.getAttribute("aria-valuenow")).toBe("220");
   });
 
   it("the collapse button calls toggle without triggering resize", async () => {
@@ -87,22 +110,33 @@ describe("ColumnSplitter", () => {
     expect(resize).toHaveBeenLastCalledWith(16);
   });
 
-  it("right side reverses arrow direction", async () => {
+  it("right side keeps arrows aligned with physical separator movement", async () => {
     const user = userEvent.setup();
     const resize = vi.fn();
     render(
-      <ColumnSplitter side="right" collapsed={false} ariaLabel="内容栏宽度" toggle={vi.fn()} resize={resize} reset={vi.fn()} />
+      <ColumnSplitter
+        side="right"
+        collapsed={false}
+        ariaLabel="内容栏宽度"
+        toggle={vi.fn()}
+        resize={resize}
+        reset={vi.fn()}
+        onResizeStart={vi.fn()}
+        onResizeCancel={vi.fn()}
+      />
     );
     const separator = screen.getByRole("separator", { name: "内容栏宽度" });
     separator.focus();
     await user.keyboard("{ArrowLeft}");
-    expect(resize).toHaveBeenLastCalledWith(16);
-    await user.keyboard("{ArrowRight}");
     expect(resize).toHaveBeenLastCalledWith(-16);
+    await user.keyboard("{ArrowRight}");
+    expect(resize).toHaveBeenLastCalledWith(16);
   });
 
   it("notifies when pointer resizing starts and ends", () => {
     const resize = vi.fn();
+    const onResizeStart = vi.fn();
+    const onResizeCancel = vi.fn();
     const onResizeActiveChange = vi.fn();
     render(
       <ColumnSplitter
@@ -112,19 +146,53 @@ describe("ColumnSplitter", () => {
         toggle={vi.fn()}
         resize={resize}
         reset={vi.fn()}
+        onResizeStart={onResizeStart}
+        onResizeCancel={onResizeCancel}
         onResizeActiveChange={onResizeActiveChange}
       />
     );
 
     const separator = screen.getByRole("separator", { name: "内容栏宽度" });
     fireEvent(separator, pointerEvent("pointerdown", 100));
+    expect(onResizeStart).toHaveBeenCalledTimes(1);
     expect(onResizeActiveChange).toHaveBeenLastCalledWith(true);
 
     window.dispatchEvent(pointerEvent("pointermove", 118));
     expect(resize).toHaveBeenLastCalledWith(18);
 
     window.dispatchEvent(pointerEvent("pointerup", 118));
+    expect(onResizeCancel).not.toHaveBeenCalled();
     expect(onResizeActiveChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("uses the consumer cancel contract on Escape instead of reversing raw deltas", () => {
+    const resize = vi.fn();
+    const onResizeCancel = vi.fn();
+    const onResizeActiveChange = vi.fn();
+    setupLeft({ resize, onResizeCancel, onResizeActiveChange });
+
+    const separator = screen.getByRole("separator", { name: "筛选栏宽度" });
+    fireEvent(separator, pointerEvent("pointerdown", 100));
+    window.dispatchEvent(pointerEvent("pointermove", 300));
+    const escape = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    window.dispatchEvent(escape);
+
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(resize).toHaveBeenLastCalledWith(200);
+    expect(onResizeCancel).toHaveBeenCalledTimes(1);
+    expect(onResizeActiveChange).toHaveBeenLastCalledWith(false);
+    expect(escape.defaultPrevented).toBe(true);
+  });
+
+  it("cancels a resize when pointer capture is interrupted", () => {
+    const onResizeCancel = vi.fn();
+    setupLeft({ onResizeCancel });
+
+    const separator = screen.getByRole("separator", { name: "筛选栏宽度" });
+    fireEvent(separator, pointerEvent("pointerdown", 100));
+    window.dispatchEvent(pointerEvent("pointercancel", 100));
+
+    expect(onResizeCancel).toHaveBeenCalledTimes(1);
   });
 });
 
