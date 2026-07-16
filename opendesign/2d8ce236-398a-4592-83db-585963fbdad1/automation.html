@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自动化</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="automation">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+    <main class="auto-layout" data-pane-storage="auto-cols" style="--auto-columns: 280px 7px minmax(0,1fr)" data-minmax='{"0":[220,360]}'>
+
+      <!-- 规则列表 -->
+      <div class="list-pane">
+        <header class="pane-head"><div><h2>自动化</h2><span class="eyebrow">3 条规则</span></div><button class="btn ghost" title="新建">＋</button></header>
+        <div class="topic-list" data-select-group>
+          <div class="rule-item active" data-select role="button" tabindex="0">
+            <div class="top"><strong>每日简报生成</strong><button class="toggle on" data-toggle aria-checked="true" aria-label="启用"></button></div>
+            <small>每天 08:00 · 上次成功</small>
+          </div>
+          <div class="rule-item" data-select role="button" tabindex="0">
+            <div class="top"><strong>新资料自动归类</strong><button class="toggle on" data-toggle aria-checked="true" aria-label="启用"></button></div>
+            <small>抓取后触发 · 运行中</small>
+          </div>
+          <div class="rule-item" data-select role="button" tabindex="0">
+            <div class="top"><strong>RSS 定时抓取</strong><button class="toggle on" data-toggle aria-checked="true" aria-label="启用"></button></div>
+            <small>每 15 分钟 · 上次成功</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="0" aria-hidden="true"></div>
+
+      <!-- 详情 -->
+      <div class="detail-pane">
+        <div class="rule-detail">
+          <h1>每日简报生成</h1>
+          <div class="sub">每天早晨汇总过去 24 小时的资料，按主题聚类后生成 Markdown 简报。</div>
+
+          <div class="rule-section">
+            <h2>触发条件</h2>
+            <div class="cron-row">
+              <span class="pill muted">定时</span>
+              <code style="font-family:var(--font-mono);font-size:13px;color:var(--text)">0 8 * * *</code>
+              <span style="color:var(--muted-2);font-size:12px">每天 08:00</span>
+              <button class="btn" style="margin-left:auto">编辑</button>
+            </div>
+          </div>
+
+          <div class="rule-section">
+            <h2>动作步骤</h2>
+            <div class="step-list">
+              <div class="step"><span class="num">1</span><div><strong>拉取资料</strong><small>过去 24h 新增，按关注主题过滤</small></div><span class="pill ok">就绪</span></div>
+              <div class="step"><span class="num">2</span><div><strong>主题聚类</strong><small>按标签与内容相似度分组</small></div><span class="pill ok">就绪</span></div>
+              <div class="step"><span class="num">3</span><div><strong>生成简报</strong><small>调用 AI，遵守 Kill the AI Tone</small></div><span class="pill warn">需审批</span></div>
+              <div class="step"><span class="num">4</span><div><strong>写入资料库</strong><small>content/briefs/2026-06-18.md</small></div><span class="pill ok">就绪</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 控制台 -->
+        <div class="console-box">
+          <header><strong>运行日志</strong><span class="pill ok">最近一次成功</span><span style="color:var(--muted-2);font-size:11px">今天 08:00</span></header>
+          <pre><span class="dim">[08:00:01]</span> 触发：每日简报生成
+<span class="dim">[08:00:02]</span> 拉取资料 ✓ 12 条
+<span class="dim">[08:00:05]</span> 聚类 ✓ 3 个主题
+<span class="dim">[08:00:06]</span> 请求审批：生成简报（AI 调用）
+<span class="ok">[08:00:08]</span> 审批通过
+<span class="dim">[08:00:14]</span> 生成完成 ✓ 412 字
+<span class="ok">[08:00:14]</span> 写入 content/briefs/2026-06-18.md</pre>
+        </div>
+      </div>
+
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

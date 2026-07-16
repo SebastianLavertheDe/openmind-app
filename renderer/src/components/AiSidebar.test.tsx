@@ -1,0 +1,170 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AiSnapshot, DesktopApi } from "@shared/contracts";
+import { AiProvider } from "../ai-context";
+import { ResponsiveLayoutProvider } from "../app/responsive-layout";
+import { AiSidebar } from "./AiSidebar";
+
+const snapshot: AiSnapshot = {
+  projectRoot: "/project",
+  providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false }],
+  sessions: [{
+    schemaVersion: 1, id: "sess-1", projectId: "p", projectRoot: "/project", title: "我的会话",
+    provider: "codex", providerId: "codex-native", providerSessionId: null, cwd: ".", permissionProfile: "edit",
+    status: "idle", pinned: false, archived: false, createdAt: "2026-07-07T00:00:00.000Z", updatedAt: "2026-07-07T00:00:00.000Z", lastRunId: null
+  }],
+  runs: [],
+  pendingApprovals: []
+};
+
+function installApi() {
+  window.cctools = {
+    aiRefresh: async () => snapshot,
+    aiGetEvents: async () => [],
+    aiCancelRun: async () => true,
+    aiResolveApproval: async () => true,
+    aiListTurns: async () => ({ data: [], nextCursor: null, total: 0, parseErrors: 0 }),
+    runSkill: vi.fn(async () => true),
+    selectFiles: async () => [],
+    selectMymindFiles: async () => [],
+    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    openPath: vi.fn(async (p: string) => p),
+    revealPath: async () => true,
+    onAiEvent: () => () => {},
+    onSkillEvent: () => () => {}
+  } as unknown as DesktopApi;
+}
+
+beforeEach(() => {
+  installApi();
+  // expand the sidebar by default so the <aside> renders (panelMode reads this key on mount)
+  window.localStorage.setItem("cctools.ai.panel-mode.v1", JSON.stringify("default"));
+});
+
+afterEach(() => {
+  window.localStorage.clear();
+});
+
+function renderSidebar() {
+  const openWorkbench = vi.fn();
+  render(<AiProvider initial={snapshot}><AiSidebar openWorkbench={openWorkbench} /></AiProvider>);
+  return { openWorkbench };
+}
+
+describe("AiSidebar", () => {
+  it("renders the active session title and header actions", () => {
+    const { openWorkbench } = renderSidebar();
+    // the title appears in the sidebar header <strong> (and again as a select option)
+    expect(screen.getAllByText("我的会话").length).toBeGreaterThanOrEqual(1);
+    const wb = screen.getByRole("button", { name: /在 AI 工作台打开/ });
+    fireEvent.click(wb);
+    expect(openWorkbench).toHaveBeenCalled();
+  });
+
+  it("lists non-archived sessions in the session switcher and offers a new-draft option", () => {
+    renderSidebar();
+    const select = screen.getByRole("combobox", { name: /切换 AI 会话/ }) as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.textContent);
+    expect(options).toContain("我的会话");
+    expect(options).toContain("新会话草稿");
+  });
+
+  it("renders readable custom session options inside the sidebar header", () => {
+    renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: /切换 AI 会话.*下拉菜单/ }));
+
+    const listbox = screen.getByRole("listbox", { name: /切换 AI 会话/ });
+    const option = within(listbox).getByRole("option", { name: "我的会话" });
+    expect(option.querySelector(".ui-select-option-label")?.textContent).toBe("我的会话");
+  });
+
+  it("toggles wide mode via the toggleWide button", () => {
+    renderSidebar();
+    const wideBtn = screen.getByRole("button", { name: /切换宽屏/ });
+    fireEvent.click(wideBtn);
+    fireEvent.click(wideBtn);
+  });
+
+  it("enters and exits fullscreen via the fullscreen button", () => {
+    renderSidebar();
+    const fullscreenBtn = screen.getByRole("button", { name: /全屏/ });
+    fireEvent.click(fullscreenBtn);
+    fireEvent.click(screen.getByRole("button", { name: /全屏|退出/ }));
+  });
+
+  it("collapses to the rail via the collapse button", () => {
+    renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: /收起/ }));
+    expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
+  });
+
+  it("persists sidebar widths to localStorage on mount", () => {
+    renderSidebar();
+    expect(window.localStorage.getItem("cctools.ai.sidebar-widths.v1")).toBeTruthy();
+  });
+
+  it("uses a full-canvas panel without a scrim on compact windows", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query.includes("1760px") || query.includes("840px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+      addListener: vi.fn(),
+      removeListener: vi.fn()
+    } as MediaQueryList));
+
+    try {
+      const { container } = render(
+        <ResponsiveLayoutProvider>
+          <AiProvider initial={snapshot}>
+            <div>
+              <button data-testid="covered-workspace">底层工作区</button>
+              <AiSidebar openWorkbench={vi.fn()} />
+            </div>
+          </AiProvider>
+        </ResponsiveLayoutProvider>
+      );
+      const canvas = screen.getByRole("dialog", { name: "AI Assistant" });
+      expect(canvas.classList.contains("layout-companion-canvas")).toBe(true);
+      expect(canvas.getAttribute("aria-modal")).toBe("true");
+      expect(container.querySelector(".ai-sidebar-scrim")).toBeNull();
+      expect(container.querySelector(".ai-sidebar-resizer")).toBeNull();
+      expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(true);
+      expect(screen.getByTestId("covered-workspace").getAttribute("aria-hidden")).toBe("true");
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
+      expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);
+      expect(screen.getByTestId("covered-workspace").getAttribute("aria-hidden")).toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("keeps the compact companion docked before the full-canvas breakpoint", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query.includes("1760px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+      addListener: vi.fn(),
+      removeListener: vi.fn()
+    } as MediaQueryList));
+
+    try {
+      const { container } = render(<ResponsiveLayoutProvider><AiProvider initial={snapshot}><AiSidebar openWorkbench={vi.fn()} /></AiProvider></ResponsiveLayoutProvider>);
+      expect(container.querySelector(".ai-sidebar")?.classList.contains("layout-companion-compact")).toBe(true);
+      expect(container.querySelector(".ai-sidebar-scrim")).toBeNull();
+      expect(container.querySelector(".ai-sidebar-resizer")).toBeTruthy();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+});

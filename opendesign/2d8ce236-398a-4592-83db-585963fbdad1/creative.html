@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>创作中心 · 编辑</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="creative">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+
+    <main class="creative-pane" data-pane-storage="creative-cols" style="--creative-columns: 280px 7px minmax(0,1fr) 7px 320px" data-minmax='{"0":[220,360],"4":[260,420]}'>
+
+      <!-- 选题列表 -->
+      <div class="list-pane">
+        <header class="pane-head"><div><h2>创作中心</h2><span class="eyebrow">5 个选题</span></div><button class="btn ghost" title="新建"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></button></header>
+        <div class="topic-list" data-select-group>
+          <button class="topic-item active" data-select>
+            <span class="title">提示工程的三个常见误区</span>
+            <span class="excerpt">约束越多越好的迷思、格式是契约不是装饰、负面示例胜过正面描述。</span>
+            <span class="meta"><span class="stage draft">草稿</span><span>412 字 · 2 分钟</span></span>
+          </button>
+          <button class="topic-item" data-select>
+            <span class="title">RAG 评估实践笔记</span>
+            <span class="excerpt">召回与答案相关性分两层看，附一组实测数据。</span>
+            <span class="meta"><span class="stage review">审阅</span><span>1.2k 字</span></span>
+          </button>
+          <button class="topic-item" data-select>
+            <span class="title">Agent 记忆架构</span>
+            <span class="excerpt">短期上下文与长期向量库的分工设计。</span>
+            <span class="meta"><span class="stage ready">待发</span><span>860 字</span></span>
+          </button>
+          <button class="topic-item" data-select>
+            <span class="title">Embedding 选型实测</span>
+            <span class="excerpt">中文场景下几个常用模型的召回对比。</span>
+            <span class="meta"><span class="stage draft">草稿</span><span>540 字</span></span>
+          </button>
+          <button class="topic-item" data-select>
+            <span class="title">工具调用的边界</span>
+            <span class="excerpt">模型决定调什么，应用决定怎么调。</span>
+            <span class="meta"><span class="stage ready">待发</span><span>380 字</span></span>
+          </button>
+        </div>
+        <!-- 空态：无选题草稿时替换 .topic-list 显示 -->
+        <div class="empty-state" id="topicEmpty" style="display:none">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+          <strong>还没有创作选题</strong>
+          <p>从简报或资料收集箱里把一个主题转成草稿，或者<button class="btn ghost" style="font-size:var(--fs-caption);color:var(--accent-fg);padding:0;min-height:auto">新建空白草稿</button></p>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="0" aria-hidden="true"></div>
+
+      <!-- 编辑器 -->
+      <div class="editor-pane">
+        <header class="doc-header">
+          <div>
+            <h1>提示工程的三个常见误区</h1>
+            <div class="doc-meta">content/drafts/prompt-mistakes.md · 草稿 · 自动保存于 21:40</div>
+          </div>
+          <div class="doc-actions">
+            <button class="btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>历史</button>
+            <button class="btn primary"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>发布</button>
+          </div>
+        </header>
+
+        <div class="view-tabs" data-view-tabs data-target="editorBody">
+          <button class="active" data-view="edit">编辑</button>
+          <button data-view="preview">预览</button>
+        </div>
+
+        <div class="editor-body" id="editorBody">
+          <div class="editor-area">
+            <textarea id="editor" spellcheck="false" aria-label="编辑器内容"># 提示工程的三个常见误区
+
+把写 Prompt 当成许愿——要求堆得越多越详细，模型就越听话。真实情况相反：约束越多，可冲突的空间越大，输出越难预测。
+
+## 误区一：约束越多越好
+
+每多一条规则，就多一处可能自相矛盾的地方。"要详细但简洁"、"要专业但要通俗"这类组合，模型只能猜你更想要哪个。
+
+- 与其列十条规则，不如给一个范例
+- 与其描述风格，不如直接贴一段你满意的输出
+
+## 误区二：把格式当装饰
+
+输出格式是契约，不是锦上添花。解析代码依赖什么结构，Prompt 就必须稳定产出什么结构——否则就是埋雷。
+
+返回 JSON：{ "summary": string, "points": string[] }
+
+## 误区三：不写负面示例
+
+告诉模型"不要做什么"比"要做什么"更有效。一个反例顶十条正面描述。
+
+结论：少即是多，范例胜过规则，负面示例胜过正面描述。</textarea>
+          </div>
+          <div class="preview-area" style="display:none">
+            <div class="reader-body">
+              <h1>提示工程的三个常见误区</h1>
+              <p>把写 Prompt 当成许愿——要求堆得越多越详细，模型就越听话。真实情况相反：约束越多，可冲突的空间越大，输出越难预测。</p>
+              <h2>误区一：约束越多越好</h2>
+              <p>每多一条规则，就多一处可能自相矛盾的地方。"要详细但简洁"、"要专业但要通俗"这类组合，模型只能猜你更想要哪个。</p>
+              <ul><li>与其列十条规则，不如给一个范例</li><li>与其描述风格，不如直接贴一段你满意的输出</li></ul>
+              <h2>误区二：把格式当装饰</h2>
+              <p>输出格式是契约，不是锦上添花。解析代码依赖什么结构，Prompt 就必须稳定产出什么结构——否则就是埋雷。</p>
+              <p><code>返回 JSON：{ "summary": string, "points": string[] }</code></p>
+              <h2>误区三：不写负面示例</h2>
+              <p>告诉模型"不要做什么"比"要做什么"更有效。一个反例顶十条正面描述。</p>
+              <p>结论：少即是多，范例胜过规则，负面示例胜过正面描述。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-foot">
+          <span class="stat"><strong>412</strong> 字</span>
+          <span class="stat">阅读 <strong>2</strong> 分钟</span>
+          <span class="stat">草稿</span>
+          <span class="spacer"></span>
+          <span class="stat">已自动保存</span>
+        </div>
+
+        <!-- 内联 AI -->
+        <div class="inline-ai" id="inlineAi">
+          <div class="inline-ai-selection">
+            <span class="label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9Z" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="aiSelLabel">选中正文唤起 AI</span></span>
+            <button class="inline-ai-action" data-ai-action="rewrite">改写</button>
+            <button class="inline-ai-action" data-ai-action="extend">续写</button>
+            <button class="inline-ai-action" data-ai-action="shorten">精简</button>
+            <button class="inline-ai-action" data-ai-action="tone">换语气</button>
+            <button class="inline-ai-action" data-ai-action="translate">翻译</button>
+          </div>
+          <div class="inline-ai-preview" style="display:none">
+            <header>
+              <span class="eyebrow" id="aiEyebrow"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg> AI 结果</span>
+              <span class="spacer"></span>
+            </header>
+            <pre class="inline-ai-out" id="aiOut" aria-live="polite"></pre>
+            <div class="inline-ai-foot" id="aiFoot" style="display:none">
+              <button class="btn primary" id="aiAccept"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>替换选中</button>
+              <button class="btn" id="aiRetry"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>重试</button>
+              <button class="btn ghost" id="aiDiscard">放弃</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="4" aria-hidden="true"></div>
+
+      <!-- 检视器 -->
+      <div class="inspector-pane">
+        <div class="pane-head"><h2>检视</h2><button class="icon-button" title="刷新"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+        <div class="inspector-tabs" data-inspector-tabs>
+          <button class="active" data-panel="overview">概览</button>
+          <button data-panel="review">检视</button>
+          <button data-panel="related">相关</button>
+        </div>
+        <div class="inspector-body">
+          <div data-inspector-panel="overview" style="display:grid;gap:var(--space-4);align-content:start">
+            <section class="inspector-section">
+              <h3>评审得分</h3>
+              <div class="score-row"><strong>86</strong><span>/ 100 · 可发布</span></div>
+              <ul class="check-list" style="margin-top:var(--space-3)">
+                <li class="pass"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>字数在目标区间</li>
+                <li class="pass"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>标题与结构清晰</li>
+                <li class="warn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg>两处长句可再拆短</li>
+              </ul>
+            </section>
+            <section class="inspector-section">
+              <h3>元数据</h3>
+              <dl class="kv-list">
+                <div><dt>字数</dt><dd>412</dd></div>
+                <div><dt>阅读</dt><dd>约 2 分钟</dd></div>
+                <div><dt>状态</dt><dd>草稿</dd></div>
+                <div><dt>标签</dt><dd>提示工程</dd></div>
+                <div><dt>更新</dt><dd>6 月 12 日</dd></div>
+              </dl>
+            </section>
+          </div>
+          <div data-inspector-panel="review" style="display:none">
+            <section class="inspector-section">
+              <h3>可读性</h3>
+              <p>整体偏顺，长句集中在「误区二」一段，建议拆分。负面示例段落效果最好，可前置。</p>
+            </section>
+            <section class="inspector-section">
+              <h3>建议</h3>
+              <ul class="check-list">
+                <li class="warn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg>误区二首句 38 字，可拆</li>
+                <li class="warn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg>结论段可加一句行动指引</li>
+              </ul>
+            </section>
+          </div>
+          <div data-inspector-panel="related" style="display:none">
+            <section class="inspector-section">
+              <h3>关联资料</h3>
+              <div class="related-list">
+                <button><strong>为什么 Prompt 在生产里会不稳定</strong><small>笔记 · 6 月 12 日</small></button>
+                <button><strong>评估集：别只看通过率</strong><small>笔记 · 5 月 20 日</small></button>
+                <button><strong>RAG 检索质量该怎么评估</strong><small>文章 · 6 月 10 日</small></button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

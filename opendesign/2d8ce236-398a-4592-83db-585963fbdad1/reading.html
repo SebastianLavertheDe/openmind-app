@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>资料收集箱 · 阅读</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="inbox">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+
+    <main class="three-pane" data-pane-storage="reader-cols" style="--three-pane-columns: 224px 7px 328px 7px minmax(0,1fr)" data-minmax='{"0":[160,300],"2":[240,440]}'>
+
+      <!-- 筛选 -->
+      <div class="filter-pane">
+        <input class="filter-search" placeholder="在收集箱里搜索…" aria-label="搜索资料收集箱" />
+        <div class="filter-group" data-select-group style="margin-top:var(--space-4)">
+          <span class="label">来源类型</span>
+          <button class="active" data-select><span>全部</span><span class="count">128</span></button>
+          <button data-select><span>文章</span><span class="count">64</span></button>
+          <button data-select><span>笔记</span><span class="count">41</span></button>
+          <button data-select><span>帖子</span><span class="count">23</span></button>
+        </div>
+        <div class="filter-group" data-select-group>
+          <span class="label">主题</span>
+          <button class="active" data-select><span>RAG</span><span class="count">22</span></button>
+          <button data-select><span>提示工程</span><span class="count">18</span></button>
+          <button data-select><span>Agent</span><span class="count">15</span></button>
+          <button data-select><span>评估</span><span class="count">11</span></button>
+          <button data-select><span>工具调用</span><span class="count">9</span></button>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="0" aria-hidden="true"></div>
+
+      <!-- 列表 -->
+      <div class="item-pane">
+        <header>
+          <div><h2>资料收集箱</h2><span>RAG · 22 条</span></div>
+          <button class="icon-button" title="刷新"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </header>
+        <div class="item-list" data-select-group>
+          <button class="active" data-select>
+            <span class="title">为什么 Prompt 在生产里会不稳定</span>
+            <span class="excerpt">温度采样、版本漂移、隐式格式依赖——三个最常被忽略的失稳来源…</span>
+            <span class="meta"><span class="kind">笔记</span><span>6 月 12 日</span><span class="dot"></span></span>
+          </button>
+          <button data-select>
+            <span class="title">RAG 检索质量该怎么评估</span>
+            <span class="excerpt">召回率与答案相关性不是一回事，分两层看才不会自欺欺人。</span>
+            <span class="meta"><span class="kind">文章</span><span>6 月 10 日</span></span>
+          </button>
+          <button data-select>
+            <span class="title">Agent 记忆：从上下文到向量库</span>
+            <span class="excerpt">短期上下文窗口和长期向量检索要分开设计，混在一起必然失控。</span>
+            <span class="meta"><span class="kind">文章</span><span>6 月 8 日</span></span>
+          </button>
+          <button data-select>
+            <span class="title">Tool Use 与函数调用的边界</span>
+            <span class="excerpt">模型决定调什么、应用决定怎么调——这条线划清能少一半 bug。</span>
+            <span class="meta"><span class="kind">笔记</span><span>6 月 6 日</span></span>
+          </button>
+          <button data-select>
+            <span class="title">向量检索的召回率陷阱</span>
+            <span class="excerpt">Top-k 高不代表召回准，关键是负样本和重排。</span>
+            <span class="meta"><span class="kind">帖子</span><span>6 月 4 日</span><span class="dot"></span></span>
+          </button>
+          <button data-select>
+            <span class="title">长上下文不是万能解</span>
+            <span class="excerpt">塞进去不等于看得见，中间位置的丢失率比想象中高。</span>
+            <span class="meta"><span class="kind">笔记</span><span>6 月 1 日</span></span>
+          </button>
+          <button data-select>
+            <span class="title">Embedding 模型选型的一组实测</span>
+            <span class="excerpt">中文场景下几个常用模型的召回对比与代价。</span>
+            <span class="meta"><span class="kind">文章</span><span>5 月 28 日</span></span>
+          </button>
+        </div>
+        <!-- 空态：筛选无结果时替换 .item-list 显示 -->
+        <div class="empty-state" id="inboxEmpty" style="display:none">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <strong>没有匹配的资料</strong>
+          <p>换个筛选条件，或者<button class="btn ghost" style="font-size:var(--fs-caption);color:var(--accent-fg);padding:0;min-height:auto">清空筛选</button></p>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="2" aria-hidden="true"></div>
+
+      <!-- 阅读器 -->
+      <div class="reader-pane">
+        <header class="reader-header">
+          <div>
+            <div class="reader-meta">
+              <span class="badge info">笔记</span>
+              <span>本地收录</span><span>·</span>
+              <span>2026 年 6 月 12 日</span><span>·</span>
+              <span>作者 say</span>
+            </div>
+            <h1>为什么 Prompt 在生产里会不稳定</h1>
+            <div class="path">content/notes/prompt-stability.md</div>
+          </div>
+          <div class="reader-actions">
+            <button class="btn primary"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 4h6" stroke-linecap="round"/></svg>加入 AI</button>
+            <button class="btn ghost" title="收藏"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.4 6 .9-4.3 4.2 1 6L12 17l-5.3 2.5 1-6L3.4 9.3l6-.9Z" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="btn ghost" title="更多"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button>
+          </div>
+        </header>
+
+        <section class="content-meta">
+          <details open>
+            <summary><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="key">标签</span></summary>
+            <div class="tag-row">
+              <span class="tag">提示工程</span><span class="tag">评估</span><span class="tag">生产</span><span class="tag add">+ 加标签</span>
+            </div>
+          </details>
+        </section>
+
+        <article class="reader-body">
+          <p>同一个 Prompt，本地 demo 次次完美，接进产品就开始飘——这是 LLM 应用最普遍的体验落差。问题很少出在「模型不够强」，更多出在我们把哪些东西当成了「理所当然」。</p>
+
+          <h2>三个最常被忽略的失稳来源</h2>
+
+          <h3>采样随机性</h3>
+          <p>温度、top-p 在每一次调用里都是真随机。你在本地连跑十遍都对，不代表线上第十一次也对。凡是依赖「模型某次恰好按某种格式输出」的逻辑，都是在和概率对赌。</p>
+
+          <h3>上游版本漂移</h3>
+          <p>Provider 静默升级模型版本是常态。你绑的 <code>gpt-4o-2024-08</code> 某天被换成新的快照，行为就变了，而你的评估集不会主动告诉你。</p>
+
+          <blockquote>把「模型版本」当作代码依赖来管理，而不是当作一个永不变的常量。</blockquote>
+
+          <h3>隐式格式依赖</h3>
+          <p>最隐蔽的一类：你的解析代码假设模型「总是」先输出标题再输出列表，但 Prompt 里从没这么要求过。一个能复现的最小例子：</p>
+          <pre><code>用户：总结这篇笔记
+模型：## 摘要        ← 有时是「摘要：」有时是「## 摘要」
+      - 点一
+      - 点二        ← 有时会塞进一句开场白</code></pre>
+          <p>解析一旦写死 <code>split('## ')</code>，遇到变体就崩。解法是结构化输出 + 容错解析，双保险。</p>
+
+          <h2>怎么稳住</h2>
+          <p class="pull">先让它可观测，再谈让它稳定。</p>
+          <ul>
+            <li><strong>固定版本</strong>：显式锁定模型快照，把变更纳入发版流程。</li>
+            <li><strong>降随机</strong>：结构化任务用低温度 + 结构化输出，把随机性挤到不关键的环节。</li>
+            <li><strong>跑评估集</strong>：每次改动跑一遍离线集，盯通过率和回归，而不是凭手感。</li>
+            <li><strong>容错解析</strong>：永远假设模型会换格式，解析层做兜底。</li>
+          </ul>
+          <p>这四条做完，Prompt 从「玄学」变成「工程」，稳定性才有据可循。</p>
+        </article>
+      </div>
+
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

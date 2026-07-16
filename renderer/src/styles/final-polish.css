@@ -1,0 +1,384 @@
+@property --nav-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 236px;
+}
+
+.app-shell {
+  transition: grid-template-columns var(--dur-slow, 280ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
+}
+
+.app-nav,
+.app-nav nav button,
+.app-project-status,
+.icon-button,
+.ui-segmented button,
+.ui-tabs button,
+.workspace-card,
+.item-list button,
+.topic-list button,
+.dashboard-topic-list button,
+.rule-item-shell,
+.rule-pill,
+.status-badge,
+button,
+.tag,
+.pill {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.ui-segmented {
+  position: relative;
+  isolation: isolate;
+}
+
+.ui-segmented::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  bottom: 3px;
+  left: var(--seg-thumb-left, 3px);
+  width: var(--seg-thumb-width, 0px);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: left 160ms ease, width 160ms ease, background-color 140ms ease;
+}
+
+.ui-segmented button {
+  position: relative;
+  z-index: 1;
+}
+
+.ui-segmented button.active {
+  background: transparent;
+  color: var(--text);
+}
+
+.brief-reader {
+  width: min(100%, 70ch);
+  font-size: var(--fs-body);
+  line-height: 1.75;
+}
+
+.brief-reader.reader-markdown,
+.brief-reader.reader-body {
+  width: 100%;
+  max-width: none;
+}
+
+.brief-reader :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, table, pre, hr) {
+  max-width: none;
+}
+
+.ui-page-header,
+.dashboard-head,
+.brief-head {
+  animation: page-head-rise 180ms ease-out both;
+}
+
+.feature-page > :not(.ui-page-header),
+.three-pane,
+.ai-workbench,
+.creative-workspace,
+.automation-layout,
+.dashboard-main-grid,
+.brief-md {
+  animation: pane-fade 180ms ease-out both;
+}
+
+@keyframes page-head-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pane-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+details[open] > :not(summary) {
+  animation: details-fade 140ms ease-out both;
+}
+
+@keyframes details-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* AnimatedDisclosure (replaces native <details> in AI workbench cards).
+   Height animates 0 -> auto via interpolate-size, opacity crossfades.
+   Closed content stays mounted for the exit animation but is `inert`. */
+.ui-disclosure-trigger { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+/* D3/E1: 展开用 emphasized、收起用 exit;dur 240→200ms,与 timeline-presence 统一。 */
+.ui-disclosure-content { interpolate-size: allow-keywords; height: 0; opacity: 0; overflow: hidden; transition: height var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), opacity var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
+.ui-disclosure-content[data-open] { height: auto; opacity: 1; }
+/* E1 fallback: 不支持 interpolate-size 时回退到 grid 0fr→1fr (Chrome 129-)。 */
+@supports not (interpolate-size: allow-keywords) {
+  .ui-disclosure { display: grid; grid-template-rows: auto 0fr; }
+  .ui-disclosure-content { height: auto; grid-row: 2; }
+  .ui-disclosure-content[data-open] { height: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .ui-disclosure-content { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .timeline-presence-item { transition: none; }
+  .timeline-presence-item[data-entering] > .timeline-presence-inner { animation: none; }
+}
+
+:root.theme-transitioning,
+:root.theme-transitioning * {
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
+}
+
+body :is(.eyebrow, .session-list-heading, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger, .tool-event-meta, .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .app-project-status span, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
+  color: var(--muted);
+}
+
+.ai-sidebar > header {
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 190px) max-content;
+}
+
+.ai-sidebar.mode-full > header {
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 260px) max-content;
+}
+
+.ai-sidebar > header > .sidebar-session-title {
+  width: 100%;
+  height: auto;
+  min-height: 34px;
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  place-items: start;
+  justify-items: start;
+  align-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.ai-sidebar > header > .sidebar-session-title :is(.eyebrow, strong, small) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-sidebar > header .sidebar-session-title:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.ai-sidebar > header > div:last-child > button {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.ai-sidebar .chat {
+  min-height: 0;
+}
+
+.ai-sidebar .chat-scroll {
+  align-items: stretch;
+  padding: 16px;
+}
+
+.ai-sidebar .chat-thread,
+.ai-sidebar .chat-thread > .message,
+.ai-sidebar .chat-thread > .completed-process,
+.ai-sidebar .chat-thread > .load-history,
+.ai-sidebar .chat-thread > .trace-step {
+  width: 100%;
+  max-width: none;
+}
+
+.ai-sidebar .chat-thread :is(.assistant-message, .completed-process, .run-activity, .reasoning-event, .tool-event, .change-trace-card, .system-event, .error-event, .approval-card) {
+  max-width: 100%;
+}
+
+.ai-sidebar .chat-thread .user-message {
+  max-width: min(86%, 560px);
+}
+
+.ai-sidebar.mode-wide .chat-thread .user-message,
+.ai-sidebar.mode-full .chat-thread .user-message {
+  max-width: min(70%, 680px);
+}
+
+.ai-sidebar .composer {
+  padding: 10px 12px 12px;
+}
+
+.ai-sidebar .composer-flow,
+.ai-sidebar .composer-flow > :is(.new-session-controls, .context-tray, .queue-tray, .composer-error, textarea, .composer-footer) {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.ai-sidebar .new-session-controls {
+  padding: 0 0 8px;
+}
+
+.ai-sidebar .composer textarea {
+  min-height: 84px;
+  border-radius: var(--radius-md);
+}
+
+.ai-sidebar .composer-footer {
+  gap: 8px;
+}
+
+.ai-sidebar .composer-footer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-workbench .conversation-pane {
+  --ai-flow-width: 1040px;
+  --chat-side-gutter: clamp(24px, 4vw, 72px);
+}
+
+.ai-workbench .chat-scroll,
+.ai-workbench .composer {
+  padding-inline: var(--chat-side-gutter);
+}
+
+.ai-workbench .chat-thread .user-message {
+  max-width: min(64%, 640px);
+}
+
+@media (max-width: 1480px) {
+  .ai-workbench .conversation-pane {
+    --ai-flow-width: 960px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* ============================================================
+ * MOTION-P0-003: 五类按压 motion variant
+ * 通过 data-motion 属性显式声明，替代散落的 transition/active。
+ * 全局 button 已有 140ms transform 过渡（见上方），
+ * 这里只补充 :active 时的 transform 终态，避免与已有规则冲突。
+ * reduce 模式由上方全局兜底置零，无需重复。
+ * ============================================================ */
+
+/* action：文本类主操作（保存/运行/打开/刷新/导入/导出/重试）。轻微下沉+缩放。 */
+[data-motion="action"]:active:not(:disabled) {
+  transform: translateY(1px) scale(.98);
+}
+
+/* icon：图标按钮（关闭/折叠/复制/更多/工具栏）。纯缩放，不下沉。 */
+[data-motion="icon"]:active:not(:disabled) {
+  transform: scale(.92);
+}
+
+/* selection：导航/tab/文件行/会话行/规则行。不缩放容器，避免列表抖动。
+   无 :active transform —— 由背景/边框/指示器提供反馈（已有 140ms 颜色过渡）。 */
+[data-motion="selection"]:active:not(:disabled) {
+  transform: none;
+}
+
+/* toggle：开关/分段控件。沿用现有 knob/thumb 动画，不压缩整个控件。 */
+[data-motion="toggle"]:active:not(:disabled) {
+  transform: none;
+}
+
+/* overlay/disclosure：浮层/折叠面板。进入 200ms、退出 160ms，沿用 useExitPresence。无 press。 */
+[data-motion="overlay"]:active:not(:disabled),
+[data-motion="disclosure"]:active:not(:disabled) {
+  transform: none;
+}
+
+/* ============================================================
+ * MOTION-P0-004: 按语义 class 自动覆盖按压动效
+ * 对于已有明确语义 class 的按钮，无需逐个加 data-motion。
+ * action 类：主操作/危险操作/图标文本按钮。
+ * icon 类：纯图标按钮、pane header、message meta 等小图标入口。
+ * ============================================================ */
+.primary-button:active:not(:disabled),
+.danger-button:active:not(:disabled),
+.icon-text-button:active:not(:disabled),
+.settings-control button:active:not(:disabled),
+.reader-header button:active:not(:disabled),
+.document-detail-header button:active:not(:disabled),
+.source-delete:active:not(:disabled),
+.change-actions button:active:not(:disabled),
+.approval-card footer button:active:not(:disabled) {
+  transform: translateY(1px) scale(.98);
+}
+
+.icon-button:active:not(:disabled),
+.pane-header button:active:not(:disabled),
+.session-actions button:active:not(:disabled),
+.conversation-header button:active:not(:disabled),
+.ai-sidebar header button:active:not(:disabled),
+.message-meta button:active:not(:disabled),
+.markdown-code-block > button:active:not(:disabled),
+.nav-collapse-button:active:not(:disabled),
+.nav-search-button:active:not(:disabled),
+.global-toolbar-action:active:not(:disabled),
+.image-chip-remove:active:not(:disabled),
+.image-chip-button:active:not(:disabled) {
+  transform: scale(.92);
+}
+
+/* selection 类：tab/筛选/导航项 —— 无 transform，由颜色过渡提供反馈 */
+.filter-tabs button:active:not(:disabled),
+.session-filters button:active:not(:disabled),
+.document-tabs button:active:not(:disabled),
+.ui-tabs button:active:not(:disabled),
+.topic-list button:active:not(:disabled),
+.dashboard-topic-list button:active:not(:disabled),
+.item-list button:active:not(:disabled) {
+  transform: none;
+}
+
+/* MOTION-P0-001: 路由首次加载的结构化 skeleton，替代纯文字"正在打开页面..."。 */
+.route-loading {
+  min-height: 100%;
+  padding: 24px;
+}
+.route-loading-skeleton {
+  width: 100%;
+  max-width: 680px;
+  height: 18px;
+  margin: 0 0 16px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface, #f0f0f0);
+  animation: route-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.route-loading-skeleton::before {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 28px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface, #f0f0f0);
+  animation: route-skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes route-skeleton-pulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: .9; }
+}

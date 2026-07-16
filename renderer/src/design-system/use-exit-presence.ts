@@ -1,0 +1,48 @@
+import { useEffect, useRef, useState } from "react";
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * Keeps a conditionally-rendered overlay mounted briefly so it can play a CSS
+ * exit animation before unmount. Pair with `[data-leaving]` styling.
+ *
+ * - open=true  -> visible immediately, leaving=false
+ * - open=false -> leaving=true for exitMs (skipped under prefers-reduced-motion),
+ *                 then visible=false (the consumer stops rendering)
+ *
+ * The consumer renders while `visible`, applies `data-leaving={leaving || undefined}`,
+ * and on close just sets its own open state to false — the hook handles the delayed unmount.
+ */
+export function useExitPresence(open: boolean, exitMs: number): { visible: boolean; leaving: boolean } {
+  const [visible, setVisible] = useState(open);
+  const [leaving, setLeaving] = useState(false);
+  const timer = useRef<number | null>(null);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+
+  useEffect(() => {
+    if (open) {
+      if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
+      setLeaving(false);
+      if (!visibleRef.current) setVisible(true);
+      return;
+    }
+    if (!visibleRef.current) return;
+    if (prefersReducedMotion()) { setVisible(false); setLeaving(false); return; }
+    setLeaving(true);
+    timer.current = window.setTimeout(() => {
+      timer.current = null;
+      setLeaving(false);
+      setVisible(false);
+    }, exitMs);
+    // visibleRef is read intentionally to avoid re-triggering on visible changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, exitMs]);
+
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+
+  return { visible, leaving };
+}

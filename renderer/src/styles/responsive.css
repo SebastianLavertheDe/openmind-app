@@ -1,0 +1,205 @@
+@media (max-width: 1180px) {
+  .app-shell.with-ai-default,
+  .app-shell.with-ai-wide {
+    grid-template-columns: var(--nav-width, 68px) minmax(0, 1fr);
+  }
+
+  .app-shell.with-ai-default > .ai-sidebar,
+  .app-shell.with-ai-wide > .ai-sidebar {
+    position: fixed;
+    inset: 58px 0 0 auto;
+    width: min(var(--ai-sidebar-width), calc(100vw - var(--nav-width, 68px)));
+    z-index: var(--z-overlay);
+    box-shadow: var(--shadow-overlay);
+  }
+}
+
+@media (max-width: 1380px) {
+  .dashboard-grid,
+  .brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brief-grid .span-3 {
+    grid-column: span 2;
+  }
+
+  .dashboard-metrics {
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+  }
+
+  .creative-workspace {
+    grid-template-columns: 300px minmax(440px, 1fr);
+  }
+
+  .creative-inspector {
+    display: none;
+  }
+
+  .automation-main {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-console {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 1080px) {
+  /* 三栏 reader 布局:窄窗收窄 filter pane,把空间让给内容列 */
+  .three-pane {
+    --three-pane-columns: 160px 6px minmax(0, 280px) 6px minmax(0, 1fr);
+  }
+
+  .dashboard-grid,
+  .brief-grid,
+  .projects-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid .span-2,
+  .brief-grid .span-2,
+  .brief-grid .span-3 {
+    grid-column: span 1;
+  }
+
+  .source-metrics,
+  .brief-metrics,
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+
+  .quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .projects-layout {
+    min-height: 0;
+  }
+
+  .creative-workspace {
+    grid-template-columns: 270px minmax(420px, 1fr);
+  }
+
+  .automation-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 920px) {
+  .creative-workspace {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(220px, 34vh) minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .creative-workspace > .column-splitter,
+  .creative-workspace > .collapsed-rail,
+  .creative-inspector {
+    display: none;
+  }
+
+  .creative-list-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .creative-main-pane {
+    min-height: 0;
+    border-right: 0;
+  }
+
+  .creative-document-header {
+    min-height: 84px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .creative-document-header h1 {
+    white-space: normal;
+  }
+
+  .creative-editor textarea,
+  .creative-preview {
+    padding-inline: clamp(18px, 5vw, 36px);
+  }
+
+  .automation-rules-layout,
+  .automation-layout {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .automation-rule-list {
+    max-height: 36vh;
+  }
+}
+
+@media (max-width: 820px) {
+  /* 极窄窗:item pane 改为弹性下限,保证内容列可用宽;filter pane 仍可由 splitter 折叠 */
+  .three-pane {
+    --three-pane-columns: minmax(0, 150px) 6px minmax(0, 1fr) 6px minmax(0, 1fr);
+  }
+
+  .feature-page {
+    padding: 22px 20px 34px;
+  }
+
+  .ui-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ui-page-actions {
+    justify-content: flex-start;
+  }
+
+}
+
+@media (max-width: 680px) {
+  .feature-page {
+    padding: 18px 14px 28px;
+  }
+
+  .ui-page-actions {
+    width: 100%;
+  }
+
+  .ui-page-actions button {
+    flex: 1 1 auto;
+  }
+
+  .creative-workspace {
+    grid-template-rows: minmax(180px, 32vh) minmax(0, 1fr);
+  }
+
+  .creative-list-pane > header,
+  .creative-search,
+  .pane-head,
+  .source-toolbar {
+    padding-inline: 10px;
+  }
+
+  .creative-document-header,
+  .topic-workspace > header,
+  .rule-detail > header {
+    padding: 14px;
+  }
+
+  .step,
+  .cron-row,
+  .rule-status-strip {
+    align-items: flex-start;
+  }
+
+  .step {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .step .rule-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设置</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="settings">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+    <main class="page narrow">
+      <header class="page-head">
+        <div>
+          <span class="eyebrow">设置</span>
+          <h1>偏好与连接</h1>
+          <p>外观、Provider、权限与项目路径。改动即时生效并保存在本地。</p>
+        </div>
+      </header>
+
+      <!-- 外观 -->
+      <section class="dash-panel">
+        <header><h2>外观</h2></header>
+        <div class="settings-list">
+          <div class="setting-row">
+            <div class="desc"><strong>主题</strong><p>浅色适合白天，深色适合长时间阅读。</p></div>
+            <div class="setting-control">
+              <div class="segmented" role="group" aria-label="主题">
+                <button class="active" data-theme-opt="light" aria-pressed="true">浅色</button>
+                <button data-theme-opt="dark" aria-pressed="false">深色</button>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="desc"><strong>密度</strong><p>紧凑模式缩小栏内间距，更多内容可见。</p></div>
+            <div class="setting-control">
+              <div class="segmented" data-segmented data-name="density" data-var="--space-3" role="group" aria-label="密度">
+                <button data-val="6px" aria-pressed="false">紧凑</button>
+                <button class="active" data-val="12px" aria-pressed="true">默认</button>
+                <button data-val="16px" aria-pressed="false">宽松</button>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="desc"><strong>正文字号</strong><p>阅读区与列表的基准字号。</p></div>
+            <div class="setting-control">
+              <div class="segmented" data-segmented data-name="fontsize" data-var="--fs-body" role="group" aria-label="正文字号">
+                <button data-val="14px" aria-pressed="false">小</button>
+                <button class="active" data-val="15px" aria-pressed="true">默认</button>
+                <button data-val="16px" aria-pressed="false">大</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Provider -->
+      <section class="dash-panel">
+        <header><h2>Provider</h2><button class="btn">添加</button></header>
+        <div class="provider-list" style="margin-top:var(--space-3)">
+          <div class="provider-row ok"><span class="dot" aria-hidden="true"></span><div><strong>Claude Code</strong><small>Claude Agent SDK · 已登录</small></div><span class="pill ok">可用</span><button class="toggle on" role="switch" data-toggle aria-checked="true" aria-label="将 Claude Code 设为默认"></button></div>
+          <div class="provider-row ok"><span class="dot" aria-hidden="true"></span><div><strong>Codex CLI</strong><small>app-server 协议 · 已登录</small></div><span class="pill ok">可用</span><button class="toggle" role="switch" data-toggle aria-checked="false" aria-label="将 Codex CLI 设为默认"></button></div>
+        </div>
+        <p style="margin-top:var(--space-3);color:var(--muted);font-size:11px">Provider 在会话创建后锁定，不可中途切换。</p>
+      </section>
+
+      <!-- 权限默认 -->
+      <section class="dash-panel">
+        <header><h2>权限与审批</h2></header>
+        <div class="settings-list">
+          <div class="setting-row">
+            <div class="desc"><strong>新会话默认权限</strong><p>只读最安全；编辑允许写文件；自动执行免审批。</p></div>
+            <div class="setting-control">
+              <select class="field" aria-label="新会话默认权限" style="height:34px;padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg)"><option>只读</option><option selected>编辑</option><option>自动执行</option></select>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="desc"><strong>破坏性操作需审批</strong><p>删除、覆盖、提权与项目外访问始终需要确认。</p></div>
+            <div class="setting-control"><button class="toggle on" role="switch" data-toggle aria-checked="true" aria-label="破坏性操作需审批"></button></div>
+          </div>
+          <div class="setting-row">
+            <div class="desc"><strong>风险扫描</strong><p>只提醒，不脱敏、不修改、不阻止保存。</p></div>
+            <div class="setting-control"><button class="toggle on" role="switch" data-toggle aria-checked="true" aria-label="风险扫描"></button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 项目路径 -->
+      <section class="dash-panel">
+        <header><h2>项目路径</h2></header>
+        <div style="display:grid;gap:var(--space-2);margin-top:var(--space-3)">
+          <div class="path-row"><small class="path-label">工作目录</small>~/cctools<button class="btn" aria-label="浏览工作目录">浏览</button></div>
+          <div class="path-row"><small class="path-label">笔记目录</small>~/cctools/notes<button class="btn" aria-label="浏览笔记目录">浏览</button></div>
+          <p style="color:var(--muted);font-size:11px;margin-top:var(--space-2)">AI 仅在选定目录内读写与执行，不创建临时 worktree。</p>
+        </div>
+      </section>
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

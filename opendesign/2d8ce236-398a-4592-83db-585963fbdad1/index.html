@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CC Tools · 设计方向（评审修正版）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="">
+<main class="overview">
+  <div class="wrap">
+    <header class="overview-header">
+      <span class="eyebrow">设计稿 · 评审修正版 · 8 屏完整</span>
+      <h1>CC Tools 个人 Wiki<br />设计方向</h1>
+      <p>在你现有设计系统基础上应用评审结论：统一为单一蓝色 accent、补齐缺失 token、阅读排版升级。导航里的 8 个界面已全部完成，可点进单屏，顶部工具栏的月亮/太阳图标可切换深浅色。</p>
+    </header>
+
+    <!-- 8 屏入口 -->
+    <section class="screen-cards">
+      <a class="screen-card" href="dashboard.html"><span class="num">01</span><h3>今日工作台</h3><p>问候、指标卡、最近阅读、进行中创作与快速入口。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="reading.html"><span class="num">02</span><h3>资料收集箱</h3><p>三栏阅读，正文主导，标签摘要可折叠。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="sources.html"><span class="num">03</span><h3>数据源</h3><p>源表格、行选中联动检视器、运行历史与实时日志。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="brief.html"><span class="num">04</span><h3>每日简报</h3><p>主题动态、信号、关注列表、建议与简报正文。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="creative.html"><span class="num">05</span><h3>创作中心</h3><p>编辑器+预览+检视器，选中正文唤起内联 AI。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="automation.html"><span class="num">06</span><h3>自动化</h3><p>规则启停、触发计划、动作步骤与运行控制台。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="ai.html"><span class="num">07</span><h3>AI 工作台</h3><p>会话、工具事件、审批与检视器，输入区可发送。</p><span class="go">进入 →</span></a>
+      <a class="screen-card" href="settings.html"><span class="num">08</span><h3>设置</h3><p>主题/密度/字号（真实生效）、Provider、权限、路径。</p><span class="go">进入 →</span></a>
+    </section>
+
+    <!-- 色板 -->
+    <section class="ds-block" id="design-system">
+      <h2>色板</h2>
+      <p>中性表面承担约 80% 像素，单一蓝色 accent 控制在每屏最多两处可见。文字/链接用更深的 <code>--accent-fg</code> 保证对比；软填充用 <code>--accent-tint</code>。</p>
+      <div class="swatch-row">
+        <div class="swatch"><div class="chip" style="background:var(--app-bg)"></div><strong>--app-bg</strong><span>#f6f7f9</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--panel-bg)"></div><strong>--panel</strong><span>#ffffff</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--panel-muted)"></div><strong>--panel-muted</strong><span>#f1f3f6</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--text)"></div><strong>--text</strong><span>#18202a</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--muted)"></div><strong>--muted</strong><span>#667085</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--border)"></div><strong>--border</strong><span>#e2e7ef</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--accent)"></div><strong>--accent</strong><span>#2563eb · 填充</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--accent-fg)"></div><strong>--accent-fg</strong><span>#1d4ed8 · 文字</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--accent-tint)"></div><strong>--accent-tint</strong><span>12% · 选中底色</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--green)"></div><strong>--green</strong><span>#16825d</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--orange)"></div><strong>--orange</strong><span>#b7791f</span></div>
+        <div class="swatch"><div class="chip" style="background:var(--red)"></div><strong>--red</strong><span>#c2413a</span></div>
+      </div>
+    </section>
+
+    <!-- 字号阶梯 -->
+    <section class="ds-block">
+      <h2>字号阶梯</h2>
+      <p>Geist 作展示与正文（工具型可用单族），JetBrains Mono 给代码与指标。正文 15px、行高 1.75，专为长文阅读调过；设置页可实时切换字号与密度。</p>
+      <div class="type-sample">
+        <div class="row"><span class="meta">display 32</span><span style="font:600 32px/1.15 var(--font-display);letter-spacing:-.025em">个人 AI 工作台</span></div>
+        <div class="row"><span class="meta">page 26</span><span style="font:600 26px/1.2 var(--font-display);letter-spacing:-.02em">文档标题用这一级</span></div>
+        <div class="row"><span class="meta">h2 · 20</span><span style="font:600 20px/1.3 var(--font-display);letter-spacing:-.015em">区块小标题</span></div>
+        <div class="row"><span class="meta">h3 · 16</span><span style="font:600 16px/1.35 var(--font-display)">卡片内标题</span></div>
+        <div class="row"><span class="meta">body · 15</span><span style="font:400 15px/1.75 var(--font-body);color:var(--text-dim)">正文阅读区，行高 1.75、最大 70 字符，降低长文疲劳。</span></div>
+        <div class="row"><span class="meta">small · 13</span><span style="font:400 13px var(--font-body);color:var(--muted)">辅助说明与列表项</span></div>
+        <div class="row"><span class="meta">mono · 13</span><span style="font:400 13px var(--font-mono);color:var(--text-dim)">code / 路径 / 数字指标</span></div>
+      </div>
+    </section>
+
+    <!-- 修正清单 -->
+    <section class="ds-block">
+      <h2>评审修正清单</h2>
+      <p>这次设计稿相对你当前实现的具体改动点，按优先级排列。代码尚未改动，仅在此可视化。</p>
+      <ul class="fix-list">
+        <li><span class="tag-p p0">P0</span><div><strong>统一单一蓝色 accent</strong><span>移除散布在 10 个 CSS 文件、43 处的硬编码紫。新增 <code>--accent-fg</code> / <code>--accent-tint</code>，导航激活、选中行、徽章、主按钮都走同一套蓝。</span></div></li>
+        <li><span class="tag-p p0">P0</span><div><strong>补齐缺失 token</strong><span><code>--hover</code>、<code>--blue</code> 在 :root 未定义却在使用，导致下拉菜单 hover 无反馈、图标无色。补别名后恢复。</span></div></li>
+        <li><span class="tag-p p1">P1</span><div><strong>修掉 accent-soft 当文字色</strong><span>原 12% 填充色被当文字色用 33 处，浅底上几乎不可读。改用可读的 <code>--accent-fg</code>。</span></div></li>
+        <li><span class="tag-p p1">P1</span><div><strong>阅读排版升级</strong><span>正文 14→15px、行高 1.75、限宽 70ch；reader 标题补显式阶梯，文档标题提到主导层级。</span></div></li>
+        <li><span class="tag-p p1">P1</span><div><strong>内容主导阅读</strong><span>标签/摘要/关联收进折叠区，打开正文即可读。</span></div></li>
+        <li><span class="tag-p p2">P2</span><div><strong>清理死 CSS</strong><span>重复定义的 <code>.reasoning-event</code>、<code>.spin</code>、<code>.document-tabs</code> 去重并加作用域。</span></div></li>
+      </ul>
+    </section>
+  </div>
+</main>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>今日工作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    /* 今日 Topic：没有则留空（:has 检测，无 JS） */
+    #topicEmpty { display: none; padding: var(--space-5); text-align: center; color: var(--muted-2); font-size: var(--fs-small); }
+    #todayTopics:not(:has(.recent-row)) ~ #topicEmpty { display: block; }
+  </style>
+</head>
+<body data-page="dashboard">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+    <main class="page">
+      <header class="page-head">
+        <div>
+          <span class="eyebrow">今日 · 6 月 18 日 周四</span>
+          <h1>晚上好，say</h1>
+          <p>你有 7 条未读资料、2 个草稿在进行。先把昨日简报过一遍，再继续写「提示工程的三个常见误区」？</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn" href="brief.html">查看简报</a>
+          <a class="btn primary" href="creative.html">继续创作</a>
+        </div>
+      </header>
+
+      <!-- 指标：今日按来源类型的新增量 -->
+      <section class="metric-cards" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <a class="metric-card" href="reading.html"><span>今日文章</span><strong>8</strong><em>来自 6 个源</em></a>
+        <a class="metric-card" href="reading.html"><span>今日 X</span><strong>14</strong><em>来自 9 个账号</em></a>
+        <a class="metric-card" href="reading.html"><span>今日 Reddit</span><strong>5</strong><em>来自 3 个子区</em></a>
+      </section>
+
+      <!-- 主区 + 侧栏 -->
+      <div class="dash-grid">
+        <div style="display:grid;gap:var(--space-5)">
+          <section class="dash-panel">
+            <header><h2>今日 Topic</h2><a href="brief.html">全部 →</a></header>
+            <div class="recent-list" id="todayTopics">
+              <a class="recent-row" href="brief.html"><div><strong>RAG 评估方法的新一轮讨论</strong><small>3 篇新文 · 提示工程</small></div><time>3 篇</time></a>
+              <a class="recent-row" href="brief.html"><div><strong>长上下文模型的中间丢失问题</strong><small>2 篇新文 · RAG</small></div><time>2 篇</time></a>
+              <a class="recent-row" href="brief.html"><div><strong>Agent 工具调用的权限设计</strong><small>2 篇新文 · Agent</small></div><time>2 篇</time></a>
+            </div>
+            <p id="topicEmpty">今日还没有 Topic，去资料收集箱或简报看看。</p>
+          </section>
+        </div>
+
+        <div style="display:grid;gap:var(--space-5)">
+          <section class="dash-panel">
+            <header><h2>快速入口</h2></header>
+            <div class="quick-actions">
+              <a class="quick-action" href="reading.html"><b>收集资料</b><span>从数据源抓取或粘贴链接</span></a>
+              <a class="quick-action" href="creative.html"><b>新建创作</b><span>开一个选题或草稿</span></a>
+              <a class="quick-action" href="ai.html"><b>问 AI</b><span>带上下文开一个会话</span></a>
+              <a class="quick-action" href="automation.html"><b>跑自动化</b><span>定时抓取与整理</span></a>
+            </div>
+          </section>
+
+          <section class="snippet">
+            <header><h3>今日简报摘要</h3></header>
+            <p>今日新增 12 条资料，集中在 RAG 评估与 Agent 记忆两个主题；3 条值得转成草稿。Embedding 选型那篇有新实测数据，建议优先读。</p>
+            <a href="brief.html">查看完整简报 →</a>
+          </section>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

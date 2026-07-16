@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 工作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="ai">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+    <main class="ai-workbench" data-pane-storage="ai-cols" style="--ai-columns: 240px 7px minmax(0,1fr)" data-minmax='{"0":[200,320]}'>
+
+      <!-- 会话列表 -->
+      <div class="session-pane">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-1) var(--space-2)">
+          <h2 style="font:600 var(--fs-h3)/1.2 var(--font-display)">会话</h2>
+          <button class="btn ghost" title="新建会话" style="padding:4px 8px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="session-list" data-select-group>
+          <div class="session-item active" data-select style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--space-2);align-items:center">
+            <span class="session-status-dot running"></span>
+            <div style="min-width:0"><strong style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-small);font-weight:500;color:var(--accent-fg)">提示工程误区 · 改稿</strong><small style="color:var(--muted);font-size:10px">正在改写第 2 段</small></div>
+          </div>
+          <div class="session-item" data-select style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--space-2);align-items:center">
+            <span class="session-status-dot waiting"></span>
+            <div style="min-width:0"><strong style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-small);font-weight:500;color:var(--text)">RAG 评估笔记</strong><small style="color:var(--muted);font-size:10px">等待审批 · Codex</small></div>
+          </div>
+          <div class="session-item" data-select style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--space-2);align-items:center">
+            <span class="session-status-dot idle"></span>
+            <div style="min-width:0"><strong style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-small);font-weight:500;color:var(--text)">简报生成 6/18</strong><small style="color:var(--muted-2);font-size:10px">完成 · 08:00</small></div>
+          </div>
+          <div class="session-item" data-select style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--space-2);align-items:center">
+            <span class="session-status-dot idle"></span>
+            <div style="min-width:0"><strong style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-small);font-weight:500;color:var(--text)">Embedding 选型</strong><small style="color:var(--muted-2);font-size:10px">完成 · 昨天</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="splitter" data-resize="0" aria-hidden="true"></div>
+
+      <!-- 对话工作区 -->
+      <div class="conv-pane">
+        <!-- Agent 状态栏 -->
+        <div class="agent-bar">
+          <div class="agent-bar-title">
+            <strong>提示工程误区 · 改稿</strong>
+            <small>Claude · 编辑权限 · <a class="file-link">creative/drafts/prompt-mistakes.md</a></small>
+          </div>
+          <div class="agent-bar-actions">
+            <span class="run-status running"><span class="pulse"></span>正在改写</span>
+            <button class="btn" title="停止"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+          </div>
+        </div>
+
+        <!-- 对话流 -->
+        <div class="chat-scroll" id="chatScroll">
+
+          <!-- 用户消息 -->
+          <div class="message user">
+            <div class="message-meta"><span>你</span><time>2 分钟前</time></div>
+            <div class="user-message"><p>帮我把「提示工程的三个常见误区」里误区二那段长句拆短，再补一个工具调用权限边界的反例。</p></div>
+          </div>
+
+          <!-- 助手回复 + 计划 -->
+          <div class="message assistant">
+            <div class="message-meta"><span>助手</span><time>2 分钟前</time></div>
+            <!-- AI 思考过程（已完成，折叠在助手消息内部） -->
+            <div class="thought-block collapsed">
+              <button class="thought-header" onclick="this.closest('.thought-block').classList.toggle('collapsed')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7 4 4 0 0 0 2 7v1a4 4 0 0 0 8 0v-1a4 4 0 0 0 2-7 4 4 0 0 0-2-7V6a4 4 0 0 0-4-4Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6v12M8 10h8M8 14h8" stroke-linecap="round"/></svg>
+                <span class="thought-label">思考过程</span>
+                <span class="thought-duration">用时 3.2 秒</span>
+                <svg class="thought-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="thought-body">
+                <p>用户要拆短「误区二」的长句 + 补工具调用权限反例。先看原文结构：</p>
+                <p>原句是 38 字一句话（<code>输出格式是契约，不是锦上添花。解析代码依赖什么结构…</code>），拆成 2~3 短句即可。</p>
+                <p>反例方向：<strong>模型决定调什么 vs 应用决定怎么调</strong>——<code>delete("/notes")</code> 这类破坏性调用，应用层必须拦截。与「Tool Use 边界」笔记互补。</p>
+              </div>
+            </div>
+            <div class="assistant-message"><div class="chat-markdown"><p>好，我先读一下草稿确认上下文，再拆短长句、补反例，最后把改动写回去。</p></div></div>
+          </div>
+
+          <!-- 计划卡片 -->
+          <div class="plan-card">
+            <div class="plan-card-header"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke-linecap="round" stroke-linejoin="round"/></svg>执行计划</div>
+            <ol>
+              <li class="done"><span class="step-dot"></span><span>读取 <code style="font:400 .9em var(--font-mono);color:var(--muted)">prompt-mistakes.md</code></span></li>
+              <li class="done"><span class="step-dot"></span><span>拆短误区二长句（3 句 → 2 短句）</span></li>
+              <li class="active"><span class="step-dot"></span><span>补充工具调用权限边界反例</span></li>
+              <li><span class="step-dot"></span><span>写回草稿，等待你确认</span></li>
+            </ol>
+          </div>
+
+          <!-- 工具事件：读取文件（已完成）-->
+          <div class="tool-card collapsed">
+            <div class="tool-card-header">
+              <span class="tool-card-icon read"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span>
+              <div class="tool-card-title"><strong>读取文件</strong><code>creative/drafts/prompt-mistakes.md · 412 字</code></div>
+              <span class="tool-card-status"><span class="pill ok">完成</span></span>
+              <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="tool-card-body"><pre>## 误区二：把格式当装饰
+输出格式是契约，不是锦上添花。解析代码依赖什么结构，
+Prompt 就必须稳定产出什么结构——否则就是埋雷。</pre></div>
+          </div>
+
+          <!-- 助手回复：改写结果 -->
+          <div class="message assistant">
+            <div class="message-meta"><span>助手</span><time>刚刚</time></div>
+            <!-- AI 正在思考（展开 + 动画，嵌在助手消息内部） -->
+            <div class="thought-block thinking">
+              <button class="thought-header" onclick="this.closest('.thought-block').classList.toggle('collapsed')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7 4 4 0 0 0 2 7v1a4 4 0 0 0 8 0v-1a4 4 0 0 0 2-7 4 4 0 0 0-2-7V6a4 4 0 0 0-4-4Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6v12M8 10h8M8 14h8" stroke-linecap="round"/></svg>
+                <span class="thought-label">正在思考…</span>
+                <span class="thought-duration">2.1 秒</span>
+                <svg class="thought-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="thought-body">
+                <p>原文结构确认了。现在拆短：</p>
+                <p><strong>方案 A：</strong>3 句（契约/解析/否则）——更短但节奏碎<br><strong>方案 B：</strong>2 句（契约 + 解析/否则合并）——更紧凑</p>
+                <p>选方案 A——3 短句更符合"误区一"已建立的拆分模式，读者节奏一致。</p>
+                <p>反例位置：放在误区二末尾，与"格式当装饰"主题衔接自然——<code>delete("/notes")</code> 是格式约定被破坏时的后果。</p>
+              </div>
+            </div>
+            <div class="assistant-message"><div class="chat-markdown"><p>已拆短误区二，并补了权限边界反例。改动如下：</p></div></div>
+          </div>
+
+          <!-- 内联 diff 块 -->
+          <div class="diff-block">
+            <div class="diff-block-header">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <code>prompt-mistakes.md</code>
+              <span class="badge add">+4</span><span class="badge del">-2</span>
+            </div>
+            <div class="diff-line del"><span class="ln">12</span><span class="code">输出格式是契约，不是锦上添花。解析代码依赖什么结构，Prompt 就必须稳定产出什么结构——否则就是埋雷。</span></div>
+            <div class="diff-line add"><span class="ln">12</span><span class="code">输出格式是契约，不是锦上添花。</span></div>
+            <div class="diff-line add"><span class="ln">13</span><span class="code">解析代码依赖什么结构，Prompt 就必须稳定产出什么结构。</span></div>
+            <div class="diff-line add"><span class="ln">14</span><span class="code">否则就是埋雷。</span></div>
+            <div class="diff-line add"><span class="ln"></span><span class="code" style="color:var(--muted)">— 补充反例 —</span></div>
+            <div class="diff-line add"><span class="ln">16</span><span class="code">模型返回 delete("/notes") 这类破坏性调用时，应用层必须拦截而非直接执行——这正是「模型决定调什么、应用决定怎么调」的边界。</span></div>
+            <div class="diff-actions">
+              <button class="btn primary"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>接受改动</button>
+              <button class="btn">继续编辑</button>
+              <button class="btn danger">拒绝</button>
+            </div>
+          </div>
+
+          <!-- 内联动作建议 -->
+          <div class="inline-action">
+            <span class="inline-action-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <div class="inline-action-text"><strong>把这处反例也同步到「Tool Use 与函数调用的边界」</strong><small>相关笔记 · 6 月 6 日</small></div>
+            <button class="btn primary">同步</button>
+            <button class="btn ghost">跳过</button>
+          </div>
+
+        </div>
+
+        <!-- 输入区 -->
+        <div class="composer">
+          <div class="composer-context">
+            <span class="ctx-chip"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>prompt-mistakes.md<button>×</button></span>
+            <span class="ctx-chip"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>tool-use-boundary.md<button>×</button></span>
+          </div>
+          <div style="position:relative">
+            <textarea id="composerInput" placeholder="继续对话…  输入 @ 引用文件 · 输入 / 选取命令" aria-label="对话输入"></textarea>
+
+            <!-- @ 文件提及弹窗 -->
+            <div class="popup-menu" id="mentionPopup">
+              <div class="popup-header"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z"/><path d="M21 12c0 5-4 9-9 9s-9-4-9-9 4-9 9-9c2 0 4 .6 5.5 1.7" stroke-linecap="round"/></svg>引用文件</div>
+              <div class="popup-list" id="mentionList">
+                <div class="popup-item selected" data-file="prompt-mistakes.md"><span class="popup-item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div class="popup-item-text"><strong>prompt-mistakes.md</strong><code>creative/drafts/ · 412 字</code></div></div>
+                <div class="popup-item" data-file="tool-use-boundary.md"><span class="popup-item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div class="popup-item-text"><strong>tool-use-boundary.md</strong><code>content/notes/ · 680 字</code></div></div>
+                <div class="popup-item" data-file="rag-evaluation.md"><span class="popup-item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div class="popup-item-text"><strong>rag-evaluation.md</strong><code>content/notes/ · 1.2k 字</code></div></div>
+                <div class="popup-item" data-file="embedding-models.md"><span class="popup-item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div class="popup-item-text"><strong>embedding-models.md</strong><code>content/notes/ · 540 字</code></div></div>
+                <div class="popup-item" data-file="brief-2026-06-18.md"><span class="popup-item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div class="popup-item-text"><strong>brief-2026-06-18.md</strong><code>content/briefs/ · 简报</code></div></div>
+              </div>
+              <div class="popup-footer"><span><kbd>↑↓</kbd> 选择</span><span><kbd>Tab</kbd> 确认</span><span><kbd>Esc</kbd> 关闭</span></div>
+            </div>
+
+            <!-- / 斜杠命令弹窗 -->
+            <div class="popup-menu" id="slashPopup">
+              <div class="popup-header"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14" stroke-linecap="round"/></svg>命令</div>
+              <div class="popup-list" id="slashList">
+                <div class="popup-item selected" data-cmd="/search"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg></span><div class="popup-item-text"><strong>/search</strong><small>在资料库中搜索相关内容</small></div><span class="popup-item-hint">查询</span></div>
+                <div class="popup-item" data-cmd="/read"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><div class="popup-item-text"><strong>/read</strong><small>读取并分析指定文件</small></div><span class="popup-item-hint">文件</span></div>
+                <div class="popup-item" data-cmd="/write"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><div class="popup-item-text"><strong>/write</strong><small>写入或修改文件内容</small></div><span class="popup-item-hint">编辑</span></div>
+                <div class="popup-item" data-cmd="/summarize"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v4H3zM3 10h12v4H3zM3 17h18v4H3z"/></svg></span><div class="popup-item-text"><strong>/summarize</strong><small>生成摘要和要点</small></div><span class="popup-item-hint">总结</span></div>
+                <div class="popup-item" data-cmd="/translate"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg></span><div class="popup-item-text"><strong>/translate</strong><small>翻译为指定语言</small></div><span class="popup-item-hint">翻译</span></div>
+                <div class="popup-item" data-cmd="/outline"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span><div class="popup-item-text"><strong>/outline</strong><small>生成文章大纲</small></div><span class="popup-item-hint">大纲</span></div>
+                <div class="popup-item" data-cmd="/review"><span class="popup-item-icon cmd"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><div class="popup-item-text"><strong>/review</strong><small>检查文章质量并给建议</small></div><span class="popup-item-hint">审阅</span></div>
+              </div>
+              <div class="popup-footer"><span><kbd>↑↓</kbd> 选择</span><span><kbd>Tab</kbd> 确认</span><span><kbd>Esc</kbd> 关闭</span></div>
+            </div>
+          </div>
+          <div class="composer-foot">
+            <button class="btn ghost" title="添加上下文"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>上下文</button>
+            <span class="hint">Claude · 编辑权限 · 2 项上下文 · <strong style="color:var(--accent-fg)">@</strong> 文件 · <strong style="color:var(--accent-fg)">/</strong> 命令</span>
+            <button class="btn primary" id="composerSend"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>发送</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+<script>
+// 工具卡折叠
+document.querySelectorAll('.tool-card-header').forEach(function(h) {
+  h.addEventListener('click', function() { h.parentElement.classList.toggle('collapsed'); });
+});
+
+// @ 文件提及 + / 斜杠命令
+(function() {
+  var ta = document.getElementById('composerInput');
+  if (!ta) return;
+  var mentionPopup = document.getElementById('mentionPopup');
+  var slashPopup = document.getElementById('slashPopup');
+  var activePopup = null;
+  var activeItems = [];
+  var activeIdx = 0;
+
+  function openPopup(popup) { closePopup(); activePopup = popup; popup.classList.add('open'); syncItems(); }
+  function closePopup() { if (activePopup) { activePopup.classList.remove('open'); activePopup = null; } activeIdx = 0; }
+  function syncItems() { if (!activePopup) return; activeItems = Array.from(activePopup.querySelectorAll('.popup-item')); activeIdx = 0; paintSel(); }
+  function paintSel() { activeItems.forEach(function(it, i) { it.classList.toggle('selected', i === activeIdx); }); }
+  function moveSel(d) { if (!activeItems.length) return; activeIdx = (activeIdx + d + activeItems.length) % activeItems.length; paintSel(); }
+  function filterPop(q) {
+    if (!activePopup) return;
+    var items = activePopup.querySelectorAll('.popup-item');
+    var vis = 0;
+    items.forEach(function(it) {
+      var text = (it.querySelector('strong') || {}).textContent || '';
+      var match = text.toLowerCase().indexOf(q.toLowerCase()) >= 0;
+      it.style.display = match ? '' : 'none';
+      if (match) vis++;
+    });
+    activeItems = Array.from(items).filter(function(it) { return it.style.display !== 'none'; });
+    activeIdx = 0; paintSel();
+    if (vis === 0) closePopup();
+  }
+  function selectActive() {
+    if (!activeItems.length || !activeItems[activeIdx]) return;
+    var item = activeItems[activeIdx];
+    var val = ta.value;
+    if (activePopup === mentionPopup) {
+      var fname = item.dataset.file || '';
+      var atIdx = val.lastIndexOf('@');
+      if (atIdx >= 0) ta.value = val.substring(0, atIdx).trimEnd() + (val.substring(0, atIdx).trim() ? ' ' : '');
+      addChip(fname);
+    } else if (activePopup === slashPopup) {
+      var cmd = item.dataset.cmd || '';
+      var slashIdx = val.lastIndexOf('/');
+      if (slashIdx >= 0) ta.value = val.substring(0, slashIdx) + cmd + ' ';
+    }
+    closePopup(); ta.focus();
+  }
+  function addChip(name) {
+    var ctx = document.querySelector('.composer-context');
+    var chip = document.createElement('span');
+    chip.className = 'ctx-chip';
+    chip.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>' + name + '<button>×</button>';
+    chip.querySelector('button').addEventListener('click', function() { chip.remove(); });
+    ctx.appendChild(chip);
+  }
+
+  ta.addEventListener('input', function(e) {
+    var val = ta.value;
+    var lastCh = val[val.length - 1] || '';
+    var prevCh = val[val.length - 2] || ' ';
+    // @ trigger
+    if (lastCh === '@' && (prevCh === ' ' || prevCh === '\n' || val.length === 1)) { openPopup(mentionPopup); return; }
+    // / trigger
+    if (lastCh === '/' && (prevCh === ' ' || prevCh === '\n' || val.length === 1)) { openPopup(slashPopup); return; }
+    // filter or close
+    if (activePopup) {
+      var trigger = activePopup === mentionPopup ? val.lastIndexOf('@') : val.lastIndexOf('/');
+      if (trigger < 0) { closePopup(); return; }
+      var query = val.substring(trigger + 1);
+      if (query.includes(' ') || query.includes('\n')) { closePopup(); return; }
+      filterPop(query);
+    }
+  });
+
+  ta.addEventListener('keydown', function(e) {
+    if (!activePopup) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
+    else if (e.key === 'Tab' || (e.key === 'Enter' && activePopup)) { e.preventDefault(); selectActive(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePopup(); }
+  });
+
+  // 点击弹窗项选中
+  [mentionPopup, slashPopup].forEach(function(p) {
+    p.addEventListener('click', function(e) {
+      var item = e.target.closest('.popup-item');
+      if (item) { activeItems.forEach(function(it, i) { if (it === item) activeIdx = i; }); selectActive(); }
+    });
+  });
+
+  // 点击外部关闭
+  document.addEventListener('click', function(e) { if (activePopup && !activePopup.contains(e.target) && e.target !== ta) closePopup(); });
+})();
+</script>
+</body>
+</html>

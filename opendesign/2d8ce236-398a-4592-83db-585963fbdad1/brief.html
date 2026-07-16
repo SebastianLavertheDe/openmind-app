@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>每日简报</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-page="brief">
+<div class="app-shell">
+  <aside class="app-nav" id="appNav"></aside>
+  <section class="app-stage">
+    <header class="global-toolbar" id="globalToolbar"></header>
+    <main class="page">
+      <header class="page-head">
+        <div>
+          <span class="eyebrow">每日简报</span>
+          <h1>6 月 18 日 · 今日动态</h1>
+          <p>基于过去 24 小时新增的 12 条资料自动生成。可一键把选题转成草稿。</p>
+        </div>
+        <div class="page-actions">
+          <div class="segmented" data-select-group>
+            <button data-select>‹ 17</button>
+            <button class="active" data-select>18</button>
+            <button data-select>19 ›</button>
+          </div>
+          <button class="btn primary">重新生成</button>
+        </div>
+      </header>
+
+      <section class="metric-cards">
+        <div class="metric-card"><span>新增资料</span><strong>12</strong><em>较昨日 +4</em></div>
+        <div class="metric-card"><span>转草稿建议</span><strong>3</strong><em>高潜力</em></div>
+        <div class="metric-card"><span>高相关条目</span><strong>5</strong><em>命中关注主题</em></div>
+        <div class="metric-card"><span>关注主题</span><strong>4</strong><em>RAG · Agent · …</em></div>
+      </section>
+
+      <!-- 简报正文 -->
+      <section class="brief-md" style="margin-top:var(--space-5)">
+        <header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+          <h2 style="font:600 var(--fs-h3)/1.2 var(--font-display)">简报正文</h2>
+          <button class="btn">复制 Markdown</button>
+        </header>
+        <div class="reader-body">
+          <h2>今日要点</h2>
+          <p>过去 24 小时新增 12 条资料，集中在 RAG 评估与 Agent 工具调用两条线。<strong>分层召回评估</strong>的框架正在社区收敛，值得整理成一篇笔记；<strong>工具调用权限边界</strong>出现了两个可引用的生产反例。</p>
+          <h2>值得深读</h2>
+          <ul>
+            <li>arXiv cs.CL 新论文：分层召回评估方法</li>
+            <li>Hacker News：工具调用权限的两个事故案例</li>
+          </ul>
+          <h2>建议动作</h2>
+          <p>把 RAG 评估整理成系统笔记，并为「提示工程误区」补一个权限边界的反例。</p>
+        </div>
+      </section>
+    </main>
+  </section>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>
