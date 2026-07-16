@@ -134,8 +134,8 @@ describe("ResponsiveLayoutProvider", () => {
     }
   });
 
-  it("moves the companion to a canvas when the rail and minimum workspace no longer fit", () => {
-    const viewport = installViewportQueries(1_600);
+  it("keeps the companion attached until the true single-canvas breakpoint", () => {
+    const viewport = installViewportQueries(1_280);
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
     try {
@@ -144,21 +144,39 @@ describe("ResponsiveLayoutProvider", () => {
           <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420 }} />
         </ResponsiveLayoutProvider>
       );
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/split/comfortable/compact");
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
 
+      viewport.setWidth(1_100);
       rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_100, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
 
+      viewport.setWidth(900);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 900, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+
+      viewport.setWidth(841);
       rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
 
-      // Reporting the target width while detached makes the transition stable
-      // and allows the companion to dock again when enough space returns.
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/split/comfortable/compact");
+      viewport.setWidth(840);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 840, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("drawer/canvas/single/comfortable/minimal");
 
+      viewport.setWidth(720);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 720, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("drawer/canvas/single/narrow/minimal");
+
+      viewport.setWidth(841);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+
+      viewport.setWidth(1_280);
       rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 760 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/canvas/split/comfortable/compact");
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+
+      viewport.setWidth(1_365);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_365, companionWidth: 960 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
     } finally {
       viewport.restore();
     }

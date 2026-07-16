@@ -156,10 +156,10 @@ describe("AppShell", () => {
     }
   });
 
-  it("keeps reporting the companion target width after it becomes a canvas", async () => {
+  it("keeps a preferred wide companion attached above the canvas breakpoint", async () => {
     const originalMatchMedia = window.matchMedia;
     const originalWidth = window.innerWidth;
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1_100 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1_365 });
     window.matchMedia = vi.fn((query: string) => {
       const max = Number(query.match(/max-width:\s*(\d+)px/)?.[1] || Number.POSITIVE_INFINITY);
       return {
@@ -186,15 +186,16 @@ describe("AppShell", () => {
             runtime="linux"
             environment={{ mode: "desktop" }}
             pendingApprovals={0}
-            aiMode="default"
-            aiSidebar={<aside className="ai-sidebar layout-companion-canvas" data-layout-width={420}>AI</aside>}
+            aiMode="wide"
+            aiSidebar={<aside className="ai-sidebar layout-companion-compact" data-layout-width={760}>AI</aside>}
           >
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
       );
-      await waitFor(() => expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-canvas")).toBe(true));
+      await waitFor(() => expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-compact")).toBe(true));
       expect(container.querySelector(".app-shell")?.classList.contains("layout-shell-rail")).toBe(true);
+      expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-canvas")).toBe(false);
     } finally {
       window.matchMedia = originalMatchMedia;
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });

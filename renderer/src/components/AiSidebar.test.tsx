@@ -105,6 +105,33 @@ describe("AiSidebar", () => {
     expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);
   });
 
+  it("does not restore stale background isolation over a newer responsive state", async () => {
+    render(
+      <AiProvider initial={snapshot}>
+        <div data-testid="responsive-workspace" inert={true} aria-hidden="true">
+          <button>Workspace action</button>
+        </div>
+        <AiSidebar openWorkbench={vi.fn()} />
+      </AiProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: /\u5168\u5c4f/ }));
+
+    const workspace = screen.getByTestId("responsive-workspace") as HTMLElement;
+    await waitFor(() => expect(workspace.inert).toBe(true));
+
+    // Simulate a breakpoint render taking ownership while the modal effect is
+    // still active. Its cleanup must not reapply the captured compact state.
+    workspace.inert = false;
+    workspace.removeAttribute("aria-hidden");
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "AI Assistant" })).toBeNull();
+      expect(workspace.inert).toBe(false);
+      expect(workspace.getAttribute("aria-hidden")).toBeNull();
+    });
+  });
+
   it("collapses to the rail via the collapse button", () => {
     renderSidebar();
     fireEvent.click(screen.getByRole("button", { name: /收起/ }));

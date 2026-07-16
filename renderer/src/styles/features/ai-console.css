@@ -541,68 +541,8 @@
   border: 0;
 }
 
-.chat-thread .trace-cycle,
-.chat-thread .trace-cycle-history,
-.chat-thread .trace-cycle-history-list {
+.chat-thread .trace-cycle {
   min-width: 0;
-}
-
-.chat-thread .trace-cycle-history {
-  margin: 0 0 4px;
-  color: var(--muted);
-}
-
-.chat-thread .trace-cycle-history > .ui-disclosure-trigger {
-  width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  border: 0;
-  border-bottom: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  text-align: left;
-}
-
-.chat-thread .trace-cycle-history-title {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-}
-
-.chat-thread .trace-cycle-history-title strong,
-.chat-thread .trace-cycle-history-title small {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-thread .trace-cycle-history-chevron {
-  flex: 0 0 auto;
-  margin-left: auto;
-  transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.chat-thread .trace-cycle-history[data-open] .trace-cycle-history-chevron {
-  transform: rotate(90deg);
-}
-
-.chat-thread .trace-cycle-history-list {
-  display: grid;
-  gap: 9px;
-  padding: 9px 0 4px;
-}
-
-.chat-thread .trace-cycle.completed + .trace-cycle.completed {
-  padding-top: 9px;
-  border-top: 1px solid var(--border-subtle);
 }
 
 .chat-thread .completed-process-body .process-narrative-block {
@@ -2176,6 +2116,103 @@
 .context-chips[data-count]::before,
 .context-chips[data-count]::after { /* 渐变遮罩由 mask 实现 */ }
 
+/* Keep selected context inside the composer as one compact attachment bar. */
+.context-tray {
+  min-width: 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 0;
+  background: transparent;
+}
+
+.context-tray-count {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.context-tray-clear {
+  justify-self: end;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.context-tray-clear:hover {
+  background: var(--control-hover);
+  color: var(--text-dim);
+}
+
+.context-tray .context-chips {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-mask-image: none;
+  mask-image: none;
+  scrollbar-width: none;
+}
+
+.context-tray .context-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.context-tray .context-chip-drag {
+  min-width: 0;
+  max-width: min(260px, 100%);
+  flex: 0 0 auto;
+  cursor: grab;
+}
+
+.context-tray .context-chip-drag:active {
+  cursor: grabbing;
+}
+
+.context-tray .context-chip {
+  max-width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: var(--panel-muted);
+  box-shadow: none;
+}
+
+.context-tray .context-chip > .ui-disclosure-trigger {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.context-tray .context-chip > .ui-disclosure-trigger:hover {
+  background: var(--control-hover);
+}
+
+.context-tray .context-chip > .ui-disclosure-trigger span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* ====================================================================
    P1-APR-2: 按钮间距防误触
    ==================================================================== */

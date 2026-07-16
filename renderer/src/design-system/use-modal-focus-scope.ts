@@ -92,9 +92,14 @@ export function useModalFocusScope({
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown, true);
       inertSnapshots.forEach(({ element, inert, ariaHidden }) => {
-        element.inert = inert;
-        if (ariaHidden == null) element.removeAttribute("aria-hidden");
-        else element.setAttribute("aria-hidden", ariaHidden);
+        // A responsive render may have already assigned a newer sibling state
+        // before this passive cleanup runs. Only restore values still owned by
+        // the focus scope, otherwise an old drawer state can become sticky.
+        if (element.inert) element.inert = inert;
+        if (element.getAttribute("aria-hidden") === "true") {
+          if (ariaHidden == null) element.removeAttribute("aria-hidden");
+          else element.setAttribute("aria-hidden", ariaHidden);
+        }
       });
       // The trigger may be conditionally rendered (for example, an AI rail
       // button that replaces a modal canvas). Read it again after the close

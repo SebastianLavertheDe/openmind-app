@@ -377,7 +377,7 @@ describe("chat timeline", () => {
 
     await screen.findByText("third");
     expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
-    expect(container.querySelector(".provider-avatar, .provider-avatar-spacer")).toBeNull();
+    expect(container.querySelector(".message-avatar, .provider-avatar, .provider-avatar-spacer")).toBeNull();
     expect(screen.queryByText("first")).toBeNull();
     expect(screen.queryByText("second")).toBeNull();
   });
@@ -746,7 +746,7 @@ describe("chat timeline", () => {
     expect(container.querySelector(".assistant-message")?.textContent).not.toContain("stale draft");
   });
 
-  it("shows live reasoning separately and folds the completed reasoning record", async () => {
+  it("shows live reasoning separately and hides completed reasoning while the run continues", async () => {
     const run = makeRun();
     const runningSnapshot = {
       ...snapshot,
@@ -786,13 +786,9 @@ describe("chat timeline", () => {
     expect(screen.queryByText("正在启动 Codex")).toBeNull();
 
     aiListener?.({ kind: "event", event: makeEvent("reasoning-final", "reasoning-summary", { text: "checking context" }) });
-    const reasoning = await screen.findByLabelText("推理摘要");
-    expect(screen.queryByText("推理摘要")).toBeNull();
-    expect(reasoning.classList.contains("reasoning-waypoint")).toBe(false);
-    const reasoningDisclosure = disclosureFor(reasoning);
-    expectDisclosureOpen(reasoningDisclosure, false);
-    fireEvent.click(reasoning);
-    expectDisclosureOpen(reasoningDisclosure, true);
+    const pendingReasoning = await screen.findByRole("status", { name: "正在思考" });
+    expect(pendingReasoning.classList.contains("pending")).toBe(true);
+    expect(screen.queryByLabelText("推理摘要")).toBeNull();
   });
 
   it("renders standalone reasoning summaries inline and expands them in place", async () => {
@@ -1432,7 +1428,7 @@ describe("chat timeline", () => {
     expect(process.querySelector(".spin")).toBeNull();
   });
 
-  it("collapses completed trace cycles and only keeps the running cycle visible", async () => {
+  it("keeps the running cycle visible without a nested completed-round summary", async () => {
     const run = makeRun();
     window.cctools.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "inspect and build" }, 1),
@@ -1446,22 +1442,19 @@ describe("chat timeline", () => {
 
     const process = disclosureFor(await screen.findByText("正在处理"));
     expectDisclosureOpen(process, true);
-    const completedHistory = disclosureFor(within(process).getByRole("button", { name: "已完成 1 轮" }));
-    expectDisclosureOpen(completedHistory, false);
+    expect(process.querySelector(".trace-cycle-history")).toBeNull();
+    expect(within(process).queryByRole("button", { name: /已完成 \d+ 轮/ })).toBeNull();
+    expect(process.querySelector(".completed-process-title small")?.textContent).not.toMatch(/思考|工具/);
     expect(process.querySelectorAll('[data-trace-cycle="current"]')).toHaveLength(1);
     expect(within(process.querySelector<HTMLElement>('[data-trace-cycle="current"]')!).getByText("正在运行")).toBeTruthy();
 
     aiListener?.({ kind: "event", event: makeEvent("build-done", "tool-complete", { itemId: "build", output: "built" }, 7) });
     await waitFor(() => {
-      expect(within(process).getByRole("button", { name: "已完成 2 轮" })).toBeTruthy();
+      expect(process.querySelector(".trace-cycle-history")).toBeNull();
+      expect(within(process).queryByRole("button", { name: /已完成 \d+ 轮/ })).toBeNull();
       expect(process.querySelector('[data-trace-cycle="current"]')).toBeNull();
-      expectDisclosureOpen(completedHistory, false);
     });
     expect(container.querySelector(".reasoning-event.pending")).toBeTruthy();
-
-    fireEvent.click(disclosureTrigger(completedHistory));
-    expectDisclosureOpen(completedHistory, true);
-    expect(completedHistory.querySelectorAll('[data-trace-cycle="completed"]')).toHaveLength(2);
   });
 
   it("auto-collapses a command group when its last running command completes", async () => {
@@ -1545,6 +1538,7 @@ describe("chat timeline", () => {
     expect(await screen.findByText("finished")).toBeTruthy();
     const process = disclosureFor(screen.getByText("已处理"));
     expectDisclosureOpen(process, false);
+    expect(process.querySelector(".completed-process-title small")?.textContent).not.toMatch(/思考|工具/);
     openDisclosure(process);
     expectDisclosureOpen(process, true);
     const reasoningInline = within(process).getByRole("button", { name: /推理摘要|思考过程/ });

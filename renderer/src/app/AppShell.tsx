@@ -75,8 +75,8 @@ export function AppShell({
       reportComposition({
         viewportWidth: shell.getBoundingClientRect().width || window.innerWidth,
         // Fullscreen and collapsed modes do not consume a grid column. Default
-        // and wide keep reporting their preferred width while on a canvas so
-        // the composition-aware state cannot oscillate back to a docked pane.
+        // and wide keep reporting their preferred width so navigation can
+        // simplify before the companion itself reaches the canvas breakpoint.
         companionWidth: aiMode === "default" || aiMode === "wide"
           ? Number.isFinite(preferredWidth) && preferredWidth > 0 ? preferredWidth : 0
           : 0
@@ -153,7 +153,7 @@ export function AppShell({
         aria-modal={compactShell && mobileNavOpen ? "true" : undefined}
         aria-label={m.shell.navMain}
         aria-hidden={compactShell && !mobileNavOpen ? true : undefined}
-        inert={compactShell && !mobileNavOpen ? true : undefined}
+        inert={compactShell && !mobileNavOpen}
         tabIndex={compactShell ? -1 : undefined}
         onClickCapture={(event) => {
           if (!compactShell) return;

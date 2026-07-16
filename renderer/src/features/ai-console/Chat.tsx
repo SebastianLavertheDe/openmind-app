@@ -31,12 +31,10 @@ import {
   compactEvents,
   groupTimeline,
   selectRenderableTimelineEvents,
-  summarizeTrace,
   technicalEventText,
   toolCategory,
   toolEventFailed,
   toolOperationSummary,
-  traceSummaryText,
   type TraceStep
 } from "./timeline";
 
@@ -594,52 +592,13 @@ function TraceStepList({
     ? cycles.length - 1
     : activeCycleIndex;
   const activeCycle = cycles[fallbackActiveIndex] || null;
-  const completedCycles = cycles.filter((_, index) => index !== fallbackActiveIndex);
-  const resetKey = `${completedCycles.map((cycle) => cycle.key).join("|")}:${activeCycle?.key || "live"}`;
 
   return (
-    <>
-      {completedCycles.length ? (
-        <CompletedTraceHistory cycles={completedCycles} run={run} resetKey={resetKey} />
-      ) : null}
-      {activeCycle ? (
-        <div className="trace-cycle current" data-trace-cycle="current">
-          <TraceStepBlocks steps={activeCycle.steps} run={run} />
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function CompletedTraceHistory({ cycles, run, resetKey }: { cycles: TraceCycle[]; run: AiRun; resetKey: string }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [resetKey]);
-  const completedSteps = cycles.flatMap((cycle) => cycle.steps);
-  const summary = traceSummaryText(summarizeTrace(run, completedSteps));
-  return (
-    <AnimatedDisclosure
-      className="trace-cycle-history"
-      open={open}
-      onOpenChange={setOpen}
-      triggerAriaLabel={m.ai.chat.completedRounds(cycles.length)}
-      summary={
-        <>
-          <span className="trace-cycle-history-title">
-            <strong>{m.ai.chat.completedRounds(cycles.length)}</strong>
-            <small>{summary}</small>
-          </span>
-          <ChevronRight className="trace-cycle-history-chevron" size={14} />
-        </>
-      }
-    >
-      <div className="trace-cycle-history-list">
-        {cycles.map((cycle) => (
-          <div className="trace-cycle completed" data-trace-cycle="completed" key={cycle.key}>
-            <TraceStepBlocks steps={cycle.steps} run={run} />
-          </div>
-        ))}
+    activeCycle ? (
+      <div className="trace-cycle current" data-trace-cycle="current">
+        <TraceStepBlocks steps={activeCycle.steps} run={run} />
       </div>
-    </AnimatedDisclosure>
+    ) : null
   );
 }
 

@@ -547,8 +547,8 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   useEffect(() => () => { if (closeTimer.current) window.clearTimeout(closeTimer.current); }, []);
 
   return (
-    <div className="context-tray">
-      <div className="context-tray-header"><span>{m.ai.context.count(contexts.length)}</span><button data-motion="icon" onClick={ai.clearContexts}><Trash2 size={12} />{m.ai.context.clear}</button></div>
+    <div className="context-tray" role="group" aria-label={m.ai.context.count(contexts.length)}>
+      <span className="context-tray-count" aria-live="polite">{m.ai.context.count(contexts.length)}</span>
       <div className="context-chips" data-count={contexts.length || undefined}>
         {contexts.map((context, index) =>
           context.kind === "image" ? (
@@ -574,6 +574,16 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
           )
         )}
       </div>
+      <button
+        type="button"
+        className="context-tray-clear"
+        data-motion="icon"
+        aria-label={`${m.ai.context.clear} ${m.ai.context.count(contexts.length)}`}
+        onClick={ai.clearContexts}
+      >
+        <Trash2 size={12} />
+        {m.ai.context.clear}
+      </button>
       {isOpen ? (
         <div
           ref={dialogRef}
@@ -694,7 +704,7 @@ function ContextReferenceChip({
         className={`context-chip${dragging ? " dragging" : ""}`}
         open={open}
         onOpenChange={setOpen}
-        triggerAriaLabel={context.label}
+        triggerAriaLabel={context.path || context.label}
         summary={<>{context.kind === "file" ? <FilePlus2 size={12} /> : <Quote size={12} />}<span title={context.path || context.label}>{context.label}</span></>}
       >
         <div>

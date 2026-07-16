@@ -188,10 +188,78 @@ async function captureCompanionLayoutContracts(win, report) {
   );
   await resetCompanionWidth(win);
 
+  await clickCompanionAction(win, "\u5207\u6362\u5bbd\u5c4f");
+  await settle();
+  const wideGeometry = await inspectCompanionGeometry(win);
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-wide-clamped-1280",
+    "docked",
+    "Wide AI preference shrinks before replacing the workspace",
+    {
+      compactPresentation: wideGeometry.sidebarClass.includes("layout-companion-compact"),
+      widePreferencePreserved: wideGeometry.layoutWidth === 760,
+      wideWidthClamped: Number(wideGeometry.separatorValue) >= 380 && Number(wideGeometry.separatorValue) < 760,
+      workspacePreserved: wideGeometry.stageTrackWidth >= 759.5
+    }
+  );
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+
+  win.setSize(2048, 1100);
+  win.webContents.setZoomFactor(1.5);
+  await settle();
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+  await clickCompanionAction(win, "\u5207\u6362\u5bbd\u5c4f");
+  await settle();
+  const highDpiWideGeometry = await inspectCompanionGeometry(win);
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-wide-2048-zoom150",
+    "docked",
+    "A visually large 150% window keeps the workspace beside a clamped wide AI companion",
+    {
+      compactPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-compact"),
+      effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
+      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 760,
+      wideWidthClamped: Number(highDpiWideGeometry.separatorValue) >= 380 && Number(highDpiWideGeometry.separatorValue) < 760,
+      workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
+      requestedZoom: win.webContents.getZoomFactor()
+    }
+  );
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+
+  win.setSize(1366, 768);
+  await settle();
+  await ensureDefaultCompanion(win);
+  const zoomedCompactGeometry = await inspectCompanionGeometry(win);
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-attached-1366-zoom150",
+    "docked",
+    "The compact companion remains attached above the 840 CSS pixel boundary at 150% zoom",
+    {
+      compactPresentation: zoomedCompactGeometry.sidebarClass.includes("layout-companion-compact"),
+      effectiveViewportAboveCanvas: zoomedCompactGeometry.viewport.width > 840,
+      workspaceStillVisible: zoomedCompactGeometry.stageTrackWidth >= 399.5,
+      requestedZoom: win.webContents.getZoomFactor()
+    }
+  );
+  win.webContents.setZoomFactor(1);
+  await settle();
+
   for (const scenario of [
-    { width: 1100, height: 800, id: "companion-canvas-1100" },
-    { width: 841, height: 800, id: "companion-canvas-841" },
-    { width: 840, height: 800, id: "companion-canvas-840" }
+    { width: 1100, height: 800, id: "companion-attached-1100", expected: "docked" },
+    { width: 900, height: 800, id: "companion-attached-900", expected: "docked" },
+    { width: 841, height: 800, id: "companion-attached-841", expected: "docked" },
+    { width: 840, height: 800, id: "companion-canvas-840", expected: "canvas" },
+    { width: 841, height: 800, id: "companion-attached-return-841", expected: "docked" },
+    { width: 720, height: 720, id: "companion-canvas-720", expected: "canvas" }
   ]) {
     win.setSize(scenario.width, scenario.height);
     await settle();
@@ -200,8 +268,8 @@ async function captureCompanionLayoutContracts(win, report) {
       win,
       report,
       scenario.id,
-      "canvas",
-      `Composition-aware AI canvas at ${scenario.width}px`
+      scenario.expected,
+      `AI companion is ${scenario.expected === "docked" ? "attached" : "canvas"} at ${scenario.width}px`
     );
   }
 
@@ -362,7 +430,12 @@ async function inspectCompanionGeometry(win) {
         ) * 10) / 10;
       };
       return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          visualWidth: window.visualViewport?.width || null,
+          devicePixelRatio: window.devicePixelRatio
+        },
         shellClass: shell?.className || '',
         sidebarClass: sidebar?.className || '',
         nav: rect(nav),
@@ -373,6 +446,7 @@ async function inspectCompanionGeometry(win) {
         layoutWidth: numberAttribute(sidebar, 'data-layout-width'),
         separatorValue: numberAttribute(splitter, 'aria-valuenow'),
         splitterVisible: visible(splitter),
+        sidebarPosition: sidebar instanceof Element ? getComputedStyle(sidebar).position : null,
         role: sidebar?.getAttribute('role') || null,
         ariaModal: sidebar?.getAttribute('aria-modal') || null,
         stageInert: Boolean(stage?.inert),
@@ -396,14 +470,23 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
     && Math.abs(geometry.sidebar.bottom - geometry.viewport.height) <= 2;
   const checks = expected === "docked" ? {
     sidebarPresent: Boolean(geometry.sidebar),
+    attachedPresentation: !geometry.shellClass.includes("layout-companion-canvas")
+      && !geometry.sidebarClass.includes("layout-companion-canvas"),
     splitterVisible: geometry.splitterVisible,
-    workspaceMinimum: geometry.stageTrackWidth >= 759.5,
+    workspaceVisible: geometry.stageTrackWidth >= 399.5,
+    panesDoNotOverlap: Boolean(
+      geometry.stage
+      && geometry.sidebar
+      && geometry.stage.right <= geometry.sidebar.left + 2
+    ),
+    sidebarInFlow: geometry.sidebarPosition !== "fixed",
     sidebarAtRightEdge: Boolean(
       geometry.sidebar
       && Math.abs(geometry.sidebar.right - (geometry.viewport.width - geometry.workspaceInset)) <= 2
     ),
     backgroundInteractive: !geometry.stageInert && !geometry.navInert,
     notModal: geometry.role !== "dialog" && geometry.ariaModal !== "true",
+    widthControlsVisible: geometry.wideControlVisible && geometry.fullscreenControlVisible,
     noHorizontalOverflow: geometry.horizontalOverflow <= 2,
     ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
   } : expected === "canvas" ? {
@@ -434,7 +517,7 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
     file: path.relative(appRoot, file),
     width: geometry.viewport.width,
     height: geometry.viewport.height,
-    zoom: 1,
+    zoom: win.webContents.getZoomFactor(),
     ok,
     reason: ok ? null : `companion checks failed: ${Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(', ')}`,
     checks,
@@ -671,6 +754,41 @@ async function captureComposerSuggestions(win, report) {
   await waitForSelectorToDisappear(win, ".approval-banner");
   await waitForSelector(win, 'textarea[aria-label="AI 消息"]');
 
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const buttons = [...document.querySelectorAll('.toast-stack .toast > button:last-child')];
+      buttons.forEach((button) => button.click());
+      return buttons.length;
+    })()
+  `);
+  await waitForSelectorToDisappear(win, ".toast-stack .toast");
+
+  const selectedContext = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.composer-add-context');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!selectedContext) throw new Error("Composer add-context button was not reachable.");
+  await waitForSelector(win, ".context-tray .context-chip > .ui-disclosure-trigger");
+  await settle();
+  await assertComposerContextGeometry(win);
+  await captureState(win, report, "ai-composer-file-context", pages[0].label, "Selected long file remains compact and readable in the composer", {
+    requiredSelector: ".context-tray"
+  });
+  const clearedContext = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.context-tray-clear');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!clearedContext) throw new Error("Composer clear-context button was not reachable.");
+  await waitForSelectorToDisappear(win, ".context-tray");
+
   await setComposerValue(win, "/");
   await waitForText(win, "选择要运行的真实工作流");
   await captureState(win, report, "ai-skill-menu", "新建任务", "Registered skill suggestion menu");
@@ -682,6 +800,129 @@ async function captureComposerSuggestions(win, report) {
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'dark')");
   await captureState(win, report, "ai-file-mention-dark", "新建任务", "Project file mention search in dark theme");
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'light')");
+}
+
+async function assertComposerContextGeometry(win) {
+  const geometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const flow = document.querySelector('.composer-flow');
+      const tray = document.querySelector('.context-tray');
+      const count = tray?.querySelector(':scope > .context-tray-count');
+      const chips = tray?.querySelector(':scope > .context-chips');
+      const drag = chips?.querySelector(':scope > .context-chip-drag');
+      const chip = drag?.querySelector(':scope > .context-chip');
+      const trigger = chip?.querySelector(':scope > .ui-disclosure-trigger');
+      const label = trigger?.querySelector(':scope > span');
+      const clear = tray?.querySelector(':scope > .context-tray-clear');
+      const editor = flow?.querySelector(':scope > .composer-editor');
+      const elements = { flow, tray, count, chips, drag, chip, trigger, label, clear, editor };
+      const allPresent = Object.values(elements).every((element) => element instanceof Element);
+      if (!allPresent) return { ok: false, checks: { allPresent }, elements: Object.keys(elements).filter((key) => !(elements[key] instanceof Element)) };
+
+      const rect = (element) => {
+        const value = element.getBoundingClientRect();
+        return Object.fromEntries(['left', 'top', 'right', 'bottom', 'width', 'height'].map((key) => [key, Math.round(value[key] * 10) / 10]));
+      };
+      const style = (element) => getComputedStyle(element);
+      const visible = (element) => {
+        const css = style(element);
+        const box = rect(element);
+        return css.display !== 'none' && css.visibility !== 'hidden' && Number(css.opacity || 1) > 0 && box.width > 0 && box.height > 0;
+      };
+      const inside = (inner, outer, tolerance = 1) => inner.left >= outer.left - tolerance
+        && inner.top >= outer.top - tolerance && inner.right <= outer.right + tolerance && inner.bottom <= outer.bottom + tolerance;
+      const overlap = (a, b, tolerance = 1) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > tolerance
+        && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > tolerance;
+      const bordered = (element) => {
+        const css = style(element);
+        return ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+          css['border' + side + 'Style'] !== 'none' && parseFloat(css['border' + side + 'Width']) > 0);
+      };
+      const overflow = (element) => Math.max(0, element.scrollWidth - element.clientWidth);
+      const boxes = Object.fromEntries(Object.entries(elements).map(([key, element]) => [key, rect(element)]));
+      const css = {
+        count: style(count),
+        chips: style(chips),
+        label: style(label)
+      };
+      const directChildren = [...tray.children];
+      const centers = [boxes.count, boxes.trigger, boxes.clear].map((box) => (box.top + box.bottom) / 2);
+      const borderLayers = [tray, chip, trigger].filter(bordered).length;
+      const hitDetails = (element) => {
+        const box = rect(element);
+        const target = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return {
+          passed: Boolean(target && (target === element || element.contains(target))),
+          target: target ? {
+            tag: target.tagName,
+            className: String(target.className || ''),
+            ariaLabel: target.getAttribute('aria-label'),
+            outerHTML: target.outerHTML.slice(0, 220),
+            ancestry: [target, target.parentElement, target.parentElement?.parentElement, target.parentElement?.parentElement?.parentElement]
+              .filter(Boolean)
+              .map((node) => node.tagName + (node.id ? '#' + node.id : '') + (node.className ? '.' + String(node.className).trim().replace(/\\s+/g, '.') : ''))
+          } : null
+        };
+      };
+      const triggerHit = hitDetails(trigger);
+      const clearHit = hitDetails(clear);
+      const checks = {
+        allPresent,
+        allVisible: [tray, count, chips, chip, trigger, label, clear, editor].every(visible),
+        domOrder: directChildren[0] === count && directChildren[1] === chips && directChildren[2] === clear,
+        visualOrder: boxes.count.right <= boxes.trigger.left + 1 && boxes.trigger.right <= boxes.clear.left + 1,
+        controlsDoNotOverlap: !overlap(boxes.count, boxes.trigger) && !overlap(boxes.trigger, boxes.clear),
+        childrenInsideTray: [boxes.count, boxes.chips, boxes.trigger, boxes.clear].every((box) => inside(box, boxes.tray)),
+        compactSingleRow: boxes.tray.height >= 30 && boxes.tray.height <= 44 && Math.max(...centers) - Math.min(...centers) <= 3,
+        chipsNoWrap: css.chips.flexWrap === 'nowrap',
+        countNoWrap: css.count.whiteSpace === 'nowrap',
+        maskRemoved: (!css.chips.maskImage || css.chips.maskImage === 'none')
+          && (!css.chips.webkitMaskImage || css.chips.webkitMaskImage === 'none'),
+        noNestedDoubleFrame: borderLayers <= 1 && !bordered(trigger),
+        noPageOverflow: document.documentElement.scrollWidth - window.innerWidth <= 2,
+        noFlowOverflow: overflow(flow) <= 2,
+        noTrayOverflow: overflow(tray) <= 2,
+        noChipsOverflow: overflow(chips) <= 2,
+        chipBounded: boxes.chip.width <= 260.5 && boxes.chip.width <= boxes.chips.width + 1,
+        longLabelEllipsized: css.label.whiteSpace === 'nowrap'
+          && ['hidden', 'clip'].includes(css.label.overflowX)
+          && css.label.textOverflow === 'ellipsis'
+          && label.scrollWidth > label.clientWidth + 1,
+        fullPathPreserved: label.title.includes('very-long-title-with-English')
+          && trigger.getAttribute('aria-label') === label.title,
+        controlsHitTestable: triggerHit.passed && clearHit.passed,
+        editorBelowTray: boxes.tray.bottom <= boxes.editor.top + 1
+      };
+      return {
+        ok: Object.values(checks).every(Boolean),
+        checks,
+        boxes,
+        hitTargets: { trigger: triggerHit, clear: clearHit },
+        overflow: {
+          page: document.documentElement.scrollWidth - window.innerWidth,
+          flow: overflow(flow),
+          tray: overflow(tray),
+          chips: overflow(chips),
+          label: overflow(label)
+        },
+        style: {
+          trayHeight: boxes.tray.height,
+          flexWrap: css.chips.flexWrap,
+          maskImage: css.chips.maskImage,
+          webkitMaskImage: css.chips.webkitMaskImage,
+          borderLayers,
+          labelWhiteSpace: css.label.whiteSpace,
+          labelOverflowX: css.label.overflowX,
+          labelTextOverflow: css.label.textOverflow
+        }
+      };
+    })()
+  `);
+  if (!geometry.ok) {
+    const failed = Object.entries(geometry.checks || {}).filter(([, passed]) => !passed).map(([name]) => name);
+    throw new Error("Composer context geometry failed (" + failed.join(", ") + "): " + JSON.stringify(geometry));
+  }
+  return geometry;
 }
 
 async function assertPendingApprovalGeometry(win) {

@@ -7,8 +7,10 @@ const maxWidth = (value: number) => `(max-width: ${value}px)`;
 
 export const RESPONSIVE_LAYOUT_QUERIES = {
   // Companion density is independent from navigation disclosure. The shell
-  // state additionally uses measured companion width plus the shared minimum
+  // state additionally uses measured companion width plus the shared target
   // workspace width, so adding a companion can promote navigation to a rail.
+  // The companion itself remains attached until the true single-canvas query;
+  // its rendered width is clamped independently as the window narrows.
   companionCompact: maxWidth(RESPONSIVE_LAYOUT_BREAKPOINTS.companionCompact),
   // Split document workspaces move to master/detail before either pane becomes
   // too narrow. Navigation and companion presentation remain independent.
@@ -52,11 +54,7 @@ function readLayout(media: Record<keyof typeof RESPONSIVE_LAYOUT_QUERIES, MediaQ
     + RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
     + composition.companionWidth;
   const shell = media.shellDrawer.matches ? "drawer" : composition.viewportWidth < expandedWidth ? "rail" : "expanded";
-  const companionNeedsCanvas = composition.companionWidth > 0
-    && composition.viewportWidth < RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
-      + RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
-      + Math.max(RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth, composition.companionWidth);
-  const companion = media.shellDrawer.matches || companionNeedsCanvas
+  const companion = media.shellDrawer.matches
     ? "canvas"
     : media.companionCompact.matches
       ? "compact"
