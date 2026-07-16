@@ -294,10 +294,13 @@ function waitForWarmSlot(slot: WarmSlot, signal: AbortSignal): Promise<WarmQuery
 }
 
 type ClaudeToolUse = { name: string; input: Record<string, unknown> };
-export type ClaudeNormalizerState = { toolUses: Map<string, ClaudeToolUse> };
+export type ClaudeNormalizerState = {
+  toolUses: Map<string, ClaudeToolUse>;
+  toolHistory: Map<string, ClaudeToolUse>;
+};
 
 export function createClaudeNormalizerState(): ClaudeNormalizerState {
-  return { toolUses: new Map() };
+  return { toolUses: new Map(), toolHistory: new Map() };
 }
 
 export function normalizeClaudeMessage(value: Record<string, unknown>, state: ClaudeNormalizerState = createClaudeNormalizerState()): {
@@ -320,7 +323,11 @@ export function normalizeClaudeMessage(value: Record<string, unknown>, state: Cl
         const itemId = String(block.id || "");
         const tool = String(block.name || "");
         const input = asClaudeRecord(block.input);
-        if (itemId) state.toolUses.set(itemId, { name: tool, input });
+        if (itemId) {
+          const call = { name: tool, input };
+          state.toolUses.set(itemId, call);
+          state.toolHistory.set(itemId, call);
+        }
         events.push({ kind: "tool-start", payload: { tool, input, itemId } });
       }
     }
@@ -350,8 +357,39 @@ export function normalizeClaudeMessage(value: Record<string, unknown>, state: Cl
       events.push({ kind: "assistant-message", payload: { text: value.result, phase: "final" } });
     }
     events.push({ kind: "usage", payload: { usage: value.usage, cost: value.total_cost_usd, duration: value.duration_ms } });
-  } else if (value.type === "tool_progress" || value.type === "tool_use_summary") {
-    events.push({ kind: "tool-output", payload: { message: value } });
+  } else if (value.type === "tool_progress") {
+    const itemId = String(value.tool_use_id || "");
+    const call = state.toolUses.get(itemId) || state.toolHistory.get(itemId);
+    events.push({
+      kind: "tool-output",
+      payload: {
+        itemId,
+        tool: String(value.tool_name || call?.name || ""),
+        input: call?.input,
+        elapsedTimeSeconds: value.elapsed_time_seconds,
+        taskId: value.task_id,
+        message: value
+      }
+    });
+  } else if (value.type === "tool_use_summary") {
+    const precedingItemIds = Array.isArray(value.preceding_tool_use_ids)
+      ? value.preceding_tool_use_ids.map(String).filter(Boolean)
+      : [];
+    const itemId = precedingItemIds.slice().reverse().find((candidate) => state.toolHistory.has(candidate))
+      || precedingItemIds.at(-1)
+      || "";
+    const call = state.toolHistory.get(itemId);
+    events.push({
+      kind: "tool-output",
+      payload: {
+        itemId,
+        tool: call?.name,
+        input: call?.input,
+        text: typeof value.summary === "string" ? value.summary : "",
+        precedingItemIds,
+        message: value
+      }
+    });
   } else if (value.type === "system") {
     const subtype = String(value.subtype || "");
     if (subtype === "init") {

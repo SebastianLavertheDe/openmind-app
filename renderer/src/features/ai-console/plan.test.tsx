@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { AiEvent } from "@shared/contracts";
-import { ActiveTodoFloat, WorkStateCard } from "./plan";
+import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 
 function event(kind: "plan" | "todo", seq: number, payload: Record<string, unknown>, provider: "codex" | "claude" = "codex"): AiEvent {
   return {
@@ -100,5 +100,17 @@ describe("ActiveTodoFloat", () => {
     act(() => vi.advanceTimersByTime(170));
     expect(container.querySelector(".active-todo-float")).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe("selectRunTodoEvents", () => {
+  it("selects one run's native Todo events and restores protocol order", () => {
+    const otherRun = { ...event("todo", 1, { sourceEvent: "turn/plan/updated", items: [] }), runId: "run-2" };
+    const taskLifecycle = event("todo", 2, { sourceTool: "TaskUpdate", items: [] }, "claude");
+    const latest = event("todo", 4, { sourceEvent: "turn/plan/updated", items: [{ id: "2", text: "实现", status: "in-progress" }] });
+    const earlier = event("todo", 3, { sourceEvent: "turn/plan/updated", items: [{ id: "1", text: "检查", status: "completed" }] });
+
+    expect(selectRunTodoEvents([otherRun, taskLifecycle, latest, earlier], "run-1").map((item) => item.seq)).toEqual([3, 4]);
+    expect(selectRunTodoEvents([earlier], null)).toEqual([]);
   });
 });

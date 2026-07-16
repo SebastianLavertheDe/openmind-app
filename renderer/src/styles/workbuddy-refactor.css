@@ -1817,9 +1817,6 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.provider-avatar,
-.provider-avatar.codex,
-.provider-avatar.claude,
 .message-avatar {
   background: var(--text);
   box-shadow: none;

@@ -12,6 +12,14 @@ type PlanItem = {
   status: "pending" | "in-progress" | "completed";
 };
 
+/** Keep only the active run's provider-native Todo history in protocol order. */
+export function selectRunTodoEvents(events: AiEvent[], runId: string | null): AiEvent[] {
+  if (!runId) return [];
+  return events
+    .filter((event) => event.runId === runId && isProviderTodoEvent(event))
+    .sort((left, right) => left.seq - right.seq || left.timestamp.localeCompare(right.timestamp) || left.id.localeCompare(right.id));
+}
+
 export function ActiveTodoFloat({ events, active }: { events: AiEvent[]; active: boolean }) {
   const items = projectTodoItems(events);
   const incomplete = items.some((item) => item.status !== "completed");

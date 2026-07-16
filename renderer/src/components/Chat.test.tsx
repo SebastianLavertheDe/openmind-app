@@ -376,10 +376,43 @@ describe("chat timeline", () => {
     const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
 
     await screen.findByText("third");
-    expect(container.querySelectorAll(".assistant-message .provider-avatar.codex")).toHaveLength(1);
-    expect(container.querySelectorAll(".assistant-message .provider-avatar-spacer")).toHaveLength(0);
+    expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
+    expect(container.querySelector(".provider-avatar, .provider-avatar-spacer")).toBeNull();
     expect(screen.queryByText("first")).toBeNull();
     expect(screen.queryByText("second")).toBeNull();
+  });
+
+  it("does not present a completed run without a final reply as successfully processed", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "question" }, 1),
+      makeEvent("reasoning", "reasoning-summary", { text: "checked the repository" }, 2),
+      makeEvent("done", "status", { state: "completed" }, 3)
+    ];
+
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    const warning = await screen.findByRole("alert");
+    expect(warning.textContent).toContain("没有返回最终回复");
+    expect(screen.getByText("最终回复缺失")).toBeTruthy();
+    expect(screen.queryByText("已处理")).toBeNull();
+  });
+
+  it("exposes final replies through a labelled live log with accessible author and time", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "question" }, 1),
+      makeEvent("answer", "assistant-message", { text: "accessible answer", phase: "final" }, 2)
+    ];
+
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    const log = await screen.findByRole("log", { name: "对话消息" });
+    expect(log.getAttribute("aria-live")).toBe("polite");
+    expect(log.getAttribute("aria-relevant")).toBe("additions text");
+    const assistant = (await screen.findByText("accessible answer")).closest("article")!;
+    expect(within(assistant).getByText("AI").classList.contains("ui-visually-hidden")).toBe(true);
+    expect(assistant.querySelector("time")?.classList.contains("ui-visually-hidden")).toBe(true);
   });
 
   it("classifies exactly one completed reply as final while retaining process commentary", () => {
@@ -532,6 +565,60 @@ describe("chat timeline", () => {
     expect(screen.getAllByText("npm test").length).toBeGreaterThan(0);
   });
 
+  it.each([
+    ["cancelled", "命令已取消", "cancelled"],
+    ["failed", "命令失败", "failed"],
+    ["conflicted", "存在冲突", "failed"],
+    ["completed", "命令结果不完整", "incomplete"]
+  ] as const)("uses terminal parent run status %s for an unfinished tool", (runStatus, label, className) => {
+    const start = makeEvent("orphan-start", "tool-start", { itemId: "tool-1", tool: "Bash", input: { command: "npm test" } });
+    const { container } = render(<ToolCallCard events={[start]} runStatus={runStatus} />);
+
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(container.querySelector(".tool-event")?.classList.contains(className)).toBe(true);
+    expect(container.querySelector(".spin")).toBeNull();
+  });
+
+  it.each(["queued", "running", "waiting-approval", "applying"] as const)(
+    "keeps an unfinished tool running while parent run is %s",
+    (runStatus) => {
+      const start = makeEvent("active-start", "tool-start", { itemId: "tool-1", tool: "Bash", input: { command: "npm test" } });
+      const { container } = render(<ToolCallCard events={[start]} runStatus={runStatus} />);
+
+      expect(screen.getByText("正在运行")).toBeTruthy();
+      expect(container.querySelector(".tool-event")?.classList.contains("running")).toBe(true);
+      expect(container.querySelector(".spin")).toBeTruthy();
+    }
+  );
+
+  it("keeps an explicit successful tool completion when the parent run later fails", () => {
+    const start = makeEvent("success-start", "tool-start", { itemId: "tool-1", tool: "Bash", input: { command: "npm test" } });
+    const complete = makeEvent("success-done", "tool-complete", { itemId: "tool-1", output: "ok" });
+    const { container } = render(<ToolCallCard events={[start, complete]} runStatus="failed" />);
+
+    expect(screen.getByText("已运行")).toBeTruthy();
+    expect(container.querySelector(".tool-event")?.classList.contains("completed")).toBe(true);
+  });
+
+  it("keeps a tool completed when an associated summary arrives after tool-complete", () => {
+    const start = makeEvent("summary-start", "tool-start", { itemId: "tool-1", tool: "Read", input: { file_path: "src/app.ts" } }, 1);
+    const complete = makeEvent("summary-done", "tool-complete", { itemId: "tool-1", output: "done" }, 2);
+    const summary = makeEvent("summary-output", "tool-output", { itemId: "tool-1", tool: "Read", text: "Read the application entry point" }, 3);
+    const { steps } = buildTraceSteps([start, complete, summary]);
+
+    expect(steps).toHaveLength(1);
+    expect(steps[0].type === "tool" ? steps[0].events.map((event) => event.id) : []).toEqual([
+      "summary-start",
+      "summary-done",
+      "summary-output"
+    ]);
+    const events = steps[0].type === "tool" ? steps[0].events : [];
+    const { container } = render(<ToolCallCard events={events} runStatus="running" />);
+    expect(screen.getByText("已运行")).toBeTruthy();
+    expect(container.querySelector(".tool-event")?.classList.contains("completed")).toBe(true);
+    expect(container.querySelector(".spin")).toBeNull();
+  });
+
   it("shows generic tool output as a terminal result", async () => {
     const user = userEvent.setup();
     const start = makeEvent("copy-start", "tool-start", { itemId: "tool-1", tool: "Analyze", input: { subject: "src/app.ts" } });
@@ -646,13 +733,15 @@ describe("chat timeline", () => {
     const rendersBeforeCompletion = onControllerRender.mock.calls.length;
     aiListener?.({ kind: "snapshot", snapshot: snapshotForRun(completedRun, "idle") });
     await waitFor(() => expect(onControllerRender.mock.calls.length).toBeGreaterThan(rendersBeforeCompletion));
-    const completedProcess = screen.getByText("已处理").closest(".completed-process")!;
+    const completedProcess = screen.getByText("最终回复缺失").closest(".completed-process")!;
     expect(completedProcess).toBe(liveProcess);
     expect(container.querySelectorAll(".assistant-message")).toHaveLength(0);
 
     aiListener?.({ kind: "event", event: makeEvent("answer", "assistant-message", { text: "real final", phase: "final" }) });
     const answer = await screen.findByText("real final");
     expect(answer.closest(".assistant-message")).toBeTruthy();
+    expect(screen.getByText("已处理")).toBeTruthy();
+    expect(screen.queryByText("最终回复缺失")).toBeNull();
     expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
     expect(container.querySelector(".assistant-message")?.textContent).not.toContain("stale draft");
   });
@@ -769,6 +858,42 @@ describe("chat timeline", () => {
     expect(steps[0].type === "reasoning" ? steps[0].events.map((event) => event.id) : []).toEqual(["reasoning-one", "reasoning-two"]);
   });
 
+  it("anchors the merged Plan/Todo state at the latest provider update", () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    const events = [
+      makeEvent("user", "user-message", { text: "make a plan" }, 1),
+      makeEvent("reasoning-old", "reasoning-summary", { text: "draft the approach" }, 2),
+      makeEvent("plan", "plan", { text: "1. inspect\n2. verify", sourceEvent: "item/completed" }, 3),
+      makeEvent("tool-start", "tool-start", { itemId: "inspect", tool: "Read" }, 4),
+      makeEvent("tool-done", "tool-complete", { itemId: "inspect", output: "ok" }, 5),
+      makeEvent("reasoning-new", "reasoning-summary", { text: "update after inspection" }, 6),
+      makeEvent("todo", "todo", {
+        sourceEvent: "turn/plan/updated",
+        items: [
+          { id: "inspect", text: "Inspect files", status: "completed" },
+          { id: "verify", text: "Verify behavior", status: "in-progress" }
+        ]
+      }, 7),
+      makeEvent("answer", "assistant-message", { text: "done", phase: "final" }, 8)
+    ];
+
+    const { steps } = buildTraceSteps(events.slice().reverse());
+    expect(steps.map((step) => step.type)).toEqual(["reasoning", "tool", "reasoning", "work"]);
+    const work = steps.at(-1);
+    expect(work?.type === "work" ? work.planEvents.map((event) => event.id) : []).toEqual(["plan"]);
+    expect(work?.type === "work" ? work.todoEvents.map((event) => event.id) : []).toEqual(["todo"]);
+
+    const timeline = groupTimeline(events, [run]);
+    expect(timeline.map((item) => item.type === "event" ? item.event.kind : item.step.type)).toEqual([
+      "user-message",
+      "reasoning",
+      "tool",
+      "reasoning",
+      "work",
+      "assistant-message"
+    ]);
+  });
+
   it("renders provider plan details only when the event carries a real plan", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
     window.cctools.aiGetEvents = async () => [
@@ -833,7 +958,7 @@ describe("chat timeline", () => {
     expect(approvalPanel?.closest(".chat-scroll")).toBeNull();
     expect(banner?.parentElement?.classList.contains("chat-bottom-stack")).toBe(true);
     const process = screen.getByText("正在处理").closest(".completed-process") as HTMLElement;
-    expect(within(process).getByText(/需要你的授权：npm test/)).toBeTruthy();
+    expect(await within(process).findByText(/需要你的授权：npm test/)).toBeTruthy();
     const editor = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
     expect(editor.disabled).toBe(false);
     await user.type(editor, "follow-up");
@@ -1162,6 +1287,56 @@ describe("chat timeline", () => {
     expect(Boolean(process.compareDocumentPosition(finalAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("shows the active run's latest Todo snapshot above the composer and clears an empty snapshot", async () => {
+    const run = makeRun();
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "implement the UI" }, 1),
+      makeEvent("todo-old", "todo", {
+        sourceEvent: "turn/plan/updated",
+        items: [{ id: "old", text: "Outdated step", status: "pending" }]
+      }, 2),
+      makeEvent("todo-latest", "todo", {
+        sourceEvent: "turn/plan/updated",
+        items: [
+          { id: "inspect", text: "Inspect current behavior", status: "completed" },
+          { id: "wire", text: "Wire Todo UI", activeForm: "Wiring Todo UI", status: "in-progress" }
+        ]
+      }, 3)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+
+    const liveTodo = await screen.findByLabelText(m.ai.plan.liveAria);
+    expect(liveTodo.parentElement?.classList.contains("chat-bottom-stack")).toBe(true);
+    expect(within(liveTodo).getByText("Inspect current behavior")).toBeTruthy();
+    expect(within(liveTodo).getByText("Wiring Todo UI")).toBeTruthy();
+    expect(within(liveTodo).queryByText("Outdated step")).toBeNull();
+    expect(container.querySelector(".chat-scroll .active-todo-float")).toBeNull();
+
+    aiListener?.({
+      kind: "event",
+      event: makeEvent("todo-empty", "todo", { sourceEvent: "turn/plan/updated", items: [] }, 4)
+    });
+    await waitFor(() => expect(screen.queryByLabelText(m.ai.plan.liveAria)).toBeNull());
+  });
+
+  it("removes the active Todo float when its run reaches a terminal state", async () => {
+    const run = makeRun();
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "verify the UI" }, 1),
+      makeEvent("todo", "todo", {
+        sourceEvent: "turn/plan/updated",
+        items: [{ id: "verify", text: "Verify Todo rendering", status: "in-progress" }]
+      }, 2)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+
+    expect(await screen.findByLabelText(m.ai.plan.liveAria)).toBeTruthy();
+    const completed = { ...run, status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    aiListener?.({ kind: "snapshot", snapshot: snapshotForRun(completed, "idle") });
+
+    await waitFor(() => expect(screen.queryByLabelText(m.ai.plan.liveAria)).toBeNull());
+  });
+
   it("puts the completed process before assistant text when history starts mid-turn", async () => {
     const run = {
       ...makeRun(),
@@ -1202,7 +1377,7 @@ describe("chat timeline", () => {
     render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
 
     openDisclosure(disclosureFor(await screen.findByText("已处理")));
-    const group = disclosureFor(screen.getByText("已运行 3 条命令"));
+    const group = disclosureFor(screen.getByText("命令执行失败 · 共 3 条"));
     expectDisclosureOpen(group, false);
     expect(within(group).getByText("1 条失败")).toBeTruthy();
 
@@ -1240,6 +1415,21 @@ describe("chat timeline", () => {
     const calls = group.querySelectorAll<HTMLElement>(".tool-event");
     expectDisclosureOpen(calls[0], false);
     expectDisclosureOpen(calls[1], false);
+  });
+
+  it("propagates a cancelled run status to an unfinished tool in the Chat trace", async () => {
+    const run = { ...makeRun(), status: "cancelled" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "run tests" }, 1),
+      makeEvent("test-start", "tool-start", { itemId: "test", tool: "Bash", input: { command: "npm test" } }, 2)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    const process = disclosureFor(await screen.findByRole("button", { name: "已取消" }));
+    openDisclosure(process);
+    expect(within(process).getByText("命令已取消")).toBeTruthy();
+    expect(process.querySelector(".tool-event")?.classList.contains("cancelled")).toBe(true);
+    expect(process.querySelector(".spin")).toBeNull();
   });
 
   it("collapses completed trace cycles and only keeps the running cycle visible", async () => {
@@ -1289,6 +1479,35 @@ describe("chat timeline", () => {
       { key: "second", events: [secondStart, makeEvent("second-done", "tool-complete", { itemId: "second", output: "built" }, 4)] }
     ]} />);
     await waitFor(() => expectDisclosureOpen(group, false));
+  });
+
+  it("auto-collapses a command group when the parent run cancels unfinished commands", async () => {
+    const start = makeEvent("unfinished-start", "tool-start", { itemId: "unfinished", tool: "Bash", input: { command: "npm test" } }, 1);
+    const calls = [{ key: "unfinished", events: [start] }];
+    const { rerender } = render(<CommandGroup calls={calls} runStatus="running" />);
+    const group = disclosureFor(await screen.findByText("正在运行 1 条命令"));
+    expectDisclosureOpen(group, true);
+
+    rerender(<CommandGroup calls={calls} runStatus="cancelled" />);
+
+    await waitFor(() => expectDisclosureOpen(group, false));
+    expect(screen.getByText("命令执行已取消 · 共 1 条")).toBeTruthy();
+    expect(screen.queryByText("已运行 1 条命令")).toBeNull();
+    expect(group.querySelector(".tool-event")?.classList.contains("cancelled")).toBe(true);
+    expect(group.querySelector(".spin")).toBeNull();
+  });
+
+  it.each([
+    ["failed", "命令执行失败 · 共 1 条", "failed"],
+    ["conflicted", "命令执行存在冲突 · 共 1 条", "conflicted"],
+    ["completed", "命令结果不完整 · 共 1 条", "incomplete"]
+  ] as const)("distinguishes command group terminal state %s", (runStatus, label, className) => {
+    const start = makeEvent("terminal-start", "tool-start", { itemId: "terminal", tool: "Bash", input: { command: "npm test" } }, 1);
+    const { container } = render(<CommandGroup calls={[{ key: "terminal", events: [start] }]} runStatus={runStatus} />);
+
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(container.querySelector(".command-group")?.classList.contains(className)).toBe(true);
+    expect(container.querySelector(".spin")).toBeNull();
   });
 
   it("renders completed reasoning as narrative and keeps tool details collapsed", async () => {

@@ -326,6 +326,64 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
   });
 });
 
+describe("normalizeClaudeMessage tool lifecycle", () => {
+  it("keeps tool_progress associated with its tool call", () => {
+    const state = createClaudeNormalizerState();
+    normalizeClaudeMessage({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", id: "tool-1", name: "Bash", input: { command: "npm test" } }] }
+    }, state);
+
+    const normalized = normalizeClaudeMessage({
+      type: "tool_progress",
+      tool_use_id: "tool-1",
+      tool_name: "Bash",
+      elapsed_time_seconds: 3,
+      task_id: "task-1"
+    }, state);
+
+    expect(normalized.events).toEqual([expect.objectContaining({
+      kind: "tool-output",
+      payload: expect.objectContaining({
+        itemId: "tool-1",
+        tool: "Bash",
+        input: { command: "npm test" },
+        elapsedTimeSeconds: 3,
+        taskId: "task-1"
+      })
+    })]);
+  });
+
+  it("associates tool_use_summary after tool_result with the preceding tool", () => {
+    const state = createClaudeNormalizerState();
+    normalizeClaudeMessage({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "src/app.ts" } }] }
+    }, state);
+    normalizeClaudeMessage({
+      type: "user",
+      message: { content: [{ type: "tool_result", tool_use_id: "tool-1", content: "done" }] }
+    }, state);
+
+    const normalized = normalizeClaudeMessage({
+      type: "tool_use_summary",
+      summary: "Read the application entry point",
+      preceding_tool_use_ids: ["tool-1"]
+    }, state);
+
+    expect(normalized.events).toEqual([expect.objectContaining({
+      kind: "tool-output",
+      payload: expect.objectContaining({
+        itemId: "tool-1",
+        tool: "Read",
+        input: { file_path: "src/app.ts" },
+        text: "Read the application entry point",
+        precedingItemIds: ["tool-1"]
+      })
+    })]);
+  });
+});
+
 describe("normalizeClaudeMessage Plan/Todo", () => {
   it("从 TodoWrite 的真实 tool_result 输出生成 Todo 快照", () => {
     const state = createClaudeNormalizerState();

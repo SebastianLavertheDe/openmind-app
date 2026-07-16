@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
-import type { AiEvent } from "@shared/contracts";
+import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDuration } from "../../ai-utils";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
@@ -25,10 +25,14 @@ type TerminalLine = { kind: "command" | "meta" | "stdout" | "stderr" | "result";
 
 export type CommandCall = { key: string; events: AiEvent[] };
 
-export function CommandGroup({ calls }: { calls: CommandCall[] }) {
-  const runningCall = calls.find((call) => toolCallRunning(call.events));
+export function CommandGroup({ calls, runStatus }: { calls: CommandCall[]; runStatus?: RunStatus }) {
+  const callStates = calls.map((call) => ({ call, state: toolCallState(call.events, runStatus) }));
+  const runningCall = callStates.find(({ state }) => state === "running")?.call;
   const runningKey = runningCall?.key || null;
-  const failedCalls = calls.filter((call) => call.events.some(toolEventFailed));
+  const failedCalls = callStates.filter(({ state }) => state === "failed" || state === "conflicted");
+  const cancelledCalls = callStates.filter(({ state }) => state === "cancelled");
+  const incompleteCalls = callStates.filter(({ state }) => state === "incomplete");
+  const groupState = commandGroupState(callStates.map(({ state }) => state));
   const [open, setOpen] = useState(Boolean(runningCall));
   // P1-PRC-3: 改手风琴为多开——用 Set 跟踪展开的卡片,允许同时对比多个命令输出。
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
@@ -37,10 +41,13 @@ export function CommandGroup({ calls }: { calls: CommandCall[] }) {
     setOpen(Boolean(runningKey));
   }, [runningKey]);
 
-  const label = runningCall ? t.commandGroupRunning(calls.length) : t.commandGroupRan(calls.length);
+  const label = commandGroupLabel(groupState, calls.length);
+  const groupClass = groupState === "incomplete"
+    ? "failed incomplete"
+    : groupState === "conflicted" ? "failed conflicted" : groupState;
   return (
     <AnimatedDisclosure
-      className={`command-group ${runningCall ? "running" : failedCalls.length ? "failed" : "completed"}`}
+      className={`command-group ${groupClass}`}
       open={open}
       onOpenChange={setOpen}
       summary={
@@ -48,6 +55,8 @@ export function CommandGroup({ calls }: { calls: CommandCall[] }) {
           <span className="command-group-icon" aria-hidden="true"><SquareTerminal size={15} /></span>
           <strong>{label}</strong>
           {failedCalls.length ? <em>{t.commandGroupFailed(failedCalls.length)}</em> : null}
+          {cancelledCalls.length ? <em>{t.commandGroupCancelledCount(cancelledCalls.length)}</em> : null}
+          {incompleteCalls.length ? <em>{t.commandGroupIncompleteCount(incompleteCalls.length)}</em> : null}
           <ChevronRight className="command-group-chevron" size={14} />
         </>
       }
@@ -57,6 +66,7 @@ export function CommandGroup({ calls }: { calls: CommandCall[] }) {
           <ToolCallCard
             key={call.key}
             events={call.events}
+            runStatus={runStatus}
             grouped
             open={expandedKeys.has(call.key)}
             onOpenChange={(nextOpen) => setExpandedKeys((current) => {
@@ -73,11 +83,13 @@ export function CommandGroup({ calls }: { calls: CommandCall[] }) {
 
 export function ToolCallCard({
   events,
+  runStatus,
   grouped = false,
   open,
   onOpenChange
 }: {
   events: AiEvent[];
+  runStatus?: RunStatus;
   grouped?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -86,25 +98,28 @@ export function ToolCallCard({
   const last = events.at(-1) || first;
   const tool = String(first.payload.tool || first.payload.command || first.payload.skillId || t.call);
   const failedEvent = events.find(toolEventFailed);
-  const failed = Boolean(failedEvent);
-  const cancelled = events.some(toolEventCancelled);
-  const running = !failed && !cancelled && last.kind !== "tool-complete";
+  const callState = toolCallState(events, runStatus);
+  const failed = callState === "failed" || callState === "conflicted";
+  const conflicted = callState === "conflicted";
+  const cancelled = callState === "cancelled";
+  const incomplete = callState === "incomplete";
+  const running = callState === "running";
   const input = first.payload.input || first.payload.command || first.payload;
   const outputs = events.filter((event) => event.kind === "tool-output" || event.kind === "tool-complete");
   const failureText = failedEvent
     ? toolValueText(failedEvent.payload.error || failedEvent.payload.message || failedEvent.payload.output || failedEvent.payload)
     : "";
   const operation = toolOperationSummary(tool, input);
-  const status = failed ? s.failed : cancelled ? s.cancelled : running ? s.executing : s.completed;
+  const status = conflicted ? s.run.conflicted : failed ? s.failed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? s.executing : s.completed;
   const category = toolCategory(tool);
-  const actionLabel = failed ? t.runFailed : cancelled ? s.cancelled : running ? t.running : t.ran;
+  const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
   const liveNow = useLiveNow(running);
   const elapsed = formatDuration(first.timestamp, running ? new Date(liveNow).toISOString() : last.timestamp);
   const summaryLabel = category === "command" ? operation : tool;
   const titleOperation = toolTitleOperation(category, operation, tool);
   const inlineOperation = category === "command" ? "" : titleOperation && titleOperation !== tool ? titleOperation : "";
   const displayActionLabel = category === "command"
-    ? failed ? t.commandFailed : cancelled ? t.commandCancelled : running ? t.running : t.ran
+    ? conflicted ? s.run.conflicted : failed ? t.commandFailed : cancelled ? t.commandCancelled : incomplete ? t.commandIncomplete : running ? t.running : t.ran
     : actionLabel;
   const controlled = open !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
@@ -120,12 +135,12 @@ export function ToolCallCard({
 
   return (
     <AnimatedDisclosure
-      className={`tool-event ${category} ${grouped ? "grouped-command" : ""} ${failed ? "failed" : cancelled ? "cancelled" : running ? "running" : "completed"}`}
+      className={`tool-event ${category} ${grouped ? "grouped-command" : ""} ${failed ? "failed" : cancelled ? "cancelled" : incomplete ? "failed incomplete" : running ? "running" : "completed"}`}
       open={disclosureOpen}
       onOpenChange={setDisclosureOpen}
       summary={
         <>
-          <span className="tool-event-icon">{toolIcon(tool, running, failed, cancelled)}</span>
+          <span className="tool-event-icon">{toolIcon(tool, running, failed || incomplete, cancelled)}</span>
           <span className="tool-event-title">
             {groupedCommandOpen ? (
               <span><strong>{displayActionLabel}</strong><small title={summaryLabel}>{summaryLabel}</small></span>
@@ -404,7 +419,33 @@ function toolEventCancelled(event: AiEvent): boolean {
   return state === "cancelled" || state === "canceled";
 }
 
-function toolCallRunning(events: AiEvent[]): boolean {
-  const last = events.at(-1);
-  return Boolean(last && !events.some(toolEventFailed) && !events.some(toolEventCancelled) && last.kind !== "tool-complete");
+type ToolCallState = "running" | "completed" | "failed" | "cancelled" | "conflicted" | "incomplete";
+
+function toolCallState(events: AiEvent[], runStatus?: RunStatus): ToolCallState {
+  if (events.some(toolEventFailed)) return "failed";
+  if (events.some(toolEventCancelled)) return "cancelled";
+  if (events.some((event) => event.kind === "tool-complete")) return "completed";
+  if (runStatus === "cancelled") return "cancelled";
+  if (runStatus === "failed") return "failed";
+  if (runStatus === "conflicted") return "conflicted";
+  if (runStatus === "completed") return "incomplete";
+  return "running";
+}
+
+function commandGroupState(states: ToolCallState[]): ToolCallState {
+  if (states.includes("running")) return "running";
+  if (states.includes("conflicted")) return "conflicted";
+  if (states.includes("failed")) return "failed";
+  if (states.includes("cancelled")) return "cancelled";
+  if (states.includes("incomplete")) return "incomplete";
+  return "completed";
+}
+
+function commandGroupLabel(state: ToolCallState, count: number): string {
+  if (state === "running") return t.commandGroupRunning(count);
+  if (state === "conflicted") return t.commandGroupConflicted(count);
+  if (state === "failed") return t.commandGroupFailedTitle(count);
+  if (state === "cancelled") return t.commandGroupCancelled(count);
+  if (state === "incomplete") return t.commandGroupIncomplete(count);
+  return t.commandGroupRan(count);
 }

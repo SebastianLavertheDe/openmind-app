@@ -23,7 +23,7 @@ import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, UserMessage } from "./message";
 import { ReasoningCard } from "./thought";
-import { WorkStateCard } from "./plan";
+import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 import { CommandGroup, ToolCallCard, toolIcon } from "./tool";
 import {
   assistantPhase,
@@ -54,7 +54,7 @@ export { ToolCallCard } from "./tool";
 
 type TimelineViewItem = ReturnType<typeof groupTimeline>[number];
 type ChatViewItem = TimelineViewItem
-  | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null }
+  | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null; missingFinal: boolean }
   | { type: "changes-artifact"; key: string; run: AiRun; events: AiEvent[] };
 type CommandStep = Extract<TraceStep, { type: "tool" }>;
 type CommandGroupItem = { type: "command-group"; key: string; run: AiRun; steps: CommandStep[] };
@@ -111,7 +111,8 @@ export function Chat({ compact = false }: { compact?: boolean }) {
           key: `process:${activeRun.id}`,
           run: activeRun,
           steps: [],
-          completedAt: null
+          completedAt: null,
+          missingFinal: false
         });
       }
       return groupChatCommandItems(folded);
@@ -119,6 +120,10 @@ export function Chat({ compact = false }: { compact?: boolean }) {
     [ai.sessionActiveRun, processRuns, visible]
   );
   const activeRunId = ai.sessionActiveRun?.id || null;
+  const activeTodoEvents = useMemo(
+    () => selectRunTodoEvents(ai.events, activeRunId),
+    [activeRunId, ai.events]
+  );
   const activeRunHasTool = useMemo(() => hasOpenTool(timelineEvents, activeRunId), [activeRunId, timelineEvents]);
   const showPendingThought = Boolean(
     ai.sessionActiveRun
@@ -190,7 +195,13 @@ export function Chat({ compact = false }: { compact?: boolean }) {
         ref={scroller}
         onScroll={handleScroll}
       >
-        <div className="chat-thread">
+        <div
+          className="chat-thread"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-label={m.ai.chat.transcriptLabel}
+        >
           {!visible.length && !ai.sessionActiveRun && !streaming && !reasoningStreaming
             ? <EmptyChat onPick={(prompt) => ai.setDraft(prompt)} />
             : null}
@@ -250,6 +261,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
         ) : null}
       </div>
       <div className="chat-bottom-stack">
+        <ActiveTodoFloat events={activeTodoEvents} active={Boolean(ai.sessionActiveRun)} />
         <ApprovalBanner />
         <ChatComposer />
       </div>
@@ -276,7 +288,6 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
     for (const item of items) committedKeys.current.add(timelineItemKey(item));
   }, [items]);
 
-  const visibleItems = presenceItems.map(({ item }) => item);
   return presenceItems.map(({ item, leaving }, index) => {
     const key = timelineItemKey(item);
     const live = !leaving && item.type === "process" && item.run.id === liveProcess.runId
@@ -300,6 +311,7 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
                 run={item.run}
                 steps={item.steps}
                 completedAt={item.completedAt}
+                missingFinal={item.missingFinal}
                 liveReasoning={live?.reasoningText || ""}
                 liveCommentary={live?.commentaryText || ""}
                 pending={Boolean(live?.pending)}
@@ -309,20 +321,12 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
             : item.type === "command-group"
               ? <CommandGroupView item={item} />
               : item.type === "event"
-                ? <EventRow event={item.event} previousItem={previousVisibleItem(visibleItems, index)} />
+                ? <EventRow event={item.event} />
                 : <TraceStepView step={item.step} run={item.run} />}
         </div>
       </div>
     );
   });
-}
-
-function previousVisibleItem(items: ChatRenderItem[], currentIndex: number): ChatRenderItem | null {
-  for (let index = currentIndex - 1; index >= 0; index -= 1) {
-    const item = items[index];
-    if (item) return item;
-  }
-  return null;
 }
 
 function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, AiRun>): ChatViewItem[] {
@@ -343,6 +347,7 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
     const prompts = conversation.filter((item) => item.event.kind === "user-message");
     const responses = conversation.filter((item) => item.event.kind === "assistant-message" && assistantPhase(item.event) === "final");
     const finalResponse = run.status === "completed" ? responses.at(-1) : undefined;
+    const missingFinal = run.status === "completed" && !finalResponse;
     const steps = runItems
       .filter((item): item is Extract<TimelineViewItem, { type: "step" }> => item.type === "step")
       .map((item) => item.step);
@@ -373,7 +378,8 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
       key: `process:${run.id}`,
       run,
       steps,
-      completedAt
+      completedAt,
+      missingFinal
     });
     if (finalResponse) result.push(finalResponse);
     if (artifactEvents.length || run.changeSet?.files.length) {
@@ -483,6 +489,7 @@ function CompletedProcess({
   run,
   steps,
   completedAt,
+  missingFinal,
   liveReasoning = "",
   liveCommentary = "",
   pending = false
@@ -490,16 +497,17 @@ function CompletedProcess({
   run: AiRun;
   steps: TraceStep[];
   completedAt: string | null;
+  missingFinal: boolean;
   liveReasoning?: string;
   liveCommentary?: string;
   pending?: boolean;
 }) {
   const processing = ["queued", "running", "waiting-approval", "applying"].includes(run.status);
-  const [open, setOpen] = useState(processing);
+  const [open, setOpen] = useState(processing || missingFinal);
   const [liveNow, setLiveNow] = useState(Date.now());
   useEffect(() => {
-    setOpen(processing);
-  }, [processing]);
+    setOpen(processing || missingFinal);
+  }, [missingFinal, processing]);
   useEffect(() => {
     if (!processing) return;
     const timer = window.setInterval(() => setLiveNow(Date.now()), 1_000);
@@ -509,12 +517,10 @@ function CompletedProcess({
     run.startedAt,
     run.completedAt || completedAt || (processing ? new Date(liveNow).toISOString() : null)
   );
-  // P1-PRC-1: 接入已存在的 summarizeTrace / traceSummaryText,显示执行摘要
-  const summary = useMemo(() => steps.length ? traceSummaryText(summarizeTrace(run, steps)) : "", [run, steps]);
-  const label = runProcessLabel(run, processing);
+  const label = runProcessLabel(run, processing, missingFinal);
   return (
     <AnimatedDisclosure
-      className={`completed-process${processing ? " processing" : ""}`}
+      className={`completed-process${processing ? " processing" : ""}${missingFinal ? " protocol-error" : ""}`}
       open={open}
       onOpenChange={setOpen}
       triggerAriaLabel={label}
@@ -522,13 +528,19 @@ function CompletedProcess({
         <>
           <span className="completed-process-title">
             <strong>{label}</strong>
-            <small>{duration}{summary ? ` · ${summary}` : ""}</small>
+            <small>{duration}</small>
           </span>
           <ChevronRight className="completed-process-chevron" size={15} />
         </>
       }
     >
       <div className="completed-process-body">
+        {missingFinal ? (
+          <div className="process-protocol-error" role="alert">
+            <AlertTriangle size={15} aria-hidden="true" />
+            <span>{m.ai.chat.finalMissingDetail}</span>
+          </div>
+        ) : null}
         <TraceStepList
           steps={steps}
           run={run}
@@ -550,8 +562,9 @@ function CompletedProcess({
   );
 }
 
-function runProcessLabel(run: AiRun, processing: boolean): string {
+function runProcessLabel(run: AiRun, processing: boolean, missingFinal: boolean): string {
   if (processing) return m.ai.chat.processing;
+  if (missingFinal) return m.ai.chat.finalMissing;
   if (run.status === "failed") return m.ai.status.failed;
   if (run.status === "cancelled") return m.ai.status.cancelled;
   if (run.status === "conflicted") return m.ai.status.run.conflicted;
@@ -649,7 +662,7 @@ function TraceStepBlocks({ steps, run }: { steps: TraceStep[]; run: AiRun }) {
   }
   flush();
   return blocks.map((block) => block.type === "command-group"
-    ? <CommandGroup key={block.key} calls={block.steps.map((step) => ({ key: step.key, events: step.events }))} />
+    ? <CommandGroup key={block.key} calls={block.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={run.status} />
     : <TraceStepView key={block.step.key} step={block.step} run={run} folded />);
 }
 
@@ -666,7 +679,7 @@ function groupTraceCycles(steps: TraceStep[]): TraceCycle[] {
 }
 
 function traceStepActive(step: TraceStep): boolean {
-  if (step.type === "tool") return step.events.at(-1)?.kind !== "tool-complete";
+  if (step.type === "tool") return !step.events.some((event) => event.kind === "tool-complete");
   if (step.type === "approval") return !step.events.some((event) => event.kind === "approval-decision");
   return false;
 }
@@ -681,7 +694,7 @@ function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {
 function CommandGroupView({ item }: { item: CommandGroupItem }) {
   return (
     <div className="trace-step tool command command-group-step">
-      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} />
+      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} />
     </div>
   );
 }
@@ -750,7 +763,7 @@ function TraceStepView({ step, run, folded = false }: { step: TraceStep; run: Ai
     return (
       <div className={`trace-step tool ${toolCategory(tool)}`}>
         <span className="trace-step-marker">{toolIcon(tool, false, false)}</span>
-        <ToolCallCard events={step.events} />
+        <ToolCallCard events={step.events} runStatus={run.status} />
       </div>
     );
   }
@@ -808,15 +821,11 @@ function approvalRequestSubject(event: AiEvent): string {
   return String(record.command || paths[0] || record.title || record.detail || m.ai.approval.pending);
 }
 
-function EventRow({ event, previousItem }: { event: AiEvent; previousItem?: ChatRenderItem | null }) {
+function EventRow({ event }: { event: AiEvent }) {
   if (event.kind === "user-message") return <UserMessage event={event} />;
   if (event.kind === "assistant-message") {
     if (assistantPhase(event) !== "final") return <ProcessNarrative text={String(event.payload.text || "")} />;
-    const continuedAssistant = previousItem?.type === "event"
-      && previousItem.event.kind === "assistant-message"
-      && previousItem.event.runId === event.runId
-      && previousItem.event.provider === event.provider;
-    return <AssistantMessage text={String(event.payload.text || "")} event={event} showAvatar={!continuedAssistant} />;
+    return <AssistantMessage text={String(event.payload.text || "")} event={event} />;
   }
   if (event.kind === "assistant-delta") return <ProcessNarrative text={String(event.payload.text || event.payload.delta || "")} />;
   if (event.kind === "approval-request") return <ProcessSystemEvent event={event} />;

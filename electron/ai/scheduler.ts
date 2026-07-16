@@ -315,6 +315,7 @@ export class RunScheduler {
         ? withTurnContext(providerPrompt, run.turnContext)
         : providerPrompt;
       let providerProducedOutput = false;
+      let providerProducedFinal = false;
       const attemptedResume = Boolean(session.providerSessionId);
       const providerContext = (value: string): ProviderRunContext => ({
         session,
@@ -326,6 +327,7 @@ export class RunScheduler {
         signal: controller.signal,
         emit: async (kind, payload) => {
           if (kind !== "system") providerProducedOutput = true;
+          if (isProviderFinalReply(kind, payload)) providerProducedFinal = true;
           await this.append(run, kind, payload);
         },
         requestApproval: async (input) => {
@@ -366,6 +368,9 @@ export class RunScheduler {
         });
         const recoveredPrompt = withRecoveredHistory(prompt, contextState, run.id);
         await this.adapters[session.provider].run(providerContext(recoveredPrompt));
+      }
+      if (!providerProducedFinal) {
+        throw new Error("Provider 协议异常：运行结束但未返回最终回复。");
       }
       run = await this.finalizeRun(run, { status: "completed", error: null });
     } catch (error) {
@@ -453,4 +458,9 @@ export class RunScheduler {
   }
 
   private publishSnapshot(): void { this.publish({ kind: "snapshot", snapshot: this.snapshot() }); }
+}
+
+function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unknown>): boolean {
+  if (kind !== "assistant-message" || payload.phase === "commentary") return false;
+  return Boolean(String(payload.text || payload.message || "").trim());
 }

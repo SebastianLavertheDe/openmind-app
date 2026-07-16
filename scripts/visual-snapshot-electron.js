@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { app, BrowserWindow } = require("electron");
 
 const appRoot = path.resolve(__dirname, "..");
@@ -470,10 +471,15 @@ async function captureCompletedAiResponse(win, report) {
   `);
   if (!clicked) throw new Error("Completed AI response fixture was not found.");
   await win.webContents.executeJavaScript("document.querySelector('button.history-toggle')?.click()");
-  await waitForSelector(win, ".completed-process");
-  await captureState(win, report, "ai-completed-response", "新建任务", "Completed response with process status above the first assistant message");
-  await win.webContents.executeJavaScript("document.querySelector('.completed-process > summary')?.click()");
-  await waitForSelector(win, ".command-group");
+  await scrollDisclosureTriggerIntoView(win, ".completed-process");
+  await waitForDisclosureState(win, ".completed-process", false);
+  const completedSnapshot = await captureState(win, report, "ai-completed-response", "新建任务", "Completed response with process status above the first assistant message");
+
+  // AnimatedDisclosure uses a button trigger and keeps its closed content
+  // mounted. A bare querySelector therefore cannot prove that a click happened
+  // or that the content reached a visible, interactive open state.
+  await expandDisclosure(win, ".completed-process");
+  await waitForDisclosureState(win, ".completed-process .command-group", false);
   const expandedToolCount = await win.webContents.executeJavaScript(
     "document.querySelectorAll('.completed-process .tool-event[data-open]').length"
   );
@@ -486,12 +492,17 @@ async function captureCompletedAiResponse(win, report) {
   if (expandedGroupCount !== 0) {
     throw new Error(`Completed process opened with ${expandedGroupCount} expanded command groups.`);
   }
-  await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped command history");
-  await win.webContents.executeJavaScript("document.querySelector('.command-group > .ui-disclosure-trigger')?.click()");
-  await waitForSelector(win, ".command-group[data-open]");
-  await win.webContents.executeJavaScript("document.querySelectorAll('.command-group .tool-event > .ui-disclosure-trigger')[1]?.click()");
-  await waitForSelector(win, ".command-group .tool-event[data-open] .command-terminal");
-  await captureState(win, report, "ai-command-group-expanded", "新建任务", "A single command expanded in place while preserving command context");
+  const commandGroupSnapshot = await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped command history");
+
+  await expandDisclosure(win, ".completed-process .command-group");
+  await waitForDisclosureState(win, ".completed-process .command-group .tool-event", false, 1);
+  await expandDisclosure(win, ".completed-process .command-group .tool-event", 1);
+  const terminalSelector = ".completed-process .command-group .tool-event[data-open] .command-terminal";
+  await scrollSelectorIntoView(win, terminalSelector);
+  await waitForSelector(win, terminalSelector);
+  const expandedCommandSnapshot = await captureState(win, report, "ai-command-group-expanded", "新建任务", "A single command expanded in place while preserving command context");
+
+  assertDistinctPixelSnapshots([completedSnapshot, commandGroupSnapshot, expandedCommandSnapshot]);
 }
 
 async function setComposerValue(win, value) {
@@ -515,7 +526,9 @@ async function captureState(win, report, id, label, description, options = {}) {
   const audit = await inspectPage(win, label, options);
   const file = path.join(outputRoot, `state-${id}.png`);
   const image = await win.webContents.capturePage();
-  fs.writeFileSync(file, image.toPNG());
+  const png = image.toPNG();
+  const pixelHash = crypto.createHash("sha256").update(image.toBitmap()).digest("hex");
+  fs.writeFileSync(file, png);
   const item = {
     id,
     label,
@@ -524,10 +537,12 @@ async function captureState(win, report, id, label, description, options = {}) {
     width: 1366,
     height: 768,
     zoom: 1,
+    pixelHash,
     ...audit
   };
   report.stateSnapshots.push(item);
   if (!audit.ok) report.failures.push(item);
+  return item;
 }
 
 async function waitForText(win, text) {
@@ -541,20 +556,184 @@ async function waitForText(win, text) {
 
 async function waitForSelector(win, selector) {
   for (let attempt = 0; attempt < 80; attempt++) {
-    const found = await win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+    const found = await win.webContents.executeJavaScript(`
+      (() => {
+        const visible = (element) => {
+          if (!(element instanceof Element)) return false;
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const left = Math.max(0, rect.left);
+          const right = Math.min(window.innerWidth, rect.right);
+          const top = Math.max(0, rect.top);
+          const bottom = Math.min(window.innerHeight, rect.bottom);
+          if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || 1) <= 0) return false;
+          if (right <= left || bottom <= top || rect.width <= 0 || rect.height <= 0) return false;
+          const target = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+          return Boolean(target && (target === element || element.contains(target)));
+        };
+        return [...document.querySelectorAll(${JSON.stringify(selector)})].some(visible);
+      })()
+    `);
     if (found) return;
     await delay(80);
   }
-  throw new Error(`Timed out waiting for selector: ${selector}`);
+  throw new Error(`Timed out waiting for visible selector: ${selector}`);
 }
 
 async function waitForSelectorToDisappear(win, selector) {
   for (let attempt = 0; attempt < 80; attempt++) {
-    const found = await win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
-    if (!found) return;
+    const visible = await win.webContents.executeJavaScript(`
+      (() => {
+        const element = document.querySelector(${JSON.stringify(selector)});
+        if (!(element instanceof Element)) return false;
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || 1) > 0
+          && rect.width > 0
+          && rect.height > 0
+          && rect.right > 0
+          && rect.bottom > 0
+          && rect.left < window.innerWidth
+          && rect.top < window.innerHeight;
+      })()
+    `);
+    if (!visible) return;
     await delay(80);
   }
-  throw new Error(`Timed out waiting for selector to disappear: ${selector}`);
+  throw new Error(`Timed out waiting for visible selector to disappear: ${selector}`);
+}
+
+async function waitForDisclosureState(win, rootSelector, expanded, index = 0) {
+  let lastState = null;
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const state = await win.webContents.executeJavaScript(`
+      (() => {
+        const roots = [...document.querySelectorAll(${JSON.stringify(rootSelector)})];
+        const root = roots[${index}] || null;
+        const trigger = root ? [...root.children].find((element) => element.classList.contains('ui-disclosure-trigger')) : null;
+        const content = root ? [...root.children].find((element) => element.classList.contains('ui-disclosure-content')) : null;
+        const inner = content?.querySelector(':scope > .ui-disclosure-content-inner') || null;
+        const visibleAndHit = (element) => {
+          if (!(element instanceof Element)) return { visible: false, hit: false, rect: null, target: null };
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const left = Math.max(0, rect.left);
+          const right = Math.min(window.innerWidth, rect.right);
+          const top = Math.max(0, rect.top);
+          const bottom = Math.min(window.innerHeight, rect.bottom);
+          const visible = style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || 1) > 0
+            && rect.width > 0
+            && rect.height > 0
+            && right > left
+            && bottom > top;
+          const target = visible ? document.elementFromPoint((left + right) / 2, (top + bottom) / 2) : null;
+          return {
+            visible,
+            hit: Boolean(target && (target === element || element.contains(target))),
+            rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+            target: target ? target.tagName.toLowerCase() + (target.className ? '.' + String(target.className).trim().replace(/\\s+/g, '.') : '') : null
+          };
+        };
+        const triggerState = visibleAndHit(trigger);
+        const rootState = visibleAndHit(root);
+        const contentRect = content?.getBoundingClientRect() || null;
+        const ariaExpanded = trigger?.getAttribute('aria-expanded') || null;
+        const rootOpen = Boolean(root?.hasAttribute('data-open'));
+        const contentOpen = Boolean(content?.hasAttribute('data-open'));
+        const contentAriaHidden = content?.getAttribute('aria-hidden') || null;
+        const innerInert = Boolean(inner?.hasAttribute('inert'));
+        const disabled = Boolean(trigger?.disabled || trigger?.getAttribute('aria-disabled') === 'true');
+        const inert = Boolean(trigger?.closest('[inert]'));
+        const pointerEvents = trigger ? getComputedStyle(trigger).pointerEvents : 'none';
+        const interactive = triggerState.visible && triggerState.hit && !disabled && !inert && pointerEvents !== 'none';
+        const semanticOpen = ariaExpanded === 'true' && rootOpen && contentOpen && contentAriaHidden === 'false' && !innerInert;
+        const semanticClosed = ariaExpanded === 'false' && !rootOpen && !contentOpen && contentAriaHidden === 'true' && innerInert;
+        const contentSettledOpen = Boolean(contentRect && contentRect.width > 0 && contentRect.height > 0);
+        const ok = rootState.visible
+          && interactive
+          && (${expanded} ? semanticOpen && contentSettledOpen : semanticClosed);
+        return {
+          ok,
+          count: roots.length,
+          ariaExpanded,
+          rootOpen,
+          contentOpen,
+          contentAriaHidden,
+          innerInert,
+          interactive,
+          disabled,
+          inert,
+          pointerEvents,
+          root: rootState,
+          trigger: triggerState,
+          contentHeight: contentRect?.height || 0
+        };
+      })()
+    `);
+    lastState = state;
+    if (state.ok) return state;
+    await delay(80);
+  }
+  throw new Error(`Timed out waiting for disclosure ${rootSelector}[${index}] expanded=${expanded}; last state=${JSON.stringify(lastState)}`);
+}
+
+async function expandDisclosure(win, rootSelector, index = 0) {
+  await scrollDisclosureTriggerIntoView(win, rootSelector, index);
+  await waitForDisclosureState(win, rootSelector, false, index);
+  const clicked = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = [...document.querySelectorAll(${JSON.stringify(rootSelector)})][${index}] || null;
+      const trigger = root ? [...root.children].find((element) => element.classList.contains('ui-disclosure-trigger')) : null;
+      if (!(trigger instanceof HTMLButtonElement) || trigger.disabled || trigger.getAttribute('aria-expanded') !== 'false') return false;
+      trigger.click();
+      return true;
+    })()
+  `);
+  if (!clicked) throw new Error(`Disclosure trigger was not clickable: ${rootSelector}[${index}]`);
+  return waitForDisclosureState(win, rootSelector, true, index);
+}
+
+async function scrollDisclosureTriggerIntoView(win, rootSelector, index = 0) {
+  const found = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = [...document.querySelectorAll(${JSON.stringify(rootSelector)})][${index}] || null;
+      const trigger = root ? [...root.children].find((element) => element.classList.contains('ui-disclosure-trigger')) : null;
+      if (!(trigger instanceof Element)) return false;
+      trigger.scrollIntoView({ block: 'center', inline: 'nearest' });
+      return true;
+    })()
+  `);
+  if (!found) throw new Error(`Disclosure trigger not found: ${rootSelector}[${index}]`);
+  await delay(120);
+}
+
+async function scrollSelectorIntoView(win, selector, index = 0) {
+  const found = await win.webContents.executeJavaScript(`
+    (() => {
+      const element = [...document.querySelectorAll(${JSON.stringify(selector)})][${index}] || null;
+      if (!(element instanceof Element)) return false;
+      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+      return true;
+    })()
+  `);
+  if (!found) throw new Error(`Selector not found for scrolling: ${selector}[${index}]`);
+  await delay(120);
+}
+
+function assertDistinctPixelSnapshots(items) {
+  const duplicateGroups = [...items.reduce((groups, item) => {
+    const matches = groups.get(item.pixelHash) || [];
+    matches.push(item.id);
+    groups.set(item.pixelHash, matches);
+    return groups;
+  }, new Map()).entries()].filter(([, ids]) => ids.length > 1);
+  if (duplicateGroups.length) {
+    throw new Error(`Visual disclosure states produced identical pixels: ${duplicateGroups.map(([hash, ids]) => `${ids.join(" = ")} (${hash.slice(0, 12)})`).join(", ")}`);
+  }
 }
 
 async function waitForEmptyState(win) {

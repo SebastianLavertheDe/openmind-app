@@ -407,10 +407,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   color: transparent;
   letter-spacing: 0;
 }
-.assistant-message .message-meta > span:first-child,
-.assistant-message .message-meta > time {
-  display: none;
-}
 .assistant-message .message-actions {
   position: absolute;
   z-index: 3;
@@ -1782,33 +1778,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    按 review 编号组织,每批一组规则。
    ============================================================ */
 
-/* —— C1/C2 provider / 用户 avatar —— */
-.provider-avatar {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -.02em;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.18);
-  user-select: none;
-}
-.provider-avatar.codex { background: linear-gradient(135deg, #2563eb, #0f766e); }
-.provider-avatar.claude { background: linear-gradient(135deg, #2563eb, #14b8a6); }
-.provider-avatar.unknown-ai { background: var(--gradient-accent); }
-.provider-avatar.user { background: var(--gradient-user); }
-.provider-avatar.sm { width: 22px; height: 22px; font-size: var(--fs-xs); }
-.provider-avatar.lg { width: 32px; height: 32px; font-size: 12px; }
-.provider-avatar-spacer {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-}
-
 /* —— D1/D2 按钮微交互:hover lift + press scale ——
    扩展现有 .primary-button:active 范式到通用按钮族。reduced-motion 由全局兜底。 */
 .approval-btn, .icon-text-button, .danger-button {
@@ -1856,19 +1825,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   background: var(--accent-tint);
 }
 .user-message p { margin: 0; white-space: pre-wrap; }
-
-/* P0-AI-1: 消息加 provider avatar —— flex 布局 */
-.message.assistant-message {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.message.assistant-message .message-body {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.message .provider-avatar { flex: 0 0 auto; margin-top: 11px; }
-.message.assistant-message.avatar-hidden { margin-top: -10px; }
 
 /* P0-BUB-2: 删除全大写 meta,改 chip 风格 */
 .message-meta {

@@ -330,6 +330,34 @@ describe("RunScheduler Claude prewarm", () => {
     expect(liveAnswers[0].payload.chunk).toBeUndefined();
   });
 
+  it("marks a provider protocol failure when the run ends without a final reply", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined);
+    const internals = schedulerInternals(scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      run: async (context) => {
+        await context.emit("assistant-message", { text: "still working", phase: "commentary" });
+        await context.emit("reasoning-summary", { text: "checked the repository" });
+      }
+    };
+
+    const { session, run } = scheduler.startRun({
+      providerId: "claude-native",
+      permissionProfile: "edit",
+      cwd: ".",
+      prompt: "return no final",
+      contexts: []
+    });
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "failed");
+
+    const failed = scheduler.snapshot().runs.find((item) => item.id === run.id);
+    expect(failed?.error).toContain("未返回最终回复");
+    expect(scheduler.getEvents(session.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "error", payload: expect.objectContaining({ text: expect.stringContaining("未返回最终回复") }) })
+    ]));
+  });
+
   it("rebuilds context from the local rollout when provider resume fails before output", async () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);

@@ -235,12 +235,15 @@ export function groupTimeline(events: AiEvent[], runs: AiRun[]): TimelineItem[] 
       continue;
     }
     const { steps } = buildTraceSteps(runEvents);
-    const firstStepByEvent = new Map<string, TraceStep>();
+    const anchorStepByEvent = new Map<string, TraceStep>();
     const groupedEvents = new Set<string>();
     for (const step of steps) {
       const stepEvents = traceStepEvents(step);
-      const first = stepEvents[0];
-      if (first) firstStepByEvent.set(first.id, step);
+      // Plan/Todo notifications are snapshots that can be refreshed across
+      // several reasoning cycles. Render their merged state where the latest
+      // update happened, rather than pulling it back to the first stale plan.
+      const anchor = step.type === "work" ? stepEvents.at(-1) : stepEvents[0];
+      if (anchor) anchorStepByEvent.set(anchor.id, step);
       for (const event of stepEvents) groupedEvents.add(event.id);
     }
 
@@ -251,7 +254,7 @@ export function groupTimeline(events: AiEvent[], runs: AiRun[]): TimelineItem[] 
         result.push({ type: "event", event });
         continue;
       }
-      const step = firstStepByEvent.get(event.id);
+      const step = anchorStepByEvent.get(event.id);
       if (step) {
         result.push({ type: "step", key: step.key, run, step });
         continue;
@@ -351,8 +354,10 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
   let reasoningIndex = 0;
   let commentaryIndex = 0;
   let previousWasReasoning = false;
-  const workEvents = events.filter((event) => event.kind === "plan" || isProviderTodoEvent(event));
-  const firstWorkEvent = workEvents[0];
+  const workEvents = events
+    .filter((event) => event.kind === "plan" || isProviderTodoEvent(event))
+    .sort((left, right) => left.seq - right.seq || left.timestamp.localeCompare(right.timestamp) || left.id.localeCompare(right.id));
+  const latestWorkEvent = workEvents.at(-1);
 
   for (const event of events.slice().sort((a, b) => a.seq - b.seq)) {
     if (isConversationEvent(event) || event.kind === "usage") {
@@ -374,7 +379,7 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
       continue;
     }
     previousWasReasoning = false;
-    if (event.id === firstWorkEvent?.id) {
+    if (event.id === latestWorkEvent?.id) {
       steps.push({
         type: "work",
         key: `work:${event.runId}`,

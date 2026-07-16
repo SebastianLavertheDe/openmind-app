@@ -39,24 +39,17 @@ export function UserMessage({ event }: { event: AiEvent }) {
   );
 }
 
-export function AssistantMessage({ text, streaming = false, event, showAvatar = true }: { text: string; streaming?: boolean; event?: AiEvent; showAvatar?: boolean }) {
+export function AssistantMessage({ text, streaming = false, event }: { text: string; streaming?: boolean; event?: AiEvent }) {
   const ai = useAi();
   const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
   const markdown = useMemo(
     () => (streaming ? renderStreamingMarkdown(text) : renderCachedMarkdown(cacheKey, text)),
     [streaming, cacheKey, text]
   );
-  // P0-AI-1: provider avatar —— Codex 橙、Claude 紫,作段落视觉锚
-  const provider = event?.provider;
-  const avatarClass = provider === "codex" ? "codex" : provider === "claude" ? "claude" : "unknown-ai";
-  const avatarLabel = provider === "codex" ? "Cx" : provider === "claude" ? "Cl" : "AI";
   return (
-    <article className={`message assistant-message${streaming ? " streaming" : ""}${showAvatar ? "" : " avatar-hidden"}`}>
-      {showAvatar
-        ? <span className={`provider-avatar ${avatarClass}`} aria-hidden="true">{avatarLabel}</span>
-        : <span className="provider-avatar-spacer" aria-hidden="true" />}
+    <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
       <div className="message-body">
-        <MessageMeta label="AI" timestamp={event?.timestamp}>
+        <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>
               {event ? <button data-motion="icon" aria-label={m.ai.message.quoteReply} title={m.ai.message.quote} onClick={() => ai.addContext(messageContext(event, text))}><Quote size={13} /></button> : null}
@@ -113,8 +106,25 @@ function renderStreamingMarkdown(text: string): ReactNode {
   );
 }
 
-export function MessageMeta({ label, timestamp, children }: { label: string; timestamp?: string; children: ReactNode }) {
-  return <div className="message-meta"><span>{label}</span>{timestamp ? <time>{formatDateTime(timestamp)}</time> : null}<div className="message-actions">{children}</div></div>;
+export function MessageMeta({
+  label,
+  timestamp,
+  children,
+  visuallyHidden = false
+}: {
+  label: string;
+  timestamp?: string;
+  children: ReactNode;
+  visuallyHidden?: boolean;
+}) {
+  const metadataClass = visuallyHidden ? "ui-visually-hidden" : undefined;
+  return (
+    <div className="message-meta">
+      <span className={metadataClass}>{label}</span>
+      {timestamp ? <time className={metadataClass}>{formatDateTime(timestamp)}</time> : null}
+      <div className="message-actions">{children}</div>
+    </div>
+  );
 }
 
 export function CopyButton({ text }: { text: string }) {
