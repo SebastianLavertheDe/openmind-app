@@ -65,7 +65,7 @@ export function AppShell({
   useEffect(() => {
     if (!compactShell) setMobileNavOpen(false);
   }, [compactShell]);
-  useModalFocusScope({ open: compactShell && mobileNavOpen, containerRef: navRef, triggerRef: navTriggerRef, onDismiss: closeMobileNav });
+  useModalFocusScope({ open: compactShell && mobileNavOpen, containerRef: navRef, triggerRef: navTriggerRef, onDismiss: closeMobileNav, layer: "drawer" });
   useLayoutEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;

@@ -45,6 +45,8 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       return { page, state, nonce: current.nonce + 1 };
     });
   }, []);
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
   useEffect(() => { void window.cctools.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
@@ -58,12 +60,12 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       const mod = event.metaKey || event.ctrlKey;
       if (!mod) return;
       const key = event.key.toLowerCase();
-      if (key === "k") { event.preventDefault(); setSearchOpen(true); }
+      if (key === "k") { event.preventDefault(); openSearch(); }
       else if (key === "n") { event.preventDefault(); void ai.setActiveSession(null); navigate("ai"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ai.setActiveSession]);
+  }, [ai.setActiveSession, navigate, openSearch]);
   useEffect(() => {
     // Companion pages expose an explicit rail trigger. Do not auto-open the
     // companion on navigation: its measured width can otherwise force the
@@ -84,7 +86,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
     <AppShell
       page={route.page}
       navigate={navigate}
-      onOpenSearch={() => setSearchOpen(true)}
+      onOpenSearch={openSearch}
       navCollapsed={navCollapsed}
       setNavCollapsed={setNavCollapsed}
       repoRoot={bootstrap.repoRoot}
@@ -101,7 +103,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
           {renderActiveRoute({ route, bootstrap, navigate, providers: ai.snapshot.providers, onRepo: () => void window.cctools.getBootstrap().then(setBootstrap) })}
         </Suspense>
-      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} navigate={navigate} />
+      <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} />
       <FeedbackHost />
     </AppShell>
   );

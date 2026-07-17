@@ -65,13 +65,14 @@
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  /* 层叠刻度:base → sticky → overlay → modal → dropdown → topmost
-     下拉/菜单需浮在 modal 之上,故 dropdown > modal */
+  /* 层叠刻度:base → sticky → overlay → modal → dropdown → global modal → topmost
+     global modal 跨应用 shell；tooltip/lightbox 等临时表面仍使用 topmost。 */
   --z-base: 0;
   --z-sticky: 10;
   --z-overlay: 40;
   --z-modal: 60;
   --z-dropdown: 100;
+  --z-global-modal: 200;
   --z-topmost: 1000;
   /* 4/8 间距刻度,供 padding/gap/margin 复用 */
   --space-1: 4px;

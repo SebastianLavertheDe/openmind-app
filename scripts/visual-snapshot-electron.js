@@ -109,6 +109,7 @@ async function run() {
   }
 
   await captureCompanionLayoutContracts(win, report);
+  await captureGlobalSearchLayerContract(win, report);
 
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
@@ -280,6 +281,165 @@ async function captureCompanionLayoutContracts(win, report) {
     })()
   `);
   await settle();
+}
+
+async function captureGlobalSearchLayerContract(win, report) {
+  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  win.webContents.setZoomFactor(1);
+  win.setSize(1280, 800);
+  await settle();
+  await clickNav(win, "创作");
+  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
+  await ensureDefaultCompanion(win);
+
+  await win.webContents.executeJavaScript(`
+    (() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true
+      }));
+    })()
+  `);
+  await waitForSelector(win, ".global-search-dialog");
+  await settle();
+  const compact = await inspectGlobalSearchLayer(win);
+
+  // Keep search open while the companion crosses into canvas. The AI modal
+  // scope registers after search here, reproducing the layering race.
+  win.setSize(840, 800);
+  await settle();
+  const canvas = await inspectGlobalSearchLayer(win);
+  const image = await win.webContents.capturePage();
+  const file = path.join(outputRoot, "state-global-search-over-ai-canvas.png");
+  fs.writeFileSync(file, image.toPNG());
+
+  await win.webContents.executeJavaScript(`
+    (() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true
+      }));
+    })()
+  `);
+  await waitForSelectorToDisappear(win, ".global-search-scrim");
+  await settle();
+  const afterClose = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.querySelector('#root');
+      const sidebar = document.querySelector('.ai-sidebar');
+      const stage = document.querySelector('.app-stage');
+      const nav = document.querySelector('.app-nav');
+      return {
+        searchClosed: !document.querySelector('.global-search-scrim'),
+        aiStillOpen: Boolean(sidebar),
+        canvasStillModal: Boolean(
+          sidebar?.classList.contains('layout-companion-canvas')
+          && sidebar.getAttribute('role') === 'dialog'
+          && sidebar.getAttribute('aria-modal') === 'true'
+        ),
+        focusInsideAi: Boolean(sidebar?.contains(document.activeElement)),
+        aiBackgroundStillIsolated: Boolean(stage?.inert) && Boolean(nav?.inert),
+        rootRestored: !root?.inert && root?.getAttribute('aria-hidden') !== 'true'
+      };
+    })()
+  `);
+
+  const checks = {
+    compactPortalToBody: compact.portalToBody,
+    compactFillsViewport: compact.fillsViewport,
+    compactOwnsAiPoint: compact.searchOwnsAiPoint,
+    compactOwnsFocus: compact.focusInsideSearch,
+    compactBackgroundIsolated: compact.rootInert && compact.rootAriaHidden === "true",
+    canvasMountedAfterSearch: canvas.sidebarClass.includes("layout-companion-canvas"),
+    canvasPortalToBody: canvas.portalToBody,
+    canvasFillsViewport: canvas.fillsViewport,
+    canvasOwnsAiPoint: canvas.searchOwnsAiPoint,
+    canvasOwnsFocus: canvas.focusInsideSearch,
+    canvasBackgroundIsolated: canvas.rootInert && canvas.rootAriaHidden === "true",
+    oneEscapeClosedSearch: afterClose.searchClosed,
+    oneEscapeKeptAiOpen: afterClose.aiStillOpen && afterClose.canvasStillModal,
+    aiIsolationRetained: afterClose.aiBackgroundStillIsolated,
+    focusReturnedToAi: afterClose.focusInsideAi,
+    rootIsolationRestored: afterClose.rootRestored
+  };
+  const ok = Object.values(checks).every(Boolean);
+  const item = {
+    id: "global-search-over-ai-responsive",
+    label: "创作",
+    description: "Global search stays above compact and late-mounted canvas AI companions",
+    file: path.relative(appRoot, file),
+    width: 840,
+    height: 800,
+    zoom: 1,
+    ok,
+    reason: ok
+      ? null
+      : "global search layer checks failed: " + Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(", "),
+    checks,
+    details: { compact, canvas, afterClose }
+  };
+  report.stateSnapshots.push(item);
+  if (!ok) report.failures.push(item);
+
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const collapse = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      if (collapse instanceof HTMLButtonElement) collapse.click();
+    })()
+  `);
+  await settle();
+}
+
+async function inspectGlobalSearchLayer(win) {
+  return win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.querySelector('#root');
+      const scrim = document.querySelector('.global-search-scrim');
+      const dialog = document.querySelector('.global-search-dialog');
+      const sidebar = document.querySelector('.ai-sidebar');
+      if (!(root instanceof HTMLElement)
+        || !(scrim instanceof HTMLElement)
+        || !(dialog instanceof HTMLElement)
+        || !(sidebar instanceof HTMLElement)) {
+        return {
+          portalToBody: false,
+          fillsViewport: false,
+          searchOwnsAiPoint: false,
+          focusInsideSearch: false,
+          rootInert: false,
+          rootAriaHidden: null,
+          sidebarClass: ''
+        };
+      }
+      const sidebarRect = sidebar.getBoundingClientRect();
+      const x = Math.max(1, Math.min(window.innerWidth - 12, sidebarRect.right - 12));
+      const y = Math.max(1, Math.min(window.innerHeight - 12, sidebarRect.bottom - 12));
+      const stack = document.elementsFromPoint(x, y);
+      const searchIndex = stack.findIndex((element) => element === scrim || scrim.contains(element));
+      const aiIndex = stack.findIndex((element) => element === sidebar || sidebar.contains(element));
+      const scrimRect = scrim.getBoundingClientRect();
+      return {
+        portalToBody: scrim.parentElement === document.body,
+        fillsViewport: Math.abs(scrimRect.left) <= 1
+          && Math.abs(scrimRect.top) <= 1
+          && Math.abs(scrimRect.width - window.innerWidth) <= 1
+          && Math.abs(scrimRect.height - window.innerHeight) <= 1,
+        searchOwnsAiPoint: searchIndex === 0 && (aiIndex < 0 || searchIndex < aiIndex),
+        focusInsideSearch: dialog.contains(document.activeElement),
+        rootInert: Boolean(root.inert),
+        rootAriaHidden: root.getAttribute('aria-hidden'),
+        sidebarClass: sidebar.className,
+        sidebarRole: sidebar.getAttribute('role'),
+        point: { x, y },
+        hitStack: stack.slice(0, 8).map((element) => element.tagName.toLowerCase()
+          + (element.className ? '.' + String(element.className).trim().replace(/\\s+/g, '.') : '')),
+        scrimZIndex: getComputedStyle(scrim).zIndex
+      };
+    })()
+  `);
 }
 
 async function ensureExpandedNavigation(win) {

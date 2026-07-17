@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Search, Sparkles, X } from "lucide-react";
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -6,6 +7,7 @@ import type { Navigate } from "./routes";
 import { useAi } from "../ai-context";
 import { Tooltip } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
+import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
 
 type PaletteAction = {
   intent: "summarize" | "create-draft" | "compare" | "analyze";
@@ -78,21 +80,15 @@ export function GlobalSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const [running, setRunning] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
 
   const { visible, leaving } = useExitPresence(open, 160);
-
-  useEffect(() => {
-    if (!visible) return;
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => {
-      window.cancelAnimationFrame(frame);
-      previousFocus.current?.focus();
-      previousFocus.current = null;
-    };
-  }, [visible]);
+  useModalFocusScope({
+    open: visible,
+    containerRef: scopeRef,
+    onDismiss: onClose,
+    layer: "global"
+  });
 
   useEffect(() => {
     if (!visible || query.trim().length < 2) {
@@ -162,10 +158,7 @@ export function GlobalSearch({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-    } else if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown") {
       event.preventDefault();
       setActiveIndex((value) => Math.min(actionOffset + Math.max(results.length - 1, 0), value + 1));
     } else if (event.key === "ArrowUp") {
@@ -182,17 +175,22 @@ export function GlobalSearch({
     }
   };
 
-  if (!visible) return null;
+  if (!visible || typeof document === "undefined") return null;
   let flatIndex = actionOffset - 1;
   const showHint = query.trim().length < 2;
   const showEmpty = !loading && query.trim().length >= 2 && !results.length && !action;
-  return (
-    <div className="global-search-scrim ui-overlay" data-leaving={leaving || undefined} onClick={onClose}>
+  return createPortal(
+    <div
+      ref={scopeRef}
+      className="global-search-scrim ui-overlay"
+      data-leaving={leaving || undefined}
+      onClick={onClose}
+      tabIndex={-1}
+    >
       <section className="global-search-dialog" role="dialog" aria-modal="true" aria-label={m.search.dialogLabel} onClick={(event) => event.stopPropagation()}>
         <header>
           <Sparkles size={18} style={{ color: "var(--accent)" }} />
           <input
-            ref={inputRef}
             aria-label={m.search.inputAria}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -252,7 +250,8 @@ export function GlobalSearch({
           ))}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 

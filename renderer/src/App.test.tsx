@@ -131,6 +131,31 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
   });
 
+  it("keeps a fullscreen AI companion underneath the body-level global search", async () => {
+    window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
+    const view = render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "创作" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
+    await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /^全屏$/ }));
+    await waitFor(() => expect(document.querySelector(".ai-sidebar.mode-full")).toBeTruthy());
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    await waitFor(() => expect(document.querySelector(".global-search-dialog")).toBeTruthy());
+
+    const scrim = document.querySelector<HTMLElement>(".global-search-scrim");
+    expect(scrim?.parentElement).toBe(document.body);
+    expect(view.container.contains(scrim)).toBe(false);
+    expect(view.container.inert).toBe(true);
+    expect(view.container.getAttribute("aria-hidden")).toBe("true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.querySelector(".global-search-scrim")).toBeNull());
+    expect(document.querySelector(".ai-sidebar.mode-full")).toBeTruthy();
+  });
+
   it("clears the recent-session selection when navigating to a feature page", async () => {
     window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
     const sessionSnapshot = {

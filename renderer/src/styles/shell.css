@@ -207,7 +207,7 @@
 .global-search-scrim {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: var(--z-global-modal);
   display: grid;
   justify-items: center;
   align-items: start;

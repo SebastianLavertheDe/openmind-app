@@ -58,6 +58,34 @@ describe("GlobalSearch", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("portals above the app and keeps its background inert through the exit animation", () => {
+    const onClose = vi.fn();
+    const view = render(
+      <AiProvider initial={snapshot}>
+        <GlobalSearch open onClose={onClose} navigate={navigate} />
+      </AiProvider>
+    );
+    const scrim = document.querySelector<HTMLElement>(".global-search-scrim");
+    expect(scrim).toBeTruthy();
+    expect(scrim?.parentElement).toBe(document.body);
+    expect(view.container.contains(scrim)).toBe(false);
+    expect(view.container.inert).toBe(true);
+    expect(view.container.getAttribute("aria-hidden")).toBe("true");
+
+    view.rerender(
+      <AiProvider initial={snapshot}>
+        <GlobalSearch open={false} onClose={onClose} navigate={navigate} />
+      </AiProvider>
+    );
+    expect(document.querySelector(".global-search-scrim")).toBeTruthy();
+    expect(view.container.inert).toBe(true);
+
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(document.querySelector(".global-search-scrim")).toBeNull();
+    expect(view.container.inert).toBe(false);
+    expect(view.container.hasAttribute("aria-hidden")).toBe(false);
+  });
+
   it("focuses the input when opened and shows the hint before any query", () => {
     renderPalette(true);
     expect(screen.getByLabelText(INPUT_LABEL)).toBeTruthy();
