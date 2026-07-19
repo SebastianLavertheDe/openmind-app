@@ -378,8 +378,9 @@ describe("chat timeline", () => {
     await screen.findByText("third");
     expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
     expect(container.querySelector(".message-avatar, .provider-avatar, .provider-avatar-spacer")).toBeNull();
-    expect(screen.queryByText("first")).toBeNull();
-    expect(screen.queryByText("second")).toBeNull();
+    const assistant = container.querySelector<HTMLElement>(".assistant-message")!;
+    expect(assistant.textContent).not.toContain("first");
+    expect(assistant.textContent).not.toContain("second");
   });
 
   it("does not present a completed run without a final reply as successfully processed", async () => {
@@ -746,7 +747,7 @@ describe("chat timeline", () => {
     expect(container.querySelector(".assistant-message")?.textContent).not.toContain("stale draft");
   });
 
-  it("shows live reasoning separately and hides completed reasoning while the run continues", async () => {
+  it("shows live reasoning separately and keeps completed reasoning while the run continues", async () => {
     const run = makeRun();
     const runningSnapshot = {
       ...snapshot,
@@ -788,7 +789,7 @@ describe("chat timeline", () => {
     aiListener?.({ kind: "event", event: makeEvent("reasoning-final", "reasoning-summary", { text: "checking context" }) });
     const pendingReasoning = await screen.findByRole("status", { name: "正在思考" });
     expect(pendingReasoning.classList.contains("pending")).toBe(true);
-    expect(screen.queryByLabelText("推理摘要")).toBeNull();
+    expect(await screen.findByRole("button", { name: m.ai.thought.codexSummary })).toBeTruthy();
   });
 
   it("renders standalone reasoning summaries inline and expands them in place", async () => {
@@ -845,10 +846,11 @@ describe("chat timeline", () => {
   it("merges only consecutive reasoning fragments and preserves tool order", () => {
     const { steps } = buildTraceSteps([
       makeEvent("reasoning-one", "reasoning-summary", { text: "first" }, 1),
-      makeEvent("reasoning-two", "reasoning-summary", { text: "second" }, 2),
-      makeEvent("tool-started", "tool-start", { itemId: "tool-1", tool: "Bash" }, 3),
-      makeEvent("tool-finished", "tool-complete", { itemId: "tool-1" }, 4),
-      makeEvent("reasoning-three", "reasoning-summary", { text: "third" }, 5)
+      makeEvent("reasoning-one-copy", "reasoning-summary", { text: "first" }, 2),
+      makeEvent("reasoning-two", "reasoning-summary", { text: "second" }, 3),
+      makeEvent("tool-started", "tool-start", { itemId: "tool-1", tool: "Bash" }, 4),
+      makeEvent("tool-finished", "tool-complete", { itemId: "tool-1" }, 5),
+      makeEvent("reasoning-three", "reasoning-summary", { text: "third" }, 6)
     ]);
     expect(steps.map((step) => step.type)).toEqual(["reasoning", "tool", "reasoning"]);
     expect(steps[0].type === "reasoning" ? steps[0].events.map((event) => event.id) : []).toEqual(["reasoning-one", "reasoning-two"]);
@@ -1358,7 +1360,7 @@ describe("chat timeline", () => {
     expect(Boolean(process.compareDocumentPosition(finalAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
-  it("groups consecutive completed commands collapsed and expands one command in place", async () => {
+  it("groups completed commands and collapses open tool details with the group", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
     window.cctools.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "check project" }, 1),
@@ -1374,15 +1376,13 @@ describe("chat timeline", () => {
 
     openDisclosure(disclosureFor(await screen.findByText("已处理")));
     const group = disclosureFor(screen.getByText("命令执行失败 · 共 3 条"));
-    expectDisclosureOpen(group, false);
+    expectDisclosureOpen(group, true);
     expect(within(group).getByText("1 条失败")).toBeTruthy();
 
     const [pwd, failed, git] = Array.from(group.querySelectorAll<HTMLElement>(".tool-event"));
     expectDisclosureOpen(pwd, false);
     expectDisclosureOpen(failed, false);
     expectDisclosureOpen(git, false);
-    fireEvent.click(disclosureTrigger(group));
-    expectDisclosureOpen(group, true);
     fireEvent.click(disclosureTrigger(pwd));
     await waitFor(() => {
       expectDisclosureOpen(pwd, true);
@@ -1394,6 +1394,16 @@ describe("chat timeline", () => {
       expectDisclosureOpen(git, true);
       expectDisclosureOpen(pwd, true);
     });
+    fireEvent.click(disclosureTrigger(group));
+    await waitFor(() => {
+      expectDisclosureOpen(group, false);
+      expectDisclosureOpen(git, false);
+      expectDisclosureOpen(pwd, false);
+    });
+    fireEvent.click(disclosureTrigger(group));
+    expectDisclosureOpen(group, true);
+    expectDisclosureOpen(git, false);
+    expectDisclosureOpen(pwd, false);
   });
 
   it("keeps a running command group open with command details collapsed", async () => {
@@ -1413,6 +1423,63 @@ describe("chat timeline", () => {
     expectDisclosureOpen(calls[1], false);
   });
 
+  it("groups consecutive mixed tools with useful operation summaries", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "inspect content" }, 1),
+      makeEvent("glob-start", "tool-start", { itemId: "glob", tool: "Glob", input: { pattern: "**/*.md", path: "mymind" } }, 2),
+      makeEvent("glob-done", "tool-complete", { itemId: "glob", output: "mymind/today.md" }, 3),
+      makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "mymind/today.md" } }, 4),
+      makeEvent("read-done", "tool-complete", { itemId: "read", output: "today" }, 5),
+      makeEvent("bash-start", "tool-start", { itemId: "bash", tool: "Bash", input: { command: "git status" } }, 6),
+      makeEvent("bash-done", "tool-complete", { itemId: "bash", output: "clean" }, 7),
+      makeEvent("answer", "assistant-message", { text: "done" }, 8)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    openDisclosure(disclosureFor(await screen.findByText(m.ai.chat.processed)));
+    const group = disclosureFor(screen.getByText(m.ai.tool.toolGroupRan(3)));
+    expectDisclosureOpen(group, true);
+    expect(group.classList.contains("tools")).toBe(true);
+    expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
+    expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*mymind/ })).toBeTruthy();
+    expect(within(group).getByRole("button", { name: /Read.*mymind\/today\.md/ })).toBeTruthy();
+    expect(within(group).getByRole("button", { name: /git status/ })).toBeTruthy();
+  });
+
+  it("preserves an open tool while its stream grows from one call into a group", async () => {
+    const run = makeRun();
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "inspect project" }, 1),
+      makeEvent("first-start", "tool-start", { itemId: "first", tool: "Glob", input: { pattern: "**/*.tsx", path: "renderer/src" } }, 2)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+
+    const process = disclosureFor(await screen.findByText(m.ai.chat.processing));
+    const first = process.querySelector<HTMLElement>(".tool-event")!;
+    fireEvent.click(disclosureTrigger(first));
+    expectDisclosureOpen(first, true);
+
+    aiListener?.({ kind: "event", event: makeEvent("first-done", "tool-complete", { itemId: "first", output: "renderer/src/App.tsx" }, 3) });
+    aiListener?.({ kind: "event", event: makeEvent("second-start", "tool-start", { itemId: "second", tool: "Read", input: { file_path: "renderer/src/App.tsx" } }, 4) });
+
+    const group = disclosureFor(await screen.findByText(m.ai.tool.toolGroupRunning(2)));
+    const groupedFirst = group.querySelector<HTMLElement>(".tool-event")!;
+    expectDisclosureOpen(group, true);
+    expectDisclosureOpen(groupedFirst, true);
+
+    aiListener?.({
+      kind: "event",
+      event: makeEvent("third-start", "tool-start", { itemId: "third", tool: "Grep", input: { pattern: "TODO", path: "renderer/src" } }, 5)
+    });
+
+    const updatedGroup = disclosureFor(await screen.findByText(m.ai.tool.toolGroupRunning(3)));
+    expect(updatedGroup).toBe(group);
+    expectDisclosureOpen(updatedGroup, true);
+    expectDisclosureOpen(groupedFirst, true);
+    expect(updatedGroup.querySelectorAll(".tool-event")).toHaveLength(3);
+  });
+
   it("propagates a cancelled run status to an unfinished tool in the Chat trace", async () => {
     const run = { ...makeRun(), status: "cancelled" as const, completedAt: "2026-01-01T00:00:10.000Z" };
     window.cctools.aiGetEvents = async () => [
@@ -1428,7 +1495,7 @@ describe("chat timeline", () => {
     expect(process.querySelector(".spin")).toBeNull();
   });
 
-  it("keeps the running cycle visible without a nested completed-round summary", async () => {
+  it("keeps completed process cycles visible alongside the running cycle", async () => {
     const run = makeRun();
     window.cctools.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "inspect and build" }, 1),
@@ -1446,6 +1513,8 @@ describe("chat timeline", () => {
     expect(within(process).queryByRole("button", { name: /已完成 \d+ 轮/ })).toBeNull();
     expect(process.querySelector(".completed-process-title small")?.textContent).not.toMatch(/思考|工具/);
     expect(process.querySelectorAll('[data-trace-cycle="current"]')).toHaveLength(1);
+    expect(process.querySelectorAll('[data-trace-cycle="completed"]')).toHaveLength(1);
+    expect(process.querySelectorAll(".tool-event")).toHaveLength(2);
     expect(within(process.querySelector<HTMLElement>('[data-trace-cycle="current"]')!).getByText("正在运行")).toBeTruthy();
 
     aiListener?.({ kind: "event", event: makeEvent("build-done", "tool-complete", { itemId: "build", output: "built" }, 7) });
@@ -1453,11 +1522,47 @@ describe("chat timeline", () => {
       expect(process.querySelector(".trace-cycle-history")).toBeNull();
       expect(within(process).queryByRole("button", { name: /已完成 \d+ 轮/ })).toBeNull();
       expect(process.querySelector('[data-trace-cycle="current"]')).toBeNull();
+      expect(process.querySelectorAll('[data-trace-cycle="completed"]')).toHaveLength(2);
+      expect(process.querySelectorAll(".tool-event")).toHaveLength(2);
     });
     expect(container.querySelector(".reasoning-event.pending")).toBeTruthy();
   });
 
-  it("auto-collapses a command group when its last running command completes", async () => {
+  it("renders live process commentary as Markdown without hiding completed steps", async () => {
+    const run = makeRun();
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "hello" }, 1),
+      makeEvent("reasoning", "reasoning-summary", { text: "inspect the project" }, 2),
+      makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "src/app.ts" } }, 3),
+      makeEvent("read-done", "tool-complete", { itemId: "read", output: "done" }, 4)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    await screen.findByText("hello");
+    const process = container.querySelector<HTMLElement>(".completed-process")!;
+    expect(process.querySelector(".reasoning-event")).toBeTruthy();
+    expect(process.querySelector(".tool-event")).toBeTruthy();
+
+    const markdown = [
+      "## Live heading",
+      "",
+      "**bold update**",
+      "",
+      "| Step | State |",
+      "| --- | --- |",
+      "| Inspect | Done |"
+    ].join("\n");
+    aiListener?.({ kind: "transient", event: makeEvent("live-markdown", "assistant-delta", { text: markdown }, 5) });
+
+    await waitFor(() => expect(process.querySelector("h2")?.textContent).toBe("Live heading"));
+    const narrative = process.querySelector<HTMLElement>(".process-narrative")!;
+    expect(narrative.querySelector("strong")?.textContent).toBe("bold update");
+    expect(narrative.querySelector("table")?.textContent).toContain("Inspect");
+    expect(narrative.tagName).toBe("DIV");
+    expect(process.querySelector(".reasoning-event")).toBeTruthy();
+    expect(process.querySelector(".tool-event")).toBeTruthy();
+  });
+
+  it("keeps a command group open when its last running command completes", async () => {
     const first = [
       makeEvent("first-start", "tool-start", { itemId: "first", tool: "Bash", input: { command: "npm test" } }, 1),
       makeEvent("first-done", "tool-complete", { itemId: "first", output: "ok" }, 2)
@@ -1471,10 +1576,10 @@ describe("chat timeline", () => {
       { key: "first", events: first },
       { key: "second", events: [secondStart, makeEvent("second-done", "tool-complete", { itemId: "second", output: "built" }, 4)] }
     ]} />);
-    await waitFor(() => expectDisclosureOpen(group, false));
+    await waitFor(() => expectDisclosureOpen(group, true));
   });
 
-  it("auto-collapses a command group when the parent run cancels unfinished commands", async () => {
+  it("keeps a command group open when the parent run cancels unfinished commands", async () => {
     const start = makeEvent("unfinished-start", "tool-start", { itemId: "unfinished", tool: "Bash", input: { command: "npm test" } }, 1);
     const calls = [{ key: "unfinished", events: [start] }];
     const { rerender } = render(<CommandGroup calls={calls} runStatus="running" />);
@@ -1483,7 +1588,7 @@ describe("chat timeline", () => {
 
     rerender(<CommandGroup calls={calls} runStatus="cancelled" />);
 
-    await waitFor(() => expectDisclosureOpen(group, false));
+    await waitFor(() => expectDisclosureOpen(group, true));
     expect(screen.getByText("命令执行已取消 · 共 1 条")).toBeTruthy();
     expect(screen.queryByText("已运行 1 条命令")).toBeNull();
     expect(group.querySelector(".tool-event")?.classList.contains("cancelled")).toBe(true);

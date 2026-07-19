@@ -41,11 +41,6 @@ export function UserMessage({ event }: { event: AiEvent }) {
 
 export function AssistantMessage({ text, streaming = false, event }: { text: string; streaming?: boolean; event?: AiEvent }) {
   const ai = useAi();
-  const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
-  const markdown = useMemo(
-    () => (streaming ? renderStreamingMarkdown(text) : renderCachedMarkdown(cacheKey, text)),
-    [streaming, cacheKey, text]
-  );
   return (
     <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
       <div className="message-body">
@@ -59,12 +54,28 @@ export function AssistantMessage({ text, streaming = false, event }: { text: str
             </>
           )}
         </MessageMeta>
-        <div className="chat-markdown">
-          {markdown}
-        </div>
+        <ChatMarkdown text={text} streaming={streaming} />
       </div>
     </article>
   );
+}
+
+export function ChatMarkdown({
+  text,
+  streaming = false,
+  className = ""
+}: {
+  text: string;
+  streaming?: boolean;
+  className?: string;
+}) {
+  const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
+  const markdown = useMemo(
+    () => (streaming ? renderStreamingMarkdown(text) : renderCachedMarkdown(cacheKey, text)),
+    [streaming, cacheKey, text]
+  );
+  const classes = ["chat-markdown", className].filter(Boolean).join(" ");
+  return <div className={classes}>{markdown}</div>;
 }
 
 export function markdownCacheKey(text: string): string {

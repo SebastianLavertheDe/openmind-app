@@ -97,6 +97,24 @@ describe("provider contracts", () => {
     expect(tool.events[0].payload.text).toBe("先检查目录");
   });
 
+  it.each([
+    ["matching", "inspect the repository", "inspect the repository", "inspect the repository"],
+    ["durable-prefix", "inspect", "inspect the repository", "inspect the repository"],
+    ["streamed-prefix", "inspect the repository", "inspect", "inspect the repository"]
+  ])("coalesces Claude %s streamed thinking with its durable block", (_, streamedText, durableText, expected) => {
+    const streamed = orderClaudeEvents([
+      { kind: "reasoning-delta", payload: { text: streamedText } }
+    ]);
+    const durable = orderClaudeEvents([
+      { kind: "reasoning-summary", payload: { text: durableText, source: "claude-thinking" } },
+      { kind: "tool-start", payload: { tool: "Read", input: { file_path: "src/app.ts" } } }
+    ], streamed.pendingReasoning);
+
+    expect(durable.events.map((event) => event.kind)).toEqual(["reasoning-summary", "tool-start"]);
+    expect(durable.events[0].payload.text).toBe(expected);
+    expect(durable.pendingReasoning).toBe("");
+  });
+
   it("loads user settings so local Claude credentials and provider environment are inherited", () => {
     expect(CLAUDE_SETTING_SOURCES).toEqual(["user", "project"]);
     expect(CLAUDE_SKILL_SELECTION).toBe("all");

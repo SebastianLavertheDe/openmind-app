@@ -373,8 +373,15 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
     }
     if (event.kind === "reasoning-summary") {
       const previous = steps.at(-1);
-      if (previousWasReasoning && previous?.type === "reasoning") previous.events.push(event);
-      else steps.push({ type: "reasoning", key: `reasoning:${event.runId}:${reasoningIndex++}`, events: [event] });
+      if (previousWasReasoning && previous?.type === "reasoning") {
+        const previousText = String(previous.events.at(-1)?.payload.text || "").trim();
+        const nextText = String(event.payload.text || "").trim();
+        // Older Claude sessions may contain both the streamed and durable copy
+        // of the same thinking block. Keep one copy in the visible trace.
+        if (previousText !== nextText) previous.events.push(event);
+      } else {
+        steps.push({ type: "reasoning", key: `reasoning:${event.runId}:${reasoningIndex++}`, events: [event] });
+      }
       previousWasReasoning = true;
       continue;
     }

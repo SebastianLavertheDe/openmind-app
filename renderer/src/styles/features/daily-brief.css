@@ -1,3 +1,14 @@
+.brief-library-page {
+  /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
+  --file-reader-max-width: 1120px;
+  --daily-brief-prose-max-width: 920px;
+}
+
+.brief-library-page .document-content .reader-markdown.file-reader > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
+  max-width: var(--daily-brief-prose-max-width);
+  margin-inline: auto;
+}
+
 .brief-topic-main > span:first-child {
   color: var(--muted-2);
   font: 700 18px/1 var(--font-display);

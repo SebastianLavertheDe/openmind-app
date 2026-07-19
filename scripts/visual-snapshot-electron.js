@@ -110,6 +110,7 @@ async function run() {
 
   await captureCompanionLayoutContracts(win, report);
   await captureGlobalSearchLayerContract(win, report);
+  await captureCreativeReaderLayout(win, report);
 
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
@@ -127,6 +128,99 @@ async function run() {
   }
   console.log(`Visual snapshots passed: ${report.snapshots.length} screenshots, report .build/visual-snapshot-report.json.`);
   app.quit();
+}
+
+async function captureCreativeReaderLayout(win, report) {
+  const creativePage = pages.find((page) => page.id === "creative");
+  if (!creativePage) throw new Error("Creative page config is missing.");
+
+  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  win.webContents.setZoomFactor(1);
+  win.setSize(2048, 1119);
+  await settle();
+  await clickNav(win, creativePage.label);
+  await waitForReady(win, creativePage.label, {
+    minTextLength: creativePage.minTextLength,
+    requiredSelector: creativePage.requiredSelector
+  });
+
+  const opened = await win.webContents.executeJavaScript(`
+    (() => {
+      const file = document.querySelector('.stream-date-file:not([disabled])');
+      if (!(file instanceof HTMLButtonElement)) return false;
+      file.click();
+      return true;
+    })()
+  `);
+  if (!opened) throw new Error("Creative topic file preview target was not found.");
+
+  await waitForReady(win, creativePage.label, {
+    minTextLength: creativePage.minTextLength,
+    requiredSelector: ".creative-topic-file-content .file-reader"
+  });
+  await settle();
+
+  const geometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.documentElement;
+      const body = document.body;
+      const container = document.querySelector('.creative-topic-file-content');
+      const preview = container?.querySelector('.file-reader');
+      const prose = preview?.querySelector(':scope > :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr)');
+      const rect = (element) => {
+        if (!(element instanceof Element)) return null;
+        const value = element.getBoundingClientRect();
+        return Object.fromEntries(['left', 'top', 'right', 'bottom', 'width', 'height'].map(
+          (key) => [key, Math.round(value[key] * 10) / 10]
+        ));
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        container: rect(container),
+        preview: rect(preview),
+        prose: rect(prose),
+        previewMaxWidth: preview instanceof Element ? getComputedStyle(preview).maxWidth : null,
+        proseMaxWidth: prose instanceof Element ? getComputedStyle(prose).maxWidth : null,
+        horizontalOverflow: Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth)
+      };
+    })()
+  `);
+
+  const expectedPreviewWidth = geometry.container ? Math.min(geometry.container.width, 1120) : 0;
+  const checks = {
+    previewVisible: Boolean(geometry.preview && geometry.preview.width > 0 && geometry.preview.height > 0),
+    canvasWidth: Boolean(geometry.preview && Math.abs(geometry.preview.width - expectedPreviewWidth) <= 2),
+    proseWidth: geometry.proseMaxWidth === "920px" && Boolean(geometry.prose && geometry.prose.width <= 920.5),
+    previewInsideContainer: Boolean(
+      geometry.preview
+      && geometry.container
+      && geometry.preview.left >= geometry.container.left - 1
+      && geometry.preview.right <= geometry.container.right + 1
+    ),
+    noHorizontalOverflow: geometry.horizontalOverflow <= 2
+  };
+  const ok = Object.values(checks).every(Boolean);
+  const image = await win.webContents.capturePage();
+  const file = path.join(outputRoot, "state-creative-reader-2048.png");
+  fs.writeFileSync(file, image.toPNG());
+  const item = {
+    id: "creative-reader-2048",
+    page: "creative",
+    label: creativePage.label,
+    description: "Creative topic file preview uses the wide canvas and readable prose measure",
+    file: path.relative(appRoot, file),
+    width: geometry.viewport.width,
+    height: geometry.viewport.height,
+    zoom: 1,
+    ok,
+    reason: ok
+      ? null
+      : "creative reader checks failed: " + Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(", "),
+    checks,
+    geometry
+  };
+  report.stateSnapshots.push(item);
+  if (!ok) report.failures.push(item);
 }
 
 async function captureCompanionLayoutContracts(win, report) {
@@ -1200,7 +1294,7 @@ async function captureCompletedAiResponse(win, report) {
   // mounted. A bare querySelector therefore cannot prove that a click happened
   // or that the content reached a visible, interactive open state.
   await expandDisclosure(win, ".completed-process");
-  await waitForDisclosureState(win, ".completed-process .command-group", false);
+  await waitForDisclosureState(win, ".completed-process .command-group", true);
   const expandedToolCount = await win.webContents.executeJavaScript(
     "document.querySelectorAll('.completed-process .tool-event[data-open]').length"
   );
@@ -1210,18 +1304,70 @@ async function captureCompletedAiResponse(win, report) {
   const expandedGroupCount = await win.webContents.executeJavaScript(
     "document.querySelectorAll('.completed-process .command-group[data-open]').length"
   );
-  if (expandedGroupCount !== 0) {
-    throw new Error(`Completed process opened with ${expandedGroupCount} expanded command groups.`);
+  if (expandedGroupCount !== 2) {
+    throw new Error(`Completed process expected 2 expanded tool groups, found ${expandedGroupCount}.`);
   }
-  const commandGroupSnapshot = await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped command history");
+  await settle();
+  const compactToolGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const group = document.querySelector('.completed-process .command-group.tools');
+      const list = group?.querySelector('.command-group-list');
+      const rows = list ? [...list.querySelectorAll('.tool-event')] : [];
+      if (!group || !list) return { ok: false, checks: { groupFound: false } };
+      const rowHeights = rows.map((row) => row.querySelector(':scope > .ui-disclosure-trigger')?.getBoundingClientRect().height || 0);
+      const checks = {
+        groupFound: true,
+        groupedTools: rows.length === 10 && group.classList.contains('tools'),
+        compactRows: rowHeights.every((height) => height >= 30 && height <= 40),
+        boundedScroll: getComputedStyle(list).maxHeight === '304px' && list.scrollHeight > list.clientHeight,
+        scrollSemantics: list.getAttribute('role') === 'region' && list.tabIndex === 0,
+        rowIcons: rows.every((row) => {
+          const icon = row.querySelector('.tool-event-icon');
+          return icon && getComputedStyle(icon).display !== 'none';
+        }),
+        noHorizontalOverflow: list.scrollWidth <= list.clientWidth + 1
+      };
+      return {
+        ok: Object.values(checks).every(Boolean),
+        checks,
+        rowHeights,
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight,
+        maxHeight: getComputedStyle(list).maxHeight
+      };
+    })()
+  `);
+  if (!compactToolGeometry.ok) {
+    throw new Error(`Compact tool group geometry failed: ${JSON.stringify(compactToolGeometry)}`);
+  }
+  const commandGroupSnapshot = await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped tool history");
 
-  await expandDisclosure(win, ".completed-process .command-group");
   await waitForDisclosureState(win, ".completed-process .command-group .tool-event", false, 1);
   await expandDisclosure(win, ".completed-process .command-group .tool-event", 1);
   const terminalSelector = ".completed-process .command-group .tool-event[data-open] .command-terminal";
   await scrollSelectorIntoView(win, terminalSelector);
   await waitForSelector(win, terminalSelector);
-  const expandedCommandSnapshot = await captureState(win, report, "ai-command-group-expanded", "新建任务", "A single command expanded in place while preserving command context");
+  const expandedToolGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const list = document.querySelector('.completed-process .command-group.tools .command-group-list');
+      const opened = list?.querySelector('.tool-event[data-open]');
+      if (!list || !opened) return { ok: false };
+      const style = getComputedStyle(list);
+      return {
+        ok: style.maxHeight === '304px'
+          && style.overflowY === 'auto'
+          && list.getBoundingClientRect().height <= 305
+          && list.scrollHeight > list.clientHeight,
+        maxHeight: style.maxHeight,
+        overflowY: style.overflowY,
+        height: list.getBoundingClientRect().height,
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight
+      };
+    })()
+  `);
+  if (!expandedToolGeometry.ok) throw new Error(`Expanded tool group escaped its scroll viewport: ${JSON.stringify(expandedToolGeometry)}`);
+  const expandedCommandSnapshot = await captureState(win, report, "ai-command-group-expanded", "新建任务", "A single tool expanded in place while preserving group context");
 
   assertDistinctPixelSnapshots([completedSnapshot, commandGroupSnapshot, expandedCommandSnapshot]);
 }

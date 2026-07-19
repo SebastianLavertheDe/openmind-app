@@ -21,7 +21,7 @@ import { ApprovalBanner } from "./approval-banner";
 import { ChatComposer } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
-import { AssistantMessage, UserMessage } from "./message";
+import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 import { CommandGroup, ToolCallCard, toolIcon } from "./tool";
@@ -54,9 +54,9 @@ type TimelineViewItem = ReturnType<typeof groupTimeline>[number];
 type ChatViewItem = TimelineViewItem
   | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null; missingFinal: boolean }
   | { type: "changes-artifact"; key: string; run: AiRun; events: AiEvent[] };
-type CommandStep = Extract<TraceStep, { type: "tool" }>;
-type CommandGroupItem = { type: "command-group"; key: string; run: AiRun; steps: CommandStep[] };
-type ChatRenderItem = ChatViewItem | CommandGroupItem;
+type ToolStep = Extract<TraceStep, { type: "tool" }>;
+type ToolGroupItem = { type: "tool-group"; key: string; run: AiRun; steps: ToolStep[] };
+type ChatRenderItem = ChatViewItem | ToolGroupItem;
 type LiveProcessState = {
   runId: string | null;
   reasoningText: string;
@@ -113,7 +113,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
           missingFinal: false
         });
       }
-      return groupChatCommandItems(folded);
+      return groupChatToolItems(folded);
     },
     [ai.sessionActiveRun, processRuns, visible]
   );
@@ -316,8 +316,8 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
               />
             : item.type === "changes-artifact"
               ? <ChangeReviewCard events={item.events} run={item.run} />
-            : item.type === "command-group"
-              ? <CommandGroupView item={item} />
+            : item.type === "tool-group"
+              ? <ToolGroupView item={item} />
               : item.type === "event"
                 ? <EventRow event={item.event} />
                 : <TraceStepView step={item.step} run={item.run} />}
@@ -401,31 +401,25 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
   return result;
 }
 
-function groupChatCommandItems(items: ChatViewItem[]): ChatRenderItem[] {
+function groupChatToolItems(items: ChatViewItem[]): ChatRenderItem[] {
   const result: ChatRenderItem[] = [];
-  let commands: Extract<TimelineViewItem, { type: "step" }>[] = [];
+  let tools: Extract<TimelineViewItem, { type: "step" }>[] = [];
 
   const flush = () => {
-    if (!commands.length) return;
-    if (commands.length === 1) result.push(commands[0]);
-    else {
-      result.push({
-        type: "command-group",
-        key: `commands:${commands[0].run.id}:${commands.map((item) => item.step.key).join("|")}`,
-        run: commands[0].run,
-        steps: commands.map((item) => item.step as CommandStep)
-      });
-    }
-    commands = [];
+    if (!tools.length) return;
+    result.push({
+      type: "tool-group",
+      key: `tools:${tools[0].run.id}:${tools[0].step.key}`,
+      run: tools[0].run,
+      steps: tools.map((item) => item.step as ToolStep)
+    });
+    tools = [];
   };
 
   for (const item of items) {
-    if (
-      item.type === "step"
-      && isCommandStep(item.step)
-      && (!commands.length || commands[0].run.id === item.run.id)
-    ) {
-      commands.push(item);
+    if (item.type === "step" && isToolStep(item.step)) {
+      if (tools.length && tools[0].run.id !== item.run.id) flush();
+      tools.push(item);
       continue;
     }
     flush();
@@ -591,37 +585,40 @@ function TraceStepList({
   const fallbackActiveIndex = activeCycleIndex < 0 && run.status === "applying" && !liveCurrent
     ? cycles.length - 1
     : activeCycleIndex;
-  const activeCycle = cycles[fallbackActiveIndex] || null;
 
-  return (
-    activeCycle ? (
-      <div className="trace-cycle current" data-trace-cycle="current">
-        <TraceStepBlocks steps={activeCycle.steps} run={run} />
+  return cycles.map((cycle, index) => {
+    const current = index === fallbackActiveIndex;
+    return (
+      <div
+        className={`trace-cycle ${current ? "current" : "completed"}`}
+        data-trace-cycle={current ? "current" : "completed"}
+        key={cycle.key}
+      >
+        <TraceStepBlocks steps={cycle.steps} run={run} />
       </div>
-    ) : null
-  );
+    );
+  });
 }
 
 function TraceStepBlocks({ steps, run }: { steps: TraceStep[]; run: AiRun }) {
-  const blocks: Array<{ type: "step"; step: TraceStep } | { type: "command-group"; key: string; steps: CommandStep[] }> = [];
-  let commands: CommandStep[] = [];
+  const blocks: Array<{ type: "step"; step: TraceStep } | { type: "tool-group"; key: string; steps: ToolStep[] }> = [];
+  let tools: ToolStep[] = [];
   const flush = () => {
-    if (!commands.length) return;
-    if (commands.length === 1) blocks.push({ type: "step", step: commands[0] });
-    else blocks.push({ type: "command-group", key: `commands:${run.id}:${commands.map((step) => step.key).join("|")}`, steps: commands });
-    commands = [];
+    if (!tools.length) return;
+    blocks.push({ type: "tool-group", key: `tools:${run.id}:${tools[0].key}`, steps: tools });
+    tools = [];
   };
   for (const step of steps) {
-    if (isCommandStep(step)) {
-      commands.push(step);
+    if (isToolStep(step)) {
+      tools.push(step);
       continue;
     }
     flush();
     blocks.push({ type: "step", step });
   }
   flush();
-  return blocks.map((block) => block.type === "command-group"
-    ? <CommandGroup key={block.key} calls={block.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={run.status} />
+  return blocks.map((block) => block.type === "tool-group"
+    ? <ToolGroupView key={block.key} item={{ type: "tool-group", key: block.key, run, steps: block.steps }} />
     : <TraceStepView key={block.step.key} step={block.step} run={run} folded />);
 }
 
@@ -650,18 +647,20 @@ function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {
   return -1;
 }
 
-function CommandGroupView({ item }: { item: CommandGroupItem }) {
+function ToolGroupView({ item }: { item: ToolGroupItem }) {
+  const firstStep = item.steps[0];
+  const tool = String(firstStep?.events[0]?.payload.tool || firstStep?.events[0]?.payload.command || firstStep?.events[0]?.payload.skillId || m.ai.tool.fallbackName);
+  const single = item.steps.length === 1;
   return (
-    <div className="trace-step tool command command-group-step">
-      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} />
+    <div className={`trace-step tool tool-group-step${single ? ` ${toolCategory(tool)}` : ""}`}>
+      {single ? <span className="trace-step-marker">{toolIcon(tool, false, false)}</span> : null}
+      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} standaloneWhenSingle />
     </div>
   );
 }
 
-function isCommandStep(step: TraceStep): step is CommandStep {
-  if (step.type !== "tool") return false;
-  const tool = String(step.events[0]?.payload.tool || step.events[0]?.payload.command || step.events[0]?.payload.skillId || "");
-  return toolCategory(tool) === "command";
+function isToolStep(step: TraceStep): step is ToolStep {
+  return step.type === "tool";
 }
 
 function processDuration(startedAt: string, completedAt?: string | null): string {
@@ -679,7 +678,7 @@ function ProcessNarrative({ text, streaming = false }: { text: string; streaming
   if (!text.trim()) return null;
   return (
     <div className="process-narrative-block" aria-live={streaming ? "polite" : undefined}>
-      <p className="process-narrative">{text}</p>
+      <ChatMarkdown text={text} streaming={streaming} className="process-narrative" />
     </div>
   );
 }

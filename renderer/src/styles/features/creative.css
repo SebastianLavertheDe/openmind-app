@@ -1,9 +1,17 @@
 .creative-workspace-page {
+  /* Creative previews need a wider canvas than generic file readers on large screens. */
+  --file-reader-max-width: 1120px;
+  --creative-prose-max-width: 920px;
   height: 100%;
   min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.creative-workspace-page .reader-markdown.file-reader > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
+  max-width: var(--creative-prose-max-width);
+  margin-inline: auto;
 }
 
 .creative-page-header {

@@ -497,6 +497,20 @@ export function orderClaudeEvents(events: ClaudeSemanticEvent[], initialReasonin
       ordered.push(event);
       continue;
     }
+    if (event.kind === "reasoning-summary" && pendingReasoning) {
+      const durableReasoning = String(event.payload.text || "");
+      const pending = pendingReasoning.trim();
+      const durable = durableReasoning.trim();
+      if (pending && durable && (pending.startsWith(durable) || durable.startsWith(pending))) {
+        ordered.push(
+          pending.length > durable.length
+            ? { ...event, payload: { ...event.payload, text: pendingReasoning } }
+            : event
+        );
+        pendingReasoning = "";
+        continue;
+      }
+    }
     if (pendingReasoning) {
       ordered.push({ kind: "reasoning-summary", payload: { text: pendingReasoning, source: "claude-thinking" } });
       pendingReasoning = "";

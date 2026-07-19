@@ -25,43 +25,82 @@ type TerminalLine = { kind: "command" | "meta" | "stdout" | "stderr" | "result";
 
 export type CommandCall = { key: string; events: AiEvent[] };
 
-export function CommandGroup({ calls, runStatus }: { calls: CommandCall[]; runStatus?: RunStatus }) {
+export function CommandGroup({
+  calls,
+  runStatus,
+  standaloneWhenSingle = false
+}: {
+  calls: CommandCall[];
+  runStatus?: RunStatus;
+  standaloneWhenSingle?: boolean;
+}) {
   const callStates = calls.map((call) => ({ call, state: toolCallState(call.events, runStatus) }));
-  const runningCall = callStates.find(({ state }) => state === "running")?.call;
-  const runningKey = runningCall?.key || null;
+  const commandsOnly = calls.every((call) => {
+    const first = call.events[0];
+    const tool = String(first?.payload.tool || first?.payload.command || first?.payload.skillId || "");
+    return toolCategory(tool) === "command";
+  });
   const failedCalls = callStates.filter(({ state }) => state === "failed" || state === "conflicted");
   const cancelledCalls = callStates.filter(({ state }) => state === "cancelled");
   const incompleteCalls = callStates.filter(({ state }) => state === "incomplete");
   const groupState = commandGroupState(callStates.map(({ state }) => state));
-  const [open, setOpen] = useState(Boolean(runningCall));
+  const [open, setOpen] = useState(true);
   // P1-PRC-3: 改手风琴为多开——用 Set 跟踪展开的卡片,允许同时对比多个命令输出。
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
 
-  useEffect(() => {
-    setOpen(Boolean(runningKey));
-  }, [runningKey]);
+  const setCallOpen = (key: string, nextOpen: boolean) => setExpandedKeys((current) => {
+    const next = new Set(current);
+    if (nextOpen) next.add(key); else next.delete(key);
+    return next;
+  });
+  const setGroupOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) setExpandedKeys(new Set());
+  };
 
-  const label = commandGroupLabel(groupState, calls.length);
+  if (standaloneWhenSingle && calls.length === 1) {
+    const call = calls[0];
+    return (
+      <ToolCallCard
+        events={call.events}
+        runStatus={runStatus}
+        open={expandedKeys.has(call.key)}
+        onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
+      />
+    );
+  }
+
+  const label = toolGroupLabel(groupState, calls.length, commandsOnly);
+  const failureLabel = failedCalls.length ? (commandsOnly ? t.commandGroupFailed(failedCalls.length) : t.toolGroupFailed(failedCalls.length)) : "";
+  const cancelledLabel = cancelledCalls.length ? (commandsOnly ? t.commandGroupCancelledCount(cancelledCalls.length) : t.toolGroupCancelledCount(cancelledCalls.length)) : "";
+  const incompleteLabel = incompleteCalls.length ? (commandsOnly ? t.commandGroupIncompleteCount(incompleteCalls.length) : t.toolGroupIncompleteCount(incompleteCalls.length)) : "";
+  const accessibleLabel = [label, failureLabel, cancelledLabel, incompleteLabel].filter(Boolean).join(", ");
   const groupClass = groupState === "incomplete"
     ? "failed incomplete"
     : groupState === "conflicted" ? "failed conflicted" : groupState;
   return (
     <AnimatedDisclosure
-      className={`command-group ${groupClass}`}
+      className={`command-group ${commandsOnly ? "commands" : "tools"} ${groupClass}`}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={setGroupOpen}
+      triggerAriaLabel={accessibleLabel}
       summary={
         <>
           <span className="command-group-icon" aria-hidden="true"><SquareTerminal size={15} /></span>
           <strong>{label}</strong>
-          {failedCalls.length ? <em>{t.commandGroupFailed(failedCalls.length)}</em> : null}
-          {cancelledCalls.length ? <em>{t.commandGroupCancelledCount(cancelledCalls.length)}</em> : null}
-          {incompleteCalls.length ? <em>{t.commandGroupIncompleteCount(incompleteCalls.length)}</em> : null}
+          {failureLabel ? <em>{failureLabel}</em> : null}
+          {cancelledLabel ? <em>{cancelledLabel}</em> : null}
+          {incompleteLabel ? <em>{incompleteLabel}</em> : null}
           <ChevronRight className="command-group-chevron" size={14} />
         </>
       }
     >
-      <div className="command-group-list">
+      <div
+        className="command-group-list"
+        role={calls.length > 8 ? "region" : undefined}
+        aria-label={calls.length > 8 ? accessibleLabel : undefined}
+        tabIndex={calls.length > 8 ? 0 : undefined}
+      >
         {calls.map((call) => (
           <ToolCallCard
             key={call.key}
@@ -69,11 +108,7 @@ export function CommandGroup({ calls, runStatus }: { calls: CommandCall[]; runSt
             runStatus={runStatus}
             grouped
             open={expandedKeys.has(call.key)}
-            onOpenChange={(nextOpen) => setExpandedKeys((current) => {
-              const next = new Set(current);
-              if (nextOpen) next.add(call.key); else next.delete(call.key);
-              return next;
-            })}
+            onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
           />
         ))}
       </div>
@@ -127,7 +162,12 @@ export function ToolCallCard({
     if (!controlled && !running) setInternalOpen(false);
   }, [controlled, running]);
   const disclosureOpen = controlled ? Boolean(open) : internalOpen;
-  const groupedCommandOpen = grouped && category === "command" && Boolean(open);
+  const groupedSummary = category === "command"
+    ? operation
+    : [tool, titleOperation].filter(Boolean).join(" \u00b7 ");
+  const groupedAriaSummary = category === "command"
+    ? operation
+    : [tool, operation].filter(Boolean).join(" \u00b7 ");
   const setDisclosureOpen = (nextOpen: boolean) => {
     if (controlled) onOpenChange?.(nextOpen);
     else setInternalOpen(nextOpen);
@@ -138,12 +178,13 @@ export function ToolCallCard({
       className={`tool-event ${category} ${grouped ? "grouped-command" : ""} ${failed ? "failed" : cancelled ? "cancelled" : incomplete ? "failed incomplete" : running ? "running" : "completed"}`}
       open={disclosureOpen}
       onOpenChange={setDisclosureOpen}
+      triggerAriaLabel={`${displayActionLabel} ${grouped ? groupedAriaSummary : summaryLabel}`}
       summary={
         <>
-          <span className="tool-event-icon">{toolIcon(tool, running, failed || incomplete, cancelled)}</span>
+          <span className="tool-event-icon" aria-hidden="true">{toolIcon(tool, running, failed || incomplete, cancelled)}</span>
           <span className="tool-event-title">
-            {groupedCommandOpen ? (
-              <span><strong>{displayActionLabel}</strong><small title={summaryLabel}>{summaryLabel}</small></span>
+            {grouped ? (
+              <span><strong>{displayActionLabel}</strong><small title={groupedSummary}>{groupedSummary}</small></span>
             ) : (
               <span>
                 <strong>{displayActionLabel}</strong>
@@ -441,11 +482,19 @@ function commandGroupState(states: ToolCallState[]): ToolCallState {
   return "completed";
 }
 
-function commandGroupLabel(state: ToolCallState, count: number): string {
-  if (state === "running") return t.commandGroupRunning(count);
-  if (state === "conflicted") return t.commandGroupConflicted(count);
-  if (state === "failed") return t.commandGroupFailedTitle(count);
-  if (state === "cancelled") return t.commandGroupCancelled(count);
-  if (state === "incomplete") return t.commandGroupIncomplete(count);
-  return t.commandGroupRan(count);
+function toolGroupLabel(state: ToolCallState, count: number, commandsOnly: boolean): string {
+  if (commandsOnly) {
+    if (state === "running") return t.commandGroupRunning(count);
+    if (state === "conflicted") return t.commandGroupConflicted(count);
+    if (state === "failed") return t.commandGroupFailedTitle(count);
+    if (state === "cancelled") return t.commandGroupCancelled(count);
+    if (state === "incomplete") return t.commandGroupIncomplete(count);
+    return t.commandGroupRan(count);
+  }
+  if (state === "running") return t.toolGroupRunning(count);
+  if (state === "conflicted") return t.toolGroupConflicted(count);
+  if (state === "failed") return t.toolGroupFailedTitle(count);
+  if (state === "cancelled") return t.toolGroupCancelled(count);
+  if (state === "incomplete") return t.toolGroupIncomplete(count);
+  return t.toolGroupRan(count);
 }
