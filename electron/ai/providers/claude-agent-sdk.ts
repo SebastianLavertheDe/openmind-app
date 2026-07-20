@@ -69,6 +69,19 @@ export function decideClaudePermission(
   return { behavior: "ask", category: classified.category, title: classified.title, command, paths };
 }
 type ClaudeSemanticEvent = { kind: AiEvent["kind"]; payload: Record<string, unknown> };
+
+function isClaudeAssistantCommentary(event: ClaudeSemanticEvent | undefined): boolean {
+  return event?.kind === "assistant-message" && event.payload.phase === "commentary";
+}
+
+function isClaudeFinalMessage(event: ClaudeSemanticEvent): boolean {
+  return event.kind === "assistant-message" && event.payload.phase === "final";
+}
+
+function equivalentClaudeAssistantText(left: unknown, right: unknown): boolean {
+  const normalize = (value: unknown) => String(value || "").replace(/\r\n?/g, "\n").trim();
+  return normalize(left) === normalize(right);
+}
 type ClaudeRunContextGetter = () => ProviderRunContext | null;
 type WarmSlot = {
   key: string;
@@ -160,6 +173,13 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       void query.interrupt().catch(() => undefined);
       query.close();
     }, { once: true });
+    let pendingAssistantCandidate: ClaudeSemanticEvent | null = null;
+    const emitPendingAssistantCandidate = async () => {
+      if (!pendingAssistantCandidate) return;
+      const candidate = pendingAssistantCandidate;
+      pendingAssistantCandidate = null;
+      await context.emit(candidate.kind, candidate.payload);
+    };
     try {
       let reasoning = "";
       const normalizerState = createClaudeNormalizerState();
@@ -169,7 +189,31 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
         if (normalized.sessionId) context.updateProviderSession(normalized.sessionId);
         const ordered = orderClaudeEvents(normalized.events, reasoning);
         reasoning = ordered.pendingReasoning;
-        for (const event of ordered.events) {
+        for (let index = 0; index < ordered.events.length; index++) {
+          const event = ordered.events[index];
+          if (isClaudeAssistantCommentary(event)) {
+            await emitPendingAssistantCandidate();
+            const textParts = [String(event.payload.text || "")];
+            while (isClaudeAssistantCommentary(ordered.events[index + 1])) {
+              index++;
+              textParts.push(String(ordered.events[index].payload.text || ""));
+            }
+            pendingAssistantCandidate = {
+              ...event,
+              payload: { ...event.payload, text: textParts.join("") }
+            };
+            continue;
+          }
+          if (isClaudeFinalMessage(event)) {
+            const duplicateCandidate = pendingAssistantCandidate
+              && equivalentClaudeAssistantText(pendingAssistantCandidate.payload.text, event.payload.text);
+            if (pendingAssistantCandidate && !duplicateCandidate) await emitPendingAssistantCandidate();
+            else pendingAssistantCandidate = null;
+          } else {
+            // A tool, another reasoning block, or a terminal error proves that
+            // the buffered text was process commentary rather than the final reply.
+            await emitPendingAssistantCandidate();
+          }
           if (event.kind === "system" && event.payload.subtype === "interaction_mode") {
             context.updateInteractionMode?.(event.payload.mode === "plan" ? "plan" : "default");
           }
@@ -183,8 +227,12 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           throw new Error(terminalError);
         }
       }
+      await emitPendingAssistantCandidate();
       if (reasoning) await context.emit("reasoning-summary", { text: reasoning, source: "claude-thinking" });
     } catch (error) {
+      // Preserve a complete assistant frame if the SDK iterator or normalizer
+      // fails before a semantic boundary. Never mask the original provider error.
+      await emitPendingAssistantCandidate().catch(() => undefined);
       const message = error instanceof Error ? error.message : String(error);
       const detail = `${stderr}\n${claimedWarm?.stderr || ""}`.trim();
       throw new Error(detail && !message.includes(detail) ? `${message}\n${detail}` : message);
@@ -316,8 +364,8 @@ export function normalizeClaudeMessage(value: Record<string, unknown>, state: Cl
         events.push({ kind: "reasoning-summary", payload: { text: block.thinking, source: "claude-thinking" } });
       }
       // Claude may split one API message across separate SDK frames (text
-      // first, tool_use later), so an assistant text frame is never a reliable
-      // final boundary. The terminal result/success event below is authoritative.
+      // first, tool_use later), so this is provisional commentary. run() buffers
+      // the latest text frame and reconciles it with the authoritative result.
       if (block.type === "text") events.push({ kind: "assistant-message", payload: { text: String(block.text || ""), phase: "commentary" } });
       if (block.type === "tool_use") {
         const itemId = String(block.id || "");

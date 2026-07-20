@@ -203,6 +203,44 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(ctx.emit).toHaveBeenCalledWith("assistant-message", { text: "最终结论", phase: "final" });
   });
 
+  it("emits only the authoritative final when it repeats the buffered assistant frame", async () => {
+    const query = makeQuery([
+      { type: "assistant", message: { content: [{ type: "text", text: "same answer\r\n" }] } },
+      { type: "result", subtype: "success", result: "same answer\n", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    expect(ctx.emit).toHaveBeenCalledTimes(2);
+    expect(ctx.emit).toHaveBeenNthCalledWith(1, "assistant-message", { text: "same answer\n", phase: "final" });
+    expect(ctx.emit).toHaveBeenNthCalledWith(2, "usage", expect.objectContaining({ duration: 10 }));
+  });
+
+  it("flushes buffered assistant text as commentary before a later tool frame", async () => {
+    const query = makeQuery([
+      { type: "assistant", message: { content: [{ type: "text", text: "I will inspect first." }] } },
+      { type: "assistant", message: { content: [{ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "src/app.ts" } }] } },
+      { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "tool-1", content: "done" }] } },
+      { type: "assistant", message: { content: [{ type: "text", text: "Inspection complete." }] } },
+      { type: "result", subtype: "success", result: "Inspection complete.", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    expect(ctx.emit).toHaveBeenCalledTimes(5);
+    expect(ctx.emit).toHaveBeenNthCalledWith(1, "assistant-message", { text: "I will inspect first.", phase: "commentary" });
+    expect(ctx.emit).toHaveBeenNthCalledWith(2, "tool-start", expect.objectContaining({ itemId: "tool-1" }));
+    expect(ctx.emit).toHaveBeenNthCalledWith(3, "tool-complete", expect.objectContaining({ itemId: "tool-1" }));
+    expect(ctx.emit).toHaveBeenNthCalledWith(4, "assistant-message", { text: "Inspection complete.", phase: "final" });
+    expect(ctx.emit).toHaveBeenNthCalledWith(5, "usage", expect.any(Object));
+  });
+
   it("rejects terminal Claude error results instead of completing without a final reply", async () => {
     const query = makeQuery([
       { type: "assistant", message: { content: [{ type: "text", text: "继续检查" }] } },
@@ -213,6 +251,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     const adapter = new ClaudeAgentSdkAdapter();
 
     await expect(adapter.run(ctx)).rejects.toThrow("maximum turns reached");
+    expect(ctx.emit).toHaveBeenCalledWith("assistant-message", expect.objectContaining({ phase: "commentary" }));
     expect(ctx.emit).not.toHaveBeenCalledWith("assistant-message", expect.objectContaining({ phase: "final" }));
   });
 
@@ -245,6 +284,28 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     const ctx = makeRunContext();
     const adapter = new ClaudeAgentSdkAdapter();
     await expect(adapter.run(ctx)).rejects.toThrow("stream broken");
+  });
+
+  it("preserves a buffered assistant frame when the SDK iterator fails", async () => {
+    let yielded = false;
+    const query = {
+      async next() {
+        if (!yielded) {
+          yielded = true;
+          return { done: false as const, value: { type: "assistant", message: { content: [{ type: "text", text: "partial answer" }] } } };
+        }
+        throw new Error("stream broken after assistant frame");
+      },
+      [Symbol.asyncIterator]() { return this; },
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn()
+    };
+    sdkMock.query.mockReturnValueOnce(query as never);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await expect(adapter.run(ctx)).rejects.toThrow("stream broken after assistant frame");
+    expect(ctx.emit).toHaveBeenCalledWith("assistant-message", { text: "partial answer", phase: "commentary" });
   });
 
   it("有图片附件时走 claudeImageMessageStream", async () => {
