@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DesktopApi, ProviderCapabilities, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, ProviderCapabilities, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
@@ -26,7 +26,27 @@ const defaultPrefs: UserPreferences = {
   workflowAutoArchiveEnabled: false, workflowAutoBriefOnSourceComplete: false
 };
 
-const snapshot = { projectRoot: "/repo", providers, sessions: [], runs: [], pendingApprovals: [] };
+const archivedSession: AiSession = {
+  schemaVersion: 1,
+  id: "archived-session",
+  projectId: "project",
+  projectRoot: "/repo",
+  provider: "codex",
+  providerId: "codex-preview",
+  providerSessionId: null,
+  cwd: "/repo",
+  title: "已经归档的研究会话",
+  permissionProfile: "edit",
+  status: "idle",
+  pinned: false,
+  archived: true,
+  createdAt: "2026-07-18T08:00:00.000Z",
+  updatedAt: "2026-07-20T09:30:00.000Z",
+  lastRunId: null
+};
+
+const snapshot: AiSnapshot = { projectRoot: "/repo", providers, sessions: [], runs: [], pendingApprovals: [] };
+const archivedSnapshot: AiSnapshot = { ...snapshot, sessions: [archivedSession] };
 
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
@@ -37,12 +57,13 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     openPath: async () => "",
     onAiEvent: () => () => undefined,
     aiRefresh: async () => snapshot,
+    aiGetEvents: async () => [],
     ...overrides
   } as unknown as DesktopApi;
 }
 
-function renderSettings(onRepo = vi.fn()) {
-  render(<AiProvider initial={snapshot}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} /><FeedbackHost /></AiProvider>);
+function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn()) {
+  render(<AiProvider initial={initial}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
 }
 
 beforeEach(() => {
@@ -173,5 +194,33 @@ describe("SettingsPage", () => {
     const dialog = await screen.findByRole("alertdialog", { name: "恢复默认值" });
     fireEvent.click(within(dialog).getByRole("button", { name: "恢复默认值" }));
     await waitFor(() => expect(resetPreferences).toHaveBeenCalledWith("workflow"));
+  });
+
+  it("lists archived sessions and restores them to recent sessions", async () => {
+    const restored = { ...archivedSession, archived: false };
+    const aiUpdateSession = vi.fn().mockResolvedValue(restored);
+    window.cctools = makeApi({
+      aiUpdateSession,
+      aiRefresh: async () => ({ ...snapshot, sessions: [restored] })
+    });
+    renderSettings(vi.fn(), archivedSnapshot);
+
+    expect(await screen.findByRole("heading", { name: "已归档会话" })).toBeTruthy();
+    expect(screen.getByText("已经归档的研究会话")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复归档会话：已经归档的研究会话" }));
+
+    await waitFor(() => expect(aiUpdateSession).toHaveBeenCalledWith(archivedSession.id, { archived: false }));
+    await waitFor(() => expect(screen.getByText("暂无已归档会话")).toBeTruthy());
+  });
+
+  it("opens an archived session from settings", async () => {
+    const onOpenSession = vi.fn();
+    window.cctools = makeApi();
+    renderSettings(vi.fn(), archivedSnapshot, onOpenSession);
+
+    fireEvent.click(await screen.findByRole("button", { name: "打开归档会话：已经归档的研究会话" }));
+
+    await waitFor(() => expect(onOpenSession).toHaveBeenCalled());
   });
 });

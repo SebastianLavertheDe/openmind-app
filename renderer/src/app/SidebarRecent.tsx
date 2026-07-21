@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
+import { Tooltip } from "../design-system/components";
 
 /** 侧边栏「最近任务」区块：展示最近的 AI 会话，点击直接打开。
  * 数据源是 useAi().snapshot.sessions（现成、已在 bootstrap 注入），不新建接口。
@@ -31,6 +32,7 @@ function statusClass(status: AiSession["status"]): string {
 export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: string | null; onOpen(sessionId: string): void }) {
   const ai = useAi();
   const [collapsed, setCollapsed] = useState(() => storageJson(COLLAPSED_KEY, false));
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const recent = useMemo(() =>
     [...ai.snapshot.sessions]
@@ -50,6 +52,35 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
     writeStorage(COLLAPSED_KEY, next);
   };
 
+  const archiveSession = async (session: AiSession) => {
+    if (busyId) return;
+    setBusyId(session.id);
+    try {
+      const operation = ai.updateSession(session.id, { archived: true });
+      if (activeSessionId === session.id) await ai.setActiveSession(null);
+      await operation;
+      ai.notify(m.ai.session.archived, "success");
+    } catch {
+      if (activeSessionId === session.id) await ai.setActiveSession(session.id);
+      ai.notify(m.ai.session.archiveFailed, "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const togglePinned = async (session: AiSession) => {
+    if (busyId) return;
+    setBusyId(session.id);
+    try {
+      await ai.updateSession(session.id, { pinned: !session.pinned });
+      ai.notify(session.pinned ? m.ai.session.unpinned : m.ai.session.pinned, "success");
+    } catch {
+      ai.notify(m.ai.session.updateFailed, "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="nav-recent" aria-label={m.shell.recentTasksAria}>
       <button
@@ -67,23 +98,50 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
             const waitingApproval = session.status === "waiting-approval" || pendingSessionIds.has(session.id);
             const dot = waitingApproval ? "waiting-approval" : statusClass(session.status);
             return (
-              <button
-                type="button"
-                key={session.id}
-                className={`nav-recent-item${activeSessionId === session.id ? " active" : ""}`}
-                aria-current={activeSessionId === session.id ? "true" : undefined}
-                title={m.shell.recentOpen}
-                onClick={() => onOpen(session.id)}
-              >
-                {/* 仅运行、待批准或失败时显示状态点；idle 不渲染，不占横向空间 */}
-                {dot ? <span className={`nav-recent-dot ${dot}`} aria-hidden /> : <span aria-hidden />}
-                <span className="nav-recent-item-main">
-                  <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
-                  <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>
-                    {waitingApproval ? m.ai.status.session.waitingApproval : relativeTime(session.updatedAt)}
+              <div className="nav-recent-row" key={session.id}>
+                <button
+                  type="button"
+                  className={`nav-recent-item${activeSessionId === session.id ? " active" : ""}`}
+                  aria-current={activeSessionId === session.id ? "true" : undefined}
+                  title={m.shell.recentOpen}
+                  onClick={() => onOpen(session.id)}
+                >
+                  {/* 仅运行、待批准或失败时显示状态点；idle 不渲染，不占横向空间 */}
+                  {dot ? <span className={`nav-recent-dot ${dot}`} aria-hidden /> : <span aria-hidden />}
+                  <span className="nav-recent-item-main">
+                    <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
+                    <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>
+                      {waitingApproval ? m.ai.status.session.waitingApproval : relativeTime(session.updatedAt)}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+                <div className="nav-recent-actions">
+                  <Tooltip content={session.pinned ? m.ai.session.unpin : m.ai.session.pin} side="top">
+                    <button
+                      type="button"
+                      className={`nav-recent-action${session.pinned ? " pinned" : ""}`}
+                      data-motion="icon"
+                      aria-label={`${session.pinned ? m.ai.session.unpin : m.ai.session.pin}：${session.title || m.common.unnamedTopic}`}
+                      disabled={busyId === session.id}
+                      onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void togglePinned(session); }}
+                    >
+                      {session.pinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={m.ai.session.archiveTask} side="top">
+                    <button
+                      type="button"
+                      className="nav-recent-action"
+                      data-motion="icon"
+                      aria-label={m.ai.session.archiveNamed(session.title || m.common.unnamedTopic)}
+                      disabled={busyId === session.id}
+                      onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void archiveSession(session); }}
+                    >
+                      <Archive size={13} aria-hidden />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
             );
           })}
         </div>

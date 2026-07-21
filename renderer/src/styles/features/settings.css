@@ -297,6 +297,107 @@
   line-height: 1.5;
 }
 
+.settings-archived-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  line-height: 1.55;
+}
+
+.settings-archived-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.settings-archived-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--panel-muted);
+}
+
+.settings-archived-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.settings-archived-main {
+  min-width: 0;
+}
+
+.settings-archived-main strong,
+.settings-archived-main > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-archived-main strong {
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 550;
+}
+
+.settings-archived-main > span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-archived-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-archived-actions button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: var(--fs-caption);
+}
+
+.settings-archived-actions button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--accent-fg);
+}
+
+.settings-archived-actions button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.settings-archived-empty {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--panel-muted);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+
 .settings-page .settings-note {
   border: 0;
   background: transparent;
@@ -356,6 +457,15 @@
   .settings-preference-control {
     justify-content: flex-start;
     min-width: 0;
+  }
+
+  .settings-archived-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-archived-actions {
+    grid-column: 2;
+    justify-content: flex-start;
   }
 
   .settings-path-card button {

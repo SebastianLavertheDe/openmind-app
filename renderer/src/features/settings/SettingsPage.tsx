@@ -5,6 +5,7 @@ import { useAi } from "../../ai-context";
 import { PageHeader } from "../../design-system/components";
 import { applyTheme } from "../../theme";
 import {
+  ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
   DataRetentionSettingsSection,
   PathSettingsSection,
@@ -16,11 +17,12 @@ import {
 const m = messages;
 const BLUE_ACCENT = "#2563eb";
 
-export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo }: { repoRoot: string; runtime: string; providers: ProviderCapabilities[]; onRepo(root: string): void }) {
+export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo, onOpenSession }: { repoRoot: string; runtime: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onOpenSession?(): void }) {
   void runtime;
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
 
@@ -56,6 +58,10 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
 
   const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
 
+  const archivedSessions = useMemo(() => ai.snapshot.sessions
+    .filter((session) => session.archived)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [ai.snapshot.sessions]);
+
   const selectWorkspace = async () => {
     try {
       const root = await window.cctools.selectRepo();
@@ -90,6 +96,32 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
     catch { ai.notify(m.settings.notify.notesOpenFailed, "error"); }
   };
 
+  const restoreArchivedSession = async (sessionId: string) => {
+    if (sessionBusyId) return;
+    setSessionBusyId(sessionId);
+    try {
+      await ai.updateSession(sessionId, { archived: false });
+      ai.notify(m.ai.session.unarchived, "success");
+    } catch {
+      ai.notify(m.settings.notify.sessionRestoreFailed, "error");
+    } finally {
+      setSessionBusyId(null);
+    }
+  };
+
+  const openArchivedSession = async (sessionId: string) => {
+    if (sessionBusyId) return;
+    setSessionBusyId(sessionId);
+    try {
+      await ai.setActiveSession(sessionId);
+      onOpenSession?.();
+    } catch {
+      ai.notify(m.settings.notify.sessionOpenFailed, "error");
+    } finally {
+      setSessionBusyId(null);
+    }
+  };
+
   if (!prefs) return <div className="feature-page settings-page"><PageHeader eyebrow="Settings" title={m.settings.page.title} description={m.settings.page.description} /><section className="settings-card" role="status">{m.settings.loading}</section></div>;
 
   return (
@@ -100,6 +132,7 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
         <ProviderSettingsSection prefs={prefs} providers={providers} defaultProviderId={defaultProviderId} save={save} onAdd={() => ai.notify(m.settings.provider.addHint, "info")} />
         <PermissionSettingsSection prefs={prefs} save={save} />
         <PathSettingsSection workspace={prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+        <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} />
         <DataRetentionSettingsSection prefs={prefs} save={save} />
         <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} />
       </div>

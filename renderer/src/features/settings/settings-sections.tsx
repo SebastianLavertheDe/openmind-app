@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { FolderOpen, Plus } from "lucide-react";
-import type { ProviderCapabilities, UserPreferences } from "@shared/contracts";
+import { Archive, FolderOpen, MessageSquareText, Plus, RotateCcw } from "lucide-react";
+import type { AiSession, ProviderCapabilities, UserPreferences } from "@shared/contracts";
 import { AUTO_MODEL, MODEL_CATALOG, formatContextWindow, isOneMillionModel, resolveModelSpec } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
@@ -123,6 +123,50 @@ export function PathSettingsSection({ workspace, notes, onSelectWorkspace, onOpe
   );
 }
 
+export function ArchivedSessionsSettingsSection({
+  sessions,
+  busyId,
+  onOpen,
+  onRestore
+}: {
+  sessions: AiSession[];
+  busyId: string | null;
+  onOpen(sessionId: string): void;
+  onRestore(sessionId: string): void;
+}) {
+  return (
+    <SettingsPanel title={m.settings.archivedSessions.title} scope={m.settings.archivedSessions.scope(sessions.length)}>
+      <p className="settings-archived-description">{m.settings.archivedSessions.description}</p>
+      {sessions.length ? (
+        <div className="settings-archived-list" aria-label={m.settings.archivedSessions.listAria}>
+          {sessions.map((session) => (
+            <article className="settings-archived-item" key={session.id}>
+              <span className="settings-archived-icon" aria-hidden><Archive size={15} /></span>
+              <div className="settings-archived-main">
+                <strong title={session.title}>{session.title || m.common.unnamedTopic}</strong>
+                <span>{session.provider === "claude" ? "Claude Code" : "Codex"} · <time dateTime={session.updatedAt}>{formatSessionDate(session.updatedAt)}</time></span>
+              </div>
+              <div className="settings-archived-actions">
+                <button type="button" disabled={busyId === session.id} onClick={() => onOpen(session.id)} aria-label={m.settings.archivedSessions.openNamed(session.title || m.common.unnamedTopic)}>
+                  <MessageSquareText size={13} />{m.settings.archivedSessions.open}
+                </button>
+                <button type="button" disabled={busyId === session.id} onClick={() => onRestore(session.id)} aria-label={m.settings.archivedSessions.restoreNamed(session.title || m.common.unnamedTopic)}>
+                  <RotateCcw size={13} />{busyId === session.id ? m.settings.archivedSessions.restoring : m.settings.archivedSessions.restore}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="settings-archived-empty">
+          <Archive size={18} aria-hidden />
+          <span>{m.settings.archivedSessions.empty}</span>
+        </div>
+      )}
+    </SettingsPanel>
+  );
+}
+
 export function DataRetentionSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   return (
     <SettingsPanel title="数据保留" scope="本地偏好">
@@ -206,6 +250,12 @@ function providerSubtitle(provider: ProviderCapabilities): string {
   if (!provider.available) return provider.diagnostic || m.settings.provider.notLoggedIn;
   const protocol = provider.provider === "claude" ? m.settings.provider.claudeProtocol : m.settings.provider.codexProtocol;
   return `${protocol} · ${m.settings.provider.loggedIn}`;
+}
+
+function formatSessionDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 function effectiveModel(provider: ProviderCapabilities, prefValue: string | undefined) {

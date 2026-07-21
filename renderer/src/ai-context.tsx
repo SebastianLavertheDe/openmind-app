@@ -18,7 +18,8 @@ import type {
   ContextReference,
   InteractionMode,
   PermissionProfile,
-  SkillDefinition
+  SkillDefinition,
+  SessionPatch
 } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import {
@@ -64,6 +65,7 @@ interface AiController {
   error: string | null;
   clearError(): void;
   setActiveSession(id: string | null): Promise<void>;
+  updateSession(id: string, patch: SessionPatch): Promise<AiSession>;
   setActiveRun(id: string | null): void;
   addContext(context: ContextReference): void;
   removeContext(id: string): void;
@@ -301,10 +303,65 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
   const pendingContexts = contextsByDraft[draftKey] || [];
   const providerSignature = snapshot.providers.map((provider) => `${provider.id}:${provider.available}`).join("|");
 
+  const replaceSession = useCallback((nextSession: AiSession) => {
+    setSnapshot((current) => {
+      const next = {
+        ...current,
+        sessions: current.sessions.map((session) => session.id === nextSession.id ? nextSession : session)
+      };
+      snapshotRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const commitSnapshot = useCallback((incoming: AiSnapshot) => {
+    setSnapshot((current) => {
+      const currentSessions = new Map(current.sessions.map((session) => [session.id, session]));
+      const next = {
+        ...incoming,
+        // Worker 推送和显式 refresh 可能晚于本地操作到达。按 updatedAt 保留更新的
+        // 会话版本，避免归档成功后被旧 snapshot 短暂或永久“复活”。
+        sessions: incoming.sessions.map((session) => {
+          const existing = currentSessions.get(session.id);
+          return existing && existing.updatedAt.localeCompare(session.updatedAt) > 0 ? existing : session;
+        })
+      };
+      snapshotRef.current = next;
+      return next;
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     const next = await window.cctools.aiRefresh();
-    setSnapshot(next);
-  }, []);
+    commitSnapshot(next);
+  }, [commitSnapshot]);
+
+  const updateSession = useCallback(async (sessionId: string, patch: SessionPatch) => {
+    const previous = snapshotRef.current.sessions.find((session) => session.id === sessionId);
+    if (!previous) throw new Error(m.ai.error.sessionNotFound);
+    replaceSession({ ...previous, ...patch, updatedAt: new Date().toISOString() });
+    try {
+      const updated = await window.cctools.aiUpdateSession(sessionId, patch);
+      replaceSession(updated);
+      return updated;
+    } catch (cause) {
+      setSnapshot((current) => {
+        const next = {
+          ...current,
+          sessions: current.sessions.map((session) => session.id === sessionId ? {
+            ...session,
+            ...(patch.title !== undefined ? { title: previous.title } : {}),
+            ...(patch.pinned !== undefined ? { pinned: previous.pinned } : {}),
+            ...(patch.archived !== undefined ? { archived: previous.archived } : {}),
+            updatedAt: new Date().toISOString()
+          } : session)
+        };
+        snapshotRef.current = next;
+        return next;
+      });
+      throw cause;
+    }
+  }, [replaceSession]);
 
   const [skills, setSkills] = useState<SkillDefinition[]>(initialSkills);
   const refreshSkills = useCallback(async () => {
@@ -399,7 +456,7 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     }
   }, [activeRunId, activeSessionId, setActiveSession, snapshot.runs, snapshot.sessions]);
 
-  useEffect(() => createAiEventPump({ streamingStore, setSnapshot, setEventsBySession, setError }), [streamingStore]);
+  useEffect(() => createAiEventPump({ streamingStore, setSnapshot: commitSnapshot, setEventsBySession, setError }), [commitSnapshot, streamingStore]);
 
   useEffect(() => writeStorage(DRAFTS_KEY, drafts), [drafts]);
   useEffect(() => writeStorage(CONTEXTS_KEY, contextsByDraft), [contextsByDraft]);
@@ -554,6 +611,7 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     error,
     clearError: () => setError(null),
     setActiveSession,
+    updateSession,
     setActiveRun: selectRun,
     addContext: (context) => {
       const key = activeSessionRef.current || NEW_SESSION_DRAFT;
@@ -651,6 +709,7 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     isSending,
     error,
     setActiveSession,
+    updateSession,
     selectRun,
     send,
     rerun,

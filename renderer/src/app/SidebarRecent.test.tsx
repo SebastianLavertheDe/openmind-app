@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiSession, AiSnapshot, ApprovalRequest, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../ai-context";
 import { SidebarRecent } from "./SidebarRecent";
@@ -67,5 +67,84 @@ describe("SidebarRecent", () => {
     const status = screen.getByText("等待批准");
     expect(status.classList.contains("waiting-approval")).toBe(true);
     expect(status.closest(".nav-recent-item")?.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("optimistically archives a session and ignores an older worker snapshot", async () => {
+    const archivedSession = { ...session, archived: true, updatedAt: "2026-07-21T12:00:00.000Z" };
+    let resolveUpdate: ((value: AiSession) => void) | null = null;
+    let eventListener: Parameters<DesktopApi["onAiEvent"]>[0] | null = null;
+    const aiUpdateSession = vi.fn(() => new Promise<AiSession>((resolve) => { resolveUpdate = resolve; }));
+    window.cctools = {
+      aiUpdateSession,
+      aiRefresh: async () => snapshot,
+      aiGetEvents: async () => [],
+      onAiEvent: (listener: Parameters<DesktopApi["onAiEvent"]>[0]) => {
+        eventListener = listener;
+        return () => { eventListener = null; };
+      }
+    } as unknown as DesktopApi;
+
+    render(
+      <AiProvider initial={{ ...snapshot, pendingApprovals: [] }}>
+        <SidebarRecent activeSessionId={null} onOpen={() => undefined} />
+      </AiProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "归档会话：读取下载目录文件" }));
+
+    await waitFor(() => expect(screen.queryByText("读取下载目录文件")).toBeNull());
+    act(() => {
+      eventListener?.({ kind: "snapshot", snapshot: { ...snapshot, pendingApprovals: [] } } as never);
+    });
+    expect(screen.queryByText("读取下载目录文件")).toBeNull();
+    act(() => { resolveUpdate?.(archivedSession); });
+    await waitFor(() => expect(aiUpdateSession).toHaveBeenCalledWith(session.id, { archived: true }));
+  });
+
+  it("rolls an optimistic archive back when persistence fails", async () => {
+    let rejectUpdate: ((cause: Error) => void) | null = null;
+    const aiUpdateSession = vi.fn(() => new Promise<AiSession>((_resolve, reject) => { rejectUpdate = reject; }));
+    window.cctools = {
+      aiUpdateSession,
+      aiRefresh: async () => snapshot,
+      aiGetEvents: async () => [],
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+
+    render(
+      <AiProvider initial={{ ...snapshot, pendingApprovals: [] }}>
+        <SidebarRecent activeSessionId={null} onOpen={() => undefined} />
+      </AiProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "归档会话：读取下载目录文件" }));
+    await waitFor(() => expect(screen.queryByText("读取下载目录文件")).toBeNull());
+    act(() => { rejectUpdate?.(new Error("write failed")); });
+    expect(await screen.findByText("读取下载目录文件")).toBeTruthy();
+  });
+
+  it("pins a recent session from the same row action group", async () => {
+    const pinnedSession = { ...session, pinned: true, updatedAt: "2026-07-21T12:00:00.000Z" };
+    const aiUpdateSession = vi.fn().mockResolvedValue(pinnedSession);
+    window.cctools = {
+      aiUpdateSession,
+      aiRefresh: async () => snapshot,
+      aiGetEvents: async () => [],
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+
+    render(
+      <AiProvider initial={{ ...snapshot, pendingApprovals: [] }}>
+        <SidebarRecent activeSessionId={null} onOpen={() => undefined} />
+      </AiProvider>
+    );
+
+    const pinButton = screen.getByRole("button", { name: "置顶：读取下载目录文件" });
+    pinButton.focus();
+    fireEvent.click(pinButton, { detail: 1 });
+
+    await waitFor(() => expect(aiUpdateSession).toHaveBeenCalledWith(session.id, { pinned: true }));
+    expect(screen.getByRole("button", { name: "取消置顶：读取下载目录文件" })).toBeTruthy();
+    expect(document.activeElement).not.toBe(pinButton);
   });
 });

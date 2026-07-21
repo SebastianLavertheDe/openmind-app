@@ -420,6 +420,11 @@ select:focus-visible,
   overflow-y: auto;
 }
 
+.nav-recent-row {
+  position: relative;
+  min-width: 0;
+}
+
 .nav-recent-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -433,6 +438,67 @@ select:focus-visible,
   color: var(--text-dim);
   text-align: left;
   cursor: pointer;
+}
+
+.nav-recent-row > .nav-recent-item {
+  width: 100%;
+  padding-right: 60px;
+}
+
+.app-nav nav .nav-recent-actions {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--dur-fast, 120ms) var(--ease-standard);
+}
+
+.nav-recent-row:hover .nav-recent-actions,
+.nav-recent-row:has(.nav-recent-action:focus-visible) .nav-recent-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-nav nav .nav-recent-action {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--dur-fast, 120ms) var(--ease-standard), background-color var(--dur-fast, 120ms) var(--ease-standard);
+}
+
+.app-nav nav .nav-recent-action svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
+}
+
+.app-nav nav .nav-recent-action:hover {
+  background: var(--control-hover);
+  color: var(--accent-fg);
+}
+
+.app-nav nav .nav-recent-action.pinned {
+  background: var(--accent-tint);
+  color: var(--accent-fg);
+}
+
+.app-nav nav .nav-recent-action:disabled {
+  cursor: wait;
+  opacity: .55;
 }
 
 .nav-recent-item:hover {

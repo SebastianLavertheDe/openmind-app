@@ -265,7 +265,7 @@ export const featureMessages = {
 
   settings: {
     loading: "正在加载偏好设置",
-    page: { title: "偏好与连接", description: "外观、Provider、权限与项目路径。改动即时生效并保存在本地。" },
+    page: { title: "偏好与连接", description: "管理外观、Provider、权限、项目路径和已归档会话。改动即时生效并保存在本地。" },
     appearance: { title: "外观", theme: "主题", density: "密度", fontSize: "正文字号" },
     theme: { light: "浅色", dark: "深色", description: "浅色适合白天，深色适合长时间阅读。" },
     density: {
@@ -317,11 +317,25 @@ export const featureMessages = {
       unset: "未设置",
       note: "AI 仅在选定目录内读写与执行，不创建临时 worktree。"
     },
+    archivedSessions: {
+      title: "已归档会话",
+      scope: (count: number) => `${count} 条`,
+      description: "归档会话不会出现在侧边栏的最近会话中，记录与运行历史仍保存在本地。",
+      listAria: "已归档会话列表",
+      empty: "暂无已归档会话",
+      open: "打开",
+      restore: "恢复",
+      restoring: "恢复中",
+      openNamed: (title: string) => `打开归档会话：${title}`,
+      restoreNamed: (title: string) => `恢复归档会话：${title}`
+    },
     notify: {
       saveFailed: "设置保存失败",
       workspaceUpdated: "工作目录已更新",
       workspaceSelectFailed: "选择工作目录失败",
       notesOpenFailed: "无法打开笔记目录",
+      sessionOpenFailed: "无法打开归档会话",
+      sessionRestoreFailed: "恢复归档会话失败",
       workflowReset: "工作流规则已恢复默认值"
     },
     workflow: {
