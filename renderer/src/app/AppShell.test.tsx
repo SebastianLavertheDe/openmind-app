@@ -43,7 +43,7 @@ describe("AppShell", () => {
     const setNavCollapsed = vi.fn();
     render(
       <AppShell
-        page="settings"
+        page="sources"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
         navCollapsed={false}
@@ -60,6 +60,30 @@ describe("AppShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "收起导航" }));
     expect(setNavCollapsed).toHaveBeenCalledWith(true);
+  });
+
+  it("uses an immersive shell without the application navigation or toolbar for settings", () => {
+    const { container } = render(
+      <AppShell
+        page="settings"
+        navigate={vi.fn()}
+        onOpenSearch={vi.fn()}
+        navCollapsed={false}
+        setNavCollapsed={vi.fn()}
+        repoRoot="/repo"
+        runtime="linux"
+        environment={{ mode: "desktop" }}
+        pendingApprovals={0}
+        aiMode="collapsed"
+      >
+        <div>Settings content</div>
+      </AppShell>
+    );
+
+    expect(container.querySelector(".app-shell")?.classList.contains("settings-mode")).toBe(true);
+    expect(container.querySelector(".app-nav")).toBeNull();
+    expect(container.querySelector(".global-toolbar")).toBeNull();
+    expect(container.querySelector(".main-area")?.textContent).toContain("Settings content");
   });
 
   it("uses a semantic icon rail before switching to a drawer", () => {

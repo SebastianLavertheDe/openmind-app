@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Archive, FolderOpen, MessageSquareText, Plus, RotateCcw } from "lucide-react";
+import { Archive, FolderOpen, MessageSquareText, RotateCcw } from "lucide-react";
 import type { AiSession, ProviderCapabilities, UserPreferences } from "@shared/contracts";
 import { AUTO_MODEL, MODEL_CATALOG, formatContextWindow, isOneMillionModel, resolveModelSpec } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -57,10 +57,10 @@ export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferen
   );
 }
 
-export function ProviderSettingsSection({ prefs, providers, defaultProviderId, save, onAdd }: { prefs: UserPreferences; providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences; onAdd(): void }) {
+export function ProviderSettingsSection({ prefs, providers, defaultProviderId, save }: { prefs: UserPreferences; providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
   return (
-    <SettingsPanel title="Provider" scope="新会话行为" action={<button type="button" data-motion="action" className="settings-subtle-action" onClick={onAdd}><Plus size={14} />{m.settings.provider.add}</button>}>
-      <div className="settings-provider-list">
+    <SettingsPanel title="Provider" scope="新会话行为">
+      <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
         {providers.length ? providers.map((provider) => {
           const active = provider.id === defaultProviderId;
           const model = effectiveModel(provider, prefs.providerModels[provider.provider]);
@@ -85,7 +85,10 @@ export function ProviderSettingsSection({ prefs, providers, defaultProviderId, s
                 </div>
               </div>
               <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
-              <ToggleSwitch checked={active} disabled={!provider.available} label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
+              <label className="settings-provider-default">
+                <input type="radio" name="default-provider" checked={active} disabled={!provider.available} aria-label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
+                <span>{active ? "默认" : "设为默认"}</span>
+              </label>
             </article>
           );
         }) : <p className="settings-note">{m.settings.provider.empty}</p>}

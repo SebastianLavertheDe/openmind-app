@@ -47,6 +47,7 @@ export type RouteRenderProps = {
   navigate: Navigate;
   providers: AiSnapshot["providers"];
   onRepo: () => void;
+  onExitSettings: () => void;
 };
 
 /** 侧边栏导航分组：create（新建任务，顶部强入口）/ core（核心功能）/ system（设置，沉底）。 */
@@ -66,7 +67,7 @@ export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
   { page: "sources", needsRepo: true, nav: { label: navLabel("sources"), icon: Database, group: "core" }, render: ({ route }) => <SourcesPage key={route.nonce} initialSourceId={route.state.sourceId} /> },
   { page: "automation", needsRepo: true, nav: { label: navLabel("automation"), icon: Command, group: "core" }, render: ({ route, bootstrap, navigate }) => <AutomationPage key={route.nonce} skills={bootstrap.skills} initialSkillId={route.state.skillId} go={navigate} /> },
   { page: "projects", needsRepo: true, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
-  { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} runtime={bootstrap.runtime} providers={providers} onRepo={onRepo} onOpenSession={() => navigate("ai")} /> }
+  { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} runtime={bootstrap.runtime} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} /> }
 ];
 
 export type NavItem = { id: AppPage; label: string; icon: LucideIcon; group: NavGroup };

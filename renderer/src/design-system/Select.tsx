@@ -48,6 +48,7 @@ export function Select<T extends string>({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const shouldRestoreFocusRef = useRef(false);
   const { visible, leaving } = useExitPresence(menuMounted, 140);
 
   const selectedIndex = useMemo(
@@ -80,11 +81,15 @@ export function Select<T extends string>({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) {
+        shouldRestoreFocusRef.current = false;
+        setOpen(false);
+      }
     };
     const onKeyDown = (event: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && open) {
         event.preventDefault();
+        shouldRestoreFocusRef.current = true;
         setOpen(false);
       }
     };
@@ -98,38 +103,49 @@ export function Select<T extends string>({
 
   // 关闭后恢复焦点到 trigger
   useEffect(() => {
+    if (!shouldRestoreFocusRef.current) return;
     if (open || menuMounted || visible) return;
-    if (!leaving) triggerRef.current?.focus();
+    if (!leaving) {
+      shouldRestoreFocusRef.current = false;
+      triggerRef.current?.focus();
+    }
   }, [open, menuMounted, visible, leaving]);
 
   const choose = (option: { value: T; disabled?: boolean }) => {
     if (option.disabled) return;
     onChange(option.value);
+    shouldRestoreFocusRef.current = true;
     setOpen(false);
   };
 
   const onKeyDownList = (event: KeyboardEvent<HTMLDivElement>) => {
     const count = options.length;
+    let nextIndex: number | null = null;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((current) => nextEnabled(options, current, 1, count));
+      nextIndex = nextEnabled(options, activeIndex, 1, count);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((current) => nextEnabled(options, current, -1, count));
+      nextIndex = nextEnabled(options, activeIndex, -1, count);
     } else if (event.key === "Home") {
       event.preventDefault();
-      setActiveIndex(nextEnabled(options, -1, 1, count));
+      nextIndex = nextEnabled(options, -1, 1, count);
     } else if (event.key === "End") {
       event.preventDefault();
-      setActiveIndex(nextEnabled(options, count, -1, count));
+      nextIndex = nextEnabled(options, count, -1, count);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       choose(options[activeIndex]);
+      return;
     } else if (event.key === "Tab") {
+      shouldRestoreFocusRef.current = false;
       setOpen(false);
+      return;
     }
+    if (nextIndex === null) return;
+    setActiveIndex(nextIndex);
     requestAnimationFrame(() => {
-      listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${activeIndex}"]`)?.focus();
+      listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${nextIndex}"]`)?.focus();
     });
   };
 
@@ -159,7 +175,11 @@ export function Select<T extends string>({
         aria-expanded={open}
         aria-label={`${accessibleName} ${m.designSystem.selectButton}`}
         disabled={disabled}
-        onClick={() => !disabled && setOpen((current) => !current)}
+        onClick={() => {
+          if (disabled) return;
+          shouldRestoreFocusRef.current = true;
+          setOpen((current) => !current);
+        }}
       >
         {leadingIcon ? <span className="ui-select-leading">{leadingIcon}</span> : null}
         {label ? <span className="ui-select-label">{label}</span> : null}
@@ -183,6 +203,7 @@ export function Select<T extends string>({
               role="option"
               data-index={index}
               aria-selected={option.value === value}
+              tabIndex={open && index === activeIndex ? 0 : -1}
               disabled={option.disabled}
               className={`ui-select-option${option.value === value ? " active" : ""}`}
               onMouseEnter={() => setActiveIndex(index)}

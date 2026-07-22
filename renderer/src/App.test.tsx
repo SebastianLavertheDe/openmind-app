@@ -99,16 +99,35 @@ describe("App bootstrap", () => {
   it("MOTION-P0-002: clicking the already-active nav does not remount the page", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    // navigate to settings first
-    const settingsNav = await waitFor(() => screen.getByRole("button", { name: "设置" }));
-    fireEvent.click(settingsNav);
-    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy());
-    const firstSettingsNode = document.querySelector(".settings-page");
-    // click settings again — should be a no-op (no remount)
-    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "创作" })));
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    const firstCreativeNode = document.querySelector(".creative-workspace-page");
+    fireEvent.click(screen.getByRole("button", { name: "创作" }));
     // the same DOM node should still be present (React reused it)
-    const stillSameSettingsNode = document.querySelector(".settings-page");
-    expect(stillSameSettingsNode).toBe(firstSettingsNode);
+    expect(document.querySelector(".creative-workspace-page")).toBe(firstCreativeNode);
+  });
+
+  it("opens immersive settings and returns to the page that launched it", async () => {
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "创作" }));
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    const creativePage = document.querySelector(".creative-workspace-page");
+
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy());
+    expect(document.querySelector(".app-nav")).toBeNull();
+    expect(document.querySelector(".global-toolbar")).toBeNull();
+    expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
+    expect(creativePage?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBe("true");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "返回应用" })));
+
+    fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
+    expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
+    expect(document.querySelector(".global-toolbar")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
   });
 
   it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {
@@ -192,9 +211,9 @@ describe("App bootstrap", () => {
     fireEvent.click(recentSession!);
     await waitFor(() => expect(recentSession?.classList.contains("active")).toBe(true));
 
-    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "设置" }).getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
       expect(recentSession?.classList.contains("active")).toBe(false);
       expect(recentSession?.getAttribute("aria-current")).toBeNull();
     });

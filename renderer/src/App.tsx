@@ -32,17 +32,29 @@ export function App() {
 
 function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
   const [route, setRoute] = useState<AppRoute>({ page: "ai", state: {}, nonce: 0 });
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   const ai = useAi();
   const showAiCompanion = route.page === "creative" || route.page === "projects";
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
+    if (page === "settings") {
+      setSettingsOpen(true);
+      return;
+    }
+    setSettingsOpen(false);
     setRoute((current) => {
       // MOTION-P0-002: 点击当前已激活导航且没有新 state 时，不递增 nonce、不重挂载页面、不重放入场动画。
       const samePage = current.page === page;
       const sameState = JSON.stringify(current.state) === JSON.stringify(state);
       if (samePage && sameState) return current;
       return { page, state, nonce: current.nonce + 1 };
+    });
+  }, []);
+  const exitSettings = useCallback(() => {
+    setSettingsOpen(false);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="设置"]')?.focus({ preventScroll: true });
     });
   }, []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
@@ -80,11 +92,18 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
     return () => window.removeEventListener("focus", onFocus);
   }, []);
   useEffect(() => {
-    if (route.page === "settings") void window.cctools.aiRefreshProviders?.().catch(() => undefined);
-  }, [route.page]);
+    if (settingsOpen) void window.cctools.aiRefreshProviders?.().catch(() => undefined);
+  }, [settingsOpen]);
+  const routeRenderProps = {
+    bootstrap,
+    navigate,
+    providers: ai.snapshot.providers,
+    onRepo: () => void window.cctools.getBootstrap().then(setBootstrap),
+    onExitSettings: exitSettings
+  };
   return (
     <AppShell
-      page={route.page}
+      page={settingsOpen ? "settings" : route.page}
       navigate={navigate}
       onOpenSearch={openSearch}
       navCollapsed={navCollapsed}
@@ -100,9 +119,16 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       recentTasks={<SidebarRecent activeSessionId={route.page === "ai" ? ai.activeSession?.id || null : null} onOpen={(id) => { void ai.setActiveSession(id); navigate("ai"); }} />}
       onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
     >
+      <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
+        <div className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`} aria-hidden={settingsOpen || undefined}>
+          {renderActiveRoute({ route, ...routeRenderProps })}
+        </div>
+      </Suspense>
+      {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
-          {renderActiveRoute({ route, bootstrap, navigate, providers: ai.snapshot.providers, onRepo: () => void window.cctools.getBootstrap().then(setBootstrap) })}
+          {renderActiveRoute({ route: { page: "settings", state: {}, nonce: 0 }, ...routeRenderProps })}
         </Suspense>
+      ) : null}
       <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} />
       <FeedbackHost />
     </AppShell>

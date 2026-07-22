@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Archive, Bot, Database, Route, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ProviderCapabilities, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
-import { PageHeader } from "../../design-system/components";
 import { applyTheme } from "../../theme";
 import {
   ArchivedSessionsSettingsSection,
@@ -17,22 +17,52 @@ import {
 const m = messages;
 const BLUE_ACCENT = "#2563eb";
 
-export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo, onOpenSession }: { repoRoot: string; runtime: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onOpenSession?(): void }) {
-  void runtime;
+type SettingsSectionId = "general" | "providers" | "permissions" | "workflow" | "storage" | "sessions";
+type SettingsGroupId = "personal" | "ai" | "creation" | "data";
+
+type SettingsSectionDefinition = {
+  id: SettingsSectionId;
+  group: SettingsGroupId;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+};
+
+const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
+  { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
+  { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
+  { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
+  { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
+  { id: "storage", group: "data", icon: Database, ...m.settings.navigation.sections.storage },
+  { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
+];
+
+const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
+
+export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo, onBack, onOpenSession }: { repoRoot: string; runtime: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void }) {
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
+  const detailRef = useRef<HTMLElement>(null);
 
   const loadPrefs = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const next = await window.cctools.getPreferences();
       setPrefs(next);
       applyTheme(next);
     } catch {
       setPrefs(null);
+      setLoadError(m.settings.loadError);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -61,6 +91,13 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
   const archivedSessions = useMemo(() => ai.snapshot.sessions
     .filter((session) => session.archived)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [ai.snapshot.sessions]);
+
+  const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0];
+
+  const selectSection = useCallback((section: SettingsSectionId) => {
+    setActiveSection(section);
+    if (detailRef.current) detailRef.current.scrollTop = 0;
+  }, []);
 
   const selectWorkspace = async () => {
     try {
@@ -122,20 +159,107 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
     }
   };
 
-  if (!prefs) return <div className="feature-page settings-page"><PageHeader eyebrow="Settings" title={m.settings.page.title} description={m.settings.page.description} /><section className="settings-card" role="status">{m.settings.loading}</section></div>;
+  return (
+    <div className="settings-page">
+      <SettingsNavigation
+        activeSection={activeSection}
+        runtime={runtime}
+        repoRoot={prefs?.repoRoot || initialRepo}
+        onBack={onBack}
+        onSelect={selectSection}
+      />
+      <section className="settings-detail" id="settings-detail-panel" ref={detailRef} aria-labelledby="settings-detail-title">
+        <div className="settings-detail-inner">
+          <header className="settings-detail-header">
+            <div>
+              <span>{m.settings.page.title}</span>
+              <h1 id="settings-detail-title">{activeDefinition.title}</h1>
+              <p>{activeDefinition.description}</p>
+            </div>
+            {!loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+          </header>
+
+          {loading ? (
+            <section className="settings-load-state settings-card" role="status">{m.settings.loading}</section>
+          ) : loadError || !prefs ? (
+            <section className="settings-load-state settings-card ui-error-state" role="alert">
+              <strong>{loadError || m.settings.loadError}</strong>
+              <button type="button" className="settings-subtle-action" onClick={() => void loadPrefs()}>{m.settings.retry}</button>
+            </section>
+          ) : (
+            <div className="settings-stack entrance-stagger" aria-busy={saving || undefined}>
+              {activeSection === "general" ? (
+                <>
+                  <AppearanceSettingsSection prefs={prefs} save={save} />
+                  <PathSettingsSection workspace={prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                </>
+              ) : null}
+              {activeSection === "providers" ? <ProviderSettingsSection prefs={prefs} providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
+              {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
+              {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
+              {activeSection === "storage" ? <DataRetentionSettingsSection prefs={prefs} save={save} /> : null}
+              {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SettingsNavigation({ activeSection, runtime, repoRoot, onBack, onSelect }: {
+  activeSection: SettingsSectionId;
+  runtime: string;
+  repoRoot: string;
+  onBack(): void;
+  onSelect(section: SettingsSectionId): void;
+}) {
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    backButtonRef.current?.focus({ preventScroll: true });
+  }, []);
 
   return (
-    <div className="feature-page settings-page">
-      <PageHeader eyebrow={m.nav.settings} title={m.settings.page.title} description={m.settings.page.description} />
-      <div className="settings-stack entrance-stagger" aria-busy={saving || undefined}>
-        <AppearanceSettingsSection prefs={prefs} save={save} />
-        <ProviderSettingsSection prefs={prefs} providers={providers} defaultProviderId={defaultProviderId} save={save} onAdd={() => ai.notify(m.settings.provider.addHint, "info")} />
-        <PermissionSettingsSection prefs={prefs} save={save} />
-        <PathSettingsSection workspace={prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
-        <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} />
-        <DataRetentionSettingsSection prefs={prefs} save={save} />
-        <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} />
+    <aside className="settings-navigation" aria-label={m.settings.navigation.label}>
+      <button ref={backButtonRef} type="button" className="settings-back-button" onClick={onBack}>
+        <ArrowLeft size={15} aria-hidden />
+        <span>{m.settings.navigation.back}</span>
+      </button>
+      <div className="settings-navigation-title">
+        <SettingsIcon size={16} aria-hidden />
+        <strong>{m.settings.navigation.all}</strong>
       </div>
-    </div>
+      <nav className="settings-navigation-scroll" aria-label={m.settings.navigation.label}>
+        {SETTINGS_GROUPS.map((group) => {
+          const sections = SETTINGS_SECTIONS.filter((section) => section.group === group);
+          return (
+            <section className="settings-nav-group" key={group}>
+              <span>{m.settings.navigation.groups[group]}</span>
+              {sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <button
+                    type="button"
+                    className="settings-nav-button"
+                    key={section.id}
+                    aria-current={activeSection === section.id ? "page" : undefined}
+                    aria-controls="settings-detail-panel"
+                    onClick={() => onSelect(section.id)}
+                  >
+                    <Icon size={15} aria-hidden />
+                    <span>{section.title}</span>
+                  </button>
+                );
+              })}
+            </section>
+          );
+        })}
+      </nav>
+      <footer className="settings-navigation-footer">
+        <strong>{runtime}</strong>
+        <code title={repoRoot}>{repoRoot}</code>
+      </footer>
+    </aside>
   );
 }

@@ -29,7 +29,7 @@ const pages = [
   // readiness is stronger here than an arbitrary desktop-sized text budget.
   { id: "creative", label: "创作", minTextLength: 100, requiredSelector: ".creative-workspace-page" },
   { id: "automation", label: "自动化", requiredSelector: ".automation-page" },
-  { id: "settings", label: "设置", requiredSelector: ".settings-page" }
+  { id: "settings", label: "设置", requiredSelector: ".settings-page", settingsMode: true }
 ];
 
 app.commandLine.appendSwitch("disable-gpu");
@@ -87,9 +87,17 @@ async function run() {
 
     for (const page of pages) {
       if (page.id !== "ai") await clickNav(win, page.label);
-      await waitForReady(win, page.label, { minTextLength: page.minTextLength, requiredSelector: page.requiredSelector });
+      await waitForReady(win, page.label, {
+        minTextLength: page.minTextLength,
+        requiredSelector: page.requiredSelector,
+        settingsMode: page.settingsMode
+      });
       await settle();
-      const audit = await inspectPage(win, page.label, { minTextLength: page.minTextLength, requiredSelector: page.requiredSelector });
+      const audit = await inspectPage(win, page.label, {
+        minTextLength: page.minTextLength,
+        requiredSelector: page.requiredSelector,
+        settingsMode: page.settingsMode
+      });
       const file = path.join(outputRoot, `${viewport.id}-${page.id}.png`);
       const image = await win.webContents.capturePage();
       fs.writeFileSync(file, image.toPNG());
@@ -106,6 +114,13 @@ async function run() {
       report.snapshots.push(item);
       if (!audit.ok) report.failures.push(item);
     }
+
+    const settingsReturnPage = pages[pages.length - 2];
+    await exitSettings(win);
+    await waitForReady(win, settingsReturnPage.label, {
+      minTextLength: settingsReturnPage.minTextLength,
+      requiredSelector: settingsReturnPage.requiredSelector
+    });
   }
 
   await captureCompanionLayoutContracts(win, report);
@@ -795,26 +810,81 @@ async function clickNav(win, label) {
   if (!clicked) throw new Error(`Navigation button not found: ${label}`);
 }
 
+async function exitSettings(win) {
+  const clicked = await win.webContents.executeJavaScript(`
+    (() => {
+      if (!document.querySelector('.settings-page')) return false;
+      const button = document.querySelector('.settings-back-button');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!clicked) throw new Error("Settings return button was not found.");
+}
+
 async function waitForReady(win, label, options = {}) {
   const minTextLength = options.minTextLength ?? 200;
   const requiredSelector = options.requiredSelector || "body";
+  const expectedSettingsMode = options.settingsMode === true;
   let lastState = null;
   for (let attempt = 0; attempt < 100; attempt++) {
     const state = await win.webContents.executeJavaScript(`
       (() => {
+        const visible = (element) => {
+          if (!(element instanceof Element)) return false;
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
         const active = document.querySelector('nav button[aria-current="page"]')?.getAttribute('aria-label') || "";
         const activeSession = Boolean(document.querySelector('.nav-recent-item[aria-current="true"]'));
         const aiPage = Boolean(document.querySelector('.app-shell.ai-page'));
-        const loading = Boolean(document.querySelector('.splash,.route-loading'));
+        const loading = Boolean(document.querySelector('.splash,.route-loading,.settings-page .settings-load-state[role="status"]'));
         const fatal = document.querySelector('.fatal')?.textContent || "";
         const textLength = (document.body?.innerText || "").trim().length;
         const semanticReady = Boolean(document.querySelector(${JSON.stringify(requiredSelector)}));
-        return { active, activeSession, aiPage, loading, fatal, textLength, semanticReady };
+        const settingsMode = Boolean(document.querySelector('.settings-page'));
+        const settingsNavigation = document.querySelector('.settings-navigation');
+        const settingsActive = document.querySelector('.settings-nav-button[aria-current="page"]');
+        const settingsHeading = document.querySelector('.settings-detail-header h1');
+        const settingsDetail = document.querySelector('.settings-detail');
+        const settingsNavigationVisible = visible(settingsNavigation);
+        const settingsActiveVisible = visible(settingsActive)
+          && settingsActive.textContent?.trim() === settingsHeading?.textContent?.trim();
+        const settingsDetailAtStart = settingsDetail instanceof HTMLElement && settingsDetail.scrollTop <= 2;
+        const settingsSelectFocused = document.activeElement instanceof Element
+          && document.activeElement.matches('.ui-select-trigger');
+        const settingsChromeIsolated = !document.querySelector('.app-nav') && !document.querySelector('.global-toolbar');
+        return {
+          active,
+          activeSession,
+          aiPage,
+          loading,
+          fatal,
+          textLength,
+          semanticReady,
+          settingsMode,
+          settingsNavigationVisible,
+          settingsActiveVisible,
+          settingsDetailAtStart,
+          settingsSelectFocused,
+          settingsChromeIsolated
+        };
       })()
     `);
     lastState = state;
     if (state.fatal) throw new Error(state.fatal);
-    if ((state.active === label || (options.allowActiveSession && (state.activeSession || state.aiPage))) && !state.loading && state.semanticReady && state.textLength >= minTextLength) return;
+    const routeReady = expectedSettingsMode
+      ? state.settingsMode
+        && state.settingsNavigationVisible
+        && state.settingsActiveVisible
+        && state.settingsDetailAtStart
+        && !state.settingsSelectFocused
+        && state.settingsChromeIsolated
+      : !state.settingsMode
+        && (state.active === label || (options.allowActiveSession && (state.activeSession || state.aiPage)));
+    if (routeReady && !state.loading && state.semanticReady && state.textLength >= minTextLength) return;
     await delay(80);
   }
   throw new Error(`Timed out waiting for page: ${label}; last state=${JSON.stringify(lastState)}`);
@@ -824,28 +894,49 @@ async function inspectPage(win, label, options = {}) {
   const minTextLength = options.minTextLength ?? 200;
   const requiredSelector = options.requiredSelector || "body";
   const expectError = options.expectError === true;
+  const expectedSettingsMode = options.settingsMode === true;
   return win.webContents.executeJavaScript(`
     (() => {
       const root = document.documentElement;
       const body = document.body;
       const text = (body.innerText || "").replace(/\\s+/g, " ").trim();
       const horizontalOverflow = Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth);
-      const navVisible = Boolean([...document.querySelectorAll('nav button')].find((item) => item.getAttribute('aria-label') === ${JSON.stringify(label)}));
-      const activeVisible = document.querySelector('nav button[aria-current="page"]')?.getAttribute('aria-label') === ${JSON.stringify(label)}
-        || (${JSON.stringify(label)} === "新建任务" && Boolean(document.querySelector('.app-shell.ai-page')));
-      const semanticReady = Boolean(document.querySelector(${JSON.stringify(requiredSelector)}));
-      const shell = document.querySelector('.app-shell');
-      const shellState = shell?.classList.contains('layout-shell-drawer') ? 'drawer'
-        : shell?.classList.contains('layout-shell-rail') ? 'rail'
-          : shell?.classList.contains('layout-shell-expanded') ? 'expanded' : 'unknown';
       const visible = (element) => {
         if (!(element instanceof Element)) return false;
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       };
+      const settingsMode = Boolean(document.querySelector('.settings-page'));
+      const settingsNavigation = document.querySelector('.settings-navigation');
+      const settingsActive = document.querySelector('.settings-nav-button[aria-current="page"]');
+      const settingsHeading = document.querySelector('.settings-detail-header h1');
+      const settingsDetail = document.querySelector('.settings-detail');
+      const settingsNavigationVisible = visible(settingsNavigation);
+      const settingsActiveVisible = visible(settingsActive)
+        && settingsActive.textContent?.trim() === settingsHeading?.textContent?.trim();
+      const settingsDetailAtStart = !${expectedSettingsMode}
+        || (settingsDetail instanceof HTMLElement && settingsDetail.scrollTop <= 2);
+      const settingsSelectFocused = document.activeElement instanceof Element
+        && document.activeElement.matches('.ui-select-trigger');
+      const settingsChromeIsolated = !${expectedSettingsMode}
+        || (!document.querySelector('.app-nav') && !document.querySelector('.global-toolbar'));
+      const settingsModeMatches = settingsMode === ${expectedSettingsMode};
+      const navVisible = ${expectedSettingsMode}
+        ? settingsNavigationVisible
+        : Boolean([...document.querySelectorAll('nav button')].find((item) => item.getAttribute('aria-label') === ${JSON.stringify(label)}));
+      const activeVisible = ${expectedSettingsMode}
+        ? settingsActiveVisible
+        : document.querySelector('nav button[aria-current="page"]')?.getAttribute('aria-label') === ${JSON.stringify(label)}
+          || (${JSON.stringify(label)} === "新建任务" && Boolean(document.querySelector('.app-shell.ai-page')));
+      const semanticReady = Boolean(document.querySelector(${JSON.stringify(requiredSelector)}));
+      const shell = document.querySelector('.app-shell');
+      const shellState = settingsMode ? 'settings'
+        : shell?.classList.contains('layout-shell-drawer') ? 'drawer'
+          : shell?.classList.contains('layout-shell-rail') ? 'rail'
+            : shell?.classList.contains('layout-shell-expanded') ? 'expanded' : 'unknown';
       const undersizedResponsiveTargets = root.clientWidth <= 720
-        ? [...document.querySelectorAll('.ui-responsive-action, .ui-responsive-overflow-trigger, .responsive-nav-toggle')]
+        ? [...document.querySelectorAll('.ui-responsive-action, .ui-responsive-overflow-trigger, .responsive-nav-toggle, .settings-back-button, .settings-nav-button')]
           .filter(visible)
           .map((element) => ({ element, rect: element.getBoundingClientRect() }))
           .filter(({ rect }) => rect.width < 44 || rect.height < 44)
@@ -855,7 +946,9 @@ async function inspectPage(win, label, options = {}) {
             height: Math.round(rect.height)
           }))
         : [];
-      const drawerToggleVisible = root.clientWidth > 840 || visible(document.querySelector('.responsive-nav-toggle'));
+      const drawerToggleVisible = ${expectedSettingsMode}
+        ? settingsChromeIsolated
+        : root.clientWidth > 840 || visible(document.querySelector('.responsive-nav-toggle'));
       const unexpectedError = [...document.querySelectorAll('.ui-error-state')].find(visible)?.textContent?.replace(/\\s+/g, ' ').trim() || null;
       const errorStateMatches = ${expectError} ? Boolean(unexpectedError) : !unexpectedError;
       const criticalContextMissing = [];
@@ -910,8 +1003,12 @@ async function inspectPage(win, label, options = {}) {
       const conversationTitleOccluded = Boolean(titleTopElement && conversationHeader && !conversationHeader.contains(titleTopElement));
       const ok = text.length >= ${minTextLength}
         && semanticReady
+        && settingsModeMatches
         && navVisible
         && activeVisible
+        && settingsDetailAtStart
+        && (!${expectedSettingsMode} || !settingsSelectFocused)
+        && settingsChromeIsolated
         && drawerToggleVisible
         && errorStateMatches
         && criticalContextMissing.length === 0
@@ -920,10 +1017,16 @@ async function inspectPage(win, label, options = {}) {
         && horizontalOverflow <= 2;
       return {
         ok,
-        reason: ok ? null : \`text=\${text.length}, semantic=\${semanticReady}, nav=\${navVisible}, active=\${activeVisible}, drawerToggle=\${drawerToggleVisible}, error=\${unexpectedError || 'none'}, errorExpected=${expectError}, context=\${criticalContextMissing.join(',') || 'complete'}, titleOccluded=\${conversationTitleOccluded}, targets=\${undersizedResponsiveTargets.length}, overflow=\${horizontalOverflow}\`,
+        reason: ok ? null : \`text=\${text.length}, semantic=\${semanticReady}, settingsMode=\${settingsMode}/expected:${expectedSettingsMode}, settingsNav=\${settingsNavigationVisible}, settingsActive=\${settingsActiveVisible}, settingsScrollTop=\${settingsDetail instanceof HTMLElement ? settingsDetail.scrollTop : 'missing'}, settingsSelectFocused=\${settingsSelectFocused}, settingsChromeIsolated=\${settingsChromeIsolated}, nav=\${navVisible}, active=\${activeVisible}, drawerToggle=\${drawerToggleVisible}, error=\${unexpectedError || 'none'}, errorExpected=${expectError}, context=\${criticalContextMissing.join(',') || 'complete'}, titleOccluded=\${conversationTitleOccluded}, targets=\${undersizedResponsiveTargets.length}, overflow=\${horizontalOverflow}\`,
         textLength: text.length,
         semanticReady,
         shellState,
+        settingsMode,
+        settingsNavigationVisible,
+        settingsActiveVisible,
+        settingsDetailScrollTop: settingsDetail instanceof HTMLElement ? settingsDetail.scrollTop : null,
+        settingsSelectFocused,
+        settingsChromeIsolated,
         unexpectedError,
         criticalContextMissing,
         undersizedResponsiveTargets,

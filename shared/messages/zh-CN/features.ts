@@ -265,7 +265,29 @@ export const featureMessages = {
 
   settings: {
     loading: "正在加载偏好设置",
-    page: { title: "偏好与连接", description: "管理外观、Provider、权限、项目路径和已归档会话。改动即时生效并保存在本地。" },
+    loadError: "偏好设置加载失败，请重试。",
+    retry: "重新加载",
+    page: { title: "设置", description: "管理 CC Tools 的外观、AI、权限、工作流和本地数据。" },
+    navigation: {
+      label: "设置分类",
+      back: "返回应用",
+      all: "所有设置",
+      groups: {
+        personal: "个人",
+        ai: "AI",
+        creation: "创作",
+        data: "数据与会话"
+      },
+      sections: {
+        general: { title: "常规", description: "调整外观、阅读密度和当前项目路径。" },
+        providers: { title: "AI 与模型", description: "管理 Provider、模型和新会话默认连接。" },
+        permissions: { title: "权限与安全", description: "配置新会话权限、审批边界和风险提醒。" },
+        workflow: { title: "内容工作流", description: "配置创作阶段、自动保存、审核和归档规则。" },
+        storage: { title: "数据与存储", description: "记录缓存、日志和通知历史的本地保留策略。" },
+        sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" }
+      }
+    },
+    saveStatus: { saving: "正在保存…", saved: "改动会即时保存在本地" },
     appearance: { title: "外观", theme: "主题", density: "密度", fontSize: "正文字号" },
     theme: { light: "浅色", dark: "深色", description: "浅色适合白天，深色适合长时间阅读。" },
     density: {

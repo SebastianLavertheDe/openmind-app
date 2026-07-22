@@ -50,7 +50,8 @@ export function AppShell({
   recentTasks?: ReactNode;
   onNewTask?(): void;
 }) {
-  const showSidebar = page !== "ai";
+  const settingsMode = page === "settings";
+  const showSidebar = page !== "ai" && !settingsMode;
   const previewMode = environment.mode === "preview";
   const responsiveLayout = useResponsiveLayout();
   const reportComposition = useResponsiveCompositionReporter();
@@ -141,11 +142,11 @@ export function AppShell({
   return (
     <div
       ref={shellRef}
-      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""} ${showSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}`}
+      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}`}
       style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
     >
-      {compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
-      <aside
+      {!settingsMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
+      {!settingsMode ? <aside
         id="primary-navigation"
         ref={navRef}
         className={`app-nav${effectiveNavCollapsed ? " collapsed" : ""}${mobileNavOpen ? " mobile-open" : ""}`}
@@ -217,9 +218,9 @@ export function AppShell({
           <Boxes size={16} />
           <div><strong>{runtime}</strong><span title={repoRoot}>{repoRoot}</span></div>
         </footer>
-      </aside>
+      </aside> : null}
       <section className="app-stage">
-        <header className="global-toolbar">
+        {!settingsMode ? <header className="global-toolbar">
           <Tooltip content={m.shell.navMenu} side="bottom">
             <button
               ref={navTriggerRef}
@@ -246,7 +247,7 @@ export function AppShell({
             presentation={responsiveLayout.actions}
             overflowLabel={m.shell.moreActions}
           />
-        </header>
+        </header> : null}
         <main className="main-area">{children}</main>
       </section>
       {showSidebar ? aiSidebar : null}

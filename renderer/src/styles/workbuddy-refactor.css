@@ -617,6 +617,20 @@ select:focus-visible,
 .main-area > * {
   animation: route-enter var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both;
 }
+
+/* 设置以沉浸式覆盖层呈现，但保留原路由树，避免创作草稿和滚动上下文因卸载而丢失。 */
+.settings-preserved-route {
+  display: contents;
+}
+
+.settings-preserved-route.is-covered {
+  display: none;
+}
+
+.main-area > .settings-preserved-route > * {
+  animation: route-enter var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both;
+}
+
 @keyframes route-enter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

@@ -24,6 +24,18 @@ function getTrigger() {
 }
 
 describe("Select (custom dropdown)", () => {
+  it("does not steal focus on initial mount", () => {
+    const anchor = document.createElement("button");
+    anchor.textContent = "原焦点";
+    document.body.appendChild(anchor);
+    anchor.focus();
+
+    render(<Harness />);
+
+    expect(document.activeElement).toBe(anchor);
+    anchor.remove();
+  });
+
   it("opens a listbox and reports expanded state", async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -77,8 +89,28 @@ describe("Select (custom dropdown)", () => {
     );
     await user.click(getTrigger());
     expect(screen.getByRole("listbox")).toBeTruthy();
-    await user.click(screen.getByText("outside"));
+    const outside = screen.getByText("outside");
+    await user.click(outside);
     await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it("lets Tab leave the open menu without pulling focus back", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Harness />
+        <button>after select</button>
+      </>
+    );
+    await user.click(getTrigger());
+    const listbox = screen.getByRole("listbox", { name: "排序" });
+    await waitFor(() => expect(document.activeElement).toBe(within(listbox).getByRole("option", { name: "Alpha" })));
+
+    await user.keyboard("{Tab}");
+
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after select" }));
   });
 
   it("renders the selected value and marks the option aria-selected", async () => {

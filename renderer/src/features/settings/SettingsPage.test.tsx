@@ -62,8 +62,13 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   } as unknown as DesktopApi;
 }
 
-function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn()) {
-  render(<AiProvider initial={initial}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
+function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn(), onBack = vi.fn()) {
+  render(<AiProvider initial={initial}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onBack={onBack} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
+}
+
+function openCategory(name: string) {
+  const navigation = screen.getByRole("navigation", { name: "设置分类" });
+  fireEvent.click(within(navigation).getByRole("button", { name }));
 }
 
 beforeEach(() => {
@@ -73,13 +78,41 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("SettingsPage", () => {
-  it("shows the four settings panels from the design mockup", async () => {
+  it("shows categorized navigation and renders only the active category details", async () => {
     renderSettings();
-    await waitFor(() => expect(screen.getByRole("heading", { name: "偏好与连接" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "常规" })).toBeTruthy());
+    const navigation = screen.getByRole("navigation", { name: "设置分类" });
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(within(navigation).getByRole("button", { name: "常规" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("heading", { name: "外观" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Provider" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "权限与审批" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "项目路径" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Provider" })).toBeNull();
+
+    openCategory("AI 与模型");
+    expect(screen.getByRole("heading", { name: "AI 与模型" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Provider" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "外观" })).toBeNull();
+  });
+
+  it("returns to the application from the settings navigation", async () => {
+    const onBack = vi.fn();
+    renderSettings(vi.fn(), snapshot, vi.fn(), onBack);
+    fireEvent.click(await screen.findByRole("button", { name: "返回应用" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a recoverable error when preferences fail to load", async () => {
+    const getPreferences = vi.fn()
+      .mockRejectedValueOnce(new Error("preferences unavailable"))
+      .mockResolvedValue(defaultPrefs);
+    window.cctools = makeApi({ getPreferences });
+    renderSettings();
+
+    expect((await screen.findByRole("alert")).textContent).toContain("设置加载失败");
+    fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
+
+    expect(await screen.findByRole("heading", { name: "外观" })).toBeTruthy();
+    expect(getPreferences).toHaveBeenCalledTimes(2);
   });
 
   it("saves theme, density, and body font size preferences", async () => {
@@ -101,9 +134,11 @@ describe("SettingsPage", () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
     await waitFor(() => expect(screen.getByText("Claude Code")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("switch", { name: "将 Claude Code 设为默认" }));
+    fireEvent.click(screen.getByRole("radio", { name: "将 Claude Code 设为默认" }));
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultProvider: "claude-preview", accentColor: "#2563eb" })));
     expect(screen.getAllByText("可用").length).toBe(2);
@@ -113,6 +148,8 @@ describe("SettingsPage", () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("权限与安全");
     await waitFor(() => expect(screen.getByLabelText("新会话默认权限")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("新会话默认权限"), { target: { value: "read-only" } });
@@ -141,6 +178,8 @@ describe("SettingsPage", () => {
 
   it("shows a model selector per provider and marks the detected 1M model", async () => {
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
     await waitFor(() => expect(screen.getByLabelText("Claude Code 模型")).toBeTruthy());
     // 两个 provider 各有一个模型下拉。
     expect(screen.getByLabelText("Codex CLI 模型")).toBeTruthy();
@@ -154,6 +193,8 @@ describe("SettingsPage", () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
     await waitFor(() => expect(screen.getByLabelText("Claude Code 模型")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("Claude Code 模型"), { target: { value: "claude-opus-4-8" } });
@@ -168,6 +209,8 @@ describe("SettingsPage", () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("内容工作流");
     await waitFor(() => expect(screen.getByRole("status", { name: "工作流规则预览" })).toBeTruthy());
     expect(screen.getByText(/每 30 秒自动保存/)).toBeTruthy();
 
@@ -181,6 +224,8 @@ describe("SettingsPage", () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("数据与存储");
     expect(await screen.findByText(/暂不自动清理文件或历史/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("日志保留天数"), { target: { value: "60" } });
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ logRetentionDays: 60 })));
@@ -190,6 +235,8 @@ describe("SettingsPage", () => {
     const resetPreferences = vi.fn(async () => defaultPrefs);
     window.cctools = makeApi({ resetPreferences });
     renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("内容工作流");
     fireEvent.click(await screen.findByRole("button", { name: "恢复默认值" }));
     const dialog = await screen.findByRole("alertdialog", { name: "恢复默认值" });
     fireEvent.click(within(dialog).getByRole("button", { name: "恢复默认值" }));
@@ -204,6 +251,8 @@ describe("SettingsPage", () => {
       aiRefresh: async () => ({ ...snapshot, sessions: [restored] })
     });
     renderSettings(vi.fn(), archivedSnapshot);
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("会话归档");
 
     expect(await screen.findByRole("heading", { name: "已归档会话" })).toBeTruthy();
     expect(screen.getByText("已经归档的研究会话")).toBeTruthy();
@@ -218,6 +267,8 @@ describe("SettingsPage", () => {
     const onOpenSession = vi.fn();
     window.cctools = makeApi();
     renderSettings(vi.fn(), archivedSnapshot, onOpenSession);
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("会话归档");
 
     fireEvent.click(await screen.findByRole("button", { name: "打开归档会话：已经归档的研究会话" }));
 
