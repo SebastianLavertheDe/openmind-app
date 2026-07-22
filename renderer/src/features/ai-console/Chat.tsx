@@ -63,6 +63,18 @@ type LiveProcessState = {
   commentaryText: string;
   pending: boolean;
 };
+type ChatScrollMemory = {
+  top: number;
+  near: boolean;
+  follow: boolean;
+};
+type ChatScrollRestore = {
+  sessionId: string;
+  memory: ChatScrollMemory;
+};
+
+const CHAT_BOTTOM_THRESHOLD = 90;
+const CHAT_SCROLL_UP_EPSILON = 1;
 
 export function Chat({ compact = false }: { compact?: boolean }) {
   const ai = useAi();
@@ -70,12 +82,13 @@ export function Chat({ compact = false }: { compact?: boolean }) {
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
   const [historyLimit, setHistoryLimit] = useState(compact ? 80 : 300);
   const scroller = useRef<HTMLDivElement>(null);
-  const scrollMemory = useRef<Map<string, { top: number; near: boolean }>>(new Map());
+  const scrollMemory = useRef<Map<string, ChatScrollMemory>>(new Map());
   const restorePending = useRef(false);
+  const restoreTarget = useRef<ChatScrollRestore | null>(null);
+  const followLatest = useRef(true);
+  const lastScrollTop = useRef(0);
   const sessionId = ai.activeSession?.id || "__draft";
-  const [unread, setUnread] = useState(0);
-  const prevEventCount = useRef(ai.events.length);
-  const prevSessionId = useRef<string | null>(ai.activeSession?.id || null);
+  const currentScrollSession = useRef(sessionId);
   const serverPagedHistory = Boolean(window.cctools.aiListTurns);
   const streamingRunId = ai.sessionActiveRun?.id || ai.activeRun?.id || null;
   const { streaming, reasoningStreaming } = useAiStreaming(streamingRunId);
@@ -136,31 +149,118 @@ export function Chat({ compact = false }: { compact?: boolean }) {
   );
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-    const near = target.scrollHeight - target.scrollTop - target.clientHeight < 90;
-    scrollMemory.current.set(sessionId, { top: target.scrollTop, near });
-    setNearBottom((current) => current === near ? current : near);
+    const top = target.scrollTop;
+    const near = target.scrollHeight - top - target.clientHeight < CHAT_BOTTOM_THRESHOLD;
+    const movedUp = top < lastScrollTop.current - CHAT_SCROLL_UP_EPSILON;
+    if (restorePending.current) return;
+    if (movedUp) followLatest.current = false;
+    else if (near) followLatest.current = true;
+    if (movedUp || top >= lastScrollTop.current || !followLatest.current) lastScrollTop.current = top;
+    scrollMemory.current.set(sessionId, { top, near, follow: followLatest.current });
+    const viewAtLatest = followLatest.current || near;
+    setNearBottom((current) => current === viewAtLatest ? current : viewAtLatest);
   }, [sessionId]);
 
-  useEffect(() => {
-    if (nearBottom && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
-  }, [renderItems.length, reasoningStreaming, streaming, nearBottom]);
-  useEffect(() => {
-    const saved = scrollMemory.current.get(sessionId);
-    setNearBottom(saved ? saved.near : true);
-    restorePending.current = Boolean(saved);
+  const pinToLatest = useCallback(() => {
+    const target = scroller.current;
+    if (
+      currentScrollSession.current !== sessionId
+      || !target
+      || restorePending.current
+      || !followLatest.current
+    ) return;
+    target.scrollTop = target.scrollHeight;
+    lastScrollTop.current = target.scrollTop;
+    const near = target.scrollHeight - target.scrollTop - target.clientHeight < CHAT_BOTTOM_THRESHOLD;
+    scrollMemory.current.set(sessionId, { top: target.scrollTop, near, follow: true });
+    setNearBottom(true);
   }, [sessionId]);
+
+  useLayoutEffect(() => {
+    currentScrollSession.current = sessionId;
+    const saved = scrollMemory.current.get(sessionId);
+    followLatest.current = saved ? saved.follow : true;
+    lastScrollTop.current = saved?.top ?? 0;
+    setNearBottom(saved ? saved.follow || saved.near : true);
+    restorePending.current = Boolean(saved && !saved.follow);
+    restoreTarget.current = saved && !saved.follow
+      ? { sessionId, memory: { ...saved } }
+      : null;
+  }, [sessionId]);
+
+  useLayoutEffect(() => {
+    pinToLatest();
+  }, [pinToLatest, reasoningStreaming, renderItems, streaming]);
+
+  useEffect(() => {
+    const target = scroller.current;
+    const thread = target?.querySelector<HTMLElement>(".chat-thread");
+    if (!target || !thread || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (currentScrollSession.current !== sessionId) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (currentScrollSession.current !== sessionId) return;
+        if (restorePending.current) return;
+        if (followLatest.current && !restorePending.current) {
+          pinToLatest();
+          return;
+        }
+        const near = target.scrollHeight - target.scrollTop - target.clientHeight < CHAT_BOTTOM_THRESHOLD;
+        if (near) {
+          followLatest.current = true;
+          pinToLatest();
+          return;
+        }
+        scrollMemory.current.set(sessionId, {
+          top: target.scrollTop,
+          near,
+          follow: followLatest.current
+        });
+        setNearBottom((current) => current === near ? current : near);
+      });
+    });
+    observer.observe(target);
+    observer.observe(thread);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [pinToLatest, sessionId]);
+
   useEffect(() => {
     if (!restorePending.current) return;
-    const saved = scrollMemory.current.get(sessionId);
-    if (!saved) { restorePending.current = false; return; }
+    const pending = restoreTarget.current;
+    if (!pending || pending.sessionId !== sessionId) {
+      restorePending.current = false;
+      restoreTarget.current = null;
+      return;
+    }
+    const saved = pending.memory;
     let tries = 0;
     let raf = 0;
     const attempt = () => {
+      if (
+        currentScrollSession.current !== sessionId
+        || restoreTarget.current !== pending
+      ) return;
       const el = scroller.current;
       if (!el) { raf = window.requestAnimationFrame(attempt); return; }
       if (el.scrollHeight - el.clientHeight >= saved.top - 4 || tries >= 10) {
         el.scrollTop = saved.top;
+        const near = el.scrollHeight - el.scrollTop - el.clientHeight < CHAT_BOTTOM_THRESHOLD;
+        followLatest.current = near;
+        if (near) el.scrollTop = el.scrollHeight;
+        lastScrollTop.current = el.scrollTop;
+        scrollMemory.current.set(sessionId, {
+          top: el.scrollTop,
+          near,
+          follow: followLatest.current
+        });
+        setNearBottom((current) => current === near ? current : near);
         restorePending.current = false;
+        restoreTarget.current = null;
         return;
       }
       tries++;
@@ -170,21 +270,6 @@ export function Chat({ compact = false }: { compact?: boolean }) {
     return () => window.cancelAnimationFrame(raf);
   }, [sessionId, timelineEvents.length]);
   useEffect(() => setHistoryLimit(compact ? 80 : 300), [ai.activeSession?.id, compact]);
-  useEffect(() => {
-    if (nearBottom) setUnread(0);
-  }, [nearBottom]);
-  useEffect(() => {
-    const currentId = ai.activeSession?.id || null;
-    if (prevSessionId.current !== currentId) {
-      setUnread(0);
-      prevEventCount.current = ai.events.length;
-      prevSessionId.current = currentId;
-      return;
-    }
-    const delta = ai.events.length - prevEventCount.current;
-    prevEventCount.current = ai.events.length;
-    if (delta > 0 && !nearBottom) setUnread((value) => value + delta);
-  }, [ai.events.length, ai.activeSession?.id, nearBottom]);
 
   return (
     <section className={`chat ${compact ? "compact" : ""}`}>
@@ -245,16 +330,26 @@ export function Chat({ compact = false }: { compact?: boolean }) {
             </div>
           ) : null}
         </div>
-        {/* P1-CHAT-2: jump-bottom 改悬浮 FAB + unread 红点 */}
+        {/* P1-CHAT-2: compact jump-to-bottom control */}
         {jumpBottomPresence.visible ? (
           <button
+            type="button"
             className="jump-bottom"
             data-leaving={jumpBottomPresence.leaving || undefined}
             aria-label={m.ai.chat.jumpToBottom}
-            onClick={() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" })}
+            onClick={() => {
+              const target = scroller.current;
+              if (!target) return;
+              followLatest.current = true;
+              scrollMemory.current.set(sessionId, {
+                top: target.scrollTop,
+                near: false,
+                follow: true
+              });
+              target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
+            }}
           >
-            <ArrowDown size={23} strokeWidth={2.1} />
-            {unread > 0 ? <span className="jump-bottom-badge">{unread}</span> : null}
+            <ArrowDown size={16} strokeWidth={1.8} aria-hidden />
           </button>
         ) : null}
       </div>

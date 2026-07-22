@@ -1,5 +1,94 @@
 # Design QA
 
+## Codex-style jump-to-bottom control QA — 2026-07-22
+
+- Source visual truth:
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a622f50e-e9a6-4363-80e8-fb7fdb782262.png` (reported CC Tools control with unread count)
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a96672b1-fea0-425d-87f2-7c91dc39e1e1.png` (authoritative Codex control)
+- Implementation screenshot: `desktop-app/design-qa/scroll-to-bottom-codex-match-2026-07-22.jpg`
+- Focused comparison evidence: `desktop-app/design-qa/scroll-to-bottom-codex-comparison-2026-07-22.png`
+- Viewport: 1550 × 1015 CSS pixels, matching the reported CC Tools capture at its 1.5 display scale; light theme; browser-preview data with a long-conversation scroll state.
+
+### Full-view comparison evidence
+
+- The updated control remains centered above the composer and appears only when the reader is away from the conversation bottom. Its click target and smooth return-to-bottom behavior are unchanged.
+- The control now uses the Codex reference geometry: a stable 32 × 32px circle, 1px low-contrast border, white panel surface, 16px Lucide `ArrowDown` at 1.8 stroke width, and only a 5% 0/1/2px shadow.
+- The red unread-count badge is absent from the rendered DOM, and the badge-only count state, refs, effects, markup, and CSS have been removed.
+
+### Focused comparison evidence
+
+- The Codex source crop and implementation crop were normalized to the same visual scale and opened together in `scroll-to-bottom-codex-comparison-2026-07-22.png`.
+- Circle diameter, arrow scale, stroke weight, neutral surface, and border contrast align with the reference. CC Tools retains its existing design tokens instead of introducing a one-off color or handcrafted icon.
+
+### Findings and iteration
+
+1. Initial finding [P1]: the reported control used a 42px button, 23px arrow, stronger elevation, and an overlapping 18px red unread counter, producing a heavier and visually unbalanced result than Codex.
+2. Fix: reduced the control to 32px with a 16px thin arrow, softened border/shadow treatment, and removed the unread counter implementation end to end.
+3. Browser QA found the nominal 32px height could shrink inside the column flex scroller during long conversations, producing an oval. Adding a fixed 32px flex basis preserves an exact 32 × 32px circle in the real scroll state.
+4. Post-fix live geometry measured 32 × 32px, and no `.jump-bottom-badge` node remained. No actionable P0, P1, or P2 visual mismatch remains for the requested control.
+
+### Verification
+
+- Full Chat unit file passed: 83 tests.
+- Focused return-to-bottom regression passed with the no-badge assertion.
+- TypeScript checks passed.
+- Renderer production build passed.
+- Browser console errors and warnings checked: none.
+- Motion scan still reports the repository's existing five Settings-button flags; this change preserves the jump-control transition/entrance contract and adds no new motion violation.
+
+final result: passed
+
+---
+
+## Settings typography parity QA — 2026-07-22
+
+- Source visual truth:
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-023095e7-edc6-4d5f-8c1e-25c9a55d14de.png` (authoritative main-interface typography)
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-60ebf065-74f6-4d51-b6ca-013894216ed5.png` (reported Settings baseline)
+- Implementation screenshots:
+  - `desktop-app/design-qa/settings-typography-1546x1012.jpg`
+  - `desktop-app/design-qa/settings-typography-dark-1546x1012.jpg`
+- Combined comparison evidence:
+  - `desktop-app/design-qa/settings-typography-reference-comparison.png`
+  - `desktop-app/design-qa/settings-typography-focus-comparison.png`
+  - `desktop-app/design-qa/settings-typography-before-after.png`
+- Viewport: 1546 × 1012 CSS pixels, matching the 2319 × 1518 source rasters at the source's 1.5 display scale; light and dark themes; browser-preview data.
+
+### Full-view comparison evidence
+
+- The authoritative main-interface screenshot and the revised Settings screenshot were opened together in one comparison input. Settings now uses the same system UI stack as the app chrome: `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Microsoft YaHei UI`, and fallbacks.
+- Settings navigation now resolves to the same measured contract as main navigation: 13px type, 22px line height, 30px minimum height, 400 normal weight, 600 selected weight, 8px radius, and 16px icons with 1.8 stroke width.
+- The Settings page header now follows the shared page-header hierarchy at 27px/720/1.25 with zero custom letter spacing; its supporting copy is 14px/1.7. Preference titles and descriptions use a stable 13px/600 and 12px/1.6 hierarchy.
+- The former Settings-only segmented-control override was removed. Appearance controls now inherit the shared component typography, thumb, spacing, and light/dark states.
+
+### Focused comparison evidence
+
+- In `settings-typography-focus-comparison.png`, the main navigation and Settings navigation have matching glyph shapes, item density, normal/selected weights, label color hierarchy, and icon scale.
+- The Settings-specific information architecture and page-title size remain intentionally distinct semantic roles; no alternate font family or synthetic 590/620 navigation weight remains.
+- Path values remain in the product's monospace stack because they are code-like data, not interface labels.
+
+### Findings and iteration
+
+1. Initial finding [P1]: the Settings rail used 10–11px labels, 38px rows, 590/620 weights, and muted normal text, while the main rail used the shared 13px/400–600 navigation contract.
+2. Initial finding [P2]: the Settings page header, supporting copy, preference copy, and segmented controls each carried local typography overrides that drifted from the final WorkBuddy skin.
+3. Fix: Settings now consumes the main navigation tokens and shared UI controls, while standardizing header and preference typography to the final product hierarchy.
+4. Dark-theme check found selected navigation text was initially losing to the dark base selector. A dark selected-state override restored the same high-contrast text used by the main rail.
+5. Post-fix comparison found no actionable P0, P1, or P2 typography or control-style mismatch for the requested Settings screen.
+
+### Verification
+
+- Live computed styles confirmed exact main/Settings navigation parity for font family, font size, font weight, line height, minimum height, padding, and radius.
+- Settings interactions checked in the in-app browser: enter Settings, switch light/dark themes, restore light theme, and render all three segmented controls.
+- Browser console errors and warnings checked: none.
+- Focused Settings test passed: 1 file, 14 tests.
+- TypeScript checks passed.
+- Renderer production build passed.
+- Motion scan reported zero bare-transition violations. Its existing repository baseline still flags five Settings buttons without `data-motion`; this CSS-only change added no clickables or motion rules.
+
+final result: passed
+
+---
+
 ## Attached companion correction QA — 2026-07-14
 
 - Source visual truth:

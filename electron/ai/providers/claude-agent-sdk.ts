@@ -70,6 +70,14 @@ export function decideClaudePermission(
 }
 type ClaudeSemanticEvent = { kind: AiEvent["kind"]; payload: Record<string, unknown> };
 
+const CLAUDE_FINAL_TRANSPARENT_TOOLS = new Set(["TaskUpdate", "TodoWrite"]);
+
+type ClaudeFinalBridge = {
+  toolsByItemId: Map<string, string>;
+  pendingItemIds: Set<string>;
+  completedItemIds: Set<string>;
+};
+
 function isClaudeAssistantCommentary(event: ClaudeSemanticEvent | undefined): boolean {
   return event?.kind === "assistant-message" && event.payload.phase === "commentary";
 }
@@ -81,6 +89,24 @@ function isClaudeFinalMessage(event: ClaudeSemanticEvent): boolean {
 function equivalentClaudeAssistantText(left: unknown, right: unknown): boolean {
   const normalize = (value: unknown) => String(value || "").replace(/\r\n?/g, "\n").trim();
   return normalize(left) === normalize(right);
+}
+
+function joinClaudeAssistantText(parts: string[]): string {
+  const meaningful = parts.filter((part) => part.trim());
+  return meaningful.reduce((combined, part) => {
+    if (!combined) return part;
+    if (combined.endsWith("\n\n") || part.startsWith("\n\n")) return combined + part;
+    if (combined.endsWith("\n") && part.startsWith("\n")) return combined + part;
+    if (combined.endsWith("\n") || part.startsWith("\n")) return `${combined}\n${part}`;
+    return `${combined}\n\n${part}`;
+  }, "");
+}
+
+function claudeToolEventFailed(event: ClaudeSemanticEvent): boolean {
+  if (event.payload.isError === true) return true;
+  const output = event.payload.output;
+  return Boolean(output && typeof output === "object" && !Array.isArray(output)
+    && (output as Record<string, unknown>).success === false);
 }
 type ClaudeRunContextGetter = () => ProviderRunContext | null;
 type WarmSlot = {
@@ -174,11 +200,62 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       query.close();
     }, { once: true });
     let pendingAssistantCandidate: ClaudeSemanticEvent | null = null;
+    let pendingAssistantParts: string[] = [];
+    let finalBridge: ClaudeFinalBridge | null = null;
+    const clearPendingAssistantCandidate = () => {
+      pendingAssistantCandidate = null;
+      pendingAssistantParts = [];
+      finalBridge = null;
+    };
     const emitPendingAssistantCandidate = async () => {
       if (!pendingAssistantCandidate) return;
-      const candidate = pendingAssistantCandidate;
-      pendingAssistantCandidate = null;
+      const candidate = {
+        ...pendingAssistantCandidate,
+        payload: {
+          ...pendingAssistantCandidate.payload,
+          text: joinClaudeAssistantText(pendingAssistantParts)
+        }
+      };
+      clearPendingAssistantCandidate();
       await context.emit(candidate.kind, candidate.payload);
+    };
+    const setPendingAssistantCandidate = (event: ClaudeSemanticEvent) => {
+      pendingAssistantCandidate = event;
+      pendingAssistantParts = [String(event.payload.text || "")];
+      finalBridge = null;
+    };
+    const appendPendingAssistantCandidate = (event: ClaudeSemanticEvent) => {
+      const text = String(event.payload.text || "");
+      if (!equivalentClaudeAssistantText(pendingAssistantParts.at(-1), text)) pendingAssistantParts.push(text);
+    };
+    const bridgeCanFinalize = () => Boolean(finalBridge
+      && finalBridge.pendingItemIds.size === 0
+      && finalBridge.completedItemIds.size > 0);
+    const preservePendingAcrossFinalTransparentEvent = (event: ClaudeSemanticEvent): boolean => {
+      if (!pendingAssistantCandidate) return false;
+      const itemId = String(event.payload.itemId || "");
+      const tool = String(event.payload.tool || event.payload.sourceTool || "");
+      if (event.kind === "tool-start") {
+        if (!itemId || !CLAUDE_FINAL_TRANSPARENT_TOOLS.has(tool)) return false;
+        finalBridge ||= { toolsByItemId: new Map(), pendingItemIds: new Set(), completedItemIds: new Set() };
+        finalBridge.toolsByItemId.set(itemId, tool);
+        finalBridge.pendingItemIds.add(itemId);
+        return true;
+      }
+      if (!finalBridge) return false;
+      if (event.kind === "tool-output") {
+        return Boolean(itemId && finalBridge.toolsByItemId.get(itemId) === tool);
+      }
+      if (event.kind === "tool-complete") {
+        if (!itemId || finalBridge.toolsByItemId.get(itemId) !== tool || claudeToolEventFailed(event)) return false;
+        finalBridge.pendingItemIds.delete(itemId);
+        finalBridge.completedItemIds.add(itemId);
+        return true;
+      }
+      if (event.kind === "todo") {
+        return Boolean(itemId && finalBridge.toolsByItemId.get(itemId) === tool);
+      }
+      return ["assistant-delta", "reasoning-delta", "reasoning-summary"].includes(event.kind);
     };
     try {
       let reasoning = "";
@@ -192,23 +269,43 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
         for (let index = 0; index < ordered.events.length; index++) {
           const event = ordered.events[index];
           if (isClaudeAssistantCommentary(event)) {
-            await emitPendingAssistantCandidate();
             const textParts = [String(event.payload.text || "")];
             while (isClaudeAssistantCommentary(ordered.events[index + 1])) {
               index++;
               textParts.push(String(ordered.events[index].payload.text || ""));
             }
-            pendingAssistantCandidate = {
+            const candidate = {
               ...event,
               payload: { ...event.payload, text: textParts.join("") }
             };
+            if (bridgeCanFinalize()) appendPendingAssistantCandidate(candidate);
+            else {
+              await emitPendingAssistantCandidate();
+              setPendingAssistantCandidate(candidate);
+            }
             continue;
           }
           if (isClaudeFinalMessage(event)) {
+            let pendingText = joinClaudeAssistantText(pendingAssistantParts);
             const duplicateCandidate = pendingAssistantCandidate
-              && equivalentClaudeAssistantText(pendingAssistantCandidate.payload.text, event.payload.text);
+              && equivalentClaudeAssistantText(pendingText, event.payload.text);
+            if (pendingAssistantCandidate && bridgeCanFinalize()) {
+              const repeatsLastBridgedPart = equivalentClaudeAssistantText(pendingAssistantParts.at(-1), event.payload.text);
+              if (!duplicateCandidate && !repeatsLastBridgedPart) {
+                pendingAssistantParts.push(String(event.payload.text || ""));
+                pendingText = joinClaudeAssistantText(pendingAssistantParts);
+              }
+              const bridgedFinal = { ...event, payload: { ...event.payload, text: pendingText } };
+              clearPendingAssistantCandidate();
+              await context.emit(bridgedFinal.kind, bridgedFinal.payload);
+              continue;
+            }
             if (pendingAssistantCandidate && !duplicateCandidate) await emitPendingAssistantCandidate();
-            else pendingAssistantCandidate = null;
+            else clearPendingAssistantCandidate();
+          } else if (preservePendingAcrossFinalTransparentEvent(event)) {
+            // TaskUpdate/TodoWrite only record provider work state. Keep the
+            // preceding answer candidate pending until the authoritative result,
+            // while still emitting their tool and Todo trace events normally.
           } else {
             // A tool, another reasoning block, or a terminal error proves that
             // the buffered text was process commentary rather than the final reply.

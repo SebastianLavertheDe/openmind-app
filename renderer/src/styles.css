@@ -2098,21 +2098,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .chat-empty-prompt strong { color: var(--text); font-size: var(--fs-base); }
 .chat-empty-prompt span { color: var(--muted); font-size: var(--fs-xs); }
 
-/* P1-CHAT-2: jump-bottom circular return control + unread red dot */
+/* P1-CHAT-2: compact jump-to-bottom control */
 .jump-bottom {
   position: sticky;
-  bottom: 16px;
+  bottom: 12px;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
   margin: 0 auto;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--text) 12%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--panel-bg);
   color: var(--text);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 5%, transparent);
   cursor: pointer;
   transition:
     background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
@@ -2133,27 +2134,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   to { opacity: 0; transform: translateY(4px) scale(.94); }
 }
 .jump-bottom:hover {
-  border-color: color-mix(in srgb, var(--text) 20%, var(--border));
+  border-color: color-mix(in srgb, var(--text) 16%, var(--border));
   background: var(--surface);
   transform: translateY(-1px);
 }
 .jump-bottom:active { transform: translateY(0) scale(0.96); }
-.jump-bottom-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--danger-500);
-  color: #fff;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  border: 2px solid var(--panel-bg);
-}
 
 /* ====================================================================
    P1-HDR: 顶栏 status 圆点 + provider segmented control

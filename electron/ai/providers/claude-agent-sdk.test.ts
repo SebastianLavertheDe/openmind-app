@@ -241,6 +241,203 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(ctx.emit).toHaveBeenNthCalledWith(5, "usage", expect.any(Object));
   });
 
+  it("bridges a completed TaskUpdate into one authoritative final reply", async () => {
+    const query = makeQuery([
+      {
+        type: "assistant",
+        message: { id: "answer-message", content: [{ type: "text", text: "完整正文" }] }
+      },
+      {
+        type: "assistant",
+        message: {
+          id: "answer-message",
+          content: [{ type: "tool_use", id: "task-update-1", name: "TaskUpdate", input: { taskId: "1", status: "completed" } }]
+        }
+      },
+      { type: "tool_progress", tool_use_id: "task-update-1", tool_name: "TaskUpdate", elapsed_time_seconds: 0.1 },
+      {
+        type: "user",
+        tool_use_result: { success: true, taskId: "1", updatedFields: ["status"] },
+        message: { content: [{ type: "tool_result", tool_use_id: "task-update-1", content: "ok", is_error: false }] }
+      },
+      { type: "stream_event", event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "request " } } },
+      { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "短" } } },
+      { type: "assistant", message: { id: "final-message", content: [{ type: "thinking", thinking: "request fulfilled" }] } },
+      { type: "assistant", message: { id: "final-message", content: [{ type: "text", text: "短收尾" }] } },
+      { type: "result", subtype: "success", result: "短收尾", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([{ text: "完整正文\n\n短收尾", phase: "final" }]);
+    expect(ctx.emit).toHaveBeenCalledWith("tool-start", expect.objectContaining({ tool: "TaskUpdate", itemId: "task-update-1" }));
+    expect(ctx.emit).toHaveBeenCalledWith("tool-output", expect.objectContaining({ tool: "TaskUpdate", itemId: "task-update-1" }));
+    expect(ctx.emit).toHaveBeenCalledWith("tool-complete", expect.objectContaining({ tool: "TaskUpdate", itemId: "task-update-1", isError: false }));
+    expect(ctx.emit).toHaveBeenCalledWith("reasoning-summary", expect.objectContaining({ text: "request fulfilled" }));
+  });
+
+  it("appends a distinct terminal result when a completed bookkeeping bridge has no durable tail frame", async () => {
+    const query = makeQuery([
+      { type: "assistant", message: { content: [{ type: "text", text: "第一行  \n第二行" }] } },
+      {
+        type: "assistant",
+        message: { content: [{ type: "tool_use", id: "task-update-1", name: "TaskUpdate", input: { taskId: "1", status: "completed" } }] }
+      },
+      {
+        type: "user",
+        tool_use_result: { success: true },
+        message: { content: [{ type: "tool_result", tool_use_id: "task-update-1", content: "ok", is_error: false }] }
+      },
+      { type: "result", subtype: "success", result: "短收尾", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([{ text: "第一行  \n第二行\n\n短收尾", phase: "final" }]);
+  });
+
+  it("keeps TodoWrite trace events while treating it as final-transparent", async () => {
+    const query = makeQuery([
+      {
+        type: "assistant",
+        message: { content: [
+          { type: "text", text: "完整正文" },
+          {
+            type: "tool_use",
+            id: "todo-write-1",
+            name: "TodoWrite",
+            input: { todos: [{ content: "完成总结", status: "completed" }] }
+          }
+        ] }
+      },
+      {
+        type: "user",
+        tool_use_result: { newTodos: [{ content: "完成总结", status: "completed" }] },
+        message: { content: [{ type: "tool_result", tool_use_id: "todo-write-1", content: "ok", is_error: false }] }
+      },
+      { type: "result", subtype: "success", result: "完整正文", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([{ text: "完整正文", phase: "final" }]);
+    expect(ctx.emit).toHaveBeenCalledWith("todo", expect.objectContaining({
+      sourceTool: "TodoWrite",
+      itemId: "todo-write-1",
+      items: [expect.objectContaining({ text: "完成总结", status: "completed" })]
+    }));
+  });
+
+  it("ends the bookkeeping bridge before a real tool call", async () => {
+    const query = makeQuery([
+      {
+        type: "assistant",
+        message: { content: [
+          { type: "text", text: "工具前说明" },
+          { type: "tool_use", id: "task-update-1", name: "TaskUpdate", input: { taskId: "1", status: "completed" } }
+        ] }
+      },
+      {
+        type: "user",
+        tool_use_result: { success: true },
+        message: { content: [{ type: "tool_result", tool_use_id: "task-update-1", content: "ok", is_error: false }] }
+      },
+      { type: "assistant", message: { content: [{ type: "tool_use", id: "read-1", name: "Read", input: { file_path: "src/app.ts" } }] } },
+      { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "read-1", content: "done", is_error: false }] } },
+      { type: "assistant", message: { content: [{ type: "text", text: "最终结论" }] } },
+      { type: "result", subtype: "success", result: "最终结论", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([
+      { text: "工具前说明", phase: "commentary" },
+      { text: "最终结论", phase: "final" }
+    ]);
+  });
+
+  it("fails closed when a bookkeeping tool reports an error", async () => {
+    const query = makeQuery([
+      {
+        type: "assistant",
+        message: { content: [
+          { type: "text", text: "错误前正文" },
+          { type: "tool_use", id: "task-update-1", name: "TaskUpdate", input: { taskId: "1", status: "completed" } }
+        ] }
+      },
+      {
+        type: "user",
+        tool_use_result: { success: false },
+        message: { content: [{ type: "tool_result", tool_use_id: "task-update-1", content: "failed", is_error: true }] }
+      },
+      { type: "assistant", message: { content: [{ type: "text", text: "短 final" }] } },
+      { type: "result", subtype: "success", result: "短 final", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([
+      { text: "错误前正文", phase: "commentary" },
+      { text: "短 final", phase: "final" }
+    ]);
+  });
+
+  it("fails closed when a bookkeeping tool never returns a matching result", async () => {
+    const query = makeQuery([
+      {
+        type: "assistant",
+        message: { content: [
+          { type: "text", text: "悬空正文" },
+          { type: "tool_use", id: "todo-write-1", name: "TodoWrite", input: { todos: [] } }
+        ] }
+      },
+      { type: "result", subtype: "success", result: "短 final", usage: {}, total_cost_usd: 0, duration_ms: 10 }
+    ]);
+    sdkMock.query.mockReturnValueOnce(query);
+    const ctx = makeRunContext();
+    const adapter = new ClaudeAgentSdkAdapter();
+
+    await adapter.run(ctx);
+
+    const assistantMessages = vi.mocked(ctx.emit).mock.calls
+      .filter(([kind]) => kind === "assistant-message")
+      .map(([, payload]) => payload);
+    expect(assistantMessages).toEqual([
+      { text: "悬空正文", phase: "commentary" },
+      { text: "短 final", phase: "final" }
+    ]);
+  });
+
   it("rejects terminal Claude error results instead of completing without a final reply", async () => {
     const query = makeQuery([
       { type: "assistant", message: { content: [{ type: "text", text: "继续检查" }] } },

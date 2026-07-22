@@ -83,6 +83,30 @@ function openDisclosure(disclosure: HTMLElement) {
   if (!disclosure.hasAttribute("data-open")) fireEvent.click(disclosureTrigger(disclosure));
 }
 
+function mockChatScroller(scroller: HTMLElement, initialScrollHeight = 1000, clientHeight = 200) {
+  let scrollHeight = initialScrollHeight;
+  let scrollTop = 0;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, get: () => scrollHeight },
+    clientHeight: { configurable: true, get: () => clientHeight },
+    scrollTop: {
+      configurable: true,
+      get: () => Math.max(0, Math.min(scrollTop, scrollHeight - clientHeight)),
+      set: (value: number) => {
+        scrollTop = Math.max(0, Math.min(value, scrollHeight - clientHeight));
+      }
+    }
+  });
+  return {
+    bottom: () => Math.max(0, scrollHeight - clientHeight),
+    setHeight: (value: number) => { scrollHeight = value; },
+    setTop: (value: number) => {
+      scroller.scrollTop = value;
+      fireEvent.scroll(scroller);
+    }
+  };
+}
+
 function ControllerRenderProbe({ onRender }: { onRender(): void }) {
   useAi();
   onRender();
@@ -126,6 +150,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe("Chat composer", () => {
@@ -1751,28 +1776,91 @@ describe("run waiting and queue", () => {
     await waitFor(() => expect(cancelSpy).toHaveBeenCalledWith("run-active"));
   });
 
+  it("keeps following AI output while the user has not scrolled upward", async () => {
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("u", "user-message", { text: "hello" }, 1),
+      makeEvent("tool-start", "tool-start", { itemId: "inspect", tool: "Read", input: { file_path: "README.md" } }, 2)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
+    await screen.findByText("hello");
+    const scroller = container.querySelector(".chat-scroll") as HTMLElement;
+    const geometry = mockChatScroller(scroller);
+    geometry.setTop(geometry.bottom());
+
+    geometry.setHeight(1180);
+    fireEvent.scroll(scroller);
+    aiListener?.({ kind: "event", event: makeEvent("tool-complete", "tool-complete", { itemId: "inspect", output: "done" }, 3) });
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
+
+    geometry.setHeight(1300);
+    aiListener?.({ kind: "transient", event: makeEvent("delta", "assistant-delta", { text: "latest streamed reply" }, 4) });
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
+    expect(screen.queryByRole("button", { name: "回到底部" })).toBeNull();
+  });
+
+  it("keeps following delayed layout growth and resumes after layout returns to the bottom", async () => {
+    const observers: Array<{
+      callback: ResizeObserverCallback;
+      observer: ResizeObserver;
+      targets: Set<Element>;
+    }> = [];
+    class MockResizeObserver {
+      readonly targets = new Set<Element>();
+      constructor(readonly callback: ResizeObserverCallback) {
+        observers.push({ callback, observer: this as unknown as ResizeObserver, targets: this.targets });
+      }
+      observe(target: Element) { this.targets.add(target); }
+      unobserve(target: Element) { this.targets.delete(target); }
+      disconnect() { this.targets.clear(); }
+    }
+    vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    window.cctools.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
+    const { container } = render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
+    await screen.findByText("hello");
+    const scroller = container.querySelector(".chat-scroll") as HTMLElement;
+    const thread = container.querySelector(".chat-thread") as HTMLElement;
+    const geometry = mockChatScroller(scroller);
+    geometry.setTop(geometry.bottom());
+    const chatObserver = observers.find(({ targets }) => targets.has(thread));
+    expect(chatObserver).toBeTruthy();
+
+    geometry.setHeight(1180);
+    chatObserver!.callback([], chatObserver!.observer);
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
+
+    geometry.setTop(300);
+    expect(await screen.findByRole("button", { name: "回到底部" })).toBeTruthy();
+    geometry.setHeight(450);
+    chatObserver!.callback([], chatObserver!.observer);
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "回到底部" })).toBeNull());
+
+    geometry.setHeight(600);
+    chatObserver!.callback([], chatObserver!.observer);
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
+  });
+
   it("holds position while reading and surfaces a return-to-bottom control (AI-T06)", async () => {
     window.cctools.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     const { container } = render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
     await screen.findByText("hello");
     const scroller = container.querySelector(".chat-scroll") as HTMLElement;
-    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 });
-    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 200 });
-    scroller.scrollTop = 0;
-    fireEvent.scroll(scroller);
+    const geometry = mockChatScroller(scroller);
+    geometry.setTop(geometry.bottom());
+    geometry.setTop(300);
+    geometry.setHeight(1200);
     aiListener?.({ kind: "event", event: makeEvent("a", "assistant-message", { text: "a fresh reply" }, 2) });
-    // P1-CHAT-2: jump-bottom 改为 FAB + unread 红点徽章
     const jump = await screen.findByRole("button", { name: "回到底部" });
-    const badge = await waitFor(() => {
-      const el = jump.querySelector(".jump-bottom-badge");
-      if (!el) throw new Error("badge not rendered yet");
-      return el;
-    });
-    expect(badge.textContent).toBe("1");
-    scroller.scrollTop = 800;
-    fireEvent.scroll(scroller);
+    await screen.findByText("a fresh reply");
+    expect(scroller.scrollTop).toBe(300);
+    expect(jump.querySelector(".jump-bottom-badge")).toBeNull();
+    geometry.setTop(geometry.bottom());
     await waitFor(() => expect(jump.hasAttribute("data-leaving")).toBe(true));
     await waitFor(() => expect(screen.queryByRole("button", { name: "回到底部" })).toBeNull());
+
+    geometry.setHeight(1300);
+    aiListener?.({ kind: "transient", event: makeEvent("next-delta", "assistant-delta", { text: "keep following" }, 3) });
+    await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
   });
 });
 
