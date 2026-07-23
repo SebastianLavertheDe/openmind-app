@@ -397,10 +397,9 @@
   gap: var(--space-2);
 }
 
-.settings-provider-model .settings-select {
-  width: auto;
-  min-width: 12rem;
-  margin: 0;
+.settings-provider-model-source {
+  flex: 0 0 auto;
+  margin-top: 0 !important;
 }
 
 .settings-provider-model-meta {

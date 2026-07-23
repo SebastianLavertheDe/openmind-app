@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
@@ -36,7 +36,8 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   const ai = useAi();
-  const showAiCompanion = route.page === "creative" || route.page === "projects";
+  const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
+  const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
     if (page === "settings") {
       setSettingsOpen(true);
@@ -79,11 +80,15 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
     return () => window.removeEventListener("keydown", onKey);
   }, [ai.setActiveSession, navigate, openSearch]);
   useEffect(() => {
-    // Companion pages expose an explicit rail trigger. Do not auto-open the
-    // companion on navigation: its measured width can otherwise force the
-    // primary navigation into a rail even though the user did not collapse it.
-    if (!showAiCompanion && ai.panelMode !== "collapsed") ai.setPanelMode("collapsed");
-  }, [showAiCompanion, ai.panelMode, ai.setPanelMode]);
+    const enteredPage = previousRoutePage.current !== route.page;
+    previousRoutePage.current = route.page;
+    if (!showAiCompanion) {
+      if (ai.panelMode !== "collapsed") ai.setPanelMode("collapsed");
+      return;
+    }
+    // 每日简报首次进入时直接提供对话框；同页手动收起后保持用户选择。
+    if (route.page === "brief" && enteredPage && ai.panelMode === "collapsed") ai.setPanelMode("default");
+  }, [route.page, showAiCompanion, ai.panelMode, ai.setPanelMode]);
   // 窗口重新获焦时异步重探 provider：登录在后、换模型、新装 CLI 都能被捡起。
   // 探测在 worker 进程用 spawn 跑、非阻塞，完成后自动推送 snapshot，绝不卡 send。
   useEffect(() => {

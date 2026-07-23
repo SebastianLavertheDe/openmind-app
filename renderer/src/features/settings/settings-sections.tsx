@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Archive, FolderOpen, MessageSquareText, RotateCcw } from "lucide-react";
 import type { AiSession, ProviderCapabilities, UserPreferences } from "@shared/contracts";
-import { AUTO_MODEL, MODEL_CATALOG, formatContextWindow, isOneMillionModel, resolveModelSpec } from "@shared/model-catalog";
+import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
 
@@ -57,30 +57,25 @@ export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferen
   );
 }
 
-export function ProviderSettingsSection({ prefs, providers, defaultProviderId, save }: { prefs: UserPreferences; providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
+export function ProviderSettingsSection({ providers, defaultProviderId, save }: { providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
   return (
     <SettingsPanel title="Provider" scope="新会话行为">
       <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
         {providers.length ? providers.map((provider) => {
           const active = provider.id === defaultProviderId;
-          const model = effectiveModel(provider, prefs.providerModels[provider.provider]);
           return (
             <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
               <span className="settings-provider-dot" aria-hidden="true" />
               <div className="settings-provider-main">
                 <div><strong>{provider.label}</strong><small>{providerSubtitle(provider)}</small></div>
-                <div className="settings-provider-model">
-                  <Select
-                    className="settings-select"
-                    size="rect"
-                    ariaLabel={m.settings.provider.modelAria(provider.label)}
-                    value={model.value}
-                    onChange={(value) => void save({ providerModels: { ...prefs.providerModels, [provider.provider]: value } })}
-                    options={[{ value: AUTO_MODEL, label: m.settings.provider.modelFollowCli }, ...MODEL_CATALOG[provider.provider].map((spec) => ({ value: spec.id, label: `${spec.label}${spec.oneMillion ? " · 1M" : ""}` }))]}
-                  />
+                <div className="settings-provider-model" aria-label={m.settings.provider.configuredModelAria(provider.label)}>
+                  <small className="settings-provider-model-source">{m.settings.provider.configuredModel}</small>
                   <span className="settings-provider-model-meta">
-                    {model.oneMillion ? <StatusBadge tone="info">1M</StatusBadge> : null}
-                    <small>{model.label}{model.contextWindow ? ` · ${formatContextWindow(model.contextWindow)}` : ""}{model.isAuto && model.detected ? m.settings.provider.cliDetected(model.detected) : ""}</small>
+                    {provider.oneMillion ? <StatusBadge tone="info">1M</StatusBadge> : null}
+                    <small title={provider.detectedModel || undefined}>
+                      {provider.detectedModel || m.settings.provider.modelNotConfigured}
+                      {provider.contextWindow ? ` · ${formatContextWindow(provider.contextWindow)}` : ""}
+                    </small>
                   </span>
                 </div>
               </div>
@@ -259,14 +254,6 @@ function formatSessionDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-function effectiveModel(provider: ProviderCapabilities, prefValue: string | undefined) {
-  const value = prefValue && prefValue !== AUTO_MODEL ? prefValue : AUTO_MODEL;
-  const isAuto = value === AUTO_MODEL;
-  const id = isAuto ? provider.detectedModel : value;
-  const spec = id ? resolveModelSpec(provider.provider, id) : null;
-  return { value, isAuto, id, label: isAuto ? (id ? (spec?.label ?? id) : m.settings.provider.followCli) : (spec?.label ?? id ?? value), contextWindow: spec?.contextWindow ?? provider.contextWindow ?? 0, oneMillion: spec?.oneMillion ?? (isAuto ? provider.oneMillion : isOneMillionModel(id)), detected: isAuto ? provider.detectedModel : null };
 }
 
 function formatInterval(value: number): string {

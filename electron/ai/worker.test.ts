@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * worker.ts 是 side-effect 入口(import 即执行):构造 RunScheduler、
  * 注册 parentPort.on("message")。要测它的 dispatch switch,必须:
  * 1. mock ./scheduler 的 RunScheduler(避免 SessionStore.initialize 等重逻辑)
- * 2. mock settings 模块(worker 用 require() 读 providerModels)
- * 3. 注入假的 process.parentPort(jsdom 下不存在)
+ * 2. 注入假的 process.parentPort(jsdom 下不存在)
  * 然后通过 parentPort.emit("message", { data }) 触发 dispatch。
  */
 
@@ -43,12 +42,6 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock(import("./scheduler"), () => ({
   RunScheduler: vi.fn().mockImplementation(() => hoisted.schedulerMethods)
-}));
-
-vi.mock(import("../lib/settings"), () => ({
-  getPreferences: () => ({ providerModels: {} }),
-  findRepoRoot: () => "/repo",
-  looksLikeRepo: () => true
 }));
 
 // 在 import worker 之前注入假 parentPort —— worker.ts 在 import 时(line 6-7)就读 process.parentPort,

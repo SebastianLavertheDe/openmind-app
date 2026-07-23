@@ -96,25 +96,13 @@ export function AiWorkbench() {
     return () => window.cancelAnimationFrame(frame);
   }, [preview?.path, previewOpen, previewVisible]);
 
-  // 头部展示「生效模型 + 是否 1M」：用户在设置里的覆盖优先，否则用 provider 探测到的模型。
-  const [providerModels, setProviderModels] = useState<{ codex: string; claude: string }>({ codex: AUTO_MODEL, claude: AUTO_MODEL });
-  useEffect(() => {
-    let cancelled = false;
-    const getPrefs = window.cctools?.getPreferences;
-    if (typeof getPrefs !== "function") return;
-    getPrefs.call(window.cctools)
-      .then((prefs: { providerModels?: { codex: string; claude: string } }) => {
-        if (!cancelled && prefs?.providerModels) setProviderModels(prefs.providerModels);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
+  // 头部只展示当前会话所绑定运行时的 CLI 配置模型，不再应用应用内模型覆盖。
   const modelInfo = useMemo(() => {
     const session = ai.activeSession;
     if (!session) return null;
-    const caps = ai.snapshot.providers.find((item) => item.provider === session.provider) ?? null;
-    return effectiveModelInfo(session.provider, providerModels[session.provider], caps);
-  }, [ai.activeSession, ai.snapshot.providers, providerModels]);
+    const caps = ai.snapshot.providers.find((item) => item.id === session.providerId) ?? null;
+    return effectiveModelInfo(session.provider, AUTO_MODEL, caps);
+  }, [ai.activeSession, ai.snapshot.providers]);
 
   const canLeavePreview = useCallback(() => {
     return !dirtyRef.current || window.confirm(m.ai.workbench.unsavedConfirm);

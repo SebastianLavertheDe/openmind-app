@@ -37,7 +37,6 @@ interface ProbeResult {
 type ProviderProbeSpec = {
   kind: ProviderKind;
   label: string;
-  probeModel: () => string | null;
   probeWslExtra: (distro: string, cwd: string) => Promise<string | null>;
   probeNativeExtra: (command: string) => Promise<string | null>;
   nativeFailureDiagnostic: string;
@@ -77,14 +76,14 @@ export class ProviderRegistry {
   }
 
   private async probeAll(): Promise<ProviderCapabilities[]> {
-    const detected = Object.fromEntries(
-      PROVIDER_PROBE_SPECS.map((spec) => [spec.kind, modelFields(spec.kind, spec.probeModel())])
-    ) as Record<ProviderKind, ReturnType<typeof modelFields>>;
     const providers: ProviderCapabilities[] = [];
     const wsl = process.platform === "win32" ? parseWslPath(this.projectRoot) : null;
     if (wsl) {
       for (const spec of PROVIDER_PROBE_SPECS) {
-        const probe = await probeWslProvider(wsl.distro, wsl.linuxPath, spec);
+        const [probe, model] = await Promise.all([
+          probeWslProvider(wsl.distro, wsl.linuxPath, spec),
+          probeWslModel(wsl.distro, spec.kind)
+        ]);
         providers.push({
           id: `${spec.kind}-wsl-${wsl.distro}`,
           provider: spec.kind,
@@ -96,7 +95,7 @@ export class ProviderRegistry {
           supportsResume: true,
           supportsImages: true,
           diagnostic: probe.diagnostic,
-          ...detected[spec.kind]
+          ...modelFields(spec.kind, model)
         });
       }
     }
@@ -113,7 +112,7 @@ export class ProviderRegistry {
         supportsResume: true,
         supportsImages: true,
         diagnostic: probe.diagnostic,
-        ...detected[spec.kind]
+        ...modelFields(spec.kind, probeNativeModel(spec.kind))
       });
     }
     return providers;
@@ -130,46 +129,68 @@ function modelFields(provider: ProviderKind, id: string | null) {
   };
 }
 
-/** 读 ~/.codex/config.toml 的 model 字段（top-level `model = "..."` 或 [model] name）。 */
-function probeCodexModel(): string | null {
+/** 解析 ~/.codex/config.toml 的 model 字段（top-level `model = "..."` 或 [model] name）。 */
+function parseCodexModel(text: string): string | null {
+  let section = "";
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) { section = sectionMatch[1].trim(); continue; }
+    if (section === "") {
+      const m = line.match(/^model\s*=\s*"([^"]+)"/);
+      if (m) return m[1];
+    } else if (section === "model") {
+      const m = line.match(/^name\s*=\s*"([^"]+)"/);
+      if (m) return m[1];
+    }
+  }
+  return null;
+}
+
+/** 解析 ~/.claude/settings.json 里 Claude Code 配置的模型。 */
+function parseClaudeModel(text: string): string | null {
   try {
-    const file = path.join(os.homedir(), ".codex", "config.toml");
-    const text = fs.readFileSync(file, "utf8");
-    let section = "";
-    for (const raw of text.split(/\r?\n/)) {
-      const line = raw.trim();
-      const sectionMatch = line.match(/^\[([^\]]+)\]$/);
-      if (sectionMatch) { section = sectionMatch[1].trim(); continue; }
-      if (section === "") {
-        const m = line.match(/^model\s*=\s*"([^"]+)"/);
-        if (m) return m[1];
-      } else if (section === "model") {
-        const m = line.match(/^name\s*=\s*"([^"]+)"/);
-        if (m) return m[1];
-      }
+    const settings = JSON.parse(text) as { model?: unknown; env?: Record<string, unknown> };
+    if (typeof settings.model === "string" && settings.model.trim()) return settings.model.trim();
+    const env = settings.env || {};
+    for (const key of ["ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_MODEL"]) {
+      const value = env[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
     }
     return null;
+  } catch { return null; }
+}
+
+/** 读取本机对应 CLI 的用户配置。 */
+function probeNativeModel(kind: ProviderKind): string | null {
+  try {
+    const file = kind === "claude"
+      ? path.join(os.homedir(), ".claude", "settings.json")
+      : path.join(os.homedir(), ".codex", "config.toml");
+    const text = fs.readFileSync(file, "utf8");
+    return kind === "claude" ? parseClaudeModel(text) : parseCodexModel(text);
   } catch { /* 配置不存在或不可读——视为未指定 */ return null; }
 }
 
-/** 读 ~/.claude/settings.json 里 Claude Code 实际使用的模型（sonnet 档优先）。 */
-function probeClaudeModel(): string | null {
-  try {
-    const file = path.join(os.homedir(), ".claude", "settings.json");
-    const env = (JSON.parse(fs.readFileSync(file, "utf8")) as { env?: Record<string, string> }).env || {};
-    return env.ANTHROPIC_DEFAULT_SONNET_MODEL
-      || env.ANTHROPIC_DEFAULT_OPUS_MODEL
-      || env.ANTHROPIC_DEFAULT_HAIKU_MODEL
-      || env.ANTHROPIC_MODEL
-      || null;
-  } catch { return null; }
+/**
+ * 读取指定 WSL 发行版自己的用户配置。只把配置内容读回当前进程并在内存中解析，
+ * 不复用 Windows 用户目录，确保每张 Provider 卡展示它实际运行环境中的模型。
+ */
+async function probeWslModel(distro: string, kind: ProviderKind): Promise<string | null> {
+  const relativePath = kind === "claude" ? ".claude/settings.json" : ".codex/config.toml";
+  const text = await runCommand(
+    "wsl.exe",
+    ["-d", distro, "--", "sh", "-lc", `test -r "$HOME/${relativePath}" && cat "$HOME/${relativePath}"`],
+    5_000
+  );
+  if (!text) return null;
+  return kind === "claude" ? parseClaudeModel(text) : parseCodexModel(text);
 }
 
 const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
   {
     kind: "codex",
     label: "Codex",
-    probeModel: probeCodexModel,
     probeWslExtra: async (distro, cwd) => {
       if (await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", "codex", "app-server", "--help"])) return null;
       return messages.errors.provider.codexWslNoAppServer(distro);
@@ -183,7 +204,6 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
   {
     kind: "claude",
     label: "Claude Code",
-    probeModel: probeClaudeModel,
     probeWslExtra: async (distro, cwd) => {
       if (parseClaudeAuthStatus(await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", "claude", "auth", "status"]))) return null;
       return messages.errors.provider.claudeWslNotLoggedIn(distro);

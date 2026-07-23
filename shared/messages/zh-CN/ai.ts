@@ -269,7 +269,6 @@ export const aiMessages = {
     failed: "失败",
     cancelled: "已取消",
     running: "运行中",
-    executing: "执行中",
     completed: "完成",
     success: "成功",
     run: {

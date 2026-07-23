@@ -612,6 +612,7 @@ describe("chat timeline", () => {
       const { container } = render(<ToolCallCard events={[start]} runStatus={runStatus} />);
 
       expect(screen.getByText("正在运行")).toBeTruthy();
+      expect(screen.queryByText("执行中")).toBeNull();
       expect(container.querySelector(".tool-event")?.classList.contains("running")).toBe(true);
       expect(container.querySelector(".spin")).toBeTruthy();
     }

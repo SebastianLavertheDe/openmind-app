@@ -176,33 +176,18 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(openPath).toHaveBeenCalledWith("mymind"));
   });
 
-  it("shows a model selector per provider and marks the detected 1M model", async () => {
+  it("shows the model read from each CLI config without model selectors", async () => {
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
-    await waitFor(() => expect(screen.getByLabelText("Claude Code 模型")).toBeTruthy());
-    // 两个 provider 各有一个模型下拉。
-    expect(screen.getByLabelText("Codex CLI 模型")).toBeTruthy();
+    await waitFor(() => expect(screen.getByLabelText("Claude Code 配置模型")).toBeTruthy());
+    expect(screen.getByLabelText("Codex CLI 配置模型")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
     // 探测到的 Claude 模型 glm-5.2[1m] 命中 1M，徽标出现。
     expect(screen.getByText("1M")).toBeTruthy();
-    // auto 时回落展示探测到的 CLI 模型。
-    expect(screen.getByText(/CLI: glm-5\.2\[1m\]/)).toBeTruthy();
-  });
-
-  it("saves the selected model as a providerModels override", async () => {
-    const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
-    renderSettings();
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("AI 与模型");
-    await waitFor(() => expect(screen.getByLabelText("Claude Code 模型")).toBeTruthy());
-
-    fireEvent.change(screen.getByLabelText("Claude Code 模型"), { target: { value: "claude-opus-4-8" } });
-
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({
-      providerModels: { codex: "auto", claude: "claude-opus-4-8" },
-      accentColor: "#2563eb"
-    })));
+    expect(screen.getByLabelText("Claude Code 配置模型").textContent).toContain("glm-5.2[1m]");
+    // 未配置模型时明确交还 Provider，而不是展示一份内置候选列表。
+    expect(screen.getByText("配置未指定，运行时由 Provider 决定")).toBeTruthy();
   });
 
   it("previews and persists workflow rules", async () => {

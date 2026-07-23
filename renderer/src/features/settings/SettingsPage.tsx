@@ -194,7 +194,7 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
                   <PathSettingsSection workspace={prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <ProviderSettingsSection prefs={prefs} providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
+              {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "storage" ? <DataRetentionSettingsSection prefs={prefs} save={save} /> : null}

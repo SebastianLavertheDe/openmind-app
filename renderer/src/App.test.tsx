@@ -150,6 +150,23 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
   });
 
+  it("opens the AI companion by default on the daily brief page and respects a manual collapse", async () => {
+    installApi({ listContent: async () => [] });
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
+      expect(document.querySelector(".ai-sidebar.mode-default")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "展开 AI 侧栏" })).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "收起" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
+  });
+
   it("keeps a fullscreen AI companion underneath the body-level global search", async () => {
     window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
     const view = render(<App />);

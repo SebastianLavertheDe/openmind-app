@@ -145,7 +145,6 @@ export function ToolCallCard({
     ? toolValueText(failedEvent.payload.error || failedEvent.payload.message || failedEvent.payload.output || failedEvent.payload)
     : "";
   const operation = toolOperationSummary(tool, input);
-  const status = conflicted ? s.run.conflicted : failed ? s.failed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? s.executing : s.completed;
   const category = toolCategory(tool);
   const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
   const liveNow = useLiveNow(running);
@@ -195,7 +194,7 @@ export function ToolCallCard({
             )}
             {failed && failureText && category !== "command" ? <em title={firstLine(failureText)}>{firstLine(failureText)}</em> : null}
           </span>
-          <span className="tool-event-meta">{category === "command" ? (running ? <small>{elapsed}</small> : <small>{elapsed}</small>) : <small>{running ? status : elapsed}</small>}<ChevronRight size={14} /></span>
+          <span className="tool-event-meta">{category === "command" || !running ? <small>{elapsed}</small> : null}<ChevronRight size={14} /></span>
         </>
       }
     >

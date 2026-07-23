@@ -210,6 +210,21 @@ describe("ProviderRegistry", () => {
   });
 
   describe("probeClaudeModel (通过 settings.json)", () => {
+    it("优先读取 settings.json 顶层 model", async () => {
+      const root = createRoot();
+      vi.spyOn(os, "homedir").mockReturnValue(root);
+      fs.mkdirSync(path.join(root, ".claude"), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, ".claude", "settings.json"),
+        JSON.stringify({ model: "claude-config-model", env: { ANTHROPIC_DEFAULT_SONNET_MODEL: "fallback" } })
+      );
+      mockSpawnByCommand({ codex: () => "codex 1.0", claude: () => "claude 1.0" });
+
+      const registry = new ProviderRegistry(root);
+      const providers = await registry.refresh();
+      expect(providers.find((p) => p.id === "claude-native")!.detectedModel).toBe("claude-config-model");
+    });
+
     it("读 ANTHROPIC_DEFAULT_SONNET_MODEL 优先", async () => {
       const root = createRoot();
       vi.spyOn(os, "homedir").mockReturnValue(root);
@@ -253,6 +268,8 @@ describe("ProviderRegistry", () => {
 if [[ "$*" == *"--version" ]]; then echo "tool-1.0"; exit 0; fi
 if [[ "$*" == *"auth status"* ]]; then echo '{"loggedIn":true}'; exit 0; fi
 if [[ "$*" == *"app-server --help"* ]]; then echo "ok"; exit 0; fi
+if [[ "$*" == *".claude/settings.json"* ]]; then echo '{"model":"wsl-claude-model"}'; exit 0; fi
+if [[ "$*" == *".codex/config.toml"* ]]; then echo 'model = "wsl-codex-model"'; exit 0; fi
 exit 1`;
       fs.writeFileSync(path.join(bin, "wsl.exe"), wslScript, { mode: 0o755 });
       // native 命令(在 win32 下走 locateWindowsCommands → where.exe,这里跳过)
@@ -264,6 +281,8 @@ exit 1`;
       const wslProviders = providers.filter((p) => p.runtime === "wsl");
       expect(wslProviders.length).toBeGreaterThan(0);
       expect(wslProviders.every((p) => p.id.includes("-wsl-Ubuntu"))).toBe(true);
+      expect(wslProviders.find((p) => p.provider === "claude")!.detectedModel).toBe("wsl-claude-model");
+      expect(wslProviders.find((p) => p.provider === "codex")!.detectedModel).toBe("wsl-codex-model");
     });
 
     it("parseClaudeAuthStatus: 'not logged in' 返回 false", async () => {

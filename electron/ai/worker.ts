@@ -1,6 +1,5 @@
-import path from "node:path";
 import { RunScheduler } from "./scheduler";
-import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
+import { AUTO_MODEL } from "../../shared/model-catalog";
 
 type WorkerRequest = { id: string; method: string; args: unknown[] };
 const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest }) => void): void; postMessage(message: unknown): void } }).parentPort;
@@ -9,24 +8,11 @@ if (!parentPort) throw new Error("AI worker must run as an Electron utility proc
 const projectRoot = process.env.CCTOOLS_REPO_ROOT;
 if (!projectRoot) throw new Error("CCTOOLS_REPO_ROOT is required.");
 
-// 读取用户偏好里的 provider 模型覆盖。settings.js 在 utility 进程里没有 electron.app，
-// 靠 CCTOOLS_USER_DATA_DIR（由主进程注入）定位 settings.json。
-function readProviderModel(kind: ProviderKind): string {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const settings = require(path.resolve(__dirname, "..", "lib", "settings.js")) as { getPreferences?: () => { providerModels?: { codex?: string; claude?: string } } };
-    const models = settings.getPreferences?.().providerModels;
-    const value = models?.[kind];
-    return value && value !== AUTO_MODEL ? value : AUTO_MODEL;
-  } catch {
-    return AUTO_MODEL;
-  }
-}
-
 const scheduler = new RunScheduler(
   projectRoot,
   (payload) => parentPort.postMessage({ type: "push", payload }),
-  readProviderModel
+  // 模型始终交给 Codex / Claude Code 自己的配置决定。保留 scheduler 的注入点仅供单元测试。
+  () => AUTO_MODEL
 );
 
 // 启动时异步探测一次 provider（本机 + WSL），完成后由 scheduler 推送 snapshot。
