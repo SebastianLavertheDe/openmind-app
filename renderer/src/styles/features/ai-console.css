@@ -1572,6 +1572,11 @@
   will-change: opacity, transform;
 }
 
+.ai-workbench.with-file-preview .ai-file-preview-body > .content-selection-surface {
+  transition: opacity var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)), transform var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1));
+  will-change: opacity, transform;
+}
+
 .ai-workbench.with-file-preview.is-resizing-preview .conversation-header > div,
 .ai-workbench.with-file-preview.is-resizing-preview .chat-thread,
 .ai-workbench.with-file-preview.is-resizing-preview .composer {
@@ -1588,6 +1593,11 @@
   transform: translateX(2px);
 }
 
+.ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .content-selection-surface {
+  opacity: .94;
+  transform: translateX(2px);
+}
+
 .ai-workbench.with-file-preview.is-resizing-preview > .column-splitter::after {
   background: var(--accent);
 }
@@ -1600,6 +1610,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ai-workbench.with-file-preview .ai-file-preview-body > .content-selection-surface {
+    transition: none;
+    transform: none !important;
+  }
+
   .ai-workbench,
   .ai-workbench.with-file-preview > .column-splitter,
   .ai-workbench.with-file-preview > .ai-file-preview,
@@ -1624,6 +1639,10 @@
   .ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .html-preview,
   .ai-workbench.with-file-preview.is-resizing-preview .ai-file-editor-shell,
   .ai-workbench.with-file-preview.is-resizing-preview .preview-inline-state {
+    opacity: 1;
+  }
+
+  .ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .content-selection-surface {
     opacity: 1;
   }
 }
@@ -1768,13 +1787,15 @@
   padding: 28px clamp(20px, 4vw, 56px);
 }
 
-.ai-file-preview-body > .reader-markdown {
+.ai-file-preview-body > .reader-markdown,
+.ai-file-preview-body > .content-selection-surface > .reader-markdown {
   width: 100%;
   max-width: var(--reader-max-width, 68ch);
   margin: 0 auto;
 }
 
-.ai-file-preview-body > .html-preview {
+.ai-file-preview-body > .html-preview,
+.ai-file-preview-body > .content-selection-surface > .html-preview {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
@@ -2272,6 +2293,12 @@
   min-width: 0;
   max-width: min(260px, 100%);
   flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: stretch;
+  overflow: visible;
+  border-radius: 7px;
+  background: var(--panel-muted);
   cursor: grab;
 }
 
@@ -2280,10 +2307,11 @@
 }
 
 .context-tray .context-chip {
+  min-width: 0;
   max-width: 100%;
   border: 0;
   border-radius: 7px;
-  background: var(--panel-muted);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -2307,6 +2335,42 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.context-tray .context-chip-remove {
+  width: 28px;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.context-tray .context-chip-remove:hover {
+  background: color-mix(in srgb, var(--red) 9%, var(--panel-muted));
+  color: var(--red);
+}
+
+.context-tray .context-chip-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.context-selection-preview {
+  max-height: 168px;
+  margin: 1px 0;
+  overflow: auto;
+  padding: 8px 9px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--panel-muted);
+  color: var(--text-dim);
+  font: 12px/1.55 var(--font-sans);
+  white-space: pre-wrap;
 }
 /* ====================================================================
    P1-APR-2: 按钮间距防误触

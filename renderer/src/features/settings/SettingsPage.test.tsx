@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSession, AiSnapshot, DesktopApi, ProviderCapabilities, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
@@ -10,13 +10,60 @@ const providers: ProviderCapabilities[] = [
   { id: "claude-preview", provider: "claude", label: "Claude Code", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, oneMillion: true }
 ];
 
+const skills: SkillDefinition[] = [
+  {
+    id: "rss-article-saver",
+    title: "RSS 文章保存",
+    description: "抓取订阅文章并保存为 Markdown。",
+    cwd: "/repo/.claude/skills/rss-article-saver",
+    command: "uv run --env-file .env python main.py",
+    envFile: ".env",
+    group: "内容获取",
+    permission: "auto",
+    outputArtifacts: ["mymind/article/**/*.md"],
+    timeoutMs: 120_000
+  },
+  {
+    id: "novel-writer",
+    title: "小说写作",
+    description: "辅助规划并撰写中文小说。",
+    cwd: "/repo/.claude/skills/novel-writer",
+    command: "python main.py",
+    group: "创作",
+    permission: "edit"
+  }
+];
+
+const mcpServers: McpServerDefinition[] = [{
+  id: "cctools_browser",
+  title: "写作证据截图",
+  description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
+  backend: "Microsoft Playwright MCP",
+  transport: "stdio",
+  connection: "Playwright Chrome 扩展",
+  enabled: false,
+  available: true,
+  status: "disabled",
+  diagnostic: "AI 写作取证已关闭。",
+  providers: ["Codex", "Claude"],
+  settingsSection: "browser",
+  tools: [{
+    id: "capture_source_evidence",
+    title: "截取原文证据",
+    description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。",
+    inputs: ["url", "quote", "caption", "filename"],
+    outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"]
+  }]
+}];
+
 const defaultPrefs: UserPreferences = {
   schemaVersion: 1, repoRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
-  defaultWorkDir: "", notesDir: "mymind", destructiveOpsRequireApproval: true,
+  defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false,
+  browserReuseExistingTabs: true, browserEvidenceDir: ".cctools/browser-evidence", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
   defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
   notificationsEnabled: true, dndStartHour: 22, dndEndHour: 8,
@@ -53,6 +100,13 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     getPreferences: async () => defaultPrefs,
     updatePreferences: async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }),
     resetPreferences: async () => defaultPrefs,
+    getBrowserAutomationStatus: async () => ({
+      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      secureStorageAvailable: true, packageAvailable: true, ready: false,
+      diagnostic: "AI 写作取证已关闭。"
+    }),
+    getMcpServers: async () => mcpServers,
     selectRepo: async () => "/repo-next",
     openPath: async () => "",
     onAiEvent: () => () => undefined,
@@ -62,8 +116,8 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   } as unknown as DesktopApi;
 }
 
-function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn(), onBack = vi.fn()) {
-  render(<AiProvider initial={initial}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onBack={onBack} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
+function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn(), onBack = vi.fn(), skillDefinitions: SkillDefinition[] = []) {
+  render(<AiProvider initial={initial} skills={skillDefinitions}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onBack={onBack} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
 }
 
 function openCategory(name: string) {
@@ -144,6 +198,97 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("可用").length).toBe(2);
   });
 
+  it("lists searchable Skill and MCP details without exposing permission profiles", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const openPath = vi.fn().mockResolvedValue("");
+    const aiRefreshSkills = vi.fn().mockResolvedValue(skills);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    window.cctools = makeApi({ openPath, aiRefreshSkills });
+    renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
+    await screen.findByRole("heading", { name: "常规" });
+
+    openCategory("Skills 与 MCP");
+
+    expect(await screen.findByText("2 Skills · 1 MCP 服务")).toBeTruthy();
+    expect(screen.getByText("RSS 文章保存")).toBeTruthy();
+    expect(screen.getByText("/rss-article-saver")).toBeTruthy();
+    expect(screen.getByText("小说写作")).toBeTruthy();
+    expect(screen.queryByText("只读")).toBeNull();
+    expect(screen.queryByText("编辑")).toBeNull();
+    expect(screen.queryByText("自动执行")).toBeNull();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "小说" } });
+    expect(screen.getByText("小说写作")).toBeTruthy();
+    expect(screen.queryByText("RSS 文章保存")).toBeNull();
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Skill 分组/ }));
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Skill 分组" })).getByRole("option", { name: "内容获取" }));
+    expect(screen.getByText("RSS 文章保存")).toBeTruthy();
+    expect(screen.queryByText("小说写作")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 Skill 详情：RSS 文章保存" }));
+    expect(screen.getByText("/repo/.claude/skills/rss-article-saver")).toBeTruthy();
+    expect(screen.getByText("uv run --env-file .env python main.py")).toBeTruthy();
+    expect(screen.getByText("2 分钟")).toBeTruthy();
+    expect(screen.getByText("mymind/article/**/*.md")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "复制 Skill 调用命令：/rss-article-saver" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("/rss-article-saver"));
+    fireEvent.click(screen.getByRole("button", { name: "打开 Skill 目录：RSS 文章保存" }));
+    await waitFor(() => expect(openPath).toHaveBeenCalledWith("/repo/.claude/skills/rss-article-saver"));
+    fireEvent.click(screen.getByRole("button", { name: "刷新能力" }));
+    await waitFor(() => expect(aiRefreshSkills).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("tab", { name: /MCP/ }));
+    expect(screen.getByText("写作证据截图")).toBeTruthy();
+    expect(screen.getByText("cctools_browser")).toBeTruthy();
+    expect(screen.getByText("Microsoft Playwright MCP")).toBeTruthy();
+    expect(screen.getByText("capture_source_evidence")).toBeTruthy();
+    expect(screen.getByText("PNG · JSON 元数据 · Markdown 图片引用")).toBeTruthy();
+    expect(screen.queryByText("browser_run_code_unsafe")).toBeNull();
+    expect(screen.queryByText("只读")).toBeNull();
+    expect(screen.queryByText("编辑")).toBeNull();
+    expect(screen.queryByText("自动执行")).toBeNull();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索 MCP 服务和工具" }), { target: { value: "capture_source" } });
+    expect(screen.getByText("截取原文证据")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "前往浏览器设置" }));
+    expect(screen.getByRole("heading", { name: "浏览器" })).toBeTruthy();
+  });
+
+  it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {
+    const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
+    const getBrowserAutomationStatus = vi.fn().mockResolvedValue({
+      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      secureStorageAvailable: true, packageAvailable: true, ready: false,
+      diagnostic: "AI 写作取证已关闭。"
+    });
+    const saveBrowserExtensionToken = vi.fn().mockResolvedValue({
+      backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: true,
+      secureStorageAvailable: true, packageAvailable: true, ready: true,
+      diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
+    });
+    window.cctools = makeApi({ updatePreferences, getBrowserAutomationStatus, saveBrowserExtensionToken });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+
+    openCategory("浏览器");
+    expect(screen.getByRole("heading", { name: "写作证据截图" })).toBeTruthy();
+    expect(screen.getByText(/不能输入密码、提交表单/)).toBeTruthy();
+    expect(screen.queryByText("browser_run_code_unsafe")).toBeNull();
+
+    fireEvent.click(screen.getByRole("switch", { name: "允许 AI 自主获取原文截图" }));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ browserAutomationEnabled: true })));
+
+    fireEvent.change(screen.getByLabelText("扩展令牌"), { target: { value: "secret-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存令牌" }));
+    await waitFor(() => expect(saveBrowserExtensionToken).toHaveBeenCalledWith("secret-token"));
+    expect(await screen.findByText("已安全保存")).toBeTruthy();
+  });
+
   it("saves permission defaults and approval toggles", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     window.cctools = makeApi({ updatePreferences });
@@ -167,7 +312,7 @@ describe("SettingsPage", () => {
     renderSettings(onRepo);
     await waitFor(() => expect(screen.getByText("工作目录")).toBeTruthy());
 
-    const browseButtons = screen.getAllByRole("button", { name: /浏览/ });
+    const browseButtons = screen.getAllByRole("button", { name: "浏览" });
     fireEvent.click(browseButtons[0]);
     await waitFor(() => expect(selectRepo).toHaveBeenCalled());
     expect(onRepo).toHaveBeenCalledWith("/repo-next");

@@ -7,6 +7,7 @@ const requiredFiles = [
   ".build/electron/electron/main.js",
   ".build/electron/electron/preload.js",
   ".build/electron/electron/ai/worker.js",
+  ".build/electron/electron/ai/browser-evidence-mcp.js",
   ".build/renderer/index.html",
   "shared/contracts.ts",
   "electron/ai/session-store.ts",

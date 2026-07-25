@@ -93,6 +93,9 @@ export function installBrowserPreviewApi(): boolean {
     defaultPermissionProfile: "edit" as const,
     defaultWorkDir: "",
     notesDir: "mymind",
+    browserAutomationEnabled: false,
+    browserReuseExistingTabs: true,
+    browserEvidenceDir: ".cctools/browser-evidence",
     destructiveOpsRequireApproval: true,
     riskScanEnabled: true,
     defaultPlatform: "公众号",
@@ -306,6 +309,48 @@ export function installBrowserPreviewApi(): boolean {
     updatePreferences: async (patch) => { preferences = { ...preferences, ...patch }; return preferences; },
     resetPreferences: async () => { preferences = { ...preferences, themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default" }; return preferences; },
     importPreferences: async () => ({ imported: true, preferences }),
+    getBrowserAutomationStatus: async () => ({
+      backend: "playwright-mcp",
+      enabled: preferences.browserAutomationEnabled,
+      reuseExistingTabs: preferences.browserReuseExistingTabs,
+      evidenceDir: preferences.browserEvidenceDir,
+      extensionTokenConfigured: false,
+      secureStorageAvailable: true,
+      packageAvailable: true,
+      ready: preferences.browserAutomationEnabled,
+      diagnostic: preferences.browserAutomationEnabled ? "浏览器取证已启用（预览）。" : "AI 写作取证已关闭。"
+    }),
+    getMcpServers: async () => [{
+      id: "cctools_browser",
+      title: "写作证据截图",
+      description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
+      backend: "Microsoft Playwright MCP",
+      transport: "stdio",
+      connection: "Playwright Chrome 扩展",
+      enabled: preferences.browserAutomationEnabled,
+      available: true,
+      status: preferences.browserAutomationEnabled ? "enabled" : "disabled",
+      diagnostic: preferences.browserAutomationEnabled ? "浏览器取证已启用（预览）。" : "AI 写作取证已关闭。",
+      providers: ["Codex", "Claude"],
+      settingsSection: "browser",
+      tools: [{
+        id: "capture_source_evidence",
+        title: "截取原文证据",
+        description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。",
+        inputs: ["url", "quote", "caption", "filename"],
+        outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"]
+      }]
+    }],
+    saveBrowserExtensionToken: async () => ({
+      backend: "playwright-mcp", enabled: preferences.browserAutomationEnabled, reuseExistingTabs: preferences.browserReuseExistingTabs,
+      evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: true, secureStorageAvailable: true,
+      packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
+    }),
+    clearBrowserExtensionToken: async () => ({
+      backend: "playwright-mcp", enabled: preferences.browserAutomationEnabled, reuseExistingTabs: preferences.browserReuseExistingTabs,
+      evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: false, secureStorageAvailable: true,
+      packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
+    }),
     getEnvironmentDiagnostics: async () => [
       { id: "repo", label: "项目目录", status: "ok", value: snapshot.projectRoot, detail: null, path: snapshot.projectRoot },
       { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },

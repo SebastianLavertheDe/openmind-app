@@ -35,7 +35,8 @@ function makePrewarmContext(overrides: Partial<ProviderPrewarmContext> = {}): Pr
     cwd: "/project",
     permissionProfile: "edit",
     providerSessionId: null,
-    providerModel: "auto"
+    providerModel: "auto",
+    ...overrides
   } as unknown as ProviderPrewarmContext;
 }
 
@@ -45,6 +46,30 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     const result = await adapter.prewarm(makePrewarmContext());
     expect(result).toBe(true);
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
+  });
+
+  it("浏览器取证开启时只挂载受控 MCP，并追加写作取证规则", async () => {
+    const adapter = new ClaudeAgentSdkAdapter();
+    await adapter.prewarm(makePrewarmContext({
+      browserAutomation: {
+        enabled: true,
+        reuseExistingTabs: true,
+        evidenceDir: ".cctools/browser-evidence",
+        extensionToken: "extension-token"
+      }
+    }));
+
+    const startup = sdkMock.startup.mock.calls[0][0] as {
+      options: {
+        mcpServers: Record<string, { args: string[]; env: Record<string, string> }>;
+        systemPrompt: { append?: string };
+      };
+    };
+    const server = startup.options.mcpServers.cctools_browser;
+    expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
+    expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
+    expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
+    expect(JSON.stringify(startup.options)).not.toContain("browser_run_code_unsafe");
   });
 
   it("相同 key 重复 prewarm 复用 warm slot,不重复 startup", async () => {

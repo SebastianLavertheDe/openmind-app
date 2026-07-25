@@ -41,6 +41,16 @@ function imageContext(id: string, label: string): ContextReference {
   };
 }
 
+function selectionContext(id: string, label: string): ContextReference {
+  return {
+    id,
+    kind: "selection",
+    label,
+    path: `mymind/${id}.md`,
+    content: `${label}的完整内容`
+  };
+}
+
 beforeEach(() => {
   window.cctools = { onAiEvent: () => () => undefined } as unknown as DesktopApi;
 });
@@ -58,6 +68,22 @@ describe("ChatComposer permissions", () => {
     fireEvent.click(screen.getByRole("option", { name: "自动执行" }));
 
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("auto");
+  });
+});
+
+describe("ContextTray selection references", () => {
+  it("removes only the selected reference from its inline delete button", async () => {
+    const first = selectionContext("first", "引用一");
+    const second = selectionContext("second", "引用二");
+    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({ "__new-session__": [first, second] }));
+    render(<AiProvider initial={snapshot}><ChatComposer /></AiProvider>);
+
+    expect(screen.getByText("引用一")).toBeTruthy();
+    expect(screen.getByText("引用二")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "删除引用：引用一" }));
+
+    await waitFor(() => expect(screen.queryByText("引用一")).toBeNull());
+    expect(screen.getByText("引用二")).toBeTruthy();
   });
 });
 

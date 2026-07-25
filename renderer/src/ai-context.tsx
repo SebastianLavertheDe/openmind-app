@@ -73,13 +73,15 @@ interface AiController {
   reorderContexts(fromId: string, toId: string): void;
   clearContexts(): void;
   addFiles(): Promise<void>;
+  composerFocusRequest: number;
+  focusComposer(): void;
   send(prompt: string, options?: SendOptions): Promise<void>;
   rerun(runId: string): Promise<void>;
   editRun(runId: string): void;
   branchRun(runId: string): Promise<void>;
   cancel(runId: string): Promise<void>;
   refresh(): Promise<void>;
-  refreshSkills(): Promise<void>;
+  refreshSkills(): Promise<SkillDefinition[] | null>;
   panelMode: PanelMode;
   setPanelMode(mode: PanelMode): void;
   toasts: Toast[];
@@ -364,13 +366,16 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
   }, [replaceSession]);
 
   const [skills, setSkills] = useState<SkillDefinition[]>(initialSkills);
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const refreshSkills = useCallback(async () => {
     try {
-      if (typeof window.cctools.aiRefreshSkills !== "function") return;
+      if (typeof window.cctools.aiRefreshSkills !== "function") return null;
       const next = await window.cctools.aiRefreshSkills();
       setSkills(next);
+      return next;
     } catch {
       // Skill 目录刷新是增强能力；扫描失败不能阻断发送、重试或恢复现有会话。
+      return null;
     }
   }, []);
 
@@ -667,6 +672,11 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
         return { ...current, [key]: [...existing, ...additions] };
       });
     },
+    composerFocusRequest,
+    focusComposer: () => {
+      setPanelModeState((current) => current === "collapsed" ? "default" : current);
+      setComposerFocusRequest((current) => current + 1);
+    },
     send,
     rerun,
     editRun,
@@ -718,6 +728,7 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     refresh,
     refreshSkills,
     panelMode,
+    composerFocusRequest,
     notify,
     dismissToast,
     confirm,

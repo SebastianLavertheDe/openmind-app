@@ -142,6 +142,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   defaultPermissionProfile: "edit",
   defaultWorkDir: "",
   notesDir: "mymind",
+  browserAutomationEnabled: false,
+  browserReuseExistingTabs: true,
+  browserEvidenceDir: ".cctools/browser-evidence",
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
   defaultPlatform: messages.settings.defaultPlatform,
@@ -227,6 +230,9 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     defaultPermissionProfile: enumPref(source.defaultPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
     defaultWorkDir: stringPref(source.defaultWorkDir, DEFAULT_PREFERENCES.defaultWorkDir, strict, "defaultWorkDir", 4096),
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
+    browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
+    browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),
+    browserEvidenceDir: safeRelativePathPref(source.browserEvidenceDir, DEFAULT_PREFERENCES.browserEvidenceDir, strict, "browserEvidenceDir"),
     destructiveOpsRequireApproval: boolPref(source.destructiveOpsRequireApproval, DEFAULT_PREFERENCES.destructiveOpsRequireApproval, strict, "destructiveOpsRequireApproval"),
     riskScanEnabled: boolPref(source.riskScanEnabled, DEFAULT_PREFERENCES.riskScanEnabled, strict, "riskScanEnabled"),
     defaultPlatform: stringPref(source.defaultPlatform, DEFAULT_PREFERENCES.defaultPlatform, strict, "defaultPlatform", 80),
@@ -260,6 +266,14 @@ function normalizeProviderModels(value: unknown): { codex: string; claude: strin
 function stringPref(value: unknown, fallback: string, strict: boolean, key: string, max: number): string {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "string" && value.length <= max) return value;
+  if (strict) throw new Error(messages.errors.preferences.invalidSetting(key));
+  return fallback;
+}
+
+function safeRelativePathPref(value: unknown, fallback: string, strict: boolean, key: string): string {
+  const candidate = stringPref(value, fallback, strict, key, 4096).trim().replaceAll("\\", "/");
+  const unsafe = !candidate || path.isAbsolute(candidate) || candidate.split("/").some((part) => part === "..");
+  if (!unsafe) return candidate;
   if (strict) throw new Error(messages.errors.preferences.invalidSetting(key));
   return fallback;
 }

@@ -62,6 +62,23 @@ describe("composePrompt", () => {
     expect(out).toContain("</context_from_cc_tools>");
   });
 
+  it("passes the complete selected text to the provider", () => {
+    const selectedText = "第一行完整内容\n第二行完整内容\n第三行完整内容";
+    const out = composePrompt(makeRun({
+      prompt: "总结这段内容",
+      contexts: [ctx({
+        kind: "selection",
+        label: "引用 · 2026-07-24 每日简报 · 3 行",
+        path: "mymind/daily-summary/20260724_daily_summary.md",
+        content: selectedText
+      })]
+    }));
+
+    expect(out).toContain("总结这段内容");
+    expect(out).toContain("引用 · 2026-07-24 每日简报 · 3 行");
+    expect(out).toContain(selectedText);
+  });
+
   it("emits a context block with '无' path when context has none, and skips image contexts", () => {
     const out = composePrompt(makeRun({
       prompt: "p",

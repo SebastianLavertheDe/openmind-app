@@ -244,6 +244,27 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(requests.find((r) => r.method === "turn/start")).toBeDefined();
   });
 
+  it("浏览器取证开启时在 thread/start 注入单一受控 MCP 工具和写作规则", async () => {
+    const ctx = makeContext({
+      browserAutomation: {
+        enabled: true,
+        reuseExistingTabs: true,
+        evidenceDir: ".cctools/browser-evidence",
+        extensionToken: "extension-token"
+      }
+    });
+    const child = await driveSuccessfulRun(ctx);
+    const request = child.writtenLines
+      .map((line) => JSON.parse(line))
+      .find((message) => message.method === "thread/start");
+    const server = request.params.config.mcp_servers.cctools_browser;
+
+    expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
+    expect(server.default_tools_approval_mode).toBe("approve");
+    expect(request.params.developerInstructions).toContain("复用该标签页");
+    expect(JSON.stringify(request.params.config)).not.toContain("browser_run_code_unsafe");
+  });
+
   it.each([
     ["failed", "provider failed"],
     ["interrupted", "Codex turn was interrupted"]

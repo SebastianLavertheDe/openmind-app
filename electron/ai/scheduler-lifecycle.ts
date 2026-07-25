@@ -4,6 +4,7 @@ import type { ProviderAdapter } from "./providers/types";
 import type { ProviderRegistry } from "./provider-registry";
 import { resolveCwd } from "./scheduler-paths";
 import type { SessionStore } from "./session-store";
+import type { BrowserAutomationConfig } from "./browser-evidence";
 
 export async function prewarmProviderSession(input: {
   projectRoot: string;
@@ -12,6 +13,7 @@ export async function prewarmProviderSession(input: {
   adapter: ProviderAdapter;
   provider: ProviderKind;
   resolveProviderModel(kind: ProviderKind): string;
+  browserAutomation: BrowserAutomationConfig;
 }, sessionId?: string): Promise<boolean> {
   if (!input.adapter?.prewarm) return false;
   let session: AiSession | null = null;
@@ -41,6 +43,7 @@ export async function prewarmProviderSession(input: {
     interactionMode,
     providerSessionId,
     providerModel: input.resolveProviderModel(input.provider),
+    browserAutomation: input.browserAutomation,
     images: []
   });
 }

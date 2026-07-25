@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { Archive, FolderOpen, MessageSquareText, RotateCcw } from "lucide-react";
-import type { AiSession, ProviderCapabilities, UserPreferences } from "@shared/contracts";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, RefreshCw, RotateCcw, Search, Server, Trash2, Wrench } from "lucide-react";
+import type { AiSession, BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
@@ -93,6 +93,220 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   );
 }
 
+export function SkillSettingsSection({
+  skills,
+  mcpServers,
+  refreshing,
+  onRefresh,
+  onCopy,
+  onOpenDirectory,
+  onOpenMcpSettings
+}: {
+  skills: SkillDefinition[];
+  mcpServers: McpServerDefinition[];
+  refreshing: boolean;
+  onRefresh(): void;
+  onCopy(skillId: string): void;
+  onOpenDirectory(path: string): void;
+  onOpenMcpSettings(): void;
+}) {
+  const [catalog, setCatalog] = useState<"skills" | "mcp">("skills");
+  const [query, setQuery] = useState("");
+  const [mcpQuery, setMcpQuery] = useState("");
+  const [group, setGroup] = useState("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const groups = useMemo(() => Array.from(new Set(skills.map(skillGroup))).sort((left, right) => left.localeCompare(right, "zh-CN")), [skills]);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    return skills
+      .filter((skill) => group === "all" || skillGroup(skill) === group)
+      .filter((skill) => !needle || `${skill.title} ${skill.id} ${skill.description} ${skillGroup(skill)}`.toLocaleLowerCase().includes(needle))
+      .sort((left, right) => skillGroup(left).localeCompare(skillGroup(right), "zh-CN") || left.title.localeCompare(right.title, "zh-CN") || left.id.localeCompare(right.id));
+  }, [group, query, skills]);
+  const filteredMcpServers = useMemo(() => {
+    const needle = mcpQuery.trim().toLocaleLowerCase();
+    if (!needle) return mcpServers;
+    return mcpServers.flatMap((server) => {
+      const serverText = `${server.title} ${server.id} ${server.description} ${server.backend} ${server.connection} ${server.providers.join(" ")}`.toLocaleLowerCase();
+      if (serverText.includes(needle)) return [server];
+      const tools = server.tools.filter((tool) => `${tool.title} ${tool.id} ${tool.description} ${tool.inputs.join(" ")} ${tool.outputs.join(" ")}`.toLocaleLowerCase().includes(needle));
+      return tools.length ? [{ ...server, tools }] : [];
+    });
+  }, [mcpQuery, mcpServers]);
+
+  const groupOptions = [
+    { value: "all", label: m.settings.skills.allGroups },
+    ...groups.map((value) => ({ value, label: value }))
+  ];
+
+  return (
+    <SettingsPanel
+      title={m.settings.skills.title}
+      scope={m.settings.skills.scope(skills.length, mcpServers.length)}
+      action={(
+        <button type="button" className="settings-subtle-action" disabled={refreshing} aria-busy={refreshing || undefined} onClick={onRefresh}>
+          <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden />
+          {refreshing ? m.settings.skills.refreshing : m.settings.skills.refresh}
+        </button>
+      )}
+    >
+      <div className="settings-capability-tabs" role="tablist" aria-label={m.settings.skills.catalogAria}>
+        <button type="button" role="tab" aria-selected={catalog === "skills"} onClick={() => setCatalog("skills")}>
+          <Package size={14} aria-hidden />{m.settings.skills.skillsTab}<span>{skills.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={catalog === "mcp"} onClick={() => setCatalog("mcp")}>
+          <Server size={14} aria-hidden />{m.settings.skills.mcpTab}<span>{mcpServers.length}</span>
+        </button>
+      </div>
+
+      {catalog === "skills" ? <>
+        <div className="settings-skill-toolbar">
+          <label className="settings-skill-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              aria-label={m.settings.skills.searchAria}
+              placeholder={m.settings.skills.searchPlaceholder}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          <Select
+            className="settings-skill-group"
+            size="rect"
+            ariaLabel={m.settings.skills.groupAria}
+            value={group}
+            options={groupOptions}
+            onChange={setGroup}
+          />
+        </div>
+
+        {filtered.length ? (
+        <div className="settings-skill-list" aria-label={m.settings.skills.title}>
+          {filtered.map((skill) => {
+            const expanded = expandedId === skill.id;
+            const title = skill.title || skill.id;
+            return (
+              <article className="settings-skill-item" data-expanded={expanded || undefined} key={skill.id}>
+                <button
+                  type="button"
+                  className="settings-skill-summary"
+                  aria-expanded={expanded}
+                  aria-label={m.settings.skills.detailAria(title)}
+                  onClick={() => setExpandedId((current) => current === skill.id ? null : skill.id)}
+                >
+                  <span className="settings-skill-icon" aria-hidden><Package size={16} /></span>
+                  <span className="settings-skill-copy">
+                    <span><strong>{title}</strong><code>/{skill.id}</code></span>
+                    <small>{skill.description}</small>
+                  </span>
+                  <span className="settings-skill-group-label">{skillGroup(skill)}</span>
+                  <ChevronDown className="settings-skill-chevron" size={15} aria-hidden />
+                </button>
+                {expanded ? (
+                  <div className="settings-skill-details">
+                    <dl>
+                      <SkillDetail label={m.settings.skills.cwd} value={skill.cwd || m.settings.skills.notConfigured} />
+                      <SkillDetail label={m.settings.skills.command} value={skill.command || m.settings.skills.notConfigured} />
+                      <SkillDetail label={m.settings.skills.envFile} value={skill.envFile || m.settings.skills.notConfigured} />
+                      <SkillDetail label={m.settings.skills.timeout} value={skill.timeoutMs ? formatSkillTimeout(skill.timeoutMs) : m.settings.skills.notConfigured} />
+                      <SkillDetail label={m.settings.skills.outputs} value={skill.outputArtifacts?.length ? skill.outputArtifacts.join("、") : m.settings.skills.notDeclared} />
+                    </dl>
+                    <div className="settings-skill-actions">
+                      <button type="button" aria-label={m.settings.skills.copyNamed(skill.id)} onClick={() => onCopy(skill.id)}><Copy size={13} aria-hidden />{m.settings.skills.copyInvocation}</button>
+                      <button type="button" aria-label={m.settings.skills.openNamed(title)} onClick={() => onOpenDirectory(skill.cwd)}><FolderOpen size={13} aria-hidden />{m.settings.skills.openDirectory}</button>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="settings-skill-empty" role="status">
+          <Package size={19} aria-hidden />
+          <div>
+            <strong>{skills.length ? m.settings.skills.noMatchTitle : m.settings.skills.emptyTitle}</strong>
+            <span>{skills.length ? m.settings.skills.noMatchDescription : m.settings.skills.emptyDescription}</span>
+          </div>
+        </div>
+        )}
+      </> : <>
+        <div className="settings-skill-toolbar settings-mcp-toolbar">
+          <label className="settings-skill-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="search"
+              value={mcpQuery}
+              aria-label={m.settings.skills.mcpSearchAria}
+              placeholder={m.settings.skills.mcpSearchPlaceholder}
+              onChange={(event) => setMcpQuery(event.target.value)}
+            />
+          </label>
+        </div>
+        {filteredMcpServers.length ? (
+          <div className="settings-mcp-list" aria-label={m.settings.skills.mcpListAria}>
+            {filteredMcpServers.map((server) => (
+              <article className="settings-mcp-server" key={server.id}>
+                <header className="settings-mcp-server-header">
+                  <span className="settings-skill-icon" aria-hidden><Server size={16} /></span>
+                  <span className="settings-mcp-identity">
+                    <span><strong>{server.title}</strong><code>{server.id}</code></span>
+                    <small>{server.description}</small>
+                  </span>
+                  <StatusBadge tone={server.status === "enabled" ? "success" : "warning"}>{m.settings.skills.mcpStatus[server.status]}</StatusBadge>
+                </header>
+                <div className="settings-mcp-details">
+                  <dl>
+                    <SkillDetail label={m.settings.skills.mcpBackend} value={server.backend} />
+                    <SkillDetail label={m.settings.skills.mcpTransport} value={server.transport} />
+                    <SkillDetail label={m.settings.skills.mcpConnection} value={server.connection} />
+                    <SkillDetail label={m.settings.skills.mcpProviders} value={server.providers.join("、")} />
+                  </dl>
+                  <p className="settings-mcp-diagnostic">{server.diagnostic}</p>
+                  <div className="settings-mcp-tools">
+                    <span className="settings-mcp-tools-title">{m.settings.skills.mcpTools(server.tools.length)}</span>
+                    {server.tools.map((tool) => (
+                      <section className="settings-mcp-tool" key={tool.id}>
+                        <Wrench size={15} aria-hidden />
+                        <div>
+                          <span><strong>{tool.title}</strong><code>{tool.id}</code></span>
+                          <p>{tool.description}</p>
+                          <dl>
+                            <SkillDetail label={m.settings.skills.mcpInputs} value={tool.inputs.join(" · ")} />
+                            <SkillDetail label={m.settings.skills.mcpOutputs} value={tool.outputs.join(" · ")} />
+                          </dl>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                  {server.settingsSection ? (
+                    <div className="settings-skill-actions">
+                      <button type="button" onClick={onOpenMcpSettings}><ExternalLink size={13} aria-hidden />{m.settings.skills.mcpOpenSettings}</button>
+                    </div>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="settings-skill-empty" role="status">
+            <Server size={19} aria-hidden />
+            <div>
+              <strong>{mcpServers.length ? m.settings.skills.mcpNoMatchTitle : m.settings.skills.mcpEmptyTitle}</strong>
+              <span>{mcpServers.length ? m.settings.skills.mcpNoMatchDescription : m.settings.skills.mcpEmptyDescription}</span>
+            </div>
+          </div>
+        )}
+      </>}
+    </SettingsPanel>
+  );
+}
+
+function SkillDetail({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd><code title={value}>{value}</code></dd></div>;
+}
+
 export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   return (
     <SettingsPanel title={m.settings.permissions.title} scope="运行规则">
@@ -105,6 +319,108 @@ export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferen
       <PreferenceRow title={m.settings.permissions.riskScanLabel} description={m.settings.permissions.riskScanDescription}>
         <ToggleSwitch checked={prefs.riskScanEnabled} label={m.settings.permissions.riskScanLabel} onChange={(checked) => void save({ riskScanEnabled: checked })} />
       </PreferenceRow>
+    </SettingsPanel>
+  );
+}
+
+export function BrowserSettingsSection({
+  prefs,
+  status,
+  savingToken,
+  save,
+  onSaveToken,
+  onClearToken,
+  onOpenExtensionDocs
+}: {
+  prefs: UserPreferences;
+  status: BrowserAutomationStatus | null;
+  savingToken: boolean;
+  save: SavePreferences;
+  onSaveToken(token: string): Promise<void>;
+  onClearToken(): Promise<void>;
+  onOpenExtensionDocs(): void;
+}) {
+  const [token, setToken] = useState("");
+  const [evidenceDir, setEvidenceDir] = useState(prefs.browserEvidenceDir);
+  useEffect(() => setEvidenceDir(prefs.browserEvidenceDir), [prefs.browserEvidenceDir]);
+  const ready = Boolean(status?.ready);
+
+  const submitToken = async () => {
+    if (!token.trim() || savingToken) return;
+    try {
+      await onSaveToken(token);
+      setToken("");
+    } catch { /* SettingsPage 已显示失败反馈；保留输入便于重试。 */ }
+  };
+
+  const saveEvidenceDir = () => {
+    const next = evidenceDir.trim().replaceAll("\\", "/");
+    if (next && next !== prefs.browserEvidenceDir) void save({ browserEvidenceDir: next });
+    else setEvidenceDir(prefs.browserEvidenceDir);
+  };
+
+  return (
+    <SettingsPanel title={m.settings.browser.title} scope={m.settings.browser.scope}>
+      <div className="settings-browser-backend">
+        <span className="settings-browser-icon" aria-hidden><Globe size={18} /></span>
+        <div>
+          <strong>{m.settings.browser.backend}</strong>
+          <span>Microsoft Playwright MCP · {m.settings.browser.extension}</span>
+          <small>{status?.diagnostic || m.settings.browser.loadFailed}</small>
+        </div>
+        <StatusBadge tone={ready ? "success" : "warning"}>{ready ? m.settings.browser.ready : m.settings.browser.needsSetup}</StatusBadge>
+      </div>
+
+      <PreferenceRow title={m.settings.browser.enabled} description={m.settings.browser.enabledDescription}>
+        <ToggleSwitch checked={prefs.browserAutomationEnabled} label={m.settings.browser.enabled} onChange={(checked) => void save({ browserAutomationEnabled: checked })} />
+      </PreferenceRow>
+      <PreferenceRow title={m.settings.browser.reuseTabs} description={m.settings.browser.reuseTabsDescription}>
+        <ToggleSwitch checked={prefs.browserReuseExistingTabs} label={m.settings.browser.reuseTabs} onChange={(checked) => void save({ browserReuseExistingTabs: checked })} />
+      </PreferenceRow>
+      <PreferenceRow title={m.settings.browser.evidenceDir} description={m.settings.browser.evidenceDirDescription}>
+        <input
+          className="settings-browser-path-input"
+          aria-label={m.settings.browser.evidenceDir}
+          value={evidenceDir}
+          onChange={(event) => setEvidenceDir(event.target.value)}
+          onBlur={saveEvidenceDir}
+          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+        />
+      </PreferenceRow>
+
+      <div className="settings-browser-token">
+        <div className="settings-browser-token-copy">
+          <span className="settings-browser-token-title"><KeyRound size={14} aria-hidden /><strong>{m.settings.browser.token}</strong></span>
+          <p>{m.settings.browser.tokenDescription}</p>
+          <small>{status?.extensionTokenConfigured ? m.settings.browser.configured : m.settings.browser.notConfigured}</small>
+        </div>
+        <div className="settings-browser-token-controls">
+          <input
+            type="password"
+            autoComplete="off"
+            value={token}
+            aria-label={m.settings.browser.token}
+            placeholder={m.settings.browser.tokenPlaceholder}
+            onChange={(event) => setToken(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") void submitToken(); }}
+          />
+          <button type="button" disabled={!token.trim() || savingToken || status?.secureStorageAvailable === false} onClick={() => void submitToken()}>
+            <KeyRound size={13} aria-hidden />{status?.extensionTokenConfigured ? m.settings.browser.replaceToken : m.settings.browser.saveToken}
+          </button>
+          {status?.extensionTokenConfigured ? (
+            <button type="button" className="settings-browser-clear" disabled={savingToken} onClick={() => void onClearToken()}>
+              <Trash2 size={13} aria-hidden />{m.settings.browser.clearToken}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="settings-browser-boundary" role="note">
+        <p>{m.settings.browser.boundary}</p>
+        <button type="button" className="settings-subtle-action" onClick={onOpenExtensionDocs}>
+          <ExternalLink size={13} aria-hidden />{m.settings.browser.installExtension}
+        </button>
+      </div>
     </SettingsPanel>
   );
 }
@@ -254,6 +570,16 @@ function formatSessionDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+function skillGroup(skill: SkillDefinition): string {
+  return skill.group?.trim() || m.settings.skills.fallbackGroup;
+}
+
+function formatSkillTimeout(value: number): string {
+  if (value < 60_000) return `${Math.round(value / 1000)} 秒`;
+  const minutes = value / 60_000;
+  return Number.isInteger(minutes) ? `${minutes} 分钟` : `${minutes.toFixed(1)} 分钟`;
 }
 
 function formatInterval(value: number): string {

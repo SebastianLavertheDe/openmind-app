@@ -134,6 +134,11 @@ export function ChatComposer() {
     el.style.height = `${Math.min(230, el.scrollHeight)}px`;
   }, [ai.draft]);
   useEffect(() => {
+    if (!ai.composerFocusRequest) return;
+    const frame = window.requestAnimationFrame(() => textareaRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [ai.composerFocusRequest]);
+  useEffect(() => {
     if (trigger?.kind !== "mention" || !trigger.query) {
       setFileResults([]);
       setFileSearchMeta({ indexedCount: 0, truncated: false });
@@ -708,15 +713,29 @@ function ContextReferenceChip({
         summary={<>{context.kind === "file" ? <FilePlus2 size={12} /> : <Quote size={12} />}<span title={context.path || context.label}>{context.label}</span></>}
       >
         <div>
-          <strong>{context.kind}</strong>
+          <strong>{context.kind === "selection" ? "引用内容" : context.kind}</strong>
           <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
+          {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
           <footer>
             <button data-motion="icon" disabled={index === 0} onClick={() => ai.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
             <button data-motion="icon" disabled={index === total - 1} onClick={() => ai.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
-            <button data-motion="icon" onClick={() => ai.removeContext(context.id)}><X size={11} />{m.ai.context.remove}</button>
           </footer>
         </div>
       </AnimatedDisclosure>
+      <button
+        type="button"
+        className="context-chip-remove"
+        data-motion="icon"
+        aria-label={`删除引用：${context.label}`}
+        title="删除此引用"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          ai.removeContext(context.id);
+        }}
+      >
+        <X size={12} aria-hidden />
+      </button>
     </div>
   );
 }

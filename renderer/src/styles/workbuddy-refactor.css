@@ -3193,6 +3193,11 @@ select:focus-visible,
   padding: 0 0 72px;
 }
 
+.ai-file-preview-body > .content-selection-surface > .reader-markdown.file-reader,
+.ai-file-preview-body > .content-selection-surface > .reader-body.file-reader {
+  padding: 0 0 72px;
+}
+
 @media (max-width: 900px) {
   .reader-markdown.file-reader,
   .reader-body.file-reader {
@@ -3202,6 +3207,11 @@ select:focus-visible,
 
   .ai-file-preview-body > .reader-markdown.file-reader,
   .ai-file-preview-body > .reader-body.file-reader {
+    padding-inline: 0;
+  }
+
+  .ai-file-preview-body > .content-selection-surface > .reader-markdown.file-reader,
+  .ai-file-preview-body > .content-selection-surface > .reader-body.file-reader {
     padding-inline: 0;
   }
 }
@@ -3214,6 +3224,11 @@ select:focus-visible,
 
   .ai-file-preview-body > .reader-markdown.file-reader,
   .ai-file-preview-body > .reader-body.file-reader {
+    padding: 0 0 64px;
+  }
+
+  .ai-file-preview-body > .content-selection-surface > .reader-markdown.file-reader,
+  .ai-file-preview-body > .content-selection-surface > .reader-body.file-reader {
     padding: 0 0 64px;
   }
 }

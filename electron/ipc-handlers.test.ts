@@ -41,9 +41,9 @@ vi.mock(import("electron"), async (importOriginal) => {
 
 describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(79);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(79);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(79);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(83);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(83);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(83);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -84,6 +84,25 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     ensureAiWorker: () => makeAiSpy() as never,
     ensureMymindFileSearch: () => ({ search: async () => [] }) as never,
     restartAiWorker: vi.fn(),
+    getBrowserAutomationStatus: () => ({
+      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      secureStorageAvailable: true, packageAvailable: true, ready: false,
+      diagnostic: "AI 写作取证已关闭。"
+    }),
+    getMcpServers: () => [],
+    saveBrowserExtensionToken: () => ({
+      backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: true,
+      secureStorageAvailable: true, packageAvailable: true, ready: true,
+      diagnostic: "已就绪"
+    }),
+    clearBrowserExtensionToken: () => ({
+      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
+      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      secureStorageAvailable: true, packageAvailable: true, ready: false,
+      diagnostic: "未配置"
+    }),
     globalSearch: async () => [],
     localDate: () => "20260708",
     ...overrides
@@ -96,6 +115,17 @@ describe("ipc handlers", () => {
     const registryChannels = IPC_INVOKE_REGISTRY.map((item) => item.channel).sort();
     const handlerChannels = entries.map((item) => item.channel).sort();
     expect(handlerChannels).toEqual(registryChannels);
+  });
+
+  it("validates and returns the MCP capability catalog", () => {
+    const catalog = [{
+      id: "server", title: "Server", description: "desc", backend: "backend", transport: "stdio",
+      connection: "local", enabled: true, available: true, status: "enabled", diagnostic: "ready",
+      providers: ["Codex"], settingsSection: null,
+      tools: [{ id: "tool", title: "Tool", description: "desc", inputs: ["url"], outputs: ["PNG"] }]
+    }];
+    const result = invokeHandler(makeCtx({ getMcpServers: () => catalog }), IPC_METHOD_CHANNELS.getMcpServers);
+    expect(result).toEqual(catalog);
   });
 });
 

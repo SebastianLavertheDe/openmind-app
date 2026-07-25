@@ -7,6 +7,7 @@ import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { ProviderAdapter, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
 import { killProcessTree, parseWslPath, spawnInDirectory, spawnNativeInDirectory, toWslPath } from "../process-utils";
+import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser-evidence";
 
 interface RpcMessage {
   id?: string | number;
@@ -59,20 +60,28 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       rpc.notify("initialized", {});
       const cwd = providerCwd(context);
       const sandbox = context.session.permissionProfile === "read-only" ? "read-only" : "workspace-write";
+      const browserConfig = buildCodexBrowserConfig(context.provider, context.cwd, context.browserAutomation);
+      const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
+      const threadBrowserOptions = {
+        ...(browserConfig ? { config: browserConfig } : {}),
+        ...(browserInstructions ? { developerInstructions: browserInstructions } : {})
+      };
       const threadResult = context.session.providerSessionId
         ? await rpc.request("thread/resume", {
           threadId: context.session.providerSessionId,
           cwd,
           approvalPolicy: "on-request",
           approvalsReviewer: "user",
-          sandbox
+          sandbox,
+          ...threadBrowserOptions
         })
         : await rpc.request("thread/start", {
           cwd,
           approvalPolicy: "on-request",
           approvalsReviewer: "user",
           sandbox,
-          serviceName: "cctools-desktop"
+          serviceName: "cctools-desktop",
+          ...threadBrowserOptions
         });
       const thread = threadResult.thread as { id?: string } | undefined;
       if (!thread?.id) throw new Error("Codex App Server 未返回 thread id。");

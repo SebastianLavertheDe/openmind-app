@@ -7,6 +7,11 @@ import { decodeProcessOutput, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { Options, SDKUserMessage, SpawnOptions, SpawnedProcess, WarmQuery } from "@anthropic-ai/claude-agent-sdk";
+import {
+  CLAUDE_BROWSER_EVIDENCE_TOOL,
+  browserEvidenceInstructions,
+  buildBrowserMcpProcess
+} from "../browser-evidence";
 
 /** 有图片附件时，把 prompt 转成 SDK 多模态 user message 流（image blocks + text block）。 */
 async function* claudeImageMessageStream(
@@ -57,6 +62,9 @@ export function decideClaudePermission(
   blockedPath?: string
 ): ClaudePermissionDecision {
   if (!runContext) return { behavior: "deny", message: "Claude Code 预热进程尚未绑定到运行。" };
+  if (toolName === CLAUDE_BROWSER_EVIDENCE_TOOL && runContext.browserAutomation?.enabled) {
+    return { behavior: "allow", updatedInput: input };
+  }
   if (runContext.session.permissionProfile === "read-only" && /write|edit|bash|notebook/i.test(toolName)) {
     return { behavior: "deny", message: "当前会话为只读模式。" };
   }
@@ -141,7 +149,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
             permissionProfile: context.permissionProfile,
             interactionMode: context.interactionMode || "default",
             providerSessionId: context.providerSessionId,
-            providerModel: context.providerModel
+            providerModel: context.providerModel,
+            browserAutomation: context.browserAutomation
           },
           () => slot.activeContext,
           captureStderr
@@ -344,6 +353,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       interactionMode: ProviderRunContext["session"]["interactionMode"];
       providerSessionId: string | null;
       providerModel: string;
+      browserAutomation: ProviderRunContext["browserAutomation"];
     },
     getRunContext: ClaudeRunContextGetter,
     captureStderr: (text: string) => void
@@ -351,6 +361,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const nativeExecutable = context.provider.runtime === "native" && process.platform === "win32"
       ? resolveClaudeExecutable()
       : null;
+    const browserServer = buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
+    const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
     return {
       ...(context.providerModel && context.providerModel !== AUTO_MODEL ? { model: context.providerModel } : {}),
       cwd: context.cwd,
@@ -361,7 +373,19 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       settingSources: [...CLAUDE_SETTING_SOURCES],
       skills: CLAUDE_SKILL_SELECTION,
       tools: CLAUDE_WORKBENCH_TOOLS,
-      systemPrompt: { type: "preset", preset: "claude_code" },
+      systemPrompt: { type: "preset", preset: "claude_code", ...(browserInstructions ? { append: browserInstructions } : {}) },
+      ...(browserServer ? {
+        mcpServers: {
+          cctools_browser: {
+            type: "stdio",
+            command: browserServer.command,
+            args: browserServer.args,
+            env: browserServer.env,
+            timeout: 90_000,
+            alwaysLoad: true
+          }
+        }
+      } : {}),
       sandbox: process.platform === "win32" && context.provider.runtime === "native"
         ? { enabled: false }
         : { enabled: true, allowUnsandboxedCommands: false },
@@ -418,6 +442,7 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
   interactionMode: ProviderRunContext["session"]["interactionMode"];
   providerSessionId: string | null;
   providerModel: string;
+  browserAutomation: ProviderRunContext["browserAutomation"];
 } {
   return {
     provider: context.provider,
@@ -425,7 +450,8 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
     permissionProfile: context.session.permissionProfile,
     interactionMode: context.session.interactionMode || "default",
     providerSessionId: context.session.providerSessionId,
-    providerModel: context.providerModel
+    providerModel: context.providerModel,
+    browserAutomation: context.browserAutomation
   };
 }
 

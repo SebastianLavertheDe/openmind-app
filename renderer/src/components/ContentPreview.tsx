@@ -1,5 +1,6 @@
 import type { ContentRecord } from "@shared/contracts";
 import { MarkdownReader, type MarkdownReaderLayout } from "./MarkdownReader";
+import { ContentSelectionQuote } from "./ContentSelectionQuote";
 
 export function ContentPreview({ content, layout = "article" }: { content: ContentRecord; layout?: MarkdownReaderLayout }) {
   const raw = content.content || "";
@@ -7,13 +8,13 @@ export function ContentPreview({ content, layout = "article" }: { content: Conte
   const isHtml = extension.endsWith(".html") || /<html|<!doctype/i.test(raw.slice(0, 500));
   const layoutClassName = layout === "file" ? " file-reader" : "";
 
-  if (isHtml) {
-    return <iframe title="HTML 内容预览" className={`html-preview${layoutClassName}`} sandbox="" srcDoc={raw} />;
-  }
-  if (isPlainText(extension)) {
-    return <article className={`reader-markdown reader-body${layoutClassName}`}><pre className="plain-text-fallback">{raw}</pre></article>;
-  }
-  return <MarkdownReader content={raw} layout={layout} />;
+  const preview = isHtml
+    ? <iframe title="HTML 内容预览" className={`html-preview${layoutClassName}`} sandbox="" srcDoc={raw} />
+    : isPlainText(extension)
+      ? <article className={`reader-markdown reader-body${layoutClassName}`}><pre className="plain-text-fallback">{raw}</pre></article>
+      : <MarkdownReader content={raw} layout={layout} />;
+
+  return <ContentSelectionQuote content={content}>{preview}</ContentSelectionQuote>;
 }
 
 const PLAIN_TEXT_EXTENSIONS = [

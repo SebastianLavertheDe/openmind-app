@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
+import { ChatComposer } from "../ai-console/composer";
 import { DailyBriefPage } from "./DailyBriefPage";
 
 const snapshot = { projectRoot: "/repo", providers: [], sessions: [], runs: [], pendingApprovals: [] };
@@ -40,5 +41,34 @@ describe("DailyBriefPage", () => {
 
     await waitFor(() => expect(writeContent).toHaveBeenCalledWith(path, "# 修改后的简报"));
     expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active");
+  });
+
+  it("quotes the full preview selection into the AI composer and focuses the prompt", async () => {
+    render(
+      <AiProvider initial={snapshot}>
+        <DailyBriefPage go={vi.fn()} initialDate="20260630" />
+        <ChatComposer />
+      </AiProvider>
+    );
+
+    const selectedText = await screen.findByText("值得关注的内容。");
+    const textNode = selectedText.firstChild;
+    expect(textNode).toBeTruthy();
+    const range = document.createRange();
+    range.selectNodeContents(textNode!);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.pointerUp(selectedText);
+
+    const quote = await screen.findByRole("button", { name: "引用到 AI" });
+    fireEvent.pointerDown(quote);
+    fireEvent.click(quote);
+
+    const label = "引用 · 2026-06-30 每日简报 · 1 行";
+    const labelText = await screen.findByText(label);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "AI 消息" })));
+    fireEvent.click(labelText.closest("button")!);
+    expect(document.querySelector(".context-selection-preview")?.textContent).toBe("值得关注的内容。");
   });
 });

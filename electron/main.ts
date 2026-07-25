@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
@@ -17,6 +17,12 @@ import { messages } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { WorkflowAutomationCoordinator } from "./workflow-automation";
 import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
+import {
+  BrowserExtensionTokenStore,
+  browserAutomationStatus,
+  resolveBrowserExtensionToken
+} from "./browser-automation-settings";
+import { buildMcpServerCatalog } from "./ai/mcp-catalog";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
@@ -29,6 +35,40 @@ let productService: ProductService | null = null;
 let productServiceRoot = "";
 let mymindFileSearch: MymindFileSearch | null = null;
 let mymindFileSearchRoot = "";
+let browserTokenStore: BrowserExtensionTokenStore | null = null;
+
+function ensureBrowserTokenStore(): BrowserExtensionTokenStore {
+  browserTokenStore ||= new BrowserExtensionTokenStore(
+    path.join(app.getPath("userData"), "browser-extension-token.bin"),
+    safeStorage
+  );
+  return browserTokenStore;
+}
+
+function playwrightMcpAvailable(): boolean {
+  try { require.resolve("@playwright/mcp/package.json"); return true; }
+  catch { return false; }
+}
+
+function getBrowserAutomationStatus() {
+  return browserAutomationStatus(settings.getPreferences(), ensureBrowserTokenStore(), playwrightMcpAvailable());
+}
+
+function getMcpServers() {
+  return buildMcpServerCatalog(getBrowserAutomationStatus());
+}
+
+function saveBrowserExtensionToken(token: string) {
+  ensureBrowserTokenStore().write(token);
+  restartAiWorker();
+  return getBrowserAutomationStatus();
+}
+
+function clearBrowserExtensionToken() {
+  ensureBrowserTokenStore().clear();
+  restartAiWorker();
+  return getBrowserAutomationStatus();
+}
 
 function sendToRenderer(channel: string, payload: unknown): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -43,8 +83,18 @@ class AiWorkerClient {
   private readonly workflowAutomation: WorkflowAutomationCoordinator;
 
   constructor(projectRoot: string) {
+    const browserPreferences = settings.getPreferences();
+    const extensionToken = resolveBrowserExtensionToken(ensureBrowserTokenStore());
     this.worker = utilityProcess.fork(path.join(__dirname, "ai", "worker.js"), [], {
-      env: { ...process.env, CCTOOLS_REPO_ROOT: projectRoot, CCTOOLS_USER_DATA_DIR: app.getPath("userData") },
+      env: {
+        ...process.env,
+        CCTOOLS_REPO_ROOT: projectRoot,
+        CCTOOLS_USER_DATA_DIR: app.getPath("userData"),
+        CCTOOLS_BROWSER_AUTOMATION_ENABLED: String(browserPreferences.browserAutomationEnabled),
+        CCTOOLS_BROWSER_REUSE_EXISTING_TABS: String(browserPreferences.browserReuseExistingTabs),
+        CCTOOLS_BROWSER_EVIDENCE_DIR: browserPreferences.browserEvidenceDir,
+        ...(extensionToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: extensionToken } : {})
+      },
       serviceName: "CC Tools AI Scheduler"
     });
     this.workflowAutomation = new WorkflowAutomationCoordinator(
@@ -181,6 +231,10 @@ function registerIpc(): void {
       ensureAiWorker,
       ensureMymindFileSearch,
       restartAiWorker,
+      getBrowserAutomationStatus,
+      getMcpServers,
+      saveBrowserExtensionToken,
+      clearBrowserExtensionToken,
       globalSearch: runGlobalSearch,
       localDate
     },

@@ -1,5 +1,6 @@
 import { RunScheduler } from "./scheduler";
 import { AUTO_MODEL } from "../../shared/model-catalog";
+import { browserAutomationConfigFromEnv } from "./browser-evidence";
 
 type WorkerRequest = { id: string; method: string; args: unknown[] };
 const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest }) => void): void; postMessage(message: unknown): void } }).parentPort;
@@ -12,7 +13,8 @@ const scheduler = new RunScheduler(
   projectRoot,
   (payload) => parentPort.postMessage({ type: "push", payload }),
   // 模型始终交给 Codex / Claude Code 自己的配置决定。保留 scheduler 的注入点仅供单元测试。
-  () => AUTO_MODEL
+  () => AUTO_MODEL,
+  browserAutomationConfigFromEnv()
 );
 
 // 启动时异步探测一次 provider（本机 + WSL），完成后由 scheduler 推送 snapshot。

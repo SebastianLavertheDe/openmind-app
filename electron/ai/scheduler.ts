@@ -36,6 +36,7 @@ import type { SkillDefinition } from "../../shared/contracts";
 import { prewarmProviderSession, recoverInterruptedRuns, updateSessionStatus } from "./scheduler-lifecycle";
 import { composeNativeSkillProviderPrompt, composeNativeSkillTaskPrompt, composePrompt, titleFromPrompt } from "./scheduler-prompts";
 import { reassembleEvents } from "./event-chunking";
+import { browserEvidenceInstructions, type BrowserAutomationConfig } from "./browser-evidence";
 
 interface ActiveRun {
   run: AiRun;
@@ -57,13 +58,16 @@ export class RunScheduler {
   private readonly adapters = Object.fromEntries(this.providers.map((definition) => [definition.kind, definition.adapter])) as Record<string, ProviderAdapter>;
   private readonly maxConcurrentRuns = 3;
   private readonly resolveProviderModel: (kind: ProviderKind) => string;
+  private readonly browserAutomation: BrowserAutomationConfig;
 
   constructor(
     readonly projectRoot: string,
     private publish: (message: unknown) => void,
-    resolveProviderModel?: (kind: ProviderKind) => string
+    resolveProviderModel?: (kind: ProviderKind) => string,
+    browserAutomation?: BrowserAutomationConfig
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
+    this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: ".cctools/browser-evidence", extensionToken: null };
     this.store = new SessionStore(projectRoot);
     this.registry = new ProviderRegistry(projectRoot);
     this.legacyChanges = new LegacyChangeManager(projectRoot);
@@ -119,7 +123,7 @@ export class RunScheduler {
   /** prewarm Claude（兼容 worker RPC 与既有测试）；通用 prewarm 按 adapter 能力触发（新增 provider 无需改）。 */
   async prewarmClaude(sessionId?: string): Promise<boolean> { return this.prewarm("claude", sessionId); }
   async prewarm(provider: ProviderKind, sessionId?: string): Promise<boolean> {
-    return prewarmProviderSession({ projectRoot: this.projectRoot, store: this.store, registry: this.registry, adapter: this.adapters[provider], provider, resolveProviderModel: this.resolveProviderModel }, sessionId);
+    return prewarmProviderSession({ projectRoot: this.projectRoot, store: this.store, registry: this.registry, adapter: this.adapters[provider], provider, resolveProviderModel: this.resolveProviderModel, browserAutomation: this.browserAutomation }, sessionId);
   }
 
   startSkill(skillId: string, date?: string): boolean { return this.manualSkills.startSkill(skillId, date); }
@@ -308,9 +312,11 @@ export class RunScheduler {
       const skillInvocation = parseSkillSlashInvocation(run.prompt, this.skillTools.listDefinitions());
       const contextState = this.store.getContextState(run.sessionId);
       const baseProviderPrompt = skillInvocation ? composeNativeSkillProviderPrompt(run, skillInvocation) : composePrompt(run);
+      const evidenceInstructions = browserEvidenceInstructions(this.browserAutomation);
+      const browserAwarePrompt = evidenceInstructions ? `${baseProviderPrompt}\n\n${evidenceInstructions}` : baseProviderPrompt;
       const providerPrompt = session.providerSessionId
-        ? baseProviderPrompt
-        : withRecoveredHistory(baseProviderPrompt, contextState, run.id);
+        ? browserAwarePrompt
+        : withRecoveredHistory(browserAwarePrompt, contextState, run.id);
       const prompt = this.adapters[session.provider].needsTurnContext && run.turnContext
         ? withTurnContext(providerPrompt, run.turnContext)
         : providerPrompt;
@@ -354,6 +360,7 @@ export class RunScheduler {
           }
           : null,
         providerModel: this.resolveProviderModel(session.provider),
+        browserAutomation: this.browserAutomation,
         images: turnImages
       });
       try {

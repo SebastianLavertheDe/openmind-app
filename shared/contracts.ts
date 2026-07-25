@@ -670,6 +670,34 @@ export interface SkillDefinition {
   timeoutMs?: number;
 }
 
+export const McpToolDefinitionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string(),
+  inputs: z.array(z.string()),
+  outputs: z.array(z.string())
+});
+export type McpToolDefinition = z.infer<typeof McpToolDefinitionSchema>;
+
+export const McpServerDefinitionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string(),
+  backend: z.string().min(1),
+  transport: z.enum(["stdio", "http"]),
+  connection: z.string(),
+  enabled: z.boolean(),
+  available: z.boolean(),
+  status: z.enum(["enabled", "disabled", "unavailable"]),
+  diagnostic: z.string(),
+  providers: z.array(z.string()),
+  settingsSection: z.enum(["browser"]).nullable().default(null),
+  tools: z.array(McpToolDefinitionSchema)
+});
+export type McpServerDefinition = z.infer<typeof McpServerDefinitionSchema>;
+
+export const McpServerCatalogSchema = z.array(McpServerDefinitionSchema);
+
 export interface ContentEntry { path: string; name?: string; title?: string; kind?: string; type?: string; size?: number; modifiedAt?: string; }
 export interface ContentRecord { path: string; name?: string; content?: string; ext?: string; extension?: string; truncated?: boolean; }
 export const CreativeStageSchema = z.enum(["today", "drafting", "review", "ready", "published", "archived"]);
@@ -890,6 +918,12 @@ export const UserPreferencesSchema = z.object({
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("edit"),
   defaultWorkDir: z.string().default(""),
   notesDir: z.string().default("mymind"),
+  /** AI 写作时允许通过 Playwright MCP 从已登录的 Chrome 获取原文证据截图。 */
+  browserAutomationEnabled: z.boolean().default(false),
+  /** URL 已在扩展授权的 Chrome 标签页中打开时，优先复用并在完成后恢复原标签。 */
+  browserReuseExistingTabs: z.boolean().default(true),
+  /** 浏览器证据截图在工作区内的持久化目录。 */
+  browserEvidenceDir: z.string().min(1).max(4096).default(".cctools/browser-evidence"),
   destructiveOpsRequireApproval: z.boolean().default(true),
   riskScanEnabled: z.boolean().default(true),
   defaultPlatform: z.string().default("公众号"),
@@ -918,6 +952,21 @@ export const UserPreferencesSchema = z.object({
   workflowAutoBriefOnSourceComplete: z.boolean().default(false)
 });
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;
+
+export const BrowserAutomationStatusSchema = z.object({
+  backend: z.literal("playwright-mcp"),
+  enabled: z.boolean(),
+  reuseExistingTabs: z.boolean(),
+  evidenceDir: z.string(),
+  extensionTokenConfigured: z.boolean(),
+  secureStorageAvailable: z.boolean(),
+  packageAvailable: z.boolean(),
+  ready: z.boolean(),
+  diagnostic: z.string()
+});
+export type BrowserAutomationStatus = z.infer<typeof BrowserAutomationStatusSchema>;
+
+export const BrowserExtensionTokenSchema = z.string().trim().min(1).max(4096);
 
 export const EnvironmentDiagnosticSchema = z.object({
   id: z.string(),
@@ -1019,6 +1068,10 @@ export interface DesktopApi {
   getPreferences(): Promise<UserPreferences>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;
   resetPreferences(section?: string): Promise<UserPreferences>;
+  getBrowserAutomationStatus(): Promise<BrowserAutomationStatus>;
+  getMcpServers(): Promise<McpServerDefinition[]>;
+  saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
+  clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
   importPreferences(path: string): Promise<PreferencesImportResult>;
   getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostic[]>;
   rebuildContentIndex(): Promise<ContentIndexMaintenance>;
