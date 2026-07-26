@@ -18,6 +18,19 @@ afterEach(() => {
 });
 
 describe("SessionStore", () => {
+  it("keeps session order anchored to creation when archiving or replying", () => {
+    const store = new SessionStore(createRoot());
+    let older = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较早会话", permissionProfile: "edit" });
+    let newer = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较新会话", permissionProfile: "edit" });
+    older = store.updateSession(older.id, { createdAt: "2026-01-01T00:00:00.000Z" });
+    newer = store.updateSession(newer.id, { createdAt: "2026-01-02T00:00:00.000Z" });
+
+    store.updateSession(older.id, { archived: true });
+    store.createRun(older, "继续回复较早会话", []);
+
+    expect(store.listSessions().map((item) => item.id)).toEqual([newer.id, older.id]);
+  });
+
   it("persists sessions only when explicitly created and records semantic events", async () => {
     const root = createRoot();
     const store = new SessionStore(root);

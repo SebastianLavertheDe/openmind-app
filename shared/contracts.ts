@@ -999,7 +999,8 @@ export type PreferencesImportResult = z.infer<typeof PreferencesImportResultSche
  * human-facing diagnostic label and must not be parsed for product behavior.
  */
 export const AppEnvironmentSchema = z.object({
-  mode: z.enum(["desktop", "preview"])
+  mode: z.enum(["desktop", "preview"]),
+  platform: z.enum(["win32", "darwin", "linux", "web"])
 });
 export type AppEnvironment = z.infer<typeof AppEnvironmentSchema>;
 

@@ -415,6 +415,7 @@
 .pane-head h2 {
   margin: 0 0 3px;
   font-size: 17px;
+  font-weight: 400;
 }
 
 .rule-list {
@@ -471,6 +472,7 @@
 .rule-copy strong {
   color: var(--text-dim);
   font-size: 13px;
+  font-weight: 400;
 }
 
 .rule-copy small {
@@ -512,7 +514,7 @@
 
 .rule-detail > header h1 {
   margin: 3px 0 6px;
-  font: 720 26px/1.2 var(--font-display);
+  font: 400 26px/1.2 var(--font-display);
 }
 
 .rule-detail > header p {
@@ -571,6 +573,7 @@
 .rule-section h2 {
   margin: 0 0 10px;
   font-size: 14px;
+  font-weight: 400;
 }
 
 .cron-row {
@@ -632,13 +635,17 @@
   background: var(--accent-tint);
   color: var(--accent-fg);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .step strong,
 .step small {
   display: block;
   min-width: 0;
+}
+
+.step strong {
+  font-weight: 400;
 }
 
 .step small {

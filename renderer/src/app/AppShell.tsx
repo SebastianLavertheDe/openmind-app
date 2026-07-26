@@ -53,6 +53,7 @@ export function AppShell({
   const settingsMode = page === "settings";
   const showSidebar = page !== "ai" && !settingsMode;
   const previewMode = environment.mode === "preview";
+  const windowsMica = environment.mode === "desktop" && environment.platform === "win32";
   const responsiveLayout = useResponsiveLayout();
   const reportComposition = useResponsiveCompositionReporter();
   const compactShell = responsiveLayout.shell === "drawer";
@@ -66,6 +67,13 @@ export function AppShell({
   useEffect(() => {
     if (!compactShell) setMobileNavOpen(false);
   }, [compactShell]);
+  useLayoutEffect(() => {
+    if (!windowsMica) return;
+    document.documentElement.dataset.windowChrome = "mica";
+    return () => {
+      if (document.documentElement.dataset.windowChrome === "mica") delete document.documentElement.dataset.windowChrome;
+    };
+  }, [windowsMica]);
   useModalFocusScope({ open: compactShell && mobileNavOpen, containerRef: navRef, triggerRef: navTriggerRef, onDismiss: closeMobileNav, layer: "drawer" });
   useLayoutEffect(() => {
     const shell = shellRef.current;
@@ -142,9 +150,10 @@ export function AppShell({
   return (
     <div
       ref={shellRef}
-      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}`}
+      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
       style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
     >
+      {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
       {!settingsMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
       {!settingsMode ? <aside
         id="primary-navigation"

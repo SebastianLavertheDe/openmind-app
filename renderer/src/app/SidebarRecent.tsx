@@ -37,7 +37,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
   const recent = useMemo(() =>
     [...ai.snapshot.sessions]
       .filter((session) => !session.archived)
-      .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt)),
+      .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
     [ai.snapshot.sessions]
   );
   const pendingSessionIds = useMemo(
@@ -111,7 +111,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                   <span className="nav-recent-item-main">
                     <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
                     <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>
-                      {waitingApproval ? m.ai.status.session.waitingApproval : relativeTime(session.updatedAt)}
+                      {waitingApproval ? m.ai.status.session.waitingApproval : relativeTime(session.createdAt)}
                     </span>
                   </span>
                 </button>

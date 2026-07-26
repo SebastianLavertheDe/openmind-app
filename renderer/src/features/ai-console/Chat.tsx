@@ -553,7 +553,7 @@ function EmptyChat({ onPick }: { onPick?: (prompt: string) => void }) {
       <div className="chat-empty-icon"><Bot size={22} aria-hidden /></div>
       <h3>{m.ai.chat.emptyTitle}</h3>
       <p>{m.ai.chat.emptyBody}</p>
-      {/* P1-CHAT-1: 3-4 张可点击示例 prompt 卡片（参考 ChatGPT 空状态） */}
+      {/* P1-CHAT-1: 与资料、简报、创作和自动化对应的快捷任务 */}
       <div className="chat-empty-prompts">
         {prompts.map((prompt) => (
           <button

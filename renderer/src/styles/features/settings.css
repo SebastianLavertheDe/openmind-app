@@ -1277,3 +1277,9 @@
     padding-inline: 18px;
   }
 }
+
+/* Settings use spacing, color and scale for hierarchy; keep every label at regular weight. */
+.settings-page,
+.settings-page * {
+  font-weight: 400 !important;
+}

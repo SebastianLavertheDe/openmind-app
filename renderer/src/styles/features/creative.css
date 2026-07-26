@@ -242,6 +242,7 @@
 .stream-date-file strong {
   color: var(--text-dim);
   font-size: 13px;
+  font-weight: 400;
 }
 
 .stream-date-file small {
@@ -257,6 +258,7 @@
   background: var(--panel-2);
   color: var(--muted);
   font-size: var(--fs-xs);
+  font-weight: 400;
   text-align: center;
 }
 

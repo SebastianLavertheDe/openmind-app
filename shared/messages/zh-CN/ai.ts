@@ -63,21 +63,21 @@ export const aiMessages = {
     transcriptLabel: "对话消息",
     newEventsJump: (unread: number) => `${unread} 条新事件 · `,
     jumpToBottom: "回到底部",
-    currentProject: "当前项目",
-    emptyTitle: "在当前项目中完成工程任务",
-    emptyBody: "描述目标或选择一个常见任务。AI 会读取项目上下文，并在你的权限范围内修改文件、执行命令。",
+    currentProject: "当前工作区",
+    emptyTitle: "从资料到创作，让 AI 帮你推进",
+    emptyBody: "选择一项内容任务，或直接描述目标。AI 会读取当前工作区，在你的权限范围内整理资料、生成内容并运行流程。",
     emptyHint: "Ctrl/⌘ + K 搜索任务 · Ctrl/⌘ + Enter 发送",
     processing: "正在处理",
     processed: "已处理",
     finalMissing: "最终回复缺失",
     finalMissingDetail: "Provider 已结束运行，但没有返回最终回复。该运行未被视为成功。",
     completedRounds: (n: number) => `已完成 ${n} 轮`,
-    /* P1-CHAT-1: 空状态示例 prompt 卡片 */
+    /* P1-CHAT-1: 与 CC Tools 核心内容工作流对应的快捷任务 */
     emptyPrompts: [
-      { title: "解释这段代码", body: "讲清关键逻辑、依赖关系与边界情况", prompt: "请解释我当前选中的代码，重点说明关键逻辑、依赖关系和边界情况。" },
-      { title: "修复 failing test", body: "根据报错栈定位原因并给出最小改动", prompt: "请根据我接下来提供的 failing test 报错栈定位原因，并给出最小改动。" },
-      { title: "重构为 Hook", body: "迁移组件逻辑，同时保持现有行为一致", prompt: "请把当前组件的可复用逻辑重构为自定义 Hook，并保持现有行为一致。" },
-      { title: "生成单元测试", body: "为当前文件补齐边界用例与关键路径", prompt: "请为当前文件生成单元测试，覆盖关键路径、边界情况和失败场景。" }
+      { title: "整理资料库", body: "归类新增资料，提炼要点并保留来源", prompt: "请查看资料库中今天新增的内容，按主题归类，提炼关键信息，并为每项保留来源链接。" },
+      { title: "生成每日简报", body: "汇总今日重点、趋势与后续行动", prompt: "请基于今天新增的资料生成每日简报，按主题整理重点、趋势和下一步行动建议。" },
+      { title: "开始内容创作", body: "筛选选题，生成大纲和首版草稿", prompt: "请从资料库中筛选一个值得创作的主题，说明选题依据，并生成内容大纲和首版草稿。" },
+      { title: "检查自动化", body: "汇总最近运行结果与待处理问题", prompt: "请检查 RSS 采集、每日摘要等自动化的最近运行状态，汇总成功项、失败项和建议的处理方式。" }
     ],
     newEventsBadge: (n: number) => `${n}`
   },
@@ -103,7 +103,7 @@ export const aiMessages = {
     cancelQueued: "取消排队消息",
     messageInput: "AI 消息",
     placeholderContinue: (title: string) => `继续 ${title}`,
-    placeholderNew: "描述要在当前项目中完成的任务…",
+    placeholderNew: "描述要整理、创作或自动化的内容任务…",
     addAttachment: "添加附件",
     attachment: "附件",
     selectProviderFirst: "选择 Provider 后发送",

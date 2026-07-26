@@ -91,7 +91,7 @@ export class SessionStore {
     this.initialize();
     this.ensureIndex();
     return [...this.sessions.values()]
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt));
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt.localeCompare(a.createdAt));
   }
 
   getSession(id: string): AiSession {

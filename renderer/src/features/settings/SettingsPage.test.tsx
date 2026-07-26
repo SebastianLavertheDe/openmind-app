@@ -386,6 +386,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "已归档会话" })).toBeTruthy();
     expect(screen.getByText("已经归档的研究会话")).toBeTruthy();
+    expect(document.querySelector<HTMLTimeElement>(".settings-archived-item time")?.dateTime).toBe(archivedSession.createdAt);
 
     fireEvent.click(screen.getByRole("button", { name: "恢复归档会话：已经归档的研究会话" }));
 

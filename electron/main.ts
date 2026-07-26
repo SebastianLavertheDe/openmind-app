@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, nativeTheme, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import {
   resolveBrowserExtensionToken
 } from "./browser-automation-settings";
 import { buildMcpServerCatalog } from "./ai/mcp-catalog";
+import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
@@ -235,11 +236,19 @@ function registerIpc(): void {
       getMcpServers,
       saveBrowserExtensionToken,
       clearBrowserExtensionToken,
+      syncWindowTheme,
       globalSearch: runGlobalSearch,
       localDate
     },
     (channel, listener) => handleIpc(channel, listener)
   );
+}
+
+function syncWindowTheme(themeMode: "light" | "dark"): void {
+  nativeTheme.themeSource = themeMode;
+  if (process.platform === "win32" && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setTitleBarOverlay(windowsTitleBarOverlay(themeMode === "dark"));
+  }
 }
 
 function windowStatePath(): string {
@@ -282,6 +291,7 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
 }
 
 function createWindow(): void {
+  syncWindowTheme(settings.getPreferences().themeMode);
   const workAreas = displayWorkAreas();
   const restoredState = PACKAGED_SMOKE_TEST
     ? normalizeWindowState(null, workAreas, DEFAULT_WINDOW_SIZE, DESKTOP_WINDOW_MIN_SIZE)
@@ -291,7 +301,7 @@ function createWindow(): void {
     minWidth: DESKTOP_WINDOW_MIN_SIZE.width,
     minHeight: DESKTOP_WINDOW_MIN_SIZE.height,
     autoHideMenuBar: true,
-    backgroundColor: "#f6f7f9",
+    ...windowAppearance(process.platform, nativeTheme.shouldUseDarkColors),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -301,6 +311,13 @@ function createWindow(): void {
     }
   });
   mainWindow = window;
+  if (process.platform === "win32") {
+    const updateTitleBarOverlay = () => {
+      if (!window.isDestroyed()) window.setTitleBarOverlay(windowsTitleBarOverlay(nativeTheme.shouldUseDarkColors));
+    };
+    nativeTheme.on("updated", updateTitleBarOverlay);
+    window.once("closed", () => nativeTheme.removeListener("updated", updateTitleBarOverlay));
+  }
   window.setMenuBarVisibility(false);
   window.setAutoHideMenuBar(true);
   if (!PACKAGED_SMOKE_TEST) registerWindowStatePersistence(window);

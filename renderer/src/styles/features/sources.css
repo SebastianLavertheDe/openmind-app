@@ -261,7 +261,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: var(--fs-base);
-  font-weight: 650;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

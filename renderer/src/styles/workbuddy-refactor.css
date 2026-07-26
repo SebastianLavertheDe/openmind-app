@@ -56,13 +56,15 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
-  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-sans-default);
+  --font-display: var(--font-sans-default);
   --fs-page: 26px;
   --fs-section: 16px;
   --fs-body: 13px;
   --fs-caption: 11px;
   --fs-metric: 30px;
-  --reader-font-family: "Segoe UI Variable Text", "Inter", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --reader-font-family: var(--font-sans-default);
   --reader-font-size: 14px;
   --reader-line-height: 1.74;
   --reader-max-width: 68ch;
@@ -78,12 +80,12 @@
   --nav-item-radius: 8px;
   --nav-item-font: 13px;
   --nav-item-weight: 400;
-  --nav-item-weight-active: 600;
+  --nav-item-weight-active: 400;
   --nav-icon-size: 16px;
   --nav-gap: 8px;
   --nav-group-gap: 0;
   --nav-group-label-font: 11px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans-default);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -140,6 +142,11 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+:root[data-window-chrome="mica"],
+:root[data-window-chrome="mica"] body {
+  background: transparent;
+}
+
 button,
 input,
 textarea,
@@ -160,6 +167,28 @@ select:focus-visible,
   gap: 0;
   padding: 0;
   background: var(--app-chrome-bg);
+}
+
+.window-titlebar-drag-region { display: none; }
+
+.app-shell.window-chrome-mica {
+  --window-titlebar-height: 38px;
+  height: 100vh;
+  padding-top: var(--window-titlebar-height);
+  background: transparent;
+}
+
+.app-shell.window-chrome-mica > .window-titlebar-drag-region {
+  position: fixed;
+  z-index: var(--z-topmost);
+  inset: 0 138px auto 0;
+  display: block;
+  height: var(--window-titlebar-height);
+  -webkit-app-region: drag;
+}
+
+.app-shell.window-chrome-mica > .app-nav {
+  background: color-mix(in srgb, var(--panel-muted) 14%, transparent);
 }
 
 .app-nav {
@@ -514,7 +543,7 @@ select:focus-visible,
 
 .nav-recent-item.active .nav-recent-item-title {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* 状态圆点：仅运行/失败时渲染（见 SidebarRecent），idle 不占位 */
@@ -755,7 +784,7 @@ select:focus-visible,
   outline-offset: -2px;
 }
 .document-file-list > button > span { min-width: 0; display: grid; gap: 4px; }
-.document-file-list strong { overflow: hidden; color: var(--text-dim); font-size: 13px; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }
+.document-file-list strong { overflow: hidden; color: var(--text-dim); font-size: 13px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .document-file-list small { color: var(--muted-2); font-size: 10px; }
 
 .document-library-detail { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--page-bg); }
@@ -2103,6 +2132,7 @@ select:focus-visible,
 .session-actions button:hover { background: var(--control-hover); }
 
 .composer {
+  container: chat-composer / inline-size;
   border-top: 0;
   background: var(--page-bg);
 }
@@ -2508,7 +2538,22 @@ select:focus-visible,
   left: 14px;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
+}
+
+.composer-editor-actions > .composer-add-context,
+.composer-editor-actions > .mode-select,
+.composer-editor-actions > .permission-select,
+.composer-editor-actions > .composer-workspace,
+.composer-editor-actions > .composer-send-wrap {
+  flex: 0 0 auto;
+}
+
+.composer-editor-actions .chip-select-trigger,
+.composer-editor-actions .chip-select-value,
+.composer-editor-actions .composer-workspace {
+  white-space: nowrap;
 }
 
 .composer-add-context {
@@ -2531,10 +2576,14 @@ select:focus-visible,
 }
 
 .provider-select {
+  min-width: 72px;
+  flex: 0 1 230px;
   margin-left: auto;
 }
 
 .provider-select .chip-select-trigger {
+  width: 100%;
+  min-width: 0;
   min-height: 36px;
   max-width: 230px;
   padding: 0 8px;
@@ -2550,6 +2599,8 @@ select:focus-visible,
 
 .provider-select .chip-select-label { display: none; }
 .provider-select .chip-select-value {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--text-dim);
   font-weight: 500;
@@ -2713,6 +2764,39 @@ select:focus-visible,
 }
 
 .composer-toolbar { display: none; }
+
+@container chat-composer (max-width: 700px) {
+  .mode-select .chip-select-trigger,
+  .permission-select .chip-select-trigger,
+  .composer-workspace {
+    width: 36px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .mode-select .chip-select-value,
+  .mode-select .chip-select-chevron,
+  .permission-select .chip-select-value,
+  .permission-select .chip-select-chevron,
+  .composer-workspace strong,
+  .composer-workspace .lucide-chevron-down {
+    display: none;
+  }
+
+  .provider-select {
+    min-width: 84px;
+    flex-basis: 180px;
+  }
+}
+
+@container chat-composer (max-width: 500px) {
+  .provider-select {
+    min-width: 64px;
+    flex-basis: 120px;
+  }
+
+  .provider-select .chip-select-chevron { display: none; }
+}
 
 .composer-workspace {
   min-height: 36px;
@@ -3190,11 +3274,17 @@ select:focus-visible,
 /* The AI preview body already owns its responsive gutter, so avoid double horizontal padding. */
 .ai-file-preview-body > .reader-markdown.file-reader,
 .ai-file-preview-body > .reader-body.file-reader {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
   padding: 0 0 72px;
 }
 
 .ai-file-preview-body > .content-selection-surface > .reader-markdown.file-reader,
 .ai-file-preview-body > .content-selection-surface > .reader-body.file-reader {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
   padding: 0 0 72px;
 }
 
@@ -3231,4 +3321,19 @@ select:focus-visible,
   .ai-file-preview-body > .content-selection-surface > .reader-body.file-reader {
     padding: 0 0 64px;
   }
+}
+
+/* Selection is communicated by color and surface, never by a heavier text weight. */
+button.active,
+[role="option"][aria-selected="true"],
+[role="tab"][aria-selected="true"],
+[aria-current]:not([aria-current="false"]) {
+  font-weight: 400 !important;
+}
+
+button.active :where(strong, b),
+[role="option"][aria-selected="true"] :where(strong, b),
+[role="tab"][aria-selected="true"] :where(strong, b),
+[aria-current]:not([aria-current="false"]) :where(strong, b) {
+  font-weight: 400 !important;
 }

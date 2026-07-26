@@ -48,9 +48,31 @@ const snapshot: AiSnapshot = {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  vi.useRealTimers();
 });
 
 describe("SidebarRecent", () => {
+  it("keeps the visible session time anchored to creation after later replies", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-03T00:00:00.000Z"));
+    const repliedSession = { ...session, updatedAt: "2026-01-03T00:00:00.000Z" };
+    const repliedSnapshot = { ...snapshot, sessions: [repliedSession], pendingApprovals: [] };
+    window.cctools = {
+      aiRefresh: async () => repliedSnapshot,
+      aiGetEvents: async () => [],
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+
+    render(
+      <AiProvider initial={repliedSnapshot}>
+        <SidebarRecent activeSessionId={repliedSession.id} onOpen={() => undefined} />
+      </AiProvider>
+    );
+
+    expect(screen.getByText("2 天前")).toBeTruthy();
+    expect(screen.queryByText("刚刚")).toBeNull();
+  });
+
   it("shows 等待批准 for a session with a pending approval", () => {
     window.cctools = {
       aiRefresh: async () => snapshot,

@@ -126,7 +126,7 @@ export function installBrowserPreviewApi(): boolean {
       repoRoot: snapshot.projectRoot,
       validRepo: true,
       runtime: "浏览器预览 · Preview 数据",
-      environment: { mode: "preview" },
+      environment: { mode: "preview", platform: "web" },
       overview: { repoRoot: snapshot.projectRoot, metrics: { articles: 28, posts: 14, summaries: 1, topics: 9, reddit: 5 }, recent: [] },
       skills,
       ai: snapshot

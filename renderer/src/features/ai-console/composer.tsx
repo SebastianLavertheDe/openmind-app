@@ -769,8 +769,10 @@ function ChipSelect({ className = "", icon, label, value, options, onChange }: {
       <button
         type="button"
         className="chip-select-trigger"
+        aria-label={`${label}：${selected?.label || value}`}
         aria-haspopup="listbox"
         aria-expanded={open}
+        title={`${label}：${selected?.label || value}`}
         data-motion="selection"
         onClick={() => setOpen((current) => !current)}
       >

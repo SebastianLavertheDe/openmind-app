@@ -23,7 +23,7 @@ describe("AppShell", () => {
         setNavCollapsed={setNavCollapsed}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={2}
         aiMode="default"
       >
@@ -50,7 +50,7 @@ describe("AppShell", () => {
         setNavCollapsed={setNavCollapsed}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
       >
@@ -72,7 +72,7 @@ describe("AppShell", () => {
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="collapsed"
       >
@@ -84,6 +84,31 @@ describe("AppShell", () => {
     expect(container.querySelector(".app-nav")).toBeNull();
     expect(container.querySelector(".global-toolbar")).toBeNull();
     expect(container.querySelector(".main-area")?.textContent).toContain("Settings content");
+  });
+
+  it("exposes one draggable Mica-backed shell on Windows desktop", () => {
+    const { container, unmount } = render(
+      <AppShell
+        page="sources"
+        navigate={vi.fn()}
+        onOpenSearch={vi.fn()}
+        navCollapsed={false}
+        setNavCollapsed={vi.fn()}
+        repoRoot="/repo"
+        runtime="Windows → WSL"
+        environment={{ mode: "desktop", platform: "win32" }}
+        pendingApprovals={0}
+        aiMode="collapsed"
+      >
+        <div>Sources</div>
+      </AppShell>
+    );
+
+    expect(container.querySelector(".app-shell")?.classList.contains("window-chrome-mica")).toBe(true);
+    expect(container.querySelector(".window-titlebar-drag-region")).not.toBeNull();
+    expect(document.documentElement.dataset.windowChrome).toBe("mica");
+    unmount();
+    expect(document.documentElement.dataset.windowChrome).toBeUndefined();
   });
 
   it("uses a semantic icon rail before switching to a drawer", () => {
@@ -103,7 +128,7 @@ describe("AppShell", () => {
     try {
       const { container } = render(
         <ResponsiveLayoutProvider>
-          <AppShell page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" runtime="linux" environment={{ mode: "desktop" }} pendingApprovals={0} aiMode="collapsed">
+          <AppShell page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" runtime="linux" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -146,7 +171,7 @@ describe("AppShell", () => {
             setNavCollapsed={vi.fn()}
             repoRoot="/repo"
             runtime="linux"
-            environment={{ mode: "desktop" }}
+            environment={{ mode: "desktop", platform: "linux" }}
             pendingApprovals={0}
             aiMode="collapsed"
           >
@@ -208,7 +233,7 @@ describe("AppShell", () => {
             setNavCollapsed={vi.fn()}
             repoRoot="/repo"
             runtime="linux"
-            environment={{ mode: "desktop" }}
+            environment={{ mode: "desktop", platform: "linux" }}
             pendingApprovals={0}
             aiMode="wide"
             aiSidebar={<aside className="ai-sidebar layout-companion-compact" data-layout-width={760}>AI</aside>}
@@ -236,7 +261,7 @@ describe("AppShell", () => {
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
         aiNavigation={<div>会话记录模块</div>}
@@ -261,7 +286,7 @@ describe("AppShell", () => {
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiSessionOpen
         aiMode="default"
@@ -285,7 +310,7 @@ describe("AppShell", () => {
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
       >
@@ -315,14 +340,14 @@ describe("AppShell", () => {
       aiMode: "collapsed"
     };
     const { rerender } = render(
-      <AppShell {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop" }}>
+      <AppShell {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
         <div>Sources</div>
       </AppShell>
     );
     expect(screen.getByRole("status").textContent).toContain("已连接");
 
     rerender(
-      <AppShell {...props} runtime="linux" environment={{ mode: "preview" }}>
+      <AppShell {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
         <div>Sources</div>
       </AppShell>
     );
@@ -339,7 +364,7 @@ describe("AppShell", () => {
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
         runtime="linux"
-        environment={{ mode: "desktop" }}
+        environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
         recentTasks={<div>最近任务区块</div>}

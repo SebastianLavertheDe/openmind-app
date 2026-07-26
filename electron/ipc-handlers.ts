@@ -71,6 +71,7 @@ export type IpcMainContext = {
   getMcpServers: () => unknown;
   saveBrowserExtensionToken: (token: string) => unknown;
   clearBrowserExtensionToken: () => unknown;
+  syncWindowTheme: (themeMode: "light" | "dark") => void;
   globalSearch: (rawQuery: unknown) => Promise<GlobalSearchResult[]>;
   localDate: () => string;
 };
@@ -99,7 +100,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           repoRoot,
           validRepo,
           runtime: settings.parseWslRepoPath(repoRoot) ? "Windows → WSL" : process.platform,
-          environment: { mode: "desktop" },
+          environment: { mode: "desktop", platform: process.platform },
           overview: validRepo ? product().getOverview(date) : { repoRoot, metrics: {}, recent: [] },
           skills: validRepo ? await ai().call("skills") : [],
           ai: validRepo ? await ai().call("snapshot") : {
@@ -321,6 +322,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const previous = settings.getPreferences();
         const next = UserPreferencesSchema.parse(settings.updatePreferences(UserPreferencesSchema.partial().parse(patch)));
         if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
+        ctx.syncWindowTheme(next.themeMode);
         return next;
       }
     },
@@ -330,6 +332,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const previous = settings.getPreferences();
         const next = UserPreferencesSchema.parse(settings.resetPreferences(parseOptionalString(section)));
         if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
+        ctx.syncWindowTheme(next.themeMode);
         return next;
       }
     },

@@ -415,7 +415,7 @@ export function AiSessionNavigation() {
   const ai = useAi();
   const sessions = useMemo(() => [...ai.snapshot.sessions].sort((left, right) => {
     if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
-    return right.updatedAt.localeCompare(left.updatedAt);
+    return right.createdAt.localeCompare(left.createdAt);
   }), [ai.snapshot.sessions]);
 
   const onSessionListKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
@@ -481,7 +481,7 @@ function SessionItem({ session }: { session: AiSession }) {
       <span className="nav-recent-item-main">
         <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
         <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>
-          {waitingApproval ? m.ai.status.session.waitingApproval : relativeSessionTime(session.updatedAt)}
+          {waitingApproval ? m.ai.status.session.waitingApproval : relativeSessionTime(session.createdAt)}
         </span>
       </span>
     </article>

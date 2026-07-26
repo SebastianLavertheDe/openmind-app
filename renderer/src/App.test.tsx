@@ -25,7 +25,7 @@ const preferences: UserPreferences = {
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
   window.cctools = {
-    getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop" }, overview, skills, ai: snapshot }),
+    getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
     getPreferences: async () => preferences,
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
@@ -217,7 +217,7 @@ describe("App bootstrap", () => {
       }]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot
     });
 

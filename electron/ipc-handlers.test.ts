@@ -103,6 +103,7 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
       secureStorageAvailable: true, packageAvailable: true, ready: false,
       diagnostic: "未配置"
     }),
+    syncWindowTheme: vi.fn(),
     globalSearch: async () => [],
     localDate: () => "20260708",
     ...overrides
@@ -362,9 +363,10 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     const ai = makeAiSpy();
     const { product } = makeProductSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never, ensureProductService: () => product as never });
-    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; environment: { mode: string } };
+    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; environment: { mode: string; platform: string } };
     expect(result.validRepo).toBeDefined();
     expect(result.environment.mode).toBe("desktop");
+    expect(result.environment.platform).toBe(process.platform);
     expect(ai.call).toHaveBeenCalledWith("skills");
     expect(ai.call).toHaveBeenCalledWith("snapshot");
   });
@@ -474,6 +476,7 @@ describe("handler forwarding — preferences 类", () => {
     const ctx = makeCtx();
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, {});
     expect(settings.updatePreferences).toHaveBeenCalled();
+    expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
   });
 
   it("resetPreferences 委托 settings.resetPreferences", async () => {
@@ -482,6 +485,7 @@ describe("handler forwarding — preferences 类", () => {
     const ctx = makeCtx();
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.resetPreferences, "section");
     expect(settings.resetPreferences).toHaveBeenCalled();
+    expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
   });
 
   it("getEnvironmentDiagnostics 委托 settings.getEnvironmentDiagnostics", async () => {

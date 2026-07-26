@@ -74,9 +74,22 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  vi.useRealTimers();
 });
 
 describe("AI workbench session list", () => {
+  it("sorts and labels sessions by creation time instead of reply time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-04T00:00:00.000Z"));
+    const olderButReplied = { ...sessions[0], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z" };
+    const newer = { ...sessions[1], id: "newer-session", title: "较新的原始会话", archived: false, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z" };
+    render(<AiProvider initial={{ ...snapshot, sessions: [olderButReplied, newer] }}><AiSessionNavigation /></AiProvider>);
+
+    const options = within(screen.getByRole("listbox", { name: /AI/ })).getAllByRole("option");
+    expect(within(options[0]).getByText("较新的原始会话")).toBeTruthy();
+    expect(within(options[1]).getByText("3 天前")).toBeTruthy();
+  });
+
   it("shows compact two-column sessions", async () => {
     const user = userEvent.setup();
     render(<AiProvider initial={snapshot}><AiSessionNavigation /><AiWorkbench /></AiProvider>);

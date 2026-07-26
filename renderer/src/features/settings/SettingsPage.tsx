@@ -117,7 +117,7 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
 
   const archivedSessions = useMemo(() => ai.snapshot.sessions
     .filter((session) => session.archived)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [ai.snapshot.sessions]);
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions]);
 
   const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0];
 

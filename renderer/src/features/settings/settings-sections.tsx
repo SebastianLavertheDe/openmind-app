@@ -458,7 +458,7 @@ export function ArchivedSessionsSettingsSection({
               <span className="settings-archived-icon" aria-hidden><Archive size={15} /></span>
               <div className="settings-archived-main">
                 <strong title={session.title}>{session.title || m.common.unnamedTopic}</strong>
-                <span>{session.provider === "claude" ? "Claude Code" : "Codex"} · <time dateTime={session.updatedAt}>{formatSessionDate(session.updatedAt)}</time></span>
+                <span>{session.provider === "claude" ? "Claude Code" : "Codex"} · <time dateTime={session.createdAt}>{formatSessionDate(session.createdAt)}</time></span>
               </div>
               <div className="settings-archived-actions">
                 <button type="button" disabled={busyId === session.id} onClick={() => onOpen(session.id)} aria-label={m.settings.archivedSessions.openNamed(session.title || m.common.unnamedTopic)}>
