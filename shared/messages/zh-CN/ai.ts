@@ -332,8 +332,10 @@ export const aiMessages = {
   },
 
   diff: {
-    editedFiles: (n: number) => `编辑了 ${n} 个文件`,
-    editedFile: "编辑了文件",
+    editedFiles: (n: number) => `已编辑 ${n} 个文件`,
+    editedFile: "已编辑文件",
+    showMoreFiles: (n: number) => `再显示 ${n} 个文件`,
+    showFewerFiles: "收起",
     changesUpdated: "变更已更新",
     providerReported: "Provider 已报告文件变更，详细 Diff 可在右侧会话详情中查看。",
     status: { created: "新增", modified: "修改", deleted: "删除", renamed: "重命名" }

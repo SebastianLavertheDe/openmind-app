@@ -244,23 +244,20 @@ body :is(.eyebrow, .session-list-heading, .message-meta, .run-boundary, .tool-ev
 }
 
 .ai-workbench .conversation-pane {
-  --ai-flow-width: 1040px;
   --chat-side-gutter: clamp(24px, 4vw, 72px);
 }
 
-.ai-workbench .chat-scroll,
-.ai-workbench .composer {
+.ai-workbench .chat-scroll {
   padding-inline: var(--chat-side-gutter);
+}
+
+.ai-workbench .composer {
+  padding-left: var(--chat-side-gutter);
+  padding-right: calc(var(--chat-side-gutter) + var(--chat-scrollbar-reserve));
 }
 
 .ai-workbench .chat-thread .user-message {
   max-width: min(64%, 640px);
-}
-
-@media (max-width: 1480px) {
-  .ai-workbench .conversation-pane {
-    --ai-flow-width: 960px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

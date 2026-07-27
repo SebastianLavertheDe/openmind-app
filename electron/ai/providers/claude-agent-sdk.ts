@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
-import { decodeProcessOutput, spawnInDirectory } from "../process-utils";
+import { buildWslLoginCommand, decodeProcessOutput, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { Options, SDKUserMessage, SpawnOptions, SpawnedProcess, WarmQuery } from "@anthropic-ai/claude-agent-sdk";
@@ -695,7 +695,8 @@ function spawnWslClaude(options: SpawnOptions, captureStderr: (text: string) => 
   const assignments = Object.entries(options.env)
     .filter(([key, value]) => value !== undefined && shouldForwardToWsl(key))
     .map(([key, value]) => `${key}=${value}`);
-  const child = spawnInDirectory(options.cwd || process.cwd(), "env", [...assignments, "claude", ...options.args], {
+  const invocation = buildWslLoginCommand("claude", options.args);
+  const child = spawnInDirectory(options.cwd || process.cwd(), "/usr/bin/env", [...assignments, invocation.command, ...invocation.args], {
     signal: options.signal
   });
   child.stderr.on("data", (chunk) => captureStderr(decodeProcessOutput(chunk)));

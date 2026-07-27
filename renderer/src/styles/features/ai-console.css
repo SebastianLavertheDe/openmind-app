@@ -256,8 +256,10 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   background: var(--page-bg);
-  --ai-flow-width: 1000px;
+  /* Codex-style single reading column: history, cards and composer share it. */
+  --ai-flow-width: 720px;
   --chat-side-gutter: clamp(18px, 4vw, 64px);
+  --chat-scrollbar-reserve: 10px;
 }
 
 .conversation-header {
@@ -366,8 +368,7 @@
 .chat-thread .system-event,
 .chat-thread .error-event,
 .chat-thread .approval-card {
-  /* Track the centered, responsive flow column instead of a fixed 920px so the
-     pane fills wider windows and stops leaving a dead band on the right. */
+  /* Keep every assistant artifact inside the same centered reading frame. */
   max-width: min(var(--ai-flow-width), 100%);
 }
 
@@ -731,7 +732,8 @@
 }
 
 .composer {
-  padding-inline: var(--chat-side-gutter);
+  padding-left: var(--chat-side-gutter);
+  padding-right: calc(var(--chat-side-gutter) + var(--chat-scrollbar-reserve));
   border-top: 1px solid var(--border);
   background: var(--panel);
 }
@@ -765,6 +767,7 @@
 .approval-banner {
   position: relative;
   z-index: 8;
+  container: approval-banner / inline-size;
   display: grid;
   gap: 7px;
   width: 100%;
@@ -813,28 +816,25 @@
   max-width: none;
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: 11px;
-  background: var(--panel);
-  box-shadow: var(--shadow-card, 0 6px 22px color-mix(in srgb, #0b0f16 14%, transparent));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--page-bg);
+  box-shadow: none;
 }
 
 :is(.composer-approvals, .approval-banner) .approval-prompt::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--orange);
-  content: "";
+  display: none;
 }
 
-/* 命令可完整换行，操作按钮独占第二行，任何宽度下都不会被推出卡片。 */
+/* 与输入框同宽的紧凑单行：长命令省略，完整内容留在 title 与详情中。 */
 .approval-bar {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px 8px 13px;
+  gap: 7px;
+  min-height: 48px;
+  padding: 7px 8px 7px 10px;
   color: var(--text);
 }
 
@@ -860,14 +860,11 @@
 .approval-bar-cmd {
   width: 100%;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: hidden;
-  padding-bottom: 1px;
+  overflow: hidden;
   color: var(--text-dim);
   font: 12px/1.4 var(--font-mono);
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  word-break: break-word;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .approval-bar-cmd mark {
@@ -882,7 +879,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 4px 8px;
+  min-height: 28px;
+  padding: 0 7px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
@@ -906,7 +904,7 @@
 }
 
 .approval-bar-actions {
-  grid-column: 1 / -1;
+  grid-column: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -914,9 +912,9 @@
 }
 
 .approval-btn {
-  min-height: 30px;
-  padding: 0 14px;
-  border-radius: 8px;
+  min-height: 28px;
+  padding: 0 11px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text);
@@ -933,8 +931,8 @@
 }
 
 .approval-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-button, 0 6px 16px color-mix(in srgb, #0b0f16 12%, transparent));
+  transform: none;
+  box-shadow: none;
 }
 
 .approval-btn:active:not(:disabled) {
@@ -980,6 +978,26 @@
   border-color: color-mix(in srgb, var(--orange) 58%, var(--border));
   background: color-mix(in srgb, var(--orange) 15%, transparent);
   color: var(--orange);
+}
+
+@container approval-banner (max-width: 600px) {
+  .approval-bar {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+  }
+
+  .approval-bar-actions {
+    grid-column: 2 / -1;
+  }
+}
+
+@container approval-banner (max-width: 440px) {
+  .approval-bar-label {
+    display: none;
+  }
+
+  .approval-bar-actions {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Expandable detail panel — full command, paths, risks, and the session-scope
@@ -1383,12 +1401,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1480px) {
-  .conversation-pane {
-    --ai-flow-width: 940px;
-  }
-}
-
 @media (max-width: 1180px) {
   .ai-workbench {
     grid-template-columns: 48px 8px minmax(0, 1fr) !important;
@@ -1402,8 +1414,8 @@
     display: none;
   }
 
-  .chat-scroll {
-    padding-inline: clamp(14px, 3vw, 32px);
+  .conversation-pane {
+    --chat-side-gutter: clamp(14px, 3vw, 32px);
   }
 
   .chat-thread .user-message {
@@ -1426,9 +1438,8 @@
     padding-inline: 14px;
   }
 
-  .chat-scroll,
-  .composer {
-    padding-inline: 14px;
+  .conversation-pane {
+    --chat-side-gutter: 14px;
   }
 
   .chat-thread .user-message,
@@ -1487,8 +1498,7 @@
   }
 }
 
-/* AI workbench: sessions live in the global rail; the conversation owns the
-   center canvas and opens files in a right-hand preview only when requested. */
+/* AI workbench: files open on the left while the conversation glides right. */
 .ai-workbench {
   grid-template-columns: var(--workbench-columns, minmax(0, 1fr)) !important;
   transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
@@ -1498,12 +1508,27 @@
   transition: none;
 }
 
+.ai-workbench.with-file-preview > .ai-file-preview {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.ai-workbench.with-file-preview > .column-splitter {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.ai-workbench.with-file-preview > .conversation-pane {
+  grid-column: 3;
+  grid-row: 1;
+}
+
 .ai-workbench.with-file-preview > .column-splitter,
 .ai-workbench.with-file-preview > .ai-file-preview {
   min-width: 0;
   overflow: hidden;
   opacity: 0;
-  transform: translateX(10px);
+  transform: translateX(-10px);
   pointer-events: none;
   transition:
     opacity var(--dur-normal, 200ms) ease,
@@ -1520,7 +1545,7 @@
 .ai-workbench.with-file-preview.preview-leaving > .column-splitter,
 .ai-workbench.with-file-preview.preview-leaving > .ai-file-preview {
   opacity: 0;
-  transform: translateX(10px);
+  transform: translateX(-10px);
   pointer-events: none;
 }
 
@@ -1581,7 +1606,7 @@
 .ai-workbench.with-file-preview.is-resizing-preview .chat-thread,
 .ai-workbench.with-file-preview.is-resizing-preview .composer {
   opacity: .94;
-  transform: translateX(-2px);
+  transform: translateX(2px);
 }
 
 .ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview > header > div:not(.ai-file-preview-actions),
@@ -1810,10 +1835,11 @@
 }
 
 .ai-file-editor-shell {
+  width: 100%;
   height: 100%;
   min-height: 0;
-  max-width: 92ch;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .ai-file-editor-shell textarea {
@@ -1903,6 +1929,10 @@
   .ai-workbench.with-file-preview > .conversation-pane,
   .ai-workbench.with-file-preview > .column-splitter {
     display: none;
+  }
+
+  .ai-workbench.with-file-preview > .ai-file-preview {
+    grid-column: 1;
   }
 }
 
@@ -2378,10 +2408,10 @@
 .approval-bar-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 .approval-bar-actions .approval-btn-danger {
-  margin-right: 4px;
+  margin-right: 0;
 }
 
 /* P1-APR-1: 详情面板退场动画 */
@@ -2400,8 +2430,13 @@
   opacity: 1;
   transform: none;
 }
-.ai-workbench.is-resizing-preview .column-splitter,
-.ai-workbench.is-resizing-preview [class*="column-splitter"] {
+.ai-workbench.is-resizing-preview > .column-splitter {
+  background: transparent;
+  opacity: 1;
+}
+
+.ai-workbench.is-resizing-preview > .column-splitter::after {
+  width: 1px;
   background: var(--accent);
   opacity: 0.8;
 }

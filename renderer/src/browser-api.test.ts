@@ -149,7 +149,9 @@ describe("installBrowserPreviewApi", () => {
     installBrowserPreviewApi();
     expect(await window.cctools.aiRefresh()).toBeTruthy();
     expect(await window.cctools.aiPrewarm()).toBe(true);
-    expect(await window.cctools.aiGetEvents("preview-session")).toHaveLength(2);
+    const events = await window.cctools.aiGetEvents("preview-session");
+    expect(events).toHaveLength(3);
+    expect(events.some((event) => event.kind === "changes")).toBe(true);
     await expect(window.cctools.aiStartRun({} as never)).rejects.toThrow(/预览/);
     await expect(window.cctools.aiUpdateSession("preview-session", {})).rejects.toThrow(/预览/);
     expect(await window.cctools.aiCancelRun("x")).toBe(true);

@@ -263,10 +263,17 @@ describe("ProviderRegistry", () => {
       const bin = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-wsl-bin-"));
       roots.push(bin);
       process.env.PATH = bin;
-      // wsl.exe: --version 探测返回版本;auth status 返回 loggedIn JSON;app-server --help 成功
+      // Claude 只有经登录 shell 才能命中新版 CLI；直接调用模拟被旧版遮蔽。
       const wslScript = `#!/bin/bash
+if [[ "$*" == *"auth status"* ]]; then
+  if [[ "$*" == *"/bin/sh -lc"* ]]; then echo '{"loggedIn":true}'; else echo 'old claude prompt'; fi
+  exit 0
+fi
+if [[ "$*" == *"claude --version"* ]]; then
+  if [[ "$*" == *"/bin/sh -lc"* ]]; then echo "2.1.177 (Claude Code)"; else echo "1.0.71 (Claude Code)"; fi
+  exit 0
+fi
 if [[ "$*" == *"--version" ]]; then echo "tool-1.0"; exit 0; fi
-if [[ "$*" == *"auth status"* ]]; then echo '{"loggedIn":true}'; exit 0; fi
 if [[ "$*" == *"app-server --help"* ]]; then echo "ok"; exit 0; fi
 if [[ "$*" == *".claude/settings.json"* ]]; then echo '{"model":"wsl-claude-model"}'; exit 0; fi
 if [[ "$*" == *".codex/config.toml"* ]]; then echo 'model = "wsl-codex-model"'; exit 0; fi
@@ -281,6 +288,8 @@ exit 1`;
       const wslProviders = providers.filter((p) => p.runtime === "wsl");
       expect(wslProviders.length).toBeGreaterThan(0);
       expect(wslProviders.every((p) => p.id.includes("-wsl-Ubuntu"))).toBe(true);
+      expect(wslProviders.find((p) => p.provider === "claude")!.available).toBe(true);
+      expect(wslProviders.find((p) => p.provider === "claude")!.version).toBe("2.1.177 (Claude Code)");
       expect(wslProviders.find((p) => p.provider === "claude")!.detectedModel).toBe("wsl-claude-model");
       expect(wslProviders.find((p) => p.provider === "codex")!.detectedModel).toBe("wsl-codex-model");
     });

@@ -15,6 +15,24 @@ export function toWslPath(value: string, distro?: string): string {
   return value.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${String(drive).toLowerCase()}/`).replaceAll("\\", "/");
 }
 
+/**
+ * Run a WSL CLI through the user's login shell so ~/.profile contributes paths
+ * such as ~/.local/bin. Resolve the executable before exec so probing and the
+ * long-running provider process select the same installation.
+ */
+export function buildWslLoginCommand(command: string, args: string[]): { command: string; args: string[] } {
+  return {
+    command: "/bin/sh",
+    args: [
+      "-lc",
+      'resolved="$(command -v "$1")" || exit 127; shift; exec "$resolved" "$@"',
+      "cctools-wsl-login",
+      command,
+      ...args
+    ]
+  };
+}
+
 export async function execInProject(projectRoot: string, command: string, args: string[], options: ExecFileOptions & { input?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   if (options.input !== undefined) {
     const input = options.input;

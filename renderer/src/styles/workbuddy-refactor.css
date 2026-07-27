@@ -73,7 +73,6 @@
   --reader-link: #2479c8;
   --chat-body-size: var(--fs-body);
   --chat-body-line-height: 1.62;
-  --chat-flow-width: 800px;
   --ai-sidebar-width: 430px;
   /* 侧边栏导航项语义变量（WorkBuddy 化改造，集中管控字号/行高/圆角）*/
   --nav-item-height: 30px;
@@ -1320,6 +1319,54 @@ select:focus-visible,
   background: var(--panel);
 }
 
+.reader-markdown .markdown-table-scroll,
+.reader-body .markdown-table-scroll {
+  width: 100%;
+  margin: 18px 0 24px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.reader-markdown table,
+.reader-body table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.reader-markdown th,
+.reader-markdown td,
+.reader-body th,
+.reader-body td {
+  padding: 9px 11px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.reader-markdown th,
+.reader-body th {
+  background: var(--panel-muted);
+  color: var(--text);
+  font-weight: 650;
+}
+
+.reader-markdown :is(th, td):last-child,
+.reader-body :is(th, td):last-child {
+  border-right-width: 0;
+}
+
+.reader-markdown tbody tr:last-child td,
+.reader-body tbody tr:last-child td {
+  border-bottom-width: 0;
+}
+
 .column-splitter {
   position: relative;
   overflow: visible;
@@ -1927,7 +1974,7 @@ select:focus-visible,
 }
 
 .chat-scroll { padding-top: 12px; }
-.chat-thread { max-width: var(--chat-flow-width); }
+.chat-thread { max-width: var(--ai-flow-width); }
 .message { color: var(--text-dim); }
 
 .ai-sidebar .chat-thread .assistant-message,
@@ -2000,40 +2047,105 @@ select:focus-visible,
 
 .assistant-message { border-color: transparent; }
 
-/* Durable change artifacts live after the final reply. Keep them visually
-   distinct from the quiet, inline change milestone used inside process detail. */
-.change-review-card,
-.change-review-card[data-open] {
+/* Codex-style edited-files context: compact summary plus directly openable rows. */
+.change-review-card {
+  width: min(100%, var(--ai-flow-width));
+  max-width: 100%;
   margin: 4px 0 24px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--panel);
   box-shadow: none;
 }
 
-.change-review-card > .ui-disclosure-trigger,
-.change-review-card[data-open] > .ui-disclosure-trigger {
-  min-height: 58px;
-  padding: 10px 14px;
-  border: 0;
-  background: transparent;
+.change-review-header {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
 }
 
-.change-review-card strong {
+.change-review-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--panel-muted);
+  color: var(--muted);
+}
+
+.change-review-header strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
 }
 
-.change-review-card small {
-  color: var(--muted);
-  font-size: 12px;
+.change-review-files {
+  display: grid;
+  padding: 4px 0;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.change-review-card .ui-disclosure-content-inner > div {
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--border-subtle);
+.change-review-file,
+.change-review-more {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.change-review-file:hover,
+.change-review-more:hover {
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.change-review-file:focus-visible,
+.change-review-more:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: -2px;
+}
+
+.change-review-file > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-review-more {
+  color: var(--muted-2);
+}
+
+.change-review-more svg {
+  transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+}
+
+.change-review-more[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.change-review-empty {
+  margin: 0;
+  padding: 0 12px 12px 52px;
+  color: var(--muted-2);
+  font-size: 12px;
 }
 
 .process-system-event {
@@ -2111,9 +2223,9 @@ select:focus-visible,
 
 .approval-banner .approval-card {
   margin: 0;
-  border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--panel) 96%, var(--orange));
-  box-shadow: 0 16px 40px color-mix(in srgb, #111 16%, transparent);
+  border-color: var(--border);
+  background: var(--page-bg);
+  box-shadow: none;
 }
 
 .message-actions button,
@@ -2138,7 +2250,7 @@ select:focus-visible,
 }
 
 .composer-flow {
-  max-width: 960px;
+  max-width: var(--ai-flow-width);
   padding: 0;
   gap: 0;
   overflow: visible;
@@ -2455,7 +2567,7 @@ select:focus-visible,
 }
 
 .composer-flow {
-  max-width: 900px;
+  max-width: var(--ai-flow-width);
   transition: border-color var(--dur-fast, 140ms) var(--ease-standard), box-shadow var(--dur-fast, 140ms) var(--ease-standard);
 }
 
@@ -2495,7 +2607,7 @@ select:focus-visible,
 }
 
 .composer-flow {
-  max-width: 720px;
+  max-width: var(--ai-flow-width);
   border: 1px solid #e8e8e6;
   border-radius: 18px;
   background: #f6f6f5;
@@ -2885,19 +2997,9 @@ select:focus-visible,
 
 .ai-sidebar .approval-banner .approval-card {
   margin: 0;
-  border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--panel) 96%, var(--orange));
-  box-shadow: 0 16px 40px color-mix(in srgb, #111 16%, transparent);
-}
-
-.ai-sidebar .approval-bar {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  display: grid;
-}
-
-.ai-sidebar .approval-bar-actions {
-  grid-column: 1 / -1;
-  justify-self: end;
+  border-color: var(--border);
+  background: var(--page-bg);
+  box-shadow: none;
 }
 
 .layout-density-narrow .composer-add-context,
@@ -3197,7 +3299,7 @@ select:focus-visible,
     height: 100%;
     background: var(--page-bg);
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
 
   .ai-workbench.with-file-preview.preview-active > .ai-file-preview {
@@ -3207,7 +3309,7 @@ select:focus-visible,
 
   .ai-workbench.with-file-preview.preview-leaving > .ai-file-preview {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
 
   .layout-shell-drawer .ai-file-preview > header { padding-left: 58px; }
@@ -3266,9 +3368,9 @@ select:focus-visible,
   max-width: none;
 }
 
-.file-reader table {
-  display: block;
-  overflow-x: auto;
+.file-reader .markdown-table-scroll {
+  width: 100%;
+  max-width: none;
 }
 
 /* The AI preview body already owns its responsive gutter, so avoid double horizontal padding. */

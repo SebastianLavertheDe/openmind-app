@@ -162,7 +162,7 @@ describe("AI workbench session list", () => {
     expect(document.activeElement).toBe(options[0]);
   });
 
-  it("opens a local file reference in the right preview pane", async () => {
+  it("opens message links and edited-file rows in the animated left preview pane", async () => {
     const user = userEvent.setup();
     const activeSession = { ...sessions[0], status: "idle" as const, lastRunId: "run-1" };
     const previewSnapshot: AiSnapshot = {
@@ -185,7 +185,17 @@ describe("AI workbench session list", () => {
         startedAt: "2026-01-01T00:00:00.000Z",
         completedAt: "2026-01-01T00:00:10.000Z",
         error: null,
-        changeSet: null,
+        changeSet: {
+          id: "change-set",
+          runId: "run-1",
+          baseCommit: "base",
+          files: [{ path: "src/changed.ts", status: "modified", additions: 4, deletions: 2, patch: "@@ -1 +1 @@" }],
+          patch: "@@ -1 +1 @@",
+          createdAt: "2026-01-01T00:00:09.000Z",
+          status: "pending",
+          appliedPatches: [],
+          appliedFiles: []
+        },
         risks: []
       }],
       pendingApprovals: []
@@ -194,7 +204,7 @@ describe("AI workbench session list", () => {
       path,
       name: "demo.md",
       ext: ".md",
-      content: "# 预览标题\n\n右侧文件内容"
+      content: "# 预览标题\n\n左侧文件内容"
     }));
     const writeContent = vi.fn(async (path: string, content: string) => ({
       path,
@@ -206,19 +216,34 @@ describe("AI workbench session list", () => {
     window.cctools = {
       ...window.cctools,
       aiRefresh: async () => previewSnapshot,
-      aiGetEvents: async () => [{
-        schemaVersion: 1,
-        id: "answer",
-        seq: 1,
-        timestamp: "2026-01-01T00:00:10.000Z",
-        projectId: "project",
-        sessionId: activeSession.id,
-        runId: "run-1",
-        provider: "claude",
-        kind: "assistant-message",
-        payload: { text: "文件：`mymind/article/demo.md`" },
-        risks: []
-      }],
+      aiGetEvents: async () => [
+        {
+          schemaVersion: 1,
+          id: "changes",
+          seq: 1,
+          timestamp: "2026-01-01T00:00:09.000Z",
+          projectId: "project",
+          sessionId: activeSession.id,
+          runId: "run-1",
+          provider: "claude",
+          kind: "changes",
+          payload: { changeSet: { files: [{ path: "src/changed.ts", status: "modified", additions: 4, deletions: 2 }] } },
+          risks: []
+        },
+        {
+          schemaVersion: 1,
+          id: "answer",
+          seq: 2,
+          timestamp: "2026-01-01T00:00:10.000Z",
+          projectId: "project",
+          sessionId: activeSession.id,
+          runId: "run-1",
+          provider: "claude",
+          kind: "assistant-message",
+          payload: { text: "文件：`mymind/article/demo.md`" },
+          risks: []
+        }
+      ],
       readContent,
       writeContent
     } as unknown as DesktopApi;
@@ -232,12 +257,16 @@ describe("AI workbench session list", () => {
     expect(screen.getByText("空闲")).toBeTruthy();
     expect(previewPane).toBeTruthy();
     expect(screen.getByRole("heading", { name: "预览标题" })).toBeTruthy();
+    const workbench = previewPane.closest(".ai-workbench") as HTMLElement;
+    await waitFor(() => expect(workbench.classList.contains("preview-active")).toBe(true));
+    expect(workbench.style.getPropertyValue("--workbench-columns")).toContain("minmax(360px, 0.620fr)");
+    expect(screen.getByRole("button", { name: "收起面板" }).textContent).toBe("‹");
 
     const previewSeparator = screen.getByRole("separator", { name: "文件预览宽度" });
     expect(previewSeparator.getAttribute("aria-valuemin")).toBe("34");
     expect(previewSeparator.getAttribute("aria-valuemax")).toBe("70");
     expect(previewSeparator.getAttribute("aria-valuenow")).toBe("62");
-    fireEvent.keyDown(previewSeparator, { key: "ArrowLeft" });
+    fireEvent.keyDown(previewSeparator, { key: "ArrowRight" });
     expect(Number(previewSeparator.getAttribute("aria-valuenow"))).toBeGreaterThan(62);
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(FILE_PREVIEW_LAYOUT_STORAGE_KEY) || "null") as { schemaVersion?: number; ratio?: number } | null;
@@ -257,12 +286,17 @@ describe("AI workbench session list", () => {
     await user.click(within(modeToggle).getByRole("button", { name: "预览" }));
     expect(await screen.findByRole("heading", { name: "新标题" })).toBeTruthy();
 
-    const workbench = previewPane.closest(".ai-workbench") as HTMLElement;
     await user.click(screen.getByRole("button", { name: "关闭文件预览" }));
     expect(workbench.classList.contains("preview-leaving")).toBe(true);
     expect(previewPane.getAttribute("aria-hidden")).toBe("true");
     expect(screen.queryByRole("complementary", { name: "文件预览" })).toBeNull();
     await waitFor(() => expect(workbench.classList.contains("with-file-preview")).toBe(false));
+
+    readContent.mockClear();
+    await user.click(await screen.findByRole("button", { name: "src/changed.ts" }));
+    await waitFor(() => expect(readContent).toHaveBeenCalledWith("src/changed.ts"));
+    expect(await screen.findByRole("complementary", { name: "文件预览" })).toBeTruthy();
+    await waitFor(() => expect(workbench.classList.contains("preview-active")).toBe(true));
   });
 
   it("shows a friendly preview error when the file no longer exists", async () => {

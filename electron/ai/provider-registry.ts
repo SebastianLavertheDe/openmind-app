@@ -5,7 +5,7 @@ import path from "node:path";
 import type { ProviderCapabilities } from "../../shared/contracts";
 import { resolveModelSpec, type ProviderKind } from "../../shared/model-catalog";
 import { messages } from "../../shared/messages";
-import { parseWslPath } from "./process-utils";
+import { buildWslLoginCommand, parseWslPath } from "./process-utils";
 import { resolveNativeClaudeExecutable } from "./providers/claude-agent-sdk";
 
 /**
@@ -205,7 +205,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
     kind: "claude",
     label: "Claude Code",
     probeWslExtra: async (distro, cwd) => {
-      if (parseClaudeAuthStatus(await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", "claude", "auth", "status"]))) return null;
+      if (parseClaudeAuthStatus(await runWslProviderCommand(distro, cwd, "claude", ["auth", "status"]))) return null;
       return messages.errors.provider.claudeWslNotLoggedIn(distro);
     },
     probeNativeExtra: async (command) => {
@@ -217,11 +217,23 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
 ];
 
 async function probeWslProvider(distro: string, cwd: string, spec: ProviderProbeSpec): Promise<ProbeResult> {
-  const found = await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", spec.kind, "--version"]);
+  const found = await runWslProviderCommand(distro, cwd, spec.kind, ["--version"]);
   if (!found) return { version: null, diagnostic: messages.errors.provider.wslStartFailed(spec.label, distro) };
   const extra = await spec.probeWslExtra(distro, cwd);
   if (extra) return { version: null, diagnostic: extra };
   return { version: found, diagnostic: null };
+}
+
+function runWslProviderCommand(
+  distro: string,
+  cwd: string,
+  kind: ProviderKind,
+  args: string[]
+): Promise<string | null> {
+  const invocation = kind === "claude"
+    ? buildWslLoginCommand(kind, args)
+    : { command: kind, args };
+  return runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", invocation.command, ...invocation.args]);
 }
 
 async function probeNativeProvider(spec: ProviderProbeSpec): Promise<ProbeResult> {

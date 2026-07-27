@@ -418,38 +418,22 @@ export function ChatComposer() {
             />
             {ai.draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(ai.draft.length)}</span> : null}
             <div className="composer-send-wrap">
-              {visibleActiveRun ? (
-                <>
-                  <button
-                    className="composer-send danger"
-                    disabled={visibleActiveRun.status === "applying"}
-                    aria-label={m.ai.composer.stop}
-                    title={m.ai.composer.stop}
-                    onClick={() => void ai.cancel(visibleActiveRun.id)}
-                  >
-                    <Square size={16} />
-                  </button>
-                  <button
-                    className="composer-send"
-                    disabled={ai.isSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
-                    aria-label={m.ai.composer.enqueue}
-                    title={m.ai.composer.enqueue}
-                    onClick={() => void submit()}
-                  >
-                    <ComposerSendIcon loading={ai.isSending} />
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="composer-send"
-                  disabled={ai.isSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
-                  aria-label={m.ai.composer.send}
-                  title={m.ai.composer.sendShortcut}
-                  onClick={() => void submit()}
-                >
+              <button
+                type="button"
+                className={`composer-send${visibleActiveRun ? " danger" : ""}`}
+                disabled={visibleActiveRun
+                  ? visibleActiveRun.status === "applying"
+                  : ai.isSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
+                aria-label={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.send}
+                title={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.sendShortcut}
+                onClick={() => visibleActiveRun ? void ai.cancel(visibleActiveRun.id) : void submit()}
+              >
+                {visibleActiveRun ? (
+                  <span key="stop" className="composer-send-icon" aria-hidden="true"><Square size={16} /></span>
+                ) : (
                   <ComposerSendIcon loading={ai.isSending} />
-                </button>
-              )}
+                )}
+              </button>
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { ChangeReviewCard } from "./diff";
+import { FilePreviewProvider } from "./file-preview-context";
 
 afterEach(cleanup);
 
@@ -31,20 +32,27 @@ function run(changeFiles: Array<Record<string, unknown>> = []): AiRun {
 
 describe("ChangeReviewCard", () => {
   it("folds incremental change events into one post-final artifact", () => {
+    const openPreview = vi.fn();
     const events = [
       event("change-1", [{ path: "src/one.ts", status: "modified", additions: 2, deletions: 1, patch: "one" }]),
       event("change-2", [{ path: "src/two.ts", status: "created", additions: 4, deletions: 0, patch: "two" }])
     ];
-    const { container } = render(<ChangeReviewCard events={events} run={run()} />);
+    const { container } = render(
+      <FilePreviewProvider open={openPreview}>
+        <ChangeReviewCard events={events} run={run()} />
+      </FilePreviewProvider>
+    );
 
     const card = container.querySelector(".change-review-card");
     expect(card).toBeTruthy();
     expect(card?.querySelector("strong")?.textContent).toContain("2");
-    expect(card?.querySelector("em")?.textContent).toBe("+6 -1");
+    expect(card?.querySelector("em")).toBeNull();
+    expect(screen.queryByText("+6 -1")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button"));
     expect(screen.getByText("src/one.ts")).toBeTruthy();
     expect(screen.getByText("src/two.ts")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "src/one.ts" }));
+    expect(openPreview).toHaveBeenCalledWith("src/one.ts");
   });
 
   it("uses the durable run change set when the provider emitted no changes event", () => {
@@ -55,7 +63,8 @@ describe("ChangeReviewCard", () => {
       />
     );
     expect(container.querySelector(".change-review-card strong")?.textContent).toContain("1");
-    expect(container.querySelector(".change-review-card em")?.textContent).toBe("+3 -2");
+    expect(container.querySelector(".change-review-card em")).toBeNull();
+    expect(screen.queryByText("+3 -2")).toBeNull();
   });
 
   it("turns a Codex aggregated unified diff snapshot into file review rows", () => {
@@ -78,11 +87,22 @@ describe("ChangeReviewCard", () => {
     const { container } = render(<ChangeReviewCard events={[diffEvent]} run={run()} />);
 
     expect(container.querySelector(".change-review-card strong")?.textContent).toContain("2");
-    expect(container.querySelector(".change-review-card em")?.textContent).toBe("+3 -1");
-    fireEvent.click(screen.getByRole("button"));
+    expect(container.querySelector(".change-review-card em")).toBeNull();
     expect(screen.getByText("src/app.ts")).toBeTruthy();
     expect(screen.getByText("src/new.ts")).toBeTruthy();
-    expect(screen.getByText("新增 · +2 -0")).toBeTruthy();
+    expect(screen.queryByText("新增 · +2 -0")).toBeNull();
+  });
+
+  it("shows three file rows first and reveals the remainder on demand", () => {
+    const files = ["one.ts", "two.ts", "three.ts", "four.ts", "five.ts"].map((path) => ({ path, status: "modified" }));
+    render(<ChangeReviewCard events={[]} run={run(files)} />);
+
+    expect(screen.getByText("three.ts")).toBeTruthy();
+    expect(screen.queryByText("four.ts")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "再显示 2 个文件" }));
+    expect(screen.getByText("four.ts")).toBeTruthy();
+    expect(screen.getByText("five.ts")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "收起" })).toBeTruthy();
   });
 
   it("does not render an empty artifact", () => {

@@ -37,9 +37,62 @@ export function addCjkLatinSpacing(value: string): string {
     .replace(/([A-Za-z0-9%])([\p{Script=Han}])/gu, "$1 $2");
 }
 
+const VALID_TABLE_DELIMITER = /^:?-{3,}:?$/;
+
+/**
+ * AI-generated Markdown occasionally concatenates two alignment markers, for
+ * example `---:---:`. GFM correctly rejects that row, but the surrounding
+ * header and data rows still make the intended table unambiguous. Repair only
+ * delimiter rows outside fenced code blocks; the editor value itself remains
+ * untouched.
+ */
+export function normalizeMarkdownTables(content: string): string {
+  const lines = content.split(/\r?\n/);
+  let fenceMarker: "`" | "~" | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    const fence = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      const marker = fence[1][0] as "`" | "~";
+      fenceMarker = fenceMarker === marker ? null : fenceMarker || marker;
+      continue;
+    }
+    if (fenceMarker || index === 0) continue;
+
+    const headerCells = splitTableRow(lines[index - 1]);
+    const delimiterCells = splitTableRow(line);
+    if (!headerCells || !delimiterCells || headerCells.length !== delimiterCells.length || headerCells.length < 2) continue;
+
+    const compactCells = delimiterCells.map((cell) => cell.replace(/\s/g, ""));
+    const isDelimiterCandidate = compactCells.every((cell) => /^[-:]+$/.test(cell) && cell.replace(/:/g, "").length >= 3);
+    if (!isDelimiterCandidate || compactCells.every((cell) => VALID_TABLE_DELIMITER.test(cell))) continue;
+
+    const indent = line.match(/^\s*/)?.[0] || "";
+    const normalizedCells = compactCells.map((cell) => {
+      const leftAligned = cell.startsWith(":");
+      const rightAligned = cell.endsWith(":");
+      return `${leftAligned ? ":" : ""}---${rightAligned ? ":" : ""}`;
+    });
+    lines[index] = `${indent}| ${normalizedCells.join(" | ")} |`;
+  }
+
+  return lines.join("\n");
+}
+
+function splitTableRow(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return null;
+  const body = trimmed.replace(/^\|/, "").replace(/\|$/, "");
+  const cells = body.split("|").map((cell) => cell.trim());
+  return cells.length >= 2 ? cells : null;
+}
+
 export type MarkdownReaderLayout = "article" | "file";
 
 export function MarkdownReader({ content, className = "", layout = "article" }: { content: string; className?: string; layout?: MarkdownReaderLayout }) {
+  const normalizedContent = normalizeMarkdownTables(content);
   const classes = [
     "reader-markdown",
     "reader-body",
@@ -50,8 +103,11 @@ export function MarkdownReader({ content, className = "", layout = "article" }: 
     <article className={classes}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkCjkSpacing]}
-        components={{ a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" /> }}
-      >{content}</ReactMarkdown>
+        components={{
+          a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+          table: ({ node: _node, ...props }) => <div className="markdown-table-scroll"><table {...props} /></div>
+        }}
+      >{normalizedContent}</ReactMarkdown>
     </article>
   );
 }

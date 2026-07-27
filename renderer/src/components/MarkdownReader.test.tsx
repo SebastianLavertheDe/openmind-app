@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { MarkdownReader, addCjkLatinSpacing } from "./MarkdownReader";
+import { MarkdownReader, addCjkLatinSpacing, normalizeMarkdownTables } from "./MarkdownReader";
 
 afterEach(cleanup);
 
@@ -23,5 +23,31 @@ describe("MarkdownReader", () => {
 
     rerender(<MarkdownReader content="正文" layout="file" />);
     expect(container.querySelector("article")?.classList.contains("file-reader")).toBe(true);
+  });
+
+  it("repairs a malformed generated table delimiter for preview", () => {
+    const content = [
+      "| 热点 | 传播潜力 | 写作价值 |",
+      "|---|---:---:|---:|",
+      "| Anthropic | 8 | 9 |"
+    ].join("\n");
+
+    expect(normalizeMarkdownTables(content)).toContain("| --- | ---: | ---: |");
+    render(<MarkdownReader content={content} layout="file" />);
+
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+    expect(screen.getByText("Anthropic")).toBeTruthy();
+  });
+
+  it("does not repair table-like text inside fenced code", () => {
+    const content = [
+      "```md",
+      "| 热点 | 写作价值 |",
+      "|---|---:---:|",
+      "```"
+    ].join("\n");
+
+    expect(normalizeMarkdownTables(content)).toBe(content);
   });
 });

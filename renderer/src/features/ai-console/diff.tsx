@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ChevronRight, ExternalLink, FolderOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Files, FolderOpen } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { CopyButton } from "./message";
 import { fileIcon, fileIconColor } from "./file-icon";
+import { useFilePreview } from "./file-preview-context";
 import { PatchView } from "./patch-view";
 import { asRecord, changePaths, numeric, scalar } from "./timeline";
 
@@ -33,8 +34,51 @@ export function ChangeReviewCard({ events, run }: { events: AiEvent[]; run: AiRu
 
 function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; variant: "trace" | "review" }) {
   const [open, setOpen] = useState(false);
+  const openPreview = useFilePreview();
   const paths = changePaths(run, events);
   const files = changeFiles(run, events, paths);
+  const fileLabel = files.length ? m.ai.diff.editedFiles(files.length) : m.ai.diff.editedFile;
+  if (variant === "review") {
+    const visibleFiles = open ? files : files.slice(0, 3);
+    const remainingFiles = files.length - visibleFiles.length;
+    return (
+      <section className="change-review-card" aria-label={fileLabel}>
+        <header className="change-review-header">
+          <span className="change-review-icon" aria-hidden="true"><Files size={15} /></span>
+          <strong>{fileLabel}</strong>
+        </header>
+        {visibleFiles.length ? (
+          <div className="change-review-files">
+            {visibleFiles.map((file) => (
+              <button
+                type="button"
+                className="change-review-file"
+                key={file.path}
+                title={m.ai.message.previewFile(file.path)}
+                onClick={() => {
+                  if (openPreview) openPreview(file.path);
+                  else void window.cctools.openPath(file.path);
+                }}
+              >
+                <span>{file.path}</span>
+              </button>
+            ))}
+            {files.length > 3 ? (
+              <button
+                type="button"
+                className="change-review-more"
+                aria-expanded={open}
+                onClick={() => setOpen((value) => !value)}
+              >
+                {open ? m.ai.diff.showFewerFiles : m.ai.diff.showMoreFiles(remainingFiles)}
+                <ChevronDown size={13} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        ) : <p className="change-review-empty">{m.ai.diff.providerReported}</p>}
+      </section>
+    );
+  }
   const fileAdditions = files.reduce((sum, file) => sum + file.additions, 0);
   const fileDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
   const eventAdditions = Math.max(0, ...events.map((event) => {
@@ -47,10 +91,9 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
   }));
   const additions = fileAdditions || eventAdditions;
   const deletions = fileDeletions || eventDeletions;
-  const fileLabel = files.length ? m.ai.diff.editedFiles(files.length) : m.ai.diff.editedFile;
   return (
     <AnimatedDisclosure
-      className={`change-trace-card${variant === "review" ? " change-review-card" : ""}`}
+      className="change-trace-card"
       open={open}
       onOpenChange={setOpen}
       summary={

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildWslLoginCommand,
   decodeProcessOutput,
   execInProject,
   execInProjectFromFile,
@@ -89,6 +90,18 @@ describe("toWslPath", () => {
 
   it("已是 linux 路径时原样返回(无盘符无反斜杠)", () => {
     expect(toWslPath("/home/user")).toBe("/home/user");
+  });
+});
+
+describe("buildWslLoginCommand", () => {
+  it("通过登录 shell 解析命令并原样转发参数", async () => {
+    const invocation = buildWslLoginCommand("printf", ["%s|%s", "a b", "$HOME"]);
+    const child = spawnInDirectory(createRoot(), invocation.command, invocation.args);
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    expect(code).toBe(0);
+    expect(stdout).toBe("a b|$HOME");
   });
 });
 

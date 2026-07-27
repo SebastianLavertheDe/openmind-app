@@ -202,7 +202,7 @@ describe("Chat composer", () => {
     await waitFor(() => expect(screen.getByText("stop")).toBeTruthy());
   });
 
-  it("keeps Shift+Enter as a newline gesture and labels queued sends", async () => {
+  it("keeps Shift+Enter as a newline gesture while the single action remains stop", async () => {
     const user = userEvent.setup();
     render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
     const editor = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
@@ -211,10 +211,11 @@ describe("Chat composer", () => {
     fireEvent.keyDown(editor, { key: "Enter", shiftKey: true, isComposing: false });
 
     expect(startRun).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "加入队列" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "停止" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "加入队列" })).toBeNull();
   });
 
-  it("keeps stop and enqueue controls after an intermediate assistant message", async () => {
+  it("keeps one stop action after an intermediate assistant message", async () => {
     const user = userEvent.setup();
     let renders = 0;
     const { container } = render(
@@ -228,14 +229,15 @@ describe("Chat composer", () => {
 
     await user.type(editor, "follow-up");
     expect(within(composer).getByRole("button", { name: m.ai.composer.stop })).toBeTruthy();
-    expect((within(composer).getByRole("button", { name: m.ai.composer.enqueue }) as HTMLButtonElement).disabled).toBe(false);
+    expect(composer.querySelectorAll(".composer-send-wrap .composer-send")).toHaveLength(1);
 
     const rendersBeforeReply = renders;
     aiListener?.({ kind: "event", event: makeEvent("progress", "assistant-message", { text: "Still working." }, 2) });
     await waitFor(() => expect(renders).toBeGreaterThan(rendersBeforeReply));
 
     expect(within(composer).getByRole("button", { name: m.ai.composer.stop })).toBeTruthy();
-    expect((within(composer).getByRole("button", { name: m.ai.composer.enqueue }) as HTMLButtonElement).disabled).toBe(false);
+    expect(composer.querySelectorAll(".composer-send-wrap .composer-send")).toHaveLength(1);
+    expect(within(composer).queryByRole("button", { name: m.ai.composer.enqueue })).toBeNull();
     expect(within(composer).queryByRole("button", { name: m.ai.composer.send })).toBeNull();
   });
 
@@ -993,7 +995,8 @@ describe("chat timeline", () => {
     expect(editor.disabled).toBe(false);
     await user.type(editor, "follow-up");
     expect(editor.value).toBe("follow-up");
-    expect(screen.getByRole("button", { name: "加入队列" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "停止" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "加入队列" })).toBeNull();
     expect(screen.getByRole("button", { name: "允许" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "拒绝" })).toBeTruthy();
     expect(screen.queryByText("运行测试命令")).toBeNull();
@@ -1086,10 +1089,9 @@ describe("chat timeline", () => {
     await waitFor(() => expect((screen.getByLabelText("AI 消息") as HTMLTextAreaElement).value).toBe("test"));
   });
 
-  it("renders change sets as file-level diff records without apply actions", async () => {
+  it("renders a compact edited-files context that opens files in the preview", async () => {
     const user = userEvent.setup();
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const openPreview = vi.fn();
     const changeSet = makeChangeSet();
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z", changeSet };
     window.cctools.aiGetEvents = async () => [
@@ -1097,28 +1099,26 @@ describe("chat timeline", () => {
       makeEvent("changes", "changes", { changeSet: { id: changeSet.id, files: changeSet.files } }, 2),
       makeEvent("answer", "assistant-message", { text: "done" }, 3)
     ];
-    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+    const { container } = render(
+      <AiProvider initial={snapshotForRun(run, "idle")}>
+        <FilePreviewProvider open={openPreview}><Chat /></FilePreviewProvider>
+      </AiProvider>
+    );
 
     openDisclosure(disclosureFor(await screen.findByText("已处理")));
     const review = container.querySelector<HTMLElement>(".change-review-card")!;
     expect(review).toBeTruthy();
-    fireEvent.click(disclosureTrigger(review));
-
-    const pathMatches = within(review).getAllByText("src/app.ts");
-    expect(pathMatches.length).toBeGreaterThan(0);
-    expect(within(review).getByText("修改 · +3 -1")).toBeTruthy();
-    expect(within(review).getByText(/@@ -1,2 \+1,2 @@/)).toBeTruthy();
+    expect(within(review).getByText("src/app.ts")).toBeTruthy();
+    expect(within(review).queryByText("修改 · +3 -1")).toBeNull();
+    expect(within(review).queryByText(/@@ -1,2 \+1,2 @@/)).toBeNull();
+    expect(within(review).queryByRole("button", { name: "打开文件" })).toBeNull();
+    expect(within(review).queryByRole("button", { name: "所在目录" })).toBeNull();
+    expect(within(review).queryByRole("button", { name: "复制" })).toBeNull();
     expect(screen.queryByText("应用历史变更")).toBeNull();
     expect(screen.queryByText("应用隔离变更")).toBeNull();
 
-    const fileCard = pathMatches.map((node) => node.closest("article")).find(Boolean) as HTMLElement;
-    expect(fileCard).toBeTruthy();
-    await user.click(within(fileCard).getByRole("button", { name: "复制" }));
-    await user.click(within(review).getByRole("button", { name: "打开文件" }));
-    await user.click(within(review).getByRole("button", { name: "所在目录" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(changeSet.files[0].patch));
-    expect(openPath).toHaveBeenCalledWith("src/app.ts");
-    expect(revealPath).toHaveBeenCalledWith("src/app.ts");
+    await user.click(within(review).getByRole("button", { name: "src/app.ts" }));
+    expect(openPreview).toHaveBeenCalledWith("src/app.ts");
   });
 
   it("builds the post-final change artifact from a successful Claude write tool", async () => {

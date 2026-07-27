@@ -178,7 +178,7 @@ export function AiWorkbench() {
 
   const resizePreview = useCallback((delta: number) => {
     const width = workbenchRef.current?.getBoundingClientRect().width || window.innerWidth || 1200;
-    setPreviewRatio((value) => Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, value - delta / Math.max(1, width))));
+    setPreviewRatio((value) => Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, value + delta / Math.max(1, width))));
   }, []);
   const startPreviewResize = useCallback(() => {
     previewResizeStartRatio.current = previewRatio;
@@ -205,9 +205,11 @@ export function AiWorkbench() {
     }
   }, [draft, preview, saving]);
 
-  const previewColumns = previewVisible && previewActive
-    ? `minmax(0, ${(1 - previewRatio).toFixed(3)}fr) ${FILE_PREVIEW_SPLITTER_WIDTH}px minmax(360px, ${previewRatio.toFixed(3)}fr)`
-    : "minmax(0, 1fr) 0px minmax(0, 0fr)";
+  const previewColumns = previewVisible
+    ? previewActive
+      ? `minmax(360px, ${previewRatio.toFixed(3)}fr) ${FILE_PREVIEW_SPLITTER_WIDTH}px minmax(0, ${(1 - previewRatio).toFixed(3)}fr)`
+      : "minmax(0, 0fr) 0px minmax(0, 1fr)"
+    : "minmax(0, 1fr)";
   const canEdit = Boolean(displayedPreview?.content && !displayedPreview.content.truncated);
   const canSave = previewOpen && canEdit && dirty && !saving;
   const previewActions: ResponsiveAction[] = displayedPreview ? [
@@ -322,7 +324,7 @@ export function AiWorkbench() {
         {previewVisible && displayedPreview ? (
           <>
             <ColumnSplitter
-              side="right"
+              side="left"
               collapsed={false}
               ariaLabel={m.ai.workbench.filePreviewWidth}
               toggle={closePreview}

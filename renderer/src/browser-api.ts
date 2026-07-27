@@ -44,7 +44,23 @@ export function installBrowserPreviewApi(): boolean {
       startedAt: "2026-06-28T08:00:00.000Z",
       completedAt: "2026-06-28T08:05:00.000Z",
       error: null,
-      changeSet: null,
+      changeSet: {
+        id: "preview-change-set",
+        runId: "preview-run",
+        baseCommit: "preview-base",
+        files: [
+          { path: "desktop-app/renderer/src/features/ai-console/AiWorkbench.tsx", status: "modified", additions: 18, deletions: 12, patch: "" },
+          { path: "desktop-app/renderer/src/features/ai-console/diff.tsx", status: "modified", additions: 42, deletions: 28, patch: "" },
+          { path: "desktop-app/renderer/src/styles/features/ai-console.css", status: "modified", additions: 16, deletions: 9, patch: "" },
+          { path: "desktop-app/renderer/src/components/AiWorkbench.test.tsx", status: "modified", additions: 14, deletions: 4, patch: "" },
+          { path: "desktop-app/renderer/src/features/ai-console/diff.test.tsx", status: "modified", additions: 20, deletions: 8, patch: "" }
+        ],
+        patch: "",
+        createdAt: "2026-06-28T08:04:50.000Z",
+        status: "pending",
+        appliedPatches: [],
+        appliedFiles: []
+      },
       risks: []
     }],
     pendingApprovals: []
@@ -63,15 +79,27 @@ export function installBrowserPreviewApi(): boolean {
     risks: []
   }, {
     schemaVersion: 1,
-    id: "preview-answer",
+    id: "preview-changes",
     seq: 2,
+    timestamp: "2026-06-28T08:04:50.000Z",
+    projectId: "preview-project",
+    sessionId: "preview-session",
+    runId: "preview-run",
+    provider: "claude",
+    kind: "changes",
+    payload: { changeSet: snapshot.runs[0].changeSet },
+    risks: []
+  }, {
+    schemaVersion: 1,
+    id: "preview-answer",
+    seq: 3,
     timestamp: "2026-06-28T08:05:00.000Z",
     projectId: "preview-project",
     sessionId: "preview-session",
     runId: "preview-run",
     provider: "claude",
     kind: "assistant-message",
-    payload: { text: "文稿已经生成并保存。\n\n文件：`mymind/article/demo.md`\n\n点击文件路径可在右侧直接预览内容。" },
+    payload: { text: "文稿已经生成并保存。\n\n文件：`mymind/article/demo.md`\n\n点击文件路径可在左侧直接预览内容。" },
     risks: []
   }];
   const listeners = new Set<(event: never) => void>();
@@ -147,7 +175,7 @@ export function installBrowserPreviewApi(): boolean {
           ? "# 每日简报\n\n## 今日信号\n\n1. 本地 AI 工作台正在成为内容团队的新基础设施。\n2. 结构化选题文件能显著缩短从阅读到发布的路径。\n\n## 值得细读\n\n- 工程级 AI 工作台设计\n- 可恢复的创作与发布流程"
           : path.includes("daily-topic")
             ? "# 每日选题管理\n\n## 选题 1：本地 AI 工程工作台\n\n- 推荐指数：9/10\n- 目标平台：公众号\n- 状态：待创作"
-            : "# 工程级 AI 工作台\n\n这是浏览器预览内容。\n\n## 目标\n\n- 可恢复会话\n- 执行前审批\n- 直接项目目录运行"
+            : "# 工程级 AI 工作台\n\n这是浏览器预览内容，用于验证长文编辑宽度与 Markdown 表格。\n\n## 今日候选热点池\n\n| 热点 | 来源 | 可靠性 | 传播潜力 | 写作价值 | 框架价值 | 风险 | 主编备注 |\n|---|---|---|---:---:|---:|---:|---|---|\n| Anthropic 系统提示词精简 80% | Thariq 推文 | 高 | 8 | 9 | 9 | 低 | 今日首选 |\n| HuggingFace 越狱研究 | OpenAI | 高 | 8 | 9 | 8 | 中 | 适合深度分析 |\n\n## 目标\n\n- 可恢复会话\n- 执行前审批\n- 直接项目目录运行"
     }),
     writeContent: async (path, content) => ({ path, name: path.split("/").at(-1), content, truncated: false }),
     listInbox: async (query) => ({
