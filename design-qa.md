@@ -1,5 +1,53 @@
 # Design QA
 
+## AI code-block simplification and permission-toast removal — 2026-07-28
+
+- Source visual truth:
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-bf1e3734-a71c-4515-985f-0aecdce311d9.png` (permission-success toast to remove; 3840 × 2088)
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-ef6ed899-98a3-4022-ac09-60b5212af889.png` (terminal titlebar and expand-control baseline to remove; 3840 × 2088)
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-46dec1a9-d600-4de4-8d98-b08778c37396.png` (authoritative simple code-block treatment; 1395 × 693)
+- Implementation screenshot: `desktop-app/design-qa/ai-code-block-simple-1366x768.png` (1366 × 741 content pixels from a 1366 × 768 Electron window, CSS density 1)
+- Focused normalized comparison: `desktop-app/design-qa/ai-code-block-focus-comparison.png` (1010 × 247; source and implementation blocks normalized to the same width)
+- State: light theme, completed AI response with two fenced `text` blocks; the first block is fully visible and the second verifies multi-line growth inside the conversation scroller.
+
+### Full-view comparison evidence
+
+- AI replies no longer render a terminal titlebar, language label, character count, traffic-light controls, fade mask, or `展开全部` row.
+- Fenced output now grows to its full content height. Live geometry measured the multi-line block at 229px client height and 229px scroll height, with no internal overflow or disclosure control.
+- The permission approval flow still resolves normally, but successful approval no longer creates the bottom-right `已允许` toast. The five-second decline/undo notice remains because it carries a reversible action.
+
+### Focused comparison evidence
+
+- The source and post-fix implementation were opened together in `ai-code-block-focus-comparison.png`. Both use a quiet warm-gray surface, broad rounded corners, generous left padding, mono text, no header chrome, and a borderless copy action in the upper-right.
+- Implementation tokens are `#f5f5f4`, `16px` radius, no border or shadow, `18px 52px 18px 20px` content padding, and `13px/1.65` monospace text. These preserve the app's compact density while matching the reference treatment.
+
+### Required fidelity surfaces
+
+- Fonts and typography: the existing monospace stack and syntax highlighting remain; the removed `text` label and metadata no longer compete with the output.
+- Spacing and layout rhythm: code blocks use the reference's large-radius, padded container and expand vertically with their content; horizontal overflow remains scrollable for genuinely long lines.
+- Colors and visual tokens: the block uses the existing `--panel-muted` token in light and dark themes; no terminal red/yellow/green accents remain in AI replies.
+- Image quality and asset fidelity: no raster assets or approximated artwork were introduced. The copy icon remains the existing Lucide component.
+- Copy and content: fenced content is unchanged and fully rendered; only presentation metadata and approval-success feedback were removed.
+
+### Comparison history
+
+1. Initial finding [P1]: AI reply blocks looked like terminal windows and collapsed at 480px, adding a redundant `展开全部` interaction.
+2. Initial finding [P2]: the first simplified pass left a later theme rule painting the inner `pre` white, visually hiding the intended gray rounded surface.
+3. Fix: removed the header/overflow wrapper in the renderer, then added a final theme-layer override that keeps the inner `pre` transparent.
+4. Post-fix evidence: the focused comparison shows the intended gray rounded container and copy placement; live DOM inspection reports `16px` radius, `0px` border, no titlebar, no overflow control, and content height equal to scroll height.
+
+### Verification
+
+- Focused unit tests passed: 2 files, 12 tests.
+- TypeScript checks passed.
+- Renderer production build passed.
+- In-app browser console errors and warnings checked: none.
+- The repository-wide visual snapshot command generated the target post-fix screenshot but still exits on four pre-existing 720/1020px audit target-count checks outside this component; the requested AI block state itself rendered and was inspected successfully.
+
+final result: passed
+
+---
+
 ## Codex-style jump-to-bottom control QA — 2026-07-22
 
 - Source visual truth:

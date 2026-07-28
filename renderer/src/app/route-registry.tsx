@@ -46,6 +46,8 @@ export type RouteRenderProps = {
   bootstrap: RouteBootstrap;
   navigate: Navigate;
   providers: AiSnapshot["providers"];
+  aiFilePreviewPath: string | null;
+  onAiFilePreviewPathChange: (path: string | null) => void;
   onRepo: () => void;
   onExitSettings: () => void;
 };
@@ -61,7 +63,7 @@ type RouteDefinition = {
 };
 
 export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
-  { page: "ai", needsRepo: true, nav: { label: navLabel("ai"), icon: SquarePen, group: "create" }, render: ({ route }) => <AiWorkbench key={route.nonce} /> },
+  { page: "ai", needsRepo: true, nav: { label: navLabel("ai"), icon: SquarePen, group: "create" }, render: ({ route, aiFilePreviewPath, onAiFilePreviewPathChange }) => <AiWorkbench key={route.nonce} restoredPreviewPath={aiFilePreviewPath} onPreviewPathChange={onAiFilePreviewPathChange} /> },
   { page: "creative", needsRepo: true, nav: { label: navLabel("creative"), icon: FilePenLine, group: "core" }, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
   { page: "brief", needsRepo: true, nav: { label: navLabel("brief"), icon: CalendarDays, group: "core" }, render: ({ route, navigate }) => <DailyBriefPage key={route.nonce} go={navigate} initialDate={route.state.date} /> },
   { page: "sources", needsRepo: true, nav: { label: navLabel("sources"), icon: Database, group: "core" }, render: ({ route }) => <SourcesPage key={route.nonce} initialSourceId={route.state.sourceId} /> },

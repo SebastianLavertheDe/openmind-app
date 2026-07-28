@@ -62,8 +62,6 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
     }
     try {
       await commitResolution(value);
-      // P1-APR-3: 决策后 toast。accept 即时生效不可撤销;decline 给 5s undo 窗口。
-      ai.notify(m.ai.approval.allowedToast(subject), "success");
     } catch (cause) {
       setError(errorText(cause));
     } finally {

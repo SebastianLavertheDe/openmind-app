@@ -89,8 +89,38 @@ export function canAutoApprove(
   return category === "command" || category === "file-change";
 }
 
-function isOutsideWorkspace(cwd: string, candidate: string): boolean {
-  if (!candidate || !path.isAbsolute(candidate)) return false;
+export function isOutsideWorkspace(cwd: string, candidate: string): boolean {
+  if (!candidate) return false;
+  const wslCwd = parseWslUncPath(cwd);
+  const wslCandidate = parseWslUncPath(candidate);
+  if (wslCwd) {
+    if (wslCandidate) {
+      return wslCwd.distro !== wslCandidate.distro || !isPathWithin(wslCwd.path, wslCandidate.path);
+    }
+    const normalizedCandidate = candidate.replaceAll("\\", "/");
+    if (/^\/(?!\/)/.test(normalizedCandidate)) {
+      return !isPathWithin(wslCwd.path, path.posix.resolve("/", normalizedCandidate));
+    }
+    if (/^[a-z]:\//i.test(normalizedCandidate)) return true;
+  } else if (wslCandidate) {
+    return true;
+  }
+  if (!path.isAbsolute(candidate)) return false;
   const relative = path.relative(path.resolve(cwd), path.resolve(candidate));
   return relative.startsWith("..") || path.isAbsolute(relative);
+}
+
+function parseWslUncPath(value: string): { distro: string; path: string } | null {
+  const normalized = value.replaceAll("\\", "/");
+  const match = /^\/\/(?:wsl\.localhost|wsl\$)\/([^/]+)(\/.*)?$/i.exec(normalized);
+  if (!match) return null;
+  return {
+    distro: match[1].toLocaleLowerCase(),
+    path: path.posix.resolve("/", match[2] || "/")
+  };
+}
+
+function isPathWithin(root: string, candidate: string): boolean {
+  const relative = path.posix.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.posix.isAbsolute(relative));
 }

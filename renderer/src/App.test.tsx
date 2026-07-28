@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSnapshot, AppOverview, DesktopApi, SkillDefinition, UserPreferences } from "@shared/contracts";
+import type { AiEvent, AiRun, AiSnapshot, AppOverview, DesktopApi, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { App } from "./App";
 
 const snapshot: AiSnapshot = {
@@ -166,6 +166,212 @@ describe("App bootstrap", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
+  });
+
+  it("opens companion file references inside the left workspace instead of the external editor", async () => {
+    const path = "mymind/daily-topic/20260728_daily_topic.md";
+    const openPath = vi.fn(async (value: string) => value);
+    const readContent = vi.fn(async () => ({
+      path,
+      name: "20260728_daily_topic.md",
+      content: "# 左侧文件预览",
+      ext: "md",
+      truncated: false
+    }));
+    const run: AiRun = {
+      schemaVersion: 1,
+      id: "run-1",
+      sessionId: "session-1",
+      projectId: "project-1",
+      provider: "codex",
+      providerId: "codex-native",
+      permissionProfile: "auto",
+      status: "completed",
+      prompt: "生成选题",
+      contexts: [],
+      turnContext: null,
+      workspacePath: null,
+      baseCommit: null,
+      startedAt: "2026-07-28T14:00:00.000Z",
+      completedAt: "2026-07-28T14:01:00.000Z",
+      error: null,
+      changeSet: null,
+      risks: []
+    };
+    const event: AiEvent = {
+      schemaVersion: 1,
+      id: "answer-1",
+      seq: 1,
+      timestamp: "2026-07-28T14:01:00.000Z",
+      projectId: "project-1",
+      sessionId: "session-1",
+      runId: "run-1",
+      provider: "codex",
+      kind: "assistant-message",
+      payload: { phase: "final", text: `结果：\`${path}\`` },
+      risks: []
+    };
+    const sessionSnapshot: AiSnapshot = {
+      ...snapshot,
+      sessions: [{
+        schemaVersion: 1,
+        id: "session-1",
+        projectId: "project-1",
+        projectRoot: "/project",
+        title: "每日选题",
+        provider: "codex",
+        providerId: "codex-native",
+        providerSessionId: null,
+        cwd: ".",
+        permissionProfile: "auto",
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: "2026-07-28T14:00:00.000Z",
+        updatedAt: "2026-07-28T14:01:00.000Z",
+        lastRunId: "run-1"
+      }],
+      runs: [run]
+    };
+    installApi({
+      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      aiRefresh: async () => sessionSnapshot,
+      aiListTurns: async () => ({
+        data: [{
+          id: run.id,
+          sessionId: run.sessionId,
+          status: "completed",
+          startedAt: run.startedAt,
+          completedAt: run.completedAt,
+          context: null,
+          events: [event],
+          responseItems: [],
+          error: null
+        }],
+        nextCursor: null,
+        total: 1,
+        parseErrors: 0
+      }),
+      listContent: async () => [],
+      readContent,
+      openPath
+    });
+
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    fireEvent.click(await screen.findByRole("button", { name: path }));
+
+    expect(await screen.findByRole("complementary", { name: "文件预览" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "左侧文件预览" })).toBeTruthy();
+    expect(readContent).toHaveBeenCalledWith(path);
+    expect(openPath).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开文件" }));
+    expect(openPath).toHaveBeenCalledWith(path);
+  });
+
+  it("restores the AI file split after navigating away and returning to the conversation", async () => {
+    const path = "mymind/daily-summary/20260728_daily_summary.md";
+    const readContent = vi.fn(async () => ({
+      path,
+      name: "20260728_daily_summary.md",
+      content: "# 返回后仍在左侧",
+      ext: "md",
+      truncated: false
+    }));
+    const session = {
+      schemaVersion: 1 as const,
+      id: "session-preview",
+      projectId: "project-1",
+      projectRoot: "/project",
+      title: "保留分栏的对话",
+      provider: "codex" as const,
+      providerId: "codex-native",
+      providerSessionId: null,
+      cwd: ".",
+      permissionProfile: "auto" as const,
+      status: "idle" as const,
+      pinned: false,
+      archived: false,
+      createdAt: "2026-07-28T14:00:00.000Z",
+      updatedAt: "2026-07-28T14:01:00.000Z",
+      lastRunId: "run-preview"
+    };
+    const run: AiRun = {
+      schemaVersion: 1,
+      id: "run-preview",
+      sessionId: session.id,
+      projectId: session.projectId,
+      provider: "codex",
+      providerId: "codex-native",
+      permissionProfile: "auto",
+      status: "completed",
+      prompt: "查看总结",
+      contexts: [],
+      turnContext: null,
+      workspacePath: null,
+      baseCommit: null,
+      startedAt: session.createdAt,
+      completedAt: session.updatedAt,
+      error: null,
+      changeSet: null,
+      risks: []
+    };
+    const event: AiEvent = {
+      schemaVersion: 1,
+      id: "answer-preview",
+      seq: 1,
+      timestamp: session.updatedAt,
+      projectId: session.projectId,
+      sessionId: session.id,
+      runId: run.id,
+      provider: "codex",
+      kind: "assistant-message",
+      payload: { phase: "final", text: `文件：\`${path}\`` },
+      risks: []
+    };
+    const sessionSnapshot: AiSnapshot = {
+      ...snapshot,
+      sessions: [session],
+      runs: [run]
+    };
+    installApi({
+      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      aiRefresh: async () => sessionSnapshot,
+      aiListTurns: async () => ({
+        data: [{
+          id: run.id,
+          sessionId: run.sessionId,
+          status: "completed",
+          startedAt: run.startedAt,
+          completedAt: run.completedAt,
+          context: null,
+          events: [event],
+          responseItems: [],
+          error: null
+        }],
+        nextCursor: null,
+        total: 1,
+        parseErrors: 0
+      }),
+      listContent: async () => [],
+      readContent
+    });
+
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.click(await screen.findByRole("button", { name: path }));
+    expect(await screen.findByRole("heading", { name: "返回后仍在左侧" })).toBeTruthy();
+    expect(readContent).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    await waitFor(() => expect(document.querySelector(".brief-library-page")).toBeTruthy());
+    fireEvent.click(document.querySelector<HTMLButtonElement>(".nav-recent-item")!);
+
+    expect(await screen.findByRole("heading", { name: "返回后仍在左侧" })).toBeTruthy();
+    expect(await screen.findByRole("complementary", { name: "文件预览" })).toBeTruthy();
+    await waitFor(() => expect(readContent).toHaveBeenCalledTimes(2));
   });
 
   it("keeps a fullscreen AI companion underneath the body-level global search", async () => {

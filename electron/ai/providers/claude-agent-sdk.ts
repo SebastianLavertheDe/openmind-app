@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
-import { canAutoApprove, classifyApproval } from "./types";
+import { canAutoApprove, classifyApproval, isOutsideWorkspace } from "./types";
 import { buildWslLoginCommand, decodeProcessOutput, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
@@ -69,7 +69,8 @@ export function decideClaudePermission(
     return { behavior: "deny", message: "当前会话为只读模式。" };
   }
   const command = String(input.command || input.file_path || "");
-  const classified = blockedPath
+  const outsideBlockedPath = blockedPath && isOutsideWorkspace(runContext.cwd, blockedPath) ? blockedPath : undefined;
+  const classified = outsideBlockedPath
     ? { category: "outside-workspace" as const, title: "请求访问项目目录外路径" }
     : classifyApproval(command, toolName);
   const paths = typeof input.file_path === "string" ? [input.file_path] : [];

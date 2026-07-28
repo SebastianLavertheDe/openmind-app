@@ -10,6 +10,8 @@ import type { AppRoute, AppRouteState, Navigate } from "./app/routes";
 import { renderActiveRoute, type RouteBootstrap } from "./app/route-registry";
 import { AiSidebar } from "./components/AiSidebar";
 import { FeedbackHost } from "./components/FeedbackHost";
+import { WorkspaceFilePreview } from "./components/WorkspaceFilePreview";
+import { FilePreviewProvider } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
 
 const NAV_COLLAPSED_KEY = "cctools.nav.collapsed.v1";
@@ -34,6 +36,8 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const [route, setRoute] = useState<AppRoute>({ page: "ai", state: {}, nonce: 0 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
+  const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   const ai = useAi();
   const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
@@ -60,6 +64,8 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   }, []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const openWorkspaceFile = useCallback((path: string) => setWorkspaceFilePath(path), []);
+  const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
   useEffect(() => { void window.cctools.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
@@ -99,15 +105,19 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   useEffect(() => {
     if (settingsOpen) void window.cctools.aiRefreshProviders?.().catch(() => undefined);
   }, [settingsOpen]);
+  useEffect(() => setWorkspaceFilePath(null), [route.page, route.nonce, settingsOpen]);
   const routeRenderProps = {
     bootstrap,
     navigate,
     providers: ai.snapshot.providers,
+    aiFilePreviewPath,
+    onAiFilePreviewPathChange: setAiFilePreviewPath,
     onRepo: () => void window.cctools.getBootstrap().then(setBootstrap),
     onExitSettings: exitSettings
   };
   return (
-    <AppShell
+    <FilePreviewProvider open={openWorkspaceFile}>
+      <AppShell
       page={settingsOpen ? "settings" : route.page}
       navigate={navigate}
       onOpenSearch={openSearch}
@@ -123,12 +133,17 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       aiNavigation={null}
       recentTasks={<SidebarRecent activeSessionId={route.page === "ai" ? ai.activeSession?.id || null : null} onOpen={(id) => { void ai.setActiveSession(id); navigate("ai"); }} />}
       onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
-    >
+      >
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
-        <div className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`} aria-hidden={settingsOpen || undefined}>
+        <div
+          className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`}
+          aria-hidden={settingsOpen || Boolean(workspaceFilePath) || undefined}
+          inert={settingsOpen || Boolean(workspaceFilePath)}
+        >
           {renderActiveRoute({ route, ...routeRenderProps })}
         </div>
       </Suspense>
+      {workspaceFilePath && !settingsOpen ? <WorkspaceFilePreview path={workspaceFilePath} onClose={closeWorkspaceFile} /> : null}
       {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
           {renderActiveRoute({ route: { page: "settings", state: {}, nonce: 0 }, ...routeRenderProps })}
@@ -136,6 +151,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       ) : null}
       <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} />
       <FeedbackHost />
-    </AppShell>
+      </AppShell>
+    </FilePreviewProvider>
   );
 }

@@ -32,7 +32,13 @@ type PreviewMode = "preview" | "edit";
 
 const FILE_PREVIEW_SPLITTER_WIDTH = 4;
 
-export function AiWorkbench() {
+export function AiWorkbench({
+  restoredPreviewPath = null,
+  onPreviewPathChange
+}: {
+  restoredPreviewPath?: string | null;
+  onPreviewPathChange?: (path: string | null) => void;
+} = {}) {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -117,6 +123,7 @@ export function AiWorkbench() {
   const openPreview = useCallback((path: string) => {
     if (!canLeavePreview()) return;
     const request = ++previewRequest.current;
+    onPreviewPathChange?.(path);
     setPreview({ path, content: null, loading: true, error: null });
     setPreviewMode("preview");
     setDraft("");
@@ -133,15 +140,23 @@ export function AiWorkbench() {
         setPreview({ path, content: null, loading: false, error: previewErrorText(cause) });
       }
     });
-  }, [canLeavePreview]);
+  }, [canLeavePreview, onPreviewPathChange]);
+
+  // 路由切走时 AI 工作台会卸载。文件路径由工作区保留，返回同一工作台后
+  // 重新载入该文件，恢复“左文件、右对话”的分栏，而不是退回纯对话视图。
+  useEffect(() => {
+    if (!restoredPreviewPath || preview) return;
+    openPreview(restoredPreviewPath);
+  }, [openPreview, preview, restoredPreviewPath]);
 
   const closePreview = useCallback(() => {
     if (!canLeavePreview()) return;
     previewRequest.current += 1;
+    onPreviewPathChange?.(null);
     setPreviewActive(false);
     setPreview(null);
     setPreviewResizing(false);
-  }, [canLeavePreview]);
+  }, [canLeavePreview, onPreviewPathChange]);
 
   const toggleHistory = useCallback(() => {
     setHistoryOpen((current) => {

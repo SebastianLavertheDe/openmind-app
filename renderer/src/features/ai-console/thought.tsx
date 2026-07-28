@@ -71,7 +71,7 @@ export function ReasoningCard({
     );
   }
 
-  const meta = streaming ? m.ai.thought.thinkingFor(elapsed) : m.ai.common.chars(chars);
+  const meta = streaming ? null : m.ai.common.chars(chars);
   const title = streaming ? <strong>{m.ai.thought.streaming}</strong> : preview ? <small>{preview}</small> : null;
   return (
     <AnimatedDisclosure
@@ -83,7 +83,7 @@ export function ReasoningCard({
         <>
           {streaming ? <LoaderCircle className="spin" size={14} /> : <BrainCircuit size={14} />}
           <span className="reasoning-title">{title}</span>
-          <span className="reasoning-meta">{meta}</span>
+          {meta ? <span className="reasoning-meta">{meta}</span> : null}
         </>
       }
     >

@@ -815,7 +815,8 @@ describe("chat timeline", () => {
     expect(liveReasoning.classList.contains("reasoning-waypoint")).toBe(false);
     expectDisclosureOpen(disclosureFor(liveReasoning), true);
     expect(await screen.findByText("checking context")).toBeTruthy();
-    expect(screen.getByText(/思考中 ·/)).toBeTruthy();
+    expect(screen.getByText(m.ai.thought.streaming)).toBeTruthy();
+    expect(screen.queryByText(/思考中 ·/)).toBeNull();
     expect(screen.queryByRole("dialog", { name: /思考过程|推理摘要/ })).toBeNull();
     expect(screen.getAllByText("checking context")).toHaveLength(1);
     expect(screen.queryByText("正在启动 Codex")).toBeNull();

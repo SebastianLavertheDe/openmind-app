@@ -124,6 +124,7 @@ describe("ApprovalBanner", () => {
 
     fireEvent.click(within(card).getByRole("button", { name: "允许" }));
     await waitFor(() => expect(resolveApproval).toHaveBeenCalledWith("long-command", "accept"));
+    expect(screen.queryByText(/已允许/)).toBeNull();
   });
 
   it("allows declining a single approval", async () => {

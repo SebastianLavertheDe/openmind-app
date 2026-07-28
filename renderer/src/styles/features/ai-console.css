@@ -1538,7 +1538,7 @@
 .ai-workbench.with-file-preview.preview-active > .column-splitter,
 .ai-workbench.with-file-preview.preview-active > .ai-file-preview {
   opacity: 1;
-  transform: translateX(0);
+  transform: none;
   pointer-events: auto;
 }
 
@@ -1594,12 +1594,10 @@
 .ai-workbench.with-file-preview .ai-file-editor-shell,
 .ai-workbench.with-file-preview .preview-inline-state {
   transition: opacity var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)), transform var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1));
-  will-change: opacity, transform;
 }
 
 .ai-workbench.with-file-preview .ai-file-preview-body > .content-selection-surface {
   transition: opacity var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)), transform var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1));
-  will-change: opacity, transform;
 }
 
 .ai-workbench.with-file-preview.is-resizing-preview .conversation-header > div,
@@ -1607,6 +1605,7 @@
 .ai-workbench.with-file-preview.is-resizing-preview .composer {
   opacity: .94;
   transform: translateX(2px);
+  will-change: opacity, transform;
 }
 
 .ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview > header > div:not(.ai-file-preview-actions),
@@ -1616,11 +1615,13 @@
 .ai-workbench.with-file-preview.is-resizing-preview .preview-inline-state {
   opacity: .94;
   transform: translateX(2px);
+  will-change: opacity, transform;
 }
 
 .ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .content-selection-surface {
   opacity: .94;
   transform: translateX(2px);
+  will-change: opacity, transform;
 }
 
 .ai-workbench.with-file-preview.is-resizing-preview > .column-splitter::after {
@@ -1743,6 +1744,21 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   background: var(--page-bg);
+}
+
+.workspace-file-preview.ai-file-preview {
+  position: absolute;
+  z-index: var(--z-overlay);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  animation: workspace-file-preview-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both;
+}
+
+@keyframes workspace-file-preview-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .ai-file-preview > header {

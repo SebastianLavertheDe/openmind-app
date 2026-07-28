@@ -147,6 +147,28 @@ describe("provider contracts", () => {
     expect(decision.updatedInput).toEqual({ command: "ls" });
   });
 
+  it("auto-approves safe reads when Claude reports the equivalent WSL UNC alias as blocked", () => {
+    const autoWslContext = {
+      session: { permissionProfile: "auto" },
+      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools"
+    } as ProviderRunContext;
+    const file = "//wsl.localhost/Ubuntu/home/say/work/github/cctools/.claude/skills/daily-topic-selector/SKILL.md";
+    const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
+
+    expect(decision.behavior).toBe("allow");
+  });
+
+  it("still asks before reading outside the WSL workspace in auto mode", () => {
+    const autoWslContext = {
+      session: { permissionProfile: "auto" },
+      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools"
+    } as ProviderRunContext;
+    const file = "//wsl.localhost/Ubuntu/home/say/.ssh/id_rsa";
+    const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
+
+    expect(decision).toMatchObject({ behavior: "ask", category: "outside-workspace" });
+  });
+
   it("denies mutating tools in read-only Claude sessions", () => {
     const readOnly = { session: { permissionProfile: "read-only" }, cwd: "/project" } as ProviderRunContext;
     const decision = decideClaudePermission(readOnly, "Write", { file_path: "/project/a.ts" });

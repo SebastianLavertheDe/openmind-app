@@ -191,7 +191,8 @@ export function MarkdownLink({ href, onClick, ...props }: AnchorHTMLAttributes<H
 function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
   const openPreview = useFilePreview();
   const text = extractText(children).trim();
-  const localPath = !className ? localFileReference(text) : null;
+  const looksLikeInlinePath = /[\\/]/.test(text) || !/\s/.test(text);
+  const localPath = !className && looksLikeInlinePath ? localFileReference(text) : null;
   if (!localPath) return <code {...props} className={className}>{children}</code>;
   return (
     <button
@@ -215,30 +216,12 @@ export function SafeMarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageEleme
 
 function MarkdownPre({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
   const text = extractText(children);
-  const lineCount = text ? text.split(/\r?\n/).length : 0;
-  const language = detectLanguage(children);
-  // P0-OFL-4: 代码块限高 480px（约 30 行）+ macOS titlebar + 渐变遮罩 + 展开全部
   return (
-    <div className="markdown-code-block" data-language={language || undefined}>
-      <header className="markdown-code-titlebar">
-        <span className="terminal-lights" aria-hidden="true"><i /><i /><i /></span>
-        <span className="markdown-code-lang">{language || "text"}</span>
-        {lineCount > 1 ? <small className="markdown-code-lines">{m.ai.common.chars(text.length)}</small> : null}
-        <CopyButton text={text} />
-      </header>
-      <OverflowBox className="markdown-code-overflow" maxHeight={480} expandable expandLabel={m.ai.overflow.expandLines(lineCount)}>
-        <pre {...props}>{children}</pre>
-      </OverflowBox>
+    <div className="markdown-code-block">
+      <CopyButton text={text} />
+      <pre {...props}>{children}</pre>
     </div>
   );
-}
-
-/** 从 rehype-highlight 的 className (language-xxx) 推断语言标签。 */
-function detectLanguage(node: ReactNode): string {
-  if (!isValidElement<{ className?: string }>(node)) return "";
-  const className = node.props?.className || "";
-  const match = /language-([\w-]+)/.exec(className);
-  return match ? match[1] : "";
 }
 
 function messageContext(event: AiEvent, text: string): ContextReference {

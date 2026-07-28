@@ -69,9 +69,9 @@
   --reader-line-height: 1.74;
   --reader-max-width: 68ch;
   --file-reader-max-width: 92ch;
-  --reader-text: #41413f;
+  --reader-text: #30302e;
   --reader-link: #2479c8;
-  --chat-body-size: var(--fs-body);
+  --chat-body-size: 14px;
   --chat-body-line-height: 1.62;
   --ai-sidebar-width: 430px;
   /* 侧边栏导航项语义变量（WorkBuddy 化改造，集中管控字号/行高/圆角）*/
@@ -636,6 +636,7 @@ select:focus-visible,
 
 .main-area {
   grid-area: 2 / 1;
+  position: relative;
   min-height: 0;
   background: var(--page-bg);
 }
@@ -2335,12 +2336,24 @@ select:focus-visible,
 
 .command-terminal,
 .patch-view,
-.local-file-code,
-.markdown-code-block {
+.local-file-code {
   border-color: var(--border);
   border-radius: 7px;
   background: var(--panel-muted);
   box-shadow: none;
+}
+
+.markdown-code-block {
+  border: 0;
+  border-radius: 16px;
+  background: var(--panel-muted);
+  box-shadow: none;
+}
+
+.chat-markdown .markdown-code-block pre {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* Dialogs, empty states, and feedback */
@@ -3304,7 +3317,7 @@ select:focus-visible,
 
   .ai-workbench.with-file-preview.preview-active > .ai-file-preview {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 
   .ai-workbench.with-file-preview.preview-leaving > .ai-file-preview {

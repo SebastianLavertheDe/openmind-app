@@ -25,7 +25,9 @@ export function localFileReference(value: string | undefined): string | null {
     .replace(/[?#]L?\d+(?::\d+)?$/i, "")
     .replace(/:(\d+)(?::\d+)?$/, "")
     .trim();
-  if (!path || /^(?:https?|mailto|data):/i.test(path) || path.includes("\n")) return null;
+  if (!path || /(?:https?|mailto|data):/i.test(path) || path.includes("\n")) return null;
+  const pathWithoutDrive = /^[a-z]:[\\/]/i.test(path) ? path.slice(2) : path;
+  if (pathWithoutDrive.includes(":")) return null;
   if (!/(?:^|[\\/])[^\\/]+\.[a-z0-9][a-z0-9._-]{0,9}$/i.test(path)) return null;
   return knownContentPath(path);
 }

@@ -435,7 +435,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .chat-markdown th, .chat-markdown td { padding: 7px 9px; border: 1px solid var(--border); text-align: left; }
 .chat-markdown :not(pre) > code { padding: 2px 6px; border-radius: 5px; background: var(--panel-muted); border: 1px solid var(--border-subtle); color: var(--code-fg); font-size: .9em; }
 .markdown-code-block { position: relative; }
-.markdown-code-block > button { position: absolute; z-index: 2; top: 6px; right: 6px; width: 28px; height: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--muted); }
 /* 代码高亮:深色用 Tokyo Night 风格(紫粉青),浅色用 GitHub Light(红蓝紫) */
 .hljs-keyword, .hljs-selector-tag, .hljs-literal { color: #c792ea; }
 .hljs-string, .hljs-attr { color: #c3e88d; }
@@ -1856,66 +1855,46 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .assistant-message.streaming .chat-markdown > *:last-child::after { animation: none; opacity: 0.7; }
 }
 
-/* ====================================================================
-   P0-OFL-4: 代码块限高 + macOS titlebar
-   ==================================================================== */
+/* AI 回复代码块：完整展示，使用简洁的灰底圆角容器。 */
 .markdown-code-block {
   position: relative;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  margin: 10px 0 14px;
+  border: 0;
+  border-radius: 16px;
   background: var(--panel-muted);
   overflow: hidden;
 }
-.markdown-code-block .markdown-code-titlebar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--panel-bg) 50%, var(--panel-muted));
-}
-.markdown-code-titlebar .terminal-lights {
-  display: flex;
-  gap: 5px;
-  flex: 0 0 auto;
-}
-.markdown-code-titlebar .terminal-lights i {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--border-strong);
-}
-.markdown-code-titlebar .terminal-lights i:nth-child(1) { background: #ff5f57; }
-.markdown-code-titlebar .terminal-lights i:nth-child(2) { background: #febc2e; }
-.markdown-code-titlebar .terminal-lights i:nth-child(3) { background: #28c840; }
-.markdown-code-lang {
-  flex: 1 1 auto;
-  font: 600 var(--fs-xs)/1 "JetBrains Mono", "SF Mono", monospace;
-  color: var(--muted);
-  text-transform: lowercase;
-}
-.markdown-code-lines {
-  font-size: var(--fs-xs);
-  color: var(--muted-2);
-}
-.markdown-code-titlebar > button {
-  position: static;
-  width: 24px;
-  height: 22px;
+.markdown-code-block > button {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--muted);
+  opacity: .72;
 }
-.markdown-code-block .markdown-code-overflow .overflow-box-content { background: transparent; }
+.markdown-code-block > button:hover,
+.markdown-code-block > button:focus-visible {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+  opacity: 1;
+}
 .markdown-code-block pre {
   margin: 0;
-  padding: 12px;
+  padding: 18px 52px 18px 20px;
+  overflow-x: auto;
   border: 0;
   border-radius: 0;
   background: transparent;
+  color: var(--text-dim);
+  font: 13px/1.65 var(--font-mono);
+  white-space: pre;
 }
 
 /* ====================================================================
