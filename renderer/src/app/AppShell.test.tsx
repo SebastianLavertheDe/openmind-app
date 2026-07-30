@@ -62,7 +62,7 @@ describe("AppShell", () => {
     expect(setNavCollapsed).toHaveBeenCalledWith(true);
   });
 
-  it("uses an immersive shell without the application navigation or toolbar for settings", () => {
+  it("uses a dedicated settings shell without the application navigation or toolbar", () => {
     const { container } = render(
       <AppShell
         page="settings"

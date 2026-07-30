@@ -1528,6 +1528,26 @@ describe("chat timeline", () => {
     expect(process.querySelector(".spin")).toBeNull();
   });
 
+  it("propagates a cancelled run status to an unfinished subtask in the Chat trace", async () => {
+    const run = { ...makeRun(), status: "cancelled" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    window.cctools.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "打开b站，截图首页" }, 1),
+      makeEvent("task-started", "system", {
+        semanticType: "subtask",
+        subtype: "task_started",
+        taskId: "task-1",
+        description: "Open bilibili via agent-browser and screenshot homepage"
+      }, 2)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    const process = disclosureFor(await screen.findByRole("button", { name: "已取消" }));
+    openDisclosure(process);
+    expect(within(process).getByText("Open bilibili via agent-browser and screenshot homepage")).toBeTruthy();
+    expect(process.querySelector(".subtask-trace")?.classList.contains("cancelled")).toBe(true);
+    expect(process.querySelector(".spin")).toBeNull();
+  });
+
   it("keeps completed process cycles visible alongside the running cycle", async () => {
     const run = makeRun();
     window.cctools.aiGetEvents = async () => [

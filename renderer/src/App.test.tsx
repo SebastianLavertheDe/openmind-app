@@ -108,7 +108,7 @@ describe("App bootstrap", () => {
     expect(document.querySelector(".creative-workspace-page")).toBe(firstCreativeNode);
   });
 
-  it("opens immersive settings and returns to the page that launched it", async () => {
+  it("opens settings with a dedicated sidebar and returns to the page that launched it", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "创作" }));
@@ -119,9 +119,9 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy());
     expect(document.querySelector(".app-nav")).toBeNull();
     expect(document.querySelector(".global-toolbar")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "设置分类" })).toBeTruthy();
     expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
     expect(creativePage?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBe("true");
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "返回应用" })));
 
     fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
     await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());

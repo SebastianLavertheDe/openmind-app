@@ -376,10 +376,13 @@
   display: grid;
 }
 
-.automation-rules-layout {
+.automation-rules-page .automation-rules-layout {
   min-height: 680px;
   grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-  gap: 14px;
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--panel);
 }
 
 .automation-page-transition {
@@ -397,9 +400,13 @@
   }
 }
 
-.automation-rule-list {
+.automation-rules-page .automation-rule-list {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--panel-muted) 46%, var(--panel));
+  box-shadow: none;
 }
 
 .pane-head {
@@ -409,7 +416,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
 }
 
 .pane-head h2 {
@@ -421,7 +428,7 @@
 .rule-list {
   min-height: 0;
   overflow: auto;
-  padding: 8px;
+  padding: 4px 8px 12px;
 }
 
 .rule-item-shell {
@@ -436,15 +443,22 @@
   background: transparent;
 }
 
+/* The late global card pass intentionally gives list rows a border. Rules are
+   navigation items, though, so keep their resting state quiet on this page. */
+.automation-rules-page .rule-item-shell {
+  border-color: transparent;
+  background: transparent;
+}
+
 .rule-item-shell + .rule-item-shell {
   margin-top: 4px;
 }
 
 .rule-item-shell:hover {
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--control-hover) 76%, transparent);
 }
 
-.rule-item-shell.active {
+.automation-rules-page .rule-item-shell.active {
   border-color: transparent;
   background: var(--list-selected-bg, var(--control-hover));
   box-shadow: none;
@@ -486,7 +500,9 @@
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: auto minmax(260px, 1fr);
-  gap: 14px;
+  gap: 0;
+  border-left: 1px solid var(--hairline);
+  background: var(--panel);
 }
 
 .automation-detail-transition {
@@ -504,12 +520,16 @@
   }
 }
 
-.rule-detail {
+.automation-rules-page .rule-detail {
   display: grid;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .rule-detail > header {
   align-items: flex-start;
+  border-bottom: 0;
 }
 
 .rule-detail > header h1 {
@@ -582,9 +602,9 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--panel-muted);
+  background: color-mix(in srgb, var(--panel-muted) 76%, var(--panel));
 }
 
 .cron-row code {
@@ -603,16 +623,19 @@
   display: inline-flex;
   align-items: center;
   padding: 0 9px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 999px;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
   color: var(--muted);
   font-size: 11px;
 }
 
 .step-list {
   display: grid;
-  gap: 8px;
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel-muted) 44%, var(--panel));
 }
 
 .step {
@@ -621,9 +644,14 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+}
+
+.step:last-child {
+  border-bottom: 0;
 }
 
 .step .num {
@@ -691,6 +719,13 @@
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.automation-rules-page .automation-console-box {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .console-box > header {
   align-items: center;
 }
@@ -707,13 +742,32 @@
   color: var(--text-dim);
 }
 
+.automation-rules-page .console-box header button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.automation-rules-page .console-box header button:hover {
+  border-color: transparent;
+  background: var(--control-hover);
+}
+
+.automation-rules-page .automation-console-box .ui-log-viewer > header {
+  border-bottom: 0;
+}
+
 .console-box .ui-log-viewer {
   height: 100%;
 }
 
 @media (max-width: 980px) {
-  .automation-rules-layout {
+  .automation-rules-page .automation-rules-layout {
     grid-template-columns: 1fr;
+  }
+
+  .automation-rules-page .automation-detail-pane {
+    border-top: 1px solid var(--hairline);
+    border-left: 0;
   }
 
   .rule-detail > header {

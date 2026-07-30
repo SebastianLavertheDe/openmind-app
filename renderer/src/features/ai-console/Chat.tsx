@@ -796,7 +796,7 @@ function TraceStepView({ step, run, folded = false }: { step: TraceStep; run: Ai
   if (step.type === "work") {
     return <WorkStateCard planEvents={step.planEvents} todoEvents={step.todoEvents} />;
   }
-  if (step.type === "subtask") return <SubtaskTrace events={step.events} />;
+  if (step.type === "subtask") return <SubtaskTrace events={step.events} runStatus={run.status} />;
   if (step.type === "technical") return <ProcessSystemEvent event={step.event} />;
   if (step.type === "reasoning") {
     if (folded) {

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Archive, CheckCircle2, CircleX, LoaderCircle, Redo2, ShieldAlert, Users, Wrench } from "lucide-react";
-import type { AiEvent } from "@shared/contracts";
+import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDateTime } from "../../ai-utils";
 import { useAi } from "../../ai-context";
@@ -45,7 +45,7 @@ export function ProcessSystemEvent({ event }: { event: AiEvent }) {
  * lifecycle notifications and Codex collaboration items normalize into this
  * component; neither source is presented as a user-authored Todo.
  */
-export function SubtaskTrace({ events }: { events: AiEvent[] }) {
+export function SubtaskTrace({ events, runStatus }: { events: AiEvent[]; runStatus?: RunStatus }) {
   if (!events.length) return null;
   const first = events[0];
   const last = events.at(-1) || first;
@@ -54,7 +54,7 @@ export function SubtaskTrace({ events }: { events: AiEvent[] }) {
     || payloads.map((payload) => stringValue(payload.description)).find(Boolean)
     || firstLine(stringValue(first.payload.prompt) || stringValue(first.payload.tool) || m.ai.events.subtaskFallback);
   const agentCount = codexAgentCount(last.payload.agentsStates);
-  const state = subtaskState(last, agentCount);
+  const state = subtaskState(last, agentCount, runStatus);
   const statusText = state === "completed"
     ? m.ai.events.subtaskCompleted
     : state === "failed"
@@ -76,7 +76,7 @@ export function SubtaskTrace({ events }: { events: AiEvent[] }) {
 
 type SubtaskState = "started" | "updated" | "completed" | "failed" | "cancelled";
 
-function subtaskState(event: AiEvent, agentCount: number): SubtaskState {
+function subtaskState(event: AiEvent, agentCount: number, runStatus?: RunStatus): SubtaskState {
   const subtype = String(event.payload.subtype || "").toLocaleLowerCase();
   const status = String(event.payload.status || "").toLocaleLowerCase();
   const agentStatuses = codexAgentStatuses(event.payload.agentsStates);
@@ -93,6 +93,12 @@ function subtaskState(event: AiEvent, agentCount: number): SubtaskState {
     || status === "completed"
     || (agentCount > 0 && agentStatuses.length === agentCount && agentStatuses.every(isTerminalAgentStatus))
   ) return "completed";
+  // Some providers stop emitting subtask lifecycle events when their parent
+  // run is terminated. Treat the parent terminal state as the upper bound so
+  // an orphaned "started"/"updated" row cannot keep spinning forever.
+  if (runStatus === "cancelled") return "cancelled";
+  if (runStatus === "failed" || runStatus === "conflicted") return "failed";
+  if (runStatus === "completed") return "completed";
   if (subtype.includes("started")) return "started";
   return "updated";
 }

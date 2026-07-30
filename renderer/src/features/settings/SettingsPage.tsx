@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Database, Globe, Package, Route, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Archive, Bot, Database, Globe, Package, Route, Search, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
@@ -43,7 +43,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo, onBack, onOpenSession }: { repoRoot: string; runtime: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void }) {
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,8 +250,6 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
     <div className="settings-page">
       <SettingsNavigation
         activeSection={activeSection}
-        runtime={runtime}
-        repoRoot={prefs?.repoRoot || initialRepo}
         onBack={onBack}
         onSelect={selectSection}
       />
@@ -296,32 +294,34 @@ export function SettingsPage({ repoRoot: initialRepo, runtime, providers, onRepo
   );
 }
 
-function SettingsNavigation({ activeSection, runtime, repoRoot, onBack, onSelect }: {
+function SettingsNavigation({ activeSection, onBack, onSelect }: {
   activeSection: SettingsSectionId;
-  runtime: string;
-  repoRoot: string;
   onBack(): void;
   onSelect(section: SettingsSectionId): void;
 }) {
-  const backButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    backButtonRef.current?.focus({ preventScroll: true });
-  }, []);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase();
 
   return (
     <aside className="settings-navigation" aria-label={m.settings.navigation.label}>
-      <button ref={backButtonRef} type="button" className="settings-back-button" onClick={onBack}>
+      <button type="button" className="settings-back-button" onClick={onBack}>
         <ArrowLeft size={15} aria-hidden />
         <span>{m.settings.navigation.back}</span>
       </button>
-      <div className="settings-navigation-title">
-        <SettingsIcon size={16} aria-hidden />
-        <strong>{m.settings.navigation.all}</strong>
-      </div>
+      <label className="settings-nav-search">
+        <Search size={14} aria-hidden />
+        <input
+          type="search"
+          value={query}
+          aria-label={m.settings.navigation.searchPlaceholder}
+          placeholder={m.settings.navigation.searchPlaceholder}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
       <nav className="settings-navigation-scroll" aria-label={m.settings.navigation.label}>
         {SETTINGS_GROUPS.map((group) => {
-          const sections = SETTINGS_SECTIONS.filter((section) => section.group === group);
+          const sections = SETTINGS_SECTIONS.filter((section) => section.group === group && (!normalizedQuery || `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)));
+          if (!sections.length) return null;
           return (
             <section className="settings-nav-group" key={group}>
               <span>{m.settings.navigation.groups[group]}</span>
@@ -344,11 +344,8 @@ function SettingsNavigation({ activeSection, runtime, repoRoot, onBack, onSelect
             </section>
           );
         })}
+        {normalizedQuery && !SETTINGS_SECTIONS.some((section) => `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)) ? <p className="settings-nav-empty">{m.settings.navigation.noResults}</p> : null}
       </nav>
-      <footer className="settings-navigation-footer">
-        <strong>{runtime}</strong>
-        <code title={repoRoot}>{repoRoot}</code>
-      </footer>
     </aside>
   );
 }

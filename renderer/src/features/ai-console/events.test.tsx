@@ -173,6 +173,24 @@ describe("process system semantics", () => {
     expect(container.querySelectorAll(".subtask-trace.failed")).toHaveLength(1);
     expect(container.querySelectorAll(".subtask-trace.cancelled")).toHaveLength(1);
   });
+
+  it.each([
+    ["cancelled", "cancelled"],
+    ["failed", "failed"],
+    ["conflicted", "failed"],
+    ["completed", "completed"]
+  ] as const)("stops an unfinished subtask when its parent run is %s", (runStatus, className) => {
+    const event = makeEvent("task-started", "system", {
+      semanticType: "subtask",
+      subtype: "task_started",
+      taskId: "task-1",
+      description: "Open bilibili via agent-browser and screenshot homepage"
+    });
+    const { container } = render(<SubtaskTrace events={[event]} runStatus={runStatus} />);
+
+    expect(container.querySelector(`.subtask-trace.${className}`)).toBeTruthy();
+    expect(container.querySelector(".spin")).toBeNull();
+  });
 });
 
 describe("ErrorEvent", () => {

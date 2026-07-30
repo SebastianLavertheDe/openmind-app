@@ -117,7 +117,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 function renderSettings(onRepo = vi.fn(), initial = snapshot, onOpenSession = vi.fn(), onBack = vi.fn(), skillDefinitions: SkillDefinition[] = []) {
-  render(<AiProvider initial={initial} skills={skillDefinitions}><SettingsPage repoRoot="/repo" runtime="linux" providers={providers} onRepo={onRepo} onBack={onBack} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
+  render(<AiProvider initial={initial} skills={skillDefinitions}><SettingsPage repoRoot="/repo" providers={providers} onRepo={onRepo} onBack={onBack} onOpenSession={onOpenSession} /><FeedbackHost /></AiProvider>);
 }
 
 function openCategory(name: string) {
@@ -136,7 +136,7 @@ describe("SettingsPage", () => {
     renderSettings();
     await waitFor(() => expect(screen.getByRole("heading", { name: "常规" })).toBeTruthy());
     const navigation = screen.getByRole("navigation", { name: "设置分类" });
-    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.getByRole("searchbox", { name: "搜索设置…" })).toBeTruthy();
     expect(within(navigation).getByRole("button", { name: "常规" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("heading", { name: "外观" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "项目路径" })).toBeTruthy();
@@ -148,11 +148,20 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("heading", { name: "外观" })).toBeNull();
   });
 
-  it("returns to the application from the settings navigation", async () => {
+  it("returns to the application from the dedicated settings sidebar", async () => {
     const onBack = vi.fn();
     renderSettings(vi.fn(), snapshot, vi.fn(), onBack);
     fireEvent.click(await screen.findByRole("button", { name: "返回应用" }));
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters setting categories from the sidebar search", async () => {
+    renderSettings();
+    const search = await screen.findByRole("searchbox", { name: "搜索设置…" });
+    fireEvent.change(search, { target: { value: "权限" } });
+    const navigation = screen.getByRole("navigation", { name: "设置分类" });
+    expect(within(navigation).getByRole("button", { name: "权限与安全" })).toBeTruthy();
+    expect(within(navigation).queryByRole("button", { name: "常规" })).toBeNull();
   });
 
   it("shows a recoverable error when preferences fail to load", async () => {

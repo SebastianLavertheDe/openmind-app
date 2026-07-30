@@ -51,7 +51,7 @@ export function AppShell({
   onNewTask?(): void;
 }) {
   const settingsMode = page === "settings";
-  const showSidebar = page !== "ai" && !settingsMode;
+  const showAiSidebar = page !== "ai" && !settingsMode;
   const previewMode = environment.mode === "preview";
   const windowsMica = environment.mode === "desktop" && environment.platform === "win32";
   const responsiveLayout = useResponsiveLayout();
@@ -150,7 +150,7 @@ export function AppShell({
   return (
     <div
       ref={shellRef}
-      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
+      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
       style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
     >
       {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
@@ -259,7 +259,7 @@ export function AppShell({
         </header> : null}
         <main className="main-area">{children}</main>
       </section>
-      {showSidebar ? aiSidebar : null}
+      {showAiSidebar ? aiSidebar : null}
     </div>
   );
 }

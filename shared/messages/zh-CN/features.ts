@@ -272,6 +272,8 @@ export const featureMessages = {
       label: "设置分类",
       back: "返回应用",
       all: "所有设置",
+      searchPlaceholder: "搜索设置…",
+      noResults: "没有匹配的设置",
       groups: {
         personal: "个人",
         ai: "AI",
