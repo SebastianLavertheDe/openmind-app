@@ -1,3 +1,11 @@
+.brief-library-container {
+  --daily-brief-workspace-min: 34rem;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  container: daily-brief / inline-size;
+}
+
 .brief-library-page {
   /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
   --file-reader-max-width: 1120px;
@@ -111,4 +119,85 @@
 .source-doc-actions {
   display: flex;
   gap: 6px;
+}
+
+/* The brief responds to its allocated workspace rather than the application
+   viewport. This also covers split-screen windows and OS display scaling. */
+@container daily-brief (max-width: 58rem) {
+  .brief-library-page .document-detail-header {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding-block: 14px;
+  }
+
+  .brief-library-page .document-detail-header p {
+    max-width: 100%;
+  }
+
+  .brief-library-page .document-detail-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .brief-library-page .document-content .reader-markdown,
+  .brief-library-page .document-content textarea {
+    padding-inline: clamp(18px, 5cqw, 42px);
+  }
+}
+
+@container daily-brief (max-width: 54rem) {
+  .brief-library-container > .brief-library-page {
+    grid-template-columns: clamp(10rem, 32cqw, 14rem) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .brief-library-page .document-library-list {
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 0;
+  }
+
+  .brief-library-page .document-library-list > header {
+    min-height: 64px;
+    padding-block: 10px 8px;
+  }
+
+  .brief-library-page .document-library-search {
+    min-height: 34px;
+    margin-bottom: 8px;
+  }
+
+  .brief-library-page .document-file-list {
+    padding-bottom: 8px;
+  }
+
+  .brief-library-page .document-file-list > button {
+    min-height: 52px;
+    padding-block: 8px;
+  }
+}
+
+@container daily-brief (max-width: 34rem) {
+  .brief-library-page .document-detail-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .brief-library-page .preview-mode-toggle,
+  .brief-library-page .document-file-actions {
+    width: 100%;
+  }
+
+  .brief-library-page .preview-mode-toggle button,
+  .brief-library-page .document-file-actions .ui-responsive-action {
+    flex: 1 1 0;
+  }
+
+  .brief-library-page .document-file-actions {
+    padding-top: 8px;
+    padding-left: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
 }

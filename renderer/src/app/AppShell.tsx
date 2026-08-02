@@ -81,13 +81,18 @@ export function AppShell({
     const measure = () => {
       const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
       const preferredWidth = Number(companion?.dataset.layoutWidth);
+      const minimumWidth = Number(companion?.dataset.layoutMinWidth);
+      const companionVisible = aiMode === "default" || aiMode === "wide";
       reportComposition({
         viewportWidth: shell.getBoundingClientRect().width || window.innerWidth,
-        // Fullscreen and collapsed modes do not consume a grid column. Default
-        // and wide keep reporting their preferred width so navigation can
-        // simplify before the companion itself reaches the canvas breakpoint.
-        companionWidth: aiMode === "default" || aiMode === "wide"
+        // Fullscreen and collapsed modes do not consume a grid column. The
+        // preferred width is retained for rendering, while the minimum width
+        // alone decides whether the companion can remain attached.
+        companionWidth: companionVisible
           ? Number.isFinite(preferredWidth) && preferredWidth > 0 ? preferredWidth : 0
+          : 0,
+        companionMinWidth: companionVisible
+          ? Number.isFinite(minimumWidth) && minimumWidth > 0 ? minimumWidth : 0
           : 0
       });
     };

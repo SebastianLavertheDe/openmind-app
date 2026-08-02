@@ -5,6 +5,11 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import {
+  CAPTURE_SCOPES,
+  buildControlledCaptureCode,
+  type CaptureScope
+} from "./browser-evidence-capture";
 
 type UpstreamContent = { type?: string; text?: string; data?: string; mimeType?: string };
 type UpstreamResult = { content?: UpstreamContent[]; isError?: boolean };
@@ -43,6 +48,7 @@ server.registerTool("capture_source_evidence", {
   inputSchema: {
     url: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL"),
     quote: z.string().trim().min(2).max(4000).describe("必须在原始网页中出现的准确引用文本"),
+    capture_scope: z.enum(CAPTURE_SCOPES).default("auto").describe("截图范围：自动、精确文本、段落、内容组件、单条评论或文章"),
     caption: z.string().trim().max(300).optional().describe("插入稿件时使用的图片说明"),
     filename: z.string().trim().max(180).optional().describe("可选 PNG 文件名；只使用文件名，不接受目录")
   },
@@ -52,9 +58,9 @@ server.registerTool("capture_source_evidence", {
     idempotentHint: false,
     openWorldHint: true
   }
-}, async ({ url, quote, caption, filename }) => {
+}, async ({ url, quote, capture_scope, caption, filename }) => {
   try {
-    return await captureEvidence({ url, quote, caption, filename });
+    return await captureEvidence({ url, quote, captureScope: capture_scope, caption, filename });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return {
@@ -67,7 +73,13 @@ server.registerTool("capture_source_evidence", {
   }
 });
 
-async function captureEvidence(input: { url: string; quote: string; caption?: string; filename?: string }) {
+async function captureEvidence(input: {
+  url: string;
+  quote: string;
+  captureScope: CaptureScope;
+  caption?: string;
+  filename?: string;
+}) {
   const before = parseTabs(await callText("browser_tabs", { action: "list" }));
   const original = before.find((tab) => tab.current) || null;
   const existing = reuseExistingTabs
@@ -88,16 +100,19 @@ async function captureEvidence(input: { url: string; quote: string; caption?: st
   const imagePath = path.join(outputDir, outputName);
   assertInsideWorkspace(outputDir, imagePath);
   try {
-    const captured = await runControlledCapture(input.quote, imagePath);
+    const captured = await runControlledCapture(input.quote, imagePath, input.captureScope);
     if (!fs.existsSync(imagePath)) throw new Error("浏览器没有生成截图文件。");
     const relativeImagePath = path.relative(workspace, imagePath).split(path.sep).join("/");
     const metadataPath = imagePath.replace(/\.png$/i, ".json");
     const metadata = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       sourceUrl: captured.url || input.url,
       sourceTitle: captured.title || target.title,
       quote: input.quote,
+      captureScope: captured.scope,
+      captureKind: captured.kind,
       capturedText: captured.text,
+      capturedBounds: { width: captured.width, height: captured.height },
       caption: input.caption || captured.title || "原文证据",
       imagePath: relativeImagePath,
       tabAccess: access,
@@ -112,6 +127,7 @@ async function captureEvidence(input: { url: string; quote: string; caption?: st
             "原文证据截图已保存。",
             `- 来源：${metadata.sourceTitle}`,
             `- URL：${metadata.sourceUrl}`,
+            `- 范围：${metadata.captureScope}（识别为 ${metadata.captureKind}，${metadata.capturedBounds.width}×${metadata.capturedBounds.height}px）`,
             `- 标签页：${access === "reused" ? "复用已打开标签页" : "新建 CC Tools 受管标签页"}`,
             `- 截图：${relativeImagePath}`,
             `- 元数据：${path.relative(workspace, metadataPath).split(path.sep).join("/")}`,
@@ -132,50 +148,46 @@ async function captureEvidence(input: { url: string; quote: string; caption?: st
   }
 }
 
-async function runControlledCapture(quote: string, imagePath: string): Promise<{ url: string; title: string; text: string }> {
-  const code = `async (page) => {
-    const quote = ${JSON.stringify(quote)};
-    const outputPath = ${JSON.stringify(imagePath)};
-    const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-    const needle = normalize(quote);
-    await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => undefined);
-    const originalScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-    try {
-      const candidates = page.locator('p, li, blockquote, pre, figcaption, td, th, h1, h2, h3, h4, [role="article"], article');
-      const count = Math.min(await candidates.count(), 5000);
-      let best = null;
-      let bestText = '';
-      for (let index = 0; index < count; index++) {
-        const candidate = candidates.nth(index);
-        const text = normalize(await candidate.innerText({ timeout: 750 }).catch(() => ''));
-        if (!text || !text.includes(needle)) continue;
-        if (!best || text.length < bestText.length) {
-          best = candidate;
-          bestText = text;
-          if (text === needle) break;
-        }
-      }
-      if (!best) throw new Error('SOURCE_QUOTE_NOT_FOUND');
-      await best.scrollIntoViewIfNeeded({ timeout: 10000 });
-      await page.waitForTimeout(250);
-      await best.screenshot({ path: outputPath, type: 'png', scale: 'css', animations: 'disabled', timeout: 15000 });
-      return { url: page.url(), title: await page.title(), text: bestText };
-    } finally {
-      await page.evaluate(({ x, y }) => window.scrollTo(x, y), originalScroll).catch(() => undefined);
-    }
-  }`;
+async function runControlledCapture(
+  quote: string,
+  imagePath: string,
+  captureScope: CaptureScope
+): Promise<{
+  url: string;
+  title: string;
+  text: string;
+  scope: CaptureScope;
+  kind: CaptureScope;
+  width: number;
+  height: number;
+}> {
+  const code = buildControlledCaptureCode({ quote, imagePath, scope: captureScope });
   const result = await call("browser_run_code_unsafe", { code });
   const text = resultText(result);
   const parsed = extractJsonObject(text);
   if (!parsed) {
     if (/SOURCE_QUOTE_NOT_FOUND/i.test(text)) throw new Error("目标页面中没有找到指定原文；页面可能尚未登录、正文未加载或引用文本不准确。");
+    if (/SOURCE_CONTEXT_INCOMPLETE|SOURCE_TARGET_NOT_VISIBLE/i.test(text)) throw new Error("已找到原文，但无法得到完整可见的截图范围；请改用更明确的 capture_scope 或提供正文中的准确引文。");
     throw new Error(text || "无法读取浏览器截图结果。");
   }
   return {
     url: String(parsed.url || ""),
     title: String(parsed.title || ""),
-    text: String(parsed.text || "")
+    text: String(parsed.text || ""),
+    scope: captureScopeValue(parsed.scope, captureScope),
+    kind: captureScopeValue(parsed.kind, captureScope),
+    width: finiteNumber(parsed.width),
+    height: finiteNumber(parsed.height)
   };
+}
+
+function captureScopeValue(value: unknown, fallback: CaptureScope): CaptureScope {
+  return CAPTURE_SCOPES.includes(value as CaptureScope) ? value as CaptureScope : fallback;
+}
+
+function finiteNumber(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
 }
 
 async function callText(name: string, toolArgs: Record<string, unknown>): Promise<string> {

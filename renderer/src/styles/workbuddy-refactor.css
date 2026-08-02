@@ -3068,9 +3068,8 @@ select:focus-visible,
 
 .responsive-nav-toggle { margin-right: auto; }
 
-/* The shell keeps the companion in the same layout grammar from wide through
-   intermediate windows. React owns the resolved companion width and decides
-   when the remaining workspace requires a canvas; CSS does not clamp it again. */
+/* React resolves whether the companion is attached, floating, or a canvas.
+   CSS receives the already-clamped width and owns only presentation. */
 .app-shell.with-ai-default,
 .app-shell.with-ai-wide {
   --ai-layout-column: var(--ai-sidebar-width);
@@ -3085,6 +3084,10 @@ select:focus-visible,
 }
 
 .app-shell.layout-companion-canvas {
+  --ai-layout-column: 0px;
+}
+
+.app-shell.layout-companion-overlay {
   --ai-layout-column: 0px;
 }
 
@@ -3104,6 +3107,31 @@ select:focus-visible,
   height: auto;
   box-shadow: var(--workspace-shadow);
   transition: margin var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), border-radius var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+}
+
+/* When three usable columns no longer fit, preserve the primary navigation and
+   workspace. The companion becomes a bounded floating surface instead of
+   promoting navigation to an icon-only rail. */
+.app-shell > .ai-sidebar.layout-companion-overlay {
+  position: fixed;
+  z-index: 145;
+  top: max(16px, var(--workspace-inset, 0px));
+  right: max(16px, var(--workspace-inset, 0px));
+  bottom: max(16px, var(--workspace-inset, 0px));
+  width: var(--ai-sidebar-width);
+  max-width: calc(100vw - var(--nav-width, 260px) - 32px);
+  height: auto;
+  overflow: hidden;
+  border: 1px solid var(--workspace-border, var(--border));
+  border-radius: var(--workspace-radius, 14px);
+  background: var(--page-bg);
+  box-shadow: var(--shadow-overlay);
+  animation: responsive-companion-overlay-in var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+}
+
+@keyframes responsive-companion-overlay-in {
+  from { opacity: .76; transform: translateX(10px) scale(.995); }
+  to { opacity: 1; transform: none; }
 }
 
 .app-shell > .ai-sidebar.mode-full {
@@ -3338,11 +3366,13 @@ select:focus-visible,
   .app-shell.with-ai-wide,
   .app-stage,
   .app-shell > .ai-sidebar.layout-companion-compact,
+  .app-shell > .ai-sidebar.layout-companion-overlay,
   .app-shell > .ai-sidebar.layout-companion-canvas {
     transition: none;
   }
 
   .app-shell > .ai-sidebar.layout-companion-canvas,
+  .app-shell > .ai-sidebar.layout-companion-overlay,
   .creative-workspace.compact-list-open > .creative-list-pane,
   .creative-workspace.compact-detail-open > .creative-main-pane {
     animation: none;

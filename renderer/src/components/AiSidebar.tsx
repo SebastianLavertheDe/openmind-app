@@ -51,21 +51,31 @@ function currentViewportWidth(): number {
 
 function maximumRenderedWidth(
   viewportWidth: number,
-  overlay: boolean,
-  shell: ResponsiveLayout["shell"]
+  floating: boolean,
+  shell: ResponsiveLayout["shell"],
+  workspaceMinWidth: number
 ): number {
-  if (overlay) return SIDEBAR_MAX_WIDTH;
   const navigationWidth = shell === "expanded"
     ? RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth
     : shell === "rail"
       ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
       : 0;
-  const available = viewportWidth - navigationWidth - RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth;
+  if (floating) {
+    const available = viewportWidth - navigationWidth - 32;
+    return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, available));
+  }
+  const available = viewportWidth - navigationWidth - workspaceMinWidth;
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, available));
 }
 
-function clampRenderedWidth(width: number, viewportWidth: number, overlay: boolean, shell: ResponsiveLayout["shell"]): number {
-  return Math.min(maximumRenderedWidth(viewportWidth, overlay, shell), clampPreferredWidth(width));
+function clampRenderedWidth(
+  width: number,
+  viewportWidth: number,
+  floating: boolean,
+  shell: ResponsiveLayout["shell"],
+  workspaceMinWidth: number
+): number {
+  return Math.min(maximumRenderedWidth(viewportWidth, floating, shell, workspaceMinWidth), clampPreferredWidth(width));
 }
 
 export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
@@ -73,6 +83,7 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
   const responsiveLayout = useResponsiveLayout();
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
+  const floating = presentation === "overlay";
   const [widths, setWidths] = useState<SidebarWidths>(readSidebarWidths);
   const [viewportWidth, setViewportWidth] = useState(currentViewportWidth);
   const previousMode = useRef<SidebarMode>("default");
@@ -85,8 +96,8 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
     ? "default"
     : ai.panelMode === "wide" ? "wide" : previousMode.current;
   const preferredWidth = widths[mode];
-  const renderedMaxWidth = maximumRenderedWidth(viewportWidth, modal, responsiveLayout.shell);
-  const renderedWidth = clampRenderedWidth(preferredWidth, viewportWidth, modal, responsiveLayout.shell);
+  const renderedMaxWidth = maximumRenderedWidth(viewportWidth, modal || floating, responsiveLayout.shell, responsiveLayout.workspaceMinWidth);
+  const renderedWidth = clampRenderedWidth(preferredWidth, viewportWidth, modal || floating, responsiveLayout.shell, responsiveLayout.workspaceMinWidth);
   panelModeRef.current = ai.panelMode;
 
   const dismissModal = useCallback(() => {
@@ -132,6 +143,7 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
       ref={sidebarRef}
       className={`ai-sidebar mode-${ai.panelMode}${presentationClass}`}
       data-layout-width={preferredWidth}
+      data-layout-min-width={SIDEBAR_MIN_WIDTH}
       role={modal ? "dialog" : undefined}
       aria-modal={modal ? "true" : undefined}
       aria-label={modal ? "AI Assistant" : undefined}
@@ -157,7 +169,7 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
               if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
               event.preventDefault();
               const delta = event.key === "ArrowLeft" ? 20 : -20;
-              const width = clampRenderedWidth(renderedWidth + delta, viewportWidth, false, responsiveLayout.shell);
+              const width = clampRenderedWidth(renderedWidth + delta, viewportWidth, floating, responsiveLayout.shell, responsiveLayout.workspaceMinWidth);
               setWidths((current) => ({ ...current, [mode]: width }));
             }}
             onPointerDown={(event) => {
@@ -173,8 +185,9 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
                 const width = clampRenderedWidth(
                   startWidth + startX - moveEvent.clientX,
                   viewportWidth,
-                  false,
-                  responsiveLayout.shell
+                  floating,
+                  responsiveLayout.shell,
+                  responsiveLayout.workspaceMinWidth
                 );
                 setWidths((current) => ({ ...current, [mode]: width }));
               };

@@ -29,9 +29,10 @@ describe("DailyBriefPage", () => {
     const api = makeApi(writeContent);
     const listContent = vi.fn(api.listContent);
     window.cctools = { ...api, listContent };
-    render(<AiProvider initial={snapshot}><DailyBriefPage go={vi.fn()} initialDate="20260630" /></AiProvider>);
+    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage go={vi.fn()} initialDate="20260630" /></AiProvider>);
 
     await waitFor(() => expect(listContent).toHaveBeenCalledWith("summaries", ""));
+    expect(container.querySelector(".brief-library-container > .brief-library-page")).toBeTruthy();
     expect((await screen.findAllByText("2026-06-30 每日简报")).length).toBeGreaterThan(0);
     expect(await screen.findByRole("heading", { name: "每日简报" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /编辑/ }));

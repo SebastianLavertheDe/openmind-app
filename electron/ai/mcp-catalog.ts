@@ -19,7 +19,7 @@ export function buildMcpServerCatalog(browser: BrowserAutomationStatus): McpServ
       id: "capture_source_evidence",
       title: "截取原文证据",
       description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。",
-      inputs: ["url", "quote", "caption", "filename"],
+      inputs: ["url", "quote", "capture_scope", "caption", "filename"],
       outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"]
     }]
   }];

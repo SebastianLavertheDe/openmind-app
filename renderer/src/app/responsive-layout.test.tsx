@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useLayoutEffect } from "react";
-import { ResponsiveLayoutProvider, RESPONSIVE_LAYOUT_QUERIES, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
+import { ResponsiveLayoutProvider, RESPONSIVE_LAYOUT_QUERIES, useResponsiveCompositionReporter, useResponsiveLayout, useResponsiveWorkspaceMinimum } from "./responsive-layout";
 
 type MutableQuery = MediaQueryList & { setMatches(value: boolean): void };
 
@@ -76,7 +76,7 @@ function installViewportQueries(initialWidth: number) {
   };
 }
 
-function LayoutProbe({ composition }: { composition?: { viewportWidth: number; companionWidth: number } }) {
+function LayoutProbe({ composition }: { composition?: { viewportWidth: number; companionWidth: number; companionMinWidth?: number } }) {
   const layout = useResponsiveLayout();
   const reportComposition = useResponsiveCompositionReporter();
   useLayoutEffect(() => {
@@ -85,9 +85,95 @@ function LayoutProbe({ composition }: { composition?: { viewportWidth: number; c
   return <output aria-label="layout">{`${layout.shell}/${layout.companion}/${layout.workspace}/${layout.density}/${layout.actions}`}</output>;
 }
 
+function CompactWorkspaceRequirement() {
+  const ref = useRef<HTMLDivElement>(null);
+  useResponsiveWorkspaceMinimum("--test-workspace-min", ref);
+  return <div ref={ref} style={{ "--test-workspace-min": "34rem" } as CSSProperties} />;
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("ResponsiveLayoutProvider", () => {
+  it.each([
+    [3_840, "expanded/docked/split/comfortable/full"],
+    [2_560, "expanded/docked/split/comfortable/full"],
+    [1_920, "expanded/docked/split/comfortable/full"],
+    [1_536, "expanded/compact/split/comfortable/full"],
+    [1_440, "expanded/compact/single/comfortable/full"],
+    [1_400, "expanded/compact/single/comfortable/full"],
+    [1_399, "expanded/overlay/single/comfortable/full"],
+    [1_280, "expanded/overlay/single/comfortable/full"],
+    [1_020, "expanded/overlay/single/comfortable/full"],
+    [900, "rail/overlay/single/comfortable/compact"],
+    [840, "drawer/canvas/single/comfortable/minimal"],
+    [720, "drawer/canvas/single/narrow/minimal"]
+  ])("resolves a 420px companion at %ipx CSS viewport", (viewportWidth, expected) => {
+    const viewport = installViewportQueries(viewportWidth);
+    try {
+      render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth, companionWidth: 420, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe(expected);
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it.each([380, 420, 760, 960])("does not let a %ipx preferred companion width collapse navigation", (companionWidth) => {
+    const viewport = installViewportQueries(1_536);
+    try {
+      render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_536, companionWidth, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/compact/split/comfortable/full");
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("uses CSS viewport width consistently under high-DPI display scaling", () => {
+    const viewport = installViewportQueries(1_280);
+    const originalRatio = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 1.5 });
+    try {
+      render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
+    } finally {
+      viewport.restore();
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: originalRatio });
+    }
+  });
+
+  it("lets a container-adaptive workspace keep a minimum companion attached", () => {
+    const viewport = installViewportQueries(1_280);
+    try {
+      const { rerender } = render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420, companionMinWidth: 380 }} />
+          <CompactWorkspaceRequirement />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/compact/single/comfortable/full");
+
+      rerender(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
+    } finally {
+      viewport.restore();
+    }
+  });
+
   it("honors every progressive boundary at the boundary pixel", () => {
     const viewport = installViewportQueries(1761);
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
@@ -118,15 +204,15 @@ describe("ResponsiveLayoutProvider", () => {
     }
   });
 
-  it("selects the rail from actual companion composition instead of viewport alone", () => {
+  it("preserves expanded navigation and floats a companion that cannot fit", () => {
     const viewport = installViewportQueries(1356);
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
     try {
       const { rerender } = render(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1356, companionWidth: 0 }} /></ResponsiveLayoutProvider>);
       expect(screen.getByLabelText("layout").textContent).toContain("expanded/");
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1356, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toContain("rail/");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1356, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
       rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1356, companionWidth: 0 }} /></ResponsiveLayoutProvider>);
       expect(screen.getByLabelText("layout").textContent).toContain("expanded/");
     } finally {
@@ -134,49 +220,49 @@ describe("ResponsiveLayoutProvider", () => {
     }
   });
 
-  it("keeps the companion attached until the true single-canvas breakpoint", () => {
+  it("attaches, overlays, and canvases the companion from minimum viable widths", () => {
     const viewport = installViewportQueries(1_280);
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
     try {
       const { rerender } = render(
         <ResponsiveLayoutProvider>
-          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420 }} />
+          <LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 420, companionMinWidth: 380 }} />
         </ResponsiveLayoutProvider>
       );
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
 
       viewport.setWidth(1_100);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_100, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_100, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
 
       viewport.setWidth(900);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 900, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 900, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/overlay/single/comfortable/compact");
 
       viewport.setWidth(841);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/overlay/single/comfortable/compact");
 
       viewport.setWidth(840);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 840, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 840, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
       expect(screen.getByLabelText("layout").textContent).toBe("drawer/canvas/single/comfortable/minimal");
 
       viewport.setWidth(720);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 720, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 720, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
       expect(screen.getByLabelText("layout").textContent).toBe("drawer/canvas/single/narrow/minimal");
 
       viewport.setWidth(841);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 841, companionWidth: 420, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/overlay/single/comfortable/compact");
 
       viewport.setWidth(1_280);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 760 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_280, companionWidth: 760, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
 
-      viewport.setWidth(1_365);
-      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_365, companionWidth: 960 }} /></ResponsiveLayoutProvider>);
-      expect(screen.getByLabelText("layout").textContent).toBe("rail/compact/single/comfortable/compact");
+      viewport.setWidth(1_400);
+      rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1_400, companionWidth: 960, companionMinWidth: 380 }} /></ResponsiveLayoutProvider>);
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/compact/single/comfortable/full");
     } finally {
       viewport.restore();
     }

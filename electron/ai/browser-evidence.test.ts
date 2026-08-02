@@ -46,6 +46,8 @@ describe("browser evidence MCP configuration", () => {
     expect(instructions).toContain("自主判断");
     expect(instructions).toContain("复用该标签页");
     expect(instructions).toContain("恢复原滚动位置");
+    expect(instructions).toContain("capture_scope");
+    expect(instructions).toContain("comment 截单条评论且排除子回复");
     expect(instructions).toContain("禁止提交表单");
   });
 

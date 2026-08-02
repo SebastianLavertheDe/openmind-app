@@ -28,6 +28,7 @@ describe("buildMcpServerCatalog", () => {
       providers: ["Codex", "Claude"]
     });
     expect(server.tools.map((tool) => tool.id)).toEqual(["capture_source_evidence"]);
+    expect(server.tools[0].inputs).toContain("capture_scope");
     expect(server.tools.some((tool) => tool.id.includes("unsafe"))).toBe(false);
   });
 

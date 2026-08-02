@@ -91,7 +91,7 @@ export function browserEvidenceInstructions(config: BrowserAutomationConfig | un
     "<cc_tools_browser_evidence>",
     "你具备 capture_source_evidence 工具，用于在写作中获取原始来源的证据截图。请自主判断：当关键事实、引用、数据或争议性结论配上原文截图会显著增强说服力时，主动调用；普通链接无需逐一截图。",
     reuse,
-    "调用时提供原始 HTTP(S) URL、准备引用的准确原文 quote，以及简洁 caption。工具会使用用户已登录的 Chrome、精确截取包含该原文的元素，并把 PNG 与 JSON 元数据保存到项目素材目录。",
+    "调用时提供原始 HTTP(S) URL、准备引用的准确原文 quote、简洁 caption，并按意图选择 capture_scope：exact 只截原文，paragraph 截段落，component 截内容组件，comment 截单条评论且排除子回复，article 截文章，无法判断时使用 auto。工具会使用用户已登录的 Chrome、按 DOM/ARIA 语义确定范围，并把 PNG 与 JSON 元数据保存到项目素材目录。",
     "工具成功后，在相关段落附近插入返回的相对 PNG 路径，并保留来源 URL 与图片说明。不要把截图只当作后台参考而遗漏在稿件中。",
     "如果页面要求登录、扩展尚未授权该标签页或原文找不到，明确告诉用户需要在 Chrome 中完成登录/授权后重试；不要索取、填写或处理密码。",
     "浏览器仅用于阅读、导航和截图。禁止提交表单、发送消息、购买、发布、修改账号设置或执行其他有外部副作用的操作。",

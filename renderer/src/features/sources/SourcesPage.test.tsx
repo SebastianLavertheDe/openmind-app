@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi, SourceDefinition } from "@shared/contracts";
 import { messages } from "@shared/messages";
@@ -178,6 +178,51 @@ describe("SourcesPage", () => {
     // 不填写,提交按钮应禁用
     const submitBtn = screen.getByText(messages.sources.add.submit);
     expect((submitBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("在与主界面一致的模态弹窗中编辑并保存数据源", async () => {
+    const updateSource = vi.fn(async (_id: string, input: Partial<SourceDefinition>) => makeSource({ ...input }));
+    window.cctools = makeApi({ listSources: async () => [makeSource({ tags: undefined })], updateSource });
+    const { container } = render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
+    await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑 AI Newsletter" }));
+    const dialog = await screen.findByRole("dialog", { name: "编辑数据源" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    expect(dialog.className).toContain("source-editor-dialog");
+    expect(container.querySelector(".source-add-panel")).toBeNull();
+    expect(within(dialog).queryByText(messages.sources.add.importOpml)).toBeNull();
+    expect(within(dialog).queryByText(messages.sources.add.frequency)).toBeNull();
+
+    const name = within(dialog).getByPlaceholderText(messages.sources.add.placeholderName) as HTMLInputElement;
+    const url = within(dialog).getByPlaceholderText("https://...") as HTMLInputElement;
+    const tags = within(dialog).getByPlaceholderText(messages.sources.add.placeholderTags) as HTMLInputElement;
+    expect(name.value).toBe("AI Newsletter");
+    expect(url.value).toBe("https://example.com/feed.xml");
+    expect(tags.value).toBe("");
+    await waitFor(() => expect(document.activeElement).toBe(name));
+    fireEvent.change(name, { target: { value: "AI Newsletter Updated" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("rss-1", expect.objectContaining({
+      name: "AI Newsletter Updated",
+      url: "https://example.com/feed.xml"
+    })));
+    expect(updateSource.mock.calls[0]?.[1]).not.toHaveProperty("frequency");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "编辑数据源" })).toBeNull());
+  });
+
+  it("编辑弹窗支持 Esc 关闭并把焦点还给编辑按钮", async () => {
+    render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
+    await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
+    const trigger = screen.getByRole("button", { name: "编辑 AI Newsletter" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog", { name: "编辑数据源" });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "编辑数据源" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it("导入 OPML 按钮触发 importOpml", async () => {

@@ -205,7 +205,7 @@ describe("AppShell", () => {
     }
   });
 
-  it("keeps a preferred wide companion attached above the canvas breakpoint", async () => {
+  it("floats a preferred wide companion instead of collapsing navigation", async () => {
     const originalMatchMedia = window.matchMedia;
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1_365 });
@@ -236,14 +236,15 @@ describe("AppShell", () => {
             environment={{ mode: "desktop", platform: "linux" }}
             pendingApprovals={0}
             aiMode="wide"
-            aiSidebar={<aside className="ai-sidebar layout-companion-compact" data-layout-width={760}>AI</aside>}
+            aiSidebar={<aside className="ai-sidebar" data-layout-width={760} data-layout-min-width={380}>AI</aside>}
           >
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
       );
-      await waitFor(() => expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-compact")).toBe(true));
-      expect(container.querySelector(".app-shell")?.classList.contains("layout-shell-rail")).toBe(true);
+      await waitFor(() => expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-overlay")).toBe(true));
+      expect(container.querySelector(".app-shell")?.classList.contains("layout-shell-expanded")).toBe(true);
+      expect(container.querySelector(".app-nav")?.classList.contains("collapsed")).toBe(false);
       expect(container.querySelector(".app-shell")?.classList.contains("layout-companion-canvas")).toBe(false);
     } finally {
       window.matchMedia = originalMatchMedia;

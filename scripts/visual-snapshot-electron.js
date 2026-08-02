@@ -98,6 +98,9 @@ async function run() {
         requiredSelector: page.requiredSelector,
         settingsMode: page.settingsMode
       });
+      if (page.id === "brief" && !audit.briefMasterDetailGeometry?.sideBySide) {
+        throw new Error(`Daily brief file list must remain beside the document: ${JSON.stringify(audit.briefMasterDetailGeometry)}`);
+      }
       const file = path.join(outputRoot, `${viewport.id}-${page.id}.png`);
       const image = await win.webContents.capturePage();
       fs.writeFileSync(file, image.toPNG());
@@ -131,6 +134,7 @@ async function run() {
   win.webContents.setZoomFactor(1);
   await captureEmptySources(win, report);
   await captureSourcesError(win, report);
+  await captureSourceEditorDialog(win, report);
   await captureDarkDailyBrief(win, report);
   await captureCompletedAiResponse(win, report);
   await captureComposerSuggestions(win, report);
@@ -1001,6 +1005,22 @@ async function inspectPage(win, label, options = {}) {
         approvalPosition: document.querySelector('.conversation-pane .approval-banner') ? getComputedStyle(document.querySelector('.conversation-pane .approval-banner')).position : null
       } : null;
       const conversationTitleOccluded = Boolean(titleTopElement && conversationHeader && !conversationHeader.contains(titleTopElement));
+      const briefPage = document.querySelector('.brief-library-page');
+      const briefListRect = briefPage?.querySelector('.document-library-list')?.getBoundingClientRect();
+      const briefDetailRect = briefPage?.querySelector('.document-library-detail')?.getBoundingClientRect();
+      const briefMasterDetailGeometry = briefPage ? {
+        list: rect(briefPage.querySelector('.document-library-list')),
+        detail: rect(briefPage.querySelector('.document-library-detail')),
+        sideBySide: Boolean(
+          briefListRect
+          && briefDetailRect
+          && briefListRect.width > 0
+          && briefDetailRect.width > 0
+          && Math.abs(briefListRect.top - briefDetailRect.top) <= 2
+          && briefListRect.right <= briefDetailRect.left + 2
+        )
+      } : null;
+      const briefMasterDetailValid = !briefMasterDetailGeometry || briefMasterDetailGeometry.sideBySide;
       const ok = text.length >= ${minTextLength}
         && semanticReady
         && settingsModeMatches
@@ -1013,11 +1033,12 @@ async function inspectPage(win, label, options = {}) {
         && errorStateMatches
         && criticalContextMissing.length === 0
         && !conversationTitleOccluded
+        && briefMasterDetailValid
         && undersizedResponsiveTargets.length === 0
         && horizontalOverflow <= 2;
       return {
         ok,
-        reason: ok ? null : \`text=\${text.length}, semantic=\${semanticReady}, settingsMode=\${settingsMode}/expected:${expectedSettingsMode}, settingsNav=\${settingsNavigationVisible}, settingsActive=\${settingsActiveVisible}, settingsScrollTop=\${settingsDetail instanceof HTMLElement ? settingsDetail.scrollTop : 'missing'}, settingsSelectFocused=\${settingsSelectFocused}, settingsChromeIsolated=\${settingsChromeIsolated}, nav=\${navVisible}, active=\${activeVisible}, drawerToggle=\${drawerToggleVisible}, error=\${unexpectedError || 'none'}, errorExpected=${expectError}, context=\${criticalContextMissing.join(',') || 'complete'}, titleOccluded=\${conversationTitleOccluded}, targets=\${undersizedResponsiveTargets.length}, overflow=\${horizontalOverflow}\`,
+        reason: ok ? null : \`text=\${text.length}, semantic=\${semanticReady}, settingsMode=\${settingsMode}/expected:${expectedSettingsMode}, settingsNav=\${settingsNavigationVisible}, settingsActive=\${settingsActiveVisible}, settingsScrollTop=\${settingsDetail instanceof HTMLElement ? settingsDetail.scrollTop : 'missing'}, settingsSelectFocused=\${settingsSelectFocused}, settingsChromeIsolated=\${settingsChromeIsolated}, nav=\${navVisible}, active=\${activeVisible}, drawerToggle=\${drawerToggleVisible}, error=\${unexpectedError || 'none'}, errorExpected=${expectError}, context=\${criticalContextMissing.join(',') || 'complete'}, titleOccluded=\${conversationTitleOccluded}, briefSideBySide=\${briefMasterDetailValid}, targets=\${undersizedResponsiveTargets.length}, overflow=\${horizontalOverflow}\`,
         textLength: text.length,
         semanticReady,
         shellState,
@@ -1035,6 +1056,7 @@ async function inspectPage(win, label, options = {}) {
         ,internalOverflowOffenders
         ,conversationHeaderGeometry
         ,conversationTitleOccluded
+        ,briefMasterDetailGeometry
       };
     })()
   `);
@@ -1054,6 +1076,116 @@ async function captureSourcesError(win, report) {
   await waitForText(win, "视觉验收模拟错误");
   await captureState(win, report, "error-sources", "资料库", "Source registry recoverable error", { minTextLength: 40, expectError: true });
   await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+}
+
+async function captureSourceEditorDialog(win, report) {
+  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await clickNav(win, "新建任务");
+  await clickNav(win, "资料库");
+  await waitForReady(win, "资料库", { requiredSelector: ".sources-page" });
+  await settle();
+  const opened = await win.webContents.executeJavaScript(`
+    (() => {
+      const edit = document.querySelector('.source-actions button[title="编辑"]');
+      if (!(edit instanceof HTMLButtonElement)) return false;
+      edit.click();
+      return true;
+    })()
+  `);
+  if (!opened) throw new Error("Editable source action was not found.");
+  await settle();
+
+  const contract = await win.webContents.executeJavaScript(`
+    (() => {
+      const scrim = document.querySelector('.source-editor-scrim');
+      const dialog = document.querySelector('.source-editor-dialog');
+      const formGrid = dialog?.querySelector('.source-add-grid');
+      const textInput = dialog?.querySelector('.source-add-grid input:not(.ui-select-native-proxy)');
+      const selectTrigger = dialog?.querySelector('.source-add-grid .ui-select-trigger');
+      const appRoot = document.querySelector('#root');
+      if (!(scrim instanceof HTMLElement) || !(dialog instanceof HTMLElement)) return null;
+      const scrimRect = scrim.getBoundingClientRect();
+      const dialogRect = dialog.getBoundingClientRect();
+      return {
+        role: dialog.getAttribute('role'),
+        ariaModal: dialog.getAttribute('aria-modal'),
+        backgroundInert: appRoot instanceof HTMLElement && appRoot.inert && appRoot.getAttribute('aria-hidden') === 'true',
+        scrimPosition: getComputedStyle(scrim).position,
+        scrimCoversViewport: scrimRect.left <= 0 && scrimRect.top <= 0
+          && scrimRect.right >= window.innerWidth && scrimRect.bottom >= window.innerHeight,
+        centered: Math.abs((dialogRect.left + dialogRect.right) / 2 - window.innerWidth / 2) <= 2
+          && Math.abs((dialogRect.top + dialogRect.bottom) / 2 - window.innerHeight / 2) <= 2,
+        insideViewport: dialogRect.left >= 0 && dialogRect.top >= 0
+          && dialogRect.right <= window.innerWidth && dialogRect.bottom <= window.innerHeight,
+        width: Math.round(dialogRect.width),
+        gridColumns: formGrid instanceof HTMLElement ? getComputedStyle(formGrid).gridTemplateColumns : null,
+        controlsMatch: textInput instanceof HTMLElement && selectTrigger instanceof HTMLElement
+          && Math.abs(textInput.getBoundingClientRect().height - selectTrigger.getBoundingClientRect().height) <= 1
+          && getComputedStyle(textInput).borderRadius === getComputedStyle(selectTrigger).borderRadius,
+        controlMetrics: textInput instanceof HTMLElement && selectTrigger instanceof HTMLElement ? {
+          inputHeight: textInput.getBoundingClientRect().height,
+          selectHeight: selectTrigger.getBoundingClientRect().height,
+          inputRadius: getComputedStyle(textInput).borderRadius,
+          selectRadius: getComputedStyle(selectTrigger).borderRadius
+        } : null,
+        frequencyFieldAbsent: ![...dialog.querySelectorAll('label')]
+          .some((label) => label.textContent?.includes('抓取间隔')),
+        focusInside: dialog.contains(document.activeElement)
+      };
+    })()
+  `);
+  const checks = contract && {
+    dialogSemantics: contract.role === "dialog" && contract.ariaModal === "true",
+    backgroundInert: contract.backgroundInert,
+    fullViewportScrim: contract.scrimPosition === "fixed" && contract.scrimCoversViewport,
+    centered: contract.centered,
+    insideViewport: contract.insideViewport,
+    responsiveWidth: contract.width <= 760,
+    twoColumnForm: typeof contract.gridColumns === "string" && contract.gridColumns.split(" ").length === 2,
+    controlsMatch: contract.controlsMatch,
+    frequencyFieldAbsent: contract.frequencyFieldAbsent,
+    focusContained: contract.focusInside
+  };
+  if (!checks || !Object.values(checks).every(Boolean)) {
+    throw new Error(`Source editor dialog contract failed: ${JSON.stringify({ checks, contract })}`);
+  }
+
+  await captureState(win, report, "source-editor-dialog", "资料库", "Source editor uses the application modal language", {
+    requiredSelector: ".source-editor-dialog"
+  });
+
+  win.setSize(720, 720);
+  await settle();
+  const compactContract = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.documentElement;
+      const body = document.body;
+      const dialog = document.querySelector('.source-editor-dialog');
+      const formGrid = dialog?.querySelector('.source-add-grid');
+      const footer = dialog?.querySelector('.source-editor-actions');
+      if (!(dialog instanceof HTMLElement) || !(formGrid instanceof HTMLElement) || !(footer instanceof HTMLElement)) return null;
+      const dialogRect = dialog.getBoundingClientRect();
+      const footerRect = footer.getBoundingClientRect();
+      return {
+        insideViewport: dialogRect.left >= 0 && dialogRect.top >= 0
+          && dialogRect.right <= window.innerWidth && dialogRect.bottom <= window.innerHeight,
+        oneColumnForm: getComputedStyle(formGrid).gridTemplateColumns.split(' ').length === 1,
+        footerVisible: footerRect.top >= dialogRect.top && footerRect.bottom <= dialogRect.bottom + 1,
+        horizontalOverflow: Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth)
+      };
+    })()
+  `);
+  if (!compactContract || !compactContract.insideViewport || !compactContract.oneColumnForm
+    || !compactContract.footerVisible || compactContract.horizontalOverflow > 2) {
+    throw new Error(`Compact source editor dialog contract failed: ${JSON.stringify(compactContract)}`);
+  }
+  const compactImage = await win.webContents.capturePage();
+  fs.writeFileSync(path.join(outputRoot, "state-source-editor-dialog-compact.png"), compactImage.toPNG());
+
+  win.setSize(1366, 768);
+  await settle();
+  await win.webContents.executeJavaScript(`document.querySelector('.source-form-header > button')?.click()`);
+  await waitForSelectorToDisappear(win, ".source-editor-dialog");
 }
 
 async function captureDarkDailyBrief(win, report) {

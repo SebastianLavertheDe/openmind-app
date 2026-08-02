@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry, ContentRecord } from "@shared/contracts";
 import type { Navigate } from "../../app/routes";
-import { useResponsiveLayout } from "../../app/responsive-layout";
+import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAi } from "../../ai-context";
 import { ContentPreview } from "../../components/ContentPreview";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
@@ -10,6 +10,11 @@ import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type Re
 type ViewMode = "preview" | "edit";
 
 export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: string }) {
+  const layoutRef = useRef<HTMLDivElement>(null);
+  // The brief can remain usable below the generic split-workspace minimum: its
+  // container queries stack the file list and document at this component-owned
+  // boundary instead of forcing a global navigation change.
+  useResponsiveWorkspaceMinimum("--daily-brief-workspace-min", layoutRef);
   const ai = useAi();
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
@@ -120,7 +125,8 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
   ] : [];
 
   return (
-    <div className="document-library-page brief-library-page">
+    <div ref={layoutRef} className="brief-library-container">
+      <div className="document-library-page brief-library-page">
       <aside className="document-library-list">
         <header>
           <div><span className="eyebrow">每日简报</span><h1>简报文件</h1></div>
@@ -166,6 +172,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
           </div>
         ) : <EmptyState icon={<FileText size={30} />} title="选择一份简报" description="点击左侧文件后，可在右侧预览或编辑具体内容。" />}
       </main>
+      </div>
     </div>
   );
 }

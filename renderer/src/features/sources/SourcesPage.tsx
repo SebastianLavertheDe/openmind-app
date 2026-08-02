@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckCircle2,
   ChevronRight,
@@ -26,7 +27,7 @@ import {
 import type { SourceDefinition, SourceKind } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
-import { EmptyState, ErrorState, PageHeader, Select, Skeleton, StatusBadge } from "../../design-system/components";
+import { EmptyState, ErrorState, PageHeader, Select, Skeleton, StatusBadge, useModalFocusScope } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 
 const m = messages;
@@ -86,6 +87,34 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   const [runningAll, setRunningAll] = useState(false);
   const addPanelPresence = useExitPresence(showAdd, 160);
   const bulkBarPresence = useExitPresence(bulkMode, 160);
+  const sourceDialogRef = useRef<HTMLDivElement>(null);
+  const sourceNameInputRef = useRef<HTMLInputElement>(null);
+  const sourceFormTitleId = useId();
+  const closeSourceForm = useCallback(() => {
+    if (!saving) setShowAdd(false);
+  }, [saving]);
+
+  useModalFocusScope({
+    open: addPanelPresence.visible && Boolean(editingId),
+    containerRef: sourceDialogRef,
+    onDismiss: closeSourceForm
+  });
+
+  useEffect(() => {
+    if (!addPanelPresence.visible || !editingId) return;
+    const frame = window.requestAnimationFrame(() => sourceNameInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [addPanelPresence.visible, editingId]);
+
+  useEffect(() => {
+    if (showAdd || addPanelPresence.visible) return;
+    setEditingId("");
+    setAddName("");
+    setAddKind("rss");
+    setAddUrl("");
+    setAddTags("");
+    setAddFrequency(m.sources.add.frequencyOptions.daily);
+  }, [addPanelPresence.visible, showAdd]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,7 +149,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   const filtered = useMemo(() => sources.filter((source) => {
     if (tab !== "all" && source.kind !== tab) return false;
     const query = search.trim().toLocaleLowerCase();
-    return !query || [source.name, source.url, source.kind, source.skillId, ...source.tags].filter(Boolean).join(" ").toLocaleLowerCase().includes(query);
+    return !query || [source.name, source.url, source.kind, source.skillId, ...(source.tags || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query);
   }), [search, sources, tab]);
   const selectedSource = useMemo(() => sources.find((source) => source.id === selectedId) || null, [selectedId, sources]);
 
@@ -225,8 +254,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
     setAddName(source.name);
     setAddKind(source.kind);
     setAddUrl(source.url || "");
-    setAddTags(source.tags.join(", "));
-    setAddFrequency(source.frequency);
+    setAddTags(source.tags?.join(", ") || "");
     setShowAdd(true);
   };
 
@@ -288,7 +316,6 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
         ? await window.cctools.updateSource(editingId, {
             name: addName.trim(),
             url: addUrl.trim(),
-            frequency: addFrequency,
             tags: splitSourceTags(addTags)
           })
         : await window.cctools.addRssSource({
@@ -300,12 +327,6 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
           });
       await load();
       setSelectedId(source.id);
-      setAddName("");
-      setAddUrl("");
-      setAddTags("");
-      setAddFrequency(m.sources.add.frequencyOptions.daily);
-      setAddKind("rss");
-      setEditingId("");
       setShowAdd(false);
       ai.notify(editingId ? "数据源已更新" : m.sources.notify.added(sourceKindLabel(source.kind)), "success");
     } catch (cause) {
@@ -371,6 +392,50 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
     }
   };
 
+  const editingSource = Boolean(editingId);
+  const sourceForm = <>
+    <header className="source-form-header">
+      <div className="source-form-heading">
+        <span className="source-form-icon" aria-hidden="true">{editingSource ? <Pencil size={16} /> : <Plus size={16} />}</span>
+        <div>
+          <strong id={sourceFormTitleId}>{editingSource ? "编辑数据源" : m.sources.add.expand}</strong>
+          <span>{editingSource ? "更新名称、地址和归类标签" : "添加 RSS、文件夹或 API 资料来源"}</span>
+        </div>
+      </div>
+      <button type="button" data-motion="icon" aria-label={editingSource ? "关闭编辑数据源弹窗" : "关闭添加源面板"} onClick={closeSourceForm}><X size={16} /></button>
+    </header>
+    <form className="source-form" onSubmit={(event) => { event.preventDefault(); void addSource(); }}>
+      <div className="source-add-grid">
+        <label>{m.sources.add.name}<input ref={sourceNameInputRef} value={addName} onChange={(event) => setAddName(event.target.value)} placeholder={m.sources.add.placeholderName} /></label>
+        <label>{m.sources.add.type}<Select
+          size="rect"
+          value={addKind}
+          disabled={editingSource}
+          onChange={(value) => setAddKind(value as typeof addKind)}
+          options={[
+            { value: "rss", label: m.sources.tabs.rss },
+            { value: "web", label: m.sources.tabs.web },
+            { value: "api", label: m.sources.tabs.api }
+          ]}
+        /></label>
+        <label className="wide">{m.sources.add.url}<input value={addUrl} onChange={(event) => setAddUrl(event.target.value)} placeholder={addKind === "web" ? "~/cctools/notes" : "https://..."} /></label>
+        <label className={editingSource ? "wide" : undefined}>{m.sources.add.tags}<input value={addTags} onChange={(event) => setAddTags(event.target.value)} placeholder={m.sources.add.placeholderTags} /></label>
+        {!editingSource ? <label>{m.sources.add.frequency}<Select
+          size="rect"
+          value={addFrequency}
+          onChange={setAddFrequency}
+          options={FREQUENCY_OPTIONS.map((option) => ({ value: option, label: option }))}
+        /></label> : null}
+      </div>
+      <footer className={`source-add-actions${editingSource ? " source-editor-actions" : ""}`}>
+        {editingSource ? <button type="button" data-motion="action" onClick={closeSourceForm}>{m.feedback.cancel}</button> : (
+          <button type="button" data-motion="action" aria-busy={importing || undefined} disabled={importing} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} />{m.sources.add.importOpml}</button>
+        )}
+        <button type="submit" className="primary-button" data-motion="action" aria-busy={saving || undefined} disabled={saving || !addName.trim() || !addUrl.trim()}>{saving ? m.sources.add.saving : editingSource ? "保存修改" : m.sources.add.submit}</button>
+      </footer>
+    </form>
+  </>;
+
   return (
     <div className="feature-page sources-page">
       <PageHeader
@@ -385,35 +450,21 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
         <SourceMetricCard icon={<CircleAlert size={25} />} label={m.sources.metrics.anomaly} value={failed} detail={failed ? m.sources.metrics.needsAttention : m.sources.metrics.noAnomaly} tone={failed ? "warning" : "danger"} />
         <SourceMetricCard icon={<TrendingUp size={25} />} label="今日新增" value={todayItemCount.toLocaleString("zh-CN")} detail="今日新增资料" tone="violet" />
       </section>
-      {addPanelPresence.visible ? <section className="workspace-card source-add-panel" data-leaving={addPanelPresence.leaving || undefined}>
-        <header><div><strong>{editingId ? "编辑数据源" : m.sources.add.expand}</strong><span>{editingId ? "更新名称、地址、标签和抓取频率" : "添加 RSS、文件夹或 API 资料来源"}</span></div><button data-motion="icon" aria-label="关闭添加源面板" onClick={() => { setShowAdd(false); setEditingId(""); }}><X size={16} /></button></header>
-        <div className="source-add-grid">
-          <label>{m.sources.add.name}<input value={addName} onChange={(event) => setAddName(event.target.value)} placeholder={m.sources.add.placeholderName} /></label>
-          <label>{m.sources.add.type}<Select
-            size="rect"
-            value={addKind}
-            disabled={Boolean(editingId)}
-            onChange={(value) => setAddKind(value as typeof addKind)}
-            options={[
-              { value: "rss", label: m.sources.tabs.rss },
-              { value: "web", label: m.sources.tabs.web },
-              { value: "api", label: m.sources.tabs.api }
-            ]}
-          /></label>
-          <label className="wide">{m.sources.add.url}<input value={addUrl} onChange={(event) => setAddUrl(event.target.value)} placeholder={addKind === "web" ? "~/cctools/notes" : "https://..."} /></label>
-          <label>{m.sources.add.tags}<input value={addTags} onChange={(event) => setAddTags(event.target.value)} placeholder={m.sources.add.placeholderTags} /></label>
-          <label>{m.sources.add.frequency}<Select
-            size="rect"
-            value={addFrequency}
-            onChange={setAddFrequency}
-            options={FREQUENCY_OPTIONS.map((option) => ({ value: option, label: option }))}
-          /></label>
-        </div>
-        <div className="source-add-actions">
-          <button className="primary-button" data-motion="action" aria-busy={saving || undefined} disabled={saving || !addName.trim() || !addUrl.trim()} onClick={() => void addSource()}>{saving ? m.sources.add.saving : editingId ? "保存修改" : m.sources.add.submit}</button>
-          <button data-motion="action" aria-busy={importing || undefined} disabled={importing} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} />{m.sources.add.importOpml}</button>
-        </div>
-      </section> : null}
+      {addPanelPresence.visible && !editingSource ? <section className="workspace-card source-add-panel" data-leaving={addPanelPresence.leaving || undefined}>{sourceForm}</section> : null}
+      {addPanelPresence.visible && editingSource && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={sourceDialogRef}
+          className="modal-scrim source-editor-scrim ui-overlay"
+          data-leaving={addPanelPresence.leaving || undefined}
+          tabIndex={-1}
+          onClick={closeSourceForm}
+        >
+          <section className="source-editor-dialog" role="dialog" aria-modal="true" aria-labelledby={sourceFormTitleId} onClick={(event) => event.stopPropagation()}>
+            {sourceForm}
+          </section>
+        </div>,
+        document.body
+      ) : null}
       <section className="source-layout">
         <div className="source-main-stack">
         <article className="workspace-card source-main-card">
