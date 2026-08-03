@@ -662,3 +662,156 @@ final result: passed
 - P3: WorkBuddy includes a microphone and mascot that CCTool does not currently support; adding non-functional replicas would reduce product clarity, so CCTool keeps its real provider and project controls.
 
 final result: passed
+
+# AI 编辑上下文与左侧文件预览 QA — 2026-07-27
+
+- Source visual truth:
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-9fbb6051-425f-41b2-8ee6-cd975fb026ff.png`
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-17b42aa4-8ed5-4541-9d3f-f8c170114dff.png`
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-06d19f2f-1b8a-4547-9b11-45afc30529b9.png`
+- Implementation screenshots:
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\edited-context-final.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\edited-file-left-preview-final.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\message-file-left-preview.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\splitter-1px-after-drag.png`
+- Comparison evidence:
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\design-qa-full-comparison-final.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\design-qa-edited-context-comparison-final.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\splitter-full-comparison.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\splitter-focused-comparison.png`
+- Viewport: 2048 × 1123 CSS px target; earlier feature capture 2047 × 1123 px and latest splitter capture 1739 × 1123 px, both from the same desktop CSS viewport.
+- Density normalization: the original edited-context source (3840 × 2090) and the splitter source (3792 × 2070) were downsampled to their matching desktop comparison heights; focused card and splitter regions were cropped and placed in side-by-side images. The splitter implementation capture is 1739 × 1123 px while the browser's CSS viewport remained 2048 × 1123.
+- State: completed AI reply with five edited files; collapsed file list; file opened from an edited-file row; file opened from an inline AI-message path; file-preview separator after a 64 px pointer drag.
+
+## Full-view comparison evidence
+
+The full comparison confirms that the edited-files artifact remains in the conversation flow, uses the same quiet bordered surface and density as the Codex reference, and intentionally removes line-count and action chrome. The open state was also captured: file content occupies the left track and the conversation occupies the right track.
+
+## Focused region comparison evidence
+
+The focused comparisons place the Codex card and the implementation card in one image, and the reported thick splitter beside the revised splitter in another. Header hierarchy, border treatment, row rhythm, and the three-row-plus-more structure align. The revised splitter keeps a 4 px interaction track but renders only a centered 1 px visible line, removing the heavy filled drag state.
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Fonts and typography: existing CC Tools font stack is preserved; title and path hierarchy match the reference at current application density.
+- Spacing and layout rhythm: the card is capped at the same 720 px conversation width, with a 52 px header and 34 px file rows; the left preview/right conversation split remains resizable. Its visible divider is 1 px in idle, hover, focus, and active resize states while the 4 px track plus the existing extended hit area remain draggable.
+- Colors and visual tokens: existing panel, border, hover, focus, and muted-text tokens are reused without introducing a separate visual language.
+- Image quality and asset fidelity: no raster assets are required; the existing Lucide icon system is retained.
+- Copy and content: the title now uses `已编辑 N 个文件`; additions, deletions, undo, and review copy are absent from the durable edited-files card.
+- Accessibility: each file is a real button, the extra-files control exposes `aria-expanded`, the separator exposes value semantics, and reduced-motion users skip the split transitions.
+- P3 follow-up: the exact document glyph differs slightly from the Codex source because CC Tools keeps its existing icon family. This is intentional and non-blocking.
+
+## Comparison history
+
+1. Initial implementation pass matched the structure but used `编辑了 N 个文件`, which drifted from the source copy.
+2. Updated the label to `已编辑 N 个文件`, reloaded the browser preview, and captured the final comparison evidence.
+3. Post-fix inspection found no remaining P0/P1/P2 issues.
+4. The drag state filled the entire 4 px separator track with the accent color, reproducing the user's thick-line report. Replaced the filled track with a transparent interaction area and a 1 px accent pseudo-element; the focused post fix comparison shows the visible divider reduced without shrinking its hit target.
+
+## Primary interactions verified
+
+- Clicking an edited-file row opens that exact path in the left preview.
+- Clicking an inline file path in an AI message opens that exact path in the left preview.
+- The preview precedes the conversation visually (`preview.right <= conversation.left`).
+- The workbench transitions `grid-template-columns` over 240 ms; the preview has matching enter/exit motion.
+- Closing the preview restores the single conversation column.
+- Pointer drag moved the separator from x=1258.24 to x=1321.98 while the loaded active-resize rule retained `width: 1px` for the visible line.
+- Browser console warnings/errors: none.
+
+## Verification
+
+- Full Vitest suite: 92 files, 1164 tests passed.
+- TypeScript renderer and Electron checks passed.
+- Renderer production build passed.
+
+# Markdown 编辑宽度与表格预览 QA — 2026-07-27
+
+- Source visual truth:
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-9c200193-864f-4b0f-a6d6-fa42ab2daa60.png`
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-9d1a9887-61cb-483a-b4d5-b6e4725a54bf.png`
+- Implementation screenshots:
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\markdown-editor-full-width-fixed.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\markdown-table-preview-fixed.png`
+- Comparison evidence:
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\markdown-editor-width-comparison.png`
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\markdown-table-preview-comparison.png`
+- Viewport: 2048 × 1123 CSS px; implementation captures are 2047 × 1123 px.
+- Density normalization: both 3840 × 2088 source screenshots were resized to 2047 × 1123 before being placed beside the implementation captures.
+- State: Markdown file opened from an inline AI-message path, first in preview mode and then in edit mode.
+
+## Full-view and focused evidence
+
+The editor comparison shows the previous centered `92ch` cap and the revised editor occupying the complete padded width of the left file pane. Browser geometry confirms a 943.31 px editor inside the 1055.31 px preview body; the 112 px difference is exactly the intended 56 px gutter on each side.
+
+The table comparison shows the malformed pipe text in the source state and a semantic eight-column table in the revised preview. Browser inspection found exactly one table with a 941.98 px rendered width inside a 943.31 px horizontally scrollable wrapper.
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Fonts and typography: the existing reader and monospace editor stacks are preserved; table headers use the current 650 weight and body cells use the existing 13 px reading scale.
+- Spacing and layout rhythm: edit mode now consumes the full available content width without removing the preview pane gutter; table cells use consistent 9 × 11 px padding.
+- Colors and visual tokens: table borders, header surface, text, and panel background reuse existing theme tokens.
+- Image quality and asset fidelity: no image assets are involved in this change.
+- Copy and content: the original Markdown remains editable as plain text, while preview mode repairs only unambiguous malformed delimiter rows outside fenced code blocks.
+- Accessibility: the preview renders a real semantic `table`; horizontal overflow remains keyboard/trackpad scrollable instead of clipping columns.
+
+## Comparison history
+
+1. Initial source state constrained edit mode to `92ch`, leaving unused horizontal space in a wide file pane.
+2. Removed the editor cap and verified that the shell and textarea now occupy the full 943.31 px content width.
+3. The source table delimiter contained `---:---:`, which GFM correctly rejected and displayed as paragraph text.
+4. Corrected the current Markdown file, added guarded preview normalization for the same AI-generated typo, and added a styled horizontal table wrapper. Post-fix inspection shows a semantic table with no remaining P0/P1/P2 issue.
+
+## Primary interactions verified
+
+- Clicking the inline Markdown file path opens it in the left preview.
+- The malformed preview fixture renders as a semantic table rather than pipe-delimited paragraph text.
+- Switching to edit mode preserves the raw Markdown and expands the editor to the full content width.
+- Browser console warnings/errors: none.
+- Full Vitest suite: 92 files, 1164 tests passed.
+- TypeScript checks, renderer build, Electron build, and desktop integration smoke passed.
+
+final result: passed
+
+# 对话流与输入框统一宽度 QA — 2026-07-27
+
+- Source visual truth:
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-d903c288-0d4c-4ada-8586-83f4ed348895.png`（desktop-app 问题状态）
+  - `C:\Users\say\AppData\Local\Temp\codex-clipboard-48dce310-03c8-4dd8-9e95-7fe8246d02fd.png`（Codex 对齐目标）
+- Implementation screenshot:
+  - `C:\Users\say\.codex\visualizations\2026\07\27\019fa367-6583-7dc1-a7ae-e266f58f243d\conversation-flow-width-fixed.png`
+- Viewport: 2048 × 1123 CSS px; implementation capture is 2047 × 1123 px.
+- Pixel dimensions and density: source screenshots are 3840 × 2088 and 3840 × 2090; implementation is 2047 × 1123. The comparison targeted the same desktop split-pane state and normalized the judgment to CSS geometry rather than source-pixel density.
+- State: completed AI reply, durable edited-files card, composer visible, and Markdown file open in the left preview.
+
+## Full-view and focused comparison evidence
+
+The Codex reference and browser-rendered desktop-app capture were opened in the same comparison input. The implementation now follows the Codex relationship: the assistant reading frame, durable file card, and composer share one centered column. A separate crop was not needed because all relevant left and right edges are clearly visible at full-view scale, and browser geometry provides sub-pixel confirmation.
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Fonts and typography: the existing desktop-app type scale, weight, wrapping, and muted metadata hierarchy are unchanged; the narrower reading measure improves line length without introducing truncation.
+- Spacing and layout rhythm: one `--ai-flow-width` value controls the message thread, process artifacts, approval banner, edited-files card, and composer. In the tested split pane, all measured `left` values are `1398px` and all measured `right` values are `1959.3px`.
+- Colors and visual tokens: no color, border, radius, elevation, or semantic-state token changed.
+- Image quality and asset fidelity: no image assets are involved in this layout adjustment; existing icons remain unchanged.
+- Copy and content: no app text changed.
+- Accessibility and responsiveness: the user-message bubble remains right-aligned inside the shared frame; responsive gutters now update through the same custom property. The composer reserves the same 10 px thin-scrollbar gutter as the message scroller, preventing a narrow split pane from drifting by one scrollbar width.
+
+## Comparison history
+
+1. Source state used competing limits: message flow reached 1000/1040 px, a second chat cap used 800 px, while the final composer rule used 720 px.
+2. Consolidated those overrides onto `--ai-flow-width: 720px` and removed the duplicate `--chat-flow-width` path.
+3. First browser measurement exposed a residual 10 px right-edge difference caused by the scroll container's stable thin-scrollbar gutter.
+4. Reserved the same scrollbar width on the composer and repeated the browser comparison. Post-fix measurements show exact shared left and right edges for the thread, assistant message, edited-files card, and composer.
+
+## Primary interactions and verification
+
+- Clicking the inline Markdown path opened the left preview before measurement.
+- Split-pane motion completed before geometry capture.
+- Browser console warnings/errors: none.
+- Full Vitest suite: 92 files, 1164 tests passed.
+- TypeScript checks, renderer build, Electron build, and desktop integration smoke passed; the final CSS-only scrollbar alignment pass was followed by a successful renderer production build.
+
+final result: passed
