@@ -15,11 +15,14 @@ CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端�
 
 ## 环境要求
 
-- Windows 11 或现代 macOS/Linux
-- Node.js 22.12+
-- Git
-- Python 3 和 `uv`
-- 已登录的 Claude Code 或 Codex CLI
+- 打包 App 的产品目标是 Windows 11 和现代 macOS；Linux 仅作为开发/测试环境，
+  不发布 Linux AppImage/deb/rpm，也不提供 Linux 正式支持矩阵。
+- 打包后的 managed Skill 运行依赖 App 私有 Runtime Pack；不能因为宿主机恰好安装了
+  Python、`uv`、Node、Git 或 ffmpeg 就静默改变运行路径。真实 Windows/macOS
+  clean-machine 验收仍见 `docs/CLEAN_MACHINE_EVIDENCE.md`。
+- 从源码开发需要 Node.js 22.12+、Git、Python 3/`uv`，以及要测试的 Claude Code
+  或 Codex CLI 登录环境；这些是开发/Provider E2E 前置，不是 managed packaged
+  Skill 的产品运行依赖。
 
 Windows 安装包可连接 Windows 本地项目，也可直接连接：
 
@@ -27,7 +30,9 @@ Windows 安装包可连接 Windows 本地项目，也可直接连接：
 \\wsl.localhost\Ubuntu\home\say\work\github\cctools
 ```
 
-应用会分别诊断 Windows 与 WSL 中的 Provider。缺少 app-server、平台依赖或协议能力的安装会显示诊断并阻止启动，不会降级到危险参数。
+应用会分别诊断 Windows 与 WSL 中的 Provider。WSL 仅作为 Windows 连接的开发/Provider 场景，
+不代表独立 Linux 桌面发布。缺少 app-server、平台依赖或协议能力的安装会显示诊断并阻止启动，
+不会降级到危险参数。
 
 ## 开发
 
@@ -77,6 +82,7 @@ npm run dev -- --host 0.0.0.0 --port 4173
 
 ```bash
 npm run verify
+npm run stability:soak
 npm run dist:win
 ```
 
@@ -94,7 +100,8 @@ Windows 构建产物写入 `desktop-app/dist/`：
 - Portable 单文件便携版，双击直接运行
 - ZIP 便携包，解压后可直接运行
 
-macOS 可运行 `npm run dist:mac`。本次正式发布阻断平台是 Windows 本地项目与 Windows 连接 WSL 项目。
+macOS 可运行 `npm run dist:mac`；需要干净临时目录、包安全扫描和 packaged smoke 时运行
+`npm run dist:mac:staged`。本次正式发布阻断平台是 Windows 本地项目与 Windows 连接 WSL 项目。
 
 ## 功能架构
 
@@ -156,6 +163,9 @@ RiskScanner 识别疑似 token、凭据、cookie、私钥和绝对路径,结果�
 - `shared/contracts.ts`:版本化领域模型、Zod schema 和 IPC 类型,跨进程唯一类型源。
 
 更完整的设计见 [docs/AI_WORKSPACE.md](docs/AI_WORKSPACE.md);发布流程见 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)。
+故障处理见 [docs/SUPPORT_AND_RECOVERY.md](docs/SUPPORT_AND_RECOVERY.md)，支持边界见
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)，Windows/macOS 与独立审查交付见
+[docs/EXTERNAL_ACCEPTANCE_RUNBOOK.md](docs/EXTERNAL_ACCEPTANCE_RUNBOOK.md)。
 
 ## 代码规范
 

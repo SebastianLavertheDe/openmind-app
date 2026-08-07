@@ -10,9 +10,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "sourceMap": true
+    "sourceMap": false
     ,"ignoreDeprecations": "6.0"
   },
   "include": ["electron/**/*.ts", "shared/**/*.ts"],
-  "exclude": ["electron/**/*.test.ts"]
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
 }

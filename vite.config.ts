@@ -11,6 +11,11 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "shared")
     }
   },
+  // Production artifacts must not contain React's development JSX source
+  // annotations, which would leak absolute checkout paths into the package.
+  esbuild: {
+    jsxDev: false
+  },
   build: {
     outDir: "../.build/renderer",
     emptyOutDir: true,
