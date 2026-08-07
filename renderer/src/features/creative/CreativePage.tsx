@@ -1,40 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import {
-  Archive,
-  Bold,
-  Check,
-  Code,
-  Code2,
-  Copy,
-  ExternalLink,
-  FileText,
-  FolderOpen,
-  Heading2,
-  Image as ImageIcon,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListOrdered,
-  PanelLeftOpen,
-  Quote,
-  RefreshCw,
-  Save
-} from "lucide-react";
+import { PanelLeftOpen, RefreshCw } from "lucide-react";
 import type { ContextReference, CreativeAnalytics, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic, CreativeVersion } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
-import { EmptyState, ErrorState, PageHeader, Skeleton, StatusBadge } from "../../design-system/components";
-import { MarkdownReader } from "../../components/MarkdownReader";
+import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
-import { AnalyticsView, HistoryView, ReleaseLogView } from "./history-release";
-import { PublishForm, TopicWorkspace, WritingStats } from "./panels";
-import { InlineAiBar } from "./InlineAiBar";
-import { MarkdownEditor, type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
+import { AnalyticsView } from "./history-release";
+import { type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
 import { FunnelBar, TodayStream } from "./stream";
 import { useTopicFileEditor } from "./use-topic-file-editor";
-import { TopicFileWorkspace } from "./TopicFileWorkspace";
+import { CreativeDetailPane } from "./CreativeDetailPane";
 import {
   type Bucket,
   type PlatformOption,
@@ -358,6 +335,14 @@ export function CreativeWorkspacePage({
       ai.notify(m.creativeUi.editor.localFileNotify, "success");
     } catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
+  const updateManifest = async (patch: Record<string, unknown>) => {
+    if (!detail) return;
+    try {
+      setDetail(await window.cctools.updateCreativeManifest(detail.dir, { publish: patch }));
+    } catch (cause) {
+      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+    }
+  };
   const creativeDetailMotionKey = selectedTopicFilePath
     ? `topic-file:${selectedTopicFilePath}`
     : selectedTopic
@@ -446,84 +431,53 @@ export function CreativeWorkspacePage({
               ><PanelLeftOpen size={17} /></button>
             ) : null}
             <div key={creativeDetailMotionKey} className="creative-detail-transition">
-            {view === "history" ? <HistoryView detail={detail} selectedProject={selectedProject} activeFile={activeFile} versions={versions} chooseFile={chooseFile} files={detail ? Object.keys(detail.files || {}) : []} onVersionsChange={setVersions} onRestored={(next) => { setDetail(next); setDraft(next.files?.[activeFile] || ""); }} /> : view === "release" ? <ReleaseLogView detail={detail} selectedProject={selectedProject} /> : selectedTopicFile ? (
-              <TopicFileWorkspace file={selectedTopicFile} draft={topicFileDraft} mode={topicFileMode} dirty={topicFileDirty} saving={topicFileSaving} onMode={setTopicFileMode} onDraft={(value) => { setTopicFileDraft(value); setTopicFileDirty(true); }} onSave={() => void saveTopicFile()} />
-            ) : selectedTopic ? (
-              <TopicWorkspace topic={selectedTopic} date={(selectedTopic as TopicWithDate).sourceLabel || (selectedTopic as TopicWithDate).sourceDate || date} createProject={createProject} addContext={addContext} />
-            ) : detail && selectedProject ? (
-              <>
-                <header className="creative-document-header">
-                  <div><div className="document-status"><StatusBadge tone={stage === "published" ? "success" : "info"}>{stageLabel(stage)}</StatusBadge><span>{dirty ? "编辑中…" : autoSaveStatus === "saving" ? "自动保存中…" : autoSaveStatus === "failed" ? "自动保存失败，可重试保存" : autoSaveStatus === "saved" ? "已自动保存" : "已保存"}</span></div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
-                  <div>
-                    <button data-motion="action" onClick={() => window.cctools.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</button>
-                    <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? "保存中" : "保存版本"}</button>
-                    {stage === "published" ? <button data-motion="action" onClick={() => void copyProject()}><Copy size={14} />复制</button> : null}
-                    {stage === "published" || stage === "ready" ? <button data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />归档</button> : null}
-                    {stage !== "published" ? <button className="primary-button" data-motion="action" onClick={() => void advance()}><Check size={14} />进入{stageLabel(nextStage(stage))}</button> : null}
-                  </div>
-                </header>
-                <nav className="document-tabs">{Object.keys(detail.files || {}).map((file) => <button data-motion="selection" key={file} className={activeFile === file ? "active" : ""} onClick={() => void chooseFile(file)}>{file}</button>)}</nav>
-                {stage === "published" ? (() => {
-                  const pub = ((detail.manifest as Record<string, unknown> | undefined)?.publish as Record<string, unknown> | undefined) || {};
-                  const exported = String(pub.exportedPath || "");
-                  return (
-                    <section className="published-summary">
-                      <header><StatusBadge tone="success">{m.creativeUi.editor.publishedSummary}</StatusBadge>{pub.publishedAt ? <span>{new Date(String(pub.publishedAt)).toLocaleString("zh-CN")}</span> : null}{pub.platform ? <em>{platformLabel(String(pub.platform))}</em> : null}</header>
-                      <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <button data-motion="icon" onClick={() => void window.cctools.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</button> : null}</p>
-                      <div className="publish-actions"><button data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</button><button data-motion="action" onClick={() => void window.cctools.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</button></div>
-                      <small>{m.creativeUi.editor.publishMetricsNote}</small>
-                    </section>
-                  );
-                })() : null}
-                {stage === "ready" ? <PublishForm detail={detail} content={draft} exporting={exporting} enforceChecklist={workflowPolicy.publishChecklistEnabled} onExport={() => void exportDraft()} onPatch={async (patch) => { const next = await window.cctools.updateCreativeManifest(detail.dir, { publish: patch }); setDetail(next); }} /> : null}
-                {detail?.truncatedFiles?.includes(activeFile) ? (
-                  <p className="creative-warn">{m.creativeUi.editor.fileTruncatedWarn}</p>
-                ) : null}
-                <div className="creative-editor">
-                  {stage === "published" ? <MarkdownReader content={draft} layout="file" /> : (
-                    <>
-                      <div className="editor-mode-bar" role="tablist" aria-label={m.creativeUi.editor.modeBar}>
-                        <button data-motion="selection" role="tab" aria-selected={editorMode === "edit"} className={editorMode === "edit" ? "active" : ""} onClick={() => setEditorMode("edit")}>{m.creativeUi.editor.edit}</button>
-                        <button data-motion="selection" role="tab" aria-selected={editorMode === "preview"} className={editorMode === "preview" ? "active" : ""} onClick={() => setEditorMode("preview")}>{m.creativeUi.editor.preview}</button>
-                      </div>
-                      <div key={editorMode} className="view-fade">
-                      {editorMode === "preview"
-                        ? draft.trim() ? <MarkdownReader content={draft} layout="file" className="creative-preview" /> : <EmptyState title={m.creativeUi.editor.previewEmptyTitle} description={m.creativeUi.editor.previewEmptyDesc} />
-                        : (
-                          <>
-                            <div className="editor-toolbar" role="toolbar" aria-label={m.creativeUi.editor.toolbar}>
-                              <button data-motion="icon" onClick={() => insertAtCursor("## ", "", m.creativeUi.editor.headingPlaceholder)} title={m.creativeUi.editor.heading} aria-label={m.creativeUi.editor.heading}><Heading2 size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("**", "**", m.creativeUi.editor.boldPlaceholder)} title={m.creativeUi.editor.shortcutBold} aria-label={m.creativeUi.editor.bold}><Bold size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("*", "*", m.creativeUi.editor.italicPlaceholder)} title={m.creativeUi.editor.shortcutItalic} aria-label={m.creativeUi.editor.italic}><Italic size={15} /></button>
-                              <span className="editor-toolbar-sep" aria-hidden="true" />
-                              <button data-motion="icon" onClick={() => insertAtCursor("- ", "", m.creativeUi.editor.listPlaceholder)} title={m.creativeUi.editor.list} aria-label={m.creativeUi.editor.list}><List size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("1. ", "", m.creativeUi.editor.listPlaceholder)} title={m.creativeUi.editor.orderedList} aria-label={m.creativeUi.editor.orderedList}><ListOrdered size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("> ", "", m.creativeUi.editor.quotePlaceholder)} title={m.creativeUi.editor.quote} aria-label={m.creativeUi.editor.quote}><Quote size={15} /></button>
-                              <span className="editor-toolbar-sep" aria-hidden="true" />
-                              <button data-motion="icon" onClick={() => insertAtCursor("`", "`", m.creativeUi.editor.inlineCodePlaceholder)} title={m.creativeUi.editor.shortcutCode} aria-label={m.creativeUi.editor.inlineCode}><Code size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("\n```\n", "\n```\n", m.creativeUi.editor.codePlaceholder)} title={m.creativeUi.editor.code} aria-label={m.creativeUi.editor.code}><Code2 size={15} /></button>
-                              <span className="editor-toolbar-sep" aria-hidden="true" />
-                              <button data-motion="icon" onClick={() => insertAtCursor("[", "](https://)", m.creativeUi.editor.linkPlaceholder)} title={m.creativeUi.editor.shortcutLink} aria-label={m.creativeUi.editor.link}><LinkIcon size={15} /></button>
-                              <button data-motion="icon" onClick={() => insertAtCursor("![", "](https://)", m.creativeUi.editor.imagePlaceholder)} title={m.creativeUi.editor.image} aria-label={m.creativeUi.editor.image}><ImageIcon size={15} /></button>
-                              <button data-motion="icon" onClick={() => void insertLocalFileLink()} title={m.creativeUi.editor.localFile} aria-label={m.creativeUi.editor.localFile}><FolderOpen size={15} /></button>
-                            </div>
-                            <InlineAiBar selection={editorSelection} onReplace={replaceRange} />
-                            <MarkdownEditor
-                              ref={editorRef}
-                              ariaLabel={m.creativeUi.editor.textareaAria}
-                              value={draft}
-                              onChange={(next) => { setDraft(next); setDirty(true); }}
-                              onSelectionChange={setEditorSelection}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <WritingStats content={draft} />
-              </>
-            ) : <EmptyState title={m.creativeUi.editor.selectLeftTitle} description={m.creativeUi.editor.selectLeftDesc} icon={<FileText size={28} />} />}
+              <CreativeDetailPane
+                view={view}
+                stage={stage}
+                date={date}
+                detail={detail}
+                selectedProject={selectedProject}
+                selectedTopic={selectedTopic}
+                selectedTopicDate={selectedTopic ? (selectedTopic as TopicWithDate).sourceLabel || (selectedTopic as TopicWithDate).sourceDate || date : date}
+                selectedTopicFile={selectedTopicFile}
+                topicFileDraft={topicFileDraft}
+                topicFileMode={topicFileMode}
+                topicFileDirty={topicFileDirty}
+                topicFileSaving={topicFileSaving}
+                setTopicFileDraft={setTopicFileDraft}
+                setTopicFileMode={setTopicFileMode}
+                setTopicFileDirty={setTopicFileDirty}
+                saveTopicFile={saveTopicFile}
+                versions={versions}
+                activeFile={activeFile}
+                chooseFile={chooseFile}
+                setVersions={setVersions}
+                setDetail={setDetail}
+                setDraft={setDraft}
+                createProject={createProject}
+                addContext={addContext}
+                dirty={dirty}
+                autoSaveStatus={autoSaveStatus}
+                saving={saving}
+                save={save}
+                copyProject={copyProject}
+                archiveProject={archiveProject}
+                advance={advance}
+                exportDraft={exportDraft}
+                exporting={exporting}
+                publishChecklistEnabled={workflowPolicy.publishChecklistEnabled}
+                editorMode={editorMode}
+                setEditorMode={setEditorMode}
+                draft={draft}
+                insertAtCursor={insertAtCursor}
+                editorSelection={editorSelection}
+                replaceRange={replaceRange}
+                editorRef={editorRef}
+                setDirty={setDirty}
+                setEditorSelection={setEditorSelection}
+                insertLocalFileLink={insertLocalFileLink}
+                updateManifest={updateManifest}
+              />
             </div>
           </main>
         </div>

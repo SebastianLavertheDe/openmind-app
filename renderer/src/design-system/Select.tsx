@@ -48,6 +48,7 @@ export function Select<T extends string>({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const focusFrameRef = useRef<number | null>(null);
   const shouldRestoreFocusRef = useRef(false);
   const { visible, leaving } = useExitPresence(menuMounted, 140);
 
@@ -70,9 +71,16 @@ export function Select<T extends string>({
 
   // 打开时定位到当前选中项
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      if (focusFrameRef.current !== null) {
+        cancelAnimationFrame(focusFrameRef.current);
+        focusFrameRef.current = null;
+      }
+      return;
+    }
     setActiveIndex(selectedIndex);
-    requestAnimationFrame(() => {
+    focusFrameRef.current = requestAnimationFrame(() => {
+      focusFrameRef.current = null;
       listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${selectedIndex}"]`)?.focus();
     });
   }, [open, selectedIndex]);
@@ -83,7 +91,20 @@ export function Select<T extends string>({
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         shouldRestoreFocusRef.current = false;
+        if (focusFrameRef.current !== null) {
+          cancelAnimationFrame(focusFrameRef.current);
+          focusFrameRef.current = null;
+        }
         setOpen(false);
+        // Closing the animated menu during pointerdown can remove the focused
+        // option before the browser's default focus transfer runs (notably in
+        // Electron/WebKit and jsdom). Preserve the native outside-click
+        // behavior explicitly for keyboard and screen-reader users.
+        const target = event.target as { disabled?: boolean; focus?: () => void } | null;
+        if (target && !target.disabled && typeof target.focus === "function") {
+          target.focus();
+          queueMicrotask(() => target.focus?.());
+        }
       }
     };
     const onKeyDown = (event: KeyboardEvent | globalThis.KeyboardEvent) => {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Database, Globe, Package, Route, Search, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, UserPreferences } from "@shared/contracts";
+import { ArrowLeft, Archive, Bot, Cpu, Database, Globe, Package, Route, Search, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import type { BrowserAutomationStatus, CredentialSetInput, CredentialVaultStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderProfile, ProviderProfileInput, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
+import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
 import { applyTheme } from "../../theme";
 import {
   ArchivedSessionsSettingsSection,
@@ -12,6 +13,7 @@ import {
   PathSettingsSection,
   PermissionSettingsSection,
   ProviderSettingsSection,
+  RuntimeSettingsSection,
   SkillSettingsSection,
   WorkflowSettingsSection
 } from "./settings-sections";
@@ -19,7 +21,7 @@ import {
 const m = messages;
 const BLUE_ACCENT = "#2563eb";
 
-type SettingsSectionId = "general" | "providers" | "skills" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -33,6 +35,7 @@ type SettingsSectionDefinition = {
 const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
   { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
+  { id: "runtime", group: "ai", icon: Cpu, title: "Runtime Packs", description: "管理已验证的运行时包和完整性状态。" },
   { id: "skills", group: "ai", icon: Package, ...m.settings.navigation.sections.skills },
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
@@ -50,9 +53,18 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [browserStatus, setBrowserStatus] = useState<BrowserAutomationStatus | null>(null);
+  const [credentialStatus, setCredentialStatus] = useState<CredentialVaultStatus | null>(null);
+  const [providerProfiles, setProviderProfiles] = useState<ProviderProfile[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServerDefinition[]>([]);
+  const [runtimePacks, setRuntimePacks] = useState<RuntimePackReadiness[]>([]);
+  const [runtimeDownloads, setRuntimeDownloads] = useState<RuntimePackDownloadJob[]>([]);
+  const [runtimeDownloadCandidate, setRuntimeDownloadCandidate] = useState<RuntimePackDownloadDescriptor | null>(null);
+  const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [savingBrowserToken, setSavingBrowserToken] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
+  const [skillPackageInspections, setSkillPackageInspections] = useState<SkillPackageInspectionView[]>([]);
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
+  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "update" | "rollback" | "uninstall" | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -70,6 +82,18 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   }, []);
 
+  const loadProviderConfig = useCallback(async () => {
+    if (!window.cctools.getCredentialStatus || !window.cctools.listProviderProfiles) return;
+    try {
+      const [status, profiles] = await Promise.all([window.cctools.getCredentialStatus(), window.cctools.listProviderProfiles()]);
+      setCredentialStatus(status);
+      setProviderProfiles(profiles);
+    } catch {
+      setCredentialStatus(null);
+      setProviderProfiles([]);
+    }
+  }, []);
+
   const loadPrefs = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -79,6 +103,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       applyTheme(next);
       try { setBrowserStatus(await window.cctools.getBrowserAutomationStatus()); }
       catch { setBrowserStatus(null); }
+      await loadProviderConfig();
       await loadMcpServers();
     } catch {
       setPrefs(null);
@@ -86,9 +111,56 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     } finally {
       setLoading(false);
     }
-  }, [loadMcpServers]);
+  }, [loadMcpServers, loadProviderConfig]);
 
   useEffect(() => { void loadPrefs(); }, [loadPrefs]);
+
+  const loadSkillPackages = useCallback(async () => {
+    try {
+      const [inspections, installed] = await Promise.all([
+        window.cctools.inspectSkillWorkspace(),
+        window.cctools.listInstalledSkills()
+      ]);
+      setSkillPackageInspections(inspections);
+      setInstalledSkills(installed);
+    } catch {
+      setSkillPackageInspections([]);
+      setInstalledSkills([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "skills" && !loading && prefs) void loadSkillPackages();
+  }, [activeSection, loadSkillPackages, loading, prefs]);
+
+  const loadRuntimePacks = useCallback(async () => {
+    try {
+      setRuntimePacks(await window.cctools.listRuntimePacks());
+    } catch {
+      setRuntimePacks([]);
+    }
+    try {
+      if (window.cctools.listRuntimePackDownloads) setRuntimeDownloads(await window.cctools.listRuntimePackDownloads());
+    } catch {
+      setRuntimeDownloads([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "runtime" && !loading && prefs) void loadRuntimePacks();
+  }, [activeSection, loadRuntimePacks, loading, prefs]);
+
+  useEffect(() => {
+    if (!window.cctools.onRuntimePackDownloadEvent) return;
+    return window.cctools.onRuntimePackDownloadEvent((job) => {
+      setRuntimeDownloads((current) => {
+        const next = current.filter((item) => item.id !== job.id);
+        next.push(job);
+        return next.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      });
+      if (job.status === "installed") void loadRuntimePacks();
+    });
+  }, [loadRuntimePacks]);
 
   const save = useCallback((patch: Partial<UserPreferences>): Promise<void> => {
     pendingSaves.current += 1;
@@ -115,6 +187,42 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
 
+  const saveCredential = useCallback(async (input: CredentialSetInput) => {
+    await window.cctools.setCredential(input);
+    // Clear the renderer's plaintext input as soon as Main confirms the
+    // secure write; refreshing metadata must not delay that security boundary.
+    void loadProviderConfig();
+    ai.notify("Credential 已安全保存", "success");
+  }, [ai, loadProviderConfig]);
+
+  const deleteCredential = useCallback(async (id: string) => {
+    const credential = credentialStatus?.credentials.find((item) => item.id === id);
+    if (!await ai.confirm({ title: "删除 Credential", body: `确定删除「${credential?.label || id}」吗？这会撤销后续注入，并终止可追踪的使用中 Run。`, confirmText: "删除", danger: true })) return;
+    await window.cctools.deleteCredential(id);
+    await loadProviderConfig();
+    ai.notify("Credential 密文副本已删除", "success");
+  }, [ai, credentialStatus, loadProviderConfig]);
+
+  const saveProviderProfile = useCallback(async (input: ProviderProfileInput) => {
+    await window.cctools.saveProviderProfile(input);
+    await loadProviderConfig();
+    ai.notify("Provider Profile 已保存", "success");
+  }, [ai, loadProviderConfig]);
+
+  const deleteProviderProfile = useCallback(async (id: string) => {
+    const profile = providerProfiles.find((item) => item.id === id);
+    if (!await ai.confirm({ title: "删除 Provider Profile", body: `确定删除「${profile?.name || id}」吗？Provider 绑定在下次运行前将不可用。`, confirmText: "删除", danger: true })) return;
+    await window.cctools.deleteProviderProfile(id);
+    await loadProviderConfig();
+    ai.notify("Provider Profile 已删除", "success");
+  }, [ai, loadProviderConfig, providerProfiles]);
+
+  const testProviderProfile = useCallback(async (id: string) => {
+    await window.cctools.testProviderProfile(id);
+    await loadProviderConfig();
+    ai.notify("Provider Profile 连接测试已完成", "success");
+  }, [ai, loadProviderConfig]);
+
   const archivedSessions = useMemo(() => ai.snapshot.sessions
     .filter((session) => session.archived)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions]);
@@ -128,13 +236,32 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const selectWorkspace = async () => {
     try {
-      const root = await window.cctools.selectRepo();
+      // New API keeps workspace independent from mymind. The legacy fallback
+      // is retained for one release so older preload bundles remain usable.
+      const root = window.cctools.selectWorkspaceRoot
+        ? await window.cctools.selectWorkspaceRoot()
+        : await window.cctools.selectRepo();
       if (!root) return;
       onRepo(root);
       await loadPrefs();
       ai.notify(m.settings.notify.workspaceUpdated, "success");
     } catch {
       ai.notify(m.settings.notify.workspaceSelectFailed, "error");
+    }
+  };
+
+  const selectMymindRoot = async () => {
+    try {
+      const root = await window.cctools.selectMymindRoot();
+      if (!root) return;
+      const preview = await window.cctools.previewMymindRoot(root);
+      if (!preview.canBind) throw new Error(mymindRootPreviewError(preview));
+      if (!await ai.confirm({ title: "确认绑定 mymind 根目录", body: mymindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      await window.cctools.setMymindRoot(root);
+      await loadPrefs();
+      ai.notify("mymind 内容根已更新", "success");
+    } catch {
+      ai.notify("选择 mymind 内容根失败", "error");
     }
   };
 
@@ -164,11 +291,244 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (refreshingSkills) return;
     setRefreshingSkills(true);
     try {
-      const [next, servers] = await Promise.all([ai.refreshSkills(), loadMcpServers()]);
+      const [next, servers] = await Promise.all([ai.refreshSkills(), loadMcpServers(), loadSkillPackages()]);
       if (next) ai.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
       else ai.notify(m.settings.skills.scanFailed, "error");
     } finally {
       setRefreshingSkills(false);
+    }
+  };
+
+  const inspectSkillPackages = async () => {
+    if (skillPackageBusy) return;
+    setSkillPackageBusy("inspect");
+    try {
+      await loadSkillPackages();
+      ai.notify(m.settings.skills.packageInspect, "success");
+    } catch {
+      ai.notify(m.settings.skills.packageInspectFailed, "error");
+    } finally {
+      setSkillPackageBusy(null);
+    }
+  };
+
+  const migrateSkillPackages = async () => {
+    if (skillPackageBusy) return;
+    setSkillPackageBusy("migrate");
+    try {
+      const report = await window.cctools.migrateSkillWorkspace();
+      setSkillPackageInspections(report.inspected);
+      setInstalledSkills(report.installed);
+      ai.notify(m.settings.skills.packageMigrateComplete(report.installed.length, report.skipped.length), "success");
+    } catch {
+      ai.notify(m.settings.skills.packageInspectFailed, "error");
+    } finally {
+      setSkillPackageBusy(null);
+    }
+  };
+
+  const updateSkillPackage = async (sourcePath: string) => {
+    if (skillPackageBusy || !window.cctools.updateSkillPackage) return;
+    setSkillPackageBusy("update");
+    try {
+      await window.cctools.updateSkillPackage(sourcePath);
+      await loadSkillPackages();
+      ai.notify(m.settings.skills.packageActionComplete, "success");
+    } catch {
+      ai.notify(m.settings.skills.packageInspectFailed, "error");
+    } finally {
+      setSkillPackageBusy(null);
+    }
+  };
+
+  const rollbackSkillPackage = async (key: string) => {
+    if (skillPackageBusy || !window.cctools.rollbackSkillPackage) return;
+    setSkillPackageBusy("rollback");
+    try {
+      await window.cctools.rollbackSkillPackage(key);
+      await loadSkillPackages();
+      ai.notify(m.settings.skills.packageActionComplete, "success");
+    } catch {
+      ai.notify(m.settings.skills.packageInspectFailed, "error");
+    } finally {
+      setSkillPackageBusy(null);
+    }
+  };
+
+  const uninstallSkillPackage = async (key: string, digest: string) => {
+    if (skillPackageBusy || !window.cctools.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
+    setSkillPackageBusy("uninstall");
+    try {
+      await window.cctools.uninstallSkillPackage(key, digest);
+      await loadSkillPackages();
+      ai.notify(m.settings.skills.packageActionComplete, "success");
+    } catch {
+      ai.notify(m.settings.skills.packageInspectFailed, "error");
+    } finally {
+      setSkillPackageBusy(null);
+    }
+  };
+
+  const refreshRuntimePacks = async () => {
+    if (runtimeBusy) return;
+    setRuntimeBusy("refresh");
+    try {
+      await loadRuntimePacks();
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const importRuntimePack = async () => {
+    if (runtimeBusy) return;
+    setRuntimeBusy("import");
+    try {
+      const imported = await window.cctools.importRuntimePack();
+      if (!imported) return;
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 已导入为候选版本", "success");
+    } catch {
+      ai.notify("Runtime Pack 导入失败：签名、版本或内容校验未通过", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const selectRuntimePackDownloadManifest = async () => {
+    if (runtimeBusy || !window.cctools.selectRuntimePackDownloadManifest) return;
+    setRuntimeBusy("download-select");
+    try {
+      const candidate = await window.cctools.selectRuntimePackDownloadManifest();
+      if (candidate) setRuntimeDownloadCandidate(candidate);
+    } catch {
+      ai.notify("Runtime Pack Manifest 无效，或未声明 HTTPS 下载地址", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const startRuntimePackDownload = async () => {
+    if (runtimeBusy || !runtimeDownloadCandidate || !window.cctools.startRuntimePackDownload) return;
+    setRuntimeBusy("download-start");
+    try {
+      await window.cctools.startRuntimePackDownload(runtimeDownloadCandidate.metadata);
+      setRuntimeDownloadCandidate(null);
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 下载已开始，可在当前页面暂停或继续", "success");
+    } catch {
+      ai.notify("Runtime Pack 下载启动失败：请检查 Manifest 和 HTTPS 地址", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const pauseRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
+    if (runtimeBusy || !window.cctools.pauseRuntimePackDownload) return;
+    setRuntimeBusy(`download-pause:${job.id}`);
+    try {
+      await window.cctools.pauseRuntimePackDownload(job.id);
+      await loadRuntimePacks();
+    } catch {
+      ai.notify("Runtime Pack 下载暂停失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const resumeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
+    if (runtimeBusy || !window.cctools.resumeRuntimePackDownload) return;
+    setRuntimeBusy(`download-resume:${job.id}`);
+    try {
+      await window.cctools.resumeRuntimePackDownload(job.id);
+      await loadRuntimePacks();
+    } catch {
+      ai.notify("Runtime Pack 下载继续失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const removeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
+    if (runtimeBusy || !window.cctools.removeRuntimePackDownload || !window.confirm(`确认删除 ${job.metadata.packId} ${job.metadata.version} 的下载记录和未完成文件？`)) return;
+    setRuntimeBusy(`download-remove:${job.id}`);
+    try {
+      await window.cctools.removeRuntimePackDownload(job.id);
+      await loadRuntimePacks();
+    } catch {
+      ai.notify("Runtime Pack 下载记录删除失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const repairRuntimePack = async (pack: RuntimePackReadiness) => {
+    if (runtimeBusy) return;
+    setRuntimeBusy(`repair:${pack.digest}`);
+    try {
+      const repaired = await window.cctools.repairRuntimePackFromFile(pack.packId, pack.target, pack.digest);
+      if (!repaired) return;
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 已修复，请重新检查 readiness", "success");
+    } catch {
+      ai.notify("Runtime Pack 修复失败：请选择匹配的签名 Manifest 和包文件", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const activateRuntimePack = async (pack: RuntimePackReadiness) => {
+    if (runtimeBusy) return;
+    setRuntimeBusy(`activate:${pack.digest}`);
+    try {
+      await window.cctools.activateRuntimePack(pack.packId, pack.target, pack.digest);
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 已激活", "success");
+    } catch {
+      ai.notify("Runtime Pack 激活失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const rollbackRuntimePack = async (pack: RuntimePackReadiness) => {
+    if (runtimeBusy) return;
+    setRuntimeBusy(`rollback:${pack.packId}:${pack.target}`);
+    try {
+      await window.cctools.rollbackRuntimePack(pack.packId, pack.target);
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 已回滚", "success");
+    } catch {
+      ai.notify("Runtime Pack 回滚失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const removeRuntimePack = async (pack: RuntimePackReadiness) => {
+    if (runtimeBusy || !window.confirm(`确认移除 ${pack.packId} ${pack.version}？`)) return;
+    setRuntimeBusy(`remove:${pack.digest}`);
+    try {
+      await window.cctools.removeRuntimePack(pack.packId, pack.target, pack.digest);
+      await loadRuntimePacks();
+      ai.notify("Runtime Pack 已移除", "success");
+    } catch {
+      ai.notify("Runtime Pack 移除失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  };
+
+  const garbageCollectRuntimePacks = async () => {
+    if (runtimeBusy) return;
+    setRuntimeBusy("gc");
+    try {
+      await window.cctools.garbageCollectRuntimePacks();
+      await loadRuntimePacks();
+      ai.notify("未激活且未使用的 Runtime Pack 已清理", "success");
+    } catch {
+      ai.notify("Runtime Pack 清理失败：当前状态可能正在被 Run 使用", "error");
+    } finally {
+      setRuntimeBusy(null);
     }
   };
 
@@ -261,7 +621,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               <h1 id="settings-detail-title">{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
-            {activeSection !== "skills" && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+            {activeSection !== "skills" && activeSection !== "runtime" && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
           </header>
 
           {loading ? (
@@ -269,18 +629,19 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
           ) : loadError || !prefs ? (
             <section className="settings-load-state settings-card ui-error-state" role="alert">
               <strong>{loadError || m.settings.loadError}</strong>
-              <button type="button" className="settings-subtle-action" onClick={() => void loadPrefs()}>{m.settings.retry}</button>
+              <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void loadPrefs()}>{m.settings.retry}</button>
             </section>
           ) : (
             <div className="settings-stack entrance-stagger" aria-busy={saving || undefined}>
               {activeSection === "general" ? (
                 <>
                   <AppearanceSettingsSection prefs={prefs} save={save} />
-                  <PathSettingsSection workspace={prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                  <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
-              {activeSection === "skills" ? <SkillSettingsSection skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
+              {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} credentialStatus={credentialStatus} providerProfiles={providerProfiles} onSaveCredential={saveCredential} onDeleteCredential={deleteCredential} onSaveProviderProfile={saveProviderProfile} onTestProviderProfile={testProviderProfile} onDeleteProviderProfile={deleteProviderProfile} /> : null}
+              {activeSection === "runtime" ? <RuntimeSettingsSection packs={runtimePacks} downloads={runtimeDownloads} downloadCandidate={runtimeDownloadCandidate} busy={runtimeBusy} onRefresh={() => void refreshRuntimePacks()} onImport={() => void importRuntimePack()} onSelectDownloadManifest={() => void selectRuntimePackDownloadManifest()} onStartDownload={() => void startRuntimePackDownload()} onClearDownloadCandidate={() => setRuntimeDownloadCandidate(null)} onPauseDownload={(job) => void pauseRuntimePackDownload(job)} onResumeDownload={(job) => void resumeRuntimePackDownload(job)} onRemoveDownload={(job) => void removeRuntimePackDownload(job)} onGarbageCollect={() => void garbageCollectRuntimePacks()} onRepair={(pack) => void repairRuntimePack(pack)} onActivate={(pack) => void activateRuntimePack(pack)} onRollback={(pack) => void rollbackRuntimePack(pack)} onRemove={(pack) => void removeRuntimePack(pack)} /> : null}
+              {activeSection === "skills" ? <SkillSettingsSection skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onUpdatePackage={(sourcePath) => void updateSkillPackage(sourcePath)} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
@@ -304,7 +665,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
 
   return (
     <aside className="settings-navigation" aria-label={m.settings.navigation.label}>
-      <button type="button" className="settings-back-button" onClick={onBack}>
+      <button type="button" className="settings-back-button" data-motion="action" onClick={onBack}>
         <ArrowLeft size={15} aria-hidden />
         <span>{m.settings.navigation.back}</span>
       </button>
@@ -331,6 +692,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
                   <button
                     type="button"
                     className="settings-nav-button"
+                    data-motion="selection"
                     key={section.id}
                     aria-current={activeSection === section.id ? "page" : undefined}
                     aria-controls="settings-detail-panel"

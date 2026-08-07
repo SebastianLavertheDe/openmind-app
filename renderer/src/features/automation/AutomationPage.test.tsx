@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DesktopApi, SkillDefinition, SourceRun } from "@shared/contracts";
+import type { AutomationRule, AutomationRunRecord, DesktopApi, SkillDefinition, SourceRun } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { AutomationPage } from "./AutomationPage";
 
@@ -54,12 +54,32 @@ const runs: SourceRun[] = [
   { schemaVersion: 1, id: "r2", sourceId: "rss", skillId: "rss-article-saver", status: "failed", startedAt: "2026-06-14T08:00:00.000Z", completedAt: "2026-06-14T08:00:30.000Z", durationMs: 30000, code: 1, error: "boom", itemCount: 0, logs: [] }
 ];
 
+const seedRules: AutomationRule[] = [
+  { schemaVersion: 1, id: "daily-brief", name: "每日简报生成", description: "每天汇总资料。", enabled: true, target: { type: "skill", id: "daily-article-summarizer", versionPolicy: "*" }, trigger: { type: "daily", at: "08:00" }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 0 }, timezone: "UTC", lastTriggeredAt: null, lastScheduledKey: null, createdAt: "2026-06-15T08:00:00.000Z", updatedAt: "2026-06-15T08:00:00.000Z" },
+  { schemaVersion: 1, id: "classify-new-content", name: "新资料自动归类", description: "归类新增资料。", enabled: false, target: { type: "skill", id: "daily-topic-selector", versionPolicy: "*" }, trigger: { type: "run-completed", skillId: "rss-article-saver" }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 0 }, timezone: "UTC", lastTriggeredAt: null, lastScheduledKey: null, createdAt: "2026-06-15T08:00:00.000Z", updatedAt: "2026-06-15T08:00:00.000Z" },
+  { schemaVersion: 1, id: "rss-capture", name: "RSS 定时抓取", description: "定时抓取 RSS。", enabled: true, target: { type: "skill", id: "rss-article-saver", versionPolicy: "*" }, trigger: { type: "interval", everyMinutes: 15 }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 0 }, timezone: "UTC", lastTriggeredAt: null, lastScheduledKey: null, createdAt: "2026-06-15T08:00:00.000Z", updatedAt: "2026-06-15T08:00:00.000Z" }
+];
+
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
+  let currentRules = seedRules.map((rule) => ({ ...rule }));
+  const saveAutomationRule = vi.fn(async (input: Parameters<DesktopApi["saveAutomationRule"]>[0]) => {
+    const current = currentRules.find((rule) => rule.id === input.id);
+    const next: AutomationRule = { schemaVersion: 1, ...input, lastTriggeredAt: current?.lastTriggeredAt || null, lastScheduledKey: current?.lastScheduledKey || null, createdAt: current?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+    currentRules = currentRules.map((rule) => rule.id === next.id ? next : rule);
+    return next;
+  });
   return {
     listSourceRuns: async () => runs,
     runSkill: async () => true,
     stopSkill: async () => true,
     onSkillEvent: () => () => undefined,
+    listAutomationRules: async () => currentRules,
+    listAutomationSchedules: async () => [],
+    listAutomationRuns: async () => [],
+    saveAutomationRule,
+    runAutomationNow: vi.fn(async (ruleId) => ({ schemaVersion: 1, id: "automation-run", ruleId, target: currentRules.find((rule) => rule.id === ruleId)!.target, state: "running", attempt: 1, retryAt: null, childRunId: "child-run", triggerReason: "manual", scheduledFor: null, createdAt: new Date().toISOString(), completedAt: null, error: null } as AutomationRunRecord)),
+    cancelSkillRun: async () => true,
+    cancelWorkflowRun: async () => true,
     ...overrides
   } as unknown as DesktopApi;
 }
@@ -72,7 +92,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
-  it("shows the three mockup rules and no removed rules", async () => {
+  it("shows the three persisted rules and no removed rules", async () => {
     const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("3 条规则")).toBeTruthy());
 
@@ -95,17 +115,17 @@ describe("AutomationPage", () => {
     expect((screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("runs the selected automation rule with a compact date", async () => {
-    const runSkill = vi.fn().mockResolvedValue(true);
-    window.cctools = makeApi({ runSkill });
+  it("runs the selected automation rule through the Automation API", async () => {
+    const runAutomationNow = vi.fn().mockResolvedValue({});
+    window.cctools = makeApi({ runAutomationNow });
     render(<AutomationPage skills={skills} go={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
-    expect(runSkill).toHaveBeenCalledWith("daily-article-summarizer", expect.stringMatching(/^\d{8}$/));
+    expect(runAutomationNow).toHaveBeenCalledWith("daily-brief");
 
     fireEvent.click(screen.getByRole("button", { name: /RSS 定时抓取/ }));
     fireEvent.click(screen.getByRole("button", { name: /立即运行/ }));
-    expect(runSkill).toHaveBeenCalledWith("rss-article-saver", expect.stringMatching(/^\d{8}$/));
+    expect(runAutomationNow).toHaveBeenCalledWith("rss-capture");
   });
 
   it("remounts the detail pane so rule changes replay the transition", async () => {

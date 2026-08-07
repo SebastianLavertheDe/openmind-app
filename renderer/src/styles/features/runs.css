@@ -1,0 +1,27 @@
+.runs-page { display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+.runs-page-header, .run-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.runs-page-header h1, .run-detail-header h2 { margin: 4px 0 6px; }
+.runs-page-header p, .run-detail-header p { margin: 0; color: var(--text-secondary); }
+.runs-page-header button, .run-actions button, .workflow-step-row button { display: inline-flex; align-items: center; gap: 6px; }
+.runs-error { color: var(--danger-fg); margin: 0; }
+.runs-layout { display: grid; grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr); gap: 16px; min-height: 520px; }
+.runs-list { padding: 8px; overflow: auto; }
+.run-list-item { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 0; border-radius: 10px; background: transparent; color: inherit; text-align: left; padding: 12px 10px; cursor: pointer; }
+.run-list-item:hover, .run-list-item.active { background: var(--surface-hover); }
+.run-list-item time { color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+.run-list-copy { display: grid; gap: 3px; min-width: 0; }
+.run-list-copy strong, .run-list-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-list-copy small, .runs-muted, .runs-empty, .workflow-step-row small, .artifact-row small { color: var(--text-secondary); }
+.run-state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); flex: none; }
+.run-state-dot.success { background: var(--success-fg); }.run-state-dot.danger { background: var(--danger-fg); }.run-state-dot.running { background: var(--accent-fg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-fg) 14%, transparent); }.run-state-dot.muted { background: var(--text-tertiary); }
+.run-detail { padding: 22px; min-width: 0; }
+.run-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.run-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 22px 0; padding: 14px 0; border-block: 1px solid var(--border-subtle); }
+.run-overview div { display: grid; gap: 4px; }.run-overview dt { color: var(--text-tertiary); font-size: 12px; }.run-overview dd { margin: 0; font-size: 13px; }
+.run-pill { display: inline-flex; border-radius: 999px; padding: 3px 8px; font-size: 12px; background: var(--surface-hover); }.run-pill.success { color: var(--success-fg); }.run-pill.danger { color: var(--danger-fg); }.run-pill.running { color: var(--accent-fg); }
+.run-section { margin-top: 22px; }.run-section h3 { margin: 0 0 10px; font-size: 14px; }.artifact-list, .workflow-step-list, .run-event-list { display: grid; gap: 8px; }
+.run-orphan-warning { border: 1px solid color-mix(in srgb, var(--warning-fg) 45%, var(--border-subtle)); border-radius: 10px; padding: 12px; background: color-mix(in srgb, var(--warning-fg) 8%, transparent); }.run-orphan-warning h3 { color: var(--warning-fg); }.run-orphan-warning p { margin: 0; color: var(--text-secondary); line-height: 1.55; }
+.artifact-row, .workflow-step-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border-subtle); border-radius: 9px; padding: 10px; }.artifact-row { flex-wrap: wrap; }.artifact-row code { flex: 1 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }.artifact-row > small { margin-left: auto; white-space: nowrap; }.artifact-actions { display: inline-flex; gap: 6px; margin-left: auto; }.artifact-actions button { display: inline-flex; align-items: center; gap: 4px; }.workflow-step-row > div { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.run-resume-section { display: grid; gap: 10px; }.run-resume-section p { margin: 0; }.runs-resume-input { width: 100%; min-height: 120px; resize: vertical; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-sunken); color: var(--text-primary); padding: 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.run-event-row { display: grid; grid-template-columns: 155px 110px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-subtle); }.run-event-row time { color: var(--text-tertiary); }.run-event-row span { overflow-wrap: anywhere; color: var(--text-secondary); }
+@media (max-width: 820px) { .runs-layout { grid-template-columns: 1fr; }.runs-list { max-height: 280px; }.run-event-row { grid-template-columns: 1fr; gap: 3px; } }

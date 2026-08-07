@@ -101,6 +101,29 @@ describe("ApprovalBanner", () => {
     expect(screen.getByRole("button", { name: "拒绝" })).toBeTruthy();
   });
 
+  it("shows an Internal Agent approval alongside the active AI session", async () => {
+    const approval = {
+      ...makeApproval("agent-1", ""),
+      runId: "broker-run-1",
+      sessionId: "agent:broker-run-1",
+      category: "tool" as const,
+      title: "Internal Agent · browser",
+      detail: "{\"action\":\"navigate\",\"url\":\"https://example.com\"}",
+      command: undefined
+    };
+    window.cctools = {
+      aiRefresh: async () => makeSnapshot([]),
+      aiGetEvents: async () => [],
+      aiPrewarm: async () => undefined,
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+    render(
+      <AiProvider initial={makeSnapshot([approval], "active-session")}><ApprovalBanner /></AiProvider>
+    );
+    expect(await screen.findByText(/navigate/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "允许" })).toBeTruthy();
+  });
+
   it("keeps single-approval actions usable with a very long WSL command", async () => {
     const command = String.raw`wsl.exe -d Ubuntu -- bash -lc "cd /home/say/work/github/cctools && python .claude/skills/daily-topic-selector/scripts/generate_daily_topics.py --summary \\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\daily-summary\20260715_daily_summary.md --posts \\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\post\20260715\posts.json"`;
     const approval = makeApproval("long-command", command);

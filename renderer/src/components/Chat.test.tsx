@@ -1561,6 +1561,10 @@ describe("chat timeline", () => {
     const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
 
     const process = disclosureFor(await screen.findByText("正在处理"));
+    await waitFor(() => {
+      expect(process.querySelectorAll('[data-trace-cycle="current"]')).toHaveLength(1);
+      expect(process.querySelectorAll('[data-trace-cycle="completed"]')).toHaveLength(1);
+    });
     expectDisclosureOpen(process, true);
     expect(process.querySelector(".trace-cycle-history")).toBeNull();
     expect(within(process).queryByRole("button", { name: /已完成 \d+ 轮/ })).toBeNull();

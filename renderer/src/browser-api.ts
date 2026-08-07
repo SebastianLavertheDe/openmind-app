@@ -1,4 +1,20 @@
-import type { AiEvent, AiSnapshot, CreativeProjectManifest, CreativeStage, DesktopApi, SkillDefinition, UserPreferences } from "@shared/contracts";
+import type {
+  AiEvent,
+  AiSnapshot,
+  CredentialMetadata,
+  CredentialSetInput,
+  EnvFileAnalysis,
+  CreativeProjectManifest,
+  CreativeStage,
+  DesktopApi,
+  ProviderProfile,
+  ProviderProfileInput,
+  SkillDefinition,
+  UserPreferences
+} from "@shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR } from "@shared/contracts";
+import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
+import type { AutomationRule } from "@shared/contracts";
 
 export function installBrowserPreviewApi(): boolean {
   if (window.cctools) return true;
@@ -106,6 +122,8 @@ export function installBrowserPreviewApi(): boolean {
   let preferences: UserPreferences = {
     schemaVersion: 1,
     repoRoot: snapshot.projectRoot,
+    mymindRoot: `${snapshot.projectRoot}/mymind`,
+    workspaceRoot: snapshot.projectRoot,
     themeMode: "light" as const,
     accentColor: "#2563eb",
     density: "default" as const,
@@ -123,7 +141,7 @@ export function installBrowserPreviewApi(): boolean {
     notesDir: "mymind",
     browserAutomationEnabled: false,
     browserReuseExistingTabs: true,
-    browserEvidenceDir: ".cctools/browser-evidence",
+    browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
     destructiveOpsRequireApproval: true,
     riskScanEnabled: true,
     defaultPlatform: "公众号",
@@ -149,9 +167,21 @@ export function installBrowserPreviewApi(): boolean {
     { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["mymind/daily-summary/${date}_daily_summary.md"], timeoutMs: 3600000 },
     { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/x_*.md", "mymind/post/${date}/"], timeoutMs: 7200000 }
   ];
+  let previewCredentials: CredentialMetadata[] = [];
+  let previewProviderProfiles: ProviderProfile[] = [];
+  const previewAutomationRules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.map((input, index) => ({
+    schemaVersion: 1,
+    ...input,
+    lastTriggeredAt: null,
+    lastScheduledKey: null,
+    createdAt: `2026-06-28T08:0${index}:00.000Z`,
+    updatedAt: `2026-06-28T08:0${index}:00.000Z`
+  }));
   const api: DesktopApi = {
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
+      mymindRoot: `${snapshot.projectRoot}/mymind`,
+      workspaceRoot: snapshot.projectRoot,
       validRepo: true,
       runtime: "浏览器预览 · Preview 数据",
       environment: { mode: "preview", platform: "web" },
@@ -333,10 +363,90 @@ export function installBrowserPreviewApi(): boolean {
     setRepo: async (path) => path,
     detectRepo: async () => snapshot.projectRoot,
     selectRepo: async () => snapshot.projectRoot,
+    setMymindRoot: async (p) => p,
+    selectMymindRoot: async () => `${snapshot.projectRoot}/mymind`,
+    previewMymindRoot: async (candidate) => ({
+      candidate,
+      canonicalRoot: candidate,
+      health: {
+        configured: true,
+        rootId: "preview-root",
+        accessible: true,
+        readable: true,
+        writable: true,
+        expectedStructureVersion: "mymind-layout-v1",
+        missingInitializeEntries: [],
+        missingCreateIfNeededEntries: [],
+        optionalObservedEntries: [],
+        unknownPreservedEntries: [],
+        symlinkWarnings: [],
+        activeRunCount: 0,
+        warnings: []
+      },
+      canBind: true,
+      blockingReasons: []
+    }),
+    selectMymindRelocationTarget: async () => `${snapshot.projectRoot}/mymind-next`,
+    previewMymindRelocation: async (targetDirectory) => ({
+      schemaVersion: 1,
+      sourceDirectory: `${snapshot.projectRoot}/mymind`,
+      targetDirectory,
+      sourceRootId: "preview-root",
+      sourceFileCount: 2,
+      sourceDirectoryCount: 1,
+      sourceBytes: 512,
+      sourceDigest: "preview-tree",
+      targetState: "empty" as const,
+      targetFileCount: 0,
+      targetDirectoryCount: 0,
+      targetBytes: 0,
+      pendingTransaction: false,
+      canCommit: true,
+      blockingReasons: []
+    }),
+    relocateMymind: async (targetDirectory) => ({
+      schemaVersion: 1,
+      status: "committed" as const,
+      sourceDirectory: `${snapshot.projectRoot}/mymind`,
+      targetDirectory,
+      sourceRootId: "preview-root",
+      targetRootId: "preview-target",
+      copiedFileCount: 2,
+      copiedDirectoryCount: 1,
+      copiedBytes: 512,
+      treeDigest: "preview-tree",
+      sourcePreserved: true as const,
+      verified: true as const,
+      completedAt: new Date().toISOString()
+    }),
+    getMymindRoot: async () => ({
+      mymindRoot: `${snapshot.projectRoot}/mymind`,
+      workspaceRoot: snapshot.projectRoot,
+      health: {
+        configured: true,
+        rootId: "preview-root",
+        accessible: true,
+        readable: true,
+        writable: true,
+        expectedStructureVersion: "mymind-layout-v1",
+        missingInitializeEntries: [],
+        missingCreateIfNeededEntries: [],
+        optionalObservedEntries: [],
+        unknownPreservedEntries: [],
+        symlinkWarnings: [],
+        activeRunCount: 0,
+        warnings: []
+      },
+      snapshot: { rootPath: `${snapshot.projectRoot}/mymind`, rootId: "preview-root", rootGeneration: 1 }
+    }),
+    setWorkspaceRoot: async (p) => p,
+    selectWorkspaceRoot: async () => snapshot.projectRoot,
     getPreferences: async () => preferences,
     updatePreferences: async (patch) => { preferences = { ...preferences, ...patch }; return preferences; },
     resetPreferences: async () => { preferences = { ...preferences, themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default" }; return preferences; },
     importPreferences: async () => ({ imported: true, preferences }),
+    exportAppStateBackup: async () => null,
+    importAppStateBackup: async () => null,
     getBrowserAutomationStatus: async () => ({
       backend: "playwright-mcp",
       enabled: preferences.browserAutomationEnabled,
@@ -379,15 +489,137 @@ export function installBrowserPreviewApi(): boolean {
       evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: false, secureStorageAvailable: true,
       packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
     }),
+    getCredentialStatus: async () => ({ available: true, backend: "safeStorage", credentials: previewCredentials }),
+    setCredential: async (input: CredentialSetInput) => {
+      const now = new Date().toISOString();
+      const metadata: CredentialMetadata = {
+        schemaVersion: 1,
+        id: input.id || `preview-credential-${previewCredentials.length + 1}`,
+        label: input.label,
+        kind: input.kind,
+        scope: input.scope || null,
+        status: "active",
+        createdAt: now,
+        updatedAt: now
+      };
+      previewCredentials = [...previewCredentials.filter((item) => item.id !== metadata.id), metadata];
+      return metadata;
+    },
+    replaceCredential: async (id, input) => {
+      const current = previewCredentials.find((item) => item.id === id);
+      if (!current) throw new Error("Credential 不存在。");
+      const metadata: CredentialMetadata = {
+        ...current,
+        label: input.label,
+        kind: input.kind,
+        scope: input.scope || null,
+        updatedAt: new Date().toISOString()
+      };
+      previewCredentials = previewCredentials.map((item) => item.id === id ? metadata : item);
+      return metadata;
+    },
+    revokeCredential: async (id) => {
+      const current = previewCredentials.find((item) => item.id === id);
+      if (!current) throw new Error("Credential 不存在。");
+      const metadata: CredentialMetadata = { ...current, status: "revoked", updatedAt: new Date().toISOString() };
+      previewCredentials = previewCredentials.map((item) => item.id === id ? metadata : item);
+      return metadata;
+    },
+    deleteCredential: async (id) => {
+      const next = previewCredentials.filter((item) => item.id !== id);
+      const changed = next.length !== previewCredentials.length;
+      previewCredentials = next;
+      return changed;
+    },
+    testCredential: async (id) => {
+      const current = previewCredentials.find((item) => item.id === id);
+      return current && current.status === "active"
+        ? { id, ok: true, status: "available" as const, diagnostic: "Credential 可由安全存储解密。（预览）" }
+        : { id, ok: false, status: current ? "revoked" as const : "missing" as const, diagnostic: current ? "Credential 已撤销。（预览）" : "Credential 不存在。（预览）" };
+    },
+    analyzeEnvFile: async (filePath): Promise<EnvFileAnalysis> => ({ path: filePath, variables: [], ignoredLines: 0, warnings: ["浏览器预览不读取本地 Credential 文件。"], containsPotentialSecrets: false }),
+    listProviderProfiles: async () => previewProviderProfiles,
+    saveProviderProfile: async (input: ProviderProfileInput) => {
+      const profile: ProviderProfile = {
+        ...input,
+        schemaVersion: 1,
+        test: { status: "never", testedAt: null, diagnostic: null }
+      };
+      previewProviderProfiles = [...previewProviderProfiles.filter((item) => item.id !== profile.id), profile];
+      return profile;
+    },
+    testProviderProfile: async (id) => {
+      const current = previewProviderProfiles.find((item) => item.id === id);
+      if (!current) throw new Error("Provider Profile 不存在。（预览）");
+      const profile: ProviderProfile = {
+        ...current,
+        test: { status: "success", testedAt: new Date().toISOString(), diagnostic: "连接成功（预览）。" }
+      };
+      previewProviderProfiles = previewProviderProfiles.map((item) => item.id === id ? profile : item);
+      return profile;
+    },
+    deleteProviderProfile: async (id) => {
+      const next = previewProviderProfiles.filter((item) => item.id !== id);
+      const changed = next.length !== previewProviderProfiles.length;
+      previewProviderProfiles = next;
+      return changed;
+    },
     getEnvironmentDiagnostics: async () => [
       { id: "repo", label: "项目目录", status: "ok", value: snapshot.projectRoot, detail: null, path: snapshot.projectRoot },
       { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },
       { id: "git", label: "Git", status: "ok", value: "preview", detail: null, path: null }
     ],
+    listRuntimePacks: async () => [],
+    getRuntimePackReadiness: async () => null,
+    importRuntimePack: async () => null,
+    repairRuntimePackFromFile: async () => null,
+    installRuntimePack: async () => { throw new Error("浏览器预览不管理 Runtime Pack。 "); },
+    repairRuntimePack: async () => { throw new Error("浏览器预览不管理 Runtime Pack。 "); },
+    activateRuntimePack: async () => { throw new Error("浏览器预览不管理 Runtime Pack。 "); },
+    rollbackRuntimePack: async () => { throw new Error("浏览器预览不管理 Runtime Pack。 "); },
+    removeRuntimePack: async () => false,
+    garbageCollectRuntimePacks: async () => [],
+    selectRuntimePackDownloadManifest: async () => null,
+    listRuntimePackDownloads: async () => [],
+    startRuntimePackDownload: async () => { throw new Error("浏览器预览不管理 Runtime Pack 下载。 "); },
+    pauseRuntimePackDownload: async () => { throw new Error("浏览器预览不管理 Runtime Pack 下载。 "); },
+    resumeRuntimePackDownload: async () => { throw new Error("浏览器预览不管理 Runtime Pack 下载。 "); },
+    removeRuntimePackDownload: async () => false,
     rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: ["20260610"], itemCount: 1, indexPath: ".cctools/content-index.json", statePath: ".cctools/content-state.json", rebuiltAt: new Date().toISOString() }),
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
     aiRefreshSkills: async () => skills,
+    inspectSkillWorkspace: async () => [],
+    inspectInstalledSkill: async () => null,
+    migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
+    listInstalledSkills: async () => [],
+    approveInstalledSkillHost: async () => { throw new Error("浏览器预览不管理 Installed Skill 信任。 "); },
+    revokeInstalledSkillHost: async () => { throw new Error("浏览器预览不管理 Installed Skill 信任。 "); },
+    startSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
+    listSkillRuns: async () => [],
+    getSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
+    getSkillRunEvents: async () => [],
+    listRunArtifacts: async () => [],
+    retrySkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
+    resumeAgentRun: async () => { throw new Error("浏览器预览不执行真实 Agent Run。 "); },
+    retryWorkflowStep: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    deleteRunHistory: async () => false,
+    cancelSkillRun: async () => false,
+    approveSkillRun: async () => false,
+    startWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    listWorkflowRuns: async () => [],
+    getWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    resumeWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    cancelWorkflowRun: async () => false,
+    listAutomationRules: async () => previewAutomationRules,
+    saveAutomationRule: async () => { throw new Error("浏览器预览不管理 Automation Rule。 "); },
+    deleteAutomationRule: async () => false,
+    runAutomationNow: async () => { throw new Error("浏览器预览不执行真实 Automation。 "); },
+    listAutomationRuns: async () => [],
+    listAutomationSchedules: async () => [],
+    listExportLocations: async () => [],
+    selectExportLocation: async () => { throw new Error("浏览器预览不管理 Export Location。 "); },
+    revokeExportLocation: async () => false,
     aiPrewarm: async () => true,
     aiSearchSessions: async () => snapshot.sessions,
     aiStartRun: async () => { throw new Error("浏览器预览不执行真实 AI 任务。"); },
@@ -404,7 +636,9 @@ export function installBrowserPreviewApi(): boolean {
     runSkill: async () => true,
     stopSkill: async () => true,
     onAiEvent: (callback) => { listeners.add(callback as never); return () => listeners.delete(callback as never); },
-    onSkillEvent: () => () => {}
+    onSkillEvent: () => () => {},
+    onSkillRunEvent: () => () => {},
+    onRuntimePackDownloadEvent: () => () => {}
   };
   window.cctools = api;
   return true;

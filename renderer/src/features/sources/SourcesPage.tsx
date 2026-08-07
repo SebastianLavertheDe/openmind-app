@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2,
@@ -15,20 +15,20 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Rss,
   Search,
   Save,
   Square,
   Trash2,
   TrendingUp,
-  Upload,
-  X
+  Upload
 } from "lucide-react";
 import type { SourceDefinition, SourceKind } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
-import { EmptyState, ErrorState, PageHeader, Select, Skeleton, StatusBadge, useModalFocusScope } from "../../design-system/components";
+import { EmptyState, ErrorState, PageHeader, Skeleton, StatusBadge, useModalFocusScope } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
+import { SourceForm } from "./SourceForm";
+import { SourceMetricCard, formatFullDateTime, isToday, sourceIcon, sourceKindLabel, splitSourceTags, statusLabel, statusTone, todayCompact } from "./source-view-utils";
 
 const m = messages;
 const X_CURL_PATH = ".claude/skills/x-following-fetcher/curl.txt";
@@ -51,13 +51,6 @@ const TABS: Array<{ id: "all" | SourceKind; label: string }> = [
   { id: "manual", label: m.sources.tabs.manual },
   { id: "api", label: m.sources.tabs.api }
 ];
-
-const FREQUENCY_OPTIONS = [
-  m.sources.add.frequencyOptions.m15,
-  m.sources.add.frequencyOptions.hourly,
-  m.sources.add.frequencyOptions.daily,
-  m.sources.add.frequencyOptions.pipeline
-] as const;
 
 export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   const ai = useAi();
@@ -393,48 +386,26 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   };
 
   const editingSource = Boolean(editingId);
-  const sourceForm = <>
-    <header className="source-form-header">
-      <div className="source-form-heading">
-        <span className="source-form-icon" aria-hidden="true">{editingSource ? <Pencil size={16} /> : <Plus size={16} />}</span>
-        <div>
-          <strong id={sourceFormTitleId}>{editingSource ? "编辑数据源" : m.sources.add.expand}</strong>
-          <span>{editingSource ? "更新名称、地址和归类标签" : "添加 RSS、文件夹或 API 资料来源"}</span>
-        </div>
-      </div>
-      <button type="button" data-motion="icon" aria-label={editingSource ? "关闭编辑数据源弹窗" : "关闭添加源面板"} onClick={closeSourceForm}><X size={16} /></button>
-    </header>
-    <form className="source-form" onSubmit={(event) => { event.preventDefault(); void addSource(); }}>
-      <div className="source-add-grid">
-        <label>{m.sources.add.name}<input ref={sourceNameInputRef} value={addName} onChange={(event) => setAddName(event.target.value)} placeholder={m.sources.add.placeholderName} /></label>
-        <label>{m.sources.add.type}<Select
-          size="rect"
-          value={addKind}
-          disabled={editingSource}
-          onChange={(value) => setAddKind(value as typeof addKind)}
-          options={[
-            { value: "rss", label: m.sources.tabs.rss },
-            { value: "web", label: m.sources.tabs.web },
-            { value: "api", label: m.sources.tabs.api }
-          ]}
-        /></label>
-        <label className="wide">{m.sources.add.url}<input value={addUrl} onChange={(event) => setAddUrl(event.target.value)} placeholder={addKind === "web" ? "~/cctools/notes" : "https://..."} /></label>
-        <label className={editingSource ? "wide" : undefined}>{m.sources.add.tags}<input value={addTags} onChange={(event) => setAddTags(event.target.value)} placeholder={m.sources.add.placeholderTags} /></label>
-        {!editingSource ? <label>{m.sources.add.frequency}<Select
-          size="rect"
-          value={addFrequency}
-          onChange={setAddFrequency}
-          options={FREQUENCY_OPTIONS.map((option) => ({ value: option, label: option }))}
-        /></label> : null}
-      </div>
-      <footer className={`source-add-actions${editingSource ? " source-editor-actions" : ""}`}>
-        {editingSource ? <button type="button" data-motion="action" onClick={closeSourceForm}>{m.feedback.cancel}</button> : (
-          <button type="button" data-motion="action" aria-busy={importing || undefined} disabled={importing} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} />{m.sources.add.importOpml}</button>
-        )}
-        <button type="submit" className="primary-button" data-motion="action" aria-busy={saving || undefined} disabled={saving || !addName.trim() || !addUrl.trim()}>{saving ? m.sources.add.saving : editingSource ? "保存修改" : m.sources.add.submit}</button>
-      </footer>
-    </form>
-  </>;
+  const sourceForm = <SourceForm
+    editing={editingSource}
+    titleId={sourceFormTitleId}
+    inputRef={sourceNameInputRef}
+    name={addName}
+    setName={setAddName}
+    kind={addKind}
+    setKind={setAddKind}
+    url={addUrl}
+    setUrl={setAddUrl}
+    tags={addTags}
+    setTags={setAddTags}
+    frequency={addFrequency}
+    setFrequency={setAddFrequency}
+    saving={saving}
+    importing={importing}
+    onClose={closeSourceForm}
+    onImport={() => void importOpml()}
+    onSubmit={() => void addSource()}
+  />;
 
   return (
     <div className="feature-page sources-page">
@@ -576,57 +547,4 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
       </section>
     </div>
   );
-}
-
-function SourceMetricCard({ icon, label, value, detail, tone }: { icon: ReactNode; label: string; value: number | string; detail: string; tone: "info" | "success" | "warning" | "danger" | "violet" }) {
-  return <article className={`source-metric-card ${tone}`}><span className="source-metric-icon">{icon}</span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>;
-}
-
-function sourceIcon(kind: SourceKind) {
-  if (kind === "rss") return <Rss size={16} />;
-  if (kind === "web" || kind === "manual") return <Folder size={16} />;
-  return <Database size={16} />;
-}
-
-function sourceKindLabel(kind: SourceKind): string {
-  return m.sources.kind[kind];
-}
-
-function splitSourceTags(value: string): string[] {
-  return [...new Set(value.split(/[，,\n]/).map((tag) => tag.trim()).filter(Boolean))].slice(0, 8);
-}
-
-function formatFullDateTime(value: string): string {
-  return new Date(value).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function isToday(value: string | null | undefined): boolean {
-  if (!value) return false;
-  const date = new Date(value);
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
-}
-
-function todayCompact(): string {
-  const date = new Date();
-  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function statusLabel(value: SourceDefinition["status"]): string {
-  return ({
-    idle: m.sources.status.pending,
-    running: m.sources.status.running,
-    success: m.sources.status.ok,
-    warning: m.sources.status.attention,
-    failed: m.sources.status.failed,
-    disabled: m.sources.status.disabled
-  } as const)[value];
-}
-
-function statusTone(value: SourceDefinition["status"]): "neutral" | "success" | "warning" | "danger" | "info" {
-  if (value === "success") return "success";
-  if (value === "warning") return "warning";
-  if (value === "failed") return "danger";
-  if (value === "running") return "info";
-  return "neutral";
 }

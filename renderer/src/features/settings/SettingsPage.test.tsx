@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderProfileInput, RuntimePackDownloadDescriptor, RuntimePackReadiness, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
@@ -57,13 +57,13 @@ const mcpServers: McpServerDefinition[] = [{
 }];
 
 const defaultPrefs: UserPreferences = {
-  schemaVersion: 1, repoRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
+  schemaVersion: 1, repoRoot: "/repo", mymindRoot: "/repo/mymind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
   defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false,
-  browserReuseExistingTabs: true, browserEvidenceDir: ".cctools/browser-evidence", destructiveOpsRequireApproval: true,
+  browserReuseExistingTabs: true, browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
   defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
   notificationsEnabled: true, dndStartHour: 22, dndEndHour: 8,
@@ -102,12 +102,21 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     resetPreferences: async () => defaultPrefs,
     getBrowserAutomationStatus: async () => ({
       backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
       secureStorageAvailable: true, packageAvailable: true, ready: false,
       diagnostic: "AI 写作取证已关闭。"
     }),
     getMcpServers: async () => mcpServers,
+    getCredentialStatus: async () => ({ available: true, backend: "safeStorage", credentials: [] }),
+    listProviderProfiles: async () => [],
+    setCredential: async () => ({ schemaVersion: 1, id: "credential-test", label: "test", kind: "api-key", scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
+    deleteCredential: async () => true,
+    saveProviderProfile: async (input: ProviderProfileInput) => ({ ...input, schemaVersion: 1, test: { status: "never", testedAt: null, diagnostic: null } }),
+    deleteProviderProfile: async () => true,
     selectRepo: async () => "/repo-next",
+    setMymindRoot: async (root: string) => root,
+    selectMymindRoot: async () => "/repo/mymind-next",
+    previewMymindRoot: async (candidate: string) => ({ candidate, canonicalRoot: candidate, health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, canBind: true, blockingReasons: [] }),
     openPath: async () => "",
     onAiEvent: () => () => undefined,
     aiRefresh: async () => snapshot,
@@ -207,6 +216,61 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("可用").length).toBe(2);
   });
 
+  it("shows Main-owned Runtime Pack readiness and only activates verified candidates", async () => {
+    const candidate: RuntimePackReadiness = {
+      packId: "python-core", target: "linux-x64", version: "1.0.0", digest: "a".repeat(64), status: "candidate",
+      verifiedAt: "2026-08-05T00:00:00.000Z", license: "PSF-2.0", sbom: { format: "spdx", digest: "b".repeat(64) },
+      integrity: "verified", inUse: false, ready: false, reason: "Runtime Pack 尚未激活。"
+    };
+    const active = { ...candidate, status: "active" as const, ready: true, reason: "Runtime Pack 已激活且完整性校验通过。" };
+    const listRuntimePacks = vi.fn().mockResolvedValueOnce([candidate]).mockResolvedValue([active]);
+    const activateRuntimePack = vi.fn().mockResolvedValue([active]);
+    const garbageCollectRuntimePacks = vi.fn().mockResolvedValue([active]);
+    window.cctools = makeApi({ listRuntimePacks, activateRuntimePack, garbageCollectRuntimePacks });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("Runtime Packs");
+
+    expect(await screen.findByText("python-core")).toBeTruthy();
+    expect(screen.getByText("Runtime Pack 尚未激活。")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "激活" }));
+    await waitFor(() => expect(activateRuntimePack).toHaveBeenCalledWith("python-core", "linux-x64", candidate.digest));
+    expect(await screen.findByText("Runtime Pack 已激活且完整性校验通过。")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "清理候选包" }));
+    await waitFor(() => expect(garbageCollectRuntimePacks).toHaveBeenCalledOnce());
+  });
+
+  it("previews optional Runtime Pack download size, license, and conditions before starting", async () => {
+    const descriptor: RuntimePackDownloadDescriptor = {
+      metadata: {
+        schemaVersion: 1, packId: "media-core", version: "1.0.0", target: "windows-x64", filename: "media.zip", size: 4,
+        sha256: "c".repeat(64), publisherKeyId: "runtime-root", signatureAlgorithm: "ed25519", signature: "sig",
+        expiresAt: "2099-01-01T00:00:00.000Z", originUrl: "https://cdn.example.test/media.zip", license: "LGPL-2.1",
+        sbom: { format: "spdx", digest: "d".repeat(64) }, installSize: 12, conditions: ["需要接受 LGPL-2.1 License"]
+      },
+      downloadSize: 4,
+      installSize: 12,
+      license: "LGPL-2.1",
+      conditions: ["需要接受 LGPL-2.1 License"],
+      sourceUrl: "https://cdn.example.test/media.zip"
+    };
+    const selectRuntimePackDownloadManifest = vi.fn().mockResolvedValue(descriptor);
+    const startRuntimePackDownload = vi.fn().mockResolvedValue({ id: "job", metadata: descriptor.metadata, status: "queued", bytesDownloaded: 0, totalBytes: 4, createdAt: "2026-08-06T00:00:00.000Z", updatedAt: "2026-08-06T00:00:00.000Z", error: null, completedAt: null });
+    window.cctools = makeApi({ selectRuntimePackDownloadManifest, startRuntimePackDownload });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("Runtime Packs");
+
+    fireEvent.click(await screen.findByRole("button", { name: "添加可选包" }));
+    expect(await screen.findByText("确认下载 media-core")).toBeTruthy();
+    expect(screen.getByText("下载 4 B")).toBeTruthy();
+    expect(screen.getByText("安装后约 12 B")).toBeTruthy();
+    expect(screen.getByText("License: LGPL-2.1")).toBeTruthy();
+    expect(screen.getByText("需要接受 LGPL-2.1 License")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "开始下载" }));
+    await waitFor(() => expect(startRuntimePackDownload).toHaveBeenCalledWith(descriptor.metadata));
+  });
+
   it("lists searchable Skill and MCP details without exposing permission profiles", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     const openPath = vi.fn().mockResolvedValue("");
@@ -266,17 +330,64 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("heading", { name: "浏览器" })).toBeTruthy();
   });
 
+  it("静态检查并导入 workspace Skill 包时只展示 quarantine 状态", async () => {
+    const inspection: SkillPackageInspectionView = {
+      sourcePath: "/repo/.claude/skills/packaged",
+      sourceKind: "directory",
+      valid: true,
+      digest: "abcdef1234567890abcdef1234567890",
+      totalBytes: 2048,
+      files: [{ path: "cctools.skill.yaml", type: "file", size: 512, digest: "manifest" }],
+      excludedPaths: [],
+      manifest: { id: "packaged", publisher: { id: "local" } },
+      legacy: null,
+      issues: [],
+      warnings: []
+    };
+    const installed: InstalledSkillView = {
+      schemaVersion: 1,
+      key: "local/packaged",
+      id: "packaged",
+      publisherId: "local",
+      version: "1.0.0",
+      digest: inspection.digest,
+      sourcePath: inspection.sourcePath,
+      packagePath: "/userData/skills/local/packaged/1.0.0-abcdef1234567890",
+      status: "quarantined",
+      readiness: "installed-not-ready",
+      signatureStatus: "unsigned",
+      reviewStatus: "unreviewed",
+      executionTrust: "inspect-only",
+      skillUpdatePolicy: "manual",
+      installedAt: "2026-08-05T00:00:00.000Z"
+    };
+    const inspectSkillWorkspace = vi.fn().mockResolvedValue([inspection]);
+    const migrateSkillWorkspace = vi.fn().mockResolvedValue({ inspected: [inspection], installed: [installed], skipped: [] });
+    const listInstalledSkills = vi.fn().mockResolvedValue([]);
+    window.cctools = makeApi({ inspectSkillWorkspace, migrateSkillWorkspace, listInstalledSkills });
+    renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("Skills 与 MCP");
+
+    await waitFor(() => expect(inspectSkillWorkspace).toHaveBeenCalled());
+    expect(await screen.findByText("packaged")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "导入正式 Manifest" }));
+    await waitFor(() => expect(migrateSkillWorkspace).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("已导入 · 未就绪")).toBeTruthy();
+    expect(screen.getByText("quarantine")).toBeTruthy();
+  });
+
   it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
     const getBrowserAutomationStatus = vi.fn().mockResolvedValue({
       backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
       secureStorageAvailable: true, packageAvailable: true, ready: false,
       diagnostic: "AI 写作取证已关闭。"
     });
     const saveBrowserExtensionToken = vi.fn().mockResolvedValue({
       backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: true,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: true,
       secureStorageAvailable: true, packageAvailable: true, ready: true,
       diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
     });
@@ -330,18 +441,95 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(openPath).toHaveBeenCalledWith("mymind"));
   });
 
-  it("shows the model read from each CLI config without model selectors", async () => {
+  it("shows the model read from each CLI config and exposes provider forms", async () => {
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
     await waitFor(() => expect(screen.getByLabelText("Claude Code 配置模型")).toBeTruthy());
     expect(screen.getByLabelText("Codex CLI 配置模型")).toBeTruthy();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByLabelText("代理策略")).toBeTruthy();
+    expect(screen.getByLabelText("TLS 策略")).toBeTruthy();
     // 探测到的 Claude 模型 glm-5.2[1m] 命中 1M，徽标出现。
     expect(screen.getByText("1M")).toBeTruthy();
     expect(screen.getByLabelText("Claude Code 配置模型").textContent).toContain("glm-5.2[1m]");
     // 未配置模型时明确交还 Provider，而不是展示一份内置候选列表。
     expect(screen.getByText("配置未指定，运行时由 Provider 决定")).toBeTruthy();
+  });
+
+  it("clears the Secret field after saving credential metadata", async () => {
+    const setCredential = vi.fn().mockResolvedValue({ schemaVersion: 1, id: "credential-test", label: "NVIDIA", kind: "api-key", scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" });
+    window.cctools = makeApi({ setCredential });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    const label = screen.getByLabelText("凭据名称");
+    const secret = screen.getByLabelText("Secret");
+    fireEvent.change(label, { target: { value: "NVIDIA" } });
+    fireEvent.change(secret, { target: { value: "nvapi-test-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "安全保存" }));
+    await waitFor(() => expect(setCredential).toHaveBeenCalledWith({ label: "NVIDIA", kind: "api-key", secret: "nvapi-test-secret" }));
+    await waitFor(() => expect((secret as HTMLInputElement).value).toBe(""));
+  });
+
+  it("requires confirmation before deleting a credential", async () => {
+    const deleteCredential = vi.fn().mockResolvedValue(true);
+    const credential = { schemaVersion: 1 as const, id: "credential-test", label: "NVIDIA", kind: "api-key" as const, scope: null, status: "active" as const, createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" };
+    window.cctools = makeApi({
+      getCredentialStatus: async () => ({ available: true, backend: "safeStorage" as const, credentials: [credential] }),
+      deleteCredential
+    });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    fireEvent.click(await screen.findByRole("button", { name: "删除副本" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "删除 Credential" });
+    expect(dialog.textContent).toContain("NVIDIA");
+    expect(deleteCredential).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "删除 Credential" })).toBeNull());
+    expect(deleteCredential).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "删除副本" }));
+    fireEvent.click(await within(await screen.findByRole("alertdialog", { name: "删除 Credential" })).findByRole("button", { name: "删除" }));
+    await waitFor(() => expect(deleteCredential).toHaveBeenCalledWith("credential-test"));
+  });
+
+  it("requires confirmation before deleting a Provider Profile", async () => {
+    const deleteProviderProfile = vi.fn().mockResolvedValue(true);
+    const profile = {
+      schemaVersion: 1 as const,
+      id: "profile-test",
+      name: "测试 Provider",
+      protocol: "openai-chat" as const,
+      credentialId: null,
+      baseUrl: "https://api.example.com/v1",
+      proxyUrl: undefined,
+      model: "gpt-test",
+      timeoutMs: 30_000,
+      maxRetries: 2,
+      proxyPolicy: "system" as const,
+      tlsPolicy: "verify" as const,
+      providerOptions: {},
+      fallbackProfileId: null,
+      test: { status: "never" as const, testedAt: null, diagnostic: null }
+    };
+    window.cctools = makeApi({ listProviderProfiles: async () => [profile], deleteProviderProfile });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    fireEvent.click(await screen.findByRole("button", { name: "删除 Profile" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "删除 Provider Profile" });
+    expect(dialog.textContent).toContain("测试 Provider");
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "删除 Provider Profile" })).toBeNull());
+    expect(deleteProviderProfile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "删除 Profile" }));
+    const confirmedDialog = await screen.findByRole("alertdialog", { name: "删除 Provider Profile" });
+    fireEvent.click(within(confirmedDialog).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(deleteProviderProfile).toHaveBeenCalledWith("profile-test"));
   });
 
   it("previews and persists workflow rules", async () => {

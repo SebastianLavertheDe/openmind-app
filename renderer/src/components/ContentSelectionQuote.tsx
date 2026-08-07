@@ -101,6 +101,7 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
         <button
           type="button"
           className="content-selection-quote"
+          data-motion="action"
           style={{ left: action.left, top: action.top }}
           aria-label="引用到 AI"
           title="引用到 AI（Ctrl+Shift+A）"

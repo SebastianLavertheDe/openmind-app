@@ -12,7 +12,7 @@ import { ApprovalCard } from "./approval";
 export function ApprovalBanner() {
   const ai = useAi();
   const pendingApprovals = ai.snapshot.pendingApprovals.filter(
-    (approval) => !ai.activeSession || approval.sessionId === ai.activeSession.id
+    (approval) => approval.sessionId.startsWith("agent:") || !ai.activeSession || approval.sessionId === ai.activeSession.id
   );
   const approvalList = useExitingList(pendingApprovals, (approval) => String(approval.id), 200);
   if (!approvalList.length) return null;

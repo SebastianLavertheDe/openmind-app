@@ -1,0 +1,24 @@
+.onboarding-page { display: flex; flex-direction: column; gap: 18px; min-height: 100%; max-width: 1080px; margin: 0 auto; }
+.onboarding-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.onboarding-header h1 { margin: 4px 0 6px; }
+.onboarding-header p { max-width: 760px; margin: 0; color: var(--text-secondary); }
+.onboarding-risk { display: flex; gap: 12px; padding: 13px 15px; border: 1px solid color-mix(in srgb, var(--warning-fg) 35%, var(--workspace-border)); border-radius: var(--workspace-radius); background: color-mix(in srgb, var(--warning-fg) 7%, var(--workspace-surface)); color: var(--warning-fg); }
+.onboarding-risk strong { display: block; color: var(--text-primary); }
+.onboarding-risk p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.onboarding-error { margin: 0; color: var(--danger-fg); }
+.onboarding-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.onboarding-card { display: flex; flex-direction: column; min-width: 0; padding: 20px; }
+.onboarding-card p { min-height: 44px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
+.onboarding-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.onboarding-card-header h2 { margin: 4px 0 0; font-size: 17px; }
+.onboarding-check { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-sunken); color: var(--text-tertiary); font-size: 12px; font-weight: 700; }
+.onboarding-check.ready { background: color-mix(in srgb, var(--success-fg) 13%, transparent); color: var(--success-fg); }
+.onboarding-path { min-height: 40px; margin-top: 16px; padding: 9px 10px; border: 1px solid var(--workspace-border); border-radius: 8px; color: var(--text-primary); font: 11px/1.45 var(--font-mono); overflow-wrap: anywhere; }
+.onboarding-card-actions, .onboarding-next-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.onboarding-card-actions button, .onboarding-next-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.onboarding-inline-status { display: inline-flex; align-items: center; gap: 5px; color: var(--success-fg); font-size: 11px; }
+.onboarding-next-card { grid-column: 1 / -1; }
+.onboarding-next-actions .primary-button svg:last-child { margin-left: 10px; }
+.onboarding-text-action { border: 0; background: none; color: var(--text-secondary); cursor: pointer; padding: 7px 4px; }
+.onboarding-text-action:disabled { cursor: not-allowed; opacity: .5; }
+@media (max-width: 760px) { .onboarding-header { flex-direction: column; }.onboarding-grid { grid-template-columns: 1fr; }.onboarding-next-card { grid-column: auto; } }

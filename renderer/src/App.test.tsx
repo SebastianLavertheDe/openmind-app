@@ -11,12 +11,13 @@ const snapshot: AiSnapshot = {
 
 const overview: AppOverview = { repoRoot: "/project", metrics: {}, recent: [] };
 const skills: SkillDefinition[] = [];
+const LAZY_ROUTE_TIMEOUT_MS = 10_000;
 const preferences: UserPreferences = {
-  schemaVersion: 1, repoRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
+  schemaVersion: 1, repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" }, defaultPermissionProfile: "edit",
   defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
-  browserEvidenceDir: ".cctools/browser-evidence", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
+  browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
   defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [], notificationsEnabled: true,
   dndStartHour: 22, dndEndHour: 8, maxNotificationHistory: 100, cacheMaxSizeMB: 500, logRetentionDays: 30,
   workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true, workflowReviewRequiredForReady: true,
@@ -25,7 +26,7 @@ const preferences: UserPreferences = {
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
   window.cctools = {
-    getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
+    getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
     getPreferences: async () => preferences,
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
@@ -83,6 +84,7 @@ describe("App bootstrap", () => {
   it("opens the global search on Cmd/Ctrl+K after bootstrap", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "搜索资料、创作和会话" }).length).toBeGreaterThan(0));
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeTruthy();
@@ -101,18 +103,18 @@ describe("App bootstrap", () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "创作" })));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     const firstCreativeNode = document.querySelector(".creative-workspace-page");
     fireEvent.click(screen.getByRole("button", { name: "创作" }));
     // the same DOM node should still be present (React reused it)
     expect(document.querySelector(".creative-workspace-page")).toBe(firstCreativeNode);
-  });
+  }, 15_000);
 
   it("opens settings with a dedicated sidebar and returns to the page that launched it", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "创作" }));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     const creativePage = document.querySelector(".creative-workspace-page");
 
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
@@ -124,12 +126,12 @@ describe("App bootstrap", () => {
     expect(creativePage?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
     expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
     expect(document.querySelector(".global-toolbar")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
-  });
+  }, 15_000);
 
   it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {
     window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
@@ -162,11 +164,11 @@ describe("App bootstrap", () => {
       expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
       expect(document.querySelector(".ai-sidebar.mode-default")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "展开 AI 侧栏" })).toBeNull();
-    });
+    }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
 
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
-  });
+  }, 15_000);
 
   it("opens companion file references inside the left workspace instead of the external editor", async () => {
     const path = "mymind/daily-topic/20260728_daily_topic.md";
@@ -234,7 +236,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -337,7 +339,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -423,7 +425,7 @@ describe("App bootstrap", () => {
       }]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot
     });
 

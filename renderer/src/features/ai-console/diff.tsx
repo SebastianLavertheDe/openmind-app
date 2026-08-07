@@ -53,6 +53,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
               <button
                 type="button"
                 className="change-review-file"
+                data-motion="selection"
                 key={file.path}
                 title={m.ai.message.previewFile(file.path)}
                 onClick={() => {
@@ -67,6 +68,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
               <button
                 type="button"
                 className="change-review-more"
+                data-motion="selection"
                 aria-expanded={open}
                 onClick={() => setOpen((value) => !value)}
               >

@@ -1,9 +1,13 @@
 export type AppPage =
+  | "onboarding"
   | "sources"
+  | "skills"
   | "brief"
   | "creative"
   | "projects"
   | "automation"
+  | "runs"
+  | "diagnostics"
   | "ai"
   | "settings";
 
@@ -12,6 +16,7 @@ export type AppRouteState = {
   contentPath?: string;
   projectDir?: string;
   sessionId?: string;
+  runId?: string;
   skillId?: string;
   stage?: "today" | "drafting" | "review" | "ready" | "published";
   sourceId?: string;

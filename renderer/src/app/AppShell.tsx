@@ -294,7 +294,14 @@ function renderNavButton(
       data-motion="selection"
       onMouseEnter={() => preloadRoute(item.id)}
       onFocus={() => preloadRoute(item.id)}
-      onClick={() => item.id === "ai" && onNewTask ? onNewTask() : navigate(item.id)}
+      onClick={() => {
+        // Keyboard activation and direct programmatic clicks may not pass
+        // through hover/focus first; begin the lazy route import before the
+        // navigation state renders its Suspense boundary.
+        preloadRoute(item.id);
+        if (item.id === "ai" && onNewTask) onNewTask();
+        else navigate(item.id);
+      }}
     >
       <Icon size={20} />
       <span>{item.label}</span>

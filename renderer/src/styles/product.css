@@ -9,6 +9,10 @@
 @import "./features/creative.css";
 @import "./features/ai-console.css";
 @import "./features/automation.css";
+@import "./features/runs.css";
+@import "./features/skills.css";
+@import "./features/diagnostics.css";
+@import "./features/onboarding.css";
 @import "./responsive.css";
 @import "./final-polish.css";
 @import "./workbuddy-refactor.css";
