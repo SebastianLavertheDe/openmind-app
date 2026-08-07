@@ -14,6 +14,22 @@ The command writes `.build/provider-e2e-report.json`. It is intentionally non-bl
 CCTOOLS_PROVIDER_E2E_STRICT=1 npm run provider:e2e:report
 ```
 
+The report counts only the two status cells in each checklist row (Windows
+native and WSL); prose mentions of `pending` are not evidence cells. Every
+status cell must be `passed`, and the row's Evidence column must be non-empty,
+before strict mode can pass. Passed rows must use the following machine-readable
+fields; placeholder values such as `done` or `ok` are rejected:
+
+```text
+date=2026-08-07; package=CC-Tools-Portable-1.0.24-win-x64.exe; project=C:\Users\qa\cctools-provider-fixture; evidence=https://evidence.example.test/provider/claude-simple-prompt.zip
+```
+
+`date` must be a real calendar date, `package` must be a package filename,
+`project` must be a concrete path, and `evidence` must be a URL, path or
+external report identifier. Duplicate evidence keys and impossible dates are
+rejected. The contract fixture can be checked with
+`npm run provider:e2e:contract`; it never edits this pending checklist.
+
 ## Claude Code
 
 | Case | Windows native project | WSL project | Evidence |

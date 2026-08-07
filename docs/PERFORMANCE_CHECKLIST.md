@@ -22,6 +22,12 @@ The gate fails when any renderer JavaScript chunk exceeds `500 KiB`. It also wri
 
 `npm run scale:check` writes `.build/scale-report.json` after creating a temporary project with 1000 AI sessions, 10,000 events and a 1 MiB tool output, then verifying session listing, search and long-event reassembly.
 
+`npm run stability:soak` writes `.build/stability-soak-report.json` after three
+local cycles of compiled Session/Run persistence, concurrent append/reload,
+1000 synthetic Manifest validations and bounded Agent/Browser contract checks.
+The Browser track is contract-only; it does not establish live Provider/Chrome
+or packaged platform performance.
+
 `npm run visual:snapshot` writes `.build/visual-snapshot-report.json` and screenshots for the major pages across desktop viewport sizes. It fails on blank pages, wrong active routes or global horizontal overflow.
 
 ## Manual Measurement Matrix
@@ -92,11 +98,14 @@ All identified code-level items are implemented. The remaining work is packaged-
 
 ### Verification run
 
-- `npm test`: build, 223 tests, and integration smoke passed.
-- `npm run perf:check`: 21 renderer chunks; largest 179.8 KiB; entry 150.1 KiB.
-- `npm run audit:evidence`: 24 checks passed.
+- `npm test`: build, 1,592 Vitest tests, and integration smoke passed.
+- `npm run perf:check`: 24 renderer chunks; largest 455.0 KiB; entry 286.3 KiB.
+- `npm run audit:evidence`: 26 checks passed.
 - `npm run scale:check`: 1000 sessions, 10,000 events, and 1 MiB output passed.
-- `npm run visual:snapshot`: 48 screenshots passed with no audit failures.
+- `npm run stability:soak`: 3 local cycles passed; each cycle validates 100
+  sessions, 1000 long-run events, 100 Broker Runs and 1000 Agent/Browser
+  contract cycles.
+- `npm run visual:snapshot`: 60 screenshots passed with no audit failures.
 
 ### Remaining measurement
 

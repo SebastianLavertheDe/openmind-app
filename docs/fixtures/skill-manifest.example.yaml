@@ -1,0 +1,82 @@
+# Example skill manifest (cctools.skill.yaml) — ADR-003 reference.
+# This is a process skill that reads articles/reddit and writes a daily
+# summary. Validate with SkillManifestSchema (shared/skill-manifest-schema.ts).
+apiVersion: cctools.dev/skill/v1
+id: daily-article-summarizer
+version: 1.0.0
+publisher:
+  id: cctools
+  displayName: cctools
+kind: process
+
+display:
+  name: 每日文章总结
+  description: 汇总指定日期的本地文章
+  group: analysis
+
+entrypoint:
+  runtime: python
+  script: main.py
+  args:
+    - --date
+    - "{{ inputs.date }}"
+
+runtime:
+  version: ">=3.11,<3.13"
+  dependencyFile: pyproject.toml
+  lockFile: uv.lock
+  packs:
+    - python-core
+
+inputs:
+  type: object
+  required:
+    - date
+  properties:
+    date:
+      type: string
+      format: compact-date
+
+config:
+  providerProfile:
+    type: provider-profile
+    required: true
+
+capabilities:
+  mymind:
+    read:
+      - article/**
+      - reddit/**
+    write:
+      - daily-summary/**
+  network:
+    required: true
+    hosts: []
+  subprocess:
+    allowed: false
+
+artifacts:
+  - id: daily-summary
+    type: markdown
+    path: daily-summary/{{ inputs.date }}_daily_summary.md
+
+execution:
+  concurrency:
+    maxInstances: 1
+    mutexes:
+      - mymind:daily-summary
+  timeoutSeconds: 1800
+  gracefulStopSeconds: 10
+  retry:
+    maxAttempts: 1
+
+platforms:
+  - windows-x64
+  - macos-arm64
+  - macos-x64
+  - linux-x64
+  - wsl-linux-x64
+
+compatibility:
+  minAppVersion: 1.0.0
+  minRuntimeVersion: 1.0.0
