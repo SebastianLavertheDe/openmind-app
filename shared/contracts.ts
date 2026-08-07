@@ -1,5 +1,60 @@
 import { z } from "zod";
 
+export {
+  CredentialKindSchema,
+  CredentialScopeSchema,
+  CredentialStatusSchema,
+  CredentialMetadataSchema,
+  CredentialSetInputSchema,
+  CredentialVaultStatusSchema,
+  CredentialTestResultSchema,
+  ProviderProtocolSchema,
+  ProxyPolicySchema,
+  TlsPolicySchema,
+  ProviderTestStateSchema,
+  ProviderProfileSchema,
+  ProviderProfileInputSchema,
+  type CredentialKind,
+  type CredentialScope,
+  type CredentialStatus,
+  type CredentialMetadata,
+  type CredentialSetInput,
+  type CredentialVaultStatus,
+  type CredentialTestResult,
+  type ProviderProtocol,
+  type ProxyPolicy,
+  type TlsPolicy,
+  type ProviderTestState,
+  type ProviderProfile,
+  type ProviderProfileInput
+} from "./provider-profiles";
+export {
+  EnvVariableKindSchema,
+  EnvVariableInsightSchema,
+  EnvFileAnalysisSchema,
+  type EnvVariableKind,
+  type EnvVariableInsight,
+  type EnvFileAnalysis
+} from "./env-file-analysis";
+import type {
+  CredentialMetadata,
+  CredentialSetInput,
+  CredentialTestResult,
+  CredentialVaultStatus,
+  ProviderProfile,
+  ProviderProfileInput
+} from "./provider-profiles";
+import type { AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
+import type { RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, RuntimePackId, RuntimeTarget } from "./runtime-targets";
+
+export type { AgentCheckpoint, AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+export type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
+export type { RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, RuntimePackId, RuntimeTarget } from "./runtime-targets";
+import type { EnvFileAnalysis } from "./env-file-analysis";
+import type { AppStateBackupReport } from "./state-backup";
+export { AppStateBackupReportSchema, type AppStateBackupReport } from "./state-backup";
+
 export const SCHEMA_VERSION = 1;
 
 export const IpcErrorSchema = z.object({
@@ -670,6 +725,58 @@ export interface SkillDefinition {
   timeoutMs?: number;
 }
 
+/** Static package information exposed to Skill Center; it carries no executable command. */
+export interface SkillPackageInspectionView {
+  sourcePath: string;
+  sourceKind: "directory" | "legacy-claude" | "zip" | "git";
+  valid: boolean;
+  digest: string;
+  totalBytes: number;
+  files: Array<{ path: string; type: "file" | "symlink"; size: number; digest: string }>;
+  excludedPaths: string[];
+  manifest: unknown | null;
+  legacy: unknown | null;
+  issues: Array<{ code: string; message: string; path?: string }>;
+  warnings: string[];
+}
+
+export interface InstalledSkillView {
+  schemaVersion: number;
+  key: string;
+  id: string;
+  publisherId: string;
+  version: string;
+  digest: string;
+  sourcePath: string;
+  sourceType?: "directory" | "zip" | "git";
+  sourceLocator?: string;
+  sourceRef?: string;
+  packagePath: string;
+  status: "quarantined" | "installed-not-ready" | "active" | "previous";
+  readiness: "installed-not-ready" | "ready" | "blocked" | "stale";
+  signatureStatus: "unsigned" | "valid" | "invalid" | "revoked";
+  reviewStatus: "unreviewed" | "automated-scan" | "manually-reviewed";
+  executionTrust: "denied" | "inspect-only" | "approved-host";
+  skillUpdatePolicy: "manual" | "download-only";
+  installedAt: string;
+}
+
+export interface SkillActivationView {
+  active: InstalledSkillView;
+  previous?: InstalledSkillView;
+}
+
+export interface SkillRollbackView {
+  active: InstalledSkillView;
+  previous: InstalledSkillView;
+}
+
+export interface SkillPackageMigrationReport {
+  inspected: SkillPackageInspectionView[];
+  installed: InstalledSkillView[];
+  skipped: Array<{ sourcePath: string; issues: Array<{ code: string; message: string; path?: string }> }>;
+}
+
 export const McpToolDefinitionSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -893,9 +1000,27 @@ export const CreativeTopicStatePatchSchema = z.object({
 });
 export type CreativeTopicStatePatch = z.infer<typeof CreativeTopicStatePatchSchema>;
 
+/**
+ * Legacy direct-provider browser evidence is a user-owned workspace output,
+ * not App-private state. Formal Agent Skills use an explicit Export Location
+ * Binding instead.
+ */
+export const DEFAULT_BROWSER_EVIDENCE_DIR = "assets/browser-evidence";
+
 export const UserPreferencesSchema = z.object({
-  schemaVersion: z.number().default(1),
+  schemaVersion: z.number().default(2),
   repoRoot: z.string().default(""),
+  /**
+   * ADR-001: the actual mymind directory (not the cctools repo, not a
+   * subdirectory). The single active content root. `repoRoot` is kept only
+   * as a one-shot legacy migration input.
+   */
+  mymindRoot: z.string().default(""),
+  /**
+   * ADR-001: optional AI/code workspace root, independent of mymindRoot.
+   * May be empty. Never inferred from mymindRoot.
+   */
+  workspaceRoot: z.string().default(""),
   themeMode: z.enum(["dark", "light"]).default("light"),
   accentColor: z.string().default("#2563eb"),
   density: z.enum(["compact", "default", "comfortable"]).default("default"),
@@ -922,8 +1047,8 @@ export const UserPreferencesSchema = z.object({
   browserAutomationEnabled: z.boolean().default(false),
   /** URL 已在扩展授权的 Chrome 标签页中打开时，优先复用并在完成后恢复原标签。 */
   browserReuseExistingTabs: z.boolean().default(true),
-  /** 浏览器证据截图在工作区内的持久化目录。 */
-  browserEvidenceDir: z.string().min(1).max(4096).default(".cctools/browser-evidence"),
+  /** 旧版直连 AI 的浏览器证据截图在工作区内的用户输出目录。 */
+  browserEvidenceDir: z.string().min(1).max(4096).default(DEFAULT_BROWSER_EVIDENCE_DIR),
   destructiveOpsRequireApproval: z.boolean().default(true),
   riskScanEnabled: z.boolean().default(true),
   defaultPlatform: z.string().default("公众号"),
@@ -1006,12 +1131,91 @@ export type AppEnvironment = z.infer<typeof AppEnvironmentSchema>;
 
 export type AppBootstrap = {
   repoRoot: string;
+  /** ADR-001: the actual mymind directory (may differ from repoRoot). */
+  mymindRoot: string;
+  /** ADR-001: optional AI/code workspace, independent of mymind. */
+  workspaceRoot: string;
   validRepo: boolean;
   runtime: string;
   environment: AppEnvironment;
   overview: AppOverview;
   skills: SkillDefinition[];
   ai: AiSnapshot;
+};
+
+export type MymindRootStatus = {
+  mymindRoot: string;
+  workspaceRoot: string;
+  /** App-private legacy state migration status; paths and file names stay Main-only. */
+  migration?: {
+    state: "not-needed" | "pending" | "skipped" | "committed" | "invalid";
+    legacyStatePresent: boolean;
+    markerPresent: boolean;
+    copiedFileCount: number;
+    sourcePreserved: boolean;
+  };
+  health: {
+    configured: boolean;
+    rootId?: string;
+    accessible: boolean;
+    readable: boolean;
+    writable: boolean;
+    expectedStructureVersion?: string;
+    missingInitializeEntries: string[];
+    missingCreateIfNeededEntries: string[];
+    optionalObservedEntries: string[];
+    unknownPreservedEntries: string[];
+    symlinkWarnings: string[];
+    activeRunCount: number;
+    warnings: string[];
+  };
+  snapshot: { rootPath: string; rootId: string; rootGeneration: number } | null;
+};
+
+/** Read-only root selection preview. A preview never persists settings or
+ * creates/moves content; the caller must explicitly commit via setMymindRoot. */
+export type MymindRootPreview = {
+  candidate: string;
+  canonicalRoot: string | null;
+  health: MymindRootStatus["health"];
+  canBind: boolean;
+  blockingReasons: string[];
+};
+
+/** Read-only preview for explicit user-initiated mymind content relocation. */
+export type MymindRelocationPreview = {
+  schemaVersion: number;
+  sourceDirectory: string;
+  targetDirectory: string;
+  sourceRootId: string | null;
+  sourceFileCount: number;
+  sourceDirectoryCount: number;
+  sourceBytes: number;
+  sourceDigest: string | null;
+  targetState: "absent" | "empty" | "non-empty" | "invalid";
+  targetFileCount: number;
+  targetDirectoryCount: number;
+  targetBytes: number;
+  pendingTransaction: boolean;
+  canCommit: boolean;
+  blockingReasons: string[];
+};
+
+/** Result of a verified copy-only relocation. The source is never removed. */
+export type MymindRelocationReport = {
+  schemaVersion: number;
+  status: "committed";
+  sourceDirectory: string;
+  targetDirectory: string;
+  sourceRootId: string;
+  targetRootId: string;
+  copiedFileCount: number;
+  copiedDirectoryCount: number;
+  copiedBytes: number;
+  treeDigest: string;
+  sourcePreserved: true;
+  verified: true;
+  completedAt: string;
 };
 
 export interface DesktopApi {
@@ -1066,21 +1270,114 @@ export interface DesktopApi {
   setRepo(path: string): Promise<string>;
   detectRepo(): Promise<string>;
   selectRepo(): Promise<string | null>;
+  /** ADR-001: select/set the actual mymind directory (not the repo). */
+  setMymindRoot(path: string): Promise<string>;
+  selectMymindRoot(): Promise<string | null>;
+  previewMymindRoot(path: string): Promise<MymindRootPreview>;
+  selectMymindRelocationTarget(): Promise<string | null>;
+  previewMymindRelocation(targetPath: string): Promise<MymindRelocationPreview>;
+  relocateMymind(targetPath: string): Promise<MymindRelocationReport>;
+  getMymindRoot(): Promise<MymindRootStatus>;
+  /** ADR-001: optional AI/code workspace, independent of mymind. */
+  setWorkspaceRoot(path: string): Promise<string>;
+  selectWorkspaceRoot(): Promise<string | null>;
   getPreferences(): Promise<UserPreferences>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;
   resetPreferences(section?: string): Promise<UserPreferences>;
+  exportAppStateBackup(): Promise<AppStateBackupReport | null>;
+  importAppStateBackup(): Promise<AppStateBackupReport | null>;
   getBrowserAutomationStatus(): Promise<BrowserAutomationStatus>;
   getMcpServers(): Promise<McpServerDefinition[]>;
   saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
   clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
+  getCredentialStatus(): Promise<CredentialVaultStatus>;
+  setCredential(input: CredentialSetInput): Promise<CredentialMetadata>;
+  replaceCredential(id: string, input: Omit<CredentialSetInput, "id">): Promise<CredentialMetadata>;
+  revokeCredential(id: string): Promise<CredentialMetadata>;
+  deleteCredential(id: string): Promise<boolean>;
+  testCredential(id: string): Promise<CredentialTestResult>;
+  analyzeEnvFile(path: string): Promise<EnvFileAnalysis>;
+  listProviderProfiles(): Promise<ProviderProfile[]>;
+  saveProviderProfile(input: ProviderProfileInput): Promise<ProviderProfile>;
+  deleteProviderProfile(id: string): Promise<boolean>;
+  testProviderProfile(id: string): Promise<ProviderProfile>;
   importPreferences(path: string): Promise<PreferencesImportResult>;
   getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostic[]>;
+  listRuntimePacks(): Promise<RuntimePackReadiness[]>;
+  getRuntimePackReadiness(packId: RuntimePackId, target: RuntimeTarget): Promise<RuntimePackReadiness | null>;
+  importRuntimePack(): Promise<RuntimePackReadiness | null>;
+  repairRuntimePackFromFile(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<RuntimePackReadiness | null>;
+  installRuntimePack(metadata: unknown, bytes: Uint8Array): Promise<RuntimePackReadiness>;
+  repairRuntimePack(metadata: unknown, bytes: Uint8Array): Promise<RuntimePackReadiness>;
+  activateRuntimePack(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<RuntimePackReadiness[]>;
+  rollbackRuntimePack(packId: RuntimePackId, target: RuntimeTarget): Promise<RuntimePackReadiness[]>;
+  removeRuntimePack(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<boolean>;
+  garbageCollectRuntimePacks(): Promise<RuntimePackReadiness[]>;
+  selectRuntimePackDownloadManifest(): Promise<RuntimePackDownloadDescriptor | null>;
+  listRuntimePackDownloads(): Promise<RuntimePackDownloadJob[]>;
+  startRuntimePackDownload(metadata: unknown): Promise<RuntimePackDownloadJob>;
+  pauseRuntimePackDownload(id: string): Promise<RuntimePackDownloadJob>;
+  resumeRuntimePackDownload(id: string): Promise<RuntimePackDownloadJob>;
+  removeRuntimePackDownload(id: string): Promise<boolean>;
   rebuildContentIndex(): Promise<ContentIndexMaintenance>;
   aiRefresh(): Promise<AiSnapshot>;
   /** 异步重新探测 provider（启动后/登录后/换模型后），完成后推送新 snapshot；不在 send 路径上。 */
   aiRefreshProviders(): Promise<void>;
   /** 重新扫描 .claude/skills/ 下所有 SKILL.md，返回最新 skill 列表。新对话开始时调用。 */
   aiRefreshSkills(): Promise<SkillDefinition[]>;
+  /** 静态检查当前 workspace 下的 .claude/skills，不执行包内代码。 */
+  inspectSkillWorkspace(): Promise<SkillPackageInspectionView[]>;
+  /** 静态检查 App 私有安装包，不执行包内代码。 */
+  inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
+  /** 将带正式 Manifest 的旧 workspace Skill 导入 userData quarantine。 */
+  migrateSkillWorkspace(): Promise<SkillPackageMigrationReport>;
+  listInstalledSkills(): Promise<InstalledSkillView[]>;
+  /** 将一个已检查的本地包复制到 quarantine；不执行包代码。 */
+  installSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
+  /** 将本地包作为新 digest 写入 quarantine；不会改变 active。 */
+  updateSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
+  /** 仅在存在 ready previous 时切换 active。 */
+  rollbackSkillPackage?(key: string): Promise<SkillRollbackView>;
+  /** 只能删除非 active 安装版本。 */
+  uninstallSkillPackage?(key: string, digest?: string): Promise<boolean>;
+  /** 选择本地目录或 ZIP；Git 通过 inspectSkillSource 输入地址。 */
+  selectSkillPackageSource?(): Promise<import("./skill-package-sources").SkillPackageSourceInput | null>;
+  /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。 */
+  inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<SkillPackageInspectionView>;
+  /** 将检查过的本地/Git 来源写入 quarantine；不执行包代码。 */
+  installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
+  /** 以新 digest 导入本地/Git 来源，不改变 active。 */
+  updateSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
+  /** 对 exact active digest 授予/撤销 host execution 信任。 */
+  approveInstalledSkillHost(key: string, digest: string): Promise<InstalledSkillView>;
+  revokeInstalledSkillHost(key: string, digest: string): Promise<InstalledSkillView>;
+  /** 通用 Skill Run 边界：renderer 不得提交 executable/cwd/env。 */
+  startSkillRun(input: SkillRunRequest): Promise<BrokerRunRecord>;
+  listSkillRuns(): Promise<BrokerRunRecord[]>;
+  getSkillRun(runId: string): Promise<BrokerRunRecord>;
+  getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;
+  listRunArtifacts(runId?: string): Promise<RunArtifact[]>;
+  retrySkillRun(runId: string): Promise<BrokerRunRecord>;
+  resumeAgentRun(input: AgentResumeRequest): Promise<BrokerRunRecord>;
+  retryWorkflowStep(runId: string, stepId: string): Promise<WorkflowRunRecord>;
+  deleteRunHistory(runId: string): Promise<boolean>;
+  cancelSkillRun(runId: string): Promise<boolean>;
+  approveSkillRun(runId: string): Promise<boolean>;
+  startWorkflowRun(input: WorkflowStartRequest): Promise<WorkflowRunRecord>;
+  listWorkflowRuns(): Promise<WorkflowRunRecord[]>;
+  getWorkflowRun(runId: string): Promise<WorkflowRunRecord>;
+  resumeWorkflowRun(input: WorkflowResumeRequest): Promise<WorkflowRunRecord>;
+  cancelWorkflowRun(runId: string): Promise<boolean>;
+  listAutomationRules(): Promise<AutomationRule[]>;
+  saveAutomationRule(input: AutomationRuleInput): Promise<AutomationRule>;
+  deleteAutomationRule(id: string): Promise<boolean>;
+  runAutomationNow(id: string): Promise<AutomationRunRecord>;
+  listAutomationRuns(ruleId?: string): Promise<AutomationRunRecord[]>;
+  listAutomationSchedules(): Promise<AutomationScheduleSnapshot[]>;
+  listExportLocations(): Promise<ExportLocationBinding[]>;
+  /** Without bindingId creates a new binding; with bindingId opens the Main picker for create/relink of that stable Manifest ID. */
+  selectExportLocation(label: string, bindingId?: string): Promise<ExportLocationBinding | null>;
+  revokeExportLocation(id: string): Promise<boolean>;
   aiPrewarm(sessionId?: string): Promise<boolean>;
   aiSearchSessions(query: string): Promise<AiSession[]>;
   aiStartRun(input: StartRunInput): Promise<{ session: AiSession; run: AiRun }>;
@@ -1102,4 +1399,6 @@ export interface DesktopApi {
   stopSkill(skillId: string): Promise<boolean>;
   onAiEvent(callback: (event: AiEvent | { kind: "snapshot"; snapshot: AiSnapshot }) => void): () => void;
   onSkillEvent(callback: (event: Record<string, unknown>) => void): () => void;
+  onSkillRunEvent(callback: (event: BrokerRunEvent) => void): () => void;
+  onRuntimePackDownloadEvent(callback: (job: RuntimePackDownloadJob) => void): () => void;
 }

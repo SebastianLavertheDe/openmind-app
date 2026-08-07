@@ -4,9 +4,12 @@ import type { ContentKind } from "../../contracts";
 export const coreMessages = {
   nav: {
     sources: "资料库",
+    skills: "Skills",
     brief: "每日简报",
     creative: "创作",
     automation: "自动化",
+    runs: "运行记录",
+    diagnostics: "诊断",
     ai: "新建任务",
     settings: "设置"
   },
