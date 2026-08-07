@@ -1,0 +1,1606 @@
+import fs from "node:fs";
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { zipSync } from "fflate";
+import { SkillRunRequestSchema } from "../../shared/execution-contracts";
+import type { ProviderProfile } from "../../shared/provider-profiles";
+import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
+import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
+import { ExecutionBroker } from "../execution/execution-broker";
+import { RuntimeManager } from "../runtime/runtime-manager";
+import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
+import { RuntimePackService } from "../runtime/runtime-pack-service";
+import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
+import { SkillPackageService } from "./skill-package-service";
+import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
+
+const roots: string[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+describe("InstalledSkillExecutionResolver", () => {
+  it("requires ready + approved-host before building an execution plan", async () => {
+    const fixture = createFixture();
+    const resolver = fixture.resolver;
+    const request = runRequest(fixture.digest);
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    await expect(resolver.resolve(request, "run-1")).rejects.toThrow(/approved-host/);
+  });
+
+  it("lists only approved Installed Skill metadata without exposing executable paths", () => {
+    const fixture = createFixture();
+    expect(fixture.resolver.listDefinitions()).toEqual([]);
+
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    expect(fixture.resolver.listDefinitions()).toEqual([
+      expect.objectContaining({
+        id: "resolver-fixture",
+        title: "Resolver Fixture",
+        command: "managed-runtime",
+        runner: "managed-runtime",
+        cwd: "installed/cctools/resolver-fixture/1.0.0",
+        envFile: null
+      })
+    ]);
+    expect(fixture.resolver.listDefinitions()[0]?.command).not.toContain(process.execPath);
+  });
+
+  it("bridges an approved Agent from the app-private SkillStore without falling back to workspace paths", () => {
+    const fixture = createBatchAFixture("creative-writing", {
+      resolveProviderProfile: (profileId) => profileId === "profile-main" ? providerProfile() : null
+    });
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const bridge = fixture.resolver.providerSkillBridge("creative-writing");
+    expect(bridge).toMatchObject({
+      id: "creative-writing",
+      version: "1.0.0",
+      digest: fixture.digest,
+      mymindRoot: fixture.mymindRoot
+    });
+    expect(bridge?.packageRoot).not.toContain(".claude/skills");
+    expect(bridge?.skillPath).toBe(path.join(bridge!.packageRoot, "SKILL.md"));
+    expect(bridge?.referencePaths).toEqual(expect.arrayContaining([
+      "references/cover-image-preferences.md",
+      "references/wechat-methodology.md"
+    ]));
+
+    const processFixture = createFixture();
+    processFixture.packages.markReadiness(processFixture.key, processFixture.digest, "ready");
+    processFixture.packages.activate(processFixture.key, processFixture.digest);
+    processFixture.packages.approveHostExecution(processFixture.key, processFixture.digest);
+    expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
+  });
+
+  it("pins package digest, manifest input templates and managed Runtime executable", async () => {
+    const fixture = createFixture();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-3");
+    expect(plan.version).toBe("1.0.0");
+    expect(plan.digest).toBe(fixture.digest);
+    expect(plan.process.executable).toBe(process.execPath);
+    expect(plan.process.args.at(-1)).toBe("20260805");
+    expect(plan.process.cwd).toContain("1.0.0-");
+    expect(plan.requiresHostConsent).toBe(true);
+    expect(plan.maxInstances).toBe(1);
+    expect(plan.artifacts?.[0]).toMatchObject({ logicalPath: "daily-summary/20260805.md", type: "markdown" });
+    await plan.prepareRuntime?.();
+    expect(plan.process.env.API_TOKEN).toBe("credential-secret");
+    expect(plan.knownSecrets).toEqual(["credential-secret"]);
+  });
+
+  it("applies declared input defaults before resolving args and artifacts", async () => {
+    const fixture = createFixture();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-default-input");
+
+    expect(plan.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ logicalPath: "daily-summary/fallback.md" })
+    ]));
+  });
+
+  it("resolves an Export Location template only from the declared binding", async () => {
+    const fixture = createFixture(false, "python", { externalExport: true });
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve({
+      ...runRequest(fixture.digest),
+      externalExportBindingIds: ["exportDir"]
+    }, "run-export-template");
+
+    expect(plan.process.args).toContain(fixture.externalRoot);
+    expect(plan.externalBindings?.exportDir).toMatchObject({
+      bindingId: "exportDir",
+      canonicalPath: fixture.externalRoot
+    });
+  });
+
+  it("passes bounded source trigger context through the minimal installed-process environment", async () => {
+    const fixture = createFixture();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve({
+      ...runRequest(fixture.digest),
+      inputs: {
+        date: "20260805",
+        sourceId: "source-1",
+        sourceUrl: "https://example.com/feed",
+        sourceName: "Example Feed"
+      }
+    }, "run-source-context");
+
+    expect(plan.process.env).toMatchObject({
+      CCTOOLS_SOURCE_ID: "source-1",
+      CCTOOLS_SOURCE_URL: "https://example.com/feed",
+      CCTOOLS_SOURCE_NAME: "Example Feed"
+    });
+  });
+
+  it("accepts a compatible Workflow-style caret version reference", async () => {
+    const fixture = createFixture();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const request = { ...runRequest(fixture.digest), version: "^1.0.0" };
+    const plan = await fixture.resolver.resolve(request, "run-range");
+    expect(plan.version).toBe("1.0.0");
+  });
+
+  it("rejects package content changes after installation", async () => {
+    const fixture = createFixture();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+    const active = fixture.packages.getActiveInstalled("resolver-fixture")!;
+    fs.appendFileSync(path.join(active.packagePath, "main.py"), "\nchanged = True\n");
+    await expect(fixture.resolver.resolve(runRequest(fixture.digest), "run-4")).rejects.toThrow(/digest/);
+  });
+
+  it("resolves a Provider Profile binding and its scoped Credential without persisting values", async () => {
+    const fixture = createFixture(true);
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest, { default: "profile-main" }), "run-provider");
+    expect(plan.process.env.BASE_URL).toBe("https://api.example.com/v1");
+    expect(plan.process.env.MODEL).toBe("gpt-5");
+    expect(plan.credentialIds).toEqual(["credential-token"]);
+    await plan.prepareRuntime?.();
+    expect(plan.process.env.API_TOKEN).toBe("credential-secret");
+    expect(plan.knownSecrets).toEqual(["credential-secret"]);
+  });
+
+  it("materializes credential-file bindings only inside the Run work directory", async () => {
+    const fixture = createFixture(false, "python", { credentialFile: true });
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-credential-file");
+    await plan.prepareRuntime?.();
+    const file = plan.process.env.API_TOKEN;
+    if (!file) throw new Error("credential-file binding did not produce a path");
+    expect(file).toContain(path.join(fixture.paths.runs, "run-credential-file", "work", "credentials"));
+    expect(fs.readFileSync(file, "utf8")).toBe("credential-secret");
+    expect(plan.knownSecrets).toEqual(["credential-secret"]);
+    await plan.cleanupRuntime?.();
+    expect(fs.existsSync(file)).toBe(false);
+  });
+
+  it("executes a formal installed Skill through RuntimeManager and ExecutionBroker", async () => {
+    const fixture = createFixture(false, "node");
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(runRequest(fixture.digest));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded");
+
+    const completed = broker.get(run.id);
+    expect(completed.terminalState).toBe("succeeded");
+    expect(completed.runtime?.packId).toBe("node-22");
+    expect(completed.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ logicalPath: "mymind/daily-summary/20260805.md", type: "markdown", declared: true })
+    ]));
+    expect(fs.readFileSync(path.join(fixture.mymindRoot, "daily-summary", "20260805.md"), "utf8")).toContain("20260805");
+    const leasesPath = path.join(fixture.paths.runtimePacks, "leases");
+    expect(!fs.existsSync(leasesPath) || fs.readdirSync(leasesPath).length === 0).toBe(true);
+  });
+
+  it.skipIf(process.platform !== "linux")("runs an installed Skill with only the absolute executable extracted from a managed Runtime Pack", async () => {
+    const fixture = createFixture(false, "node", { managedRuntime: true });
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(runRequest(fixture.digest));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded");
+
+    const output = fs.readFileSync(path.join(fixture.mymindRoot, "daily-summary", "20260805.md"), "utf8");
+    const managedExecutable = path.join(
+      fixture.paths.runtimeEnvironments,
+      ".packs",
+      "node-22",
+      "linux-x64",
+      fixture.runtimePack.digest,
+      "bin",
+      "node"
+    );
+    expect(output).toContain(`runtime=${managedExecutable}`);
+    expect(output).toContain("PATH=<unset>");
+    expect(broker.get(run.id).runtime).toMatchObject({ packId: "node-22", packDigest: fixture.runtimePack.digest });
+  }, 15_000);
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch A skill-run-reporter package", async () => {
+    const fixture = createBatchAFixture();
+    const python = resolvePythonExecutable();
+    expect(python).toBeTruthy();
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(SkillRunRequestSchema.parse({
+      skillId: "skill-run-reporter",
+      version: "1.0.0",
+      digest: fixture.digest,
+      inputs: { date: "20260805" },
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    }));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded");
+
+    const events = broker.events(run.id).map((event) => event.text || "").join("\n");
+    expect(events).toContain("# Skill Run Report: 2026-08-05");
+    expect(broker.get(run.id).artifacts).toHaveLength(0);
+  });
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch A asset-collector package and persists a declared Artifact", async () => {
+    const fixture = createBatchAFixture("asset-collector");
+    const python = resolvePythonExecutable();
+    expect(python).toBeTruthy();
+
+    // asset-collector reads a writing-package draft and emits assets/manifest.json.
+    // Seed a draft package under creative/ so the script has real input to process.
+    const draftDir = path.join(fixture.mymindRoot, "creative", "01-内容生产", "文稿库", "02-制作中", "demo-pkg");
+    fs.mkdirSync(draftDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(draftDir, "topic-brief.md"),
+      [
+        "# Demo topic",
+        "",
+        "Reference: [OpenAI blog](https://openai.com/blog/example) — a source URL.",
+        "",
+        "Need cover: [封面：demo card]",
+        ""
+      ].join("\n")
+    );
+
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(SkillRunRequestSchema.parse({
+      skillId: "asset-collector",
+      version: "1.0.0",
+      digest: fixture.digest,
+      inputs: {
+        // draftDir is a logical mymind path; the resolver/Broker binds MYMIND_ROOT.
+        draftDir: "creative/01-内容生产/文稿库/02-制作中/demo-pkg",
+        date: "20260805"
+      },
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    }));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
+
+    const completed = broker.get(run.id);
+    expect(completed.terminalState).toBe("succeeded");
+    // Declared Artifact: assets/manifest.json under the draft package.
+    const manifestPath = path.join(draftDir, "assets", "manifest.json");
+    expect(fs.existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    // The collector must have captured the source URL from the draft.
+    const serialized = JSON.stringify(manifest);
+    expect(serialized).toContain("openai.com/blog/example");
+    // The Broker must have registered at least one declared Artifact for the run.
+    expect(completed.artifacts.some((a) => a.declared && /\.json$/.test(a.logicalPath || ""))).toBe(true);
+    expect(completed.runtime?.packId).toBe("python-core");
+    // Runtime Pack lease released after the run.
+    const leasesPath = path.join(fixture.paths.runtimePacks, "leases");
+    expect(!fs.existsSync(leasesPath) || fs.readdirSync(leasesPath).length === 0).toBe(true);
+  });
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch A collect-interest-markers package", async () => {
+    const fixture = createBatchAFixture("collect-interest-markers");
+    const summaryPath = path.join(fixture.mymindRoot, "daily-summary", "20260805_daily_summary.md");
+    fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
+    fs.writeFileSync(
+      summaryPath,
+      [
+        "# Daily Summary",
+        "",
+        "## AI",
+        "",
+        "[i] 关注本地 Provider Profile 的运行时边界",
+        "来源：[示例文章](https://example.com/provider-boundary)",
+        "",
+        "[t] 深入研究安装后 Skill 的恢复流程",
+        "来源：https://example.com/skill-recovery",
+        ""
+      ].join("\n")
+    );
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(SkillRunRequestSchema.parse({
+      skillId: "collect-interest-markers",
+      version: "1.0.0",
+      digest: fixture.digest,
+      inputs: { source: "daily-summary/20260805_daily_summary.md" },
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    }));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
+
+    const inboxPath = path.join(fixture.mymindRoot, "creative", "01-内容生产", "选题管理", "00-兴趣收集箱.md");
+    expect(fs.existsSync(inboxPath)).toBe(true);
+    const inbox = fs.readFileSync(inboxPath, "utf8");
+    expect(inbox).toContain("关注本地 Provider Profile");
+    expect(inbox).toContain("深入研究安装后 Skill");
+    expect(inbox).toContain("example.com/provider-boundary");
+    expect(broker.get(run.id).artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ declared: true, logicalPath: expect.stringContaining("00-兴趣收集箱.md") })
+    ]));
+    expect(broker.get(run.id).runtime?.packId).toBe("python-core");
+  });
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch A daily-writing-orchestrator package", async () => {
+    const fixture = createBatchAFixture("daily-writing-orchestrator");
+    const topicPath = path.join(
+      fixture.mymindRoot,
+      "creative",
+      "01-内容生产",
+      "选题管理",
+      "ai_topic_2026-08-05.md"
+    );
+    fs.mkdirSync(path.dirname(topicPath), { recursive: true });
+    fs.writeFileSync(
+      topicPath,
+      [
+        "# AI Topic",
+        "",
+        "## 1. 今日最终推荐",
+        "",
+        "### 今日最值得优先写的主题",
+        "",
+        "**安装后 Skill 如何在断电后安全恢复**",
+        "",
+        "### 主编判断",
+        "",
+        "恢复证据比一次成功运行更能说明工程质量。",
+        "",
+        "### 首发平台建议",
+        "",
+        "先做一篇面向开发者的解释。",
+        "",
+        "### 风险控制",
+        "",
+        "不要把本地测试描述成跨平台发布保证。",
+        ""
+      ].join("\n")
+    );
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const broker = new ExecutionBroker(
+      fixture.paths,
+      (request, runId) => fixture.resolver.resolve(request, runId),
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const run = broker.submit(SkillRunRequestSchema.parse({
+      skillId: "daily-writing-orchestrator",
+      version: "1.0.0",
+      digest: fixture.digest,
+      inputs: { date: "20260805", topic: "auto", platform: "xiaohongshu" },
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    }));
+    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
+
+    const packagesRoot = path.join(fixture.mymindRoot, "creative", "01-内容生产", "文稿库", "02-制作中");
+    const packageDirs = fs.readdirSync(packagesRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith("20260805-"))
+      .map((entry) => path.join(packagesRoot, entry.name));
+    expect(packageDirs).toHaveLength(1);
+    expect(fs.readFileSync(path.join(packageDirs[0], "topic-brief.md"), "utf8")).toContain("安装后 Skill 如何在断电后安全恢复");
+    expect(fs.existsSync(path.join(packageDirs[0], "xiaohongshu-draft.md"))).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(packageDirs[0], "manifest.json"), "utf8"))).toMatchObject({
+      status: "tasks_ready",
+      platforms: { xiaohongshu: "task_ready" }
+    });
+    expect(broker.get(run.id).artifacts.some(
+      (artifact) => artifact.declared && (artifact.logicalPath || "").includes("topic-brief.md")
+    )).toBe(true);
+    expect(broker.get(run.id).runtime?.packId).toBe("python-core");
+  });
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch B reddit-fetcher package against a local feed and persists the declared Artifact", async () => {
+    const python = resolvePythonExecutable();
+    expect(python).toBeTruthy();
+
+    // reddit-fetcher declares network.required. Drive it deterministically by
+    // serving a tiny Atom feed from a localhost HTTP server and pointing the
+    // package's config.yaml at it — no real Reddit, no retries, fast.
+    const atomFeed = [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<feed xmlns=\"http://www.w3.org/2005/Atom\">",
+      "  <entry>",
+      "    <title>Local test post</title>",
+      "    <link href=\"https://www.reddit.com/r/artificial/comments/local/test/\"/>",
+      "    <updated>2026-08-05T00:00:00Z</updated>",
+      "    <id>t3_local</id>",
+      "  </entry>",
+      "</feed>"
+    ].join("\n");
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/atom+xml" });
+      res.end(atomFeed);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    expect(port).toBeGreaterThan(0);
+    try {
+      // Prepare a source copy with the localhost config BEFORE install, so the
+      // recorded package digest matches what actually runs (the resolver
+      // rejects post-install content changes).
+      const fixture = createBatchAFixture("reddit-fetcher");
+      const sourceCopy = path.join(fixture.paths.staging, "reddit-source-overlay");
+      copyTree(path.resolve(__dirname, "../../../.claude/skills/reddit-fetcher"), sourceCopy);
+      fs.writeFileSync(
+        path.join(sourceCopy, "config.yaml"),
+        [
+          "fetch:",
+          "  timeout_seconds: 5",
+          "  user_agent: \"cctools-test/1.0\"",
+          "  rss_only: true",
+          "  listing_retry_count: 0",
+          "  comment_retry_count: 0",
+          "  request_delay_seconds: 0",
+          "  sources:",
+          `    - "http://127.0.0.1:${port}/r/artificial/hot/.rss"`,
+          "storage:",
+          "  output_dir: \"\"",
+          "  cache_file: \"\""
+        ].join("\n")
+      );
+      const installed = fixture.packages.install(sourceCopy);
+
+      fixture.packages.markReadiness(installed.key, installed.digest, "ready");
+      fixture.packages.activate(installed.key, installed.digest);
+      fixture.packages.approveHostExecution(installed.key, installed.digest);
+
+      const broker = new ExecutionBroker(
+        fixture.paths,
+        (request, runId) => fixture.resolver.resolve(request, runId),
+        undefined,
+        { maxConcurrentRuns: 1 }
+      );
+      const run = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "reddit-fetcher",
+        version: "1.0.0",
+        digest: installed.digest,
+        inputs: { date: "20260805" },
+        providerBindings: {},
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(run.id)).toBe(true);
+      await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
+
+      const completed = broker.get(run.id);
+      expect(completed.terminalState).toBe("succeeded");
+      // The package writes reddit/<date>/<subreddit>.md per its contract.
+      const written = path.join(fixture.mymindRoot, "reddit", "20260805", "artificial.md");
+      expect(fs.existsSync(written)).toBe(true);
+      expect(fs.readFileSync(written, "utf8")).toContain("Local test post");
+      // Declared directory Artifact (reddit/**) collected. The collector
+      // reports logical paths with the `mymind/` prefix per the mymind layout.
+      const redditArtifacts = completed.artifacts.filter(
+        (a) => a.declared && (a.logicalPath || "").startsWith("mymind/reddit/20260805")
+      );
+      expect(redditArtifacts.length).toBeGreaterThan(0);
+      expect(redditArtifacts.some((a) => /\.md$/.test(a.logicalPath || ""))).toBe(true);
+      expect(completed.runtime?.packId).toBe("python-core");
+    } finally {
+      server.close();
+    }
+  });
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch B rss-article-saver package against a local RSS source", async () => {
+    // The RSS package has native/content-extraction dependencies. Use its
+    // checked-in development venv for this focused package-contract test;
+    // clean-machine dependency installation remains a separate Runtime Pack
+    // gate and is deliberately not hidden by a system-Python fallback.
+    const python = resolveSkillPython("rss-article-saver");
+    expect(python).toBeTruthy();
+
+    const feed = [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<rss version=\"2.0\"><channel>",
+      "<title>Local cctools feed</title>",
+      "<item>",
+      "<title>Local RSS article</title>",
+      "<link>http://127.0.0.1/article.html</link>",
+      "<pubDate>Wed, 05 Aug 2026 00:00:00 GMT</pubDate>",
+      "<description>Local RSS description</description>",
+      "</item>",
+      "</channel></rss>"
+    ].join("");
+    const articleHtml = [
+      "<!doctype html><html><head><title>Local RSS article</title></head><body>",
+      "<article><h1>Local RSS article</h1>",
+      "<p>This local article validates RSS discovery, content extraction, and the bound mymind output contract.</p>",
+      "<p>The installed Skill must write the article below the Broker-provided root and keep its cache in app-private Skill data.</p>",
+      "</article></body></html>"
+    ].join("");
+    const server = http.createServer((req, res) => {
+      if (req.url === "/article.html") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(articleHtml);
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+      res.end(feed.replace("http://127.0.0.1/article.html", `http://127.0.0.1:${port}/article.html`));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    try {
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-rss-installed-"));
+      roots.push(fixtureRoot);
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      ensureAppPaths(paths);
+      const mymindRoot = path.join(fixtureRoot, "mymind");
+      fs.mkdirSync(mymindRoot, { recursive: true });
+      // RuntimeManager canonicalizes the executable path. Keep the venv
+      // context through a managed wrapper so canonicalization does not turn
+      // the venv's python symlink into the system interpreter.
+      const pythonWrapper = path.join(paths.staging, "rss-python-wrapper");
+      fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
+      fs.chmodSync(pythonWrapper, 0o755);
+      const packages = new SkillPackageService(paths);
+      const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
+      const runtime = new RuntimeManager(paths, {
+        target: "linux-x64",
+        getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
+        resolveExecutable: () => pythonWrapper,
+        prepareEnvironment: async () => undefined
+      });
+      const resolver = new InstalledSkillExecutionResolver(
+        packages,
+        runtime,
+        mymindRoot,
+        1,
+        async () => "unused-test-credential",
+        undefined,
+        (profileId) => profileId === "profile-main" ? providerProfile() : null
+      );
+
+      const sourceCopy = path.join(paths.staging, "rss-source-overlay");
+      copyTree(path.resolve(__dirname, "../../../.claude/skills/rss-article-saver"), sourceCopy);
+      fs.writeFileSync(
+        path.join(sourceCopy, "subscriptions.opml"),
+        [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+          "<opml version=\"2.0\"><head><title>Test</title></head><body>",
+          `<outline text=\"Local\" type=\"rss\" xmlUrl=\"http://127.0.0.1:${port}/feed.xml\"/>`,
+          "</body></opml>"
+        ].join("")
+      );
+      fs.writeFileSync(
+        path.join(sourceCopy, "config.yaml"),
+        [
+          "article_base_dir: \"\"",
+          "opml_file: \"subscriptions.opml\"",
+          "max_articles_per_feed: 1",
+          "max_article_age_days: 7",
+          "content:",
+          "  extractor: trafilatura",
+          "  include_images: false",
+          "  max_content_length: 50000",
+          "  wechat:",
+          "    enabled: false",
+          "ai:",
+          "  enabled: false",
+          "translation:",
+          "  enabled: false"
+        ].join("\n")
+      );
+      const installed = packages.install(sourceCopy);
+      packages.markReadiness(installed.key, installed.digest, "ready");
+      packages.activate(installed.key, installed.digest);
+      packages.approveHostExecution(installed.key, installed.digest);
+
+      const broker = new ExecutionBroker(
+        paths,
+        (request, runId) => resolver.resolve(request, runId),
+        undefined,
+        { maxConcurrentRuns: 1 }
+      );
+      const run = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "rss-article-saver",
+        version: "1.0.0",
+        digest: installed.digest,
+        inputs: {},
+        providerBindings: { default: "profile-main" },
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(run.id)).toBe(true);
+      await waitFor(
+        () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
+        60_000
+      );
+
+      const completed = broker.get(run.id);
+      if (completed.state !== "succeeded") {
+        throw new Error([
+          `rss-article-saver ended in ${completed.state}`,
+          ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
+        ].join("\n"));
+      }
+      expect(completed.terminalState).toBe("succeeded");
+      const articleFiles = findMarkdownFiles(path.join(mymindRoot, "article"));
+      expect(articleFiles).toHaveLength(1);
+      expect(fs.readFileSync(articleFiles[0], "utf8")).toContain("Local RSS article");
+      expect(completed.artifacts.some(
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/article/")
+      )).toBe(true);
+      expect(completed.runtime?.packId).toBe("python-core");
+      expect(fs.existsSync(path.join(paths.userData, "skills"))).toBe(true);
+    } finally {
+      server.close();
+    }
+  }, 120_000);
+
+  it.skipIf(process.platform !== "linux")("executes the real Batch B knowledge-wiki-compiler package under the bound root", async () => {
+    const python = resolveSkillPython("knowledge-wiki-compiler");
+    expect(python).toBeTruthy();
+
+    const providerRequests: Array<{ authorization: string; body: string }> = [];
+    const server = http.createServer((req, res) => {
+      if (req.method !== "POST") {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        providerRequests.push({
+          authorization: String(req.headers.authorization || ""),
+          body: Buffer.concat(chunks).toString("utf8")
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ message: { content: "{}" } }] }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    try {
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-wiki-installed-"));
+      roots.push(fixtureRoot);
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      ensureAppPaths(paths);
+      const mymindRoot = path.join(fixtureRoot, "mymind");
+      const articleDir = path.join(mymindRoot, "article", "20260805");
+      fs.mkdirSync(articleDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(articleDir, "wiki-test.md"),
+        [
+          "# Wiki chain article",
+          "",
+          "## 元数据",
+          "",
+          "- **链接**: https://example.test/wiki-chain",
+          "- **发布时间**: 2026-08-05",
+          "",
+          "## 正文",
+          "",
+          "AI agent workflow uses explicit context and repeatable evaluation steps.",
+          "The article is seeded to verify source scanning, private compiler state, and wiki output placement."
+        ].join("\n")
+      );
+      const packages = new SkillPackageService(paths);
+      const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
+      const pythonWrapper = path.join(paths.staging, "wiki-python-wrapper");
+      fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
+      fs.chmodSync(pythonWrapper, 0o755);
+      const runtime = new RuntimeManager(paths, {
+        target: "linux-x64",
+        getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
+        resolveExecutable: () => pythonWrapper,
+        prepareEnvironment: async () => undefined
+      });
+      const resolver = new InstalledSkillExecutionResolver(
+        packages,
+        runtime,
+        mymindRoot,
+        1,
+        async () => "wiki-test-credential",
+        undefined,
+        (profileId) => profileId === "default"
+          ? localProviderProfile(`http://127.0.0.1:${port}/v1/chat/completions`)
+          : null
+      );
+      const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/knowledge-wiki-compiler"));
+      packages.markReadiness(installed.key, installed.digest, "ready");
+      packages.activate(installed.key, installed.digest);
+      packages.approveHostExecution(installed.key, installed.digest);
+
+      const broker = new ExecutionBroker(
+        paths,
+        (request, runId) => resolver.resolve(request, runId),
+        undefined,
+        { maxConcurrentRuns: 1 }
+      );
+      const run = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "knowledge-wiki-compiler",
+        version: "1.0.0",
+        digest: installed.digest,
+        inputs: { date: "20260805" },
+        providerBindings: { default: "default" },
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(run.id)).toBe(true);
+      await waitFor(
+        () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
+        60_000
+      );
+      const completed = broker.get(run.id);
+      if (completed.state !== "succeeded") {
+        throw new Error([
+          `knowledge-wiki-compiler ended in ${completed.state}`,
+          ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
+        ].join("\n"));
+      }
+      expect(findMarkdownFiles(path.join(mymindRoot, "wiki")).length).toBeGreaterThan(0);
+      expect(fs.existsSync(path.join(mymindRoot, "wiki-state"))).toBe(false);
+      expect(fs.existsSync(path.join(paths.runs, run.id, "work", "skill-data", "wiki-state"))).toBe(true);
+      expect(providerRequests.length).toBeGreaterThan(0);
+      expect(providerRequests.every((request) => request.authorization === "Bearer wiki-test-credential")).toBe(true);
+      expect(completed.artifacts.some(
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/wiki/")
+      )).toBe(true);
+      expect(completed.runtime?.packId).toBe("python-core");
+    } finally {
+      server.close();
+    }
+  }, 120_000);
+
+  it.skipIf(process.platform !== "linux")("executes the real x-following-fetcher package with managed JSON credentials", async () => {
+    const python = resolveSkillPython("x-following-fetcher");
+    expect(python).toBeTruthy();
+
+    const timelinePayload = {
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{
+              type: "TimelineAddEntries",
+              entries: [{
+                content: {
+                  __typename: "TimelineTimelineItem",
+                  itemContent: {
+                    __typename: "TimelineTimelineItemContent",
+                    tweet_results: {
+                      result: {
+                        __typename: "Tweet",
+                        core: {
+                          user_results: {
+                            result: { core: { name: "Managed User", screen_name: "managed_user" } }
+                          }
+                        },
+                        legacy: {
+                          id_str: "9001",
+                          created_at: "Wed Aug 05 00:00:00 +0000 2026",
+                          full_text: "Managed credential X post",
+                          lang: "en",
+                          favorite_count: 1,
+                          retweet_count: 2,
+                          reply_count: 0,
+                          quote_count: 0,
+                          bookmark_count: 0,
+                          entities: { urls: [] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }]
+            }]
+          }
+        }
+      }
+    };
+    const requests: Array<{ authorization: string; body: string }> = [];
+    const server = http.createServer((req, res) => {
+      if (req.method !== "POST") {
+        res.writeHead(405);
+        res.end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        requests.push({
+          authorization: String(req.headers.authorization || ""),
+          body: Buffer.concat(chunks).toString("utf8")
+        });
+        const body = JSON.stringify(timelinePayload);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(body);
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    try {
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-x-installed-"));
+      roots.push(fixtureRoot);
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      ensureAppPaths(paths);
+      const mymindRoot = path.join(fixtureRoot, "mymind");
+      fs.mkdirSync(mymindRoot, { recursive: true });
+      const pythonWrapper = path.join(paths.staging, "x-python-wrapper");
+      fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
+      fs.chmodSync(pythonWrapper, 0o755);
+      const packages = new SkillPackageService(paths);
+      const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
+      const runtime = new RuntimeManager(paths, {
+        target: "linux-x64",
+        getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
+        resolveExecutable: () => pythonWrapper,
+        prepareEnvironment: async () => undefined
+      });
+      const credential = JSON.stringify({
+        requests: [{
+          label: "following",
+          method: "POST",
+          url: `http://127.0.0.1:${port}/graphql`,
+          headers: { Authorization: "Bearer managed-x-token" },
+          json: { variables: { count: 1 } }
+        }]
+      });
+      const resolver = new InstalledSkillExecutionResolver(
+        packages,
+        runtime,
+        mymindRoot,
+        1,
+        async (credentialId, scope) => {
+          if (credentialId !== "credential:x-following-session" || scope.skillId !== "x-following-fetcher") {
+            throw new Error("unexpected X credential scope");
+          }
+          return credential;
+        }
+      );
+      const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/x-following-fetcher"));
+      packages.markReadiness(installed.key, installed.digest, "ready");
+      packages.activate(installed.key, installed.digest);
+      packages.approveHostExecution(installed.key, installed.digest);
+
+      const broker = new ExecutionBroker(
+        paths,
+        (request, runId) => resolver.resolve(request, runId),
+        undefined,
+        { maxConcurrentRuns: 1 }
+      );
+      const run = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "x-following-fetcher",
+        version: "1.0.0",
+        digest: installed.digest,
+        inputs: {},
+        providerBindings: {},
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(run.id)).toBe(true);
+      await waitFor(
+        () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
+        60_000
+      );
+      const completed = broker.get(run.id);
+      if (completed.state !== "succeeded") {
+        throw new Error([
+          `x-following-fetcher ended in ${completed.state}`,
+          `error: ${completed.error || ""}`,
+          ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
+        ].join("\n"));
+      }
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const postFile = path.join(mymindRoot, "post", today, "posts.json");
+      expect(fs.existsSync(postFile)).toBe(true);
+      expect(fs.readFileSync(postFile, "utf8")).toContain("Managed credential X post");
+      expect(requests.length).toBe(1);
+      expect(requests[0].authorization).toBe("Bearer managed-x-token");
+      expect(JSON.parse(requests[0].body).variables.count).toBe(20);
+      expect(completed.artifacts.some(
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/post/")
+      )).toBe(true);
+      expect(completed.runtime?.packId).toBe("python-core");
+    } finally {
+      server.close();
+    }
+  }, 120_000);
+
+  it.skipIf(process.platform !== "linux")("chains reddit-fetcher → daily-article-summarizer → daily-topic-selector under one shared root snapshot", async () => {
+    // This is the first multi-Skill link of the RSS → Summary → Topic chain
+    // (plan §17.7): the summarizer reads the fetcher's reddit/** output and
+    // produces the daily-summary Artifact under the SAME mymind root snapshot.
+    const python = resolvePythonExecutable();
+    expect(python).toBeTruthy();
+
+    // --- Stage 1: reddit-fetcher writes reddit/20260805/<subreddit>.md ---
+    const atomFeed = [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<feed xmlns=\"http://www.w3.org/2005/Atom\">",
+      "  <entry>",
+      "    <title>Chained test post</title>",
+      "    <link href=\"https://www.reddit.com/r/artificial/comments/chain/test/\"/>",
+      "    <updated>2026-08-05T00:00:00Z</updated>",
+      "    <id>t3_chain</id>",
+      "  </entry>",
+      "</feed>"
+    ].join("\n");
+    const providerRequests: Array<{ authorization: string; body: string }> = [];
+    const server = http.createServer((req, res) => {
+      if (req.method === "POST") {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", () => {
+          providerRequests.push({
+            authorization: String(req.headers.authorization || ""),
+            body: Buffer.concat(chunks).toString("utf8")
+          });
+          const response = {
+            translated_title: "链路测试文章",
+            summary: "本地 Provider 用固定 JSON 响应验证 RSS、总结和选题之间的运行时交接。",
+            key_points: ["三个 Skill 共享同一个 mymindRoot 和 rootGeneration"],
+            category: "AI",
+            score: 90,
+            wechat: [1],
+            reddit: [{ index: 1, reason: "本地链路测试条目" }],
+            overview: "本地 Provider 已完成帖子摘要测试。",
+            themes: ["Provider Profile 连接"],
+            highlights: []
+          };
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            choices: [{ message: { content: JSON.stringify(response) } }]
+          }));
+        });
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/atom+xml" });
+      res.end(atomFeed);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    try {
+      // Build ONE shared fixture and install all three packages into it. The
+      // skills share the same mymindRoot + rootGeneration (same snapshot).
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-chain-"));
+      roots.push(fixtureRoot);
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      ensureAppPaths(paths);
+      const mymindRoot = path.join(fixtureRoot, "mymind");
+      fs.mkdirSync(mymindRoot, { recursive: true });
+      // Seed an article so the summarizer has content to process and reaches
+      // the _write_full_summary_file path. Without AI keys the per-article
+      // summarization no-ops (returns None), but the summary file is still
+      // written with whatever cached/reddit content exists.
+      fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
+      fs.writeFileSync(
+        path.join(mymindRoot, "article", "20260805", "chained-article.md"),
+        "# Chained article\n\n- 来源: Test\n\n正文内容用于链路验证。\n"
+      );
+      const packages = new SkillPackageService(paths);
+      const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
+      const runtime = new RuntimeManager(paths, {
+        target: "linux-x64",
+        getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
+        resolveExecutable: () => resolvePythonExecutable() || process.execPath,
+        prepareEnvironment: async () => undefined
+      });
+
+      // Both AI-backed packages require a Provider Profile + bound credential.
+      // Point them at the same local OpenAI-compatible endpoint so the chain
+      // verifies actual environment injection and JSON response handling
+      // without contacting an external provider.
+      const resolver = new InstalledSkillExecutionResolver(
+        packages,
+        runtime,
+        mymindRoot,
+        1,
+        async (credentialId) => `mock-credential-for-${credentialId}`,
+        undefined,
+        (profileId) => profileId === "default"
+          ? localProviderProfile(`http://127.0.0.1:${port}/v1/chat/completions`)
+          : null
+      );
+
+      // Install reddit-fetcher with the localhost config overlay.
+      const redditSourceCopy = path.join(paths.staging, "reddit-source-overlay");
+      copyTree(path.resolve(__dirname, "../../../.claude/skills/reddit-fetcher"), redditSourceCopy);
+      fs.writeFileSync(
+        path.join(redditSourceCopy, "config.yaml"),
+        [
+          "fetch:",
+          "  timeout_seconds: 5",
+          "  user_agent: \"cctools-test/1.0\"",
+          "  rss_only: true",
+          "  listing_retry_count: 0",
+          "  comment_retry_count: 0",
+          "  request_delay_seconds: 0",
+          "  sources:",
+          `    - "http://127.0.0.1:${port}/r/artificial/hot/.rss"`,
+          "storage:",
+          "  output_dir: \"\"",
+          "  cache_file: \"\""
+        ].join("\n")
+      );
+      const redditInstalled = packages.install(redditSourceCopy);
+      packages.markReadiness(redditInstalled.key, redditInstalled.digest, "ready");
+      packages.activate(redditInstalled.key, redditInstalled.digest);
+      packages.approveHostExecution(redditInstalled.key, redditInstalled.digest);
+
+      // Install daily-article-summarizer (no overlay; uses bundled config).
+      const summarizerSource = path.resolve(__dirname, "../../../.claude/skills/daily-article-summarizer");
+      const summarizerInstalled = packages.install(summarizerSource);
+      packages.markReadiness(summarizerInstalled.key, summarizerInstalled.digest, "ready");
+      packages.activate(summarizerInstalled.key, summarizerInstalled.digest);
+      packages.approveHostExecution(summarizerInstalled.key, summarizerInstalled.digest);
+
+      // Install the third link against the exact same root and Runtime Pack.
+      const topicSource = path.resolve(__dirname, "../../../.claude/skills/daily-topic-selector");
+      const topicInstalled = packages.install(topicSource);
+      packages.markReadiness(topicInstalled.key, topicInstalled.digest, "ready");
+      packages.activate(topicInstalled.key, topicInstalled.digest);
+      packages.approveHostExecution(topicInstalled.key, topicInstalled.digest);
+
+      const broker = new ExecutionBroker(
+        paths,
+        (request, runId) => resolver.resolve(request, runId),
+        undefined,
+        { maxConcurrentRuns: 1 }
+      );
+
+      // --- Stage 1 run: reddit-fetcher ---
+      const fetchRun = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "reddit-fetcher",
+        version: "1.0.0",
+        digest: redditInstalled.digest,
+        inputs: { date: "20260805" },
+        providerBindings: {},
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(fetchRun.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(fetchRun.id)).toBe(true);
+      await waitFor(() => broker.get(fetchRun.id).state === "succeeded", 30_000);
+      const redditFile = path.join(mymindRoot, "reddit", "20260805", "artificial.md");
+      expect(fs.existsSync(redditFile)).toBe(true);
+      expect(fs.readFileSync(redditFile, "utf8")).toContain("Chained test post");
+
+      // --- Stage 2 run: daily-article-summarizer (reads reddit/**, writes daily-summary) ---
+      const summaryRun = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "daily-article-summarizer",
+        version: "1.0.0",
+        digest: summarizerInstalled.digest,
+        inputs: { date: "20260805" },
+        providerBindings: { default: "default" },
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(summaryRun.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(summaryRun.id)).toBe(true);
+      await waitFor(() => broker.get(summaryRun.id).state === "succeeded", 60_000);
+
+      const summaryCompleted = broker.get(summaryRun.id);
+      expect(summaryCompleted.terminalState).toBe("succeeded");
+      // Declared Artifact: daily-summary/20260805_daily_summary.md
+      const summaryFile = path.join(mymindRoot, "daily-summary", "20260805_daily_summary.md");
+      expect(fs.existsSync(summaryFile)).toBe(true);
+      const summaryText = fs.readFileSync(summaryFile, "utf8");
+      if (!summaryText.includes("链路测试文章")) {
+        throw new Error([
+          "daily-article-summarizer did not render the deterministic article summary",
+          summaryText,
+          `provider requests: ${JSON.stringify(providerRequests)}`,
+          ...broker.events(summaryRun.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
+        ].join("\n"));
+      }
+      expect(summaryCompleted.artifacts.some(
+        (a) => a.declared && (a.logicalPath || "").includes("daily-summary/20260805_daily_summary.md")
+      )).toBe(true);
+
+      // --- Stage 3 run: daily-topic-selector (reads daily-summary, writes daily-topic) ---
+      const topicRun = broker.submit(SkillRunRequestSchema.parse({
+        skillId: "daily-topic-selector",
+        version: "1.0.0",
+        digest: topicInstalled.digest,
+        inputs: { date: "20260805" },
+        providerBindings: { default: "default" },
+        trigger: { type: "manual" },
+        externalExportBindingIds: [],
+        rootGeneration: 1
+      }));
+      await waitFor(() => broker.get(topicRun.id).state === "waiting_execution_consent", 10_000);
+      expect(broker.approveExecution(topicRun.id)).toBe(true);
+      await waitFor(
+        () => ["succeeded", "failed", "cancelled"].includes(broker.get(topicRun.id).state),
+        60_000
+      );
+
+      const topicCompleted = broker.get(topicRun.id);
+      if (topicCompleted.state !== "succeeded") {
+        throw new Error([
+          `daily-topic-selector ended in ${topicCompleted.state}`,
+          ...broker.events(topicRun.id).map((event) => event.text || "")
+        ].join("\n"));
+      }
+      expect(topicCompleted.terminalState).toBe("succeeded");
+      const topicFile = path.join(mymindRoot, "daily-topic", "20260805_daily_topic.md");
+      expect(fs.existsSync(topicFile)).toBe(true);
+      expect(fs.readFileSync(topicFile, "utf8")).toContain("链路测试文章");
+      expect(topicCompleted.artifacts.some(
+        (a) => a.declared && (a.logicalPath || "").includes("daily-topic/20260805_daily_topic.md")
+      )).toBe(true);
+
+      // Both AI stages used the injected scoped credential, and all three
+      // stages stayed on the same managed Runtime Pack.
+      expect(providerRequests.length).toBeGreaterThan(0);
+      expect(providerRequests.every((request) => request.authorization === "Bearer mock-credential-for-credential-token")).toBe(true);
+      expect(providerRequests.every((request) => request.body.includes("local-test-model"))).toBe(true);
+      // All three runs shared the same root snapshot (same mymindRoot + generation).
+      expect(broker.get(fetchRun.id).runtime?.packId).toBe("python-core");
+      expect(summaryCompleted.runtime?.packId).toBe("python-core");
+      expect(topicCompleted.runtime?.packId).toBe("python-core");
+    } finally {
+      server.close();
+    }
+  }, 120_000);
+});
+
+function createFixture(
+  withProvider = false,
+  runtimeKind: "python" | "node" = "python",
+  options: { managedRuntime?: boolean; credentialFile?: boolean; externalExport?: boolean } = {}
+) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-installed-resolver-"));
+  roots.push(root);
+  const paths = buildAppPaths(path.join(root, "user-data"));
+  ensureAppPaths(paths);
+  const source = path.join(root, "source");
+  const mymindRoot = path.join(root, "mymind");
+  const externalRoot = path.join(root, "export");
+  fs.mkdirSync(source, { recursive: true });
+  fs.mkdirSync(mymindRoot, { recursive: true });
+  if (options.externalExport) fs.mkdirSync(externalRoot, { recursive: true });
+  if (runtimeKind === "node") {
+    fs.writeFileSync(path.join(source, "main.js"), [
+      "const fs = require('node:fs');",
+      "const path = require('node:path');",
+      "const dateIndex = process.argv.indexOf('--date');",
+      "const date = dateIndex >= 0 ? process.argv[dateIndex + 1] : 'missing';",
+      "const output = path.join(process.env.MYMIND_ROOT, 'daily-summary', `${date}.md`);",
+      "fs.mkdirSync(path.dirname(output), { recursive: true });",
+      "fs.writeFileSync(output, `# ${date}\\nruntime=${process.execPath}\\nPATH=${process.env.PATH || '<unset>'}\\n`);",
+      "console.log(`created ${date}`);",
+      ""
+    ].join("\n"));
+    fs.writeFileSync(path.join(source, "package.json"), JSON.stringify({ name: "resolver-fixture", version: "1.0.0" }));
+  } else {
+    fs.writeFileSync(path.join(source, "main.py"), "print('ok')\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='resolver-fixture'\nversion='1.0.0'\n");
+  }
+  fs.writeFileSync(path.join(source, "cctools.skill.yaml"), manifestYaml(withProvider, runtimeKind, options.externalExport));
+  const packages = new SkillPackageService(paths);
+  const installed = packages.install(source);
+  const key = installed.key;
+  const digest = installed.digest;
+  const packId: "python-core" | "node-22" = runtimeKind === "node" ? "node-22" : "python-core";
+  const runtimeBytes = options.managedRuntime && runtimeKind === "node"
+    ? Buffer.from(zipSync({ "bin/node": new Uint8Array(fs.readFileSync(process.execPath)) }, { level: 0 }))
+    : undefined;
+  const runtimePacks = installSignedRuntimePack(paths, packId, runtimeKind === "node" ? "22.0.0" : "3.12.1", runtimeBytes);
+  const runtime = new RuntimeManager(paths, {
+    target: "linux-x64",
+    getActivePack: (requestedPackId, target) => runtimePacks.getActive(requestedPackId, target),
+    // The signed test pack contains no platform binary; use the injected resolver
+    // to keep this test focused on the package → Manager → Broker execution chain.
+    ...(options.managedRuntime ? {} : {
+      resolveExecutable: () => process.execPath,
+      prepareEnvironment: async () => undefined
+    })
+  });
+  const runtimePack = runtimePacks.getActive(packId, "linux-x64");
+  if (!runtimePack) throw new Error(`test Runtime Pack 未激活：${packId}`);
+  const credentialFiles = options.credentialFile ? new ManagedCredentialFileAdapter(paths) : undefined;
+  return {
+    packages,
+    paths,
+    resolver: new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1, async (credentialId, scope) => {
+      if (credentialId !== "credential-token" || scope.skillId !== "resolver-fixture" || scope.digest !== digest) throw new Error("unexpected credential scope");
+      return "credential-secret";
+    }, options.externalExport ? (bindingId) => bindingId === "exportDir" ? { bindingId, canonicalPath: externalRoot } : undefined : undefined,
+    withProvider ? (profileId) => profileId === "profile-main" ? providerProfile() : null : undefined, undefined,
+    options.credentialFile ? async () => "credential-file" : undefined, credentialFiles),
+    key,
+    digest,
+    mymindRoot,
+    externalRoot,
+    runtimePack
+  };
+}
+
+function createBatchAFixture(
+  packageName = "skill-run-reporter",
+  opts: {
+    /** Provider profile resolver (for packages whose manifest requires a provider). */
+    resolveProviderProfile?: (profileId: string) => ProviderProfile | null;
+    /** Credential resolver (for packages whose manifest binds a secret). */
+    resolveCredential?: (credentialId: string, scope: { skillId: string; digest: string }) => Promise<string>;
+  } = {}
+) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-batch-a-installed-"));
+  roots.push(root);
+  const paths = buildAppPaths(path.join(root, "user-data"));
+  ensureAppPaths(paths);
+  const mymindRoot = path.join(root, "mymind");
+  fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
+  fs.writeFileSync(path.join(mymindRoot, "article", "20260805", "one.md"), "article\n");
+  const source = path.resolve(__dirname, `../../../.claude/skills/${packageName}`);
+  const packages = new SkillPackageService(paths);
+  const installed = packages.install(source);
+  const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
+  const runtime = new RuntimeManager(paths, {
+    target: "linux-x64",
+    getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
+    resolveExecutable: () => resolvePythonExecutable() || process.execPath,
+    prepareEnvironment: async () => undefined
+  });
+  return {
+    paths,
+    packages,
+    resolver: new InstalledSkillExecutionResolver(
+      packages,
+      runtime,
+      mymindRoot,
+      1,
+      opts.resolveCredential,
+      undefined,
+      opts.resolveProviderProfile
+    ),
+    key: installed.key,
+    digest: installed.digest,
+    mymindRoot
+  };
+}
+
+function installSignedRuntimePack(
+  paths: ReturnType<typeof buildAppPaths>,
+  packId: "python-core" | "node-22",
+  version: string,
+  packBytes?: Buffer
+): RuntimePackService {
+  const bytes = packBytes || Buffer.from(`signed-runtime-pack:${packId}:${version}`);
+  const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+  const unsigned = RuntimePackMetadataSchema.parse({
+    schemaVersion: 1,
+    packId,
+    version,
+    target: "linux-x64",
+    filename: `${packId}.pack`,
+    size: bytes.byteLength,
+    sha256,
+    publisherKeyId: "runtimeRoot",
+    signatureAlgorithm: "ed25519",
+    signature: "placeholder",
+    expiresAt: "2027-01-01T00:00:00.000Z",
+    license: "Apache-2.0",
+    sbom: { format: "spdx", digest: sha256 }
+  });
+  const signingKeys = crypto.generateKeyPairSync("ed25519");
+  const service = new RuntimePackService(paths, {
+    runtimeRoot: signingKeys.publicKey.export({ type: "spki", format: "pem" }).toString()
+  });
+  service.install({
+    ...unsigned,
+    signature: crypto.sign(null, Buffer.from(canonicalRuntimePackPayload(unsigned)), signingKeys.privateKey).toString("base64")
+  }, bytes);
+  service.activate(packId, "linux-x64", sha256);
+  return service;
+}
+
+function resolvePythonExecutable(): string | undefined {
+  for (const command of ["python3", "python"]) {
+    try {
+      const executable = execFileSync(command, ["-c", "import sys; print(sys.executable)"], { encoding: "utf8" }).trim();
+      if (executable && path.isAbsolute(executable) && fs.statSync(executable).isFile()) return executable;
+    } catch { /* Try the next interpreter name. */ }
+  }
+  return undefined;
+}
+
+function resolveSkillPython(skillId: string): string | undefined {
+  const candidate = path.resolve(__dirname, `../../../.claude/skills/${skillId}/.venv/bin/python`);
+  try {
+    return fs.statSync(candidate).isFile() ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Recursively copy a directory tree (used to overlay test config before install).
+ *  Skips `.venv`/`__pycache__`/`.git` (the installer excludes them anyway, and
+ *  they may contain symlinks that break a naive recursive copy). */
+function copyTree(source: string, destination: string): void {
+  fs.mkdirSync(destination, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    if (entry.name === ".venv" || entry.name === "__pycache__" || entry.name === ".git") continue;
+    const from = path.join(source, entry.name);
+    const to = path.join(destination, entry.name);
+    if (entry.isSymbolicLink()) {
+      // Preserve symlinks as-is; the installer handles/realpath them.
+      fs.symlinkSync(fs.readlinkSync(from), to);
+    } else if (entry.isDirectory()) {
+      copyTree(from, to);
+    } else {
+      fs.copyFileSync(from, to);
+    }
+  }
+}
+
+function findMarkdownFiles(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const candidate = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...findMarkdownFiles(candidate));
+    else if (entry.isFile() && entry.name.endsWith(".md")) files.push(candidate);
+  }
+  return files.sort();
+}
+
+function runRequest(digest: string, providerBindings: Record<string, string> = {}) {
+  return SkillRunRequestSchema.parse({
+    skillId: "resolver-fixture",
+    version: "1.0.0",
+    digest,
+    inputs: { date: "20260805" },
+    providerBindings,
+    trigger: { type: "manual" },
+    externalExportBindingIds: [],
+    rootGeneration: 1
+  });
+}
+
+function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "python", externalExport = false): string {
+  const isNode = runtimeKind === "node";
+  return [
+    "apiVersion: cctools.dev/skill/v1",
+    "id: resolver-fixture",
+    "version: 1.0.0",
+    "publisher:",
+    "  id: cctools",
+    "  displayName: cctools",
+    "kind: process",
+    "display:",
+    "  name: Resolver Fixture",
+    "  description: test",
+    "entrypoint:",
+    `  runtime: ${runtimeKind}`,
+    `  script: ${isNode ? "main.js" : "main.py"}`,
+    "  args:",
+    "    - --date",
+    "    - '{{ inputs.date }}'",
+    ...(externalExport ? [
+      "    - --export",
+      "    - '{{ exports.exportDir }}'"
+    ] : []),
+    "  env:",
+    ...(withProvider ? [
+      "    BASE_URL: '{{ providers.default.baseUrl }}'",
+      "    MODEL: '{{ providers.default.model }}'"
+    ] : []),
+    "    API_TOKEN: '{{ secrets.token }}'",
+    "runtime:",
+    `  version: '${isNode ? ">=22.0,<23.0" : ">=3.11,<3.13"}'`,
+    `  dependencyFile: ${isNode ? "package.json" : "pyproject.toml"}`,
+    "  packs:",
+    `    - ${isNode ? "node-22" : "python-core"}`,
+    "config:",
+    ...(withProvider ? [
+      "  default:",
+      "    type: provider-profile",
+      "    required: true"
+    ] : []),
+    "  token:",
+    "    type: secret-ref",
+    `    secretRef: ${withProvider ? "provider:default" : "credential-token"}`,
+    "inputs:",
+    "  type: object",
+    "  properties:",
+    "    optionalName:",
+    "      type: string",
+    "      default: fallback",
+    "capabilities:",
+    "  mymind:",
+    "    read: []",
+    "    write:",
+    "      - daily-summary/**",
+    "  network:",
+    "    required: false",
+    "    hosts: []",
+    "artifacts:",
+    "  - id: summary",
+    "    type: markdown",
+    "    path: daily-summary/{{ inputs.date }}.md",
+    "  - id: defaulted",
+    "    type: markdown",
+    "    path: daily-summary/{{ inputs.optionalName }}.md",
+    ...(externalExport ? [
+      "  - id: export",
+      "    type: directory",
+      "    externalExportId: exportDir"
+    ] : []),
+    "execution:",
+    "  concurrency:",
+    "    maxInstances: 1",
+    "    mutexes:",
+    "      - mymind:daily-summary",
+    "  timeoutSeconds: 60",
+    "  gracefulStopSeconds: 1",
+    "platforms:",
+    "  - linux-x64",
+    "compatibility:",
+    "  minAppVersion: 1.0.0",
+    ""
+  ].join("\n");
+}
+
+function providerProfile(): ProviderProfile {
+  return {
+    schemaVersion: 1,
+    id: "profile-main",
+    name: "Main Provider",
+    protocol: "openai-responses",
+    credentialId: "credential-token",
+    baseUrl: "https://api.example.com/v1",
+    model: "gpt-5",
+    timeoutMs: 120_000,
+    maxRetries: 2,
+    proxyPolicy: "system",
+    tlsPolicy: "verify",
+    fallbackProfileId: null,
+    test: { status: "never", testedAt: null, diagnostic: null }
+  };
+}
+
+function localProviderProfile(baseUrl: string): ProviderProfile {
+  return {
+    ...providerProfile(),
+    id: "default",
+    protocol: "openai-chat",
+    baseUrl,
+    model: "local-test-model"
+  };
+}
+
+async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("test wait timed out");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
