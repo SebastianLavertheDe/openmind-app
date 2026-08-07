@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ApprovalDecision, AiContextState, AiEvent, AiRun, AiSession, ProviderCapabilities } from "../../../shared/contracts";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { BrowserAutomationConfig } from "../browser-evidence";
+import type { ProviderSkillBridge } from "./skill-bridge";
 
 export interface ProviderSkillInvocation {
   name: string;
@@ -34,6 +35,8 @@ export interface ProviderRunContext {
   skillInvocation: ProviderSkillInvocation | null;
   /** 用户为该 provider 选定的模型覆盖（"auto" = 跟随 CLI 配置，不覆盖）。 */
   providerModel: string;
+  /** Main-only bridge for an approved Agent package in the app-private SkillStore. */
+  skillBridge?: ProviderSkillBridge | null;
   /** CC Tools 托管的写作证据截图能力。 */
   browserAutomation: BrowserAutomationConfig;
   /** 粘贴图片等附件（已 materialize 到临时文件）：provider 转 image content block 传 SDK。 */

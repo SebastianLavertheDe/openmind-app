@@ -63,8 +63,10 @@ export class SessionStore {
     (runId: string) => this.getRun(runId)
   );
 
-  constructor(readonly projectRoot: string) {
-    this.root = path.join(projectRoot, ".cctools", "ai");
+  constructor(readonly projectRoot: string, stateRoot?: string) {
+    // stateRoot is the parent of `.cctools` under userData. The optional
+    // argument preserves the legacy workspace layout for isolated callers.
+    this.root = path.join(stateRoot ?? projectRoot, ".cctools", "ai");
     this.projectId = crypto.createHash("sha256").update(path.resolve(projectRoot)).digest("hex").slice(0, 16);
   }
 

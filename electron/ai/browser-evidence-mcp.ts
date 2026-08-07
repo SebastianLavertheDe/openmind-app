@@ -5,6 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { buildAiWorkerEnvironment } from "./worker-environment";
 import {
   CAPTURE_SCOPES,
   buildControlledCaptureCode,
@@ -36,7 +37,12 @@ const upstreamTransport = new StdioClientTransport({
     "--codegen", "none"
   ],
   cwd: workspace,
-  env: stringEnvironment({ ...process.env, ELECTRON_RUN_AS_NODE: "1" }),
+  env: buildAiWorkerEnvironment(process.env, {
+    ELECTRON_RUN_AS_NODE: "1",
+    ...(process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN
+      ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN }
+      : {})
+  }),
   stderr: "inherit"
 });
 const upstream = new Client({ name: "cctools-browser-evidence-bridge", version: "1.0.0" });
@@ -269,10 +275,6 @@ function requiredArgument(values: Map<string, string>, name: string): string {
 function assertInsideWorkspace(root: string, candidate: string): void {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("证据文件路径超出允许的项目目录。");
-}
-
-function stringEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
-  return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
 
 async function main(): Promise<void> {

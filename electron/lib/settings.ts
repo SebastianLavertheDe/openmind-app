@@ -3,8 +3,12 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { EnvironmentDiagnostic, UserPreferences } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, type EnvironmentDiagnostic, type MymindRootPreview, type UserPreferences } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
+import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
+import { computeRootId, MymindPathResolver } from "../paths/mymind-path-resolver";
+import { MymindLocationService, type MymindRootHealth } from "../paths/mymind-location-service";
+import { readLegacyStateMigrationReport } from "../paths/legacy-state-migration";
 
 const electronApp = app;
 
@@ -13,41 +17,131 @@ const APP_ROOT = path.resolve(__dirname, "..", "..");
 type WslRepoPath = { distro: string; linuxPath: string };
 type RawSettings = Record<string, unknown>;
 
-// 进程内缓存的 repoRoot，按指纹（settings.json mtime + CCTOOLS_REPO_ROOT + cwd）失效，
+/**
+ * Settings schema version.
+ *
+ * v1: legacy `repoRoot` (a cctools checkout containing both `.claude/skills`
+ *     and `mymind`).
+ * v2: ADR-001 — split into `mymindRoot` (the actual mymind dir) and an
+ *     optional `workspaceRoot`. `repoRoot` is kept only as a one-shot
+ *     migration input; new code MUST NOT read it.
+ */
+export const SETTINGS_SCHEMA_VERSION = 2;
+
+/**
+ * Cached AppPaths (singleton from AppPathsService). Computed once and reused
+ * so settings.json resolution matches the rest of the app. Resolved lazily so
+ * unit tests that set CCTOOLS_USER_DATA_DIR before importing this module
+ * still get the right path.
+ */
+let cachedAppPaths: AppPaths | null = null;
+function appPaths(): AppPaths {
+  if (!cachedAppPaths) cachedAppPaths = buildAppPaths();
+  return cachedAppPaths;
+}
+
+// 进程内缓存的 root，按指纹（settings.json mtime + root env + cwd）失效，
 // 避免每个 IPC、甚至每个文件都重新读 settings.json + 多次 existsSync。
 let cachedRepoRoot: string | null = null;
+let cachedMymindRoot: string | null = null;
 let cachedFingerprint: string | null = null;
 
 function repoCacheFingerprint(): string {
   let mtime = 0;
   try { mtime = fs.statSync(settingsFile()).mtimeMs; } catch { /* settings.json 尚不存在 */ }
-  return `${process.env.CCTOOLS_REPO_ROOT || ""}\0${process.cwd()}\0${mtime}`;
+  return `${process.env.CCTOOLS_REPO_ROOT || ""}\0${process.env.CCTOOLS_MYMIND_ROOT || ""}\0${process.cwd()}\0${mtime}`;
 }
 
 function settingsFile(): string {
-  const userData = electronApp?.getPath ? electronApp.getPath("userData") : process.env.CCTOOLS_USER_DATA_DIR || path.join(os.tmpdir(), "cctools-desktop");
+  // Delegate to AppPathsService (ADR-001): settings.json lives under
+  // userData/settings. The old userData/settings.json location is read once
+  // by loadSettings() for rollback compatibility, but is never written.
+  return appPaths().settingsFile;
+}
+
+function legacySettingsFile(): string {
+  const userData = electronApp?.getPath
+    ? electronApp.getPath("userData")
+    : process.env.CCTOOLS_USER_DATA_DIR || path.join(os.tmpdir(), "cctools-desktop");
   return path.join(userData, "settings.json");
 }
 
 function loadSettings(): RawSettings {
-  try {
-    return JSON.parse(fs.readFileSync(settingsFile(), "utf8")) as RawSettings;
-  } catch {
-    return {};
+  for (const file of [settingsFile(), legacySettingsFile()]) {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8")) as RawSettings;
+    } catch {
+      // Try the compatibility location before returning empty settings.
+    }
   }
+  return {};
 }
 
+/**
+ * Atomic settings write: temp file + rename. Guards against half-written
+ * settings on crash (ADR-001 §1.3 / data-migration.md §2).
+ */
 function saveSettings(next: RawSettings): RawSettings {
-  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-  fs.writeFileSync(settingsFile(), JSON.stringify(next, null, 2), "utf8");
+  const file = settingsFile();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+  fs.renameSync(tmp, file);
   return next;
 }
 
+/**
+ * Whether a directory is a valid mymind root per ADR-001/002.
+ *
+ * A valid mymind root is a readable, writable directory. It does NOT require
+ * `.claude/skills` (that was the legacy repo-coupling this refactor removes).
+ * Existing content-contract subdirs (article/, creative/, ...) may be absent
+ * — they are create-if-needed (ADR-002), not bind prerequisites.
+ */
+function isValidMymindRoot(candidate: unknown): boolean {
+  if (!candidate || typeof candidate !== "string") return false;
+  try {
+    const resolved = path.resolve(String(candidate));
+    const st = fs.statSync(resolved);
+    if (!st.isDirectory()) return false;
+    fs.accessSync(resolved, fs.constants.R_OK | fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function canonicalDirectory(candidate: unknown): string | null {
+  if (!isValidMymindRoot(candidate)) return null;
+  try { return fs.realpathSync(path.resolve(String(candidate))); }
+  catch { return null; }
+}
+
+function assertRootDoesNotConflict(root: string, workspaceRoot?: string): void {
+  const conflicts = detectPathConflicts(appPaths(), root, workspaceRoot);
+  if (conflicts.length) {
+    throw new Error("mymind 或工作区不能位于应用私有数据目录内。");
+  }
+}
+
+/**
+ * Legacy compatibility shim (ADR-001 §16.7). Accepts BOTH:
+ *   - a cctools repo containing `.claude/skills` + `mymind` (legacy shape),
+ *   - a bare `mymind` directory (the new ADR-001 shape).
+ *
+ * Kept so existing callers and tests keep working while product services are
+ * migrated to {@link resolveMymindRoot} / `isValidMymindRoot`. New code MUST
+ * NOT call this; it conflates repo and content (ADR-001 §1.1).
+ */
 function looksLikeRepo(candidate: unknown): boolean {
+  if (!candidate || typeof candidate !== "string") return false;
+  // New shape: a bare mymind directory.
+  if (isValidMymindRoot(candidate) && fs.existsSync(path.join(candidate, "article"))) {
+    return true;
+  }
+  // Legacy shape: .claude/skills + mymind.
   return Boolean(
-    candidate &&
-      typeof candidate === "string" &&
-      fs.existsSync(path.join(candidate, ".claude", "skills")) &&
+    fs.existsSync(path.join(candidate, ".claude", "skills")) &&
       fs.existsSync(path.join(candidate, "mymind"))
   );
 }
@@ -66,67 +160,367 @@ function parseWslRepoPath(repoRoot: unknown): WslRepoPath | null {
   };
 }
 
-function setRepoRoot(candidate: string): string {
-  const repoRoot = normalizeRepoRoot(candidate);
-  if (!looksLikeRepo(repoRoot)) {
-    throw new Error(messages.errors.repo.invalidDirectory);
+/**
+ * Resolve the actual `mymind` directory from the v2 `mymindRoot` setting,
+ * falling back through legacy `repoRoot`/`CCTOOLS_REPO_ROOT` for migration.
+ *
+ * Resolution order (ADR-001 §16.1):
+ *   1. explicit v2 `mymindRoot` setting
+ *   2. `CCTOOLS_MYMIND_ROOT` env
+ *   3. legacy `repoRoot` setting + `/mymind` (migration)
+ *   4. `CCTOOLS_REPO_ROOT` env + `/mymind` (migration)
+ *   5. heuristic: `APP_ROOT/../mymind` (dev checkout)
+ *
+ * Returns the empty string if nothing resolves to a real directory so callers
+ * can surface a "select mymind root" prompt rather than crash.
+ */
+function resolveMymindRoot(): string {
+  const fingerprint = repoCacheFingerprint();
+  if (cachedMymindRoot !== null && cachedFingerprint === fingerprint) return cachedMymindRoot;
+  const settings = loadSettings();
+  const candidates: unknown[] = [
+    settings.mymindRoot,
+    process.env.CCTOOLS_MYMIND_ROOT,
+    legacyMymindFromRepo(settings.repoRoot),
+    legacyMymindFromRepo(process.env.CCTOOLS_REPO_ROOT),
+    path.resolve(APP_ROOT, "..", "mymind")
+  ];
+  for (const candidate of candidates) {
+    const canonical = canonicalDirectory(candidate);
+    if (canonical) {
+      cachedMymindRoot = canonical;
+      cachedFingerprint = fingerprint;
+      return cachedMymindRoot;
+    }
   }
-  saveSettings({ ...loadSettings(), repoRoot });
-  return repoRoot;
+  cachedMymindRoot = "";
+  cachedFingerprint = fingerprint;
+  return cachedMymindRoot;
 }
 
+/** If `repoRoot` is a legacy cctools checkout, return its `mymind` subdir. */
+function legacyMymindFromRepo(repoRoot: unknown): string | null {
+  if (!repoRoot || typeof repoRoot !== "string") return null;
+  const mymind = path.join(path.resolve(repoRoot), "mymind");
+  return isValidMymindRoot(mymind) ? mymind : null;
+}
+
+/**
+ * Set the mymind root (v2). Persists `mymindRoot` and clears the legacy
+ * `repoRoot` field so future reads are unambiguous. Accepts either a bare
+ * mymind directory or a legacy repo (in which case it stores `<repo>/mymind`).
+ */
+function setMymindRoot(candidate: string): string {
+  const normalised = normalizeRepoRoot(candidate);
+  const canonical = resolveMymindCandidate(normalised);
+  if (!canonical) {
+    throw new Error(messages.errors.repo.invalidDirectory);
+  }
+  assertRootDoesNotConflict(canonical, resolveWorkspaceRoot());
+  const current = loadSettings();
+  const previous = typeof current.mymindRoot === "string" ? canonicalDirectory(current.mymindRoot) : null;
+  const generation = Number.isInteger(current.mymindRootGeneration) && Number(current.mymindRootGeneration) > 0
+    ? Number(current.mymindRootGeneration) + (previous === canonical ? 0 : 1)
+    : 1;
+  saveSettings({ ...current, mymindRoot: canonical, mymindRootGeneration: generation, repoRoot: "" });
+  invalidateRootCache();
+  return canonical;
+}
+
+/** Resolve both the v2 bare root and the one-shot legacy repository shape. */
+function resolveMymindCandidate(candidate: unknown): string | null {
+  const normalised = normalizeRepoRoot(candidate);
+  const resolvedAsMymind =
+    isValidMymindRoot(normalised)
+      && fs.existsSync(path.join(normalised, ".claude", "skills"))
+      && isValidMymindRoot(path.join(normalised, "mymind"))
+      ? path.join(normalised, "mymind")
+      : normalised;
+  return canonicalDirectory(resolvedAsMymind);
+}
+
+/** Optional ADR-001 workspace root (AI/code workspace), independent of mymind. */
+function resolveWorkspaceRoot(): string {
+  const settings = loadSettings();
+  const candidates: unknown[] = [
+    settings.workspaceRoot,
+    process.env.CCTOOLS_WORKSPACE_ROOT,
+    settings.repoRoot, // legacy: workspace was the repo
+    process.env.CCTOOLS_REPO_ROOT
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "string" && fs.existsSync(path.resolve(candidate))) {
+      return path.resolve(candidate);
+    }
+  }
+  return "";
+}
+
+function setWorkspaceRoot(candidate: string): string {
+  const normalised = normalizeRepoRoot(candidate);
+  const canonical = canonicalDirectory(normalised) || (fs.existsSync(normalised) ? fs.realpathSync(normalised) : null);
+  if (!canonical) {
+    throw new Error(messages.errors.repo.invalidDirectory);
+  }
+  assertRootDoesNotConflict(resolveMymindRoot() || path.join(os.tmpdir(), "cctools-no-mymind"), canonical);
+  const current = loadSettings();
+  saveSettings({ ...current, workspaceRoot: canonical });
+  invalidateRootCache();
+  return canonical;
+}
+
+function invalidateRootCache(): void {
+  cachedRepoRoot = null;
+  cachedMymindRoot = null;
+  cachedFingerprint = null;
+}
+
+function getMymindRootHealth(): MymindRootHealth {
+  return new MymindLocationService({ paths: appPaths() }).inspect(resolveMymindRoot());
+}
+
+/**
+ * Read-only root binding dry-run. It intentionally shares the same inspection
+ * and conflict rules as bind/set, but does not write settings or content.
+ */
+function previewMymindRoot(candidate: string, activeRunCount = 0): MymindRootPreview {
+  const normalized = normalizeRepoRoot(candidate);
+  const canonicalRoot = resolveMymindCandidate(normalized);
+  const inspected = new MymindLocationService({ paths: appPaths(), activeRunCount: () => activeRunCount })
+    .inspect(canonicalRoot || normalized);
+  const blockingReasons = [...inspected.warnings];
+  if (!canonicalRoot) blockingReasons.unshift("候选路径不存在、不可访问或不是目录。");
+  if (!inspected.readable && !blockingReasons.includes("mymind 根目录不可读。")) blockingReasons.push("mymind 根目录不可读。");
+  if (!inspected.writable && !blockingReasons.includes("mymind 根目录不可写。")) blockingReasons.push("mymind 根目录不可写。");
+  if (activeRunCount > 0) blockingReasons.push("有运行中的任务，暂时不能切换 mymind 根目录。");
+  return {
+    candidate: normalized,
+    canonicalRoot,
+    health: inspected,
+    canBind: Boolean(canonicalRoot && inspected.accessible && inspected.readable && inspected.writable && blockingReasons.length === 0),
+    blockingReasons: [...new Set(blockingReasons)]
+  };
+}
+
+function getMymindRootSnapshot(): { rootPath: string; rootId: string; rootGeneration: number } | null {
+  const root = resolveMymindRoot();
+  if (!root) return null;
+  return {
+    rootPath: root,
+    rootId: computeRootId(root),
+    rootGeneration: Number(loadSettings().mymindRootGeneration) || 1
+  };
+}
+
+/**
+ * Read-only migration health for Diagnostics. The marker is app-private and
+ * the returned shape intentionally contains no source/target paths.
+ */
+function getLegacyStateMigrationStatus(): {
+  state: "not-needed" | "pending" | "skipped" | "committed" | "invalid";
+  legacyStatePresent: boolean;
+  markerPresent: boolean;
+  copiedFileCount: number;
+  sourcePreserved: boolean;
+} {
+  const workspaceRoot = resolveWorkspaceRoot();
+  const mymindRoot = resolveMymindRoot();
+  if (!workspaceRoot || !mymindRoot) {
+    return { state: "not-needed", legacyStatePresent: false, markerPresent: false, copiedFileCount: 0, sourcePreserved: true };
+  }
+  const legacyStateDirectory = path.join(workspaceRoot, ".cctools");
+  const targetStateRoot = path.join(appPaths().state, computeRootId(mymindRoot));
+  const marker = path.join(targetStateRoot, "legacy-state-migration.json");
+  const legacyStatePresent = (() => {
+    try { return fs.statSync(legacyStateDirectory).isDirectory(); }
+    catch { return false; }
+  })();
+  const markerPresent = fs.existsSync(marker);
+  const report = readLegacyStateMigrationReport(marker);
+  if (report) {
+    return {
+      state: report.status,
+      legacyStatePresent,
+      markerPresent: true,
+      copiedFileCount: report.copiedFiles.length,
+      sourcePreserved: report.preservedSource
+    };
+  }
+  return {
+    state: markerPresent ? "invalid" : legacyStatePresent ? "pending" : "not-needed",
+    legacyStatePresent,
+    markerPresent,
+    copiedFileCount: 0,
+    sourcePreserved: true
+  };
+}
+
+/** Resolve a private state file, with a read-only legacy fallback. */
+function appPrivateStatePath(name: string, forWrite = false): string {
+  const root = resolveMymindRoot();
+  const raw = loadSettings();
+  const configuredRoot = typeof raw.mymindRoot === "string" ? canonicalDirectory(raw.mymindRoot) : null;
+  const hasV2Binding = Boolean(root && configuredRoot && configuredRoot === root);
+  const legacyRoot = resolveWorkspaceRoot() || findRepoRoot();
+  const legacy = path.join(legacyRoot, ".cctools", name);
+  // Legacy state is a read-only migration input. Before a valid mymind
+  // binding exists, use an app-private workspace bucket for new writes rather
+  // than recreating the old repo-coupled `<repo>/.cctools` state surface.
+  const stateScope = hasV2Binding
+    ? computeRootId(root!)
+    : computeRootId(resolveWorkspaceRoot() || "workspace");
+  const current = path.join(appPaths().state, stateScope, ".cctools", name);
+  if (!forWrite && !fs.existsSync(current) && fs.existsSync(legacy)) return legacy;
+  return current;
+}
+
+/**
+ * Legacy: set the repo root. Kept as a migration shim (ADR-001 §16.7) —
+ * derives `mymindRoot` from `<candidate>/mymind` and stores v2 settings.
+ */
+function setRepoRoot(candidate: string): string {
+  const normalised = normalizeRepoRoot(candidate);
+  // If given a bare mymind dir, treat it as the mymind root directly.
+  if (isValidMymindRoot(normalised) && !looksLikeLegacyRepo(normalised)) {
+    return setMymindRoot(normalised);
+  }
+  if (!looksLikeRepo(normalised)) {
+    throw new Error(messages.errors.repo.invalidDirectory);
+  }
+  // Legacy repo: store mymindRoot=<repo>/mymind, remember repoRoot for workspace.
+  const mymind = path.join(normalised, "mymind");
+  const current = loadSettings();
+  saveSettings({ ...current, mymindRoot: mymind, repoRoot: normalised });
+  invalidateRootCache();
+  return normalised;
+}
+
+function looksLikeLegacyRepo(candidate: string): boolean {
+  return fs.existsSync(path.join(candidate, ".claude", "skills"))
+    && isValidMymindRoot(path.join(candidate, "mymind"));
+}
+
+/**
+ * Auto-detect a mymind root. Per ADR-001 §16.1 the hard-coded WSL/Windows
+ * dev-machine paths are REMOVED — only env-derived and checkout-relative
+ * candidates are considered.
+ */
+function detectMymindRoot(): string {
+  const candidates: unknown[] = [
+    process.env.CCTOOLS_MYMIND_ROOT,
+    legacyMymindFromRepo(process.env.CCTOOLS_REPO_ROOT),
+    path.resolve(APP_ROOT, "..", "mymind")
+  ];
+  const found = candidates.find(isValidMymindRoot);
+  if (!found) throw new Error(messages.errors.repo.notAutoDetected);
+  return setMymindRoot(String(found));
+}
+
+/**
+ * Legacy auto-detect. Removed hard-coded dev paths (ADR-001 §16.1); env and
+ * checkout-relative only. Returns the legacy repo root if a checkout is
+ * detected, else throws.
+ */
 function detectRepoRoot(): string {
   const candidates = [
     process.env.CCTOOLS_REPO_ROOT,
-    path.resolve(APP_ROOT, ".."),
-    process.cwd(),
-    "\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\cctools",
-    "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools",
-    "D:\\work\\cctools"
+    path.resolve(APP_ROOT, "..")
   ];
   const repoRoot = candidates.map(normalizeRepoRoot).find(looksLikeRepo);
   if (!repoRoot) throw new Error(messages.errors.repo.notAutoDetected);
-  return setRepoRoot(repoRoot);
+  // Persist as v2 mymindRoot for future calls, but return the repo path
+  // for legacy callers.
+  const current = loadSettings();
+  saveSettings({ ...current, mymindRoot: path.join(repoRoot, "mymind"), repoRoot });
+  invalidateRootCache();
+  return repoRoot;
 }
 
+/**
+ * Legacy: return a directory `R` such that `path.join(R, "mymind", ...)` lands
+ * inside the current mymind root. For a legacy cctools checkout this is the
+ * repo dir; for a bare mymind selection (ADR-001) this is the mymind dir's
+ * parent. Migrated callers should use {@link resolveMymindRoot} instead and
+ * join paths directly against the mymind root.
+ */
 function findRepoRoot(): string {
   const fingerprint = repoCacheFingerprint();
   if (cachedRepoRoot && cachedFingerprint === fingerprint) return cachedRepoRoot;
   const settings = loadSettings();
-  const candidates = [
+  // 1. ADR-001 explicit mymindRoot selection takes precedence — the user
+  //    chose this dir, so honour it before any dev-checkout heuristic.
+  //    Its parent is returned so legacy `path.join(findRepoRoot(), "mymind", x)`
+  //    resolves correctly.
+  const mymind = resolveMymindRoot();
+  if (mymind) {
+    cachedRepoRoot = normalizeRepoRoot(path.dirname(mymind));
+    cachedFingerprint = fingerprint;
+    return cachedRepoRoot;
+  }
+  // 2. Legacy repo setting / env (contains .claude/skills + mymind).
+  const legacyCandidates = [
     settings.repoRoot,
     process.env.CCTOOLS_REPO_ROOT,
-    path.resolve(APP_ROOT, ".."),
-    process.cwd(),
-    "\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\cctools",
-    "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools",
-    "D:\\work\\cctools"
+    path.resolve(APP_ROOT, "..")
   ];
-  for (const candidate of candidates) {
-    if (looksLikeRepo(candidate)) {
+  for (const candidate of legacyCandidates) {
+    if (candidate && looksLikeRepo(candidate)) {
       cachedRepoRoot = normalizeRepoRoot(candidate);
       cachedFingerprint = fingerprint;
       return cachedRepoRoot;
     }
   }
+  // 3. Last resort (will likely fail downstream): preserve old behaviour.
   cachedRepoRoot = normalizeRepoRoot(settings.repoRoot || path.resolve(APP_ROOT, ".."));
   cachedFingerprint = fingerprint;
   return cachedRepoRoot;
 }
 
 function ensureInsideRepo(relativeOrAbsolute: string): string {
-  const repoRoot = findRepoRoot();
-  const resolved = path.resolve(repoRoot, relativeOrAbsolute);
-  const relative = path.relative(repoRoot, resolved);
+  const raw = String(relativeOrAbsolute || "");
+  const logical = raw.replaceAll("\\", "/");
+  const mymind = resolveMymindRoot();
+  const isMymindPath = logical === "mymind" || logical.startsWith("mymind/");
+  if (isMymindPath && mymind) return resolveMymindPath(logical);
+  const base = resolveWorkspaceRoot() || findRepoRoot();
+  const candidate = raw;
+  const resolved = path.resolve(base, candidate);
+  const relative = path.relative(base, resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(messages.errors.repo.pathOutsideProject);
   }
   return resolved;
 }
 
+/** Resolve a logical mymind path without exposing the physical root to callers. */
+function resolveMymindPath(logicalPath: string, mode: "read" | "write" = "read"): string {
+  const mymind = resolveMymindRoot();
+  if (!mymind) throw new Error(messages.errors.repo.selectValidFirst);
+  const snapshot = {
+    rootPath: mymind,
+    rootId: computeRootId(mymind),
+    rootGeneration: 1
+  } as const;
+  return new MymindPathResolver(snapshot).resolve(logicalPath, mode).physicalPath;
+}
+
+/** Convert a physical path inside the active mymind root to a logical path. */
+function relativeToMymind(absolutePath: string): string {
+  const mymind = resolveMymindRoot();
+  if (!mymind) throw new Error(messages.errors.repo.selectValidFirst);
+  const resolved = path.resolve(absolutePath);
+  const relative = path.relative(mymind, resolved);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(messages.errors.repo.pathOutsideProject);
+  }
+  return `mymind/${relative.split(path.sep).join("/")}`;
+}
+
 export const DEFAULT_PREFERENCES: UserPreferences = {
-  schemaVersion: 1,
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
   repoRoot: "",
+  mymindRoot: "",
+  workspaceRoot: "",
   themeMode: "light",
   accentColor: "#2563eb",
   density: "default",
@@ -144,7 +538,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   notesDir: "mymind",
   browserAutomationEnabled: false,
   browserReuseExistingTabs: true,
-  browserEvidenceDir: ".cctools/browser-evidence",
+  browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
   defaultPlatform: messages.settings.defaultPlatform,
@@ -169,7 +563,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 function getPreferences(): UserPreferences {
   const raw = loadSettings();
   const migrated = normalizePreferences(raw, false);
-  if (JSON.stringify(migrated) !== JSON.stringify({ ...raw, schemaVersion: 1, repoRoot: raw.repoRoot || "" })) {
+  const persisted = { ...raw, ...migrated };
+  if (JSON.stringify(persisted) !== JSON.stringify(raw)) {
     saveSettings({ ...raw, ...migrated });
   }
   return migrated;
@@ -178,7 +573,15 @@ function getPreferences(): UserPreferences {
 function updatePreferences(patch: Partial<UserPreferences>): UserPreferences {
   const current = loadSettings();
   const preferences = getPreferences();
-  const next = normalizePreferences({ ...preferences, ...patch, repoRoot: patch?.repoRoot || current.repoRoot || preferences.repoRoot || "" }, true);
+  // Preserve root settings across a partial update: a preference patch must
+  // not wipe mymindRoot/workspaceRoot/repoRoot. Explicit root changes go
+  // through setMymindRoot/setWorkspaceRoot/setRepoRoot, not updatePreferences.
+  const preserveRoots = {
+    repoRoot: patch?.repoRoot ?? current.repoRoot ?? preferences.repoRoot ?? "",
+    mymindRoot: patch?.mymindRoot ?? current.mymindRoot ?? preferences.mymindRoot ?? "",
+    workspaceRoot: patch?.workspaceRoot ?? current.workspaceRoot ?? preferences.workspaceRoot ?? ""
+  };
+  const next = normalizePreferences({ ...preferences, ...patch, ...preserveRoots }, true);
   saveSettings({ ...current, ...next });
   return getPreferences();
 }
@@ -186,35 +589,66 @@ function updatePreferences(patch: Partial<UserPreferences>): UserPreferences {
 function resetPreferences(section?: string): UserPreferences {
   const current = loadSettings();
   if (!section) {
-    saveSettings({ repoRoot: current.repoRoot || "" });
+    // Full reset preserves only the root bindings (ADR-001: never lose the
+    // user's mymind selection on a settings reset).
+    saveSettings({
+      repoRoot: current.repoRoot || "",
+      mymindRoot: current.mymindRoot || "",
+      workspaceRoot: current.workspaceRoot || ""
+    });
     return getPreferences();
   }
   const defaults: RawSettings = {};
   for (const key of Object.keys(DEFAULT_PREFERENCES)) {
     if (startsWithPrefix(key, section)) defaults[key] = DEFAULT_PREFERENCES[key as keyof UserPreferences];
   }
-  saveSettings({ ...current, ...defaults, repoRoot: current.repoRoot || "" });
+  saveSettings({
+    ...current,
+    ...defaults,
+    repoRoot: current.repoRoot || "",
+    mymindRoot: current.mymindRoot || "",
+    workspaceRoot: current.workspaceRoot || ""
+  });
   return getPreferences();
 }
 
 function importPreferences(filePath: string): { imported: true; preferences: UserPreferences } {
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as RawSettings;
   const current = loadSettings();
+  // Imported mymindRoot must be a real directory, else keep the current one.
+  const importedMymind = typeof raw.mymindRoot === "string" && (!raw.mymindRoot || isValidMymindRoot(raw.mymindRoot))
+    ? raw.mymindRoot
+    : current.mymindRoot || "";
+  const importedWorkspace = typeof raw.workspaceRoot === "string" && (!raw.workspaceRoot || fs.existsSync(raw.workspaceRoot))
+    ? raw.workspaceRoot
+    : current.workspaceRoot || "";
   const next = normalizePreferences({
     ...raw,
+    mymindRoot: importedMymind,
+    workspaceRoot: importedWorkspace,
     repoRoot: typeof raw.repoRoot === "string" && (!raw.repoRoot || looksLikeRepo(raw.repoRoot))
       ? raw.repoRoot
       : current.repoRoot || ""
   }, true);
   saveSettings({ ...current, ...next });
+  invalidateRootCache();
   return { imported: true, preferences: getPreferences() };
 }
 
 function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
   const source = raw && typeof raw === "object" ? raw as RawSettings : {};
+  const legacyRepo = typeof source.repoRoot === "string" ? source.repoRoot : "";
+  const migratedMymind = typeof source.mymindRoot === "string" && source.mymindRoot
+    ? source.mymindRoot
+    : legacyMymindFromRepo(legacyRepo) || "";
+  const migratedWorkspace = typeof source.workspaceRoot === "string" && source.workspaceRoot
+    ? source.workspaceRoot
+    : (legacyRepo && fs.existsSync(legacyRepo) ? legacyRepo : "");
   return {
-    schemaVersion: 1,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
     repoRoot: stringPref(source.repoRoot, DEFAULT_PREFERENCES.repoRoot, strict, "repoRoot", 4096),
+    mymindRoot: stringPref(migratedMymind, DEFAULT_PREFERENCES.mymindRoot, strict, "mymindRoot", 4096),
+    workspaceRoot: stringPref(migratedWorkspace, DEFAULT_PREFERENCES.workspaceRoot, strict, "workspaceRoot", 4096),
     themeMode: enumPref(source.themeMode, ["dark", "light"], DEFAULT_PREFERENCES.themeMode, strict, "themeMode"),
     accentColor: colorPref(source.accentColor, DEFAULT_PREFERENCES.accentColor, strict),
     density: enumPref(source.density, ["compact", "default", "comfortable"], DEFAULT_PREFERENCES.density, strict, "density"),
@@ -232,7 +666,14 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
     browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),
-    browserEvidenceDir: safeRelativePathPref(source.browserEvidenceDir, DEFAULT_PREFERENCES.browserEvidenceDir, strict, "browserEvidenceDir"),
+    // Migrate the old implicit `.cctools` default to an explicit user-owned
+    // workspace output. A deliberately customized path remains untouched.
+    browserEvidenceDir: safeRelativePathPref(
+      source.browserEvidenceDir === ".cctools/browser-evidence" ? DEFAULT_BROWSER_EVIDENCE_DIR : source.browserEvidenceDir,
+      DEFAULT_PREFERENCES.browserEvidenceDir,
+      strict,
+      "browserEvidenceDir"
+    ),
     destructiveOpsRequireApproval: boolPref(source.destructiveOpsRequireApproval, DEFAULT_PREFERENCES.destructiveOpsRequireApproval, strict, "destructiveOpsRequireApproval"),
     riskScanEnabled: boolPref(source.riskScanEnabled, DEFAULT_PREFERENCES.riskScanEnabled, strict, "riskScanEnabled"),
     defaultPlatform: stringPref(source.defaultPlatform, DEFAULT_PREFERENCES.defaultPlatform, strict, "defaultPlatform", 80),
@@ -320,8 +761,13 @@ function getEnvironmentDiagnostics(): EnvironmentDiagnostic[] {
   const wsl = parseWslRepoPath(repoRoot);
   const skillsDir = path.join(repoRoot, ".claude", "skills");
   const skillCount = safeList(skillsDir).filter((entry) => fs.existsSync(path.join(skillsDir, entry, "SKILL.md"))).length;
+  // ADR-001: the primary content root is mymindRoot. Report its health; the
+  // legacy "repo" diagnostic is retained for back-compat.
+  const mymind = resolveMymindRoot();
+  const mymindOk = isValidMymindRoot(mymind);
   return [
     diagnostic("repo", messages.diagnostics.repo.label, looksLikeRepo(repoRoot), repoRoot, looksLikeRepo(repoRoot) ? null : messages.diagnostics.repo.missingDetail, repoRoot),
+    diagnostic("mymind", "mymind 内容根", mymindOk, mymind || "未选择", mymindOk ? null : "请在设置中选择一个 mymind 目录。", mymind || null),
     diagnostic("node", "Node.js", true, process.version, null, null),
     commandDiagnostic("python", "Python", [["python3", ["--version"]], ["python", ["--version"]]]),
     commandDiagnostic("uv", "uv", [["uv", ["--version"]]]),
@@ -372,12 +818,25 @@ export {
   loadSettings,
   saveSettings,
   looksLikeRepo,
+  isValidMymindRoot,
   normalizeRepoRoot,
   parseWslRepoPath,
   setRepoRoot,
+  setMymindRoot,
+  previewMymindRoot,
+  setWorkspaceRoot,
   detectRepoRoot,
+  detectMymindRoot,
   findRepoRoot,
+  resolveMymindRoot,
+  resolveWorkspaceRoot,
+  getMymindRootHealth,
+  getMymindRootSnapshot,
+  getLegacyStateMigrationStatus,
+  appPrivateStatePath,
   ensureInsideRepo,
+  resolveMymindPath,
+  relativeToMymind,
   getPreferences,
   updatePreferences,
   resetPreferences,

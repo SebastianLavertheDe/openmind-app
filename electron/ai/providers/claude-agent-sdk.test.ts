@@ -54,7 +54,7 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
       browserAutomation: {
         enabled: true,
         reuseExistingTabs: true,
-        evidenceDir: ".cctools/browser-evidence",
+        evidenceDir: "assets/browser-evidence",
         extensionToken: "extension-token"
       }
     }));
@@ -588,6 +588,43 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     await adapter.run(ctx);
     const opts = sdkMock.query.mock.calls[0][0] as { options: { model?: string } };
     expect(opts.options.model).toBe("claude-opus-4");
+  });
+
+  it("从 SkillStore 注入 Agent instructions，并禁用 project-local skill discovery", async () => {
+    const tmpDir = fs.mkdtempSync("/tmp/cctools-claude-bridge-");
+    fs.mkdirSync(`${tmpDir}/references`, { recursive: true });
+    fs.writeFileSync(`${tmpDir}/SKILL.md`, "# Installed Agent\n执行受控任务。\n");
+    fs.writeFileSync(`${tmpDir}/references/rules.md`, "只写入声明的 Artifact。\n");
+    try {
+      sdkMock.query.mockReturnValueOnce(makeQuery([]));
+      const ctx = makeRunContext({
+        prompt: "执行受控任务",
+        skillInvocation: { name: "installed-agent", argument: "执行受控任务", raw: "/installed-agent 执行受控任务", prompt: "执行受控任务" },
+        skillBridge: {
+          id: "installed-agent",
+          version: "1.0.0",
+          digest: "a".repeat(64),
+          packageRoot: tmpDir,
+          skillPath: `${tmpDir}/SKILL.md`,
+          referencePaths: ["references/rules.md"],
+          mymindRoot: `${tmpDir}/mymind`,
+          capabilities: {
+            mymind: { read: ["article/**"], write: ["creative/**"] },
+            network: { required: false, hosts: [] },
+            subprocess: { allowed: false },
+            browser: false
+          }
+        }
+      });
+      await new ClaudeAgentSdkAdapter().run(ctx);
+      const opts = sdkMock.query.mock.calls[0][0] as { options: { settingSources: string[]; skills: string[]; systemPrompt: { append?: string } } };
+      expect(opts.options.settingSources).toEqual(["user"]);
+      expect(opts.options.skills).toEqual([]);
+      expect(opts.options.systemPrompt.append).toContain("Installed Agent");
+      expect(opts.options.systemPrompt.append).toContain("references/rules.md");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("prewarm 后 run 复用 warm slot", async () => {

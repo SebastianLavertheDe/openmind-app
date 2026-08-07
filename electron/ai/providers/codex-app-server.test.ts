@@ -19,7 +19,7 @@ vi.mock(import("../process-utils"), () => ({
   toWslPath: vi.fn((v: string) => v)
 }));
 
-import { CodexAppServerAdapter, normalizeCodexNotification } from "./codex-app-server";
+import { CodexAppServerAdapter, buildCodexTurnInput, normalizeCodexNotification } from "./codex-app-server";
 
 interface FakeChild extends EventEmitter {
   stdout: PassThrough;
@@ -108,6 +108,43 @@ async function driveSuccessfulRun(ctx: ProviderRunContext): Promise<FakeChild> {
 }
 
 describe("CodexAppServerAdapter.run()", () => {
+  it("uses an approved SkillStore bridge path and structured context instead of skills/list", async () => {
+    const ctx = makeContext({
+      skillInvocation: { name: "installed-agent", argument: "执行任务", raw: "/installed-agent 执行任务", prompt: "执行任务" },
+      skillBridge: {
+        id: "installed-agent",
+        version: "1.0.0",
+        digest: "a".repeat(64),
+        packageRoot: "/user-data/skills/installed-agent",
+        skillPath: "/user-data/skills/installed-agent/SKILL.md",
+        referencePaths: ["references/rules.md"],
+        mymindRoot: "/workspace/mymind",
+        capabilities: {
+          mymind: { read: ["article/**"], write: ["creative/**"] },
+          network: { required: false, hosts: [] },
+          subprocess: { allowed: false },
+          browser: false
+        }
+      }
+    });
+    const input = buildCodexTurnInput(ctx, {
+      name: "installed-agent",
+      path: "/user-data/skills/installed-agent/SKILL.md",
+      enabled: true
+    });
+    expect(input).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "skill", path: "/user-data/skills/installed-agent/SKILL.md" }),
+      expect.objectContaining({ type: "text", text: expect.stringContaining("mymind_root: /workspace/mymind") })
+    ]));
+    const child = await driveSuccessfulRun(ctx);
+    const messages = child.writtenLines.map((line) => JSON.parse(line));
+    expect(messages.some((message) => message.method === "skills/list")).toBe(false);
+    const turn = messages.find((message) => message.method === "turn/start");
+    expect(turn.params.input).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "skill", path: "/user-data/skills/installed-agent/SKILL.md" })
+    ]));
+  });
+
   it("Plan 模式通过真实 collaborationMode 字段传给 turn/start", async () => {
     const ctx = makeContext({
       session: { ...makeContext().session, interactionMode: "plan" },
@@ -249,7 +286,7 @@ describe("CodexAppServerAdapter.run()", () => {
       browserAutomation: {
         enabled: true,
         reuseExistingTabs: true,
-        evidenceDir: ".cctools/browser-evidence",
+        evidenceDir: "assets/browser-evidence",
         extensionToken: "extension-token"
       }
     });

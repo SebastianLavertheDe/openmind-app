@@ -9,8 +9,8 @@ import { execInProject, execInProjectToFile } from "./process-utils";
 export class LegacyChangeManager {
   readonly runtimeRoot: string;
 
-  constructor(private projectRoot: string) {
-    this.runtimeRoot = path.join(projectRoot, ".cctools", "ai", ".runtime", "worktrees");
+  constructor(private projectRoot: string, stateRoot?: string) {
+    this.runtimeRoot = path.join(stateRoot ?? projectRoot, ".cctools", "ai", ".runtime", "worktrees");
   }
 
   async collect(run: AiRun): Promise<ChangeSet> {

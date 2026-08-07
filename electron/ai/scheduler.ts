@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import path from "node:path";
 import {
   ApprovalDecisionSchema,
   SessionPatchSchema,
@@ -11,7 +11,6 @@ import {
   type AiTurnListParams,
   type AiTurnPage,
   type ApprovalDecision,
-  type ApprovalRequest,
   type ChangeSet,
   type SessionPatch,
   type StartRunInput
@@ -25,29 +24,44 @@ import { ClaudeAgentSdkAdapter } from "./providers/claude-agent-sdk";
 import { CodexAppServerAdapter } from "./providers/codex-app-server";
 import { ChangeApplicationService } from "./change-application";
 import { ManualSkillController } from "./manual-skill-controller";
-import { normalizeContextReferences, normalizeCwd, resolveCwd } from "./scheduler-paths";
-import { materializeImages, cleanupImages, cleanupStaleImages, extractImageContexts } from "./scheduler-images";
-import { captureTurnContext, withRecoveredHistory, withTurnContext } from "./turn-context";
+import { normalizeContextReferences, normalizeCwd } from "./scheduler-paths";
+import { materializeImages, cleanupImages, cleanupStaleImages } from "./scheduler-images";
 import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
 import { slashCommandValidationError } from "../../shared/slash-commands";
 import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
-import type { ProviderAdapter, ProviderDefinition, ProviderRunContext } from "./providers/types";
-import type { SkillDefinition } from "../../shared/contracts";
-import { prewarmProviderSession, recoverInterruptedRuns, updateSessionStatus } from "./scheduler-lifecycle";
-import { composeNativeSkillProviderPrompt, composeNativeSkillTaskPrompt, composePrompt, titleFromPrompt } from "./scheduler-prompts";
-import { reassembleEvents } from "./event-chunking";
-import { browserEvidenceInstructions, type BrowserAutomationConfig } from "./browser-evidence";
-
-interface ActiveRun {
-  run: AiRun;
-  controller: AbortController;
-}
+import type { ProviderAdapter, ProviderDefinition } from "./providers/types";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, type SkillDefinition } from "../../shared/contracts";
+import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-lifecycle";
+import { titleFromPrompt } from "./scheduler-prompts";
+import { matchesSemverRange } from "../../shared/skill-manifest-schema";
+import { type BrowserAutomationConfig } from "./browser-evidence";
+import { AgentResumeRequestSchema, SkillRunRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type AgentResumeRequest, type BrokerRunEvent, type BrokerRunRecord, type SkillRunRequest, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
+import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
+import { buildAppPaths } from "../paths/app-paths-service";
+import { SkillPackageService } from "../skills/skill-package-service";
+import { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
+import type { SkillCredentialKindResolver, SkillCredentialResolver } from "../skills/installed-skill-execution-resolver";
+import { RuntimeManager } from "../runtime/runtime-manager";
+import { ExportLocationService } from "../execution/export-location-service";
+import { AutomationRepository } from "../automation/automation-repository";
+import { AutomationScheduler } from "../automation/automation-scheduler";
+import { AutomationLeader } from "../automation/automation-leader";
+import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
+import { ProviderProfileRepository } from "../security/provider-profile-repository";
+import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
+import { InternalAgentRuntime } from "./internal-agent";
+import { BrowserToolSession } from "./browser-tool";
+import { resolveAgentBrowserOutputDir } from "./agent-browser-output";
+import { AgentApprovalBroker } from "./agent-approval-broker";
+import type { AgentPlanFactory } from "../skills/installed-skill-execution-resolver";
+import { appendScheduledEvent, cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
 
 export class RunScheduler {
   private readonly store: SessionStore;
   private readonly registry: ProviderRegistry;
   private readonly legacyChanges: LegacyChangeManager;
   private readonly approvals: ApprovalBroker;
+  private readonly agentApprovals: AgentApprovalBroker;
   private readonly skillTools: SkillToolRegistry;
   private readonly manualSkills: ManualSkillController;
   private readonly changeApplications: ChangeApplicationService;
@@ -59,32 +73,154 @@ export class RunScheduler {
   private readonly maxConcurrentRuns = 3;
   private readonly resolveProviderModel: (kind: ProviderKind) => string;
   private readonly browserAutomation: BrowserAutomationConfig;
+  private readonly stateRoot?: string;
+  private readonly automation: AutomationScheduler | null;
 
   constructor(
     readonly projectRoot: string,
     private publish: (message: unknown) => void,
     resolveProviderModel?: (kind: ProviderKind) => string,
-    browserAutomation?: BrowserAutomationConfig
+    browserAutomation?: BrowserAutomationConfig,
+    stateRoot?: string,
+    mymindRoot?: string,
+    rootGeneration = 1,
+    credentialResolver?: SkillCredentialResolver,
+    credentialKindResolver?: SkillCredentialKindResolver
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
-    this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: ".cctools/browser-evidence", extensionToken: null };
-    this.store = new SessionStore(projectRoot);
+    this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR, extensionToken: null };
+    this.stateRoot = stateRoot;
+    this.store = new SessionStore(projectRoot, stateRoot);
     this.registry = new ProviderRegistry(projectRoot);
-    this.legacyChanges = new LegacyChangeManager(projectRoot);
-    this.skillTools = new SkillToolRegistry(projectRoot);
+    this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
+    this.agentApprovals = new AgentApprovalBroker(() => this.publishSnapshot());
+    const appPaths = mymindRoot ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR) : null;
+    const packageService = appPaths && mymindRoot ? new SkillPackageService(appPaths) : null;
+    const providerProfileRepository = appPaths && mymindRoot ? new ProviderProfileRepository(appPaths) : null;
+    const credentialFiles = appPaths && mymindRoot ? new ManagedCredentialFileAdapter(appPaths) : undefined;
+    const internalAgent = new InternalAgentRuntime();
+    const createAgentPlan: AgentPlanFactory | undefined = appPaths && mymindRoot
+      ? (input) => {
+        const secretRef = { value: "" };
+        const browserOutputDir = input.manifest.capabilities.browser
+          ? resolveAgentBrowserOutputDir(input.manifest.artifacts, input.externalBindings)
+          : undefined;
+        const browser = input.manifest.capabilities.browser && this.browserAutomation.enabled
+          ? new BrowserToolSession({
+            workspaceRoot: input.packageRoot,
+            outputDir: browserOutputDir!,
+            reuseExistingTabs: this.browserAutomation.reuseExistingTabs,
+            extensionToken: this.browserAutomation.extensionToken
+          })
+          : null;
+        const plan = internalAgent.createPlan({
+          manifest: input.manifest,
+          skillHome: input.packageRoot,
+          mymindRoot: input.mymindRoot,
+          provider: input.provider,
+          providerSecretRef: secretRef,
+          inputs: input.inputs,
+          checkpoint: input.checkpoint,
+          digest: input.digest,
+          rootGeneration: input.rootGeneration,
+          externalBindings: input.externalBindings,
+          approval: (request) => this.agentApprovals.request(input.runId, request),
+          handlers: {
+            runSkill: (skillId, skillInputs) => this.skillTools.run(skillId, skillInputs, this.projectRoot),
+            browser: async (browserInput) => {
+              if (!browser) throw new Error("Browser Automation 未启用或 Playwright MCP 尚未就绪。");
+              return browser.call(browserInput);
+            },
+            close: () => browser?.close()
+          }
+        });
+        const prepare = plan.prepareRuntime;
+        plan.prepareRuntime = async () => {
+          if (input.provider.credentialId) {
+            if (!input.resolveCredential) throw new Error("Agent Provider Credential 未连接 CredentialVault。 ");
+            secretRef.value = await input.resolveCredential(input.provider.credentialId, {
+              publisherId: input.manifest.publisher.id,
+              skillId: input.manifest.id,
+              version: input.manifest.version,
+              digest: input.digest
+            });
+            plan.knownSecrets = [secretRef.value];
+          }
+          await prepare?.();
+        };
+        return plan;
+      }
+      : undefined;
+    const installedResolver = appPaths && mymindRoot
+      ? new InstalledSkillExecutionResolver(
+        packageService!,
+        new RuntimeManager(appPaths),
+        mymindRoot,
+        rootGeneration,
+        credentialResolver,
+        (bindingId) => {
+          const binding = new ExportLocationService(
+            path.join(appPaths.settings, "export-bindings.json"),
+            () => [appPaths.userData, mymindRoot]
+          ).resolve(bindingId);
+          return { bindingId: binding.id, canonicalPath: binding.canonicalPath, revoked: binding.revoked };
+        },
+        (profileId) => providerProfileRepository?.get(profileId) || null,
+        createAgentPlan,
+        credentialKindResolver,
+        credentialFiles
+      )
+      : undefined;
+    this.skillTools = new SkillToolRegistry(projectRoot, stateRoot, appPaths && mymindRoot ? {
+      paths: appPaths,
+      mymindRoot,
+      rootGeneration,
+      maxConcurrentRuns: this.maxConcurrentRuns,
+      installedResolver,
+        onRunEvent: (event) => {
+          this.publish({ kind: "skill-run-event", event });
+          if (this.automation) void this.automation.handleRunEvent(event).catch(() => undefined);
+        },
+        onWorkflowEvent: (event) => {
+          if (this.automation) void this.automation.handleWorkflowRunEvent(event).catch(() => undefined);
+        },
+      ...(appPaths && installedResolver ? {
+        workflowRoot: path.join(appPaths.runs, "workflows"),
+        resolveWorkflowManifest: (skillId: string, version?: string) => installedResolver.workflowManifest(skillId, version)
+      } : {})
+    } : undefined);
     this.manualSkills = new ManualSkillController(this.skillTools, projectRoot, publish);
+    this.automation = appPaths && mymindRoot ? new AutomationScheduler({
+      repository: new AutomationRepository(appPaths),
+      leader: new AutomationLeader(appPaths.automation),
+      fileFingerprint: createAutomationFileFingerprint(mymindRoot),
+      rootGeneration,
+      submitSkill: (request) => this.skillTools.submitRun(request),
+      submitWorkflow: (request) => this.skillTools.startWorkflowRun(request),
+      readSkill: (runId) => this.skillTools.getRun(runId),
+      readWorkflow: (runId) => this.skillTools.getWorkflowRun(runId),
+      cancelSkill: (runId) => this.skillTools.cancelRun(runId),
+      cancelWorkflow: (runId) => this.skillTools.cancelWorkflowRun(runId),
+      resolveTargetVersion: (target) => {
+        if (target.versionPolicy === "*") return undefined;
+        const active = installedResolver?.active(target.id);
+        if (!active || !matchesSemverRange(active.version, target.versionPolicy)) throw new Error(`当前 active Skill 不满足 version policy：${target.id}@${target.versionPolicy}`);
+        return active.version;
+      }
+    }) : null;
+    this.automation?.start();
     this.changeApplications = new ChangeApplicationService(
       this.store,
       this.legacyChanges,
       {
-        append: (run, kind, payload) => this.append(run, kind, payload),
+        append: (run, kind, payload) => appendScheduledEvent(this.executionHost(), run, kind, payload),
         publishSnapshot: () => this.publishSnapshot()
       }
     );
-    this.approvals = new ApprovalBroker((request) => void this.onApprovalRequest(request));
+    this.approvals = new ApprovalBroker((request) => void handleApprovalRequest(this.executionHost(), request));
     this.store.initialize();
     recoverInterruptedRuns(this.store);
-    cleanupStaleImages(this.projectRoot);
+    cleanupStaleImages(this.projectRoot, this.stateRoot);
   }
 
   snapshot(): AiSnapshot {
@@ -93,7 +229,7 @@ export class RunScheduler {
       providers: this.registry.detect(),
       sessions: this.store.listSessions(),
       runs: this.store.listRuns(),
-      pendingApprovals: this.approvals.list()
+      pendingApprovals: [...this.approvals.list(), ...this.agentApprovals.list()]
     };
   }
 
@@ -114,6 +250,11 @@ export class RunScheduler {
   searchSessions(query: string): AiSession[] { return this.store.search(query); }
   listSkills(): SkillDefinition[] { return this.skillTools.listDefinitions(); }
 
+  /** Root switching must account for queued, provider and manual Skill work. */
+  activeTaskCount(): number {
+    return this.queue.length + this.active.size + this.skillTools.activeCount();
+  }
+
   /** 重新扫描 skill 目录并返回最新列表(用于新对话时刷新前端缓存)。 */
   refreshSkills(): SkillDefinition[] {
     this.skillTools.refresh();
@@ -133,6 +274,58 @@ export class RunScheduler {
   stopSkill(skillId: string): Promise<boolean> { return this.manualSkills.stopSkill(skillId); }
   stopSource(sourceId: string): Promise<boolean> { return this.manualSkills.stopSource(sourceId); }
 
+  startSkillRun(rawRequest: SkillRunRequest): BrokerRunRecord {
+    return this.skillTools.submitRun(SkillRunRequestSchema.parse(rawRequest));
+  }
+
+  listSkillRuns(): BrokerRunRecord[] { return this.skillTools.listRuns(); }
+  getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }
+  getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
+  listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.skillTools.listRunArtifacts(runId); }
+  retrySkillRun(runId: string): BrokerRunRecord { return this.skillTools.retryRun(runId); }
+  resumeAgentRun(rawRequest: AgentResumeRequest): BrokerRunRecord {
+    return this.skillTools.resumeAgentRun(AgentResumeRequestSchema.parse(rawRequest));
+  }
+  revokeCredential(credentialId: string): Promise<number> { return this.skillTools.revokeCredential(credentialId); }
+  restoreCredential(credentialId: string): number { return this.skillTools.restoreCredential(credentialId); }
+  rotateCredential(credentialId: string): Promise<number> { return this.skillTools.rotateCredential(credentialId); }
+  deleteRunHistory(runId: string): boolean { return this.skillTools.deleteRunHistory(runId); }
+  async cancelSkillRun(runId: string): Promise<boolean> {
+    // An Agent may be awaiting a renderer decision. Resolve that wait before
+    // aborting the Broker controller, otherwise the tool loop could linger on
+    // a Promise even though the Run was cancelled.
+    this.agentApprovals.declineForRun(runId);
+    const cancelled = await this.skillTools.cancelRun(runId);
+    this.publishSnapshot();
+    return cancelled;
+  }
+  approveSkillRun(runId: string): boolean { return this.skillTools.approveRun(runId); }
+
+  startWorkflowRun(rawRequest: WorkflowStartRequest): WorkflowRunRecord {
+    return this.skillTools.startWorkflowRun(WorkflowStartRequestSchema.parse(rawRequest));
+  }
+  listWorkflowRuns(): WorkflowRunRecord[] { return this.skillTools.listWorkflowRuns(); }
+  getWorkflowRun(runId: string): WorkflowRunRecord { return this.skillTools.getWorkflowRun(runId); }
+  retryWorkflowStep(runId: string, stepId: string): WorkflowRunRecord { return this.skillTools.retryWorkflowStep(runId, stepId); }
+  resumeWorkflowRun(rawRequest: WorkflowResumeRequest): WorkflowRunRecord { const request = WorkflowResumeRequestSchema.parse(rawRequest); return this.skillTools.resumeWorkflowRun(request.runId, request.inputs, request.rootGeneration, request.providerBindings); }
+  cancelWorkflowRun(runId: string): Promise<boolean> { return this.skillTools.cancelWorkflowRun(runId); }
+
+  listAutomationRules(): AutomationRule[] { return this.automation?.listRules() || []; }
+  saveAutomationRule(input: AutomationRuleInput): AutomationRule {
+    if (!this.automation) throw new Error("AutomationScheduler 未初始化。 ");
+    return this.automation.saveRule(input);
+  }
+  deleteAutomationRule(id: string): boolean {
+    if (!this.automation) throw new Error("AutomationScheduler 未初始化。 ");
+    return this.automation.removeRule(id);
+  }
+  runAutomationNow(id: string): Promise<AutomationRunRecord> {
+    if (!this.automation) throw new Error("AutomationScheduler 未初始化。 ");
+    return this.automation.runNow(id);
+  }
+  listAutomationRuns(ruleId?: string): AutomationRunRecord[] { return this.automation?.listRuns(ruleId) || []; }
+  listAutomationSchedules(): AutomationScheduleSnapshot[] { return this.automation?.listSchedules() || []; }
+
   updateSession(id: string, patch: SessionPatch): AiSession {
     const result = this.store.updateSession(id, SessionPatchSchema.parse(patch));
     this.publishSnapshot();
@@ -143,7 +336,7 @@ export class RunScheduler {
     const unfinished = this.store.listRuns(id).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status));
     if (unfinished) throw new Error("会话仍有运行中或排队任务，请先停止后再删除。");
     for (const adapter of Object.values(this.adapters)) adapter.disposeSession?.(id);
-    for (const run of this.store.listRuns(id)) cleanupImages(this.projectRoot, run.id);
+    for (const run of this.store.listRuns(id)) cleanupImages(this.projectRoot, run.id, this.stateRoot);
     const result = this.store.deleteSession(id);
     this.publishSnapshot();
     return result;
@@ -166,7 +359,7 @@ export class RunScheduler {
       throw new Error("Cannot roll back a session while a turn is active.");
     }
     const removed = await this.store.rollbackTurns(sessionId, numTurns);
-    for (const runId of removed) cleanupImages(this.projectRoot, runId);
+    for (const runId of removed) cleanupImages(this.projectRoot, runId, this.stateRoot);
     if (!removed.length) return false;
     this.adapters[session.provider].disposeSession?.(session.id);
     const latest = this.store.listRuns(sessionId)[0] || null;
@@ -211,59 +404,21 @@ export class RunScheduler {
       });
     }
     const runId = crypto.randomUUID();
-    const materializedContexts = materializeImages(this.projectRoot, runId, contexts);
+    const materializedContexts = materializeImages(this.projectRoot, runId, contexts, this.stateRoot);
     const run = this.store.createRun(session, input.prompt, materializedContexts, runId);
     this.queue.push(run.id);
     this.publishSnapshot();
-    void this.persistTurnAndPump(run);
+    void persistScheduledTurnAndPump(this.executionHost(), run);
     return { session, run };
   }
 
-  async cancelRun(runId: string): Promise<boolean> {
-    const queuedIndex = this.queue.indexOf(runId);
-    if (queuedIndex >= 0) {
-      this.queue.splice(queuedIndex, 1);
-      cleanupImages(this.projectRoot, runId);
-      const run = this.store.updateRun(runId, { status: "cancelled", completedAt: new Date().toISOString() });
-      await this.append(run, "status", { state: "cancelled" });
-      await this.store.abortTurn(run, null);
-      updateSessionStatus(this.store, run.sessionId);
-      this.publishSnapshot();
-      return true;
-    }
-    const active = this.active.get(runId);
-    if (!active) return false;
-    active.controller.abort();
-    const declined = this.approvals.declineForRun(runId);
-    for (const approval of declined) {
-      await this.append(active.run, "approval-decision", {
-        approvalId: approval.id,
-        decision: "decline",
-        approval,
-        decidedAt: new Date().toISOString(),
-        reason: "run-cancelled"
-      });
-    }
-    return true;
-  }
+  async cancelRun(runId: string): Promise<boolean> { return cancelScheduledRun(this.executionHost(), runId); }
 
   async resolveApproval(id: string, rawDecision: ApprovalDecision): Promise<boolean> {
     const decision = ApprovalDecisionSchema.parse(rawDecision);
-    const approval = this.approvals.list().find((item) => item.id === id);
-    if (!approval) return false;
-    const resolved = this.approvals.resolve(id, decision);
-    if (!resolved) return false;
-    const run = this.store.getRun(approval.runId);
-    await this.append(run, "approval-decision", {
-      approvalId: id,
-      decision,
-      approval,
-      decidedAt: new Date().toISOString()
-    });
-    this.store.updateRun(run.id, { status: "running" });
-    this.store.updateSession(run.sessionId, { status: "running" });
-    this.publishSnapshot();
-    return resolved;
+    const resolvedAgentApproval = this.agentApprovals.resolve(id, decision);
+    if (resolvedAgentApproval) { this.publishSnapshot(); return true; }
+    return resolveScheduledApproval(this.executionHost(), id, decision);
   }
 
   getChangeSet(runId: string): ChangeSet | null { return this.store.getRun(runId).changeSet; }
@@ -273,201 +428,29 @@ export class RunScheduler {
   async discardChange(runId: string, patch: string): Promise<ChangeSet | null> { return this.changeApplications.discardChange(runId, patch); }
   async discardRun(runId: string): Promise<boolean> { return this.changeApplications.discardRun(runId); }
 
-  private async pump(): Promise<void> {
-    let deferred = 0;
-    while (this.active.size < this.maxConcurrentRuns && this.queue.length) {
-      const runId = this.queue.shift();
-      if (!runId) break;
-      const run = this.store.getRun(runId);
-      if ([...this.active.values()].some((entry) => entry.run.sessionId === run.sessionId)) {
-        this.queue.push(runId);
-        deferred++;
-        if (deferred >= this.queue.length) break;
-        continue;
-      }
-      deferred = 0;
-      void this.execute(run);
-    }
-  }
-
-  private async execute(initialRun: AiRun): Promise<void> {
-    const controller = new AbortController();
-    let session = this.store.getSession(initialRun.sessionId);
-    const directCwd = resolveCwd(this.projectRoot, session.cwd);
-    let run = this.store.updateRun(initialRun.id, {
-      status: "running",
-      turnContext: captureTurnContext(directCwd)
-    });
-    this.active.set(run.id, { run, controller });
-    this.publishSnapshot();
-    try {
-      await this.store.appendTurnContext(run);
-      await this.append(run, "status", { state: "running", cwd: directCwd, mode: "direct" });
-      const provider = this.registry.detect().find((item) => item.id === session.providerId);
-      if (!provider?.available) throw new Error(provider?.diagnostic || "会话绑定的 Provider 当前不可用。");
-      const turnImages = extractImageContexts(this.projectRoot, run.contexts);
-      if (turnImages.length && provider.supportsImages === false) {
-        throw new Error("当前 Provider 不支持图片附件。");
-      }
-      const skillInvocation = parseSkillSlashInvocation(run.prompt, this.skillTools.listDefinitions());
-      const contextState = this.store.getContextState(run.sessionId);
-      const baseProviderPrompt = skillInvocation ? composeNativeSkillProviderPrompt(run, skillInvocation) : composePrompt(run);
-      const evidenceInstructions = browserEvidenceInstructions(this.browserAutomation);
-      const browserAwarePrompt = evidenceInstructions ? `${baseProviderPrompt}\n\n${evidenceInstructions}` : baseProviderPrompt;
-      const providerPrompt = session.providerSessionId
-        ? browserAwarePrompt
-        : withRecoveredHistory(browserAwarePrompt, contextState, run.id);
-      const prompt = this.adapters[session.provider].needsTurnContext && run.turnContext
-        ? withTurnContext(providerPrompt, run.turnContext)
-        : providerPrompt;
-      let providerProducedOutput = false;
-      let providerProducedFinal = false;
-      const attemptedResume = Boolean(session.providerSessionId);
-      const providerContext = (value: string): ProviderRunContext => ({
-        session,
-        run,
-        provider,
-        cwd: directCwd,
-        prompt: value,
-        contextState,
-        signal: controller.signal,
-        emit: async (kind, payload) => {
-          if (kind !== "system") providerProducedOutput = true;
-          if (isProviderFinalReply(kind, payload)) providerProducedFinal = true;
-          await this.append(run, kind, payload);
-        },
-        requestApproval: async (input) => {
-          this.store.updateRun(run.id, { status: "waiting-approval" });
-          this.store.updateSession(run.sessionId, { status: "waiting-approval" });
-          this.publishSnapshot();
-          return this.approvals.request(run, { ...input, cwd: directCwd, paths: input.paths || [] });
-        },
-        updateProviderSession: (id) => {
-          if (session.providerSessionId !== id) session = this.store.updateSession(session.id, { providerSessionId: id });
-        },
-        updateInteractionMode: (mode) => {
-          if (session.interactionMode !== mode) {
-            session = this.store.updateSession(session.id, { interactionMode: mode });
-            this.publishSnapshot();
-          }
-        },
-        skillInvocation: skillInvocation
-          ? {
-            name: skillInvocation.skill.id,
-            argument: skillInvocation.argument,
-            raw: skillInvocation.raw,
-            prompt: composeNativeSkillTaskPrompt(run, skillInvocation)
-          }
-          : null,
-        providerModel: this.resolveProviderModel(session.provider),
-        browserAutomation: this.browserAutomation,
-        images: turnImages
-      });
-      try {
-        await this.adapters[session.provider].run(providerContext(prompt));
-      } catch (resumeError) {
-        if (!attemptedResume || providerProducedOutput || controller.signal.aborted) throw resumeError;
-        this.adapters[session.provider].disposeSession?.(session.id);
-        session = this.store.updateSession(session.id, { providerSessionId: null });
-        await this.append(run, "system", {
-          text: "Provider resume failed before producing output; rebuilt the turn from the local rollout.",
-          subtype: "resume_recovered"
-        });
-        const recoveredPrompt = withRecoveredHistory(prompt, contextState, run.id);
-        await this.adapters[session.provider].run(providerContext(recoveredPrompt));
-      }
-      if (!providerProducedFinal) {
-        throw new Error("Provider 协议异常：运行结束但未返回最终回复。");
-      }
-      run = await this.finalizeRun(run, { status: "completed", error: null });
-    } catch (error) {
-      const cancelled = controller.signal.aborted;
-      run = await this.finalizeRun(run, {
-        status: cancelled ? "cancelled" : "failed",
-        error: cancelled ? null : error instanceof Error ? error.message : String(error)
-      });
-    } finally {
-      this.active.delete(run.id);
-      updateSessionStatus(this.store, run.sessionId);
-      this.publishSnapshot();
-      if (this.adapters[run.provider]?.prewarm) void this.prewarm(run.provider, run.sessionId).catch(() => undefined);
-      void this.pump();
-    }
-  }
-
-  // 收尾：成功/失败/取消三路共享 getRisks + writeSecurityReport + updateRun + 事件 + turn 终结，去掉 execute 内两处近重复。
-  private async finalizeRun(run: AiRun, outcome: { status: "completed" | "failed" | "cancelled"; error: string | null }): Promise<AiRun> {
-    cleanupImages(this.projectRoot, run.id);
-    const risks = this.store.getRisks(run.id);
-    this.store.writeSecurityReport(run, risks);
-    const updated = this.store.updateRun(run.id, {
-      status: outcome.status,
-      completedAt: new Date().toISOString(),
-      error: outcome.status === "cancelled" ? null : outcome.error,
-      workspacePath: null,
-      baseCommit: null,
-      changeSet: null,
-      risks
-    });
-    if (outcome.status === "completed") {
-      await this.append(updated, "status", { state: "completed" });
-      await this.store.completeTurn(updated);
-    } else if (outcome.status === "cancelled") {
-      await this.append(updated, "status", { state: "cancelled" });
-      await this.store.abortTurn(updated, outcome.error);
-    } else {
-      await this.append(updated, "error", { text: outcome.error || "运行失败" });
-      await this.store.abortTurn(updated, outcome.error);
-    }
-    return updated;
-  }
-
   private async append(run: AiRun, kind: AiEvent["kind"], payload: Record<string, unknown>): Promise<void> {
-    if (kind === "assistant-delta" || kind === "reasoning-delta") {
-      this.publish({ kind: "transient", event: { id: crypto.randomUUID(), seq: -1, timestamp: new Date().toISOString(), projectId: run.projectId, sessionId: run.sessionId, runId: run.id, provider: run.provider, kind, payload, risks: [], schemaVersion: 1 } });
-      return;
-    }
-    const events = await this.store.appendEvent(run, kind, payload);
-    // Persistence may split very large payloads into several rollout records.
-    // The renderer must receive one canonical event or it can mistake the last
-    // chunk for the whole final answer.
-    for (const event of reassembleEvents(events)) this.publish({ kind: "event", event });
+    return appendScheduledEvent(this.executionHost(), run, kind, payload);
   }
 
-  private async beginTurn(run: AiRun): Promise<void> {
-    const skillInvocation = parseSkillSlashInvocation(run.prompt, this.skillTools.listDefinitions());
-    const modelInput = skillInvocation ? composeNativeSkillProviderPrompt(run, skillInvocation) : composePrompt(run);
-    const events = await this.store.beginTurn(run, modelInput);
-    for (const event of events) this.publish({ kind: "event", event });
-  }
-
-  private async persistTurnAndPump(run: AiRun): Promise<void> {
-    try {
-      await this.beginTurn(run);
-      await this.pump();
-    } catch (error) {
-      const index = this.queue.indexOf(run.id);
-      if (index >= 0) this.queue.splice(index, 1);
-      this.store.updateRun(run.id, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      this.store.updateSession(run.sessionId, { status: "failed" });
-      this.publishSnapshot();
-    }
-  }
-
-  private async onApprovalRequest(request: ApprovalRequest): Promise<void> {
-    const run = this.store.getRun(request.runId);
-    await this.append(run, "approval-request", { approval: request });
-    this.publishSnapshot();
+  private executionHost(): SchedulerExecutionHost {
+    return {
+      projectRoot: this.projectRoot,
+      stateRoot: this.stateRoot,
+      store: this.store,
+      registry: this.registry,
+      skillTools: this.skillTools,
+      approvals: this.approvals,
+      adapters: this.adapters,
+      browserAutomation: this.browserAutomation,
+      resolveProviderModel: this.resolveProviderModel,
+      queue: this.queue,
+      active: this.active,
+      maxConcurrentRuns: this.maxConcurrentRuns,
+      publish: this.publish,
+      publishSnapshot: () => this.publishSnapshot(),
+      prewarm: (provider, sessionId) => this.prewarm(provider, sessionId)
+    };
   }
 
   private publishSnapshot(): void { this.publish({ kind: "snapshot", snapshot: this.snapshot() }); }
-}
-
-function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unknown>): boolean {
-  if (kind !== "assistant-message" || payload.phase === "commentary") return false;
-  return Boolean(String(payload.text || payload.message || "").trim());
 }

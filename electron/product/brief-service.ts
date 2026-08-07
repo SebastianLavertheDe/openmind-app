@@ -20,17 +20,26 @@ export class BriefService {
   private readonly watchlistPath: string;
 
   constructor(
-    private readonly repoRoot: string,
+    /** ADR-001: the actual mymind root (content dir), not a repo. */
+    private readonly mymindRoot: string,
     private readonly contentIndex: ContentIndexStore,
-    private readonly creative: CreativeApi
+    private readonly creative: CreativeApi,
+    /**
+     * Root for app-private state. ADR-001 §1.3: this MUST live under userData,
+     * not inside mymind. Defaults to the AppPaths state dir keyed by root-id.
+     */
+    stateRoot?: string
   ) {
-    this.watchlistPath = statePath(repoRoot, "brief-watchlist.json");
+    // Fall back to legacy `.cctools` next to mymindRoot only when no userData
+    // state root is supplied (keeps older tests working); new construction
+    // from main.ts passes the AppPaths state dir.
+    this.watchlistPath = statePath(stateRoot ?? mymindRoot, "brief-watchlist.json");
   }
 
   getDailyBrief(rawDate: string): DailyBrief {
     const date = compactDate(rawDate);
     const inboxItems = this.contentIndex.listItemsForDate(date);
-    const summaryPath = path.join(this.repoRoot, "mymind", "daily-summary", `${date}_daily_summary.md`);
+    const summaryPath = path.join(this.mymindRoot, "daily-summary", `${date}_daily_summary.md`);
     const markdown = readText(summaryPath);
     const topicsPayload = this.creative.getCreativeTopics(date);
     const topics = (topicsPayload.topics || []).slice(0, 10).map((topic, index) => {
@@ -49,7 +58,7 @@ export class BriefService {
     const important = inboxItems.filter((item) => (item.state.score || 0) >= 80 || item.state.starred);
     const signals = extractHeadings(markdown).slice(0, 8);
     const recommendations = topics.slice(0, 3).map((topic) => messages.brief.recommendation(topic.title));
-    const sourcePath = fs.existsSync(summaryPath) ? path.relative(this.repoRoot, summaryPath) : null;
+    const sourcePath = fs.existsSync(summaryPath) ? path.relative(this.mymindRoot, summaryPath) : null;
 
     return DailyBriefSchema.parse({
       schemaVersion: 1,

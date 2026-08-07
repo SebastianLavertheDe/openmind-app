@@ -13,7 +13,7 @@ import {
 import { discoverSkills } from "../ai/skill-discovery";
 import type { SkillSourceBinding } from "../../shared/skill-sources";
 import { messages } from "../../shared/messages";
-import { readStateJson, readStateJsonArray } from "./state-directory";
+import { readStateJson, readStateJsonArray, STATE_DIRECTORY } from "./state-directory";
 import {
   collectOutlines,
   collectPrefixedOutlines,
@@ -40,16 +40,53 @@ export class SourceRegistry {
   private sourceRunsFlushTimer: ReturnType<typeof setTimeout> | null = null;
   private skillSourcesCache: SkillSourceBinding[] | null = null;
 
-  constructor(private readonly repoRoot: string, private readonly content: ContentApi) {
-    const stateDirectory = path.join(repoRoot, ".cctools");
+  /**
+   * @param repoRoot legacy: the cctools repo root (parent of mymind), kept for
+   *   back-compat. Used for `.claude/skills/...` skill-source discovery and as
+   *   the fallback for content/state paths.
+   * @param content content API.
+   * @param mymindRoot ADR-001: the actual mymind content dir. When supplied,
+   *   content paths (`mymind/article/<date>`) join onto this directly instead
+   *   of `repoRoot/mymind`.
+   * @param skillSourcesRoot ADR-001: where to discover skills (`.claude/skills`
+   *   under the workspace, or `userData/skills` in future). Defaults to
+   *   `repoRoot` for back-compat.
+   * @param stateRoot ADR-001 §1.3: app-private state dir under userData. When
+   *   supplied, `.cctools` state lives there instead of inside repoRoot.
+   */
+  constructor(
+    private readonly repoRoot: string,
+    private readonly content: ContentApi,
+    private readonly mymindRoot?: string,
+    private readonly skillSourcesRoot?: string,
+    stateRoot?: string
+  ) {
+    // stateRoot is the *parent* of `.cctools` (e.g. userData/state/<root-id>
+    // or, for back-compat, the repo root). The `.cctools` segment is always
+    // appended so on-disk layout matches existing fixtures and migration.
+    const stateDirectory = path.join(stateRoot ?? repoRoot, STATE_DIRECTORY);
     this.sourceSettingsPath = path.join(stateDirectory, "source-settings.json");
     this.sourceRunsPath = path.join(stateDirectory, "source-runs.json");
+  }
+
+  /** Resolve a content-relative path against mymindRoot (ADR-001) or repoRoot/mymind (legacy). */
+  private contentPath(...segments: string[]): string {
+    return this.mymindRoot
+      ? path.join(this.mymindRoot, ...segments)
+      // audit-no-reporoot: legacy back-compat branch (mymindRoot unset in old tests)
+      : path.join(this.repoRoot, "mymind", ...segments);
+  }
+
+  /** Resolve a skill-source path (.claude/skills/...) against skillSourcesRoot or repoRoot. */
+  private skillSourcePath(...segments: string[]): string {
+    const base = this.skillSourcesRoot ?? this.repoRoot;
+    return path.join(base, ".claude", "skills", ...segments);
   }
 
   /** 从已发现的 skill 里挑出带 surfacesAsSource 的,生成 skill→source 绑定。 */
   private skillSources(): SkillSourceBinding[] {
     if (this.skillSourcesCache) return this.skillSourcesCache;
-    const skills = discoverSkills(this.repoRoot);
+    const skills = discoverSkills(this.skillSourcesRoot ?? this.repoRoot);
     const bindings = skills.flatMap<SkillSourceBinding>((skill) => {
       const source = skill.surfacesAsSource;
       if (!source || (source.kind !== "x" && source.kind !== "reddit")) return [];
@@ -265,7 +302,7 @@ export class SourceRegistry {
   }
 
   private readRssSources(date: string): SourceDefinition[] {
-    const opmlPath = path.join(this.repoRoot, ".claude", "skills", "rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
     const raw = readText(opmlPath);
     if (!raw) return [];
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
@@ -273,8 +310,8 @@ export class SourceRegistry {
     const outlines = collectOutlines(parsed);
     const count = this.content.getContent("articles", date).length;
     const lastRun = newestMtime([
-      path.join(this.repoRoot, ".claude", "skills", "rss-article-saver", "article_cache.json"),
-      path.join(this.repoRoot, "mymind", "article", date)
+      this.skillSourcePath("rss-article-saver", "article_cache.json"),
+      this.contentPath("article", date)
     ]);
     return outlines
       .filter((outline) => typeof outline.xmlUrl === "string")
@@ -328,7 +365,7 @@ export class SourceRegistry {
   }
 
   private appendRssOutlines(outlines: Array<{ name: string; url: string }>): void {
-    const opmlPath = path.join(this.repoRoot, ".claude", "skills", "rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
     const parsed = parser.parse(readText(opmlPath) || "<opml version=\"2.0\"><head><title>CC Tools</title></head><body></body></opml>") as {
@@ -348,7 +385,7 @@ export class SourceRegistry {
   }
 
   private replaceRssOutline(previousUrl: string, replacement: { name: string; url: string }): void {
-    const opmlPath = path.join(this.repoRoot, ".claude", "skills", "rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
     const parsed = parser.parse(readText(opmlPath)) as Record<string, unknown>;
@@ -365,7 +402,7 @@ export class SourceRegistry {
   }
 
   private removeRssOutline(url: string): void {
-    const opmlPath = path.join(this.repoRoot, ".claude", "skills", "rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
     const parsed = parser.parse(readText(opmlPath)) as Record<string, unknown>;
@@ -398,7 +435,12 @@ export class SourceRegistry {
     date: string,
     artifactRoot: string
   ): SourceDefinition {
-    const artifactPath = path.join(this.repoRoot, artifactRoot, date);
+    // artifactRoot is a logical path like "mymind/post" or "mymind/reddit".
+    // When mymindRoot is supplied (ADR-001), strip the leading "mymind/" and
+    // join onto mymindRoot directly; otherwise fall back to repoRoot joining.
+    const artifactPath = this.mymindRoot
+      ? path.join(this.mymindRoot, artifactRoot.replace(/^mymind\/+/, ""), date)
+      : path.join(this.repoRoot, artifactRoot, date);
     const lastRunAt = newestMtime([artifactPath]);
     const itemCount = this.content.getContent(kind === "x" ? "posts" : "reddit", date).length;
     return SourceDefinitionSchema.parse({

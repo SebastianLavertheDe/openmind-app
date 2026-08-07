@@ -23,6 +23,8 @@ export interface SkillConfig {
   outputArtifacts?: string[];
   timeoutMs?: number;
   surfacesAsSource?: SkillSourceSurface;
+  /** Absolute source directory used to derive the legacy adapter digest. */
+  sourcePath: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -51,12 +53,12 @@ export function discoverSkills(repoRoot: string): SkillConfig[] {
     if (!fs.existsSync(mdPath)) continue;
     const raw = fs.readFileSync(mdPath, "utf8");
     const fm = parseSkillFrontmatter(raw);
-    configs.push(toSkillConfig(entry.name, fm));
+    configs.push(toSkillConfig(entry.name, fm, path.join(skillsDir, entry.name)));
   }
   return configs;
 }
 
-function toSkillConfig(dirName: string, fm: ReturnType<typeof parseSkillFrontmatter>): SkillConfig {
+function toSkillConfig(dirName: string, fm: ReturnType<typeof parseSkillFrontmatter>, sourcePath: string): SkillConfig {
   const id = fm.id ?? fm.name ?? dirName;
   const name = fm.title ?? fm.name ?? dirName;
   const description = fm.description ?? "";
@@ -68,7 +70,7 @@ function toSkillConfig(dirName: string, fm: ReturnType<typeof parseSkillFrontmat
   const outputArtifacts = fm.outputArtifacts ?? [];
   const envFile = fm.envFile ?? null;
   const config: SkillConfig = {
-    id, name, description, cwd, runner, args, permission, timeoutMs, outputArtifacts, envFile
+    id, name, description, cwd, runner, args, permission, timeoutMs, outputArtifacts, envFile, sourcePath
   };
   if (fm.group !== undefined) config.group = fm.group;
   if (fm.surfacesAsSource) config.surfacesAsSource = fm.surfacesAsSource;

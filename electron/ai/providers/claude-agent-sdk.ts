@@ -12,6 +12,7 @@ import {
   browserEvidenceInstructions,
   buildBrowserMcpProcess
 } from "../browser-evidence";
+import { buildClaudeSkillBridgeInstructions } from "./skill-bridge";
 
 /** 有图片附件时，把 prompt 转成 SDK 多模态 user message 流（image blocks + text block）。 */
 async function* claudeImageMessageStream(
@@ -179,7 +180,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const prompt = context.images.length ? claudeImageMessageStream(context.prompt, context.images) : context.prompt;
     let stderr = "";
     const captureStderr = (text: string) => { stderr = appendBounded(stderr, text); };
-    let claimedWarm = this.claimWarmSlot(context);
+    // A warm Claude process was created without a per-run SkillStore bridge;
+    // never reuse it for an installed Agent or its instructions could fall
+    // back to project-local `.claude/skills`.
+    let claimedWarm = context.skillBridge ? null : this.claimWarmSlot(context);
     const query = claimedWarm
       ? await (async () => {
         const slot = claimedWarm;
@@ -355,6 +359,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       providerSessionId: string | null;
       providerModel: string;
       browserAutomation: ProviderRunContext["browserAutomation"];
+      skillBridge?: ProviderRunContext["skillBridge"];
     },
     getRunContext: ClaudeRunContextGetter,
     captureStderr: (text: string) => void
@@ -364,17 +369,20 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       : null;
     const browserServer = buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
     const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
+    const skillBridgeInstructions = context.skillBridge ? buildClaudeSkillBridgeInstructions(context.skillBridge) : "";
+    const systemAppend = [browserInstructions, skillBridgeInstructions].filter(Boolean).join("\n\n");
     return {
       ...(context.providerModel && context.providerModel !== AUTO_MODEL ? { model: context.providerModel } : {}),
       cwd: context.cwd,
       resume: context.providerSessionId || undefined,
       permissionMode: context.interactionMode === "plan" ? "plan" : "default",
-      // User and project settings provide Claude Code's native authentication,
-      // command discovery, and project-local `.claude/skills` loading.
-      settingSources: [...CLAUDE_SETTING_SOURCES],
-      skills: CLAUDE_SKILL_SELECTION,
+      // An installed bridge may use user-level authentication/configuration,
+      // but must not discover project-local skills. Its package instructions
+      // are injected transiently below after Main-side boundary checks.
+      settingSources: context.skillBridge ? ["user"] : [...CLAUDE_SETTING_SOURCES],
+      skills: context.skillBridge ? [] : CLAUDE_SKILL_SELECTION,
       tools: CLAUDE_WORKBENCH_TOOLS,
-      systemPrompt: { type: "preset", preset: "claude_code", ...(browserInstructions ? { append: browserInstructions } : {}) },
+      systemPrompt: { type: "preset", preset: "claude_code", ...(systemAppend ? { append: systemAppend } : {}) },
       ...(browserServer ? {
         mcpServers: {
           cctools_browser: {
@@ -444,6 +452,7 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
   providerSessionId: string | null;
   providerModel: string;
   browserAutomation: ProviderRunContext["browserAutomation"];
+  skillBridge?: ProviderRunContext["skillBridge"];
 } {
   return {
     provider: context.provider,
@@ -452,7 +461,8 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
     interactionMode: context.session.interactionMode || "default",
     providerSessionId: context.session.providerSessionId,
     providerModel: context.providerModel,
-    browserAutomation: context.browserAutomation
+    browserAutomation: context.browserAutomation,
+    skillBridge: context.skillBridge
   };
 }
 

@@ -5,8 +5,8 @@ import type { ContextReference } from "../../shared/contracts";
 const TMP_DIR_NAME = "tmp-images";
 const STALE_MAX_MS = 7 * 24 * 3600 * 1000;
 
-function tmpImagesDir(projectRoot: string): string {
-  return path.join(projectRoot, ".cctools", "ai", TMP_DIR_NAME);
+function tmpImagesDir(projectRoot: string, stateRoot?: string): string {
+  return path.join(stateRoot ?? projectRoot, ".cctools", "ai", TMP_DIR_NAME);
 }
 
 function extFromMediaType(mediaType: string): string {
@@ -22,12 +22,13 @@ function parseDataURL(content: string): { base64: string; mediaType: string } | 
 }
 
 /**
- * 把 image context 的 dataURL content 解码写到 <projectRoot>/.cctools/ai/tmp-images/，
- * 回填 path、清空 content、补 mediaType/byteSize。其余 context 不动。
+ * 把 image context 的 dataURL content 解码写到 root-scoped app-private
+ * state/.cctools/ai/tmp-images/（兼容调用未传 stateRoot 时仍使用
+ * projectRoot），回填 path、清空 content、补 mediaType/byteSize。其余 context 不动。
  * 失败的图（bad dataURL / 写盘失败）跳过并 console.warn，不阻断 run。
  */
-export function materializeImages(projectRoot: string, runId: string, contexts: ContextReference[]): ContextReference[] {
-  const dir = tmpImagesDir(projectRoot);
+export function materializeImages(projectRoot: string, runId: string, contexts: ContextReference[], stateRoot?: string): ContextReference[] {
+  const dir = tmpImagesDir(projectRoot, stateRoot);
   return contexts.map((context) => {
     if (context.kind !== "image") return context;
     if (!context.content) return context; // 已 materialize（rerun 等）或无内容：保留原样
@@ -44,7 +45,7 @@ export function materializeImages(projectRoot: string, runId: string, contexts: 
       return {
         ...context,
         content: undefined,
-        path: path.relative(projectRoot, file) || file,
+        path: stateRoot ? file : path.relative(projectRoot, file) || file,
         mediaType: parsed.mediaType,
         byteSize: fs.statSync(file).size
       };
@@ -56,8 +57,8 @@ export function materializeImages(projectRoot: string, runId: string, contexts: 
 }
 
 /** 删除某 run 的所有临时图片（finalizeRun / cancelRun / deleteSession / rollbackTurns 调用）。 */
-export function cleanupImages(projectRoot: string, runId: string): void {
-  const dir = tmpImagesDir(projectRoot);
+export function cleanupImages(projectRoot: string, runId: string, stateRoot?: string): void {
+  const dir = tmpImagesDir(projectRoot, stateRoot);
   try {
     if (!fs.existsSync(dir)) return;
     for (const entry of fs.readdirSync(dir)) {
@@ -69,8 +70,8 @@ export function cleanupImages(projectRoot: string, runId: string): void {
 }
 
 /** 启动期扫残留（mtime > 7d），兜底清理崩溃残留的临时图片。 */
-export function cleanupStaleImages(projectRoot: string): void {
-  const dir = tmpImagesDir(projectRoot);
+export function cleanupStaleImages(projectRoot: string, stateRoot?: string): void {
+  const dir = tmpImagesDir(projectRoot, stateRoot);
   try {
     if (!fs.existsSync(dir)) return;
     const cutoff = Date.now() - STALE_MAX_MS;
@@ -105,7 +106,8 @@ export function stripImageContent(contexts: ContextReference[]): ContextReferenc
 /** 从 contexts 提取已 materialize 的 image 附件（绝对路径，供 provider 读文件转 image block）。 */
 export function extractImageContexts(
   projectRoot: string,
-  contexts: ContextReference[]
+  contexts: ContextReference[],
+  _stateRoot?: string
 ): Array<{ id: string; path: string; mediaType: string }> {
   const result: Array<{ id: string; path: string; mediaType: string }> = [];
   for (const context of contexts) {

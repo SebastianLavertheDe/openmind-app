@@ -8,6 +8,7 @@ import type { ProviderAdapter, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
 import { killProcessTree, parseWslPath, spawnInDirectory, spawnNativeInDirectory, toWslPath } from "../process-utils";
 import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser-evidence";
+import { buildProviderSkillContext } from "./skill-bridge";
 
 interface RpcMessage {
   id?: string | number;
@@ -88,17 +89,26 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       context.updateProviderSession(thread.id);
       let nativeSkill: CodexNativeSkill | null = null;
       if (context.skillInvocation) {
-        const projectSkill = resolveProjectCodexSkill(context, cwd, context.skillInvocation.name);
+        if (context.skillBridge) {
+          nativeSkill = {
+            name: context.skillBridge.id,
+            path: context.skillBridge.skillPath,
+            enabled: true
+          };
+        }
+        const projectSkill = context.skillBridge ? null : resolveProjectCodexSkill(context, cwd, context.skillInvocation.name);
         let discoveredSkill: CodexNativeSkill | null = null;
-        try {
-          discoveredSkill = resolveCodexNativeSkill(
-            await rpc.request("skills/list", { cwds: [cwd] }),
-            context.skillInvocation.name
-          );
-          nativeSkill = discoveredSkill || projectSkill;
-        } catch (error) {
-          if (!projectSkill) throw error;
-          nativeSkill = projectSkill;
+        if (!context.skillBridge) {
+          try {
+            discoveredSkill = resolveCodexNativeSkill(
+              await rpc.request("skills/list", { cwds: [cwd] }),
+              context.skillInvocation.name
+            );
+            nativeSkill = discoveredSkill || projectSkill;
+          } catch (error) {
+            if (!projectSkill) throw error;
+            nativeSkill = projectSkill;
+          }
         }
         if (discoveredSkill && !discoveredSkill.enabled) {
           throw new Error(`Codex Skill 已被禁用：${context.skillInvocation.name}`);
@@ -602,7 +612,7 @@ export function resolveCodexNativeSkill(result: Record<string, unknown>, request
 }
 
 export function buildCodexTurnInput(
-  context: Pick<ProviderRunContext, "prompt" | "skillInvocation">,
+  context: Pick<ProviderRunContext, "prompt" | "skillInvocation" | "skillBridge">,
   nativeSkill: CodexNativeSkill | null
 ): Array<Record<string, unknown>> {
   if (!context.skillInvocation) {
@@ -616,6 +626,9 @@ export function buildCodexTurnInput(
   }];
   if (context.skillInvocation.prompt) {
     input.push({ type: "text", text: context.skillInvocation.prompt, text_elements: [] });
+  }
+  if (context.skillBridge) {
+    input.push({ type: "text", text: buildProviderSkillContext(context.skillBridge), text_elements: [] });
   }
   return input;
 }

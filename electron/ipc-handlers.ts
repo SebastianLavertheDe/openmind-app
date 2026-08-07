@@ -1,8 +1,10 @@
 import { dialog, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import {
   ApprovalDecisionSchema,
+  AppStateBackupReportSchema,
   AddRssSourceInputSchema,
   ContentFacetsQuerySchema,
   ContentQuerySchema,
@@ -26,18 +28,44 @@ import {
   BrowserExtensionTokenSchema,
   McpServerCatalogSchema,
   UserPreferencesSchema,
+  CredentialMetadataSchema,
+  CredentialSetInputSchema,
+  CredentialTestResultSchema,
+  CredentialVaultStatusSchema,
+  EnvFileAnalysisSchema,
+  ProviderProfileInputSchema,
+  ProviderProfileSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
+import { SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import type { ProductService } from "./product/product-service";
 import type { MymindFileSearch } from "./mymind-file-search";
+import type { SkillPackageService } from "./skills/skill-package-service";
+import { toSkillPackageInspectionView } from "./skills/skill-package-service";
+import type { SkillSourceService } from "./skills/skill-source-service";
+import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
+import type { CredentialVault } from "./security/credential-vault";
+import type { ProviderProfileRepository } from "./security/provider-profile-repository";
+import type { ProviderConnectivityService } from "./security/provider-connectivity-service";
+import type { RuntimePackService } from "./runtime/runtime-pack-service";
+import type { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
+import type { AppStateBackupService } from "./backup/app-state-backup";
 import { normalizeMymindSelection } from "./mymind-file-search";
+import { getAppPaths } from "./paths/app-paths-service";
+import { previewMymindRelocation, relocateMymind } from "./paths/mymind-relocation-service";
 import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
+import { AgentResumeRequestSchema, SkillRunRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
+import { AutomationRuleInputSchema } from "../shared/automation-contracts";
+import { RuntimePackIdSchema, RuntimePackMetadataSchema, RuntimeTargetSchema, type RuntimePackMetadata } from "../shared/runtime-targets";
 
 const StringArgSchema = z.string().min(1).max(4096);
+const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const OptionalStringArgSchema = z.string().min(1).max(4096).optional();
+const ExportLabelSchema = z.string().trim().min(1).max(160);
 const FileContentSchema = z.string().max(5 * 1024 * 1024, messages.errors.file.tooLarge);
+const RuntimePackBytesSchema = z.instanceof(Uint8Array).refine((value) => value.byteLength <= 2 * 1024 * 1024 * 1024, "Runtime Pack 超过单包大小限制。");
 const DateArgSchema = z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/).transform((value) => value.replaceAll("-", ""));
 const HttpUrlArgSchema = z.string().url().refine((value) => /^https?:\/\//i.test(value), messages.errors.url.httpOnly);
 
@@ -57,6 +85,11 @@ function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
 }
 
+async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 mymind 根目录。"): Promise<void> {
+  const count = await ctx.getActiveRunCount();
+  if (count > 0) throw new Error(message);
+}
+
 export type AiWorkerCaller = {
   call(method: string, ...args: unknown[]): Promise<unknown>;
 };
@@ -66,6 +99,18 @@ export type IpcMainContext = {
   ensureProductService: () => ProductService;
   ensureAiWorker: () => AiWorkerCaller;
   ensureMymindFileSearch: () => MymindFileSearch;
+  ensureSkillPackageService: () => SkillPackageService;
+  ensureSkillSourceService?: () => SkillSourceService;
+  ensureExportLocationService: () => import("./execution/export-location-service").ExportLocationService;
+  ensureCredentialVault: () => CredentialVault;
+  ensureProviderProfileRepository: () => ProviderProfileRepository;
+  ensureProviderConnectivity: () => ProviderConnectivityService;
+  ensureRuntimePackService?: () => RuntimePackService;
+  ensureRuntimePackDownloadService?: () => RuntimePackDownloadService;
+  ensureAppStateBackupService?: () => AppStateBackupService;
+  updateCredentialRuns?: (credentialId: string, state: "available" | "revoked" | "replaced") => Promise<unknown>;
+  analyzeEnvFile: (filePath: string) => unknown;
+  getActiveRunCount: () => Promise<number>;
   restartAiWorker: () => void;
   getBrowserAutomationStatus: () => unknown;
   getMcpServers: () => unknown;
@@ -88,23 +133,69 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const C = IPC_METHOD_CHANNELS;
   const product = () => ctx.ensureProductService();
   const ai = () => ctx.ensureAiWorker();
+  const skillPackages = () => ctx.ensureSkillPackageService();
+  const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
+  const credentials = () => ctx.ensureCredentialVault();
+  const providerProfiles = () => ctx.ensureProviderProfileRepository();
+  const providerConnectivity = () => ctx.ensureProviderConnectivity();
+  const runtimePacks = () => {
+    if (!ctx.ensureRuntimePackService) throw new Error("Runtime Pack 服务尚未初始化。 ");
+    return ctx.ensureRuntimePackService();
+  };
+  const runtimeDownloads = () => {
+    if (!ctx.ensureRuntimePackDownloadService) throw new Error("Runtime Pack 下载服务尚未初始化。 ");
+    return ctx.ensureRuntimePackDownloadService();
+  };
+  const stateBackup = () => {
+    if (!ctx.ensureAppStateBackupService) throw new Error("应用状态备份服务尚未初始化。 ");
+    return ctx.ensureAppStateBackupService();
+  };
+  const selectRuntimePack = async (): Promise<{ metadata: RuntimePackMetadata; bytes: Uint8Array } | null> => {
+    const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+      title: "选择 Runtime Pack Manifest",
+      properties: ["openFile"],
+      filters: [{ name: "Runtime Pack Manifest", extensions: ["json"] }]
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const manifestPath = result.filePaths[0];
+    const metadata = RuntimePackMetadataSchema.parse(JSON.parse(await fs.readFile(manifestPath, "utf8")));
+    const packagePath = path.join(path.dirname(manifestPath), metadata.filename);
+    const stat = await fs.stat(packagePath);
+    if (!stat.isFile()) throw new Error("Runtime Pack 文件不是普通文件。");
+    if (stat.size > 2 * 1024 * 1024 * 1024) throw new Error("Runtime Pack 超过单包大小限制。");
+    return { metadata, bytes: new Uint8Array(await fs.readFile(packagePath)) };
+  };
+  const notifyCredentialState = (id: string, state: "available" | "revoked" | "replaced"): void => {
+    void ctx.updateCredentialRuns?.(id, state);
+  };
 
   return [
     {
       channel: C.getBootstrap,
       handler: async () => {
         const repoRoot = settings.findRepoRoot();
-        const validRepo = settings.looksLikeRepo(repoRoot);
         const date = ctx.localDate();
+        // ADR-001: surface the resolved mymind/workspace roots so the renderer
+        // can drive the new path settings UI without re-deriving them.
+        const mymindRoot = settings.resolveMymindRoot();
+        const workspaceRoot = settings.resolveWorkspaceRoot();
+        // `validRepo` is retained in the wire contract for one release, but
+        // content readiness is now determined by mymindRoot alone. A .claude
+        // checkout is optional; skills may be installed into SkillStore later.
+        const validRepo = Boolean(mymindRoot && settings.isValidMymindRoot(mymindRoot));
+        const aiWorkspace = workspaceRoot || (settings.looksLikeRepo(repoRoot) ? repoRoot : "");
+        const hasAiWorkspace = Boolean(aiWorkspace);
         return {
           repoRoot,
           validRepo,
+          mymindRoot,
+          workspaceRoot,
           runtime: settings.parseWslRepoPath(repoRoot) ? "Windows → WSL" : process.platform,
           environment: { mode: "desktop", platform: process.platform },
           overview: validRepo ? product().getOverview(date) : { repoRoot, metrics: {}, recent: [] },
-          skills: validRepo ? await ai().call("skills") : [],
-          ai: validRepo ? await ai().call("snapshot") : {
-            projectRoot: repoRoot,
+          skills: hasAiWorkspace ? await ai().call("skills") : [],
+          ai: hasAiWorkspace ? await ai().call("snapshot") : {
+            projectRoot: aiWorkspace || mymindRoot,
             providers: [],
             sessions: [],
             runs: [],
@@ -232,15 +323,16 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.selectMymindFiles,
       handler: async () => {
-        const projectRoot = settings.findRepoRoot();
+        const mymindRoot = settings.resolveMymindRoot();
+        if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) return [];
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
           title: messages.dialogs.selectMymindFile,
-          defaultPath: path.join(projectRoot, "mymind"),
+          defaultPath: mymindRoot,
           properties: ["openFile", "multiSelections"]
         });
         return result.canceled
           ? []
-          : result.filePaths.map((filePath) => normalizeMymindSelection(projectRoot, filePath));
+          : result.filePaths.map((filePath) => normalizeMymindSelection(mymindRoot, filePath, { rootKind: "mymind" }));
       }
     },
     {
@@ -315,6 +407,108 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return repoRoot;
       }
     },
+    // --- ADR-001 mymindRoot / workspaceRoot handlers ---
+    {
+      channel: C.setMymindRoot,
+      handler: async (value) => {
+        await assertNoActiveTasks(ctx);
+        const result = settings.setMymindRoot(parseString(value));
+        ctx.restartAiWorker();
+        return result;
+      }
+    },
+    {
+      channel: C.selectMymindRoot,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择 mymind 内容根目录",
+          properties: ["openDirectory"]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        // Selection is deliberately read-only. The renderer must preview the
+        // candidate and explicitly commit it through setMymindRoot.
+        return result.filePaths[0];
+      }
+    },
+    {
+      channel: C.previewMymindRoot,
+      handler: async (value) => settings.previewMymindRoot(parseString(value), await ctx.getActiveRunCount())
+    },
+    {
+      channel: C.selectMymindRelocationTarget,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择 mymind 搬迁目标（必须为空目录）",
+          properties: ["openDirectory"]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        return result.filePaths[0];
+      }
+    },
+    {
+      channel: C.previewMymindRelocation,
+      handler: async (value) => {
+        const sourceDirectory = settings.resolveMymindRoot();
+        if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
+        return previewMymindRelocation({
+          sourceDirectory,
+          targetDirectory: parseString(value),
+          paths: getAppPaths(),
+          activeRunCount: await ctx.getActiveRunCount()
+        });
+      }
+    },
+    {
+      channel: C.relocateMymind,
+      handler: async (value) => {
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能搬迁 mymind 内容。");
+        const sourceDirectory = settings.resolveMymindRoot();
+        if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
+        const report = relocateMymind({
+          sourceDirectory,
+          targetDirectory: parseString(value),
+          paths: getAppPaths(),
+          activeRunCount: await ctx.getActiveRunCount()
+        });
+        // Content copy and root binding are separate operations. Only after
+        // the copy has passed its source/target tree verification do we bind
+        // the new root and restart the worker snapshot.
+        settings.setMymindRoot(report.targetDirectory);
+        ctx.restartAiWorker();
+        return report;
+      }
+    },
+    {
+      channel: C.getMymindRoot,
+      handler: () => ({
+        mymindRoot: settings.resolveMymindRoot(),
+        workspaceRoot: settings.resolveWorkspaceRoot(),
+        migration: settings.getLegacyStateMigrationStatus(),
+        health: settings.getMymindRootHealth(),
+        snapshot: settings.getMymindRootSnapshot()
+      })
+    },
+    {
+      channel: C.setWorkspaceRoot,
+      handler: (value) => {
+        const result = settings.setWorkspaceRoot(parseString(value));
+        ctx.restartAiWorker();
+        return result;
+      }
+    },
+    {
+      channel: C.selectWorkspaceRoot,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择 AI/代码工作区目录",
+          properties: ["openDirectory"]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        const workspaceRoot = settings.setWorkspaceRoot(result.filePaths[0]);
+        ctx.restartAiWorker();
+        return workspaceRoot;
+      }
+    },
     { channel: C.getPreferences, handler: () => UserPreferencesSchema.parse(settings.getPreferences()) },
     {
       channel: C.updatePreferences,
@@ -342,6 +536,34 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         PreferencesImportResultSchema.parse(settings.importPreferences(settings.ensureInsideRepo(parseString(filePath))))
     },
     {
+      channel: C.exportAppStateBackup,
+      handler: async () => {
+        const result = await dialog.showSaveDialog(ctx.getMainWindow()!, {
+          title: "备份应用状态",
+          defaultPath: "cctools-state-backup.zip",
+          filters: [{ name: "CC Tools 应用状态备份", extensions: ["zip"] }]
+        });
+        if (result.canceled || !result.filePath) return null;
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能备份应用状态。 ");
+        return AppStateBackupReportSchema.parse(stateBackup().exportToFile(result.filePath));
+      }
+    },
+    {
+      channel: C.importAppStateBackup,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "恢复应用状态",
+          properties: ["openFile"],
+          filters: [{ name: "CC Tools 应用状态备份", extensions: ["zip"] }]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能恢复应用状态。 ");
+        const report = AppStateBackupReportSchema.parse(stateBackup().importFromFile(result.filePaths[0]));
+        ctx.restartAiWorker();
+        return report;
+      }
+    },
+    {
       channel: C.getBrowserAutomationStatus,
       handler: () => BrowserAutomationStatusSchema.parse(ctx.getBrowserAutomationStatus())
     },
@@ -358,8 +580,181 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: () => BrowserAutomationStatusSchema.parse(ctx.clearBrowserExtensionToken())
     },
     {
+      channel: C.getCredentialStatus,
+      handler: () => CredentialVaultStatusSchema.parse(credentials().status())
+    },
+    {
+      channel: C.setCredential,
+      handler: (input) => {
+        const metadata = credentials().set(CredentialSetInputSchema.parse(input));
+        notifyCredentialState(metadata.id, "available");
+        return CredentialMetadataSchema.parse(metadata);
+      }
+    },
+    {
+      channel: C.replaceCredential,
+      handler: (id, input) => {
+        const credentialId = IdentifierArgSchema.parse(id);
+        const metadata = credentials().replace(credentialId, CredentialSetInputSchema.omit({ id: true }).parse(input));
+        notifyCredentialState(credentialId, "replaced");
+        return CredentialMetadataSchema.parse(metadata);
+      }
+    },
+    {
+      channel: C.revokeCredential,
+      handler: (id) => {
+        const credentialId = IdentifierArgSchema.parse(id);
+        const metadata = credentials().revoke(credentialId);
+        notifyCredentialState(credentialId, "revoked");
+        return CredentialMetadataSchema.parse(metadata);
+      }
+    },
+    {
+      channel: C.deleteCredential,
+      handler: (id) => {
+        const credentialId = IdentifierArgSchema.parse(id);
+        const deleted = credentials().delete(credentialId);
+        if (deleted) notifyCredentialState(credentialId, "revoked");
+        return deleted;
+      }
+    },
+    {
+      channel: C.testCredential,
+      handler: (id) => CredentialTestResultSchema.parse(credentials().test(IdentifierArgSchema.parse(id)))
+    },
+    {
+      channel: C.analyzeEnvFile,
+      handler: (filePath) => EnvFileAnalysisSchema.parse(ctx.analyzeEnvFile(parseString(filePath)))
+    },
+    {
+      channel: C.listProviderProfiles,
+      handler: () => providerProfiles().list().map((profile) => ProviderProfileSchema.parse(profile))
+    },
+    {
+      channel: C.saveProviderProfile,
+      handler: (input) => ProviderProfileSchema.parse(providerProfiles().save(ProviderProfileInputSchema.parse(input)))
+    },
+    {
+      channel: C.deleteProviderProfile,
+      handler: (id) => providerProfiles().remove(IdentifierArgSchema.parse(id))
+    },
+    {
+      channel: C.testProviderProfile,
+      handler: (id) => providerConnectivity().test(IdentifierArgSchema.parse(id))
+    },
+    {
       channel: C.getEnvironmentDiagnostics,
       handler: () => settings.getEnvironmentDiagnostics().map((item: unknown) => EnvironmentDiagnosticSchema.parse(item))
+    },
+    { channel: C.listRuntimePacks, handler: () => runtimePacks().listReadiness() },
+    {
+      channel: C.getRuntimePackReadiness,
+      handler: (packId, target) => runtimePacks().getReadiness(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target)) || null
+    },
+    {
+      channel: C.importRuntimePack,
+      handler: async () => {
+        const selected = await selectRuntimePack();
+        if (!selected) return null;
+        const service = runtimePacks();
+        const record = service.install(selected.metadata, RuntimePackBytesSchema.parse(selected.bytes));
+        const readiness = service.getReadiness(record.packId, record.target);
+        if (!readiness) throw new Error("Runtime Pack 导入后无法读取 readiness。");
+        return readiness;
+      }
+    },
+    {
+      channel: C.repairRuntimePackFromFile,
+      handler: async (packId, target, digest) => {
+        const selected = await selectRuntimePack();
+        if (!selected) return null;
+        const expectedPackId = RuntimePackIdSchema.parse(packId);
+        const expectedTarget = RuntimeTargetSchema.parse(target);
+        const expectedDigest = parseString(digest).toLowerCase();
+        if (selected.metadata.packId !== expectedPackId || selected.metadata.target !== expectedTarget || selected.metadata.sha256 !== expectedDigest) {
+          throw new Error("选择的 Runtime Pack Manifest 与待修复版本不匹配。");
+        }
+        const service = runtimePacks();
+        const record = service.repair(selected.metadata, RuntimePackBytesSchema.parse(selected.bytes));
+        const readiness = service.getReadiness(record.packId, record.target);
+        if (!readiness) throw new Error("Runtime Pack repair 后无法读取 readiness。");
+        return readiness;
+      }
+    },
+    {
+      channel: C.installRuntimePack,
+      handler: (metadata, bytes) => {
+        const service = runtimePacks();
+        const record = service.install(metadata, RuntimePackBytesSchema.parse(bytes));
+        const readiness = service.getReadiness(record.packId, record.target);
+        if (!readiness) throw new Error("Runtime Pack 安装后无法读取 readiness。");
+        return readiness;
+      }
+    },
+    {
+      channel: C.repairRuntimePack,
+      handler: (metadata, bytes) => {
+        const service = runtimePacks();
+        const record = service.repair(metadata, RuntimePackBytesSchema.parse(bytes));
+        const readiness = service.getReadiness(record.packId, record.target);
+        if (!readiness) throw new Error("Runtime Pack repair 后无法读取 readiness。");
+        return readiness;
+      }
+    },
+    {
+      channel: C.activateRuntimePack,
+      handler: (packId, target, digest) => {
+        runtimePacks().activate(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target), parseString(digest));
+        return runtimePacks().listReadiness();
+      }
+    },
+    {
+      channel: C.rollbackRuntimePack,
+      handler: (packId, target) => {
+        runtimePacks().rollback(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target));
+        return runtimePacks().listReadiness();
+      }
+    },
+    {
+      channel: C.removeRuntimePack,
+      handler: (packId, target, digest) => runtimePacks().remove(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target), parseString(digest))
+    },
+    {
+      channel: C.garbageCollectRuntimePacks,
+      handler: () => runtimePacks().garbageCollect()
+    },
+    {
+      channel: C.selectRuntimePackDownloadManifest,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择可下载 Runtime Pack Manifest",
+          properties: ["openFile"],
+          filters: [{ name: "Runtime Pack Manifest", extensions: ["json"] }]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        const metadata = JSON.parse(await fs.readFile(result.filePaths[0], "utf8"));
+        return runtimeDownloads().describe(metadata);
+      }
+    },
+    {
+      channel: C.listRuntimePackDownloads,
+      handler: () => runtimeDownloads().list()
+    },
+    {
+      channel: C.startRuntimePackDownload,
+      handler: (metadata) => runtimeDownloads().start(metadata)
+    },
+    {
+      channel: C.pauseRuntimePackDownload,
+      handler: (id) => runtimeDownloads().pause(parseString(id))
+    },
+    {
+      channel: C.resumeRuntimePackDownload,
+      handler: (id) => runtimeDownloads().resume(parseString(id))
+    },
+    {
+      channel: C.removeRuntimePackDownload,
+      handler: (id) => runtimeDownloads().remove(parseString(id))
     },
     {
       channel: C.rebuildContentIndex,
@@ -368,6 +763,124 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.aiRefresh, handler: () => ai().call("snapshot") },
     { channel: C.aiRefreshProviders, handler: () => ai().call("refresh-providers") },
     { channel: C.aiRefreshSkills, handler: () => ai().call("refresh-skills") },
+    {
+      channel: C.inspectSkillWorkspace,
+      handler: () => {
+        const workspaceRoot = settings.resolveWorkspaceRoot();
+        return workspaceRoot ? skillPackages().inspectClaudeSkills(workspaceRoot).map(toSkillPackageInspectionView) : [];
+      }
+    },
+    {
+      channel: C.inspectInstalledSkill,
+      handler: (key, digest) => {
+        const record = skillPackages().getInstalled(parseString(key), parseOptionalString(digest));
+        if (!record) return null;
+        const inspection = skillPackages().inspect(record.packagePath);
+        return toSkillPackageInspectionView({
+          ...inspection,
+          sourcePath: record.sourceLocator || inspection.sourcePath,
+          sourceKind: record.sourceType === "git" ? "git" : inspection.sourceKind
+        });
+      }
+    },
+    {
+      channel: C.migrateSkillWorkspace,
+      handler: () => {
+        const workspaceRoot = settings.resolveWorkspaceRoot();
+        if (!workspaceRoot) return { inspected: [], installed: [], skipped: [] };
+        const report = skillPackages().migrateClaudeSkills(workspaceRoot);
+        return {
+          inspected: report.inspected.map(toSkillPackageInspectionView),
+          installed: report.installed,
+          skipped: report.skipped
+        };
+      }
+    },
+    { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalled() },
+    { channel: C.installSkillPackage, handler: (sourcePath) => skillPackages().install(parseString(sourcePath)) },
+    { channel: C.updateSkillPackage, handler: (sourcePath) => skillPackages().update(parseString(sourcePath)) },
+    {
+      channel: C.selectSkillPackageSource,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择 Skill 目录或 ZIP",
+          properties: ["openFile", "openDirectory"],
+          filters: [{ name: "Skill package", extensions: ["zip"] }]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        const locator = result.filePaths[0];
+        let stat;
+        try { stat = await fs.stat(locator); } catch { throw new Error("所选 Skill 来源不可读取。 "); }
+        if (stat.isDirectory()) return { type: "directory" as const, locator };
+        if (stat.isFile() && path.extname(locator).toLocaleLowerCase() === ".zip") return { type: "zip" as const, locator };
+        throw new Error("Skill 来源必须是目录或 .zip 文件。 ");
+      }
+    },
+    {
+      channel: C.inspectSkillSource,
+      handler: (input) => skillSources().inspect(SkillPackageSourceInputSchema.parse(input)).then(toSkillPackageInspectionView)
+    },
+    {
+      channel: C.installSkillSource,
+      handler: (input) => skillSources().install(SkillPackageSourceInputSchema.parse(input))
+    },
+    {
+      channel: C.updateSkillSource,
+      handler: (input) => skillSources().update(SkillPackageSourceInputSchema.parse(input))
+    },
+    { channel: C.rollbackSkillPackage, handler: (key) => skillPackages().rollback(parseString(key)) },
+    {
+      channel: C.uninstallSkillPackage,
+      handler: (key, digest) => skillPackages().uninstall(parseString(key), parseOptionalString(digest))
+    },
+    {
+      channel: C.approveInstalledSkillHost,
+      handler: (key, digest) => skillPackages().approveHostExecution(parseString(key), parseString(digest))
+    },
+    {
+      channel: C.revokeInstalledSkillHost,
+      handler: (key, digest) => skillPackages().revokeHostExecution(parseString(key), parseString(digest))
+    },
+    { channel: C.startSkillRun, handler: (input) => ai().call("skill-run-start", SkillRunRequestSchema.parse(input)) },
+    { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
+    { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },
+    { channel: C.getSkillRunEvents, handler: (runId) => ai().call("skill-run-events", parseString(runId)) },
+    { channel: C.listRunArtifacts, handler: (runId) => ai().call("run-list-artifacts", parseOptionalString(runId)) },
+    { channel: C.retrySkillRun, handler: (runId) => ai().call("run-retry", parseString(runId)) },
+    { channel: C.resumeAgentRun, handler: (input) => ai().call("agent-run-resume", AgentResumeRequestSchema.parse(input)) },
+    { channel: C.retryWorkflowStep, handler: (runId, stepId) => ai().call("run-retry-step", parseString(runId), parseString(stepId)) },
+    { channel: C.deleteRunHistory, handler: (runId) => ai().call("run-delete-history", parseString(runId)) },
+    { channel: C.cancelSkillRun, handler: (runId) => ai().call("skill-run-cancel", parseString(runId)) },
+    { channel: C.approveSkillRun, handler: (runId) => ai().call("skill-run-approve", parseString(runId)) },
+    { channel: C.startWorkflowRun, handler: (input) => ai().call("workflow-run-start", WorkflowStartRequestSchema.parse(input)) },
+    { channel: C.listWorkflowRuns, handler: () => ai().call("workflow-run-list") },
+    { channel: C.getWorkflowRun, handler: (runId) => ai().call("workflow-run-get", parseString(runId)) },
+    { channel: C.resumeWorkflowRun, handler: (input) => ai().call("workflow-run-resume", WorkflowResumeRequestSchema.parse(input)) },
+    { channel: C.cancelWorkflowRun, handler: (runId) => ai().call("workflow-run-cancel", parseString(runId)) },
+    { channel: C.listAutomationRules, handler: () => ai().call("automation-rules-list") },
+    { channel: C.saveAutomationRule, handler: (input) => ai().call("automation-rule-save", AutomationRuleInputSchema.parse(input)) },
+    { channel: C.deleteAutomationRule, handler: (id) => ai().call("automation-rule-delete", IdentifierArgSchema.parse(id)) },
+    { channel: C.runAutomationNow, handler: (id) => ai().call("automation-run-now", IdentifierArgSchema.parse(id)) },
+    { channel: C.listAutomationRuns, handler: (ruleId) => ai().call("automation-runs-list", ruleId == null || ruleId === "" ? undefined : IdentifierArgSchema.parse(ruleId)) },
+    { channel: C.listAutomationSchedules, handler: () => ai().call("automation-schedules-list") },
+    { channel: C.listExportLocations, handler: () => ctx.ensureExportLocationService().list() },
+    {
+      channel: C.selectExportLocation,
+      handler: async (label, bindingId) => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择 Skill 导出目录",
+          properties: ["openDirectory", "createDirectory"]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        const service = ctx.ensureExportLocationService();
+        const requestedBindingId = bindingId == null || bindingId === "" ? undefined : IdentifierArgSchema.parse(bindingId);
+        if (requestedBindingId && service.get(requestedBindingId)) return service.relink(requestedBindingId, result.filePaths[0]);
+        return requestedBindingId
+          ? service.create(ExportLabelSchema.parse(label), result.filePaths[0], requestedBindingId)
+          : service.create(ExportLabelSchema.parse(label), result.filePaths[0]);
+      }
+    },
+    { channel: C.revokeExportLocation, handler: (id) => ctx.ensureExportLocationService().revoke(parseString(id)) },
     { channel: C.aiPrewarm, handler: (sessionId) => ai().call("prewarm", parseOptionalString(sessionId)) },
     { channel: C.aiSearchSessions, handler: (query) => ai().call("search", z.string().max(500).parse(query || "")) },
     { channel: C.aiStartRun, handler: (input) => ai().call("start", StartRunInputSchema.parse(input)) },

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import { findRepoRoot, ensureInsideRepo } from "./settings";
+import { appPrivateStatePath, findRepoRoot, ensureInsideRepo, relativeToMymind, resolveMymindRoot } from "./settings";
 import { readJson } from "./content";
 import { moveDirectoryWithFallback, writeJsonAtomic, writeTextAtomic } from "./fs-utils";
 import {
@@ -42,6 +42,12 @@ const DEFAULT_WORKFLOW_STAGE_POLICY: WorkflowStagePolicy = {
 };
 
 const STAGE_FOLDERS = CREATIVE_STAGE_DISK_FOLDERS;
+
+function relativeContentPath(absolutePath: string): string {
+  return resolveMymindRoot()
+    ? relativeToMymind(absolutePath)
+    : path.relative(findRepoRoot(), absolutePath).split(path.sep).join("/");
+}
 
 // 内部类型：从 ai_topic_*.md 解析出来的原始选题条目。
 interface ParsedTopic {
@@ -345,7 +351,7 @@ function buildCreativeTopicsPayload(
     date,
     topics: [...parsed, ...manual],
     raw: cachedFile?.raw || "",
-    file: filePath ? path.relative(findRepoRoot(), filePath) : undefined
+    file: filePath ? relativeContentPath(filePath) : undefined
   };
 }
 
@@ -361,7 +367,6 @@ function readCreativeTopicFile(filePath: string): CachedTopicFile | null {
 }
 
 export function listCreativeProjects(): CreativeProjectEntry[] {
-  const repoRoot = findRepoRoot();
   const draftRoot = ensureInsideRepo(path.join(...CREATIVE_WORKSPACE_SEGMENTS));
   const stages = CREATIVE_STAGE_SCAN_FOLDERS.map(({ diskFolder, stage }) => [diskFolder, stage] as const);
   const fingerprint = `${draftRoot}|${stages.map(([folder]) => {
@@ -391,7 +396,7 @@ export function listCreativeProjects(): CreativeProjectEntry[] {
       const completion = calcCompletion({ ...manifest, stage }, files, hasAssets);
       projects.push({
         id: entry.name,
-        dir: path.relative(repoRoot, projectDir),
+        dir: relativeContentPath(projectDir),
         topic: manifest.topic || entry.name,
         date: manifest.date || entry.name.slice(0, 8),
         status: manifest.status || "unknown",
@@ -519,7 +524,7 @@ export function advanceProjectStage(
   const manifestPath = path.join(destDir, "manifest.json");
   const manifest = readJson<DiskManifest>(manifestPath, {});
   manifest.stage = nextStage;
-  manifest.package_dir = path.relative(findRepoRoot(), destDir);
+  manifest.package_dir = relativeContentPath(destDir);
   manifest.status = nextStage === "published" ? "exported" : `${nextStage}_ready`;
   manifest.progress = stageProgress(nextStage);
   if (nextStage === "published") {
@@ -528,7 +533,7 @@ export function advanceProjectStage(
   }
   manifest.updated_at = new Date().toISOString();
   persistManifest(destDir, manifest, { action: "stage_changed", stage: nextStage, detail: messages.creativeUi.releaseDetail.stageEntered(nextStage) });
-  return getCreativeProject(path.relative(findRepoRoot(), destDir));
+  return getCreativeProject(relativeContentPath(destDir));
 }
 
 interface CreatedCreativeProject extends CreativeProjectFullDetail {
@@ -545,7 +550,7 @@ export function createCreativeProject(input: CreateCreativeProjectInput): Create
   if (sourceTopicId) {
     const existing = listCreativeProjects().find((project) => {
       if (project.archived) return false;
-      const manifest = readJson<DiskManifest>(path.join(findRepoRoot(), project.dir, "manifest.json"), {});
+      const manifest = readJson<DiskManifest>(path.join(ensureInsideRepo(project.dir), "manifest.json"), {});
       return manifest.sourceTopicId === sourceTopicId;
     });
     if (existing) return { ...getCreativeProject(existing.dir), reused: true };
@@ -593,8 +598,8 @@ export function createCreativeProject(input: CreateCreativeProjectInput): Create
   fs.writeFileSync(path.join(projectDir, "topic-brief.md"), `# ${title}\n\n${topicBody || messages.creative.defaults.topicBriefPlaceholder}\n`, "utf8");
   fs.writeFileSync(path.join(projectDir, "draft.md"), `# ${title}\n\n`, "utf8");
   appendReleaseLog(projectDir, { action: "project_created", stage: "drafting", detail: messages.creativeUi.releaseDetail.createdFromTopic });
-  if (sourceTopicId) updateCreativeTopicState(date, sourceTopicId, { projectDir: path.relative(findRepoRoot(), projectDir) });
-  return getCreativeProject(path.relative(findRepoRoot(), projectDir));
+  if (sourceTopicId) updateCreativeTopicState(date, sourceTopicId, { projectDir: relativeContentPath(projectDir) });
+  return getCreativeProject(relativeContentPath(projectDir));
 }
 
 export function saveCreativeFile(input: SaveCreativeFileInput): CreativeProjectFullDetail {
@@ -607,14 +612,14 @@ export function saveCreativeFile(input: SaveCreativeFileInput): CreativeProjectF
     throw new Error(messages.errors.creative.truncatedSaveBlocked(file));
   }
   if (input && input.createVersion && fs.existsSync(target)) {
-    createCreativeVersion(path.relative(findRepoRoot(), projectDir), file, fs.readFileSync(target, "utf8"), input.versionNote || messages.creative.version.beforeSave);
+    createCreativeVersion(relativeContentPath(projectDir), file, fs.readFileSync(target, "utf8"), input.versionNote || messages.creative.version.beforeSave);
   }
   writeTextAtomic(target, content);
   const manifestPath = path.join(projectDir, "manifest.json");
   const manifest = readJson<DiskManifest>(manifestPath, {});
   manifest.updated_at = new Date().toISOString();
   persistManifest(projectDir, manifest, { action: "file_saved", stage: (manifest.stage as string) || stageFromProjectDir(projectDir), file, detail: messages.creativeUi.releaseDetail.fileSaved(file) });
-  return getCreativeProject(path.relative(findRepoRoot(), projectDir));
+  return getCreativeProject(relativeContentPath(projectDir));
 }
 
 export function createCreativeVersion(projectDir: string, file: string, content: string, note: string): CreativeVersion {
@@ -627,7 +632,7 @@ export function createCreativeVersion(projectDir: string, file: string, content:
   const versionPath = path.join(versionDir, `${id}.md`);
   fs.writeFileSync(versionPath, String(content || ""), "utf8");
   writeJsonSafe(`${versionPath}.json`, { id, file: safeFile, createdAt: createdAt.toISOString(), note: String(note || messages.creative.version.manual) });
-  return { id, file: safeFile, path: path.relative(findRepoRoot(), versionPath), createdAt: createdAt.toISOString(), note: String(note || messages.creative.version.manual), size: Buffer.byteLength(String(content || ""), "utf8") };
+  return { id, file: safeFile, path: relativeContentPath(versionPath), createdAt: createdAt.toISOString(), note: String(note || messages.creative.version.manual), size: Buffer.byteLength(String(content || ""), "utf8") };
 }
 
 interface VersionMetadata {
@@ -650,7 +655,7 @@ export function listCreativeVersions(projectDir: string, file: string): Creative
       return {
         id: metadata.id || name.replace(/\.md$/, ""),
         file: safeFile,
-        path: path.relative(findRepoRoot(), versionPath),
+        path: relativeContentPath(versionPath),
         createdAt: metadata.createdAt || stat.mtime.toISOString(),
         note: metadata.note || messages.creative.version.history,
         size: stat.size
@@ -710,7 +715,7 @@ export function updateCreativeManifest(projectDir: string, patch: ManifestPatch)
   manifest.progress = calcCompletion({ ...manifest, stage: stageFromProjectDir(projectDir) }, fs.readdirSync(absDir), fs.existsSync(path.join(absDir, "assets")));
   manifest.updated_at = new Date().toISOString();
   writeJsonSafe(manifestPath, manifest);
-  return getCreativeProject(path.relative(findRepoRoot(), absDir));
+  return getCreativeProject(relativeContentPath(absDir));
 }
 
 export function bindCreativeSession(projectDir: string, sessionId: string): CreativeProjectFullDetail {
@@ -721,11 +726,11 @@ export function bindCreativeSession(projectDir: string, sessionId: string): Crea
   manifest.aiSessionIds = ids;
   manifest.updated_at = new Date().toISOString();
   persistManifest(absDir, manifest, { action: "session_bound", stage: (manifest.stage as string) || stageFromProjectDir(projectDir), detail: messages.creativeUi.releaseDetail.sessionBound(sessionId) });
-  return getCreativeProject(path.relative(findRepoRoot(), absDir));
+  return getCreativeProject(relativeContentPath(absDir));
 }
 
 export function updateCreativeTopicState(date: string, topicId: string, patch: TopicStatePatch): TopicsPayload {
-  const statePath = path.join(findRepoRoot(), ".cctools", "creative-topic-state.json");
+  const statePath = appPrivateStatePath("creative-topic-state.json", true);
   const state = readJson<TopicStateStore>(statePath, {});
   const day = String(date || "").replace(/\D/g, "").slice(0, 8);
   state[day] ||= {};
@@ -747,7 +752,7 @@ export function reviewCreativeProject(projectDir: string): CreativeProjectFullDe
   manifest.review = report.status;
   manifest.updated_at = new Date().toISOString();
   persistManifest(absDir, manifest, { action: "review_generated", stage: stageFromProjectDir(projectDir), file: preferred, status: report.status, detail: messages.creativeUi.releaseDetail.reviewScore(report.score) });
-  return getCreativeProject(path.relative(findRepoRoot(), absDir));
+  return getCreativeProject(relativeContentPath(absDir));
 }
 
 export function setCreativeReviewStatus(projectDir: string, status: "pending" | "changes-requested" | "approved"): CreativeProjectFullDetail {
@@ -764,13 +769,13 @@ export function setCreativeReviewStatus(projectDir: string, status: "pending" | 
   manifest.review = status;
   manifest.updated_at = new Date().toISOString();
   persistManifest(absDir, manifest, { action: "review_status_changed", stage: stageFromProjectDir(projectDir), status, detail: messages.creativeUi.releaseDetail.reviewStatus(status) });
-  return getCreativeProject(path.relative(findRepoRoot(), absDir));
+  return getCreativeProject(relativeContentPath(absDir));
 }
 
 export function readCreativeVersion(versionPath: string): { path: string; content: string } {
   const absPath = ensureInsideRepo(versionPath);
   if (!absPath.includes(`${path.sep}versions${path.sep}`) || !absPath.endsWith(".md")) throw new Error(messages.errors.creative.invalidVersionPath);
-  return { path: path.relative(findRepoRoot(), absPath), content: fs.readFileSync(absPath, "utf8") };
+  return { path: relativeContentPath(absPath), content: fs.readFileSync(absPath, "utf8") };
 }
 
 export function restoreCreativeVersion(projectDir: string, file: string, versionPath: string): CreativeProjectFullDetail {
@@ -782,7 +787,7 @@ export function restoreCreativeVersion(projectDir: string, file: string, version
   createCreativeVersion(projectDir, safeFile, version.content, messages.creative.version.restoredFrom(path.basename(version.path)));
   fs.writeFileSync(target, version.content, "utf8");
   appendReleaseLog(absDir, { action: "version_restored", stage: stageFromProjectDir(projectDir), file: safeFile, target: version.path, detail: messages.creativeUi.releaseDetail.versionRestored });
-  return getCreativeProject(path.relative(findRepoRoot(), absDir));
+  return getCreativeProject(relativeContentPath(absDir));
 }
 
 export function getCreativeReleaseLog(projectDir: string): CreativeReleaseEvent[] {
@@ -816,8 +821,8 @@ export function copyCreativeProject(projectDir: string): CreativeProjectFullDeta
   manifest.publish = { ...((manifest.publish as PublishConfig | undefined) || {}), status: "draft", exportedPath: null, publishedUrl: null, publishedAt: null } as PublishConfig;
   writeJsonSafe(manifestPath, manifest);
   writeJsonSafe(path.join(target, "release-log.json"), []);
-  appendReleaseLog(target, { action: "project_copied", stage: stageFromProjectDir(target), detail: messages.creativeUi.releaseDetail.copiedFrom(path.relative(findRepoRoot(), absDir)) });
-  return getCreativeProject(path.relative(findRepoRoot(), target));
+  appendReleaseLog(target, { action: "project_copied", stage: stageFromProjectDir(target), detail: messages.creativeUi.releaseDetail.copiedFrom(relativeContentPath(absDir)) });
+  return getCreativeProject(relativeContentPath(target));
 }
 
 export function archiveCreativeProject(projectDir: string): CreativeProjectFullDetail {
@@ -834,7 +839,7 @@ export function archiveCreativeProject(projectDir: string): CreativeProjectFullD
   manifest.updated_at = new Date().toISOString();
   writeJsonSafe(path.join(target, "manifest.json"), manifest);
   appendReleaseLog(target, { action: "project_archived", stage: "archived", detail: messages.creativeUi.releaseDetail.archived });
-  return getCreativeProject(path.relative(findRepoRoot(), target));
+  return getCreativeProject(relativeContentPath(target));
 }
 
 export function restoreCreativeProject(projectDir: string): CreativeProjectFullDetail {
@@ -851,7 +856,7 @@ export function restoreCreativeProject(projectDir: string): CreativeProjectFullD
   manifest.updated_at = new Date().toISOString();
   writeJsonSafe(path.join(target, "manifest.json"), manifest);
   appendReleaseLog(target, { action: "stage_changed", stage: "drafting", detail: messages.creativeUi.releaseDetail.restoredFromArchive });
-  return getCreativeProject(path.relative(findRepoRoot(), target));
+  return getCreativeProject(relativeContentPath(target));
 }
 
 export function deleteCreativeProject(projectDir: string): true {
@@ -878,17 +883,17 @@ function decorateTopics(date: string, topics: ParsedTopic[], state: TopicStateSt
 
 function decorateTopic(day: string, topic: ParsedTopic | ManualTopicEntry, index: number, state: TopicStateStore): CreativeTopic {
   const id = crypto.createHash("sha1").update(`${day}:${(topic as ParsedTopic).section || ""}:${(topic as ParsedTopic).title || ""}:${index}`).digest("hex");
-  const dayState = (state || readJson<TopicStateStore>(path.join(findRepoRoot(), ".cctools", "creative-topic-state.json"), {}))?.[day] || {};
+  const dayState = (state || readJson<TopicStateStore>(appPrivateStatePath("creative-topic-state.json"), {}))?.[day] || {};
   const saved = dayState[id] || {};
   return { ...(topic as CreativeTopic), id, ignored: Boolean(saved.ignored), projectDir: saved.projectDir || null };
 }
 
 function readManualTopics(): ManualTopicStore {
-  return readJson<ManualTopicStore>(path.join(findRepoRoot(), ".cctools", "creative-manual-topics.json"), {});
+  return readJson<ManualTopicStore>(appPrivateStatePath("creative-manual-topics.json"), {});
 }
 
 function readCreativeTopicState(): TopicStateStore {
-  return readJson<TopicStateStore>(path.join(findRepoRoot(), ".cctools", "creative-topic-state.json"), {});
+  return readJson<TopicStateStore>(appPrivateStatePath("creative-topic-state.json"), {});
 }
 
 export function addManualTopic(date: string, input: { title?: string; body?: string; score?: number; platform?: string } | undefined): CreativeTopicsPayload {
@@ -907,13 +912,13 @@ export function addManualTopic(date: string, input: { title?: string; body?: str
     platform: input?.platform || messages.common.unspecified,
     createdAt: new Date().toISOString()
   });
-  writeJsonSafe(path.join(findRepoRoot(), ".cctools", "creative-manual-topics.json"), store);
+  writeJsonSafe(appPrivateStatePath("creative-manual-topics.json", true), store);
   return getCreativeTopics(day);
 }
 
 function createStageVersions(absDir: string, fromStage: string, toStage: string): void {
   for (const file of fs.readdirSync(absDir).filter((name) => name.endsWith(".md"))) {
-    createCreativeVersion(path.relative(findRepoRoot(), absDir), file, fs.readFileSync(path.join(absDir, file), "utf8"), messages.creative.version.stageChange(fromStage, toStage));
+    createCreativeVersion(relativeContentPath(absDir), file, fs.readFileSync(path.join(absDir, file), "utf8"), messages.creative.version.stageChange(fromStage, toStage));
   }
 }
 

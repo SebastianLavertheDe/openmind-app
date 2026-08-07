@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
+import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
 
 /**
  * mock process-utils 的 spawn 相关函数 —— SkillToolRegistry.run() 内部
@@ -112,6 +114,41 @@ describe("SkillToolRegistry", () => {
       const registry = new SkillToolRegistry(root);
       const skill = registry.list().find((s) => s.id === "test-skill");
       expect(skill?.name).toBe("测试 Skill");
+    });
+
+    it("Installed Resolver 存在时只暴露正式 Installed Skill 定义", () => {
+      const root = createRoot();
+      const paths = buildAppPaths(path.join(root, "user-data"));
+      ensureAppPaths(paths);
+      const installedResolver = {
+        listDefinitions: () => [{
+          id: "installed-skill",
+          title: "Installed Skill",
+          description: "formal manifest",
+          cwd: "installed/cctools/installed-skill/1.0.0",
+          command: "managed-runtime",
+          runner: "managed-runtime",
+          args: [],
+          envFile: null,
+          group: "general",
+          permission: "edit" as const,
+          outputArtifacts: [],
+          timeoutMs: 1800000
+        }],
+        active: () => undefined,
+        resolve: vi.fn()
+      } as unknown as InstalledSkillExecutionResolver;
+      const registry = new SkillToolRegistry(root, root, {
+        paths,
+        mymindRoot: root,
+        rootGeneration: 1,
+        installedResolver
+      });
+
+      expect(registry.listDefinitions()).toEqual([
+        expect.objectContaining({ id: "installed-skill", command: "managed-runtime" })
+      ]);
+      expect(registry.listDefinitions().some((skill) => skill.id === "test-skill")).toBe(false);
     });
   });
 
@@ -308,6 +345,78 @@ describe("SkillToolRegistry", () => {
     });
   });
 
+  it("生产手动路径只通过 active Installed Skill Resolver 进入 ExecutionBroker", async () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const skillDir = path.join(root, ".claude", "skills", "test-skill");
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const digest = "a".repeat(64);
+    const active = { version: "1.0.0", digest };
+    const resolve = vi.fn(async (request: { skillId: string; version?: string; digest?: string; inputs: Record<string, unknown> }) => ({
+      skillId: request.skillId,
+      version: "1.0.0",
+      digest,
+      rootGeneration: 1,
+      skillHome: fs.realpathSync(skillDir),
+      mymindRoot: fs.realpathSync(mymindRoot),
+      capabilities: { mymind: { read: [], write: [] } },
+      process: {
+        executable: process.execPath,
+        args: ["-e", "console.log(process.env.CCTOOLS_SOURCE_URL || '<missing>')"],
+        cwd: fs.realpathSync(skillDir),
+        env: { CCTOOLS_SOURCE_URL: String(request.inputs.sourceUrl || "") },
+        timeoutMs: 5_000,
+        gracefulStopMs: 1_000
+      },
+      requiresHostConsent: false,
+      artifacts: [],
+      knownSecrets: []
+    }));
+    const installedResolver = {
+      active: vi.fn(() => active),
+      resolve: resolve as unknown as InstalledSkillExecutionResolver["resolve"]
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1, installedResolver });
+    const events: SkillExecutionEvent[] = [];
+    const output = await registry.run("test-skill", { date: "2026-08-05", sourceId: "source-1", sourceUrl: "https://example.com/feed" }, root, {
+      invocationId: "broker:test-skill",
+      onEvent: (event) => events.push(event)
+    });
+
+    expect(output).toContain("https://example.com/feed");
+    expect(events.map((event) => event.state)).toContain("success");
+    expect(fs.readdirSync(paths.runs, { withFileTypes: true }).some((entry) => entry.isDirectory())).toBe(true);
+    expect(registry.isRunning("broker:test-skill")).toBe(false);
+    expect(resolve).toHaveBeenCalledWith(expect.objectContaining({
+      skillId: "test-skill",
+      version: "1.0.0",
+      digest,
+      inputs: { date: "20260805", sourceId: "source-1", sourceUrl: "https://example.com/feed" }
+    }), expect.any(String), expect.any(Object));
+  });
+
+  it("通用 Skill Run 不再把 Legacy workspace Skill 当作可执行 Installed Skill", async () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1 });
+
+    const run = registry.submitRun({
+      skillId: "test-skill",
+      inputs: {},
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    });
+    await waitFor(() => registry.getRun(run.id).state === "failed");
+    expect(registry.getRun(run.id).error).toContain("active Installed Skill");
+  });
+
   describe("stop", () => {
     it("不存在的 invocation 返回 false", async () => {
       const root = createRoot();
@@ -367,3 +476,11 @@ describe("SkillToolRegistry", () => {
     });
   });
 });
+
+async function waitFor(condition: () => boolean): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("skill registry wait timed out");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}

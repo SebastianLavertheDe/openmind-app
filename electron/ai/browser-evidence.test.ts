@@ -12,7 +12,7 @@ import {
 const enabled: BrowserAutomationConfig = {
   enabled: true,
   reuseExistingTabs: true,
-  evidenceDir: ".cctools/browser-evidence",
+  evidenceDir: "assets/browser-evidence",
   extensionToken: "extension-token"
 };
 
@@ -26,7 +26,7 @@ describe("browser evidence MCP configuration", () => {
     const server = buildBrowserMcpProcess({ runtime: "native" }, cwd, enabled);
     expect(server?.command).toBe(process.execPath);
     expect(server?.args[0]).toMatch(/browser-evidence-mcp\.js$/);
-    expect(server?.args).toContain(path.resolve(cwd, ".cctools/browser-evidence"));
+    expect(server?.args).toContain(path.resolve(cwd, "assets/browser-evidence"));
     expect(server?.env).toEqual(expect.objectContaining({
       ELECTRON_RUN_AS_NODE: "1",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "extension-token"

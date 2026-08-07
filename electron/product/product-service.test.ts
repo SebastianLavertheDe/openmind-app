@@ -46,8 +46,11 @@ describe("ProductService", () => {
   });
 
   function createService() {
+    // ADR-001: ProductService takes the mymind content dir (root/mymind), not
+    // the repo. The skill-source root (where .claude/skills lives) is passed
+    // via opts so SourceRegistry can still find subscriptions.opml.
     return new ProductService(
-      root,
+      path.join(root, "mymind"),
       {
         getContent: (kind) => { contentReads += 1; return kind === "all" || kind === "articles" ? entries as never : []; },
         readContent: (relativePath) => {
@@ -64,7 +67,11 @@ describe("ProductService", () => {
         },
         getAllCreativeTopics: () => [],
         listCreativeProjects: () => [{ dir: "creative/demo", topic: "Demo", stage: "drafting", completion: 50, date: "20260615" }]
-      } as CreativeServiceApi
+      } as CreativeServiceApi,
+      // ADR-001: keep app-private state under the legacy repo root for these
+      // tests (so .cctools lands at root/.cctools as the fixtures expect);
+      // production wires this to userData/state/<root-id>/ via main.ts.
+      { skillSourcesRoot: root, stateRoot: root }
     );
   }
 
@@ -388,9 +395,12 @@ describe("ProductService 创作委托方法", () => {
       writeContent: () => ({ path: "x", name: "x", content: "", truncated: false })
     };
     const service = new ProductService(
-      root,
+      path.join(root, "mymind"),
       content as ContentServiceApi,
       creative as unknown as CreativeServiceApi,
+      // ADR-001: opts (4th param) — keep skill-source + state under the legacy
+      // repo root for these tests. preferences is now the 5th param.
+      { skillSourcesRoot: root, stateRoot: root },
       () => ({ ...UserPreferencesSchema.parse({}), ...preferenceOverrides })
     );
     return { service, creative };

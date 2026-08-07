@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addManualTopic, advanceProjectStage, archiveCreativeProject, bindCreativeSession, copyCreativeProject, createCreativeProject, createCreativeVersion, deleteCreativeProject, getAllCreativeTopics, getCreativeProject, getCreativeReleaseLog, getCreativeTopics, listCreativeProjects, listCreativeVersions, restoreCreativeProject, restoreCreativeVersion, reviewCreativeProject, saveCreativeFile, setCreativeReviewStatus, updateCreativeManifest } from "./creative";
+import { appPrivateStatePath } from "./settings";
 
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-creative-userdata-"));
 
@@ -37,7 +38,7 @@ describe("creative topics", () => {
     expect(() => addManualTopic("20260616", { title: "   " })).toThrow("不能为空");
     expect(() => addManualTopic("not-a-date", { title: "选题" })).toThrow("日期");
     addManualTopic("20260616", { title: "选题 A", score: 0 });
-    const store = JSON.parse(fs.readFileSync(path.join(repo, ".cctools", "creative-manual-topics.json"), "utf8"));
+    const store = JSON.parse(fs.readFileSync(appPrivateStatePath("creative-manual-topics.json"), "utf8"));
     expect(store["20260616"]).toHaveLength(1);
     expect(getCreativeTopics("20260616").topics.map((topic) => topic.title)).toContain("选题 A");
     expect(getCreativeTopics("20260617").topics).toHaveLength(0);

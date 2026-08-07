@@ -35,6 +35,16 @@ function imageContext(overrides: Partial<ContextReference> = {}): ContextReferen
 }
 
 describe("materializeImages", () => {
+  it("stateRoot 存在时把临时图片写入 app-private root并返回绝对路径", () => {
+    const root = createRoot();
+    const stateRoot = createRoot();
+    const result = materializeImages(root, "run-private", [imageContext()], stateRoot);
+
+    expect(result[0].path).toBe(path.join(stateRoot, ".cctools", "ai", "tmp-images", "run-private-img1.png"));
+    expect(fs.existsSync(result[0].path!)).toBe(true);
+    expect(fs.existsSync(path.join(root, ".cctools"))).toBe(false);
+  });
+
   it("解码 dataURL 写盘并回填 path/mediaType/byteSize,清空 content", () => {
     const root = createRoot();
     const result = materializeImages(root, "run-1", [imageContext()]);

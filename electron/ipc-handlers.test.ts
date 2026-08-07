@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import os from "node:os";
+import path from "node:path";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import { createDesktopInvokeBridge } from "../shared/ipc-bridge";
 import {
@@ -41,9 +43,11 @@ vi.mock(import("electron"), async (importOriginal) => {
 
 describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(83);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(83);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(83);
+    // ADR-001 added the independent roots; Phase 2 adds static Skill package
+    // inspection, migration and installed-registry listing.
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(160);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(160);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(160);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -83,23 +87,42 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     ensureProductService: () => product as never,
     ensureAiWorker: () => makeAiSpy() as never,
     ensureMymindFileSearch: () => ({ search: async () => [] }) as never,
+    ensureSkillPackageService: () => ({
+      inspectClaudeSkills: () => [],
+      migrateClaudeSkills: () => ({ inspected: [], installed: [], skipped: [] }),
+      listInstalled: () => []
+    }) as never,
+    ensureExportLocationService: () => ({ list: () => [], create: () => ({}), get: () => undefined, relink: () => ({}), revoke: () => false, resolve: () => ({}) }) as never,
+    ensureCredentialVault: () => ({
+      status: () => ({ available: true, backend: "safeStorage", credentials: [] }),
+      set: (input: unknown) => ({ schemaVersion: 1, id: "credential-test", label: (input as { label: string }).label, kind: (input as { kind: string }).kind, scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
+      replace: () => ({ schemaVersion: 1, id: "credential-test", label: "test", kind: "token", scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
+      revoke: () => ({ schemaVersion: 1, id: "credential-test", label: "test", kind: "token", scope: null, status: "revoked", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
+      delete: () => true,
+      test: (id: string) => ({ id, ok: true, status: "available", diagnostic: "ok" })
+    }) as never,
+    ensureProviderProfileRepository: () => ({ list: () => [], save: (input: unknown) => ({ ...(input as object), schemaVersion: 1, test: { status: "never", testedAt: null, diagnostic: null } }), remove: () => true }) as never,
+    ensureProviderConnectivity: () => ({ test: async (id: string) => ({ id, schemaVersion: 1, name: "Test", protocol: "provider-native", credentialId: null, baseUrl: "", model: "", timeoutMs: 120000, maxRetries: 2, proxyPolicy: "system", tlsPolicy: "verify", fallbackProfileId: null, test: { status: "success", testedAt: "2026-07-08T00:00:00.000Z", diagnostic: "ok" } }) }) as never,
+    ensureRuntimePackService: () => ({ listReadiness: () => [], getReadiness: () => undefined, activate: () => ({}), rollback: () => ({}), remove: () => false }) as never,
+    analyzeEnvFile: () => ({ path: ".env", variables: [], ignoredLines: 0, warnings: [], containsPotentialSecrets: false }),
+    getActiveRunCount: async () => 0,
     restartAiWorker: vi.fn(),
     getBrowserAutomationStatus: () => ({
       backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
       secureStorageAvailable: true, packageAvailable: true, ready: false,
       diagnostic: "AI 写作取证已关闭。"
     }),
     getMcpServers: () => [],
     saveBrowserExtensionToken: () => ({
       backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: true,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: true,
       secureStorageAvailable: true, packageAvailable: true, ready: true,
       diagnostic: "已就绪"
     }),
     clearBrowserExtensionToken: () => ({
       backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: ".cctools/browser-evidence", extensionTokenConfigured: false,
+      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
       secureStorageAvailable: true, packageAvailable: true, ready: false,
       diagnostic: "未配置"
     }),
@@ -127,6 +150,36 @@ describe("ipc handlers", () => {
     }];
     const result = invokeHandler(makeCtx({ getMcpServers: () => catalog }), IPC_METHOD_CHANNELS.getMcpServers);
     expect(result).toEqual(catalog);
+  });
+
+  it("validates credential input and never returns a secret field", () => {
+    const result = invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.setCredential, {
+      label: "API key",
+      kind: "api-key",
+      secret: "renderer-secret"
+    });
+    expect(result).not.toHaveProperty("secret");
+    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.setCredential, {
+      label: "API key",
+      kind: "api-key",
+      secret: ""
+    })).toThrow();
+  });
+
+  it("validates Provider Profile URLs at the IPC boundary", () => {
+    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.saveProviderProfile, {
+      id: "unsafe",
+      name: "Unsafe",
+      protocol: "provider-native",
+      credentialId: null,
+      baseUrl: "https://user:password@example.com",
+      model: "model",
+      timeoutMs: 120000,
+      maxRetries: 2,
+      proxyPolicy: "system",
+      tlsPolicy: "verify",
+      fallbackProfileId: null
+    })).toThrow();
   });
 });
 
@@ -252,6 +305,172 @@ describe("handler forwarding — AI 透传类", () => {
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.stopSkill, "rss-article-saver");
     expect(ai.call).toHaveBeenCalledWith("stop-skill", "rss-article-saver");
   });
+
+  it("通用 Skill Run 只转发经过 Schema 校验的结构化请求", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.startSkillRun, {
+      skillId: "example-skill",
+      inputs: { date: "20260805" },
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    });
+    expect(ai.call).toHaveBeenCalledWith("skill-run-start", expect.objectContaining({ skillId: "example-skill" }));
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.startSkillRun, {
+      skillId: "example-skill",
+      executable: "/bin/sh",
+      cwd: "/tmp",
+      trigger: { type: "manual" },
+      rootGeneration: 1
+    })).toThrow();
+  });
+
+  it("通用 Skill Run 查询、取消和审批转发到 worker", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listSkillRuns);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRun, "run-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEvents, "run-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.cancelSkillRun, "run-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.approveSkillRun, "run-1");
+    expect(ai.call.mock.calls.map(([method]) => method)).toEqual([
+      "skill-run-list", "skill-run-get", "skill-run-events", "skill-run-cancel", "skill-run-approve"
+    ]);
+  });
+
+  it("Run 历史、产物和重试操作转发到 worker", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listRunArtifacts);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.retrySkillRun, "run-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.retryWorkflowStep, "workflow-1", "step-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.deleteRunHistory, "run-1");
+    expect(ai.call.mock.calls).toEqual([
+      ["run-list-artifacts", undefined],
+      ["run-retry", "run-1"],
+      ["run-retry-step", "workflow-1", "step-1"],
+      ["run-delete-history", "run-1"]
+    ]);
+  });
+
+  it("Runtime Pack IPC exposes readiness without leaking package paths", async () => {
+    const service = {
+      listReadiness: vi.fn(() => [{ packId: "python-core", target: "linux-x64", version: "1.0.0", digest: "a".repeat(64), status: "active", verifiedAt: "2026-08-06T00:00:00.000Z", license: "PSF-2.0", sbom: { format: "spdx", digest: "b".repeat(64) }, integrity: "verified", inUse: false, ready: true, reason: "ok" }]),
+      getReadiness: vi.fn((packId: string, target: string) => ({ packId, target, version: "1.0.0", digest: "a".repeat(64), status: "candidate", verifiedAt: "2026-08-06T00:00:00.000Z", license: "PSF-2.0", sbom: { format: "spdx", digest: "b".repeat(64) }, integrity: "verified", inUse: false, ready: false, reason: "Runtime Pack 尚未激活。" })),
+      install: vi.fn(() => ({ packId: "python-core", target: "linux-x64" })),
+      repair: vi.fn(() => ({ packId: "python-core", target: "linux-x64" })),
+      activate: vi.fn(() => ({ active: {} })),
+      rollback: vi.fn(() => ({ active: {}, previous: {} })),
+      remove: vi.fn(() => true),
+      garbageCollect: vi.fn(() => [])
+    };
+    const ctx = makeCtx({ ensureRuntimePackService: () => service as never });
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.listRuntimePacks)).toEqual(expect.arrayContaining([expect.objectContaining({ packId: "python-core", ready: true })]));
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.getRuntimePackReadiness, "python-core", "linux-x64")).toEqual(expect.objectContaining({ packId: "python-core" }));
+    const metadata = { packId: "python-core" };
+    const bytes = new Uint8Array([1, 2, 3]);
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.importRuntimePack)).toBeNull();
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.repairRuntimePackFromFile, "python-core", "linux-x64", "a".repeat(64))).toBeNull();
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.installRuntimePack, metadata, "not-bytes")).toThrow();
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.installRuntimePack, metadata, bytes)).toEqual(expect.objectContaining({ packId: "python-core" }));
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.repairRuntimePack, metadata, bytes)).toEqual(expect.objectContaining({ packId: "python-core" }));
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.activateRuntimePack, "python-core", "linux-x64", "a".repeat(64));
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.rollbackRuntimePack, "python-core", "linux-x64");
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRuntimePack, "python-core", "linux-x64", "a".repeat(64))).toBe(true);
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.garbageCollectRuntimePacks)).toEqual([]);
+    expect(service.activate).toHaveBeenCalledWith("python-core", "linux-x64", "a".repeat(64));
+    expect(service.install).toHaveBeenCalledWith(metadata, bytes);
+    expect(service.repair).toHaveBeenCalledWith(metadata, bytes);
+    expect(service.rollback).toHaveBeenCalledWith("python-core", "linux-x64");
+    expect(service.remove).toHaveBeenCalledWith("python-core", "linux-x64", "a".repeat(64));
+    expect(service.garbageCollect).toHaveBeenCalledOnce();
+  });
+
+  it("Workflow Run 校验并转发生命周期操作到 worker", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.startWorkflowRun, {
+      skillId: "daily-workflow",
+      inputs: { date: "20260805" },
+      rootGeneration: 2
+    });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listWorkflowRuns);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getWorkflowRun, "workflow-1");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.resumeWorkflowRun, { runId: "workflow-1", inputs: { date: "20260805" }, rootGeneration: 2 });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.cancelWorkflowRun, "workflow-1");
+    expect(ai.call.mock.calls).toEqual([
+      ["workflow-run-start", { skillId: "daily-workflow", inputs: { date: "20260805" }, providerBindings: {}, rootGeneration: 2 }],
+      ["workflow-run-list"],
+      ["workflow-run-get", "workflow-1"],
+      ["workflow-run-resume", { runId: "workflow-1", inputs: { date: "20260805" }, providerBindings: {}, rootGeneration: 2 }],
+      ["workflow-run-cancel", "workflow-1"]
+    ]);
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.startWorkflowRun, {
+      skillId: "daily-workflow",
+      executable: "/bin/sh",
+      rootGeneration: 2
+    })).toThrow();
+  });
+
+  it("Export Location 只能由 Main 的目录选择器创建并可撤销", async () => {
+    const service = {
+      list: vi.fn(() => [{ id: "export-1" }]),
+      create: vi.fn(() => ({ id: "export-1" })),
+      get: vi.fn(() => undefined),
+      relink: vi.fn(() => ({ id: "videoExportDir", canonicalPath: "/tmp/new-export" })),
+      revoke: vi.fn(() => true)
+    };
+    const ctx = makeCtx({ ensureExportLocationService: () => service as never });
+    electronMock.dialogResult = { canceled: false, filePaths: ["/tmp/export-dir"] };
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectExportLocation, "视频")).resolves.toEqual({ id: "export-1" });
+    expect(service.create).toHaveBeenCalledWith("视频", "/tmp/export-dir");
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listExportLocations)).toEqual([{ id: "export-1" }]);
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.revokeExportLocation, "export-1")).toBe(true);
+    expect(service.revoke).toHaveBeenCalledWith("export-1");
+    service.get.mockReturnValue({ id: "videoExportDir" });
+    electronMock.dialogResult = { canceled: false, filePaths: ["/tmp/new-export"] };
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectExportLocation, "视频", "videoExportDir")).resolves.toEqual({ id: "videoExportDir", canonicalPath: "/tmp/new-export" });
+    expect(service.relink).toHaveBeenCalledWith("videoExportDir", "/tmp/new-export");
+    electronMock.dialogResult = { canceled: true, filePaths: [] };
+  });
+
+  it("Automation Rule 与运行查询只转发经过 Schema 校验的结构", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listAutomationRules);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.saveAutomationRule, {
+      id: "daily-brief",
+      name: "Daily Brief",
+      enabled: true,
+      target: { type: "skill", id: "daily-article-summarizer", versionPolicy: "*" },
+      trigger: { type: "daily", at: "08:00" },
+      inputs: { date: "20260805" },
+      providerBindings: {},
+      externalExportBindingIds: [],
+      concurrencyPolicy: "skip",
+      missedRunPolicy: "run-once",
+      retryPolicy: { maxAttempts: 1, backoffMs: 0 },
+      timezone: "UTC"
+    });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.runAutomationNow, "daily-brief");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listAutomationRuns, "daily-brief");
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.listAutomationSchedules);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.deleteAutomationRule, "daily-brief");
+    expect(ai.call.mock.calls.map(([method]) => method)).toEqual([
+      "automation-rules-list", "automation-rule-save", "automation-run-now",
+      "automation-runs-list", "automation-schedules-list", "automation-rule-delete"
+    ]);
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.saveAutomationRule, {
+      id: "bad",
+      name: "Bad",
+      target: { type: "skill", id: "skill", versionPolicy: "*" },
+      trigger: { type: "daily", at: "08:00" },
+      inputs: { apiKey: "plaintext" },
+      timezone: "UTC"
+    })).toThrow();
+  });
 });
 
 describe("handler forwarding — shell 类", () => {
@@ -344,6 +563,91 @@ describe("handler forwarding — runSource 复合逻辑", () => {
   });
 });
 
+describe("handler forwarding — Skill package lifecycle", () => {
+  it("inspect/migrate/list endpoints stay static and use the selected workspace", async () => {
+    const settings = await import("./lib/settings");
+    const inspection = {
+      sourcePath: "/workspace/.claude/skills/legacy",
+      sourceKind: "legacy-claude" as const,
+      valid: false,
+      digest: "digest-legacy",
+      totalBytes: 12,
+      files: [],
+      excludedPaths: [],
+      legacy: { id: "legacy", title: "Legacy" },
+      issues: [{ code: "legacy-inspect-only" as const, message: "inspect only", path: "SKILL.md" }],
+      warnings: []
+    };
+    const service = {
+      inspectClaudeSkills: vi.fn(() => [inspection]),
+      getInstalled: vi.fn(() => ({ packagePath: "/userData/skills/cctools/installed/1.0.0" })),
+      inspect: vi.fn(() => inspection),
+      migrateClaudeSkills: vi.fn(() => ({ inspected: [inspection], installed: [], skipped: [{ sourcePath: inspection.sourcePath, issues: inspection.issues }] })),
+      listInstalled: vi.fn(() => []),
+      install: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed" })),
+      update: vi.fn(() => ({ key: "cctools/updated", digest: "digest-updated" })),
+      rollback: vi.fn(() => ({ active: { digest: "digest-active" }, previous: { digest: "digest-previous" } })),
+      uninstall: vi.fn(() => true),
+      approveHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "approved-host" })),
+      revokeHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "inspect-only" }))
+    };
+    const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
+    vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
+
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillWorkspace)).toEqual([expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false })]);
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectInstalledSkill, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.migrateSkillWorkspace)).toEqual(expect.objectContaining({ inspected: [expect.any(Object)], skipped: [expect.any(Object)] }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledSkills)).toEqual([]);
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSkillPackage, "/tmp/skill-v2")).toEqual(expect.objectContaining({ digest: "digest-updated" }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.rollbackSkillPackage, "cctools/installed")).toEqual(expect.objectContaining({ active: expect.any(Object) }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "cctools/installed", "digest-installed")).toBe(true);
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.approveInstalledSkillHost, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ executionTrust: "approved-host" }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.revokeInstalledSkillHost, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ executionTrust: "inspect-only" }));
+    expect(service.inspectClaudeSkills).toHaveBeenCalledWith("/workspace");
+    expect(service.getInstalled).toHaveBeenCalledWith("cctools/installed", "digest-installed");
+    expect(service.inspect).toHaveBeenCalledWith("/userData/skills/cctools/installed/1.0.0");
+    expect(service.migrateClaudeSkills).toHaveBeenCalledWith("/workspace");
+    expect(service.install).toHaveBeenCalledWith("/tmp/skill");
+    expect(service.update).toHaveBeenCalledWith("/tmp/skill-v2");
+    expect(service.rollback).toHaveBeenCalledWith("cctools/installed");
+    expect(service.uninstall).toHaveBeenCalledWith("cctools/installed", "digest-installed");
+    expect(service.approveHostExecution).toHaveBeenCalledWith("cctools/installed", "digest-installed");
+    expect(service.revokeHostExecution).toHaveBeenCalledWith("cctools/installed", "digest-installed");
+    vi.restoreAllMocks();
+  });
+
+  it("forwards Git/local source inspection and install through the source adapter", async () => {
+    const source = { type: "git" as const, locator: "https://github.com/example/skill.git", ref: "main" };
+    const sourceInspection = {
+      sourcePath: source.locator,
+      sourceKind: "git" as const,
+      valid: true,
+      digest: "digest-git",
+      totalBytes: 10,
+      files: [],
+      excludedPaths: [],
+      manifest: { id: "git-demo" },
+      legacy: undefined,
+      issues: [],
+      warnings: []
+    };
+    const sourceService = {
+      inspect: vi.fn(async () => sourceInspection),
+      install: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git" })),
+      update: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git-v2" }))
+    };
+    const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual(expect.objectContaining({ sourceKind: "git", sourcePath: source.locator }));
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git" }));
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git-v2" }));
+    expect(sourceService.inspect).toHaveBeenCalledWith(source);
+    expect(sourceService.install).toHaveBeenCalledWith(source);
+    expect(sourceService.update).toHaveBeenCalledWith(source);
+  });
+});
+
 describe("registerIpcHandlers", () => {
   it("为每个 channel 调用 register,总数 = registry 长度", () => {
     const registered: string[] = [];
@@ -371,13 +675,15 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(ai.call).toHaveBeenCalledWith("snapshot");
   });
 
-  it("invalidRepo 时 skills 返回空数组,不调 ai", async () => {
+  it("未绑定 mymindRoot 时 skills 返回空数组,不调 ai", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never
     });
-    // mock settings.looksLikeRepo 返回 false → invalidRepo 分支
+    // New bootstrap readiness is based on mymindRoot, not .claude/skills.
     const settings = await import("./lib/settings");
+    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("");
+    vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("");
     vi.spyOn(settings, "looksLikeRepo").mockReturnValue(false);
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { skills: unknown[]; ai: { providers: unknown[] } };
     // invalidRepo 时 ai 调用不应发生
@@ -441,6 +747,43 @@ describe("handler forwarding — exportText 复合逻辑", () => {
   });
 });
 
+describe("handler forwarding — app state backup", () => {
+  afterEach(() => {
+    electronMock.dialogResult = { canceled: true, filePaths: [] };
+    electronMock.saveResult = { canceled: true, filePath: undefined };
+  });
+
+  it("uses Main dialogs and blocks backup/restore while a Run is active", async () => {
+    const report = {
+      schemaVersion: 1,
+      kind: "cctools-app-state-backup",
+      operation: "export" as const,
+      createdAt: "2026-08-06T00:00:00.000Z",
+      fileCount: 2,
+      byteCount: 12,
+      excludedAreas: ["credentials/**"]
+    };
+    const backup = {
+      exportToFile: vi.fn(() => report),
+      importFromFile: vi.fn(() => ({ ...report, operation: "import" as const }))
+    };
+    const outFile = path.join(os.tmpdir(), "cctools-state-backup-ipc.zip");
+    electronMock.saveResult = { canceled: false, filePath: outFile };
+    const restartAiWorker = vi.fn();
+    const ctx = makeCtx({ ensureAppStateBackupService: () => backup as never, restartAiWorker });
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.exportAppStateBackup)).resolves.toEqual(report);
+    expect(backup.exportToFile).toHaveBeenCalledWith(outFile);
+
+    electronMock.dialogResult = { canceled: false, filePaths: [outFile] };
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.importAppStateBackup)).resolves.toEqual({ ...report, operation: "import" });
+    expect(backup.importFromFile).toHaveBeenCalledWith(outFile);
+    expect(restartAiWorker).toHaveBeenCalledTimes(1);
+
+    const blocked = makeCtx({ ensureAppStateBackupService: () => backup as never, getActiveRunCount: async () => 1 });
+    await expect(invokeHandler(blocked, IPC_METHOD_CHANNELS.exportAppStateBackup)).rejects.toThrow("不能备份应用状态");
+  });
+});
+
 describe("handler forwarding — setRepo / detectRepo", () => {
   it("setRepo 调用 restartAiWorker", async () => {
     const restartAiWorker = vi.fn();
@@ -458,6 +801,106 @@ describe("handler forwarding — setRepo / detectRepo", () => {
     vi.spyOn(settings, "detectRepoRoot").mockReturnValue("/detected");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.detectRepo);
     expect(restartAiWorker).toHaveBeenCalled();
+  });
+});
+
+describe("handler forwarding — mymind root switching", () => {
+  it("keeps directory selection read-only until preview and explicit commit", async () => {
+    const settings = await import("./lib/settings");
+    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
+    const preview = vi.spyOn(settings, "previewMymindRoot").mockReturnValue({
+      candidate: "/new-mymind",
+      canonicalRoot: "/new-mymind",
+      health: {
+        configured: true,
+        accessible: true,
+        readable: true,
+        writable: true,
+        missingInitializeEntries: [],
+        missingCreateIfNeededEntries: [],
+        optionalObservedEntries: [],
+        symlinkWarnings: [],
+        unknownPreservedEntries: [],
+        activeRunCount: 0,
+        warnings: []
+      },
+      canBind: true,
+      blockingReasons: []
+    });
+    electronMock.dialogResult = { canceled: false, filePaths: ["/new-mymind"] };
+    const restartAiWorker = vi.fn();
+    const ctx = makeCtx({ restartAiWorker });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectMymindRoot)).resolves.toBe("/new-mymind");
+    expect(setMymindRoot).not.toHaveBeenCalled();
+    expect(restartAiWorker).not.toHaveBeenCalled();
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewMymindRoot, "/new-mymind")).resolves.toEqual(expect.objectContaining({ canBind: true }));
+    expect(preview).toHaveBeenCalledWith("/new-mymind", 0);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.setMymindRoot, "/new-mymind");
+    expect(setMymindRoot).toHaveBeenCalledWith("/new-mymind");
+    expect(restartAiWorker).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it("keeps content relocation behind preview and explicit commit", async () => {
+    const settings = await import("./lib/settings");
+    const relocation = await import("./paths/mymind-relocation-service");
+    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("/old-mymind");
+    const preview = vi.spyOn(relocation, "previewMymindRelocation").mockReturnValue({
+      schemaVersion: 1,
+      sourceDirectory: "/old-mymind",
+      targetDirectory: "/new-mymind",
+      sourceRootId: "source",
+      sourceFileCount: 2,
+      sourceDirectoryCount: 1,
+      sourceBytes: 20,
+      sourceDigest: "tree",
+      targetState: "empty",
+      targetFileCount: 0,
+      targetDirectoryCount: 0,
+      targetBytes: 0,
+      pendingTransaction: false,
+      canCommit: true,
+      blockingReasons: []
+    });
+    const relocate = vi.spyOn(relocation, "relocateMymind").mockReturnValue({
+      schemaVersion: 1,
+      status: "committed",
+      sourceDirectory: "/old-mymind",
+      targetDirectory: "/new-mymind",
+      sourceRootId: "source",
+      targetRootId: "target",
+      copiedFileCount: 2,
+      copiedDirectoryCount: 1,
+      copiedBytes: 20,
+      treeDigest: "tree",
+      sourcePreserved: true,
+      verified: true,
+      completedAt: "2026-08-06T00:00:00.000Z"
+    });
+    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
+    const restartAiWorker = vi.fn();
+    const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 0 });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewMymindRelocation, "/new-mymind")).resolves.toMatchObject({ canCommit: true });
+    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-mymind", targetDirectory: "/new-mymind" }));
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.relocateMymind, "/new-mymind")).resolves.toMatchObject({ status: "committed" });
+    expect(relocate).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-mymind", targetDirectory: "/new-mymind" }));
+    expect(setMymindRoot).toHaveBeenCalledWith("/new-mymind");
+    expect(restartAiWorker).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it("blocks root switching while the AI worker reports active work", async () => {
+    const settings = await import("./lib/settings");
+    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
+    const restartAiWorker = vi.fn();
+    const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 1 });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setMymindRoot, "/new-mymind")).rejects.toThrow("不能切换 mymind");
+    expect(setMymindRoot).not.toHaveBeenCalled();
+    expect(restartAiWorker).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });
 

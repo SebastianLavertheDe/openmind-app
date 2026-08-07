@@ -1,6 +1,7 @@
 import path from "node:path";
-import type { ProviderCapabilities } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, type ProviderCapabilities } from "../../shared/contracts";
 import { toWslPath } from "./process-utils";
+import { buildAiWorkerEnvironment } from "./worker-environment";
 
 export const BROWSER_MCP_SERVER_NAME = "cctools_browser";
 export const BROWSER_EVIDENCE_TOOL = "capture_source_evidence";
@@ -23,7 +24,7 @@ export function browserAutomationConfigFromEnv(env: NodeJS.ProcessEnv = process.
   return {
     enabled: env.CCTOOLS_BROWSER_AUTOMATION_ENABLED === "true",
     reuseExistingTabs: env.CCTOOLS_BROWSER_REUSE_EXISTING_TABS !== "false",
-    evidenceDir: env.CCTOOLS_BROWSER_EVIDENCE_DIR?.trim() || ".cctools/browser-evidence",
+    evidenceDir: env.CCTOOLS_BROWSER_EVIDENCE_DIR?.trim() || DEFAULT_BROWSER_EVIDENCE_DIR,
     extensionToken: env.PLAYWRIGHT_MCP_EXTENSION_TOKEN?.trim() || null
   };
 }
@@ -48,10 +49,10 @@ export function buildBrowserMcpProcess(
       "--output-dir", outputDir,
       "--reuse-existing-tabs", String(config.reuseExistingTabs)
     ],
-    env: {
+    env: buildAiWorkerEnvironment(process.env, {
       ELECTRON_RUN_AS_NODE: "1",
       ...(config.extensionToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: config.extensionToken } : {})
-    }
+    })
   };
 }
 

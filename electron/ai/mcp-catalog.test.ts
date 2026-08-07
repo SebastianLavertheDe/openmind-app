@@ -7,7 +7,7 @@ function status(patch: Partial<BrowserAutomationStatus> = {}): BrowserAutomation
     backend: "playwright-mcp",
     enabled: true,
     reuseExistingTabs: true,
-    evidenceDir: ".cctools/browser-evidence",
+    evidenceDir: "assets/browser-evidence",
     extensionTokenConfigured: true,
     secureStorageAvailable: true,
     packageAvailable: true,

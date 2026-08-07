@@ -36,15 +36,29 @@ type IndexedFile = {
   normalizedName: string;
 };
 
+type MymindFileSearchOptions = {
+  /** New path-boundary mode: the constructor argument is the actual root. */
+  rootKind?: "mymind" | "legacy-project";
+};
+
 export class MymindFileSearch {
   private cache: { files: IndexedFile[]; truncated: boolean; createdAt: number } | null = null;
   private pending: Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> | null = null;
   private readonly projectRoot: string;
   private readonly mymindRoot: string;
+  private readonly logicalPrefix: string;
 
-  constructor(projectRoot: string) {
-    this.projectRoot = path.resolve(projectRoot);
-    this.mymindRoot = path.join(this.projectRoot, "mymind");
+  constructor(root: string, options: MymindFileSearchOptions = {}) {
+    if (options.rootKind === "mymind") {
+      this.projectRoot = path.resolve(root);
+      this.mymindRoot = this.projectRoot;
+      this.logicalPrefix = "mymind";
+    } else {
+      // Compatibility for the old constructor used by existing callers/tests.
+      this.projectRoot = path.resolve(root);
+      this.mymindRoot = path.join(this.projectRoot, "mymind");
+      this.logicalPrefix = "mymind";
+    }
   }
 
   async search(rawQuery: string, rawLimit = 40): Promise<ProjectFileSearchResult> {
@@ -123,9 +137,9 @@ export class MymindFileSearch {
         }
         if (!entry.isFile()) continue;
         if (isSensitiveFile(entry.name)) continue;
-        const relative = path.relative(this.projectRoot, absolute);
+        const relative = path.relative(this.mymindRoot, absolute);
         if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) continue;
-        const portablePath = relative.split(path.sep).join("/");
+        const portablePath = `${this.logicalPrefix}/${relative.split(path.sep).join("/")}`;
         const portableDirectory = path.posix.dirname(portablePath);
         files.push({
           path: portablePath,
@@ -141,9 +155,9 @@ export class MymindFileSearch {
   }
 }
 
-export function normalizeMymindSelection(projectRoot: string, candidate: string): string {
-  const root = path.resolve(projectRoot);
-  const mymindRoot = path.join(root, "mymind");
+export function normalizeMymindSelection(rootInput: string, candidate: string, options: MymindFileSearchOptions = {}): string {
+  const root = path.resolve(rootInput);
+  const mymindRoot = options.rootKind === "mymind" ? root : path.join(root, "mymind");
   const resolved = path.resolve(candidate);
   let mymindStat: fs.Stats;
   let candidateStat: fs.Stats;
@@ -166,8 +180,8 @@ export function normalizeMymindSelection(projectRoot: string, candidate: string)
   if (!realRelative || realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
     throw new Error("只能通过 @ 引用 mymind 目录内的文件。");
   }
-  const relativeToProject = path.relative(root, resolved);
-  return relativeToProject.split(path.sep).join("/");
+  const logicalRelative = path.relative(mymindRoot, resolved);
+  return `mymind/${logicalRelative.split(path.sep).join("/")}`;
 }
 
 function normalize(value: string): string {

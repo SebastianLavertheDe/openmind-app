@@ -18,6 +18,19 @@ afterEach(() => {
 });
 
 describe("SessionStore", () => {
+  it("stateRoot 存在时把会话状态写入 app-private root,不污染 workspace", () => {
+    const workspace = createRoot();
+    const stateRoot = createRoot();
+    const store = new SessionStore(workspace, stateRoot);
+
+    store.initialize();
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: workspace, title: "隔离状态", permissionProfile: "edit" });
+
+    expect(store.root).toBe(path.join(stateRoot, ".cctools", "ai"));
+    expect(fs.existsSync(path.join(store.root, "sessions", session.id, "session.json"))).toBe(true);
+    expect(fs.existsSync(path.join(workspace, ".cctools"))).toBe(false);
+  });
+
   it("keeps session order anchored to creation when archiving or replying", () => {
     const store = new SessionStore(createRoot());
     let older = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较早会话", permissionProfile: "edit" });

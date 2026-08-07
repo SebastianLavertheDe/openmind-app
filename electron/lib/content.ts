@@ -5,7 +5,7 @@ import {
   LEGACY_CONTENT_FILE_ROOT_KINDS,
   LEGACY_GET_CONTENT_ALL_KINDS
 } from "../../shared/content-kinds";
-import { findRepoRoot, ensureInsideRepo } from "./settings";
+import { findRepoRoot, ensureInsideRepo, relativeToMymind, resolveMymindPath, resolveMymindRoot } from "./settings";
 import { messages } from "../../shared/messages";
 
 export type ContentFileEntry = {
@@ -40,7 +40,7 @@ export function readJson<T>(filePath: string, fallback: T): T {
 
 function listFiles(directory: string, filter: (name: string) => boolean = () => true): ContentFileEntry[] {
   try {
-    const repoRoot = findRepoRoot();
+    const mymindRoot = resolveMymindRoot();
     return fs
       .readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && filter(entry.name))
@@ -49,7 +49,7 @@ function listFiles(directory: string, filter: (name: string) => boolean = () => 
         const stat = fs.statSync(absolutePath);
         return {
           name: entry.name,
-          path: path.relative(repoRoot, absolutePath),
+          path: mymindRoot ? relativeToMymind(absolutePath) : path.relative(findRepoRoot(), absolutePath),
           size: stat.size,
           modifiedAt: stat.mtime.toISOString()
         };
@@ -95,7 +95,6 @@ function listDatedFiles(relativeDirectory: string, date: string, suffix?: string
 function latestCreativeTopics(date: string): ContentFileEntry[] {
   const formatted = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
   const root = ensureInsideRepo(path.join("mymind", "creative"));
-  const repoRoot = findRepoRoot();
   const matches: ContentFileEntry[] = [];
 
   function walk(directory: string, depth = 0): void {
@@ -107,7 +106,7 @@ function latestCreativeTopics(date: string): ContentFileEntry[] {
         const stat = fs.statSync(target);
         matches.push({
           name: entry.name,
-          path: path.relative(repoRoot, target),
+          path: resolveMymindRoot() ? relativeToMymind(target) : path.relative(findRepoRoot(), target),
           size: stat.size,
           modifiedAt: stat.mtime.toISOString()
         });
@@ -199,7 +198,10 @@ function readContent(relativePath: string): ContentReadResult {
 }
 
 function writeContent(relativePath: string, rawContent: string): ContentReadResult {
-  const filePath = ensureInsideRepo(relativePath);
+  const logicalPath = String(relativePath).replaceAll("\\", "/");
+  const filePath = resolveMymindRoot() && (logicalPath === "mymind" || logicalPath.startsWith("mymind/"))
+    ? resolveMymindPath(relativePath, "write")
+    : ensureInsideRepo(relativePath);
   const stat = fs.statSync(filePath);
   if (!stat.isFile()) throw new Error(messages.errors.file.notAFile);
   fs.writeFileSync(filePath, rawContent, "utf8");

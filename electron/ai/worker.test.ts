@@ -18,6 +18,7 @@ const hoisted = vi.hoisted(() => ({
     getContextState: vi.fn(() => ({ contexts: [] })),
     searchSessions: vi.fn(() => []),
     listSkills: vi.fn(() => []),
+    activeTaskCount: vi.fn(() => 0),
     prewarmClaude: vi.fn(async () => true),
     startSkill: vi.fn(() => true),
     stopSkill: vi.fn(async () => true),
@@ -34,7 +35,10 @@ const hoisted = vi.hoisted(() => ({
     applyChange: vi.fn(async () => undefined),
     revertChange: vi.fn(async () => undefined),
     discardChange: vi.fn(async () => undefined),
-    discardRun: vi.fn(async () => undefined)
+    discardRun: vi.fn(async () => undefined),
+    revokeCredential: vi.fn(async () => 1),
+    restoreCredential: vi.fn(() => 1),
+    rotateCredential: vi.fn(async () => 1)
   } as unknown as Record<string, ReturnType<typeof vi.fn>>,
   posted: [] as unknown[],
   parentPort: null as null | EventEmitter
@@ -50,6 +54,7 @@ const ee = new EventEmitter();
 (ee as unknown as { postMessage: (m: unknown) => void }).postMessage = (m: unknown) => { hoisted.posted.push(m); };
 hoisted.parentPort = ee;
 vi.stubEnv("CCTOOLS_REPO_ROOT", "/test-repo");
+vi.stubEnv("CCTOOLS_STATE_ROOT", "/test-state");
 Object.defineProperty(process, "parentPort", {
   value: ee,
   configurable: true,
@@ -101,9 +106,25 @@ describe("worker dispatch", () => {
     expect(hoisted.schedulerMethods.startSkill).toHaveBeenCalledWith("rss", "20260708");
   });
 
+  it("active-count 返回 scheduler 的根切换保护计数", async () => {
+    hoisted.schedulerMethods.activeTaskCount.mockReturnValue(2);
+    await sendMessage("active-count");
+    expect(hoisted.schedulerMethods.activeTaskCount).toHaveBeenCalled();
+    expect(hoisted.posted).toContainEqual({ type: "response", id: "1", result: 2 });
+  });
+
   it("run-source 转发 sourceId + skillId + input", async () => {
     await sendMessage("run-source", ["src-1", "rss", { date: "20260708", url: "http://x", name: "n" }]);
     expect(hoisted.schedulerMethods.startSource).toHaveBeenCalledWith("src-1", "rss", "20260708", "http://x", "n");
+  });
+
+  it("credential revoke/replace 状态转发到 scheduler", async () => {
+    await sendMessage("credential-revoked", ["credential-1"]);
+    await sendMessage("credential-available", ["credential-1"]);
+    await sendMessage("credential-replaced", ["credential-1"]);
+    expect(hoisted.schedulerMethods.revokeCredential).toHaveBeenCalledWith("credential-1");
+    expect(hoisted.schedulerMethods.restoreCredential).toHaveBeenCalledWith("credential-1");
+    expect(hoisted.schedulerMethods.rotateCredential).toHaveBeenCalledWith("credential-1");
   });
 
   it("start 方法转发 StartRunInput", async () => {

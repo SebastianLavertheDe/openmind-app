@@ -46,9 +46,21 @@ export class ContentIndexStore {
   private datesCache: string[] | null = null;
   private datesFingerprint = "";
 
-  constructor(private readonly repoRoot: string, private readonly content: ContentApi) {
-    this.state = new ContentStateStore(repoRoot);
-    this.contentIndexPath = statePath(repoRoot, "content-index.json");
+  /** ADR-001: parent dir of `.cctools` (state root). Used for relative paths in maintenance reports. */
+  private readonly stateBaseDir: string;
+
+  constructor(
+    private readonly repoRoot: string,
+    private readonly content: ContentApi,
+    /**
+     * ADR-001 §1.3: app-private state dir under userData. When omitted, falls
+     * back to `<repoRoot>/.cctools` for back-compat with existing tests/users.
+     */
+    stateRoot?: string
+  ) {
+    this.stateBaseDir = stateRoot ?? repoRoot;
+    this.state = new ContentStateStore(this.stateBaseDir);
+    this.contentIndexPath = statePath(this.stateBaseDir, "content-index.json");
   }
 
   listInbox(rawQuery: ContentQuery): ContentPage {
@@ -122,8 +134,11 @@ export class ContentIndexStore {
       schemaVersion: 1,
       indexedDates: dates,
       itemCount,
-      indexPath: path.relative(this.repoRoot, this.contentIndexPath),
-      statePath: path.relative(this.repoRoot, this.state.statePath),
+      // ADR-001: report state paths relative to the state base dir (which
+      // may be userData rather than mymindRoot), so the logical `.cctools/...`
+      // path stays stable regardless of where state is stored.
+      indexPath: path.relative(this.stateBaseDir, this.contentIndexPath),
+      statePath: path.relative(this.stateBaseDir, this.state.statePath),
       rebuiltAt: new Date().toISOString()
     });
   }
@@ -174,8 +189,12 @@ export class ContentIndexStore {
   }
 
   availableContentDates(): string[] {
-    const dateRoots = CONTENT_DATE_ROOTS.map((rel) => path.join(this.repoRoot, rel));
-    const fileRoots = CONTENT_FILE_ROOTS.map((rel) => path.join(this.repoRoot, rel));
+    // ADR-001: this.repoRoot is now the mymind content dir. CONTENT_DATE_ROOTS
+    // are logical paths with a historical `mymind/` prefix (relative to the
+    // old repo root); strip it so joins land inside mymindRoot.
+    const stripMymindPrefix = (rel: string) => rel.replace(/^mymind\/+/, "");
+    const dateRoots = CONTENT_DATE_ROOTS.map((rel) => path.join(this.repoRoot, stripMymindPrefix(rel)));
+    const fileRoots = CONTENT_FILE_ROOTS.map((rel) => path.join(this.repoRoot, stripMymindPrefix(rel)));
     // 指纹 = 5 个根目录的 mtimeMs；新建/删除日期目录或 dated 文件才会变，故新增当天内容（已有日期下）不会误失效。
     const fingerprint = [...dateRoots, ...fileRoots]
       .map((root) => { try { return fs.statSync(root).mtimeMs; } catch { return 0; } })
