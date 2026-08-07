@@ -84,6 +84,23 @@ const sourceRuns = [
   { schemaVersion: 1, id: "run-failed", sourceId: "x-following", skillId: "x-following-fetcher", status: "failed", startedAt: "2026-06-17T01:10:00.000Z", completedAt: "2026-06-17T01:10:05.000Z", durationMs: 5000, code: 1, error: "Token expired", itemCount: 0, logs: [{ timestamp: now, stream: "stderr", text: "Token expired. Please refresh credentials.\n" }] }
 ];
 
+const automationRules = [
+  { schemaVersion: 1, id: "daily-brief", name: "每日简报生成", description: "每天早晨汇总过去 24 小时的资料并生成本地 Markdown 简报。", enabled: true, target: { type: "skill", id: "daily-article-summarizer", versionPolicy: "*" }, trigger: { type: "daily", at: "08:00" }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 30000 }, timezone: "UTC", lastTriggeredAt: now, lastScheduledKey: date, createdAt: "2026-06-01T08:00:00.000Z", updatedAt: now },
+  { schemaVersion: 1, id: "classify-new-content", name: "新资料自动归类", description: "采集完成后扫描新增资料并生成候选选题。", enabled: false, target: { type: "skill", id: "daily-article-summarizer", versionPolicy: "*" }, trigger: { type: "run-completed", skillId: "rss-article-saver" }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 30000 }, timezone: "UTC", lastTriggeredAt: null, lastScheduledKey: null, createdAt: "2026-06-01T08:05:00.000Z", updatedAt: now },
+  { schemaVersion: 1, id: "rss-capture", name: "RSS 定时抓取", description: "按固定频率通过统一 Skill Broker 拉取订阅源。", enabled: true, target: { type: "skill", id: "rss-article-saver", versionPolicy: "*" }, trigger: { type: "interval", everyMinutes: 15 }, inputs: {}, providerBindings: {}, externalExportBindingIds: [], concurrencyPolicy: "skip", missedRunPolicy: "run-once", retryPolicy: { maxAttempts: 1, backoffMs: 30000 }, timezone: "UTC", lastTriggeredAt: "2026-06-17T02:15:00.000Z", lastScheduledKey: "20260617T0215", createdAt: "2026-06-01T08:10:00.000Z", updatedAt: now }
+];
+
+const automationSchedules = [
+  { ruleId: "daily-brief", nextRunAt: "2026-06-18T08:00:00.000Z", blockedReason: null },
+  { ruleId: "classify-new-content", nextRunAt: null, blockedReason: "规则已停用" },
+  { ruleId: "rss-capture", nextRunAt: "2026-06-17T02:30:00.000Z", blockedReason: null }
+];
+
+const automationRuns = [
+  { schemaVersion: 1, id: "automation-run-daily-brief", ruleId: "daily-brief", target: automationRules[0].target, state: "succeeded", attempt: 1, retryAt: null, childRunId: "run-ai-2", triggerReason: "scheduled", scheduledFor: "2026-06-17T08:00:00.000Z", createdAt: "2026-06-17T08:00:00.000Z", completedAt: "2026-06-17T08:01:12.000Z", error: null },
+  { schemaVersion: 1, id: "automation-run-rss", ruleId: "rss-capture", target: automationRules[2].target, state: "failed", attempt: 1, retryAt: null, childRunId: null, triggerReason: "scheduled", scheduledFor: "2026-06-17T02:15:00.000Z", createdAt: "2026-06-17T02:15:00.000Z", completedAt: "2026-06-17T02:15:05.000Z", error: "Provider unavailable: RSS runner returned exit code 1" }
+];
+
 const creativeTopics = [
   { id: "creative-topic-1", title: "如何完整验收本地 AI 桌面工作台", platform: "wechat", section: "AI 产品", score: 96, body: "推荐理由：Provider、视觉、性能和安全边界都需要从真实工作流闭环。\\n\\n预计大纲：背景、验收矩阵、风险清单、发布建议。", ignored: false, projectDir: null },
   { id: "creative-topic-2", title: "Windows/WSL 桌面应用验收手册", platform: "xiaohongshu", section: "工程效率", score: 88, body: "覆盖 portable、NSIS、UNC 路径和 Provider 登录态。", ignored: false, projectDir: "mymind/creative/visual-audit-project" }
@@ -260,6 +277,12 @@ const api = {
   addRssSource: async (input) => ({ ...sources[0], id: "rss-added", name: input.name, url: input.url }),
   importOpml: async () => 2,
   listSourceRuns: async (sourceId) => sourceId ? sourceRuns.filter((run) => run.sourceId === sourceId || run.skillId === sourceId) : sourceRuns,
+  listAutomationRules: async () => automationRules,
+  listAutomationSchedules: async () => automationSchedules,
+  listAutomationRuns: async (ruleId) => ruleId ? automationRuns.filter((run) => run.ruleId === ruleId) : automationRuns,
+  saveAutomationRule: async (input) => ({ schemaVersion: 1, ...input, lastTriggeredAt: null, lastScheduledKey: null, createdAt: now, updatedAt: now }),
+  deleteAutomationRule: async () => true,
+  runAutomationNow: async (ruleId) => automationRuns.find((run) => run.ruleId === ruleId) || automationRuns[0],
   runSource: async () => true,
   stopSource: async () => true,
   getDailyBrief: async () => dailyBrief(),

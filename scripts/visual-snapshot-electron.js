@@ -291,8 +291,8 @@ async function captureCompanionLayoutContracts(win, report) {
     win,
     report,
     "companion-resize-1280",
-    "docked",
-    "AI companion expands to the available bound without shrinking the workspace below its contract",
+    "overlay",
+    "Overlay AI companion expands to its available bound without shrinking the workspace below its contract",
     {
       widthExpanded: Boolean(afterResize.sidebar && beforeResize.sidebar && afterResize.sidebar.width > beforeResize.sidebar.width),
       workspacePreserved: afterResize.stageTrackWidth >= 759.5,
@@ -309,12 +309,12 @@ async function captureCompanionLayoutContracts(win, report) {
     win,
     report,
     "companion-wide-clamped-1280",
-    "docked",
-    "Wide AI preference shrinks before replacing the workspace",
+    "overlay",
+    "Wide AI preference remains a bounded overlay while preserving the workspace",
     {
-      compactPresentation: wideGeometry.sidebarClass.includes("layout-companion-compact"),
-      widePreferencePreserved: wideGeometry.layoutWidth === 760,
-      wideWidthClamped: Number(wideGeometry.separatorValue) >= 380 && Number(wideGeometry.separatorValue) < 760,
+      overlayPresentation: wideGeometry.sidebarClass.includes("layout-companion-overlay"),
+      widePreferencePreserved: wideGeometry.layoutWidth === 860,
+      wideWidthWithinViewport: Boolean(wideGeometry.sidebar && wideGeometry.sidebar.right <= wideGeometry.viewport.width + 2),
       workspacePreserved: wideGeometry.stageTrackWidth >= 759.5
     }
   );
@@ -333,13 +333,13 @@ async function captureCompanionLayoutContracts(win, report) {
     win,
     report,
     "companion-wide-2048-zoom150",
-    "docked",
-    "A visually large 150% window keeps the workspace beside a clamped wide AI companion",
+    "overlay",
+    "A visually large 150% window keeps the workspace beside a bounded wide AI overlay",
     {
-      compactPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-compact"),
+      overlayPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
-      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 760,
-      wideWidthClamped: Number(highDpiWideGeometry.separatorValue) >= 380 && Number(highDpiWideGeometry.separatorValue) < 760,
+      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 860,
+      wideWidthWithinViewport: Boolean(highDpiWideGeometry.sidebar && highDpiWideGeometry.sidebar.right <= highDpiWideGeometry.viewport.width + 2),
       workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
       requestedZoom: win.webContents.getZoomFactor()
     }
@@ -355,10 +355,10 @@ async function captureCompanionLayoutContracts(win, report) {
     win,
     report,
     "companion-attached-1366-zoom150",
-    "docked",
-    "The compact companion remains attached above the 840 CSS pixel boundary at 150% zoom",
+    "overlay",
+    "The compact companion remains a bounded overlay above the 840 CSS pixel canvas boundary at 150% zoom",
     {
-      compactPresentation: zoomedCompactGeometry.sidebarClass.includes("layout-companion-compact"),
+      overlayPresentation: zoomedCompactGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: zoomedCompactGeometry.viewport.width > 840,
       workspaceStillVisible: zoomedCompactGeometry.stageTrackWidth >= 399.5,
       requestedZoom: win.webContents.getZoomFactor()
@@ -368,11 +368,11 @@ async function captureCompanionLayoutContracts(win, report) {
   await settle();
 
   for (const scenario of [
-    { width: 1100, height: 800, id: "companion-attached-1100", expected: "docked" },
-    { width: 900, height: 800, id: "companion-attached-900", expected: "docked" },
-    { width: 841, height: 800, id: "companion-attached-841", expected: "docked" },
+    { width: 1100, height: 800, id: "companion-attached-1100", expected: "overlay" },
+    { width: 900, height: 800, id: "companion-attached-900", expected: "overlay" },
+    { width: 841, height: 800, id: "companion-attached-841", expected: "overlay" },
     { width: 840, height: 800, id: "companion-canvas-840", expected: "canvas" },
-    { width: 841, height: 800, id: "companion-attached-return-841", expected: "docked" },
+    { width: 841, height: 800, id: "companion-attached-return-841", expected: "overlay" },
     { width: 720, height: 720, id: "companion-canvas-720", expected: "canvas" }
   ]) {
     win.setSize(scenario.width, scenario.height);
@@ -383,7 +383,7 @@ async function captureCompanionLayoutContracts(win, report) {
       report,
       scenario.id,
       scenario.expected,
-      `AI companion is ${scenario.expected === "docked" ? "attached" : "canvas"} at ${scenario.width}px`
+      `AI companion is ${scenario.expected === "docked" ? "attached" : scenario.expected === "overlay" ? "an overlay" : "canvas"} at ${scenario.width}px`
     );
   }
 
@@ -762,6 +762,23 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
     widthControlsVisible: geometry.wideControlVisible && geometry.fullscreenControlVisible,
     noHorizontalOverflow: geometry.horizontalOverflow <= 2,
     ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
+  } : expected === "overlay" ? {
+    sidebarPresent: Boolean(geometry.sidebar),
+    overlayPresentation: geometry.shellClass.includes("layout-companion-overlay")
+      && geometry.sidebarClass.includes("layout-companion-overlay"),
+    splitterVisible: geometry.splitterVisible,
+    workspaceVisible: geometry.stageTrackWidth >= 399.5,
+    sidebarIsOverlay: geometry.sidebarPosition === "fixed",
+    sidebarAtRightEdge: Boolean(
+      geometry.sidebar
+      && geometry.sidebar.right <= geometry.viewport.width + 2
+      && geometry.sidebar.right >= geometry.viewport.width - 32
+    ),
+    backgroundInteractive: !geometry.stageInert && !geometry.navInert,
+    notModal: geometry.role !== "dialog" && geometry.ariaModal !== "true",
+    widthControlsVisible: geometry.wideControlVisible && geometry.fullscreenControlVisible,
+    noHorizontalOverflow: geometry.horizontalOverflow <= 2,
+    ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
   } : expected === "canvas" ? {
     fillsViewport: Boolean(fillsViewport),
     modalSemantics: geometry.role === "dialog" && geometry.ariaModal === "true",
@@ -966,7 +983,11 @@ async function inspectPage(win, label, options = {}) {
           if (!visible(document.querySelector(selector))) criticalContextMissing.push(name);
         });
       }
-      if (document.querySelector('.composer-workspace strong') && !visible(document.querySelector('.composer-workspace strong'))) {
+      // Compact composer toolbars intentionally hide the text label while
+      // keeping the project control visible and titled. Audit the control
+      // itself so responsive label compression is not treated as lost context.
+      const composerWorkspace = document.querySelector('.composer-workspace');
+      if (composerWorkspace && !visible(composerWorkspace)) {
         criticalContextMissing.push('composer-project');
       }
       const offenders = [...document.querySelectorAll('button, .workspace-card, .content-card, .project-card, .chat-message, .inspector-section')]
@@ -1796,6 +1817,12 @@ async function expandDisclosure(win, rootSelector, index = 0) {
     })()
   `);
   if (!clicked) throw new Error(`Disclosure trigger was not clickable: ${rootSelector}[${index}]`);
+  // Opening a tall disclosure can trigger scroll anchoring and move the
+  // trigger above the viewport while the height transition is running. Let
+  // the shared motion budget settle, then re-center it before checking the
+  // post-click interactive state.
+  await delay(420);
+  await scrollDisclosureTriggerIntoView(win, rootSelector, index);
   return waitForDisclosureState(win, rootSelector, true, index);
 }
 

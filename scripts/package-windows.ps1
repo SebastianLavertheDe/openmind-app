@@ -53,9 +53,23 @@ try {
   & npm.cmd run build
   Assert-LastExitCode "npm run build"
 
+  Write-Host "Running the compiled migration and recovery drill"
+  # The compiled recovery services import Electron-owned Main modules but do
+  # not launch Electron. Electron 42 no longer downloads its host binary from
+  # npm ci, so keep this deterministic and let electron-builder fetch only the
+  # target runtime needed for the packaged smoke test below.
+  $env:ELECTRON_OVERRIDE_DIST_PATH = Join-Path $stageRoot "electron-runtime-placeholder"
+  & npm.cmd run recovery:drill
+  Assert-LastExitCode "npm run recovery:drill"
+  Remove-Item Env:ELECTRON_OVERRIDE_DIST_PATH -ErrorAction SilentlyContinue
+
   Write-Host "Creating Windows portable, NSIS, and ZIP packages"
   & node.exe "node_modules/electron-builder/cli.js" --win
   Assert-LastExitCode "electron-builder --win"
+
+  Write-Host "Scanning the built Windows package for secrets, user data, test artifacts, and checkout paths"
+  & npm.cmd run package:safety
+  Assert-LastExitCode "npm run package:safety"
 
   $packagedClaude = Join-Path $stageRoot "dist\win-unpacked\resources\app.asar.unpacked\node_modules\@anthropic-ai\claude-agent-sdk-win32-x64\claude.exe"
   if (-not (Test-Path -LiteralPath $packagedClaude)) {
@@ -71,6 +85,19 @@ try {
   & $packagedApp --packaged-smoke-test "--user-data-dir=$smokeUserData"
   Assert-LastExitCode "Packaged renderer/preload smoke test"
 
+  $recoveryUserData = Join-Path $stageRoot "packaged-recovery-user-data"
+  Write-Host "Running the packaged force-quit and startup recovery smoke"
+  & node.exe "scripts/packaged-recovery-smoke.js" --app $packagedApp --user-data-dir $recoveryUserData --output (Join-Path $stageRoot ".build\packaged-recovery-report.json")
+  Assert-LastExitCode "Packaged recovery smoke"
+
+  Write-Host "Scanning the actual Windows distributable containers"
+  & node.exe "scripts/package-artifact-safety.js" --platform win --output (Join-Path $stageRoot ".build\package-artifact-safety-report.json")
+  Assert-LastExitCode "Windows package artifact safety"
+
+  Write-Host "Writing Windows package artifact hashes"
+  & node.exe "scripts/package-artifact-report.js" --platform win --require-safety=true --require-artifact-safety=true --require-packaged-recovery=true --packaged-smoke=passed --recovery-drill=passed --packaged-recovery=passed --packaged-recovery-report (Join-Path $stageRoot ".build\packaged-recovery-report.json") --safety-report (Join-Path $stageRoot ".build\package-safety-report.json") --artifact-safety-report (Join-Path $stageRoot ".build\package-artifact-safety-report.json") --output (Join-Path $stageRoot "package-evidence-windows.json")
+  Assert-LastExitCode "Windows package artifact evidence"
+
   New-Item -ItemType Directory -Path $sourceDist -Force | Out-Null
   $sourceWinUnpacked = [IO.Path]::GetFullPath((Join-Path $sourceDist "win-unpacked"))
   $sourceWinUnpackedPrefix = $sourceWinUnpacked.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
@@ -84,6 +111,17 @@ try {
   if ($LASTEXITCODE -gt 7) {
     throw "Copying Windows artifacts back to the repository failed with robocopy exit code $LASTEXITCODE."
   }
+  Copy-Item -LiteralPath (Join-Path $stageRoot "package-evidence-windows.json") -Destination (Join-Path $sourceDist "package-evidence-windows.json") -Force
+  $sourceBuild = [IO.Path]::GetFullPath((Join-Path $sourceRoot ".build"))
+  New-Item -ItemType Directory -Path $sourceBuild -Force | Out-Null
+  foreach ($reportName in @("package-safety-report.json", "package-artifact-safety-report.json", "recovery-drill-report.json", "process-crash-recovery-report.json", "packaged-recovery-report.json")) {
+    $stageReport = Join-Path $stageRoot ".build\$reportName"
+    if (-not (Test-Path -LiteralPath $stageReport)) {
+      throw "Staged evidence report is missing: $stageReport"
+    }
+    Copy-Item -LiteralPath $stageReport -Destination (Join-Path $sourceBuild $reportName) -Force
+  }
+  Copy-Item -LiteralPath (Join-Path $stageRoot ".build\package-artifact-safety-report.json") -Destination (Join-Path $sourceBuild "package-artifact-safety-win.json") -Force
   $succeeded = $true
 }
 finally {

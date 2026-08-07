@@ -58,7 +58,9 @@ assert(
 );
 assert(providerSources.includes("@anthropic-ai/claude-agent-sdk"), "Claude Agent SDK integration is missing");
 
-const schedulerSource = fs.readFileSync(path.join(__dirname, "..", "electron", "ai", "scheduler.ts"), "utf8");
+const schedulerSource = ["scheduler.ts", "scheduler-execution.ts"]
+  .map((file) => fs.readFileSync(path.join(__dirname, "..", "electron", "ai", file), "utf8"))
+  .join("\n");
 const legacyChangeSource = fs.readFileSync(path.join(__dirname, "..", "electron", "ai", "workspace-manager.ts"), "utf8");
 assert(schedulerSource.includes("const directCwd = resolveCwd"), "AI runs are not routed to the configured project directory");
 assert(!schedulerSource.includes(".create(run)"), "AI runs must not create isolated workspaces");
