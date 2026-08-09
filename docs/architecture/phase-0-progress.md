@@ -445,9 +445,8 @@ The first single-process execution chain is now implemented and exercised:
   `SKILL.md` discovery remains available for migration/inspection but is not
   exposed as a runnable definition; Renderer receives a logical installed
   package identifier and `managed-runtime`, never the absolute executable.
-- The generic `startSkillRun` boundary is now strict: it refuses to resolve a
-  Legacy `SKILL.md` workspace entry as an Installed Skill. Manual/source,
-  Automation, Workflow and renderer-submitted Runs all stay behind
+- Renderer no longer exposes the generic manual `startSkillRun` boundary.
+  Internal source, Automation and Workflow submissions remain behind
   active/ready/approved-host package checks; no Broker legacy opt-in remains.
 - `CCTOOLS_MYMIND_ROOT` and `CCTOOLS_ROOT_GENERATION` are pinned into the AI
   worker bootstrap so root switching restarts the Broker with a new snapshot.

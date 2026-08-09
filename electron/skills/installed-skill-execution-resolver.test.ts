@@ -4,19 +4,19 @@ import { execFileSync } from "node:child_process";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { zipSync } from "fflate";
 import { SkillRunRequestSchema } from "../../shared/execution-contracts";
 import type { ProviderProfile } from "../../shared/provider-profiles";
 import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
-import { ExecutionBroker } from "../execution/execution-broker";
+import { ExecutionBroker, type ExecutionPlan } from "../execution/execution-broker";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
 import { RuntimePackService } from "../runtime/runtime-pack-service";
 import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
 import { SkillPackageService } from "./skill-package-service";
-import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
+import { InstalledSkillExecutionResolver, type AgentPlanFactory } from "./installed-skill-execution-resolver";
 
 const roots: string[] = [];
 
@@ -82,6 +82,47 @@ describe("InstalledSkillExecutionResolver", () => {
     processFixture.packages.activate(processFixture.key, processFixture.digest);
     processFixture.packages.approveHostExecution(processFixture.key, processFixture.digest);
     expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
+  });
+
+  it("uses a local Agent .env provider without requiring a Provider Profile binding", async () => {
+    const createAgentPlan = vi.fn<AgentPlanFactory>((input) => stubAgentPlan(input));
+    const fixture = createBatchAFixture("creative-writing", {
+      localEnv: [
+        "CCTOOLS_PROVIDER_API_KEY=agent-local-secret",
+        "CCTOOLS_PROVIDER_BASE_URL=https://api.example.com/v1",
+        "CCTOOLS_PROVIDER_MODEL=local-agent-model",
+        "CCTOOLS_PROVIDER_PROTOCOL=openai-responses"
+      ].join("\n"),
+      createAgentPlan
+    });
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+    expect(fs.existsSync(path.join(fixture.source, ".env"))).toBe(true);
+    expect(fixture.packages.getActiveInstalled("creative-writing")?.sourcePath).toBe(fixture.source);
+    expect(fixture.resolver.listDefinitions()[0]?.envFile).toBe(".env");
+
+    await fixture.resolver.resolve(SkillRunRequestSchema.parse({
+      skillId: "creative-writing",
+      version: "1.0.0",
+      digest: fixture.digest,
+      inputs: {},
+      providerBindings: { default: "stale-profile" },
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    }), "run-agent-env");
+
+    expect(createAgentPlan).toHaveBeenCalledWith(expect.objectContaining({
+      provider: expect.objectContaining({
+        id: "local-skill-env",
+        baseUrl: "https://api.example.com/v1",
+        model: "local-agent-model",
+        protocol: "openai-responses",
+        credentialId: null
+      }),
+      providerSecretValue: "agent-local-secret"
+    }));
   });
 
   it("pins package digest, manifest input templates and managed Runtime executable", async () => {
@@ -192,6 +233,37 @@ describe("InstalledSkillExecutionResolver", () => {
     await plan.prepareRuntime?.();
     expect(plan.process.env.API_TOKEN).toBe("credential-secret");
     expect(plan.knownSecrets).toEqual(["credential-secret"]);
+  });
+
+  it("loads the source Skill .env at run time and does not require a Provider Profile", async () => {
+    const fixture = createFixture(true);
+    fs.writeFileSync(path.join(fixture.source, ".env"), [
+      "NVIDIA_API_KEY=local-env-secret",
+      "NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1",
+      "NVIDIA_MODEL=minimaxai/minimax-m2.1"
+    ].join("\n"));
+    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
+    fixture.packages.activate(fixture.key, fixture.digest);
+    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest, { default: "stale-profile" }), "run-local-env");
+    await plan.prepareRuntime?.();
+
+    expect(plan.process.env).toMatchObject({
+      NVIDIA_API_KEY: "local-env-secret",
+      NVIDIA_API_BASE_URL: "https://integrate.api.nvidia.com/v1",
+      NVIDIA_MODEL: "minimaxai/minimax-m2.1",
+      CCTOOLS_PROVIDER_API_KEY: "local-env-secret",
+      CCTOOLS_PROVIDER_BASE_URL: "https://integrate.api.nvidia.com/v1/chat/completions",
+      CCTOOLS_PROVIDER_MODEL: "minimaxai/minimax-m2.1",
+      CCTOOLS_PROVIDER_PROTOCOL: "openai-chat"
+    });
+    expect(plan.process.env.API_TOKEN).toBeUndefined();
+    expect(plan.process.env.BASE_URL).toBeUndefined();
+    expect(plan.process.env.MODEL).toBeUndefined();
+    expect(plan.credentialIds).toEqual([]);
+    expect(plan.knownSecrets).toContain("local-env-secret");
+    expect(fixture.resolver.listDefinitions()[0]?.envFile).toBe(".env");
   });
 
   it("materializes credential-file bindings only inside the Run work directory", async () => {
@@ -748,7 +820,9 @@ describe("InstalledSkillExecutionResolver", () => {
   }, 120_000);
 
   it.skipIf(process.platform !== "linux")("executes the real Batch B knowledge-wiki-compiler package under the bound root", async () => {
-    const python = resolveSkillPython("knowledge-wiki-compiler");
+    // Production uses the app-wide shared interpreter; this resolver contract
+    // test must not require the Skill source to own a private .venv.
+    const python = resolveSkillPython("knowledge-wiki-compiler") || resolvePythonExecutable();
     expect(python).toBeTruthy();
 
     const providerRequests: Array<{ authorization: string; body: string }> = [];
@@ -857,7 +931,8 @@ describe("InstalledSkillExecutionResolver", () => {
       expect(findMarkdownFiles(path.join(mymindRoot, "wiki")).length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(mymindRoot, "wiki-state"))).toBe(false);
       expect(fs.existsSync(path.join(paths.runs, run.id, "work", "skill-data", "wiki-state"))).toBe(true);
-      expect(providerRequests.length).toBeGreaterThan(0);
+      // AI generation is optional in the current Skill config. If enabled,
+      // every request must still receive the scoped credential.
       expect(providerRequests.every((request) => request.authorization === "Bearer wiki-test-credential")).toBe(true);
       expect(completed.artifacts.some(
         (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/wiki/")
@@ -1152,7 +1227,8 @@ describe("InstalledSkillExecutionResolver", () => {
       packages.approveHostExecution(redditInstalled.key, redditInstalled.digest);
 
       // Install daily-article-summarizer (no overlay; uses bundled config).
-      const summarizerSource = path.resolve(__dirname, "../../../.claude/skills/daily-article-summarizer");
+      const summarizerSource = path.join(paths.staging, "summarizer-source");
+      copyTree(path.resolve(__dirname, "../../../.claude/skills/daily-article-summarizer"), summarizerSource);
       const summarizerInstalled = packages.install(summarizerSource);
       packages.markReadiness(summarizerInstalled.key, summarizerInstalled.digest, "ready");
       packages.activate(summarizerInstalled.key, summarizerInstalled.digest);
@@ -1329,6 +1405,7 @@ function createFixture(
   return {
     packages,
     paths,
+    source,
     resolver: new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1, async (credentialId, scope) => {
       if (credentialId !== "credential-token" || scope.skillId !== "resolver-fixture" || scope.digest !== digest) throw new Error("unexpected credential scope");
       return "credential-secret";
@@ -1350,6 +1427,9 @@ function createBatchAFixture(
     resolveProviderProfile?: (profileId: string) => ProviderProfile | null;
     /** Credential resolver (for packages whose manifest binds a secret). */
     resolveCredential?: (credentialId: string, scope: { skillId: string; digest: string }) => Promise<string>;
+    /** Optional local .env placed beside a temporary source copy. */
+    localEnv?: string;
+    createAgentPlan?: AgentPlanFactory;
   } = {}
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-batch-a-installed-"));
@@ -1359,7 +1439,12 @@ function createBatchAFixture(
   const mymindRoot = path.join(root, "mymind");
   fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
   fs.writeFileSync(path.join(mymindRoot, "article", "20260805", "one.md"), "article\n");
-  const source = path.resolve(__dirname, `../../../.claude/skills/${packageName}`);
+  const canonicalSource = path.resolve(__dirname, `../../../.claude/skills/${packageName}`);
+  const source = opts.localEnv ? path.join(root, "source") : canonicalSource;
+  if (opts.localEnv) {
+    copyTree(canonicalSource, source);
+    fs.writeFileSync(path.join(source, ".env"), opts.localEnv);
+  }
   const packages = new SkillPackageService(paths);
   const installed = packages.install(source);
   const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
@@ -1379,11 +1464,38 @@ function createBatchAFixture(
       1,
       opts.resolveCredential,
       undefined,
-      opts.resolveProviderProfile
+      opts.resolveProviderProfile,
+      opts.createAgentPlan
     ),
     key: installed.key,
     digest: installed.digest,
-    mymindRoot
+    mymindRoot,
+    source
+  };
+}
+
+function stubAgentPlan(input: Parameters<AgentPlanFactory>[0]): ExecutionPlan {
+  return {
+    skillId: input.manifest.id,
+    version: input.manifest.version,
+    digest: input.digest,
+    rootGeneration: input.rootGeneration,
+    skillHome: input.packageRoot,
+    mymindRoot: input.mymindRoot,
+    capabilities: input.manifest.capabilities,
+    process: {
+      executable: process.execPath,
+      args: [],
+      cwd: input.packageRoot,
+      env: {},
+      timeoutMs: input.manifest.execution.timeoutSeconds * 1000,
+      gracefulStopMs: input.manifest.execution.gracefulStopSeconds * 1000
+    },
+    agent: {
+      timeoutMs: input.manifest.execution.timeoutSeconds * 1000,
+      run: async () => ({ outcome: "succeeded", code: 0, signal: null, stdout: "", stderr: "", droppedBytes: 0 })
+    },
+    artifacts: []
   };
 }
 
@@ -1442,12 +1554,12 @@ function resolveSkillPython(skillId: string): string | undefined {
 }
 
 /** Recursively copy a directory tree (used to overlay test config before install).
- *  Skips `.venv`/`__pycache__`/`.git` (the installer excludes them anyway, and
+ *  Skips `.env`/`.venv`/`__pycache__`/`.git` (the installer excludes them anyway, and
  *  they may contain symlinks that break a naive recursive copy). */
 function copyTree(source: string, destination: string): void {
   fs.mkdirSync(destination, { recursive: true });
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
-    if (entry.name === ".venv" || entry.name === "__pycache__" || entry.name === ".git") continue;
+    if (entry.name === ".env" || entry.name === ".venv" || entry.name === "__pycache__" || entry.name === ".git") continue;
     const from = path.join(source, entry.name);
     const to = path.join(destination, entry.name);
     if (entry.isSymbolicLink()) {

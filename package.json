@@ -12,11 +12,12 @@
     "clean": "node scripts/clean-build.js",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js",
+    "prepare:python-runtime": "node scripts/prepare-bundled-python-runtime.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json --noEmit",
     "lint:reporoot": "node scripts/audit-no-reporoot.js",
     "lint:manifests": "tsx scripts/validate-all-skill-manifests.mjs",
     "build": "npm run clean && npm run typecheck && npm run lint:reporoot && npm run lint:manifests && npm run build:renderer && npm run build:electron",
-    "start": "npm run build && electron .",
+    "start": "npm run build && npm run prepare:python-runtime -- --if-missing && electron .",
     "dev": "vite --host 127.0.0.1",
     "verify": "npm run build && node scripts/verify.js && npm run release:evidence && npm run recovery:drill && npm run lint:reporoot && npm run perf:check && npm run audit:evidence && npm run scale:check && npm run runtime:contract && npm run stability:soak && npm run visual:snapshot && npm run provider:e2e:report && npm run provider:e2e:contract && npm run security:review && npm run clean-machine:report && npm run evidence:contract && npm run package:safety && npm run package:safety:contract && npm run package:artifact:contract && npm run release:readiness && npm run release:readiness:contract && npm run motion:check",
     "perf:check": "node scripts/perf-check.js",
@@ -25,6 +26,7 @@
     "runtime:contract": "vitest run electron/runtime/runtime-manager.test.ts",
     "stability:soak": "node scripts/stability-soak.js",
     "visual:snapshot": "node scripts/visual-snapshot.js",
+    "visual:settings": "electron scripts/settings-design-qa-electron.js",
     "provider:e2e:report": "node scripts/provider-e2e-report.js",
     "provider:e2e:contract": "node scripts/provider-e2e-contract.js",
     "security:review": "node scripts/security-review-report.js",
@@ -43,10 +45,10 @@
     "test": "npm run build && vitest run && node scripts/integration-smoke.js",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
+    "dist": "npm run build && npm run prepare:python-runtime && electron-builder",
+    "dist:win": "npm run build && npm run prepare:python-runtime -- --target=windows-x64 && electron-builder --win",
     "dist:win:staged": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build && npm run prepare:python-runtime && electron-builder --mac",
     "dist:mac:staged": "bash scripts/package-macos.sh"
   },
   "devDependencies": {
@@ -72,9 +74,17 @@
     "appId": "com.cctools.desktop",
     "productName": "CC Tools",
     "icon": "build/icon.svg",
+    "afterSign": "scripts/finalize-bundled-python-runtime.cjs",
     "files": [
       ".build/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/python-runtime",
+        "to": "python-runtime",
+        "filter": ["**/*"]
+      }
     ],
     "directories": {
       "output": "dist"

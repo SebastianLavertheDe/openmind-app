@@ -140,6 +140,48 @@ describe("AutomationPage", () => {
     expect(nextPane).not.toBe(previousPane);
   });
 
+  it("uses the shared form controls and reveals trigger-specific schedule fields", async () => {
+    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    await screen.findByText("触发与目标");
+
+    expect(container.querySelector(".automation-editor-card")).toBeTruthy();
+    expect(container.querySelector(".automation-editor-grid")).toBeTruthy();
+    expect(container.querySelector(".cron-row")).toBeNull();
+    expect(container.querySelectorAll(".automation-editor-grid .ui-select").length).toBe(3);
+    expect(screen.getByText("调度设置")).toBeTruthy();
+    expect(screen.getByLabelText("每日时间")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("触发类型"), { target: { value: "weekly" } });
+    expect(screen.getByLabelText("每周时间")).toBeTruthy();
+    expect(screen.getByLabelText("每周星期")).toBeTruthy();
+  });
+
+  it("saves values from the redesigned schedule editor", async () => {
+    const saveAutomationRule = vi.fn(async (input: Parameters<DesktopApi["saveAutomationRule"]>[0]): Promise<AutomationRule> => ({
+      schemaVersion: 1,
+      ...input,
+      lastTriggeredAt: null,
+      lastScheduledKey: null,
+      createdAt: "2026-06-15T08:00:00.000Z",
+      updatedAt: "2026-06-15T08:00:00.000Z"
+    }));
+    window.cctools = makeApi({ saveAutomationRule });
+    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    await screen.findByText("触发与目标");
+
+    fireEvent.change(screen.getByLabelText("触发类型"), { target: { value: "interval" } });
+    fireEvent.change(screen.getByLabelText("间隔分钟"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Automation 输入 JSON"), { target: { value: '{"date":"20260809"}' } });
+    fireEvent.click(screen.getByRole("button", { name: /保存规则/ }));
+
+    await waitFor(() => expect(saveAutomationRule).toHaveBeenCalledTimes(1));
+    expect(saveAutomationRule.mock.calls[0][0]).toMatchObject({
+      target: { type: "skill", id: "daily-article-summarizer" },
+      trigger: { type: "interval", everyMinutes: 30 },
+      inputs: { date: "20260809" }
+    });
+  });
+
   it("copies the console output for the active rule", async () => {
     window.cctools = makeApi({
       onSkillEvent: (cb) => {

@@ -97,14 +97,13 @@ describe("InstalledSkillRepository", () => {
     expect(() => repository.list()).toThrow(/active Skill 必须是 ready/);
   });
 
-  it("binds host execution trust to an exact ready active digest", () => {
+  it("grants host execution trust to an exact ready active digest", () => {
     const candidate = record("1.0.0", "digest-1");
     repository.upsert(candidate);
     repository.markReadiness(candidate.key, candidate.digest, "ready");
     repository.activate(candidate.key, candidate.digest);
 
     expect(repository.approveHostExecution(candidate.key, candidate.digest).executionTrust).toBe("approved-host");
-    expect(repository.revokeHostExecution(candidate.key, candidate.digest).executionTrust).toBe("inspect-only");
     expect(() => repository.approveHostExecution(candidate.key, "digest-missing")).toThrow(/不存在/);
   });
 

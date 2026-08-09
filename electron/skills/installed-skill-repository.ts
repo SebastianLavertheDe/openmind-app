@@ -133,16 +133,6 @@ export class InstalledSkillRepository {
     return target;
   }
 
-  revokeHostExecution(key: string, digest: string): InstalledSkillRecord {
-    const registry = this.read();
-    const index = registry.records.findIndex((record) => record.key === key && record.digest === digest);
-    if (index < 0) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    const target = { ...registry.records[index], executionTrust: "inspect-only" as const };
-    registry.records[index] = target;
-    this.write(registry);
-    return target;
-  }
-
   /**
    * Mark a package as changed after installation. This deliberately updates
    * the trust dimensions independently: a valid signature becomes invalid,

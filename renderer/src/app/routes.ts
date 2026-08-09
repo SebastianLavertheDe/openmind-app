@@ -21,6 +21,7 @@ export type AppRouteState = {
   stage?: "today" | "drafting" | "review" | "ready" | "published";
   sourceId?: string;
   search?: string;
+  settingsSection?: "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sources" | "storage" | "sessions";
 };
 
 export type Navigate = (page: AppPage, state?: AppRouteState) => void;

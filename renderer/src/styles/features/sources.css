@@ -767,3 +767,10 @@
   from { opacity: 0; transform: scale(.82); }
   to { opacity: 1; transform: scale(1); }
 }
+.sources-page-embedded { gap: 14px; padding: 0; }
+.source-context-banner { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 10px; background: var(--accent-tint); color: var(--text-secondary); font-size: 12px; }
+.source-context-banner strong { color: var(--text-primary); font-family: var(--font-mono); }
+.source-context-banner small { margin-left: auto; color: var(--text-tertiary); }
+.source-context-actions { display: flex; align-items: center; gap: 7px; }
+.source-context-actions button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; }
+@media (max-width: 760px) { .source-context-banner { align-items: flex-start; flex-wrap: wrap; }.source-context-banner small { margin-left: 0; }.source-context-actions { width: 100%; } }

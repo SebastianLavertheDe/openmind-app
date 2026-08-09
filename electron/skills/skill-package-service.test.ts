@@ -335,7 +335,7 @@ describe("SkillPackageService", () => {
     expect(fs.existsSync(installed.packagePath)).toBe(true);
   });
 
-  it("updates into quarantine, then supports readiness-gated activation and rollback", () => {
+  it("installs a second version into quarantine, then supports readiness-gated activation and rollback", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
@@ -346,7 +346,7 @@ describe("SkillPackageService", () => {
 
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
-    const candidate = service.update(source);
+    const candidate = service.install(source);
 
     expect(candidate.digest).not.toBe(first.digest);
     expect(candidate.status).toBe("quarantined");
@@ -419,7 +419,7 @@ describe("SkillPackageService", () => {
     }) as typeof fs.renameSync);
 
     try {
-      expect(() => service.update(source)).toThrow("simulated registry interruption");
+      expect(() => service.install(source)).toThrow("simulated registry interruption");
     } finally {
       rename.mockRestore();
     }

@@ -77,16 +77,6 @@ export class SkillSourceService {
     );
   }
 
-  async update(input: SkillPackageSourceInput): Promise<InstalledSkillRecord> {
-    const source = parseSkillPackageSourceInput(input);
-    if (source.type !== "git") {
-      return this.packages.update(source.locator, toInstallMetadata(source));
-    }
-    return this.withGitCheckout(source, (packageRoot) =>
-      this.packages.update(packageRoot, toInstallMetadata(source))
-    );
-  }
-
   private async withGitCheckout<T>(
     source: Extract<SkillPackageSourceInput, { type: "git" }>,
     callback: (packageRoot: string) => T | Promise<T>

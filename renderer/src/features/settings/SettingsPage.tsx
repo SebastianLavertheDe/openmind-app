@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Database, Globe, Package, Route, Search, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, CredentialSetInput, CredentialVaultStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderProfile, ProviderProfileInput, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
 import { applyTheme } from "../../theme";
+import { SkillsPage } from "../skills";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
@@ -14,6 +15,7 @@ import {
   PermissionSettingsSection,
   ProviderSettingsSection,
   RuntimeSettingsSection,
+  SharedPythonRuntimeSection,
   SkillSettingsSection,
   WorkflowSettingsSection
 } from "./settings-sections";
@@ -21,7 +23,7 @@ import {
 const m = messages;
 const BLUE_ACCENT = "#2563eb";
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -35,41 +37,45 @@ type SettingsSectionDefinition = {
 const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
   { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
-  { id: "runtime", group: "ai", icon: Cpu, title: "Runtime Packs", description: "管理已验证的运行时包和完整性状态。" },
+  { id: "runtime", group: "ai", icon: Cpu, title: "内置运行时", description: "统一管理供 Skill 与自动化任务使用的共享 Python 环境。" },
   { id: "skills", group: "ai", icon: Package, ...m.settings.navigation.sections.skills },
+  { id: "mcp", group: "ai", icon: Server, ...m.settings.navigation.sections.mcp },
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
   { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
-  { id: "storage", group: "data", icon: Database, ...m.settings.navigation.sections.storage },
+  { id: "storage", group: "data", icon: HardDrive, ...m.settings.navigation.sections.storage },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ];
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string }) {
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [browserStatus, setBrowserStatus] = useState<BrowserAutomationStatus | null>(null);
-  const [credentialStatus, setCredentialStatus] = useState<CredentialVaultStatus | null>(null);
-  const [providerProfiles, setProviderProfiles] = useState<ProviderProfile[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServerDefinition[]>([]);
   const [runtimePacks, setRuntimePacks] = useState<RuntimePackReadiness[]>([]);
   const [runtimeDownloads, setRuntimeDownloads] = useState<RuntimePackDownloadJob[]>([]);
   const [runtimeDownloadCandidate, setRuntimeDownloadCandidate] = useState<RuntimePackDownloadDescriptor | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
+  const [sharedPythonRuntime, setSharedPythonRuntime] = useState<SharedPythonRuntimeStatus | null>(null);
   const [savingBrowserToken, setSavingBrowserToken] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [skillPackageInspections, setSkillPackageInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
-  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "update" | "rollback" | "uninstall" | null>(null);
+  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "rollback" | "uninstall" | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>("general");
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
   const detailRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (initialSection) setActiveSection(initialSection);
+  }, [initialSection, initialSkillId]);
 
   const loadMcpServers = useCallback(async (): Promise<McpServerDefinition[]> => {
     try {
@@ -82,18 +88,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   }, []);
 
-  const loadProviderConfig = useCallback(async () => {
-    if (!window.cctools.getCredentialStatus || !window.cctools.listProviderProfiles) return;
-    try {
-      const [status, profiles] = await Promise.all([window.cctools.getCredentialStatus(), window.cctools.listProviderProfiles()]);
-      setCredentialStatus(status);
-      setProviderProfiles(profiles);
-    } catch {
-      setCredentialStatus(null);
-      setProviderProfiles([]);
-    }
-  }, []);
-
   const loadPrefs = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -103,7 +97,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       applyTheme(next);
       try { setBrowserStatus(await window.cctools.getBrowserAutomationStatus()); }
       catch { setBrowserStatus(null); }
-      await loadProviderConfig();
       await loadMcpServers();
     } catch {
       setPrefs(null);
@@ -111,7 +104,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     } finally {
       setLoading(false);
     }
-  }, [loadMcpServers, loadProviderConfig]);
+  }, [loadMcpServers]);
 
   useEffect(() => { void loadPrefs(); }, [loadPrefs]);
 
@@ -129,10 +122,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   }, []);
 
-  useEffect(() => {
-    if (activeSection === "skills" && !loading && prefs) void loadSkillPackages();
-  }, [activeSection, loadSkillPackages, loading, prefs]);
-
   const loadRuntimePacks = useCallback(async () => {
     try {
       setRuntimePacks(await window.cctools.listRuntimePacks());
@@ -146,9 +135,28 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   }, []);
 
+  const loadSharedPythonRuntime = useCallback(async () => {
+    try { setSharedPythonRuntime(await window.cctools.getSharedPythonRuntimeStatus()); }
+    catch { setSharedPythonRuntime(null); }
+  }, []);
+
   useEffect(() => {
-    if (activeSection === "runtime" && !loading && prefs) void loadRuntimePacks();
-  }, [activeSection, loadRuntimePacks, loading, prefs]);
+    if (activeSection === "runtime" && !loading && prefs) void loadSharedPythonRuntime();
+  }, [activeSection, loadSharedPythonRuntime, loading, prefs]);
+
+  const toggleSharedPythonRuntime = useCallback(async (enabled: boolean) => {
+    if (runtimeBusy) return;
+    setRuntimeBusy(enabled ? "shared-python-enable" : "shared-python-disable");
+    try {
+      setSharedPythonRuntime(await window.cctools.setSharedPythonRuntimeEnabled(enabled));
+      ai.notify(enabled ? "内置 Python 运行时已就绪" : "内置 Python 运行时已关闭", "success");
+    } catch {
+      await loadSharedPythonRuntime();
+      ai.notify(enabled ? "内置 Python 初始化失败，请检查发行包资源或依赖冲突" : "内置 Python 运行时关闭失败", "error");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  }, [ai, loadSharedPythonRuntime, runtimeBusy]);
 
   useEffect(() => {
     if (!window.cctools.onRuntimePackDownloadEvent) return;
@@ -186,42 +194,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   }, [ai, loadMcpServers, loadPrefs]);
 
   const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
-
-  const saveCredential = useCallback(async (input: CredentialSetInput) => {
-    await window.cctools.setCredential(input);
-    // Clear the renderer's plaintext input as soon as Main confirms the
-    // secure write; refreshing metadata must not delay that security boundary.
-    void loadProviderConfig();
-    ai.notify("Credential 已安全保存", "success");
-  }, [ai, loadProviderConfig]);
-
-  const deleteCredential = useCallback(async (id: string) => {
-    const credential = credentialStatus?.credentials.find((item) => item.id === id);
-    if (!await ai.confirm({ title: "删除 Credential", body: `确定删除「${credential?.label || id}」吗？这会撤销后续注入，并终止可追踪的使用中 Run。`, confirmText: "删除", danger: true })) return;
-    await window.cctools.deleteCredential(id);
-    await loadProviderConfig();
-    ai.notify("Credential 密文副本已删除", "success");
-  }, [ai, credentialStatus, loadProviderConfig]);
-
-  const saveProviderProfile = useCallback(async (input: ProviderProfileInput) => {
-    await window.cctools.saveProviderProfile(input);
-    await loadProviderConfig();
-    ai.notify("Provider Profile 已保存", "success");
-  }, [ai, loadProviderConfig]);
-
-  const deleteProviderProfile = useCallback(async (id: string) => {
-    const profile = providerProfiles.find((item) => item.id === id);
-    if (!await ai.confirm({ title: "删除 Provider Profile", body: `确定删除「${profile?.name || id}」吗？Provider 绑定在下次运行前将不可用。`, confirmText: "删除", danger: true })) return;
-    await window.cctools.deleteProviderProfile(id);
-    await loadProviderConfig();
-    ai.notify("Provider Profile 已删除", "success");
-  }, [ai, loadProviderConfig, providerProfiles]);
-
-  const testProviderProfile = useCallback(async (id: string) => {
-    await window.cctools.testProviderProfile(id);
-    await loadProviderConfig();
-    ai.notify("Provider Profile 连接测试已完成", "success");
-  }, [ai, loadProviderConfig]);
 
   const archivedSessions = useMemo(() => ai.snapshot.sessions
     .filter((session) => session.archived)
@@ -320,20 +292,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       setSkillPackageInspections(report.inspected);
       setInstalledSkills(report.installed);
       ai.notify(m.settings.skills.packageMigrateComplete(report.installed.length, report.skipped.length), "success");
-    } catch {
-      ai.notify(m.settings.skills.packageInspectFailed, "error");
-    } finally {
-      setSkillPackageBusy(null);
-    }
-  };
-
-  const updateSkillPackage = async (sourcePath: string) => {
-    if (skillPackageBusy || !window.cctools.updateSkillPackage) return;
-    setSkillPackageBusy("update");
-    try {
-      await window.cctools.updateSkillPackage(sourcePath);
-      await loadSkillPackages();
-      ai.notify(m.settings.skills.packageActionComplete, "success");
     } catch {
       ai.notify(m.settings.skills.packageInspectFailed, "error");
     } finally {
@@ -621,7 +579,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               <h1 id="settings-detail-title">{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
-            {activeSection !== "skills" && activeSection !== "runtime" && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+            {!["skills", "mcp", "runtime"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
           </header>
 
           {loading ? (
@@ -639,9 +597,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} credentialStatus={credentialStatus} providerProfiles={providerProfiles} onSaveCredential={saveCredential} onDeleteCredential={deleteCredential} onSaveProviderProfile={saveProviderProfile} onTestProviderProfile={testProviderProfile} onDeleteProviderProfile={deleteProviderProfile} /> : null}
-              {activeSection === "runtime" ? <RuntimeSettingsSection packs={runtimePacks} downloads={runtimeDownloads} downloadCandidate={runtimeDownloadCandidate} busy={runtimeBusy} onRefresh={() => void refreshRuntimePacks()} onImport={() => void importRuntimePack()} onSelectDownloadManifest={() => void selectRuntimePackDownloadManifest()} onStartDownload={() => void startRuntimePackDownload()} onClearDownloadCandidate={() => setRuntimeDownloadCandidate(null)} onPauseDownload={(job) => void pauseRuntimePackDownload(job)} onResumeDownload={(job) => void resumeRuntimePackDownload(job)} onRemoveDownload={(job) => void removeRuntimePackDownload(job)} onGarbageCollect={() => void garbageCollectRuntimePacks()} onRepair={(pack) => void repairRuntimePack(pack)} onActivate={(pack) => void activateRuntimePack(pack)} onRollback={(pack) => void rollbackRuntimePack(pack)} onRemove={(pack) => void removeRuntimePack(pack)} /> : null}
-              {activeSection === "skills" ? <SkillSettingsSection skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onUpdatePackage={(sourcePath) => void updateSkillPackage(sourcePath)} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
+              {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
+              {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
+              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} /> : null}
+              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}

@@ -52,7 +52,7 @@ const TABS: Array<{ id: "all" | SourceKind; label: string }> = [
   { id: "api", label: m.sources.tabs.api }
 ];
 
-export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
+export function SourcesPage({ initialSourceId, initialSkillId, embedded = false }: { initialSourceId?: string; initialSkillId?: string; embedded?: boolean }) {
   const ai = useAi();
   const [sources, setSources] = useState<SourceDefinition[]>([]);
   const [selectedId, setSelectedId] = useState(initialSourceId || "");
@@ -115,17 +115,17 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
     try {
       const next = await window.cctools.listSources();
       setSources(next);
-      setSelectedId((current) => next.some((source) => source.id === current)
+      setSelectedId((current) => next.some((source) => source.id === current && (!initialSkillId || source.skillId === initialSkillId))
         ? current
         : initialSourceId && next.some((source) => source.id === initialSourceId)
           ? initialSourceId
-          : next[0]?.id || "");
+          : next.find((source) => !initialSkillId || source.skillId === initialSkillId)?.id || "");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialSourceId]);
+  }, [initialSkillId, initialSourceId]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => window.cctools.onSkillEvent((event) => {
@@ -139,20 +139,21 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
     }
   }), [load]);
 
-  const filtered = useMemo(() => sources.filter((source) => {
+  const scopedSources = useMemo(() => initialSkillId ? sources.filter((source) => source.skillId === initialSkillId) : sources, [initialSkillId, sources]);
+  const filtered = useMemo(() => scopedSources.filter((source) => {
     if (tab !== "all" && source.kind !== tab) return false;
     const query = search.trim().toLocaleLowerCase();
     return !query || [source.name, source.url, source.kind, source.skillId, ...(source.tags || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query);
-  }), [search, sources, tab]);
+  }), [scopedSources, search, tab]);
   const selectedSource = useMemo(() => sources.find((source) => source.id === selectedId) || null, [selectedId, sources]);
 
-  const availableTabs = useMemo(() => TABS.filter((item) => item.id !== "manual" || sources.some((source) => source.kind === "manual")), [sources]);
+  const availableTabs = useMemo(() => TABS.filter((item) => item.id !== "manual" || scopedSources.some((source) => source.kind === "manual")), [scopedSources]);
 
   const tabCounts = useMemo(() => {
-    const counts = new Map<"all" | SourceKind, number>([["all", sources.length]]);
-    for (const source of sources) counts.set(source.kind, (counts.get(source.kind) || 0) + 1);
+    const counts = new Map<"all" | SourceKind, number>([["all", scopedSources.length]]);
+    for (const source of scopedSources) counts.set(source.kind, (counts.get(source.kind) || 0) + 1);
     return counts;
-  }, [sources]);
+  }, [scopedSources]);
 
   useEffect(() => {
     if (tab === "all" || availableTabs.some((item) => item.id === tab)) return;
@@ -177,28 +178,28 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
     if (tab === "x" || selectedSource?.kind === "x") void loadXCurl();
   }, [loadXCurl, selectedSource?.kind, tab]);
 
-  const activeCount = sources.filter((source) => source.enabled).length;
-  const failed = sources.filter((source) => source.status === "failed" || source.status === "warning").length;
-  const healthy = sources.filter((source) => source.enabled && source.status !== "failed" && source.status !== "warning").length;
-  const todayItemCount = sources
+  const activeCount = scopedSources.filter((source) => source.enabled).length;
+  const failed = scopedSources.filter((source) => source.status === "failed" || source.status === "warning").length;
+  const healthy = scopedSources.filter((source) => source.enabled && source.status !== "failed" && source.status !== "warning").length;
+  const todayItemCount = scopedSources
     .filter((source) => isToday(source.lastSuccessAt || source.lastRunAt))
     .reduce((sum, source) => sum + source.itemCount, 0);
-  const latestRunAt = sources.reduce<string | null>((latest, source) => {
+  const latestRunAt = scopedSources.reduce<string | null>((latest, source) => {
     if (!source.lastRunAt) return latest;
     return !latest || new Date(source.lastRunAt) > new Date(latest) ? source.lastRunAt : latest;
   }, null);
-  const averageSuccessRate = sources.length
-    ? Math.round(sources.reduce((sum, source) => sum + (source.successRate ?? 0), 0) / sources.length)
+  const averageSuccessRate = scopedSources.length
+    ? Math.round(scopedSources.reduce((sum, source) => sum + (source.successRate ?? 0), 0) / scopedSources.length)
     : 0;
   const kindDistribution = useMemo(() => {
     const counts = new Map<SourceKind, number>();
-    for (const source of sources) counts.set(source.kind, (counts.get(source.kind) || 0) + 1);
+    for (const source of scopedSources) counts.set(source.kind, (counts.get(source.kind) || 0) + 1);
     return [...counts.entries()]
-      .map(([kind, count]) => ({ kind, count, percentage: sources.length ? count / sources.length * 100 : 0 }))
+      .map(([kind, count]) => ({ kind, count, percentage: scopedSources.length ? count / scopedSources.length * 100 : 0 }))
       .sort((left, right) => right.count - left.count);
-  }, [sources]);
+  }, [scopedSources]);
   const chartBackground = useMemo(() => {
-    if (!sources.length) return "conic-gradient(var(--border) 0 100%)";
+    if (!scopedSources.length) return "conic-gradient(var(--border) 0 100%)";
     let cursor = 0;
     const stops = kindDistribution.map(({ kind, percentage }) => {
       const start = cursor;
@@ -206,7 +207,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
       return `${SOURCE_KIND_COLORS[kind]} ${start}% ${cursor}%`;
     });
     return `conic-gradient(${stops.join(", ")})`;
-  }, [kindDistribution, sources.length]);
+  }, [kindDistribution, scopedSources.length]);
 
   const toggle = async (source: SourceDefinition) => {
     try {
@@ -282,7 +283,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   };
 
   const runAll = async () => {
-    const runnable = sources.filter((source) => source.enabled && source.skillId && source.status !== "running");
+    const runnable = scopedSources.filter((source) => source.enabled && source.skillId && source.status !== "running");
     if (!runnable.length) {
       ai.notify(m.sources.notify.noRunnable, "info");
       return;
@@ -408,15 +409,23 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
   />;
 
   return (
-    <div className="feature-page sources-page">
-      <PageHeader
+    <div className={`feature-page sources-page${embedded ? " sources-page-embedded" : ""}`}>
+      {!embedded ? <PageHeader
         eyebrow={m.nav.sources}
         title={m.sources.page.title}
         description={m.sources.page.description}
         actions={<><button data-motion="action" aria-busy={runningAll || undefined} disabled={runningAll} onClick={() => void runAll()}><RefreshCw size={15} className={runningAll ? "spin" : ""} />{m.sources.actions.runAll}</button><button className="primary-button" data-motion="action" onClick={openNewSource}><Plus size={15} />{m.sources.actions.add}</button></>}
-      />
+      /> : <div className="source-context-banner">
+        <span>{initialSkillId ? "当前仅显示 Skill" : "全局来源池"}</span>
+        <strong>{initialSkillId || "可供多个 Skills 复用"}</strong>
+        <small>{scopedSources.length} 个{initialSkillId ? "关联" : "可用"}来源</small>
+        <div className="source-context-actions">
+          <button type="button" data-motion="action" aria-busy={runningAll || undefined} disabled={runningAll} onClick={() => void runAll()}><RefreshCw size={14} className={runningAll ? "spin" : ""} />{m.sources.actions.runAll}</button>
+          <button type="button" className="primary-button" data-motion="action" onClick={openNewSource}><Plus size={14} />{m.sources.actions.add}</button>
+        </div>
+      </div>}
       <section className="source-metrics">
-        <SourceMetricCard icon={<Database size={25} />} label={m.sources.metrics.total} value={sources.length} detail={m.sources.metrics.active(activeCount)} tone="info" />
+        <SourceMetricCard icon={<Database size={25} />} label={m.sources.metrics.total} value={scopedSources.length} detail={m.sources.metrics.active(activeCount)} tone="info" />
         <SourceMetricCard icon={<CheckCircle2 size={25} />} label="正常" value={healthy} detail="运行正常" tone="success" />
         <SourceMetricCard icon={<CircleAlert size={25} />} label={m.sources.metrics.anomaly} value={failed} detail={failed ? m.sources.metrics.needsAttention : m.sources.metrics.noAnomaly} tone={failed ? "warning" : "danger"} />
         <SourceMetricCard icon={<TrendingUp size={25} />} label="今日新增" value={todayItemCount.toLocaleString("zh-CN")} detail="今日新增资料" tone="violet" />
@@ -520,7 +529,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
           <section className="workspace-card source-side-card source-distribution-card">
             <header><strong>来源分布</strong></header>
             <div className="source-distribution-body">
-              <div className="source-donut" role="img" aria-label={`共 ${sources.length} 个资料来源`} style={{ background: chartBackground }}><span>{sources.length}<small>总数</small></span></div>
+              <div className="source-donut" role="img" aria-label={`共 ${scopedSources.length} 个资料来源`} style={{ background: chartBackground }}><span>{scopedSources.length}<small>总数</small></span></div>
               <div className="source-distribution-list">
                 {kindDistribution.length ? kindDistribution.map(({ kind, count, percentage }) => <div key={kind}><i style={{ background: SOURCE_KIND_COLORS[kind] }} /><span>{sourceKindLabel(kind)}</span><strong>{count}</strong><small>{percentage.toFixed(1)}%</small></div>) : <span className="source-side-empty">暂无来源</span>}
               </div>
@@ -531,7 +540,7 @@ export function SourcesPage({ initialSourceId }: { initialSourceId?: string }) {
             <dl>
               <div><dt>最近一次抓取</dt><dd>{failed ? `${failed} 个需处理` : "全部成功"}<CheckCircle2 size={14} /></dd></div>
               <div><dt>最后抓取时间</dt><dd>{latestRunAt ? formatFullDateTime(latestRunAt) : "尚未运行"}</dd></div>
-              <div><dt>活跃来源</dt><dd>{activeCount} / {sources.length}</dd></div>
+              <div><dt>活跃来源</dt><dd>{activeCount} / {scopedSources.length}</dd></div>
               <div><dt>平均成功率</dt><dd>{averageSuccessRate}%</dd></div>
             </dl>
           </section>

@@ -16,7 +16,7 @@ describe("AppShell", () => {
     const setNavCollapsed = vi.fn();
     render(
       <AppShell
-        page="sources"
+        page="brief"
         navigate={navigate}
         onOpenSearch={openSearch}
         navCollapsed={false}
@@ -27,11 +27,13 @@ describe("AppShell", () => {
         pendingApprovals={2}
         aiMode="default"
       >
-        <div>Sources</div>
+        <div>Brief</div>
       </AppShell>
     );
 
-    expect(screen.getByRole("button", { name: "资料库" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("button", { name: "资料库" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skills" })).toBeNull();
     expect(screen.getByRole("button", { name: "每日简报" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
     expect(navigate).toHaveBeenCalledWith("ai");
@@ -43,7 +45,7 @@ describe("AppShell", () => {
     const setNavCollapsed = vi.fn();
     render(
       <AppShell
-        page="sources"
+        page="brief"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
         navCollapsed={false}
@@ -325,13 +327,14 @@ describe("AppShell", () => {
     const create = screen.getByRole("button", { name: "新建任务" });
     const creative = screen.getByRole("button", { name: "创作" });
     const settings = screen.getByRole("button", { name: "设置" });
+    expect(screen.queryByRole("button", { name: "运行中心" })).toBeNull();
     expect(create.compareDocumentPosition(creative) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(creative.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("uses structured environment state instead of parsing the runtime label", () => {
     const props = {
-      page: "sources" as const,
+      page: "brief" as const,
       navigate: vi.fn(),
       onOpenSearch: vi.fn(),
       navCollapsed: false,
@@ -358,7 +361,7 @@ describe("AppShell", () => {
   it("renders recent tasks slot between core nav and settings", () => {
     render(
       <AppShell
-        page="sources"
+        page="brief"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
         navCollapsed={false}

@@ -3,6 +3,42 @@
   background: var(--app-chrome-bg);
 }
 
+.settings-shared-runtime-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.settings-shared-runtime-header,
+.settings-shared-runtime-tool,
+.settings-shared-runtime-card footer { display: grid; align-items: center; }
+.settings-shared-runtime-header { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); padding: 18px 20px; }
+.settings-shared-runtime-heading { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.settings-shared-runtime-heading > div,
+.settings-shared-runtime-tool > div { min-width: 0; }
+.settings-shared-runtime-heading strong,
+.settings-shared-runtime-heading small,
+.settings-shared-runtime-tool strong,
+.settings-shared-runtime-tool small { display: block; }
+.settings-shared-runtime-heading strong { color: var(--text); font-size: 15px; }
+.settings-shared-runtime-heading small,
+.settings-shared-runtime-tool small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.settings-shared-runtime-shield { width: 32px; height: 32px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 10px; background: color-mix(in srgb, #10b981 12%, var(--surface)); color: #10b981; }
+.settings-shared-runtime-columns { display: grid; grid-template-columns: minmax(170px, .45fr) minmax(260px, 1fr) auto; gap: 16px; padding: 10px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 600; }
+.settings-shared-runtime-columns span:last-child { text-align: right; }
+.settings-shared-runtime-tool { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; margin: 0 12px 12px; padding: 14px; border-radius: var(--radius-md); background: var(--panel-muted); }
+.settings-python-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, #3776ab 13%, var(--surface)); color: #3776ab; font-size: 12px; font-weight: 750; }
+.settings-shared-runtime-tool strong { color: var(--text-dim); font-size: 13px; }
+.settings-shared-runtime-state { display: flex; align-items: center; gap: 12px; }
+.settings-shared-runtime-progress,
+.settings-shared-runtime-error { margin: 0 20px 14px; padding: 10px 12px; border-radius: var(--radius-sm); font-size: 11px; line-height: 1.5; }
+.settings-shared-runtime-progress { display: flex; align-items: center; gap: 9px; background: color-mix(in srgb, var(--accent-fg) 7%, var(--panel-muted)); color: var(--text-dim); }
+.settings-shared-runtime-progress .spin { width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid color-mix(in srgb, var(--accent-fg) 25%, transparent); border-top-color: var(--accent-fg); border-radius: 50%; }
+.settings-shared-runtime-progress p { margin: 0; }
+.settings-shared-runtime-error { background: color-mix(in srgb, var(--danger) 9%, var(--panel-muted)); color: var(--danger); }
+.settings-shared-runtime-card footer { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }
+
+@media (max-width: 760px) {
+  .settings-shared-runtime-columns { display: none; }
+  .settings-shared-runtime-tool { margin-top: 0; }
+  .settings-shared-runtime-state { grid-column: 2; justify-content: space-between; }
+}
+
 .app-shell.settings-mode > .app-stage {
   width: 100%;
   height: 100%;
@@ -952,6 +988,81 @@
   gap: var(--space-2);
 }
 
+.settings-skill-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 4px 0 var(--space-3);
+}
+
+.settings-skill-context-grid > section {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.settings-skill-context-grid header,
+.settings-skill-context-grid header > span,
+.settings-skill-context-grid li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.settings-skill-context-grid header {
+  justify-content: space-between;
+}
+
+.settings-skill-context-grid header small,
+.settings-skill-context-grid p,
+.settings-skill-context-grid time {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.settings-skill-context-grid p {
+  margin: 0;
+  min-height: 28px;
+}
+
+.settings-skill-context-grid ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-skill-context-grid li span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-skill-context-grid li time {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.settings-skill-context-grid > section > button {
+  justify-self: start;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-muted);
+  color: var(--accent-fg);
+  font-size: 11px;
+}
+
 .settings-skill-actions button {
   min-height: 30px;
   display: inline-flex;
@@ -1108,6 +1219,51 @@
   color: var(--text-dim);
   font: inherit;
 }
+
+.settings-skill-package-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 0 17px;
+}
+
+.settings-skill-package-context button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.settings-skill-package-context button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.settings-skill-package-context button strong {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--panel-muted);
+  color: var(--text);
+  font: 600 10px/1.5 var(--font-mono);
+  text-align: center;
+}
+
+.settings-skill-package-context button small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.settings-skill-package-context button small.danger { color: var(--danger, #dc2626); }
+.settings-skill-package-context button small.success { color: var(--success, #16a34a); }
+.settings-skill-package-context button small.running { color: var(--accent); }
 
 .settings-skill-package-meta .is-invalid,
 .settings-skill-package-issues {
@@ -1652,6 +1808,7 @@
 }
 
 @media (max-width: 720px) {
+  .settings-skill-context-grid { grid-template-columns: 1fr; }
   .settings-page {
     grid-template-columns: 184px minmax(0, 1fr);
   }
@@ -1690,5 +1847,360 @@
 
   .settings-detail {
     padding: 28px 16px 40px;
+  }
+}
+
+/* Unified settings language -------------------------------------------------
+   All setting categories share one page axis, one section surface and one
+   row rhythm. Resource managers may be denser without leaving that axis. */
+.settings-detail-inner {
+  width: min(980px, 100%);
+}
+
+.settings-card {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--panel-muted) 36%, var(--panel));
+  box-shadow: none;
+}
+
+.settings-card > header {
+  min-height: 58px;
+  padding: 0 20px;
+}
+
+.settings-card-title {
+  gap: 9px;
+}
+
+.settings-card-title > span {
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--panel-muted) 72%, var(--panel));
+  color: var(--muted);
+}
+
+.settings-card-body {
+  padding: 0 20px 18px;
+}
+
+.settings-preference-row {
+  min-height: 70px;
+  gap: 28px;
+  padding: 14px 0;
+}
+
+.settings-preference-row + .settings-preference-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+}
+
+.settings-preference-copy strong {
+  font-size: 13px;
+}
+
+.settings-preference-copy p {
+  max-width: 58ch;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.settings-preference-control {
+  min-width: 148px;
+}
+
+.settings-preference-control > .ui-select,
+.settings-inline-controls > .ui-select {
+  min-width: 112px;
+}
+
+.settings-preference-control .ui-select-trigger,
+.settings-inline-controls .ui-select-trigger {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.settings-page .settings-select {
+  min-width: 132px;
+}
+
+.settings-page .ui-status-badge {
+  min-height: 21px;
+  padding: 2px 8px;
+  border: 0;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.settings-resource-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 0;
+}
+
+.settings-resource-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-muted) 78%, var(--panel));
+  color: var(--text-dim);
+}
+
+.settings-resource-copy {
+  min-width: 0;
+}
+
+.settings-resource-copy strong,
+.settings-resource-copy p,
+.settings-resource-copy small {
+  display: block;
+}
+
+.settings-resource-copy strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-resource-copy p {
+  max-width: 62ch;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-resource-copy small {
+  margin-top: 5px;
+  color: var(--muted-2);
+  font-size: 10px;
+}
+
+.settings-resource-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.settings-panel-footer {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+  padding-top: 13px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+}
+
+.settings-panel-footer .settings-note {
+  margin: 0;
+}
+
+.settings-runtime-feedback:empty {
+  display: none;
+}
+
+.settings-shared-runtime-progress,
+.settings-shared-runtime-error {
+  margin: 4px 0 10px;
+}
+
+.settings-provider-list {
+  gap: 0;
+  padding-top: 0;
+}
+
+.settings-provider-card {
+  min-height: 72px;
+  padding: 13px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-provider-card + .settings-provider-card {
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+}
+
+.settings-card--resource .settings-skill-toolbar {
+  margin-bottom: 10px;
+}
+
+.settings-mcp-list {
+  gap: 8px;
+}
+
+.settings-mcp-server {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.settings-mcp-server-header {
+  width: 100%;
+  min-height: 72px;
+  grid-template-columns: 34px minmax(0, 1fr) auto 18px;
+  padding: 13px 15px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.settings-mcp-server-header:hover {
+  background: color-mix(in srgb, var(--panel-muted) 42%, transparent);
+}
+
+.settings-mcp-chevron {
+  color: var(--muted-2);
+  transition: transform 160ms ease;
+}
+
+.settings-mcp-server[data-expanded] .settings-mcp-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-mcp-details {
+  padding: 0 15px 15px 62px;
+  background: transparent;
+}
+
+.settings-mcp-details > dl,
+.settings-mcp-diagnostic,
+.settings-mcp-tool {
+  background: color-mix(in srgb, var(--panel-muted) 52%, var(--panel));
+}
+
+.settings-browser-backend {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  margin: 0;
+  padding: 15px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-browser-backend + .settings-preference-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+}
+
+.settings-browser-token {
+  margin-top: 4px;
+  padding: 15px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-browser-boundary {
+  margin-top: 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-muted) 64%, var(--panel));
+}
+
+.settings-workflow-stages {
+  margin: 0;
+  padding: 2px 0 0;
+}
+
+.settings-stage-list {
+  gap: 4px;
+}
+
+.settings-stage-list li {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel-muted) 58%, var(--panel));
+}
+
+.settings-workflow-preview {
+  margin-top: 10px;
+  padding: 13px 14px;
+  background: color-mix(in srgb, var(--panel-muted) 64%, var(--panel));
+}
+
+.settings-archived-description {
+  margin-top: 0;
+}
+
+.settings-archived-empty {
+  min-height: 112px;
+  gap: 12px;
+  border: 0;
+  background: color-mix(in srgb, var(--panel-muted) 58%, var(--panel));
+}
+
+.settings-archived-empty > div {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-archived-empty strong {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-archived-empty span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-note {
+  color: var(--muted-2);
+  line-height: 1.55;
+}
+
+@media (max-width: 820px) {
+  .settings-card > header,
+  .settings-card-body {
+    padding-inline: 16px;
+  }
+
+  .settings-preference-row,
+  .settings-resource-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-resource-icon {
+    display: none;
+  }
+
+  .settings-preference-control {
+    min-width: 0;
+  }
+
+  .settings-mcp-details {
+    padding-left: 15px;
+  }
+}
+
+@media (max-width: 620px) {
+  .settings-preference-row,
+  .settings-resource-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .settings-preference-control,
+  .settings-resource-actions {
+    justify-content: flex-start;
+  }
+
+  .settings-panel-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Check, Play, Square } from "lucide-react";
+import { Braces, CalendarClock, Check, Clock3, Play, Save, Square, Target } from "lucide-react";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, SkillDefinition } from "@shared/contracts";
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import type { Navigate } from "../../app/routes";
 import { messages } from "@shared/messages";
-import { LogViewer, ToggleSwitch } from "../../design-system/components";
+import { LogViewer, Select, ToggleSwitch } from "../../design-system/components";
 
 const m = messages;
 
@@ -235,25 +235,85 @@ function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRu
     } finally { setSaving(false); }
   };
 
+  const targetOptions = skills.map((skill) => ({ value: skill.id, label: `${skill.title} · ${skill.id}` }));
+  if (!skills.some((skill) => skill.id === targetId)) targetOptions.push({ value: targetId, label: targetId });
+
+  const triggerOptions: Array<{ value: TriggerType; label: string }> = [
+    { value: "daily", label: "每日" },
+    { value: "weekly", label: "每周" },
+    { value: "interval", label: "固定间隔" },
+    { value: "cron", label: "Cron 表达式" },
+    { value: "app-start", label: "应用启动" },
+    { value: "file-change", label: "文件变化" },
+    { value: "network", label: "网络状态" },
+    { value: "power", label: "电源状态" },
+    { value: "run-completed", label: "Run 完成" }
+  ];
+
   return (
-    <div className="rule-section">
-      <h2>触发与目标</h2>
-      <div className="cron-row">
-        <label>目标 <select aria-label="目标 Skill" value={targetId} onChange={(event) => setTargetId(event.target.value)}>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.title} · {skill.id}</option>)}{!skills.some((skill) => skill.id === targetId) ? <option value={targetId}>{targetId}</option> : null}</select></label>
-        <label>类型 <select aria-label="目标类型" value={targetType} onChange={(event) => setTargetType(event.target.value as "skill" | "workflow")}><option value="skill">Skill</option><option value="workflow">Workflow</option></select></label>
-        <label>触发 <select aria-label="触发类型" value={triggerType} onChange={(event) => setTriggerType(event.target.value as TriggerType)}><option value="daily">每日</option><option value="weekly">每周</option><option value="interval">间隔</option><option value="cron">Cron</option><option value="app-start">应用启动</option><option value="file-change">文件变化</option><option value="network">网络状态</option><option value="power">电源状态</option><option value="run-completed">Run 完成</option></select></label>
-        {triggerType === "daily" ? <input aria-label="每日时间" type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /> : null}
-        {triggerType === "weekly" ? <><input aria-label="每周时间" type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /><input aria-label="每周星期" value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="0,1,2（周日=0）" /></> : null}
-        {triggerType === "interval" ? <input aria-label="间隔分钟" type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /> : null}
-        {triggerType === "cron" ? <input aria-label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} /> : null}
-        {triggerType === "file-change" ? <textarea aria-label="文件变化路径" value={filePaths} onChange={(event) => setFilePaths(event.target.value)} placeholder="daily-summary/README.md（每行一个 mymind 相对路径）" rows={2} /> : null}
-        {triggerType === "network" ? <><select aria-label="网络状态" value={networkState} onChange={(event) => setNetworkState(event.target.value as "online" | "offline")}><option value="online">联网</option><option value="offline">离线</option></select><input aria-label="网络轮询分钟" type="number" min={1} value={conditionEvery} onChange={(event) => setConditionEvery(event.target.value)} /></> : null}
-        {triggerType === "power" ? <><select aria-label="电源状态" value={powerState} onChange={(event) => setPowerState(event.target.value as "ac" | "battery")}><option value="ac">接通电源</option><option value="battery">电池供电</option></select><input aria-label="电源轮询分钟" type="number" min={1} value={conditionEvery} onChange={(event) => setConditionEvery(event.target.value)} /></> : null}
-        {triggerType === "run-completed" ? <select aria-label="完成来源" value={completionSkill} onChange={(event) => setCompletionSkill(event.target.value)}><option value="">任意 Skill</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.title}</option>)}</select> : null}
-        <button type="button" className="primary-button" disabled={saving || !targetId.trim()} onClick={() => void save()}>{saving ? "保存中…" : "保存规则"}</button>
+    <div className="rule-section automation-rule-editor-section">
+      <div className="automation-section-heading">
+        <div className="automation-section-title">
+          <span className="automation-section-icon" aria-hidden="true"><CalendarClock size={17} /></span>
+          <div>
+            <h2>触发与目标</h2>
+            <p>配置执行对象、触发方式和本次运行需要的输入。</p>
+          </div>
+        </div>
+        <button type="button" className="primary-button automation-save-rule" disabled={saving || !targetId.trim()} onClick={() => void save()}>
+          <Save size={14} />{saving ? "保存中…" : "保存规则"}
+        </button>
       </div>
-      <label className="automation-input-editor">运行输入（JSON object）<textarea aria-label="Automation 输入 JSON" value={inputJson} onChange={(event) => setInputJson(event.target.value)} rows={3} spellCheck={false} /></label>
-      <small className="automation-params-hint">并发：{rule.concurrencyPolicy} · 错过计划：{rule.missedRunPolicy} · 时区：{rule.timezone} · 版本：{rule.target.versionPolicy}</small>
+
+      <div className="automation-editor-card">
+        <div className="automation-editor-grid">
+          <label className="automation-field automation-target-field">
+            <span>执行目标</span>
+            <Select value={targetId} options={targetOptions} onChange={setTargetId} ariaLabel="目标 Skill" size="rect" leadingIcon={<Target size={14} />} />
+          </label>
+          <label className="automation-field">
+            <span>目标类型</span>
+            <Select<"skill" | "workflow"> value={targetType} options={[{ value: "skill", label: "Skill" }, { value: "workflow", label: "Workflow" }]} onChange={setTargetType} ariaLabel="目标类型" size="rect" />
+          </label>
+          <label className="automation-field">
+            <span>触发方式</span>
+            <Select<TriggerType> value={triggerType} options={triggerOptions} onChange={setTriggerType} ariaLabel="触发类型" size="rect" />
+          </label>
+        </div>
+
+        <div className="automation-schedule-panel">
+          <div className="automation-subsection-heading">
+            <span className="automation-subsection-icon" aria-hidden="true"><Clock3 size={16} /></span>
+            <div><strong>调度设置</strong><span>{scheduleDescription(triggerType, rule.timezone)}</span></div>
+          </div>
+          <div className="automation-schedule-fields">
+            {triggerType === "daily" ? <label className="automation-field"><span>执行时间</span><input aria-label="每日时间" type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label> : null}
+            {triggerType === "weekly" ? <><label className="automation-field"><span>执行时间</span><input aria-label="每周时间" type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></label><label className="automation-field"><span>星期</span><input aria-label="每周星期" value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></label></> : null}
+            {triggerType === "interval" ? <label className="automation-field"><span>间隔分钟</span><div className="automation-input-suffix"><input aria-label="间隔分钟" type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>分钟</span></div></label> : null}
+            {triggerType === "cron" ? <label className="automation-field automation-field-wide"><span>Cron 表达式</span><input aria-label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 8 * * *" /></label> : null}
+            {triggerType === "file-change" ? <label className="automation-field automation-field-wide"><span>监控路径</span><textarea aria-label="文件变化路径" value={filePaths} onChange={(event) => setFilePaths(event.target.value)} placeholder="daily-summary/README.md（每行一个 mymind 相对路径）" rows={2} /></label> : null}
+            {triggerType === "network" ? <><label className="automation-field"><span>目标状态</span><Select<"online" | "offline"> value={networkState} options={[{ value: "online", label: "联网" }, { value: "offline", label: "离线" }]} onChange={setNetworkState} ariaLabel="网络状态" size="rect" /></label><label className="automation-field"><span>检查间隔</span><div className="automation-input-suffix"><input aria-label="网络轮询分钟" type="number" min={1} value={conditionEvery} onChange={(event) => setConditionEvery(event.target.value)} /><span>分钟</span></div></label></> : null}
+            {triggerType === "power" ? <><label className="automation-field"><span>目标状态</span><Select<"ac" | "battery"> value={powerState} options={[{ value: "ac", label: "接通电源" }, { value: "battery", label: "电池供电" }]} onChange={setPowerState} ariaLabel="电源状态" size="rect" /></label><label className="automation-field"><span>检查间隔</span><div className="automation-input-suffix"><input aria-label="电源轮询分钟" type="number" min={1} value={conditionEvery} onChange={(event) => setConditionEvery(event.target.value)} /><span>分钟</span></div></label></> : null}
+            {triggerType === "run-completed" ? <label className="automation-field automation-field-wide"><span>完成来源</span><Select value={completionSkill} options={[{ value: "", label: "任意 Skill" }, ...skills.map((skill) => ({ value: skill.id, label: skill.title }))]} onChange={setCompletionSkill} ariaLabel="完成来源" size="rect" /></label> : null}
+            {triggerType === "app-start" ? <p className="automation-schedule-empty">应用启动并完成初始化后自动执行，无需额外的调度参数。</p> : null}
+          </div>
+        </div>
+
+        <div className="automation-input-panel">
+          <div className="automation-subsection-heading">
+            <span className="automation-subsection-icon" aria-hidden="true"><Braces size={16} /></span>
+            <div><strong>运行输入</strong><span>JSON object，将在每次触发时传给目标。</span></div>
+          </div>
+          <label className="automation-input-editor"><span className="ui-visually-hidden">运行输入（JSON object）</span><textarea aria-label="Automation 输入 JSON" value={inputJson} onChange={(event) => setInputJson(event.target.value)} rows={3} spellCheck={false} /></label>
+        </div>
+
+        <dl className="automation-editor-meta" aria-label="规则运行策略">
+          <div><dt>并发策略</dt><dd>{policyLabel(rule.concurrencyPolicy)}</dd></div>
+          <div><dt>错过计划</dt><dd>{missedRunLabel(rule.missedRunPolicy)}</dd></div>
+          <div><dt>时区</dt><dd>{rule.timezone}</dd></div>
+          <div><dt>目标版本</dt><dd>{rule.target.versionPolicy}</dd></div>
+        </dl>
+      </div>
     </div>
   );
 }
@@ -299,6 +359,31 @@ function triggerForEditor(type: TriggerType, dailyAt: string, weeklyAt: string, 
   if (type === "network") return { type, state: networkState, everyMinutes: Math.max(1, Number(conditionEvery) || 1) };
   if (type === "power") return { type, state: powerState, everyMinutes: Math.max(1, Number(conditionEvery) || 1) };
   return completionSkill ? { type, skillId: completionSkill } : { type };
+}
+
+function scheduleDescription(type: TriggerType, timezone: string): string {
+  if (type === "daily") return `每天在指定时间执行 · ${timezone}`;
+  if (type === "weekly") return `按星期和时间执行 · ${timezone}`;
+  if (type === "interval") return "按照固定分钟间隔重复执行";
+  if (type === "cron") return `使用标准 Cron 表达式调度 · ${timezone}`;
+  if (type === "app-start") return "应用完成启动后执行一次";
+  if (type === "file-change") return "监控工作区内指定文件的变化";
+  if (type === "network") return "检测到指定网络状态时执行";
+  if (type === "power") return "检测到指定电源状态时执行";
+  return "等待其他 Skill 的 Run 完成后执行";
+}
+
+function policyLabel(policy: string): string {
+  if (policy === "skip") return "运行中跳过";
+  if (policy === "queue") return "排队等待";
+  if (policy === "parallel") return "允许并行";
+  return policy;
+}
+
+function missedRunLabel(policy: string): string {
+  if (policy === "run-once") return "恢复后补跑一次";
+  if (policy === "skip") return "直接跳过";
+  return policy;
 }
 
 function initialRuleId(initialSkillId: string | undefined, rules: AutomationRule[]): string {

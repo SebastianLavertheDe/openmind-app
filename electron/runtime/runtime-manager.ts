@@ -15,6 +15,7 @@ import type { AppPaths } from "../paths/app-paths-service";
 import { RuntimePackRepository, type RuntimePackRecord } from "./runtime-pack-repository";
 import { RuntimePackUsageRegistry } from "./runtime-pack-usage";
 import { createRuntimeStaging } from "./runtime-staging";
+import type { SharedPythonRuntimeService } from "./shared-python-runtime";
 
 export type RuntimeExecutableResolutionInput = {
   manifest: ProcessManifest;
@@ -50,6 +51,7 @@ export type RuntimeManagerOptions = {
     packageDigest: string;
   }) => Promise<void>;
   runCommand?: RuntimeCommandRunner;
+  sharedPython?: SharedPythonRuntimeService;
 };
 
 export type RuntimeManagerErrorCode =
@@ -83,6 +85,7 @@ export class RuntimeManager {
   private readonly prepareEnvironment?: RuntimeManagerOptions["prepareEnvironment"];
   private readonly runCommand: RuntimeCommandRunner;
   private readonly usage: RuntimePackUsageRegistry;
+  private readonly sharedPython?: SharedPythonRuntimeService;
 
   constructor(private readonly paths: AppPaths, options: RuntimeManagerOptions = {}) {
     const repository = new RuntimePackRepository(paths);
@@ -92,11 +95,35 @@ export class RuntimeManager {
     this.prepareEnvironment = options.prepareEnvironment;
     this.runCommand = options.runCommand || defaultRunCommand;
     this.usage = new RuntimePackUsageRegistry(paths);
+    this.sharedPython = options.sharedPython;
   }
 
   resolve(manifest: SkillManifest, packageRoot: string, packageDigest: string): RuntimePreparation {
     if (manifest.kind !== "process") {
       throw new RuntimeManagerError("pack-not-declared", "只有 process Skill 可以由 Process RuntimeManager 启动。 ");
+    }
+    if (manifest.entrypoint.runtime === "python" && this.sharedPython) {
+      const shared = this.sharedPython.resolve(manifest, packageRoot, packageDigest);
+      if (!manifest.platforms.includes(shared.target)) {
+        throw new RuntimeManagerError("platform-unsupported", `Skill 不支持当前共享 Python target：${shared.target}`);
+      }
+      const preparation: RuntimePreparation = {
+        target: shared.target,
+        packId: shared.packId,
+        packDigest: shared.packDigest,
+        executable: shared.executable,
+        env: { ...shared.env },
+        fingerprint: shared.fingerprint,
+        acquire: () => undefined,
+        release: () => undefined,
+        prepare: async () => {
+          await shared.prepare();
+          preparation.executable = shared.executable;
+          preparation.env = { ...shared.env };
+          preparation.fingerprint = shared.fingerprint;
+        }
+      };
+      return preparation;
     }
     const target = this.target ?? detectRuntimeTarget({ platform: process.platform, arch: process.arch });
     if (!target) throw new RuntimeManagerError("target-undetected", "当前平台没有可用的 Runtime target。 ");

@@ -90,7 +90,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "prewarm": return scheduler.prewarmClaude(typeof first === "string" ? first : undefined);
     case "run-skill": return scheduler.startSkill(String(first), typeof second === "string" ? second : undefined);
     case "stop-skill": return scheduler.stopSkill(String(first));
-    case "skill-run-start": return scheduler.startSkillRun(first as never);
     case "skill-run-list": return scheduler.listSkillRuns();
     case "skill-run-get": return scheduler.getSkillRun(String(first));
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));

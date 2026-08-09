@@ -3,9 +3,10 @@
 // (or via tsx). Exits non-zero on any invalid manifest.
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = path.resolve(import.meta.dirname, "..", "..");
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(moduleDir, "..", "..");
 const skillsDir = path.join(root, ".claude", "skills");
 
 // Minimal YAML→JS: the manifests are a flat-enough subset, but to be correct
@@ -22,13 +23,13 @@ try {
     parseYaml = mod.load;
   } catch {
     // Use node -e 'require("yaml")' fallback path through the app's node_modules.
-    const yamlPath = path.join(import.meta.dirname, "..", "node_modules", "yaml");
+    const yamlPath = path.join(moduleDir, "..", "node_modules", "yaml");
     parseYaml = (await import(pathToFileURL(yamlPath).href)).default.parse;
   }
 }
 
 // Load the schema module (TS source) via the desktop-app's own tsx loader.
-const schemaUrl = pathToFileURL(path.join(import.meta.dirname, "..", "shared", "skill-manifest-schema.ts")).href;
+const schemaUrl = pathToFileURL(path.join(moduleDir, "..", "shared", "skill-manifest-schema.ts")).href;
 const { validateManifest } = await import(schemaUrl);
 
 const entries = fs.readdirSync(skillsDir, { withFileTypes: true })

@@ -6,7 +6,7 @@ type RunEntry =
   | { kind: "skill"; record: BrokerRunRecord }
   | { kind: "workflow"; record: WorkflowRunRecord };
 
-export function RunsPage({ initialRunId }: { initialRunId?: string }) {
+export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: string; initialSkillId?: string }) {
   const [entries, setEntries] = useState<RunEntry[]>([]);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -15,6 +15,9 @@ export function RunsPage({ initialRunId }: { initialRunId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [resumeInputs, setResumeInputs] = useState("{}");
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [kindFilter, setKindFilter] = useState<"all" | "skill" | "workflow">("all");
+  const [stateFilter, setStateFilter] = useState("all");
+  const [skillFilter, setSkillFilter] = useState(initialSkillId || "all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,22 +33,41 @@ export function RunsPage({ initialRunId }: { initialRunId?: string }) {
       ].sort((left, right) => right.record.createdAt.localeCompare(left.record.createdAt));
       setEntries(nextEntries);
       setArtifacts(nextArtifacts);
-      setSelectedKey((current) => nextEntries.some((entry) => entryKey(entry) === current)
+      const initialEntries = initialSkillId ? nextEntries.filter((entry) => entry.kind === "skill" && entry.record.request.skillId === initialSkillId) : nextEntries;
+      setSelectedKey((current) => initialEntries.some((entry) => entryKey(entry) === current)
         ? current
-        : nextEntries.find((entry) => entry.record.id === initialRunId)
-          ? entryKey(nextEntries.find((entry) => entry.record.id === initialRunId)!)
-          : nextEntries[0] ? entryKey(nextEntries[0]) : "");
+        : initialEntries.find((entry) => entry.record.id === initialRunId)
+          ? entryKey(initialEntries.find((entry) => entry.record.id === initialRunId)!)
+          : initialEntries[0] ? entryKey(initialEntries[0]) : "");
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialRunId]);
+  }, [initialRunId, initialSkillId]);
 
   useEffect(() => { void load(); }, [load]);
 
   const selected = entries.find((entry) => entryKey(entry) === selectedKey);
+  const skillOptions = useMemo(() => Array.from(new Set([
+    ...(initialSkillId ? [initialSkillId] : []),
+    ...entries.flatMap((entry) => entry.kind === "skill" ? [entry.record.request.skillId] : entry.record.stepRuns.map((step) => step.skillId))
+  ])).sort((left, right) => left.localeCompare(right)), [entries, initialSkillId]);
+  const visibleEntries = useMemo(() => entries.filter((entry) => {
+    if (kindFilter !== "all" && entry.kind !== kindFilter) return false;
+    if (stateFilter !== "all" && entry.record.state !== stateFilter) return false;
+    if (skillFilter !== "all") {
+      if (entry.kind === "skill" && entry.record.request.skillId !== skillFilter) return false;
+      if (entry.kind === "workflow" && !entry.record.stepRuns.some((step) => step.skillId === skillFilter)) return false;
+    }
+    return true;
+  }), [entries, kindFilter, skillFilter, stateFilter]);
+
+  useEffect(() => {
+    if (visibleEntries.some((entry) => entryKey(entry) === selectedKey)) return;
+    setSelectedKey(visibleEntries[0] ? entryKey(visibleEntries[0]) : "");
+  }, [selectedKey, visibleEntries]);
   const selectedArtifacts = useMemo(() => {
     if (!selected || selected.kind !== "skill") return [];
     return artifacts.filter((artifact) => artifact.runId === selected.record.id);
@@ -140,15 +162,21 @@ export function RunsPage({ initialRunId }: { initialRunId?: string }) {
   return (
     <div className="feature-page runs-page">
       <header className="runs-page-header">
-        <div><span className="eyebrow">EXECUTION</span><h1>运行记录</h1><p>统一查看 Skill、Workflow 的状态、事件和产物。</p></div>
+        <div><span className="eyebrow">EXECUTION</span><h1>运行中心</h1><p>统一查看 Skill 与 Workflow 的执行结果，快速定位失败原因。</p></div>
         <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void load()} disabled={loading}><RefreshCw size={14} />刷新</button>
       </header>
       {error ? <p role="alert" className="runs-error">{error}</p> : null}
+      <div className="runs-filterbar" aria-label="运行记录筛选">
+        <label>类型<select aria-label="按类型筛选" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">全部类型</option><option value="skill">Skill</option><option value="workflow">Workflow</option></select></label>
+        <label>状态<select aria-label="按状态筛选" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">全部状态</option><option value="failed">失败</option><option value="running">运行中</option><option value="succeeded">成功</option><option value="timed_out">超时</option><option value="cancelled">已取消</option></select></label>
+        <label>Skill<select aria-label="按 Skill 筛选" value={skillFilter} onChange={(event) => setSkillFilter(event.target.value)}><option value="all">全部 Skills</option>{skillOptions.map((skillId) => <option value={skillId} key={skillId}>{skillId}</option>)}</select></label>
+        <span>{visibleEntries.length} 条结果</span>
+      </div>
       <section className="runs-layout">
         <aside className="workspace-card runs-list" aria-label="运行记录列表">
           {loading && !entries.length ? <p className="runs-empty">正在加载运行记录…</p> : null}
-          {!loading && !entries.length ? <p className="runs-empty">暂无运行记录。</p> : null}
-          {entries.map((entry) => {
+          {!loading && !visibleEntries.length ? <p className="runs-empty">没有符合筛选条件的运行记录。</p> : null}
+          {visibleEntries.map((entry) => {
             const active = entryKey(entry) === selectedKey;
             return <button key={entryKey(entry)} type="button" className={`run-list-item${active ? " active" : ""}`} data-motion="selection" onClick={() => setSelectedKey(entryKey(entry))}>
               <span className={`run-state-dot ${stateTone(entry.record.state)}`} />
@@ -174,10 +202,11 @@ export function RunsPage({ initialRunId }: { initialRunId?: string }) {
               <div><dt>状态</dt><dd><span className={`run-pill ${stateTone(selected.record.state)}`}>{stateLabel(selected.record.state)}</span></dd></div>
               <div><dt>创建时间</dt><dd>{formatTime(selected.record.createdAt)}</dd></div>
               <div><dt>完成时间</dt><dd>{selected.record.completedAt ? formatTime(selected.record.completedAt) : "—"}</dd></div>
-              <div><dt>Root Generation</dt><dd>{selected.record.rootGeneration}</dd></div>
+              <div><dt>数据快照</dt><dd>第 {selected.record.rootGeneration} 代</dd></div>
               {selected.kind === "skill" ? <div><dt>触发方式</dt><dd>{selected.record.request.trigger.type}</dd></div> : <div><dt>步骤</dt><dd>{selected.record.stepRuns.length}</dd></div>}
               {selected.kind === "skill" && selected.record.usage ? <div><dt>用量</dt><dd>{formatUsage(selected.record.usage)}</dd></div> : null}
             </dl>
+            {selected.record.error ? <section className="run-failure-summary" role="status"><div><strong>失败原因</strong><p>{selected.record.error}</p></div><small>可先重试；如果再次失败，请展开下方事件查看失败阶段与诊断信息。</small></section> : null}
             {selected.kind === "skill" && selected.record.orphanPid ? (
               <section className="run-section run-orphan-warning" role="alert">
                 <h3>可能残留进程</h3>
@@ -189,7 +218,7 @@ export function RunsPage({ initialRunId }: { initialRunId?: string }) {
               <WorkflowSteps record={selected.record} onRetry={retryStep} />
             </> : <>
               {canResumeAgent(selected.record) ? <section className="run-section run-resume-section"><h3>恢复 Agent</h3><p className="runs-muted">只恢复 provider 的 Responses checkpoint；原 Run 保留为审计记录。不会从历史中读取本次输入或 Credential，请重新提供非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Agent 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeAgent()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
-              <section className="run-section"><h3>Artifacts</h3><ArtifactList artifacts={selectedArtifacts} /></section>
+              <section className="run-section"><h3>运行产物</h3><ArtifactList artifacts={selectedArtifacts} /></section>
               <section className="run-section"><h3>事件</h3><EventList events={events} /></section>
             </>}
           </>}

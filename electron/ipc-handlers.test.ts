@@ -43,11 +43,11 @@ vi.mock(import("electron"), async (importOriginal) => {
 
 describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
-    // ADR-001 added the independent roots; Phase 2 adds static Skill package
-    // inspection, migration and installed-registry listing.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(160);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(160);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(160);
+    // The registry intentionally excludes removed manual Skill run, update,
+    // and host-trust revocation endpoints.
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(158);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(158);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(158);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -306,27 +306,6 @@ describe("handler forwarding — AI 透传类", () => {
     expect(ai.call).toHaveBeenCalledWith("stop-skill", "rss-article-saver");
   });
 
-  it("通用 Skill Run 只转发经过 Schema 校验的结构化请求", async () => {
-    const ai = makeAiSpy();
-    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.startSkillRun, {
-      skillId: "example-skill",
-      inputs: { date: "20260805" },
-      providerBindings: {},
-      trigger: { type: "manual" },
-      externalExportBindingIds: [],
-      rootGeneration: 1
-    });
-    expect(ai.call).toHaveBeenCalledWith("skill-run-start", expect.objectContaining({ skillId: "example-skill" }));
-    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.startSkillRun, {
-      skillId: "example-skill",
-      executable: "/bin/sh",
-      cwd: "/tmp",
-      trigger: { type: "manual" },
-      rootGeneration: 1
-    })).toThrow();
-  });
-
   it("通用 Skill Run 查询、取消和审批转发到 worker", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
@@ -353,6 +332,17 @@ describe("handler forwarding — AI 透传类", () => {
       ["run-retry-step", "workflow-1", "step-1"],
       ["run-delete-history", "run-1"]
     ]);
+  });
+
+  it("controls the shared Python runtime through a boolean-only IPC boundary", async () => {
+    const disabled = { enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null };
+    const ready = { enabled: true, phase: "ready", target: "linux-x64", pythonVersion: "3.12.10", uvVersion: "0.5.27", managedSkills: 4, ready: true, lastError: null };
+    const service = { status: vi.fn(() => disabled), setEnabled: vi.fn(async () => ready) };
+    const ctx = makeCtx({ ensureSharedPythonRuntimeService: () => service as never });
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSharedPythonRuntimeStatus)).toEqual(disabled);
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setSharedPythonRuntimeEnabled, true)).toEqual(ready);
+    expect(service.setEnabled).toHaveBeenCalledWith(true);
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setSharedPythonRuntimeEnabled, "true") as Promise<unknown>).rejects.toThrow();
   });
 
   it("Runtime Pack IPC exposes readiness without leaking package paths", async () => {
@@ -585,11 +575,9 @@ describe("handler forwarding — Skill package lifecycle", () => {
       migrateClaudeSkills: vi.fn(() => ({ inspected: [inspection], installed: [], skipped: [{ sourcePath: inspection.sourcePath, issues: inspection.issues }] })),
       listInstalled: vi.fn(() => []),
       install: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed" })),
-      update: vi.fn(() => ({ key: "cctools/updated", digest: "digest-updated" })),
       rollback: vi.fn(() => ({ active: { digest: "digest-active" }, previous: { digest: "digest-previous" } })),
       uninstall: vi.fn(() => true),
-      approveHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "approved-host" })),
-      revokeHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "inspect-only" }))
+      approveHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "approved-host" }))
     };
     const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
@@ -599,21 +587,17 @@ describe("handler forwarding — Skill package lifecycle", () => {
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.migrateSkillWorkspace)).toEqual(expect.objectContaining({ inspected: [expect.any(Object)], skipped: [expect.any(Object)] }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledSkills)).toEqual([]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSkillPackage, "/tmp/skill-v2")).toEqual(expect.objectContaining({ digest: "digest-updated" }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.rollbackSkillPackage, "cctools/installed")).toEqual(expect.objectContaining({ active: expect.any(Object) }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "cctools/installed", "digest-installed")).toBe(true);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.approveInstalledSkillHost, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ executionTrust: "approved-host" }));
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.revokeInstalledSkillHost, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ executionTrust: "inspect-only" }));
     expect(service.inspectClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.getInstalled).toHaveBeenCalledWith("cctools/installed", "digest-installed");
     expect(service.inspect).toHaveBeenCalledWith("/userData/skills/cctools/installed/1.0.0");
     expect(service.migrateClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.install).toHaveBeenCalledWith("/tmp/skill");
-    expect(service.update).toHaveBeenCalledWith("/tmp/skill-v2");
     expect(service.rollback).toHaveBeenCalledWith("cctools/installed");
     expect(service.uninstall).toHaveBeenCalledWith("cctools/installed", "digest-installed");
     expect(service.approveHostExecution).toHaveBeenCalledWith("cctools/installed", "digest-installed");
-    expect(service.revokeHostExecution).toHaveBeenCalledWith("cctools/installed", "digest-installed");
     vi.restoreAllMocks();
   });
 
@@ -634,17 +618,14 @@ describe("handler forwarding — Skill package lifecycle", () => {
     };
     const sourceService = {
       inspect: vi.fn(async () => sourceInspection),
-      install: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git" })),
-      update: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git-v2" }))
+      install: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git" }))
     };
     const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never });
 
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual(expect.objectContaining({ sourceKind: "git", sourcePath: source.locator }));
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git" }));
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git-v2" }));
     expect(sourceService.inspect).toHaveBeenCalledWith(source);
     expect(sourceService.install).toHaveBeenCalledWith(source);
-    expect(sourceService.update).toHaveBeenCalledWith(source);
   });
 });
 

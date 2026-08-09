@@ -38,10 +38,10 @@ describe("AutomationRepository", () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const repository = new AutomationRepository(paths);
-    expect(repository.ensureDefaultRules().map((rule) => rule.id)).toEqual(["daily-brief", "classify-new-content", "rss-capture"]);
+    expect(repository.ensureDefaultRules().map((rule) => rule.id)).toEqual(["daily-brief", "classify-new-content", "rss-capture", "x-following-capture", "reddit-capture", "daily-topic-generation"]);
     expect(repository.removeRule("rss-capture")).toBe(true);
     const reloaded = new AutomationRepository(paths);
-    expect(reloaded.ensureDefaultRules().map((rule) => rule.id)).toEqual(["daily-brief", "classify-new-content"]);
+    expect(reloaded.ensureDefaultRules().map((rule) => rule.id)).toEqual(["daily-brief", "classify-new-content", "x-following-capture", "reddit-capture", "daily-topic-generation"]);
   });
 });
 

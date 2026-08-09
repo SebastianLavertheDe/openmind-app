@@ -35,6 +35,7 @@ import {
   EnvFileAnalysisSchema,
   ProviderProfileInputSchema,
   ProviderProfileSchema,
+  SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
 import { SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
@@ -43,6 +44,7 @@ import type { ProductService } from "./product/product-service";
 import type { MymindFileSearch } from "./mymind-file-search";
 import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
+import type { InstalledSkillRecord } from "./skills/installed-skill-repository";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
 import type { CredentialVault } from "./security/credential-vault";
@@ -50,13 +52,14 @@ import type { ProviderProfileRepository } from "./security/provider-profile-repo
 import type { ProviderConnectivityService } from "./security/provider-connectivity-service";
 import type { RuntimePackService } from "./runtime/runtime-pack-service";
 import type { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
+import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import type { AppStateBackupService } from "./backup/app-state-backup";
 import { normalizeMymindSelection } from "./mymind-file-search";
 import { getAppPaths } from "./paths/app-paths-service";
 import { previewMymindRelocation, relocateMymind } from "./paths/mymind-relocation-service";
 import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
-import { AgentResumeRequestSchema, SkillRunRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
+import { AgentResumeRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import { RuntimePackIdSchema, RuntimePackMetadataSchema, RuntimeTargetSchema, type RuntimePackMetadata } from "../shared/runtime-targets";
 
@@ -85,6 +88,34 @@ function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
 }
 
+/** Installing is the user's trust decision. Static package validation happens
+ * before this point; a successful install is promoted atomically and can run
+ * immediately. */
+function makeInstalledSkillUsable(service: SkillPackageService, record: InstalledSkillRecord): InstalledSkillRecord {
+  // Lightweight test/source adapters may expose only install/list operations.
+  // In production SkillPackageService supplies the full promotion lifecycle.
+  if (typeof service.markReadiness !== "function" || typeof service.activate !== "function" || typeof service.approveHostExecution !== "function") return record;
+  let current = record;
+  if (current.readiness !== "ready") current = service.markReadiness(current.key, current.digest, "ready");
+  if (current.status !== "active") current = service.activate(current.key, current.digest).active;
+  if (current.executionTrust !== "approved-host") current = service.approveHostExecution(current.key, current.digest);
+  return current;
+}
+
+/** One-time compatibility for candidates imported by older builds. If a Skill
+ * has no active version, promote its newest installed copy on first read. */
+function listInstalledSkillsUsable(service: SkillPackageService): InstalledSkillRecord[] {
+  const records = service.listInstalled();
+  for (const key of new Set(records.map((record) => record.key))) {
+    const versions = records.filter((record) => record.key === key);
+    if (versions.some((record) => record.status === "active")) continue;
+    const newest = versions.slice().sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
+    if (!newest) continue;
+    try { makeInstalledSkillUsable(service, newest); } catch { /* Keep an invalid legacy candidate inspectable. */ }
+  }
+  return service.listInstalled();
+}
+
 async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 mymind 根目录。"): Promise<void> {
   const count = await ctx.getActiveRunCount();
   if (count > 0) throw new Error(message);
@@ -107,6 +138,7 @@ export type IpcMainContext = {
   ensureProviderConnectivity: () => ProviderConnectivityService;
   ensureRuntimePackService?: () => RuntimePackService;
   ensureRuntimePackDownloadService?: () => RuntimePackDownloadService;
+  ensureSharedPythonRuntimeService?: () => SharedPythonRuntimeService;
   ensureAppStateBackupService?: () => AppStateBackupService;
   updateCredentialRuns?: (credentialId: string, state: "available" | "revoked" | "replaced") => Promise<unknown>;
   analyzeEnvFile: (filePath: string) => unknown;
@@ -145,6 +177,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const runtimeDownloads = () => {
     if (!ctx.ensureRuntimePackDownloadService) throw new Error("Runtime Pack 下载服务尚未初始化。 ");
     return ctx.ensureRuntimePackDownloadService();
+  };
+  const sharedPython = () => {
+    if (!ctx.ensureSharedPythonRuntimeService) throw new Error("内置 Python 运行时服务尚未初始化。 ");
+    return ctx.ensureSharedPythonRuntimeService();
   };
   const stateBackup = () => {
     if (!ctx.ensureAppStateBackupService) throw new Error("应用状态备份服务尚未初始化。 ");
@@ -646,6 +682,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.getEnvironmentDiagnostics,
       handler: () => settings.getEnvironmentDiagnostics().map((item: unknown) => EnvironmentDiagnosticSchema.parse(item))
     },
+    {
+      channel: C.getSharedPythonRuntimeStatus,
+      handler: () => SharedPythonRuntimeStatusSchema.parse(sharedPython().status())
+    },
+    {
+      channel: C.setSharedPythonRuntimeEnabled,
+      handler: async (enabled) => SharedPythonRuntimeStatusSchema.parse(await sharedPython().setEnabled(z.boolean().parse(enabled)))
+    },
     { channel: C.listRuntimePacks, handler: () => runtimePacks().listReadiness() },
     {
       channel: C.getRuntimePackReadiness,
@@ -791,14 +835,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const report = skillPackages().migrateClaudeSkills(workspaceRoot);
         return {
           inspected: report.inspected.map(toSkillPackageInspectionView),
-          installed: report.installed,
+          installed: report.installed.map((record) => makeInstalledSkillUsable(skillPackages(), record)),
           skipped: report.skipped
         };
       }
     },
-    { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalled() },
-    { channel: C.installSkillPackage, handler: (sourcePath) => skillPackages().install(parseString(sourcePath)) },
-    { channel: C.updateSkillPackage, handler: (sourcePath) => skillPackages().update(parseString(sourcePath)) },
+    { channel: C.listInstalledSkills, handler: () => listInstalledSkillsUsable(skillPackages()) },
+    { channel: C.installSkillPackage, handler: (sourcePath) => makeInstalledSkillUsable(skillPackages(), skillPackages().install(parseString(sourcePath))) },
     {
       channel: C.selectSkillPackageSource,
       handler: async () => {
@@ -822,11 +865,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     {
       channel: C.installSkillSource,
-      handler: (input) => skillSources().install(SkillPackageSourceInputSchema.parse(input))
-    },
-    {
-      channel: C.updateSkillSource,
-      handler: (input) => skillSources().update(SkillPackageSourceInputSchema.parse(input))
+      handler: async (input) => makeInstalledSkillUsable(skillPackages(), await skillSources().install(SkillPackageSourceInputSchema.parse(input)))
     },
     { channel: C.rollbackSkillPackage, handler: (key) => skillPackages().rollback(parseString(key)) },
     {
@@ -837,11 +876,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.approveInstalledSkillHost,
       handler: (key, digest) => skillPackages().approveHostExecution(parseString(key), parseString(digest))
     },
-    {
-      channel: C.revokeInstalledSkillHost,
-      handler: (key, digest) => skillPackages().revokeHostExecution(parseString(key), parseString(digest))
-    },
-    { channel: C.startSkillRun, handler: (input) => ai().call("skill-run-start", SkillRunRequestSchema.parse(input)) },
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },
     { channel: C.getSkillRunEvents, handler: (runId) => ai().call("skill-run-events", parseString(runId)) },

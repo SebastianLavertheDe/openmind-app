@@ -8,7 +8,7 @@ export const coreMessages = {
     brief: "每日简报",
     creative: "创作",
     automation: "自动化",
-    runs: "运行记录",
+    runs: "运行中心",
     diagnostics: "诊断",
     ai: "新建任务",
     settings: "设置"

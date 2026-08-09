@@ -2,10 +2,7 @@ import { lazy, type ReactNode } from "react";
 import {
   CalendarDays,
   Command,
-  Database,
   FilePenLine,
-  ListChecks,
-  Package,
   Settings,
   SquarePen,
   Wrench,
@@ -16,9 +13,7 @@ import { navLabel } from "@shared/display-labels";
 import { messages } from "@shared/messages";
 import type { AppPage, AppRoute, Navigate } from "./routes";
 
-const SourcesPage = lazy(() => import("../features/sources").then((module) => ({ default: module.SourcesPage })));
 const OnboardingPage = lazy(() => import("../features/onboarding").then((module) => ({ default: module.OnboardingPage })));
-const SkillsPage = lazy(() => import("../features/skills").then((module) => ({ default: module.SkillsPage })));
 const DailyBriefPage = lazy(() => import("../features/daily-brief").then((module) => ({ default: module.DailyBriefPage })));
 const CreativeWorkspacePage = lazy(() => import("../features/creative").then((module) => ({ default: module.CreativeWorkspacePage })));
 const AutomationPage = lazy(() => import("../features/automation").then((module) => ({ default: module.AutomationPage })));
@@ -30,8 +25,8 @@ const SettingsPage = lazy(() => import("../features/settings").then((module) => 
 /** MOTION-P0-001: 各 lazy route 的 chunk 引用，用于导航 hover/focus 时预取，消除首次切换的空白闪烁。 */
 const ROUTE_LAZY: Record<AppPage, () => Promise<unknown>> = {
   onboarding: () => import("../features/onboarding"),
-  sources: () => import("../features/sources"),
-  skills: () => import("../features/skills"),
+  sources: () => import("../features/settings"),
+  skills: () => import("../features/settings"),
   brief: () => import("../features/daily-brief"),
   creative: () => import("../features/creative"),
   projects: () => import("../features/creative"),
@@ -78,13 +73,13 @@ export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
   { page: "ai", needsRepo: true, nav: { label: navLabel("ai"), icon: SquarePen, group: "create" }, render: ({ route, aiFilePreviewPath, onAiFilePreviewPathChange }) => <AiWorkbench key={route.nonce} restoredPreviewPath={aiFilePreviewPath} onPreviewPathChange={onAiFilePreviewPathChange} /> },
   { page: "creative", needsRepo: true, nav: { label: navLabel("creative"), icon: FilePenLine, group: "core" }, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
   { page: "brief", needsRepo: true, nav: { label: navLabel("brief"), icon: CalendarDays, group: "core" }, render: ({ route, navigate }) => <DailyBriefPage key={route.nonce} go={navigate} initialDate={route.state.date} /> },
-  { page: "sources", needsRepo: true, nav: { label: navLabel("sources"), icon: Database, group: "core" }, render: ({ route }) => <SourcesPage key={route.nonce} initialSourceId={route.state.sourceId} /> },
-  { page: "skills", needsRepo: false, nav: { label: navLabel("skills"), icon: Package, group: "core" }, render: ({ route, bootstrap, navigate }) => <SkillsPage key={route.nonce} skills={bootstrap.skills} initialSkillId={route.state.skillId} go={navigate} /> },
+  { page: "sources", needsRepo: true, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} /> },
+  { page: "skills", needsRepo: false, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} /> },
   { page: "automation", needsRepo: true, nav: { label: navLabel("automation"), icon: Command, group: "core" }, render: ({ route, bootstrap, navigate }) => <AutomationPage key={route.nonce} skills={bootstrap.skills} initialSkillId={route.state.skillId} go={navigate} /> },
-  { page: "runs", needsRepo: true, nav: { label: navLabel("runs"), icon: ListChecks, group: "core" }, render: ({ route }) => <RunsPage key={route.nonce} initialRunId={route.state.runId} /> },
+  { page: "runs", needsRepo: true, render: ({ route }) => <RunsPage key={route.nonce} initialRunId={route.state.runId} initialSkillId={route.state.skillId} /> },
   { page: "diagnostics", needsRepo: false, nav: { label: navLabel("diagnostics"), icon: Wrench, group: "core" }, render: ({ route, bootstrap, navigate }) => <DiagnosticsPage key={route.nonce} bootstrap={bootstrap} go={navigate} /> },
   { page: "projects", needsRepo: true, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
-  { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} /> }
+  { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection={route.state.settingsSection === "sources" ? "skills" : route.state.settingsSection} initialSkillId={route.state.skillId} /> }
 ];
 
 export type NavItem = { id: AppPage; label: string; icon: LucideIcon; group: NavGroup };

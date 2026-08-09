@@ -50,7 +50,9 @@ export function AppShell({
   recentTasks?: ReactNode;
   onNewTask?(): void;
 }) {
-  const settingsMode = page === "settings";
+  // sources / skills remain valid legacy routes, but now live inside the
+  // dedicated settings information architecture.
+  const settingsMode = page === "settings" || page === "sources" || page === "skills";
   const showAiSidebar = page !== "ai" && !settingsMode;
   const previewMode = environment.mode === "preview";
   const windowsMica = environment.mode === "desktop" && environment.platform === "win32";

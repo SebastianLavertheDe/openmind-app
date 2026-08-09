@@ -367,15 +367,6 @@ export class SkillPackageService {
     }
   }
 
-  /**
-   * Update is deliberately a second quarantine install. It never replaces
-   * the active record; callers must pass the candidate through readiness and
-   * the repository's atomic activate() transition later.
-   */
-  update(sourcePath: string, sourceMetadata?: SkillPackageSourceMetadata): InstalledSkillRecord {
-    return this.install(sourcePath, sourceMetadata);
-  }
-
   markReadiness(key: string, digest: string, readiness: InstalledSkillReadiness): InstalledSkillRecord {
     return this.repository.markReadiness(key, digest, readiness);
   }
@@ -385,10 +376,6 @@ export class SkillPackageService {
     if (!record) throw new SkillPackageError("installed-path-invalid", `Installed Skill 不存在：${key}@${digest}`);
     this.assertInstalledCopyIntegrity(record);
     return this.repository.approveHostExecution(key, digest);
-  }
-
-  revokeHostExecution(key: string, digest: string): InstalledSkillRecord {
-    return this.repository.revokeHostExecution(key, digest);
   }
 
   activate(key: string, digest: string): { active: InstalledSkillRecord; previous?: InstalledSkillRecord } {

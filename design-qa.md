@@ -1,5 +1,169 @@
 # Design QA
 
+## Skills 页面宽度与内置 Python 修复 — 2026-08-09
+
+- Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-90a6ebd2-3228-484d-81e7-d7bbc77ddd9f.png`（用户指定的 MCP 设置页宽度参考）。
+- Implementation screenshot: `design-qa/settings-skills-python-fix/reference-04-Skills.png`。
+- Full-view comparison evidence: `design-qa/settings-skills-python-fix/compare-reference-mcp-to-skills.png`。
+- Focused region comparison evidence: `design-qa/settings-skills-python-fix/compare-reference-mcp-to-skills-focus.png`；该裁切用于核对标题、说明和主体卡片的左右边界，重要小字与控件在此图中可读。
+- Viewport and density: source raster is 2595 × 1877 physical pixels including the Windows title bar. The source comparison crop is 2595 × 1788; the implementation capture is 2595 × 1788 from a 1744 × 1255 Electron window at the host display density. No additional density scaling is used before the two equal-size panels are downsampled together for comparison.
+- State: light theme. The source shows the live MCP state; the implementation uses the visual-snapshot preload's empty Skills state. Content differences are intentional—the comparison target is the shared settings axis and overall density.
+
+### Findings
+
+- No actionable P0/P1/P2 visual finding remains.
+- Skills no longer breaks out to the former 1380px canvas. Its header and body both measure 980 CSS px, exactly matching MCP at the same viewport.
+- The reference viewport, 2048 × 1152, 1280 × 800 and 900 × 720 captures all report zero page-level and document-level horizontal overflow.
+
+### Required fidelity surfaces
+
+- Fonts and typography: the existing application font stack, title weight, description size, line height and compact control text are preserved; no text wraps or truncates because of the narrower frame beyond the filter strip's deliberate internal scroller.
+- Spacing and layout rhythm: Skills now uses the same centered 980px page axis as MCP and the other settings categories. The two-column catalog/detail split remains internal to that frame and collapses at the existing responsive breakpoint.
+- Colors and visual tokens: existing panel, muted surface, border, text and selected-state tokens are unchanged.
+- Image quality and assets: this settings surface contains no raster artwork. Existing Lucide icons remain sharp and no placeholder or custom SVG was introduced.
+- Copy and content: all Skills titles, filter labels, empty-state guidance and MCP reference copy are unchanged.
+- Accessibility and interaction: existing semantic search, tab filters and selectable Skill rows are preserved. The Electron capture run covered all ten settings tabs at four viewport sizes, found zero console errors and found no horizontal overflow.
+
+### Comparison history
+
+1. Initial [P1]: Skills alone applied `.settings-stack--wide`, expanding its body to 1380px while MCP and other settings categories stayed at 980px.
+2. Fix: removed the Skills-only wide detail/stack classes and their breakout CSS, then added a regression assertion that the embedded Skills page never receives either wide class.
+3. Post-fix evidence: reference-size geometry reports both Skills and MCP headers at left 505 / width 980 and both stacks at left 505 / width 980. The combined full view and focused crop show the shared axis directly.
+
+### Functional verification
+
+- Bundled Python manifest schema upgraded to v2 and now hashes only shipped file paths and bytes; empty directories pruned by electron-builder no longer cause a false corruption error.
+- An electron-builder `afterSign` hook now finalizes that digest after packaged executables have passed through the Windows signing stage.
+- Real bundled Python 3.12.8 and uv 0.5.27 assets were regenerated, then used to create a fresh isolated shared environment successfully (`phase: ready`).
+- A real Windows `electron-builder --dir` package produced a schema-v2 manifest whose digest exactly matched the packaged payload, and `SharedPythonRuntimeService` initialized directly from that packaged resource tree with `phase: ready`.
+- Focused tests: 3 files, 26 tests passed, including the empty-directory-pruning regression.
+- Full production build passed, including TypeScript checks, repository-root audit and all 16 formal Skill manifest validations.
+
+final result: passed
+
+---
+
+## 设置中心统一视觉语言 — 2026-08-09
+
+- Source visual truth:
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-cbdd4ee8-08c8-410c-b93e-ed240e76dd65.png`（AI 与模型）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-951fdf3d-c772-435a-896e-b071f5dccc9d.png`（内置运行时）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-cd7f96a3-00cb-4b7f-aade-a3b7a23cb0b0.png`（Skills）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-b904947e-9dc0-4b00-b9aa-3f657912e5e2.png`（MCP 服务）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-e3581c1c-b3ef-47d3-82af-a2781b03e861.png`（浏览器）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-6a445ddd-ad2a-4ca4-9c1d-37bd5fec29f2.png`（权限与安全）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-00e18f0c-aeba-4f1c-a36f-7225c62a4182.png`（内容工作流）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-9e05cb87-439c-4acb-a471-9d962d762109.png`（数据与存储）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-fa530a84-3177-41bf-b8fa-41a5ad5e9f5f.png`（会话归档）
+- Implementation evidence:
+  - `design-qa/settings-unified/2048x1152-01-常规.png` through `2048x1152-10-会话归档.png`
+  - responsive captures at `1280x800-*` and `900x720-*`
+  - geometry and console report: `design-qa/settings-unified/report.json`
+- Combined comparison evidence:
+  - `design-qa/settings-unified/comparison-overview.png`
+  - nine focused pairs at `design-qa/settings-unified/compare-*.png`
+- Viewport and density:
+  - Source rasters are 2048 × 1152 pixels from the user-provided Windows captures.
+  - Primary implementation window is 2048 × 1152 CSS px; Electron capture is 3051 × 1634 physical pixels under the host Windows display scale.
+  - Responsive implementation windows are 1280 × 800 and 900 × 720 CSS px.
+  - Pair comparisons independently normalize each full canvas to 1024 × 576 before horizontal composition. Because the source state and Electron capture density differ, the comparison is used for hierarchy, grouping and rhythm rather than false pixel-level typography claims.
+- State: light theme; source contains live local data, implementation uses the visual-snapshot preload with representative Provider, Python and MCP states. Empty Skills and archived-session states are intentional verification states.
+
+### Findings
+
+- No actionable P0/P1/P2 finding remains.
+- The former cross-tab title jump is removed: all ten headers measure 980 CSS px on the same horizontal axis; only the Skills body intentionally breaks out to 1380 CSS px.
+- The standard setting pages now share one section surface, 58px section header, 70px preference-row rhythm, aligned controls and one semantic status treatment.
+- The resource pages are intentionally differentiated without becoming a separate visual system: Python is one resource row, MCP is a collapsible resource summary, and Skills keeps the catalog/detail workspace.
+- The browser page separates connection behavior from evidence and secret authorization. The workflow page separates stage rules, draft/version behavior, publishing gates and lifecycle settings.
+- At 900px, Skills changes to a single-column catalog/detail flow and the remaining pages reflow without page-level horizontal overflow. The filter strip retains its deliberate internal horizontal scroller rather than clipping controls.
+
+### Required fidelity surfaces
+
+- Fonts and typography: retained the existing application font stack and page-title hierarchy. Section titles, preference titles, descriptions and scope chips now use the same weights and line-height rules across every tab; no new font was introduced.
+- Spacing and layout rhythm: header axis, section gap, row height, control alignment and radii are shared. The 980px standard and 1380px catalog widths are explicit layout modes rather than per-page drift.
+- Colors and tokens: all surfaces, dividers, text, warning, success and disabled states use existing semantic tokens. No one-off palette, gradient or shadow was introduced.
+- Image quality and assets: the settings UI contains no raster illustration target. Existing Lucide icons were preserved and aligned through shared resource-icon geometry; no placeholder, CSS drawing or custom SVG was added.
+- Copy and content: `Provider` was localized to `模型提供方`; resource/status copy remains concise. MCP details are still searchable and available on expansion. Empty archive copy now explains what appears there and what can be done later.
+- Accessibility and interaction: existing labels and semantic switches/selects are preserved. MCP summary is a real button with `aria-expanded`; error/progress/status regions retain live-region semantics. Automated captures report no horizontal overflow, while unit tests cover switching, selecting, expansion, saving and error recovery. Keyboard focus appearance was not exhaustively screenshot in every tab and remains a P3 follow-up verification item.
+
+### Comparison history
+
+1. Source finding [P1]: section headers and bodies moved horizontally between standard pages and Skills. Fix: keep the page header in a fixed 980px frame and allow only `.settings-stack--wide` to break out. Post-fix geometry shows every header at the same axis and Skills alone at 1380px.
+2. Source finding [P1]: runtime duplicated switches and nested a table inside a card; MCP exposed all transport/tool details by default. Fix: runtime became one resource row and MCP became an accessible collapsible summary. Post-fix focused pairs are `compare-02-runtime.png` and `compare-04-mcp.png`.
+3. Source finding [P2]: browser and workflow mixed unrelated setting types inside one visual block. Fix: browser was divided into connection and authorization sections; workflow into four task-oriented groups. Post-fix focused pairs are `compare-05-browser.png` and `compare-07-workflow.png`.
+4. Responsive check [P2]: wide catalog content needed a defined narrow behavior. Fix: the wide breakout resets below 1180px and existing Skills breakpoints switch to one column. The 1280 × 800 and 900 × 720 captures show no document overflow.
+
+### Verification
+
+- Settings and Skills focused unit tests: 2 files, 21 tests passed.
+- TypeScript renderer and Electron checks passed.
+- Production build, repository-root audit and 16 Skill manifest validations passed.
+- Electron visual QA: 30 screenshots across 3 viewport sizes, zero console errors and zero page-level horizontal-overflow failures.
+- Primary interactions checked by tests: navigation, MCP expansion/search, Python toggle, browser toggle/token workflow, selects, workflow reset/save and archive open/restore.
+
+final result: passed
+
+---
+
+## Skill 信息架构整合 — 2026-08-08
+
+- Source visual truth:
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-036795fa-9a6f-4cb4-882f-31f064f9c8f0.png`（原 Skills 与 MCP 设置页，2048 × 1152）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-547e0812-8eb4-438a-bd1c-591290363429.png`（原资料来源页，2048 × 1152）
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-600816ba-8aa1-4427-941c-c0c22f6f4d22.png`（原运行记录页，2048 × 1152）
+- Implementation screenshots:
+  - `desktop-app/design-qa/skill-detail-context-after.png`
+  - `desktop-app/design-qa/sources-settings-after.png`
+  - `desktop-app/design-qa/runs-center-after.png`
+- Normalized comparisons:
+  - `desktop-app/design-qa/compare-skills.png`
+  - `desktop-app/design-qa/compare-sources-skill-ia.png`
+  - `desktop-app/design-qa/compare-runs.png`
+- Viewport: 2048 × 1152 CSS px, device density 1. Source and implementation are both 2048 × 1152; comparison images scale each side to 1024 × 576 before horizontal stacking.
+- State: light theme, browser preview data, Skill detail expanded and filtered-source context where available.
+
+### Full-view comparison evidence
+
+- The main navigation no longer duplicates Sources and Skills; it keeps task-oriented entry points and renames the global history surface to 运行中心.
+- Settings now separates Skills, MCP 服务, and 资料来源. The visual language, spacing tokens, typography, radii, and pale green settings shell remain consistent with the source screens.
+- Expanded Skill rows now show related sources and recent runs without leaving the capability context. The global run center remains available for cross-Skill filtering and diagnosis.
+
+### Focused comparison evidence
+
+- `compare-skills.png` confirms the former combined Skills/MCP page is split without changing the existing settings frame. The expanded RSS Skill includes two compact contextual cards and preserves existing technical/package controls.
+- `compare-sources-skill-ia.png` confirms the source-management list is now embedded in Settings and scoped to `rss-article-saver`, while retaining the original metrics, distribution, source row, and quick actions.
+- `compare-runs.png` confirms the original list/detail composition is retained and gains type, state, and Skill filters plus clearer user-facing copy. Preview data had no run rows, so failure-summary visual treatment could only be covered by unit tests.
+
+### Required fidelity surfaces
+
+- Fonts and typography: existing app font stacks, heading weights, mono IDs, truncation, and line heights are retained.
+- Spacing and layout rhythm: settings content keeps the existing centered max-width; Skill context cards use the existing compact card rhythm. The source page intentionally becomes narrower inside Settings.
+- Colors and tokens: only existing semantic surface, border, accent, success, danger, and muted tokens are used.
+- Image quality and assets: no raster imagery was added or replaced; all UI icons continue to use the established Lucide dependency.
+- Copy and content: duplicate labels were removed; internal `Root Generation` is presented as `数据快照`; `Artifacts` is presented as `运行产物`.
+
+### Comparison history
+
+1. Initial [P1]: moving 资料来源 into Settings hid the header's `立即全部抓取` and `添加源` actions.
+2. Fix: added both actions to the embedded source-context bar for global and Skill-filtered views.
+3. User validation [P1]: the first Skill context implementation was attached only to loaded capability definitions; when the page reported `0 Skills`, every visible local package still lacked source/run affordances.
+4. Fix: every visible local Skill package now exposes `资料来源` and `运行记录` actions with live counts, and the latest run state when available. Both actions preserve the package Skill id as navigation context.
+5. User validation [P1]: package-level shortcut buttons still did not express the intended hierarchy. The required model is Settings → Skills list → selected Skill detail.
+6. Fix: Settings now embeds the full two-column Skill catalog/detail experience. Selecting a Skill exposes its run history and related sources in the detail pane. Skills with Manifest `secret-ref` bindings additionally expose a `查看 Key` control that reveals binding metadata and configuration status without returning secret values.
+7. Post-fix limitation: targeted tests and the production renderer build pass, but the in-app browser blocked the final local-page refresh before a new post-fix screenshot and console check could be captured.
+
+### Verification
+
+- Focused UI tests: 5 files, 64 tests passed.
+- TypeScript renderer and Electron checks passed.
+- Renderer production build passed.
+- Full unit suite still has unrelated environment/platform failures (`/tmp` unavailable, Windows path separator assertion, and existing internal-agent request failures).
+
+final result: blocked
+
+---
+
 ## AI code-block simplification and permission-toast removal — 2026-07-28
 
 - Source visual truth:

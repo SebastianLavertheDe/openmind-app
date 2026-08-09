@@ -53,6 +53,10 @@ try {
   & npm.cmd run build
   Assert-LastExitCode "npm run build"
 
+  Write-Host "Preparing the bundled Windows Python runtime"
+  & npm.cmd run prepare:python-runtime -- --target=windows-x64
+  Assert-LastExitCode "Bundled Python runtime"
+
   Write-Host "Running the compiled migration and recovery drill"
   # The compiled recovery services import Electron-owned Main modules but do
   # not launch Electron. Electron 42 no longer downloads its host binary from

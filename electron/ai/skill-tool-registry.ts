@@ -12,6 +12,7 @@ import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-
 import type { ProviderSkillBridge } from "./providers/skill-bridge";
 import { WorkflowEngine } from "../execution/workflow-engine";
 import type { WorkflowManifest } from "../../shared/skill-manifest-schema";
+import { loadSkillEnvFile } from "../security/skill-env-file";
 
 export interface SkillTool {
   id: string;
@@ -298,8 +299,10 @@ export class SkillToolRegistry {
     const args = skill.args.map((arg) => arg === "${date}" ? date : arg);
     const cwd = path.resolve(executionRoot, skill.cwd);
     if (!fs.existsSync(cwd)) throw new Error(messages.errors.skill.cwdMissing(skill.cwd));
+    const skillEnv = loadSkillEnvFile(cwd);
     const child = spawnInDirectory(cwd, skill.runner, args, {
       env: {
+        ...skillEnv.values,
         PYTHONIOENCODING: "utf-8",
         PYTHONUNBUFFERED: "1",
         CCTOOLS_SKILL_ID: skill.id,

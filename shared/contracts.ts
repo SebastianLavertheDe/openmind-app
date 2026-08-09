@@ -46,7 +46,7 @@ import type {
 } from "./provider-profiles";
 import type { AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
-import type { RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, RuntimePackId, RuntimeTarget } from "./runtime-targets";
+import { RuntimeTargetSchema, type RuntimePackDownloadDescriptor, type RuntimePackDownloadJob, type RuntimePackReadiness, type RuntimePackId, type RuntimeTarget } from "./runtime-targets";
 
 export type { AgentCheckpoint, AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
 export type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
@@ -1007,6 +1007,18 @@ export type CreativeTopicStatePatch = z.infer<typeof CreativeTopicStatePatchSche
  */
 export const DEFAULT_BROWSER_EVIDENCE_DIR = "assets/browser-evidence";
 
+export const SharedPythonRuntimeStatusSchema = z.object({
+  enabled: z.boolean(),
+  phase: z.enum(["disabled", "not-installed", "installing", "syncing", "ready", "error", "unavailable"]),
+  target: RuntimeTargetSchema.nullable(),
+  pythonVersion: z.string().nullable(),
+  uvVersion: z.string().nullable(),
+  managedSkills: z.number().int().nonnegative(),
+  ready: z.boolean(),
+  lastError: z.string().nullable()
+});
+export type SharedPythonRuntimeStatus = z.infer<typeof SharedPythonRuntimeStatusSchema>;
+
 export const UserPreferencesSchema = z.object({
   schemaVersion: z.number().default(2),
   repoRoot: z.string().default(""),
@@ -1303,6 +1315,8 @@ export interface DesktopApi {
   testProviderProfile(id: string): Promise<ProviderProfile>;
   importPreferences(path: string): Promise<PreferencesImportResult>;
   getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostic[]>;
+  getSharedPythonRuntimeStatus(): Promise<SharedPythonRuntimeStatus>;
+  setSharedPythonRuntimeEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus>;
   listRuntimePacks(): Promise<RuntimePackReadiness[]>;
   getRuntimePackReadiness(packId: RuntimePackId, target: RuntimeTarget): Promise<RuntimePackReadiness | null>;
   importRuntimePack(): Promise<RuntimePackReadiness | null>;
@@ -1334,8 +1348,6 @@ export interface DesktopApi {
   listInstalledSkills(): Promise<InstalledSkillView[]>;
   /** 将一个已检查的本地包复制到 quarantine；不执行包代码。 */
   installSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
-  /** 将本地包作为新 digest 写入 quarantine；不会改变 active。 */
-  updateSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
   /** 仅在存在 ready previous 时切换 active。 */
   rollbackSkillPackage?(key: string): Promise<SkillRollbackView>;
   /** 只能删除非 active 安装版本。 */
@@ -1346,13 +1358,8 @@ export interface DesktopApi {
   inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<SkillPackageInspectionView>;
   /** 将检查过的本地/Git 来源写入 quarantine；不执行包代码。 */
   installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
-  /** 以新 digest 导入本地/Git 来源，不改变 active。 */
-  updateSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
-  /** 对 exact active digest 授予/撤销 host execution 信任。 */
+  /** 对 exact active digest 授予 host execution 信任。 */
   approveInstalledSkillHost(key: string, digest: string): Promise<InstalledSkillView>;
-  revokeInstalledSkillHost(key: string, digest: string): Promise<InstalledSkillView>;
-  /** 通用 Skill Run 边界：renderer 不得提交 executable/cwd/env。 */
-  startSkillRun(input: SkillRunRequest): Promise<BrokerRunRecord>;
   listSkillRuns(): Promise<BrokerRunRecord[]>;
   getSkillRun(runId: string): Promise<BrokerRunRecord>;
   getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;

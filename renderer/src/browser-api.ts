@@ -569,6 +569,8 @@ export function installBrowserPreviewApi(): boolean {
       { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },
       { id: "git", label: "Git", status: "ok", value: "preview", detail: null, path: null }
     ],
+    getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "windows-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
+    setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.10" : null, uvVersion: enabled ? "0.8.15" : null, managedSkills: enabled ? 3 : 0, ready: enabled, lastError: null }),
     listRuntimePacks: async () => [],
     getRuntimePackReadiness: async () => null,
     importRuntimePack: async () => null,
@@ -594,8 +596,6 @@ export function installBrowserPreviewApi(): boolean {
     migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
     listInstalledSkills: async () => [],
     approveInstalledSkillHost: async () => { throw new Error("浏览器预览不管理 Installed Skill 信任。 "); },
-    revokeInstalledSkillHost: async () => { throw new Error("浏览器预览不管理 Installed Skill 信任。 "); },
-    startSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
     listSkillRuns: async () => [],
     getSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
     getSkillRunEvents: async () => [],

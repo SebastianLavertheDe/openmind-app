@@ -64,6 +64,26 @@ afterEach(() => {
 });
 
 describe("SourcesPage", () => {
+  it("在 Skill 设置上下文中只展示关联来源并保留主操作", async () => {
+    const runSource = vi.fn(async () => true);
+    window.cctools = makeApi({ runSource });
+
+    render(
+      <AiProvider initial={snapshot}>
+        <SourcesPage embedded initialSkillId="rss-article-saver" />
+      </AiProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
+    expect(screen.queryByText("X Following")).toBeNull();
+    expect(screen.getByRole("button", { name: messages.sources.actions.runAll })).toBeTruthy();
+    expect(screen.getByRole("button", { name: messages.sources.actions.add })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: messages.sources.actions.runAll }));
+    await waitFor(() => expect(runSource).toHaveBeenCalledTimes(1));
+    expect(runSource).toHaveBeenCalledWith("rss-1", expect.any(String));
+  });
+
   it("keeps addable source tabs visible and filters existing sources", async () => {
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
 

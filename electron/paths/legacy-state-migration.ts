@@ -118,8 +118,11 @@ export function migrateLegacyState(input: LegacyStateMigrationInput): LegacyStat
     if (recovered) return recovered;
   }
 
-  const preview = previewLegacyStateMigration(input);
-  if (!preview.canCommit) throw new Error(preview.blockingReasons.join(" "));
+  // Source-absent short-circuit MUST precede the target-non-empty check:
+  // the AI worker seeds `target/.cctools/ai/` during createWindow, before the
+  // renderer's bootstrap request reaches this migration. If we checked the
+  // target first, every startup with no legacy `.cctools` to migrate would
+  // still throw "目标不是空目录" against the AI worker's own seed files.
   if (!isDirectory(sourceDirectory)) {
     const skipped: LegacyStateMigrationReport = {
       schemaVersion: 1,
@@ -133,6 +136,10 @@ export function migrateLegacyState(input: LegacyStateMigrationInput): LegacyStat
     writeJsonAtomic(marker, skipped);
     return skipped;
   }
+
+  // Source exists — now it is safe to enforce the empty-target contract.
+  const preview = previewLegacyStateMigration(input);
+  if (!preview.canCommit) throw new Error(preview.blockingReasons.join(" "));
 
   const safeRootId = input.rootId.replace(/[^a-zA-Z0-9._-]/g, "_");
   const stagingDirectory = path.join(path.resolve(input.stagingRoot), `legacy-state-${safeRootId}`);

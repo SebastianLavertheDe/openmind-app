@@ -234,6 +234,35 @@ describe("SkillToolRegistry", () => {
       expect(states).toContain("success");
     });
 
+    it("loads the .env from the selected Skill directory before spawning", async () => {
+      const root = createRoot();
+      const registry = new SkillToolRegistry(root);
+      const skill = registry.list()[0];
+      const skillDir = path.join(root, skill.cwd);
+      fs.writeFileSync(path.join(skillDir, ".env"), [
+        "NVIDIA_API_KEY=nvapi-skill-local",
+        "NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1"
+      ].join("\n"));
+      let childRef: ReturnType<typeof makeFakeChild> | null = null;
+      let spawnedEnv: Record<string, string> = {};
+      hoisted.spawnImpl = (_cwd, _runner, _args, options) => {
+        spawnedEnv = (options as { env?: Record<string, string> }).env || {};
+        childRef = makeFakeChild();
+        return childRef;
+      };
+
+      const runPromise = registry.run(skill.id, {}, root, { invocationId: "env-1" });
+      await Promise.resolve();
+      childRef!.emitClose(0);
+      await runPromise;
+
+      expect(spawnedEnv).toMatchObject({
+        NVIDIA_API_KEY: "nvapi-skill-local",
+        NVIDIA_API_BASE_URL: "https://integrate.api.nvidia.com/v1",
+        CCTOOLS_SKILL_ID: skill.id
+      });
+    });
+
     it("非零退出码 emit failed 并抛错,含 output", async () => {
       const root = createRoot();
       const registry = new SkillToolRegistry(root);

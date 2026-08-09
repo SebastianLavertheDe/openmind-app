@@ -41,6 +41,8 @@ import { RuntimePackService } from "./runtime/runtime-pack-service";
 import { loadRuntimeTrustRoots } from "./runtime/runtime-pack-trust";
 import { AppStateBackupService } from "./backup/app-state-backup";
 import { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
+import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
+import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
@@ -63,6 +65,7 @@ let providerConnectivityService: ProviderConnectivityService | null = null;
 let exportLocationService: ExportLocationService | null = null;
 let runtimePackService: RuntimePackService | null = null;
 let runtimePackDownloadService: RuntimePackDownloadService | null = null;
+let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
 let appStateBackupService: AppStateBackupService | null = null;
 const envFileAnalyzer = new EnvFileAnalyzer();
 
@@ -110,6 +113,21 @@ function ensureRuntimePackDownloadService(): RuntimePackDownloadService {
     (job) => sendToRenderer(IPC.APP_RUNTIME_PACK_DOWNLOAD_EVENT, job)
   );
   return runtimePackDownloadService;
+}
+
+function bundledPythonAssetRoot(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "python-runtime")
+    : path.join(APP_ROOT, "resources", "python-runtime");
+}
+
+function ensureSharedPythonRuntimeService(): SharedPythonRuntimeService {
+  ensureAppPaths(getAppPaths());
+  sharedPythonRuntimeService ||= new SharedPythonRuntimeService(getAppPaths(), {
+    bundledAssetRoot: bundledPythonAssetRoot(),
+    projects: () => listInstalledPythonProjects(ensureSkillPackageService())
+  });
+  return sharedPythonRuntimeService;
 }
 
 function ensureAppStateBackupService(): AppStateBackupService {
@@ -176,6 +194,7 @@ class AiWorkerClient {
         ...(stateRoot ? { CCTOOLS_STATE_ROOT: stateRoot } : {}),
         ...(settings.resolveMymindRoot() ? { CCTOOLS_MYMIND_ROOT: settings.resolveMymindRoot() } : {}),
         CCTOOLS_ROOT_GENERATION: String(settings.getMymindRootSnapshot()?.rootGeneration || 1),
+        CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
         CCTOOLS_BROWSER_AUTOMATION_ENABLED: String(browserPreferences.browserAutomationEnabled),
         CCTOOLS_BROWSER_REUSE_EXISTING_TABS: String(browserPreferences.browserReuseExistingTabs),
         CCTOOLS_BROWSER_EVIDENCE_DIR: browserPreferences.browserEvidenceDir,
@@ -411,6 +430,7 @@ function registerIpc(): void {
       ensureProviderConnectivity,
       ensureRuntimePackService,
       ensureRuntimePackDownloadService,
+      ensureSharedPythonRuntimeService,
       ensureAppStateBackupService,
       updateCredentialRuns: async (credentialId, state) => {
         try {

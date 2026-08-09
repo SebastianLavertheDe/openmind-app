@@ -35,13 +35,15 @@ import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-life
 import { titleFromPrompt } from "./scheduler-prompts";
 import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { type BrowserAutomationConfig } from "./browser-evidence";
-import { AgentResumeRequestSchema, SkillRunRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type AgentResumeRequest, type BrokerRunEvent, type BrokerRunRecord, type SkillRunRequest, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
+import { AgentResumeRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type AgentResumeRequest, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
 import { buildAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
 import { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
 import type { SkillCredentialKindResolver, SkillCredentialResolver } from "../skills/installed-skill-execution-resolver";
 import { RuntimeManager } from "../runtime/runtime-manager";
+import { SharedPythonRuntimeService } from "../runtime/shared-python-runtime";
+import { listInstalledPythonProjects } from "../runtime/installed-python-projects";
 import { ExportLocationService } from "../execution/export-location-service";
 import { AutomationRepository } from "../automation/automation-repository";
 import { AutomationScheduler } from "../automation/automation-scheduler";
@@ -136,7 +138,10 @@ export class RunScheduler {
         });
         const prepare = plan.prepareRuntime;
         plan.prepareRuntime = async () => {
-          if (input.provider.credentialId) {
+          if (input.providerSecretValue) {
+            secretRef.value = input.providerSecretValue;
+            plan.knownSecrets = [secretRef.value];
+          } else if (input.provider.credentialId) {
             if (!input.resolveCredential) throw new Error("Agent Provider Credential 未连接 CredentialVault。 ");
             secretRef.value = await input.resolveCredential(input.provider.credentialId, {
               publisherId: input.manifest.publisher.id,
@@ -154,7 +159,14 @@ export class RunScheduler {
     const installedResolver = appPaths && mymindRoot
       ? new InstalledSkillExecutionResolver(
         packageService!,
-        new RuntimeManager(appPaths),
+        new RuntimeManager(appPaths, {
+          sharedPython: new SharedPythonRuntimeService(appPaths, {
+            projects: () => listInstalledPythonProjects(packageService!),
+            ...(process.env.CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT
+              ? { bundledAssetRoot: process.env.CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT }
+              : {})
+          })
+        }),
         mymindRoot,
         rootGeneration,
         credentialResolver,
@@ -273,10 +285,6 @@ export class RunScheduler {
   }
   stopSkill(skillId: string): Promise<boolean> { return this.manualSkills.stopSkill(skillId); }
   stopSource(sourceId: string): Promise<boolean> { return this.manualSkills.stopSource(sourceId); }
-
-  startSkillRun(rawRequest: SkillRunRequest): BrokerRunRecord {
-    return this.skillTools.submitRun(SkillRunRequestSchema.parse(rawRequest));
-  }
 
   listSkillRuns(): BrokerRunRecord[] { return this.skillTools.listRuns(); }
   getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }

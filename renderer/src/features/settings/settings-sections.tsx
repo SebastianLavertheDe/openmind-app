@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, RefreshCw, RotateCcw, Search, Server, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CredentialKind, CredentialMetadata, CredentialSetInput, CredentialVaultStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderProfile, ProviderProfileInput, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import type { AiSession, BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
@@ -57,9 +57,9 @@ export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferen
   );
 }
 
-export function ProviderSettingsSection({ providers, defaultProviderId, save, credentialStatus, providerProfiles, onSaveCredential, onDeleteCredential, onSaveProviderProfile, onTestProviderProfile, onDeleteProviderProfile }: { providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences; credentialStatus: CredentialVaultStatus | null; providerProfiles: ProviderProfile[]; onSaveCredential(input: CredentialSetInput): Promise<void>; onDeleteCredential(id: string): Promise<void>; onSaveProviderProfile(input: ProviderProfileInput): Promise<void>; onTestProviderProfile(id: string): Promise<void>; onDeleteProviderProfile(id: string): Promise<void> }) {
+export function ProviderSettingsSection({ providers, defaultProviderId, save }: { providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
   return (
-    <SettingsPanel title="Provider" scope="新会话行为">
+    <SettingsPanel title="模型提供方" scope="新会话行为">
       <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
         {providers.length ? providers.map((provider) => {
           const active = provider.id === defaultProviderId;
@@ -88,162 +88,42 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save, cr
           );
         }) : <p className="settings-note">{m.settings.provider.empty}</p>}
       </div>
-      <p className="settings-note">{m.settings.provider.lockedNote}</p>
-      <div className="settings-browser-backend" role="status">
-        <span className="settings-browser-icon" aria-hidden><KeyRound size={18} /></span>
-        <div>
-          <strong>{m.settings.credentials.title}</strong>
-          <span>{m.settings.credentials.scope} · {m.settings.credentials.profileCount(providerProfiles.length)}</span>
-          <small>{credentialStatus ? (credentialStatus.available ? m.settings.credentials.availableDescription : m.settings.credentials.unavailableDescription) : "安全存储状态尚未读取。"}</small>
-        </div>
-        <StatusBadge tone={credentialStatus ? (credentialStatus.available ? "success" : "warning") : "neutral"}>
-          {credentialStatus ? (credentialStatus.available ? m.settings.credentials.available : m.settings.credentials.unavailable) : m.settings.credentials.notLoaded}
-        </StatusBadge>
-      </div>
-      <p className="settings-note">{m.settings.credentials.credentialCount(credentialStatus?.credentials.length || 0)}。表单只展示元数据，已保存 Secret 不会回显。</p>
-      <ProviderConfigurationForms
-        credentialStatus={credentialStatus}
-        providerProfiles={providerProfiles}
-        onSaveCredential={onSaveCredential}
-        onDeleteCredential={onDeleteCredential}
-        onSaveProviderProfile={onSaveProviderProfile}
-        onTestProviderProfile={onTestProviderProfile}
-        onDeleteProviderProfile={onDeleteProviderProfile}
-      />
     </SettingsPanel>
   );
 }
 
-const CREDENTIAL_KIND_OPTIONS: Array<{ value: CredentialKind; label: string }> = [
-  { value: "api-key", label: "API Key" },
-  { value: "token", label: "Token" },
-  { value: "password", label: "Password" },
-  { value: "cookie", label: "Cookie" },
-  { value: "credential-file", label: "Credential File" },
-  { value: "oauth-refresh-token", label: "OAuth Refresh Token" },
-  { value: "client-certificate", label: "Client Certificate" },
-  { value: "session-only", label: "Session Only" }
-];
-
-const PROFILE_PROTOCOL_OPTIONS: Array<{ value: ProviderProfileInput["protocol"]; label: string }> = [
-  { value: "openai-chat", label: "OpenAI Chat" },
-  { value: "openai-responses", label: "OpenAI Responses" },
-  { value: "anthropic-messages", label: "Anthropic Messages" },
-  { value: "provider-native", label: "Provider Native" }
-];
-
-const EMPTY_PROFILE: ProviderProfileInput = {
-  id: "provider-local",
-  name: "Local Provider",
-  protocol: "provider-native",
-  credentialId: null,
-  baseUrl: "",
-  model: "",
-  timeoutMs: 120_000,
-  maxRetries: 2,
-  proxyPolicy: "system",
-  tlsPolicy: "verify",
-  proxyUrl: "",
-  providerOptions: {},
-  fallbackProfileId: null
-};
-
-function ProviderConfigurationForms({ credentialStatus, providerProfiles, onSaveCredential, onDeleteCredential, onSaveProviderProfile, onTestProviderProfile, onDeleteProviderProfile }: {
-  credentialStatus: CredentialVaultStatus | null;
-  providerProfiles: ProviderProfile[];
-  onSaveCredential(input: CredentialSetInput): Promise<void>;
-  onDeleteCredential(id: string): Promise<void>;
-  onSaveProviderProfile(input: ProviderProfileInput): Promise<void>;
-  onTestProviderProfile(id: string): Promise<void>;
-  onDeleteProviderProfile(id: string): Promise<void>;
+export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }: {
+  status: SharedPythonRuntimeStatus | null;
+  busy: boolean;
+  onToggle(enabled: boolean): void;
+  onRefresh(): void;
 }) {
-  const [credentialLabel, setCredentialLabel] = useState("");
-  const [credentialKind, setCredentialKind] = useState<CredentialKind>("api-key");
-  const [credentialSecret, setCredentialSecret] = useState("");
-  const [credentialBusy, setCredentialBusy] = useState(false);
-  const [profile, setProfile] = useState<ProviderProfileInput>(EMPTY_PROFILE);
-  const [profileBusy, setProfileBusy] = useState(false);
-  const [profileTestBusy, setProfileTestBusy] = useState<string | null>(null);
-  const activeCredentials = credentialStatus?.credentials.filter((item) => item.status === "active") || [];
-
-  const submitCredential = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!credentialLabel.trim() || !credentialSecret || credentialBusy) return;
-    setCredentialBusy(true);
-    try {
-      await onSaveCredential({ label: credentialLabel.trim(), kind: credentialKind, secret: credentialSecret });
-      setCredentialSecret("");
-    } finally {
-      setCredentialBusy(false);
-    }
-  };
-
-  const submitProfile = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!profile.id.trim() || !profile.name.trim() || profileBusy) return;
-    setProfileBusy(true);
-    try {
-      await onSaveProviderProfile({ ...profile, id: profile.id.trim(), name: profile.name.trim(), baseUrl: profile.baseUrl.trim(), model: profile.model.trim() });
-    } finally {
-      setProfileBusy(false);
-    }
-  };
-
+  const enabled = status?.enabled ?? false;
+  const tone = status?.ready ? "success" : status?.phase === "error" ? "danger" : enabled ? "warning" : "neutral";
+  const label = busy ? (enabled ? "正在更新" : "正在安装") : status?.ready ? "可用" : status?.phase === "error" ? "需要处理" : enabled ? "准备中" : "未开启";
   return (
-    <div className="settings-config-stack">
-      <form className="settings-config-form" onSubmit={(event) => void submitCredential(event)}>
-        <div className="settings-config-heading"><strong>{m.settings.credentials.title}</strong><small>{m.settings.credentials.credentialSecretPlaceholder}</small></div>
-        <div className="settings-config-grid">
-          <label>{m.settings.credentials.credentialLabel}<input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} maxLength={160} /></label>
-          <label>{m.settings.credentials.credentialKind}<select value={credentialKind} onChange={(event) => setCredentialKind(event.target.value as CredentialKind)}>{CREDENTIAL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className="settings-config-wide">{m.settings.credentials.credentialSecret}<input type="password" autoComplete="new-password" value={credentialSecret} placeholder={m.settings.credentials.credentialSecretPlaceholder} onChange={(event) => setCredentialSecret(event.target.value)} maxLength={1024 * 1024} /></label>
+    <SettingsPanel title="Python 运行时" scope={status?.ready ? `Python ${status.pythonVersion || "3.12"}` : "应用共享环境"} variant="resource">
+      <article className="settings-resource-row settings-runtime-resource">
+        <span className="settings-resource-icon settings-shared-runtime-shield"><ShieldCheck size={18} aria-hidden /></span>
+        <div className="settings-resource-copy">
+          <strong>内置 Python</strong>
+          <p>由 CC Tools 安装和维护，供所有 Python Skill 与自动化任务共同使用，依赖由 uv 统一管理。</p>
+          <small>{status?.target || "当前平台"}{status?.uvVersion ? ` · uv ${status.uvVersion}` : ""}{status?.managedSkills ? ` · ${status.managedSkills} 个 Skill` : ""}</small>
         </div>
-        <button type="submit" className="settings-subtle-action" data-motion="action" disabled={!credentialStatus?.available || credentialBusy || !credentialLabel.trim() || !credentialSecret}>{credentialBusy ? "保存中…" : m.settings.credentials.credentialSave}</button>
-      </form>
-
-      <div className="settings-config-list" aria-label={m.settings.credentials.title}>
-        {credentialStatus?.credentials.length ? credentialStatus.credentials.map((credential: CredentialMetadata) => (
-          <div className="settings-config-row" key={credential.id}>
-            <div><strong>{credential.label}</strong><small>{credential.kind} · {credential.status === "active" ? "active" : "revoked"} · {credential.id}</small></div>
-            <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void onDeleteCredential(credential.id)}>{m.settings.credentials.credentialDelete}</button>
-          </div>
-        )) : <p className="settings-note">{m.settings.credentials.credentialEmpty}</p>}
-      </div>
-
-      <form className="settings-config-form" onSubmit={(event) => void submitProfile(event)}>
-        <div className="settings-config-heading"><strong>{m.settings.credentials.profileTitle}</strong><small>{m.settings.credentials.availableDescription}</small></div>
-        <div className="settings-config-grid">
-          <label>{m.settings.credentials.profileId}<input value={profile.id} onChange={(event) => setProfile((current) => ({ ...current, id: event.target.value }))} maxLength={120} /></label>
-          <label>{m.settings.credentials.profileName}<input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} maxLength={160} /></label>
-          <label>{m.settings.credentials.profileProtocol}<select value={profile.protocol} onChange={(event) => {
-            const protocol = event.target.value as ProviderProfileInput["protocol"];
-            setProfile((current) => ({ ...current, protocol, providerOptions: protocol === "anthropic-messages" ? { anthropicVersion: "2023-06-01" } : {} }));
-          }}>{PROFILE_PROTOCOL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label>{m.settings.credentials.profileCredential}<select value={profile.credentialId || ""} onChange={(event) => setProfile((current) => ({ ...current, credentialId: event.target.value || null }))}><option value="">{m.settings.credentials.profileNoCredential}</option>{activeCredentials.map((credential) => <option key={credential.id} value={credential.id}>{credential.label} · {credential.id}</option>)}</select></label>
-          <label className="settings-config-wide">{m.settings.credentials.profileBaseUrl}<input value={profile.baseUrl} placeholder="https://api.example.com/v1" onChange={(event) => setProfile((current) => ({ ...current, baseUrl: event.target.value }))} maxLength={2048} /></label>
-          <label>{m.settings.credentials.profileModel}<input value={profile.model} onChange={(event) => setProfile((current) => ({ ...current, model: event.target.value }))} maxLength={200} /></label>
-          <label>代理策略<select value={profile.proxyPolicy} onChange={(event) => setProfile((current) => ({ ...current, proxyPolicy: event.target.value as ProviderProfileInput["proxyPolicy"] }))}><option value="system">系统</option><option value="disabled">禁用</option><option value="explicit">显式代理</option></select></label>
-          {profile.proxyPolicy === "explicit" ? <label className="settings-config-wide">代理地址<input value={profile.proxyUrl || ""} placeholder="http://127.0.0.1:7890" onChange={(event) => setProfile((current) => ({ ...current, proxyUrl: event.target.value }))} maxLength={2048} /></label> : null}
-          <label>TLS 策略<select value={profile.tlsPolicy} onChange={(event) => setProfile((current) => ({ ...current, tlsPolicy: event.target.value as ProviderProfileInput["tlsPolicy"] }))}><option value="verify">验证证书</option><option value="allow-insecure">允许不安全 TLS</option></select></label>
-          {profile.protocol === "openai-chat" || profile.protocol === "openai-responses" ? <>
-            <label>Organization<input value={profile.providerOptions?.organization || ""} onChange={(event) => setProfile((current) => ({ ...current, providerOptions: { ...current.providerOptions, organization: event.target.value || undefined } }))} maxLength={200} /></label>
-            <label>Project<input value={profile.providerOptions?.project || ""} onChange={(event) => setProfile((current) => ({ ...current, providerOptions: { ...current.providerOptions, project: event.target.value || undefined } }))} maxLength={200} /></label>
-          </> : null}
-          {profile.protocol === "anthropic-messages" ? <label>Anthropic-Version<input value={profile.providerOptions?.anthropicVersion || "2023-06-01"} onChange={(event) => setProfile((current) => ({ ...current, providerOptions: { ...current.providerOptions, anthropicVersion: event.target.value } }))} maxLength={10} /></label> : null}
+        <div className="settings-resource-actions">
+          <StatusBadge tone={tone}>{label}</StatusBadge>
+          <ToggleSwitch checked={enabled} disabled={busy || !status} label="启用内置 Python 运行时" onChange={onToggle} />
         </div>
-        <button type="submit" className="settings-subtle-action" data-motion="action" disabled={profileBusy || !profile.id.trim() || !profile.name.trim()}>{profileBusy ? "保存中…" : m.settings.credentials.profileSave}</button>
-      </form>
-
-      <div className="settings-config-list" aria-label={m.settings.credentials.profileTitle}>
-        {providerProfiles.length ? providerProfiles.map((item) => (
-          <div className="settings-config-row" key={item.id}>
-            <div><strong>{item.name}</strong><small>{item.protocol} · {item.baseUrl || "default endpoint"} · {item.proxyPolicy === "explicit" ? `proxy ${item.proxyUrl || "未配置"}` : `proxy ${item.proxyPolicy}`} · {item.id}</small><small>{item.test.status === "success" ? m.settings.credentials.profileTestSuccess : item.test.status === "failed" ? `${m.settings.credentials.profileTestFailed}：${item.test.diagnostic || "未知错误"}` : m.settings.credentials.profileTestNever}</small></div>
-            <button type="button" className="settings-subtle-action" data-motion="action" disabled={profileTestBusy === item.id} onClick={() => { setProfileTestBusy(item.id); void onTestProviderProfile(item.id).finally(() => setProfileTestBusy(null)); }}>{profileTestBusy === item.id ? m.settings.credentials.profileTesting : m.settings.credentials.profileTest}</button>
-            <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void onDeleteProviderProfile(item.id)}>{m.settings.credentials.profileDelete}</button>
-          </div>
-        )) : <p className="settings-note">{m.settings.credentials.profileEmpty}</p>}
+      </article>
+      <div className="settings-runtime-feedback">
+        {busy ? <div className="settings-shared-runtime-progress" role="status"><span className="spin" /><p>正在校验内置 Python，并通过 uv 合并所有已安装 Skill 的依赖。首次初始化可能需要几分钟。</p></div> : null}
+        {status?.lastError ? <p className="settings-shared-runtime-error" role="alert">{status.lastError}</p> : null}
       </div>
-    </div>
+      <footer className="settings-panel-footer">
+        <p className="settings-note">关闭不会删除已安装的 Python 和依赖；重新开启时可以直接复用。</p>
+        <button type="button" className="settings-subtle-action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />刷新状态</button>
+      </footer>
+    </SettingsPanel>
   );
 }
 
@@ -354,6 +234,7 @@ export function RuntimeSettingsSection({ packs, downloads, downloadCandidate, bu
 }
 
 export function SkillSettingsSection({
+  mode,
   skills,
   mcpServers,
   refreshing,
@@ -366,10 +247,10 @@ export function SkillSettingsSection({
   packageBusy,
   onInspectPackages,
   onMigratePackages,
-  onUpdatePackage,
   onRollbackPackage,
   onUninstallPackage
 }: {
+  mode?: "skills" | "mcp";
   skills: SkillDefinition[];
   mcpServers: McpServerDefinition[];
   refreshing: boolean;
@@ -379,18 +260,18 @@ export function SkillSettingsSection({
   onOpenMcpSettings(): void;
   packageInspections: SkillPackageInspectionView[];
   installedSkills: InstalledSkillView[];
-  packageBusy: "inspect" | "migrate" | "update" | "rollback" | "uninstall" | null;
+  packageBusy: "inspect" | "migrate" | "rollback" | "uninstall" | null;
   onInspectPackages(): void;
   onMigratePackages(): void;
-  onUpdatePackage(sourcePath: string): void;
   onRollbackPackage(key: string): void;
   onUninstallPackage(key: string, digest: string): void;
 }) {
-  const [catalog, setCatalog] = useState<"skills" | "mcp">("skills");
+  const [catalog, setCatalog] = useState<"skills" | "mcp">(mode || "skills");
   const [query, setQuery] = useState("");
   const [mcpQuery, setMcpQuery] = useState("");
   const [group, setGroup] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedMcpId, setExpandedMcpId] = useState<string | null>(null);
   const groups = useMemo(() => Array.from(new Set(skills.map(skillGroup))).sort((left, right) => left.localeCompare(right, "zh-CN")), [skills]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -419,6 +300,7 @@ export function SkillSettingsSection({
     <SettingsPanel
       title={m.settings.skills.title}
       scope={m.settings.skills.scope(skills.length, mcpServers.length)}
+      variant={mode === "mcp" ? "resource" : "standard"}
       action={(
         <button type="button" className="settings-subtle-action" data-motion="action" disabled={refreshing} aria-busy={refreshing || undefined} onClick={onRefresh}>
           <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden />
@@ -426,14 +308,14 @@ export function SkillSettingsSection({
         </button>
       )}
     >
-      <div className="settings-capability-tabs" role="tablist" aria-label={m.settings.skills.catalogAria}>
+      {!mode ? <div className="settings-capability-tabs" role="tablist" aria-label={m.settings.skills.catalogAria}>
         <button type="button" role="tab" data-motion="selection" aria-selected={catalog === "skills"} onClick={() => setCatalog("skills")}>
           <Package size={14} aria-hidden />{m.settings.skills.skillsTab}<span>{skills.length}</span>
         </button>
         <button type="button" role="tab" data-motion="selection" aria-selected={catalog === "mcp"} onClick={() => setCatalog("mcp")}>
           <Server size={14} aria-hidden />{m.settings.skills.mcpTab}<span>{mcpServers.length}</span>
         </button>
-      </div>
+      </div> : null}
 
       {catalog === "skills" ? <>
         <div className="settings-skill-toolbar">
@@ -523,17 +405,20 @@ export function SkillSettingsSection({
         </div>
         {filteredMcpServers.length ? (
           <div className="settings-mcp-list" aria-label={m.settings.skills.mcpListAria}>
-            {filteredMcpServers.map((server) => (
-              <article className="settings-mcp-server" key={server.id}>
-                <header className="settings-mcp-server-header">
+            {filteredMcpServers.map((server) => {
+              const expanded = expandedMcpId === server.id || Boolean(mcpQuery.trim());
+              return (
+              <article className="settings-mcp-server" data-expanded={expanded || undefined} key={server.id}>
+                <button type="button" className="settings-mcp-server-header" aria-expanded={expanded} onClick={() => setExpandedMcpId((current) => current === server.id ? null : server.id)}>
                   <span className="settings-skill-icon" aria-hidden><Server size={16} /></span>
                   <span className="settings-mcp-identity">
                     <span><strong>{server.title}</strong><code>{server.id}</code></span>
                     <small>{server.description}</small>
                   </span>
                   <StatusBadge tone={server.status === "enabled" ? "success" : "warning"}>{m.settings.skills.mcpStatus[server.status]}</StatusBadge>
-                </header>
-                <div className="settings-mcp-details">
+                  <ChevronDown className="settings-mcp-chevron" size={15} aria-hidden />
+                </button>
+                {expanded ? <div className="settings-mcp-details">
                   <dl>
                     <SkillDetail label={m.settings.skills.mcpBackend} value={server.backend} />
                     <SkillDetail label={m.settings.skills.mcpTransport} value={server.transport} />
@@ -562,9 +447,10 @@ export function SkillSettingsSection({
                       <button type="button" data-motion="action" onClick={onOpenMcpSettings}><ExternalLink size={13} aria-hidden />{m.settings.skills.mcpOpenSettings}</button>
                     </div>
                   ) : null}
-                </div>
+                </div> : null}
               </article>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="settings-skill-empty" role="status">
@@ -583,7 +469,6 @@ export function SkillSettingsSection({
         busy={packageBusy}
         onInspect={onInspectPackages}
         onMigrate={onMigratePackages}
-        onUpdate={onUpdatePackage}
         onRollback={onRollbackPackage}
         onUninstall={onUninstallPackage}
       />
@@ -597,16 +482,14 @@ function SkillPackagePanel({
   busy,
   onInspect,
   onMigrate,
-  onUpdate,
   onRollback,
   onUninstall
 }: {
   inspections: SkillPackageInspectionView[];
   installed: InstalledSkillView[];
-  busy: "inspect" | "migrate" | "update" | "rollback" | "uninstall" | null;
+  busy: "inspect" | "migrate" | "rollback" | "uninstall" | null;
   onInspect(): void;
   onMigrate(): void;
-  onUpdate(sourcePath: string): void;
   onRollback(key: string): void;
   onUninstall(key: string, digest: string): void;
 }) {
@@ -653,11 +536,6 @@ function SkillPackagePanel({
                   {item.issues.length ? <span className="is-invalid">{m.settings.skills.packageIssues(item.issues.length)}</span> : null}
                   {item.warnings.length ? <span>{m.settings.skills.packageWarnings(item.warnings.length)}</span> : null}
                 </div>
-                {record && item.valid ? (
-                  <div className="settings-skill-actions">
-                    <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={() => onUpdate(item.sourcePath)}>{busy === "update" ? m.settings.skills.packageUpdating : m.settings.skills.packageUpdate}</button>
-                  </div>
-                ) : null}
                 {item.issues.length ? <ul className="settings-skill-package-issues">{item.issues.slice(0, 3).map((issue) => <li key={`${issue.code}:${issue.path || ""}`}>{issue.message}</li>)}</ul> : null}
               </article>
             );
@@ -741,8 +619,9 @@ export function BrowserSettingsSection({
   };
 
   return (
-    <SettingsPanel title={m.settings.browser.title} scope={m.settings.browser.scope}>
-      <div className="settings-browser-backend">
+    <>
+    <SettingsPanel title="浏览器连接" scope={m.settings.browser.scope} variant="resource">
+      <div className="settings-resource-row settings-browser-backend">
         <span className="settings-browser-icon" aria-hidden><Globe size={18} /></span>
         <div>
           <strong>{m.settings.browser.backend}</strong>
@@ -758,6 +637,8 @@ export function BrowserSettingsSection({
       <PreferenceRow title={m.settings.browser.reuseTabs} description={m.settings.browser.reuseTabsDescription}>
         <ToggleSwitch checked={prefs.browserReuseExistingTabs} label={m.settings.browser.reuseTabs} onChange={(checked) => void save({ browserReuseExistingTabs: checked })} />
       </PreferenceRow>
+    </SettingsPanel>
+    <SettingsPanel title="证据与授权" scope="本地安全">
       <PreferenceRow title={m.settings.browser.evidenceDir} description={m.settings.browser.evidenceDirDescription}>
         <input
           className="settings-browser-path-input"
@@ -803,6 +684,7 @@ export function BrowserSettingsSection({
         </button>
       </div>
     </SettingsPanel>
+    </>
   );
 }
 
@@ -856,7 +738,7 @@ export function ArchivedSessionsSettingsSection({
       ) : (
         <div className="settings-archived-empty">
           <Archive size={18} aria-hidden />
-          <span>{m.settings.archivedSessions.empty}</span>
+          <div><strong>{m.settings.archivedSessions.empty}</strong><span>归档后的会话会显示在这里，可随时打开或恢复到最近会话。</span></div>
         </div>
       )}
     </SettingsPanel>
@@ -882,8 +764,8 @@ export function DataRetentionSettingsSection({ prefs, save }: { prefs: UserPrefe
 
 export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserPreferences; save: SavePreferences; onReset(): void }) {
   return (
-    <SettingsPanel title={m.settings.workflow.title} scope="后台执行" action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
-      <p className="settings-workflow-desc">{m.settings.workflow.description}</p>
+    <>
+    <SettingsPanel title="阶段规则" scope="内容流程" action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
       <div className="settings-workflow-stages">
         <strong className="settings-workflow-subtitle">{m.settings.workflow.stagesTitle}</strong>
         <p className="settings-workflow-hint">{m.settings.workflow.stagesDescription}</p>
@@ -895,6 +777,8 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
           <li><StatusBadge tone="success">{m.settings.workflow.stagePublished}</StatusBadge><span>{m.settings.workflow.entryPublish}</span></li>
         </ol>
       </div>
+    </SettingsPanel>
+    <SettingsPanel title="草稿与版本" scope="编辑行为">
       <PreferenceRow title={m.settings.workflow.autoSaveTitle} description={m.settings.workflow.autoSaveDesc}>
         <div className="settings-inline-controls">
           <Select ariaLabel="自动保存间隔" size="rect" value={String(prefs.autoSaveIntervalMs)} options={AUTO_SAVE_OPTIONS} onChange={(value) => void save({ autoSaveIntervalMs: Number(value) })} />
@@ -904,31 +788,35 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
       <PreferenceRow title={m.settings.workflow.autoVersionTitle} description={m.settings.workflow.autoVersionDesc}>
         <ToggleSwitch checked={prefs.workflowAutoVersionOnStageChange} label={m.settings.workflow.autoVersionTitle} onChange={(checked) => void save({ workflowAutoVersionOnStageChange: checked })} />
       </PreferenceRow>
+    </SettingsPanel>
+    <SettingsPanel title="审核与发布" scope="发布门禁">
       <PreferenceRow title={m.settings.workflow.reviewGateTitle} description={m.settings.workflow.reviewGateDesc}>
         <ToggleSwitch checked={prefs.workflowReviewRequiredForReady} label={m.settings.workflow.reviewGateTitle} onChange={(checked) => void save({ workflowReviewRequiredForReady: checked })} />
       </PreferenceRow>
       <PreferenceRow title={m.settings.workflow.publishCheckTitle} description={m.settings.workflow.publishCheckDesc}>
         <ToggleSwitch checked={prefs.workflowPublishChecklistEnabled} label={m.settings.workflow.publishCheckTitle} onChange={(checked) => void save({ workflowPublishChecklistEnabled: checked })} />
       </PreferenceRow>
+      <div className="settings-workflow-preview" role="status" aria-label="工作流规则预览">
+        <strong>当前规则预览</strong>
+        <span>草稿：{prefs.workflowAutoSaveDraft ? `每 ${formatInterval(prefs.autoSaveIntervalMs)}自动保存` : "仅手动保存"}</span>
+        <span>推进：{prefs.workflowAutoVersionOnStageChange ? "创建版本快照" : "不创建自动版本"}；{prefs.workflowReviewRequiredForReady ? "审核通过后进入待发布" : "允许跳过审核门禁"}</span>
+        <span>发布：{prefs.workflowPublishChecklistEnabled ? "校验标题、摘要、标签、封面、平台与正文" : "仅校验可导出的正文与平台"}</span>
+      </div>
+    </SettingsPanel>
+    <SettingsPanel title="自动归档" scope="内容生命周期">
       <PreferenceRow title={m.settings.workflow.autoArchiveTitle} description={m.settings.workflow.autoArchiveDesc}>
         <div className="settings-inline-controls">
           <Select ariaLabel="自动归档期限" size="rect" value={String(prefs.archiveAfterDays)} options={AUTO_ARCHIVE_OPTIONS} onChange={(value) => void save({ archiveAfterDays: Number(value) })} />
           <ToggleSwitch checked={prefs.workflowAutoArchiveEnabled} label={m.settings.workflow.autoArchiveTitle} onChange={(checked) => void save({ workflowAutoArchiveEnabled: checked })} />
         </div>
       </PreferenceRow>
-      <div className="settings-workflow-preview" role="status" aria-label="工作流规则预览">
-        <strong>当前规则预览</strong>
-        <span>草稿：{prefs.workflowAutoSaveDraft ? `每 ${formatInterval(prefs.autoSaveIntervalMs)}自动保存` : "仅手动保存"}</span>
-        <span>推进：{prefs.workflowAutoVersionOnStageChange ? "创建版本快照" : "不创建自动版本"}；{prefs.workflowReviewRequiredForReady ? "审核通过后进入待发布" : "允许跳过审核门禁"}</span>
-        <span>发布：{prefs.workflowPublishChecklistEnabled ? "校验标题、摘要、标签、封面、平台与正文" : "仅校验可导出的正文与平台"}</span>
-        <span>自动化：规则、调度与运行历史统一在“自动化”页面管理。</span>
-      </div>
     </SettingsPanel>
+    </>
   );
 }
 
-function SettingsPanel({ title, scope, action, children }: { title: string; scope: string; action?: ReactNode; children: ReactNode }) {
-  return <section className="settings-card" data-entrance-item><header><div className="settings-card-title"><h2>{title}</h2><span>{scope}</span></div>{action}</header><div className="settings-card-body">{children}</div></section>;
+function SettingsPanel({ title, scope, action, variant = "standard", children }: { title: string; scope: string; action?: ReactNode; variant?: "standard" | "resource"; children: ReactNode }) {
+  return <section className={`settings-card settings-card--${variant}`} data-entrance-item><header><div className="settings-card-title"><h2>{title}</h2><span>{scope}</span></div>{action}</header><div className="settings-card-body">{children}</div></section>;
 }
 
 function PreferenceRow({ title, description, children }: { title: string; description: string; children: ReactNode }) {

@@ -50,6 +50,7 @@ trap cleanup EXIT
 pushd "$stage_root" >/dev/null
 npm ci
 npm run build
+npm run prepare:python-runtime
 # The compiled recovery services import Electron-owned Main modules but do not
 # launch Electron. Electron 42 no longer downloads its host binary from npm ci;
 # electron-builder below remains responsible for the packaged target runtime.
