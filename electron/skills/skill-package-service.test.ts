@@ -237,8 +237,11 @@ describe("SkillPackageService", () => {
       ["summarize", "daily-article-summarizer", "^1.0.0"],
       ["select-topic", "daily-topic-selector", "^1.0.0"]
     ]);
-    expect(workflow?.files.map((file) => file.path)).not.toContain("scripts/run_workflow.py");
-    expect(workflow?.files.map((file) => file.path)).not.toContain("workflows.yaml");
+    // Local/cron launcher coexists with the desktop Workflow Engine manifest.
+    // Desktop scheduling still comes only from cctools.skill.yaml above.
+    expect(workflow?.files.map((file) => file.path)).toContain("scripts/run_workflow.py");
+    expect(workflow?.files.map((file) => file.path)).toContain("workflows.yaml");
+    expect(workflow?.files.map((file) => file.path)).toContain("cctools.skill.yaml");
   });
 
   it("migrates only formal Batch A, Batch B and Workflow packages from the real workspace", () => {

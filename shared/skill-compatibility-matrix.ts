@@ -264,7 +264,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "child skills' existing artifacts",
-    notes: "Manifest-only Workflow; reference Skill IDs; step retry/history; single shared root snapshot."
+    notes: "Desktop Workflow Engine via cctools.skill.yaml; local/cron launcher via scripts/run_workflow.py + workflows.yaml; reference Skill IDs; step retry/history; single shared root snapshot."
   }
 ] as const;
 
