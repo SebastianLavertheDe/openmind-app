@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentCheckpointSchema, SkillRunRequestSchema, toStoredSkillRunRequest } from "./execution-contracts";
+import { SkillRunRequestSchema, toStoredSkillRunRequest } from "./execution-contracts";
 
 describe("execution contracts", () => {
   it("stores request shape without input values", () => {
@@ -27,28 +27,6 @@ describe("execution contracts", () => {
       inputs: {},
       trigger: { type: "manual" },
       rootGeneration: 0
-    })).toThrow();
-  });
-
-  it("accepts both provider checkpoint protocols but never accepts tool arguments", () => {
-    const common = { turn: 1, updatedAt: new Date().toISOString() };
-    expect(AgentCheckpointSchema.parse({
-      ...common,
-      protocol: "openai-responses",
-      responseId: "resp-1",
-      toolOutputs: [{ callId: "call-1", output: "[REDACTED]" }]
-    }).protocol).toBe("openai-responses");
-    expect(AgentCheckpointSchema.parse({
-      ...common,
-      protocol: "anthropic-messages",
-      messageId: "msg-1",
-      toolResults: [{ toolUseId: "tool-1", toolName: "mymind_write", output: "[REDACTED]" }]
-    }).protocol).toBe("anthropic-messages");
-    expect(() => AgentCheckpointSchema.parse({
-      ...common,
-      protocol: "anthropic-messages",
-      messageId: "msg-1",
-      toolResults: [{ toolUseId: "tool-1", toolName: "mymind_write", arguments: { content: "secret" }, output: "[REDACTED]" }]
     })).toThrow();
   });
 });

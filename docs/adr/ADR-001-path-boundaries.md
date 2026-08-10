@@ -17,9 +17,11 @@ private state to a single `repoRoot`. Specifically:
 - Product/data services (`ProductService`, `ContentIndexStore`,
   `SourceRegistry`, `MymindFileSearch`, ...) join paths via `repoRoot/mymind`.
 - App state leaked into the project tree under `repoRoot/.cctools`; the old
-  browser-evidence default was one example. The refactored direct-provider
-  path uses explicit user-owned workspace output, while formal Agent Skills
-  use an external Export Location Binding.
+  browser-evidence default was one example. Legacy evidence is migrated to
+  explicit user-owned workspace output. Managed Process Skills may use an
+  external Export Location Binding; CLI-hosted Agent work has no Broker
+  Artifact/export guarantee and must use an explicit location in its Claude
+  Code/Codex session.
 
 This blocks the product goal of running as a standalone desktop app that does
 not require cloning the cctools repository. To make the app independent we
@@ -102,8 +104,10 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
    and refuses to start if they alias or nest.
 2. No new code may call `path.join(repoRoot, ...)`. A `scripts/audit-no-reporoot.js`
    grep fails the build on any re-introduction.
-3. No new code may join `mymind` content paths except through
-   `MymindPathResolver` (App / Internal Agent / App-native Workflow).
+3. No new App or App-native Workflow code may join `mymind` content paths
+   except through `MymindPathResolver`. Claude Code/Codex and approved-host
+   Process Skills run with the OS user's authority and cannot be technically
+   constrained to Resolver paths; the product must state that boundary.
 4. Renderer never receives or sends raw absolute mymind paths for editing;
    it uses `mymind/...` logical paths. Absolute paths shown in UI are for
    display of resources the Main process has already validated.

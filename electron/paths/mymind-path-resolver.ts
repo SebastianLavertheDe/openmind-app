@@ -2,7 +2,7 @@
  * MymindPathResolver — maps logical mymind paths to a single physical
  * `mymindRoot`, with traversal/symlink protection.
  *
- * Frozen by ADR-001 (§5.2) + ADR-002 (layout contract). App, Internal Agent,
+ * Frozen by ADR-001 (§5.2) + ADR-002 (layout contract). App, CLI Agent hosts,
  * and App-native Workflow file operations MUST go through this resolver.
  *
  * Resolution rules (ADR-001 §5.2):

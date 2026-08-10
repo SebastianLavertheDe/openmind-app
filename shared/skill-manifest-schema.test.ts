@@ -103,18 +103,33 @@ describe("SkillManifestSchema", () => {
       expect(m.capabilities.mymind.write).toEqual(["daily-summary/**"]);
     });
 
-    it("accepts an agent manifest (no entrypoint/runtime)", () => {
+    it("accepts a CLI-hosted agent manifest without entrypoint, runtime, or direct API provider", () => {
       const agent: Record<string, unknown> = {
         ...baseProcessManifest(),
         kind: "agent"
       };
       delete agent.entrypoint;
       delete agent.runtime;
-      agent.provider = { required: true, fallbackOk: false };
       const r = validateManifest(agent);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
       expect(r.manifest.kind).toBe("agent");
+      expect("provider" in r.manifest).toBe(false);
+    });
+
+    it("strips obsolete Agent provider settings instead of exposing a direct-API host", () => {
+      const agent: Record<string, unknown> = {
+        ...baseProcessManifest(),
+        kind: "agent",
+        provider: { required: true, fallbackOk: false }
+      };
+      delete agent.entrypoint;
+      delete agent.runtime;
+      const r = validateManifest(agent);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.manifest.kind).toBe("agent");
+      expect("provider" in r.manifest).toBe(false);
     });
 
     it("accepts a workflow manifest with steps", () => {

@@ -101,13 +101,13 @@ describe("ApprovalBanner", () => {
     expect(screen.getByRole("button", { name: "拒绝" })).toBeTruthy();
   });
 
-  it("shows an Internal Agent approval alongside the active AI session", async () => {
+  it("shows a native CLI tool approval for the active AI session", async () => {
     const approval = {
-      ...makeApproval("agent-1", ""),
-      runId: "broker-run-1",
-      sessionId: "agent:broker-run-1",
+      ...makeApproval("cli-tool-1", ""),
+      runId: "cli-run-1",
+      sessionId: "active-session",
       category: "tool" as const,
-      title: "Internal Agent · browser",
+      title: "Codex · browser",
       detail: "{\"action\":\"navigate\",\"url\":\"https://example.com\"}",
       command: undefined
     };

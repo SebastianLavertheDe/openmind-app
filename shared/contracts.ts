@@ -44,11 +44,11 @@ import type {
   ProviderProfile,
   ProviderProfileInput
 } from "./provider-profiles";
-import type { AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+import type { BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
 import { RuntimeTargetSchema, type RuntimePackDownloadDescriptor, type RuntimePackDownloadJob, type RuntimePackReadiness, type RuntimePackId, type RuntimeTarget } from "./runtime-targets";
 
-export type { AgentCheckpoint, AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+export type { BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
 export type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
 export type { RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, RuntimePackId, RuntimeTarget } from "./runtime-targets";
 import type { EnvFileAnalysis } from "./env-file-analysis";
@@ -1059,7 +1059,7 @@ export const UserPreferencesSchema = z.object({
   browserAutomationEnabled: z.boolean().default(false),
   /** URL 已在扩展授权的 Chrome 标签页中打开时，优先复用并在完成后恢复原标签。 */
   browserReuseExistingTabs: z.boolean().default(true),
-  /** 旧版直连 AI 的浏览器证据截图在工作区内的用户输出目录。 */
+  /** CLI Provider 浏览器取证截图在工作区内的用户输出目录。 */
   browserEvidenceDir: z.string().min(1).max(4096).default(DEFAULT_BROWSER_EVIDENCE_DIR),
   destructiveOpsRequireApproval: z.boolean().default(true),
   riskScanEnabled: z.boolean().default(true),
@@ -1365,7 +1365,6 @@ export interface DesktopApi {
   getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;
   listRunArtifacts(runId?: string): Promise<RunArtifact[]>;
   retrySkillRun(runId: string): Promise<BrokerRunRecord>;
-  resumeAgentRun(input: AgentResumeRequest): Promise<BrokerRunRecord>;
   retryWorkflowStep(runId: string, stepId: string): Promise<WorkflowRunRecord>;
   deleteRunHistory(runId: string): Promise<boolean>;
   cancelSkillRun(runId: string): Promise<boolean>;

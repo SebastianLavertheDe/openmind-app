@@ -55,7 +55,7 @@ async function main() {
       manifestValidation: [],
       sessionSchedulerPersistence: [],
       brokerRunRecovery: [],
-      agentBrowserContract: []
+      cliBrowserEvidenceContract: []
     };
     for (let cycle = 0; cycle < config.cycles; cycle += 1) {
       const cycleRoot = path.join(temporaryRoot, `cycle-${cycle}`);
@@ -63,7 +63,7 @@ async function main() {
       tracks.manifestValidation.push(runManifestValidationSoak(SkillManifestSchema));
       tracks.sessionSchedulerPersistence.push(await runSessionSchedulerSoak(SessionStore, cycleRoot));
       tracks.brokerRunRecovery.push(runBrokerRunSoak(RunStore, cycleRoot));
-      tracks.agentBrowserContract.push(runAgentBrowserContractSoak(buildControlledCaptureCode, cycle));
+      tracks.cliBrowserEvidenceContract.push(runCliBrowserEvidenceContractSoak(buildControlledCaptureCode, cycle));
     }
 
     report = {
@@ -246,13 +246,6 @@ function runBrokerRunSoak(RunStore, cycleRoot) {
     }
     store.transition(record.id, "preparing_runtime");
     store.transition(record.id, "running");
-    store.attachAgentCheckpoint(record.id, {
-      protocol: "openai-responses",
-      responseId: `response-${index}`,
-      toolOutputs: [],
-      turn: 0,
-      updatedAt: new Date().toISOString()
-    });
     store.appendOutput(record.id, "stdout", `soak-output-${index}`);
     store.attachUsage(record.id, {
       model: "stability-soak-model",
@@ -280,7 +273,7 @@ function runBrokerRunSoak(RunStore, cycleRoot) {
   };
 }
 
-function runAgentBrowserContractSoak(buildControlledCaptureCode, cycle) {
+function runCliBrowserEvidenceContractSoak(buildControlledCaptureCode, cycle) {
   const started = performance.now();
   let codeBytes = 0;
   for (let index = 0; index < config.browserContractCycles; index += 1) {
@@ -298,7 +291,7 @@ function runAgentBrowserContractSoak(buildControlledCaptureCode, cycle) {
     status: "passed",
     cycles: config.browserContractCycles,
     generatedBytes: codeBytes,
-    mode: "agent-browser-contract-only",
+    mode: "cli-browser-evidence-contract-only",
     liveProviderAndChromeE2E: "manual-required",
     durationMs: round(performance.now() - started)
   };

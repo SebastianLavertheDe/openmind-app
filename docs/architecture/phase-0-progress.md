@@ -95,11 +95,13 @@ Landed in the current implementation:
   app-private `userData/state/<workspace-root-id>` bucket (or a neutral
   `workspace` bucket when no workspace exists); legacy `<repo>/.cctools` is
   never recreated by a new write and is read only during migration fallback.
-- Legacy direct-provider browser evidence now defaults to the explicit,
-  user-owned workspace output `assets/browser-evidence`; the old implicit
-  `.cctools/browser-evidence` setting is migrated once. Formal browser-capable
-  Agent Skills require a unique, non-revoked external Export Location Binding
-  and fail closed instead of falling back to the installed package tree.
+- Legacy browser evidence now defaults to the explicit, user-owned workspace
+  output `assets/browser-evidence`; the old implicit
+  `.cctools/browser-evidence` setting is migrated once. CLI-hosted Agent Skills
+  do not receive a Broker Export Location Binding or an Artifact collection
+  guarantee; any browser evidence location must be explicit in the selected
+  Claude Code/Codex session and must never fall back to the installed package
+  tree.
 - Root switching is guarded at the Main IPC boundary by a worker-reported
   active-task count covering queued/provider/manual-Skill work.
 - Main/Bootstrap no longer requires `.claude/skills` for content readiness;
@@ -263,8 +265,9 @@ Phase 3 follow-up now landed locally:
   closed.
 - Proxy URL validation rejects credentials/query fragments and the explicit
   proxy policy fails closed until a usable endpoint is configured. Main-side
-  connectivity and Internal Agent requests apply HTTP/HTTPS proxy routing and
-  the selected TLS policy.
+  Process Provider connectivity and Broker-injected Process requests apply
+  HTTP/HTTPS proxy routing and the selected TLS policy. Claude Code and Codex
+  use their own CLI configuration instead of this Provider Profile path.
 - `credential-file` bindings materialize only in the active Run's private
   `work/credentials` directory, with restrictive file permissions and
   cleanup before Artifact collection and on process exit. The original secret
@@ -546,8 +549,10 @@ directory), and `agent-browser`. The Workflow references
 the installed Batch B Skill IDs with `^1.0.0` ranges, submits those ranges to
 the Broker, and executes fetch → summary → topic under one Workflow root
 snapshot. The three Agent packages (`agent-browser`, `ai-media-topic-selector`,
-`creative-writing`) declare Provider Profile requirements and logical
-read/write scopes; the two media process skills declare `media-core` (+ optional
+`creative-writing`) are CLI-hosted packages: their canonical Manifests omit
+Agent Provider Profile/Credential bindings, while their logical read/write
+scopes remain instruction and audit metadata. The two media process skills
+declare `media-core` (+ optional
 `speech-whisper`/`cjk-subtitle-fonts`) packs, `video-burnin-subtitles` writes to
 the existing `mymind/video/**` contract, and `video-download` uses an external
 Export Location Binding (`videoExportDir`). The media entries now use a
@@ -560,8 +565,8 @@ template and no longer derives output from `cwd` or the repository tree. The
 installed resolver now resolves declared Export Location templates only from
 validated bindings, and applies Manifest input defaults before resolving args
 and Artifact paths. This remains a static package/contract migration gate; it
-does not claim that Agent Runtime, Runtime Packs or live Provider credentials
-are available on this machine.
+does not claim that Claude Code/Codex CLI, Runtime Packs or live Process
+Provider credentials are available on this machine.
 
 The Workflow package is now manifest-only: its former Python launcher and
 `workflows.yaml` command table were removed, so the desktop Workflow Engine is
@@ -606,23 +611,21 @@ Remaining Phase 6 work:
   clean-machine packaged Runtime verification;
 - promote those packages through a clean-machine packaged `python-core`
   Runtime Pack and retain per-package smoke inputs in the packaged matrix;
-- managed Broker runs use the Provider Profile bridge and fail closed when its
+- managed Process Skill Broker runs use the Provider Profile bridge and fail closed when its
   Credential is absent; the standalone CLI-only provider fallback remains an
   explicit compatibility path outside managed runs, covered by the Batch B
   overlay contract test;
-- keep the installed-root creative chain and Batch B gates green while adding
-  clean-machine packaged dependency installation and per-package smoke
-  coverage. AI Media Topic → Writing Orchestrator → Creative Writing/Asset
-  Collector is already covered by an installed-root E2E using a local Provider
-  Profile; the creative E2E uses the development host Python through a
-  test-only RuntimeManager overlay and does not claim clean-machine
-  dependency installation.
+- keep the Batch B Process gates green while adding clean-machine packaged
+  dependency installation and per-package smoke coverage. Installed Agent
+  packages are covered at the package-to-Codex/Claude bridge contract; live
+  Agent acceptance requires an authenticated external CLI and is not a
+  Provider Profile or RuntimeManager E2E.
 
 ## Phase 7 — Full UI & basic Automation — 🟡 LOCAL UI FOUNDATION COMPLETE
 
 Automation’s former hardcoded three-rule mockup has been replaced by the
 durable Rule/Run API and a real Schedule Builder/History/Artifact surface.
-Creative detail, Sources form/list, Runs history/resume and Runtime GC surfaces
+Creative detail, Sources form/list, Runs history/Workflow resume and Runtime GC surfaces
 are covered by renderer tests and the visual matrix; the current automated
 visual matrix has 60 passing screenshots.
 Runs now exposes safe open/reveal actions for logical Artifact locations;
@@ -633,7 +636,7 @@ The local UI scope now also includes:
 - a standalone Skill Center route with installed/workspace status, source and
   digest details, quarantine import, update/rollback/uninstall, host trust and
   revoke actions;
-- a dynamic per-Skill Run form driven by the Manifest input/config/artifact
+- a dynamic per-Process-Skill Run form driven by the Manifest input/config/artifact
   schema, Provider Profile and Export Location selectors, fixed root snapshot,
   Main-only validation boundary and no Secret/executable fields in Renderer;
 - a diagnostics route with mymind health, environment, Skill Registry,
@@ -658,73 +661,38 @@ preserves the legacy source, reuses both committed and skipped markers, and
 surfaces pending/invalid state through Diagnostics. Packaged Windows/macOS
 clean-machine, crash/repair and manual-upgrade evidence remains external.
 
-## Phase 9 — Internal Agent Runtime — 🟡 FOUNDATION LANDED; 继续完成
+## Phase 9 — Internal Agent Runtime — ⛔ REMOVED; SUPERSEDED BY ADR-010
 
-> **范围说明（2026-08-07）：** Internal Agent Runtime 的第一版已落地
-> （`internal-agent.ts` + Provider adapter + 三个 Agent Skill Broker E2E +
-> 四阶段创作链贯通），继续作为 Phase 9 的基础。用户明确排除的是签名发布、
-> 正式 Linux 和 Signed Catalog；Anthropic 跨重启恢复与 Chrome 扩展真实
-> Browser E2E 仍属于本阶段待办。Delegation 保留为可选 Spike，不作为 GA
-> 前置条件。Agent Skill 仍可经 Internal Runtime 或 External Bridge 运行。
+> **Superseding decision (2026-08-10):** the app-owned provider/tool loop,
+> Internal-Agent-only approvals and Browser tools, Agent Broker execution, and
+> provider checkpoint/resume path described by the former Phase 9 have been
+> removed. The previous implementation and test counts are historical only.
 
-`desktop-app/electron/ai/internal-agent.ts` now provides a host-owned Internal
-Agent runtime for installed `kind: agent` packages. The Agent path uses the
-same Resolver/ExecutionBroker host-consent, queue, mutex, cancellation,
-timeout and Artifact lifecycle as Process Skills. It supports Provider Profile
-OpenAI Chat/Responses and Anthropic HTTP adapters, a bounded tool loop, logical
-`mymind_read`/`mymind_write`, no-shell `shell`, allowlisted `web_fetch`, a
-host-owned bounded Browser action session, and Broker-routed Process/Workflow
-Skill calls. Responses `previous_response_id` continuation and Anthropic
-`tool_use`/`tool_result` continuation are implemented. Declared mymind paths
-are checked for traversal and symlink escapes; risky tools deny by default
-while declared mymind writes remain testable after host execution consent.
-Provider model/token/cost/duration usage is attached to the persisted Broker
-Run record. Provider adapters accept both JSON and bounded SSE responses;
-OpenAI Chat/Responses and Anthropic text/tool deltas are forwarded to the Run
-output stream without duplicating the final message. `internal-agent-execution.test.ts` runs the real
-`ai-media-topic-selector`, `creative-writing`, and `agent-browser` packages
-with one local Provider Profile and verifies the Broker terminal/artifact
-boundary; `creative-agent-chain.test.ts` covers the full AI Media Topic →
-Writing Orchestrator → Creative Writing → Asset Collector chain.
-Internal Agent tool requests reuse the existing `ApprovalRequest`,
-`aiResolveApproval` IPC and ApprovalBanner; approvals are scoped to the
-individual Broker Run, and cancelling a Run releases any pending tool wait.
+Installed `kind: agent` packages now run only from an AI console through the
+selected Claude Code CLI or Codex CLI bridge. The bridge resolves an active,
+ready, exact-digest, `approved-host` package from the app-private SkillStore.
+Codex receives the boundary-checked package `SKILL.md` through its app-server
+bridge; Claude receives bounded package `SKILL.md`/`references` content
+transiently with project-local Skill discovery disabled.
 
-OpenAI Responses Agent sessions now persist a bounded, redacted provider
-checkpoint at successful tool boundaries. `resumeAgentRun` re-enters inputs
-and Provider Profile references, creates a new auditable Run, and leaves the
-interrupted Run unchanged; durable records never contain input values or
-Credential material. Anthropic now has the same host-owned safe-boundary
-recovery path: the durable checkpoint keeps only its message id, tool ids /
-names and redacted tool results, then replays that context after the user
-re-enters inputs. The Anthropic message id is correlation metadata rather than
-a claimed server-side session token.
+ExecutionBroker, manual Skill Run, Automation, Workflow, retry and removed
+Internal Agent resume entry points fail closed for `kind: agent`. They do not
+fall back to direct OpenAI/Anthropic HTTP requests and do not reinterpret an
+Agent as a Process Skill. Consequently CLI Agent work does not inherit Broker
+queue/mutex, timeout, retry, Artifact collection or checkpoint semantics.
 
-The optional local-page live E2E (`browser-tool.live.test.ts`) passed on
-2026-08-07 with the cached managed Chromium executable, exercising the real
-Playwright MCP child process, navigation, snapshot and screenshot. This is
-supporting local evidence only; it does not close the real Chrome-extension
-and user-authorized-tab acceptance. Internal Agent also enforces bounded
-Provider request/response bytes, cumulative Tool output, Token and Cost safety
-ceilings. Runs history now displays recorded model, token, cost and duration
-usage when the Provider returns it. A versioned OpenAI/Anthropic model
-pricing catalog now estimates cost only for known source-backed models when
-the Provider omits cost metadata; unknown models and provider-native endpoints
-remain explicitly unknown, and the Run record labels provider-reported versus
-catalog-estimated cost. Remaining Phase 9 work is the live Chrome-extension
-Browser E2E in a real desktop environment; full Delegation remains an
-optional Spike and is not a GA prerequisite. Formal browser-capable Agent Skills additionally require
-a unique, non-revoked Export Location Binding; the host fails closed instead
-of writing evidence into the installed package tree. The legacy direct-provider
-browser-evidence default is migrated from `.cctools/browser-evidence` to the
-explicit user-owned workspace output `assets/browser-evidence`.
+Provider Profiles, CredentialVault, proxy/TLS policy and scoped secret
+injection remain supported for managed Process Skills. Agent packages do not
+use those bindings; authentication, model selection, provider session
+continuation and native tool approvals belong to the selected CLI. Existing
+historical Run checkpoint fields may be read for compatibility but must never
+restart Agent work.
 
-External Agent Bridge now resolves only an active, ready, `approved-host`
-Agent digest from the app-private SkillStore. Codex receives the package-owned
-absolute `SKILL.md` through app-server input and structured root/capability
-context; Claude receives bounded `SKILL.md`/`references` text transiently with
-project-local skill discovery disabled. Boundary, digest-tamper and Provider
-contract tests cover the bridge.
+Claude Code, Codex and their tools run with the current OS user's privileges.
+Manifest capability/path/Artifact declarations remain package instructions,
+trust gates and audit metadata, not an OS sandbox. Real browser/authorized-tab
+acceptance therefore remains external CLI/desktop evidence. Any future
+CLI-backed Broker execution requires a separate design and ADR.
 
 ## Phase 10 — Runtime packs, full Scheduler, Linux — 🟡 Linux NOT PLANNED
 
@@ -744,18 +712,18 @@ The complete `npm run verify` pipeline passes on the current code. The latest
 single-worker full Vitest run completed 151 passed files / 1,592 passed tests, with 1 skipped live
 Browser test; the integration smoke also passes after its scheduler source scan
 was updated for the `scheduler-execution.ts` split. This does not claim GA. Remaining evidence requires packaged Windows/macOS clean-machine
-runs, real Provider and Chrome-extension environments, packaged migration/crash-
-recovery drills, long-running Scheduler/Agent/Browser soak and
+runs, real Process Provider and CLI/Chrome-extension environments, packaged migration/crash-
+recovery drills, long-running Scheduler/CLI-Agent/Browser soak and
 support/recovery documentation. Signed release, formal Linux support and
 Signed Catalog remain out of scope.
 
 `npm run stability:soak` now runs inside `verify` and writes
 `.build/stability-soak-report.json`: compiled Session/Run persistence survives
 concurrent append and reload, 1000 synthetic Manifests validate, 100 Broker
-Runs reach terminal states without persisting a Secret, and 1000 controlled
-Agent/Browser capture contracts retain bounded failure/restoration paths per
-cycle (3 cycles in the latest report). The last track is contract-only; live
-Provider/Chrome and packaged platform soak remain external.
+Runs reach terminal states without persisting a Secret, and 1000 CLI
+browser-evidence capture contracts retain their bounded screenshot/restore
+guards. This is static bridge evidence, not a live Agent acceptance test. Live
+Claude Code/Codex, Browser and packaged platform soak remain external.
 
 `npm run recovery:drill` now runs as part of `verify` against the compiled
 `.build` Main-process services. It covers legacy-state migration and pending

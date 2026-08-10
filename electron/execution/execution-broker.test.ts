@@ -141,52 +141,6 @@ describe("ExecutionBroker", () => {
     expect(acquired).toBe(1);
     expect(released).toBe(1);
   });
-
-  it("resumes an Agent from a persisted provider checkpoint in a new audit Run", async () => {
-    const checkpoint = {
-      protocol: "openai-responses" as const,
-      responseId: "resp-crashed",
-      toolOutputs: [{ callId: "call-1", output: '{"ok":true}' }],
-      turn: 1,
-      updatedAt: new Date().toISOString()
-    };
-    let seenCheckpoint: typeof checkpoint | undefined;
-    const resumeBroker = new ExecutionBroker(paths, (_request, runId, options) => {
-      seenCheckpoint = options?.agentCheckpoint as typeof checkpoint | undefined;
-      const base = plan(packageRoot, mymindRoot, digest, runId, { mutexes: [] });
-      return Promise.resolve({
-        ...base,
-        agent: {
-          timeoutMs: 5_000,
-          run: async ({ saveCheckpoint }: { saveCheckpoint?: (value: typeof checkpoint | null) => void }) => {
-            if (!seenCheckpoint) {
-              saveCheckpoint?.(checkpoint);
-              return { outcome: "failed" as const, code: 1, signal: null, stdout: "", stderr: "provider interrupted", droppedBytes: 0 };
-            }
-            saveCheckpoint?.(null);
-            return { outcome: "succeeded" as const, code: 0, signal: null, stdout: "", stderr: "", droppedBytes: 0 };
-          }
-        }
-      });
-    }, undefined, { maxConcurrentRuns: 1 });
-    const first = resumeBroker.submit(request());
-    await waitFor(() => resumeBroker.get(first.id).state === "waiting_execution_consent");
-    expect(resumeBroker.approveExecution(first.id)).toBe(true);
-    await waitFor(() => resumeBroker.get(first.id).state === "failed");
-    expect(resumeBroker.get(first.id).agentCheckpoint).toEqual(checkpoint);
-
-    const resumed = resumeBroker.resumeAgentRun({
-      runId: first.id,
-      inputs: { task: "re-entered" },
-      providerBindings: { default: "provider-main" },
-      rootGeneration: 1
-    });
-    expect(resumed.id).not.toBe(first.id);
-    expect(resumed.resumedFromRunId).toBe(first.id);
-    await waitFor(() => resumeBroker.get(resumed.id).state === "succeeded");
-    expect(seenCheckpoint).toEqual(checkpoint);
-    expect(resumeBroker.get(resumed.id).agentCheckpoint).toBeNull();
-  });
 });
 
 function request() {

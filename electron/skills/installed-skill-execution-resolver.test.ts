@@ -10,13 +10,13 @@ import { SkillRunRequestSchema } from "../../shared/execution-contracts";
 import type { ProviderProfile } from "../../shared/provider-profiles";
 import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
-import { ExecutionBroker, type ExecutionPlan } from "../execution/execution-broker";
+import { ExecutionBroker } from "../execution/execution-broker";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
 import { RuntimePackService } from "../runtime/runtime-pack-service";
 import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
 import { SkillPackageService } from "./skill-package-service";
-import { InstalledSkillExecutionResolver, type AgentPlanFactory } from "./installed-skill-execution-resolver";
+import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
 
 const roots: string[] = [];
 
@@ -84,8 +84,9 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
   });
 
-  it("uses a local Agent .env provider without requiring a Provider Profile binding", async () => {
-    const createAgentPlan = vi.fn<AgentPlanFactory>((input) => stubAgentPlan(input));
+  it("rejects Broker execution for Agent Skills even when a direct API .env is present", async () => {
+    const resolveProviderProfile = vi.fn((profileId: string) => profileId === "profile-main" ? providerProfile() : null);
+    const resolveCredential = vi.fn(async () => "agent-local-secret");
     const fixture = createBatchAFixture("creative-writing", {
       localEnv: [
         "CCTOOLS_PROVIDER_API_KEY=agent-local-secret",
@@ -93,7 +94,8 @@ describe("InstalledSkillExecutionResolver", () => {
         "CCTOOLS_PROVIDER_MODEL=local-agent-model",
         "CCTOOLS_PROVIDER_PROTOCOL=openai-responses"
       ].join("\n"),
-      createAgentPlan
+      resolveProviderProfile,
+      resolveCredential
     });
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
@@ -102,7 +104,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(fixture.packages.getActiveInstalled("creative-writing")?.sourcePath).toBe(fixture.source);
     expect(fixture.resolver.listDefinitions()[0]?.envFile).toBe(".env");
 
-    await fixture.resolver.resolve(SkillRunRequestSchema.parse({
+    await expect(fixture.resolver.resolve(SkillRunRequestSchema.parse({
       skillId: "creative-writing",
       version: "1.0.0",
       digest: fixture.digest,
@@ -111,18 +113,9 @@ describe("InstalledSkillExecutionResolver", () => {
       trigger: { type: "manual" },
       externalExportBindingIds: [],
       rootGeneration: 1
-    }), "run-agent-env");
-
-    expect(createAgentPlan).toHaveBeenCalledWith(expect.objectContaining({
-      provider: expect.objectContaining({
-        id: "local-skill-env",
-        baseUrl: "https://api.example.com/v1",
-        model: "local-agent-model",
-        protocol: "openai-responses",
-        credentialId: null
-      }),
-      providerSecretValue: "agent-local-secret"
-    }));
+    }), "run-agent-env")).rejects.toThrow(/Claude Code CLI.*Codex CLI/);
+    expect(resolveProviderProfile).not.toHaveBeenCalled();
+    expect(resolveCredential).not.toHaveBeenCalled();
   });
 
   it("pins package digest, manifest input templates and managed Runtime executable", async () => {
@@ -134,7 +127,7 @@ describe("InstalledSkillExecutionResolver", () => {
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-3");
     expect(plan.version).toBe("1.0.0");
     expect(plan.digest).toBe(fixture.digest);
-    expect(plan.process.executable).toBe(process.execPath);
+    expect(plan.process.executable).toBe(fs.realpathSync(process.execPath));
     expect(plan.process.args.at(-1)).toBe("20260805");
     expect(plan.process.cwd).toContain("1.0.0-");
     expect(plan.requiresHostConsent).toBe(true);
@@ -238,9 +231,9 @@ describe("InstalledSkillExecutionResolver", () => {
   it("loads the source Skill .env at run time and does not require a Provider Profile", async () => {
     const fixture = createFixture(true);
     fs.writeFileSync(path.join(fixture.source, ".env"), [
-      "NVIDIA_API_KEY=local-env-secret",
-      "NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1",
-      "NVIDIA_MODEL=minimaxai/minimax-m2.1"
+      "DOUBAO_API_KEY=local-env-secret",
+      "DOUBAO_API_BASE_URL=https://ark.cn-beijing.volces.com/api/v3",
+      "DOUBAO_MODEL=doubao-seed-2-0-mini-260215"
     ].join("\n"));
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
@@ -250,12 +243,12 @@ describe("InstalledSkillExecutionResolver", () => {
     await plan.prepareRuntime?.();
 
     expect(plan.process.env).toMatchObject({
-      NVIDIA_API_KEY: "local-env-secret",
-      NVIDIA_API_BASE_URL: "https://integrate.api.nvidia.com/v1",
-      NVIDIA_MODEL: "minimaxai/minimax-m2.1",
+      DOUBAO_API_KEY: "local-env-secret",
+      DOUBAO_API_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3",
+      DOUBAO_MODEL: "doubao-seed-2-0-mini-260215",
       CCTOOLS_PROVIDER_API_KEY: "local-env-secret",
-      CCTOOLS_PROVIDER_BASE_URL: "https://integrate.api.nvidia.com/v1/chat/completions",
-      CCTOOLS_PROVIDER_MODEL: "minimaxai/minimax-m2.1",
+      CCTOOLS_PROVIDER_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      CCTOOLS_PROVIDER_MODEL: "doubao-seed-2-0-mini-260215",
       CCTOOLS_PROVIDER_PROTOCOL: "openai-chat"
     });
     expect(plan.process.env.API_TOKEN).toBeUndefined();
@@ -1410,7 +1403,7 @@ function createFixture(
       if (credentialId !== "credential-token" || scope.skillId !== "resolver-fixture" || scope.digest !== digest) throw new Error("unexpected credential scope");
       return "credential-secret";
     }, options.externalExport ? (bindingId) => bindingId === "exportDir" ? { bindingId, canonicalPath: externalRoot } : undefined : undefined,
-    withProvider ? (profileId) => profileId === "profile-main" ? providerProfile() : null : undefined, undefined,
+    withProvider ? (profileId) => profileId === "profile-main" ? providerProfile() : null : undefined,
     options.credentialFile ? async () => "credential-file" : undefined, credentialFiles),
     key,
     digest,
@@ -1429,7 +1422,6 @@ function createBatchAFixture(
     resolveCredential?: (credentialId: string, scope: { skillId: string; digest: string }) => Promise<string>;
     /** Optional local .env placed beside a temporary source copy. */
     localEnv?: string;
-    createAgentPlan?: AgentPlanFactory;
   } = {}
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-batch-a-installed-"));
@@ -1464,38 +1456,12 @@ function createBatchAFixture(
       1,
       opts.resolveCredential,
       undefined,
-      opts.resolveProviderProfile,
-      opts.createAgentPlan
+      opts.resolveProviderProfile
     ),
     key: installed.key,
     digest: installed.digest,
     mymindRoot,
     source
-  };
-}
-
-function stubAgentPlan(input: Parameters<AgentPlanFactory>[0]): ExecutionPlan {
-  return {
-    skillId: input.manifest.id,
-    version: input.manifest.version,
-    digest: input.digest,
-    rootGeneration: input.rootGeneration,
-    skillHome: input.packageRoot,
-    mymindRoot: input.mymindRoot,
-    capabilities: input.manifest.capabilities,
-    process: {
-      executable: process.execPath,
-      args: [],
-      cwd: input.packageRoot,
-      env: {},
-      timeoutMs: input.manifest.execution.timeoutSeconds * 1000,
-      gracefulStopMs: input.manifest.execution.gracefulStopSeconds * 1000
-    },
-    agent: {
-      timeoutMs: input.manifest.execution.timeoutSeconds * 1000,
-      run: async () => ({ outcome: "succeeded", code: 0, signal: null, stdout: "", stderr: "", droppedBytes: 0 })
-    },
-    artifacts: []
   };
 }
 

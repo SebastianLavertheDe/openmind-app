@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProviderPrewarmContext, ProviderRunContext } from "./types";
 
@@ -591,7 +593,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
   });
 
   it("从 SkillStore 注入 Agent instructions，并禁用 project-local skill discovery", async () => {
-    const tmpDir = fs.mkdtempSync("/tmp/cctools-claude-bridge-");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-claude-bridge-"));
     fs.mkdirSync(`${tmpDir}/references`, { recursive: true });
     fs.writeFileSync(`${tmpDir}/SKILL.md`, "# Installed Agent\n执行受控任务。\n");
     fs.writeFileSync(`${tmpDir}/references/rules.md`, "只写入声明的 Artifact。\n");

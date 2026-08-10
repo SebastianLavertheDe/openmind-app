@@ -9,7 +9,6 @@ import {
   type BrokerRunRecord,
   type BrokerRunState,
   type BrokerTerminalState,
-  type AgentCheckpoint,
   type SkillRunRequest,
   toStoredSkillRunRequest
 } from "../../shared/execution-contracts";
@@ -44,8 +43,7 @@ export class RunStore {
 
   create(
     request: SkillRunRequest,
-    runId = crypto.randomUUID(),
-    options: { agentCheckpoint?: AgentCheckpoint | null; resumedFromRunId?: string | null } = {}
+    runId = crypto.randomUUID()
   ): BrokerRunRecord {
     if (this.records.has(runId)) throw new Error(`Run 已存在：${runId}`);
     const createdAt = this.now().toISOString();
@@ -66,8 +64,8 @@ export class RunStore {
       processPid: null,
       orphanPid: null,
       usage: null,
-      agentCheckpoint: options.agentCheckpoint || null,
-      resumedFromRunId: options.resumedFromRunId || null,
+      agentCheckpoint: null,
+      resumedFromRunId: null,
       artifacts: []
     });
     this.records.set(runId, record);
@@ -147,14 +145,6 @@ export class RunStore {
   attachUsage(runId: string, usage: BrokerRunRecord["usage"]): BrokerRunRecord {
     const current = this.get(runId);
     const next = BrokerRunRecordSchema.parse({ ...current, usage });
-    this.records.set(runId, next);
-    this.persist(next);
-    return cloneRecord(next);
-  }
-
-  attachAgentCheckpoint(runId: string, checkpoint: AgentCheckpoint | null): BrokerRunRecord {
-    const current = this.get(runId);
-    const next = BrokerRunRecordSchema.parse({ ...current, agentCheckpoint: checkpoint });
     this.records.set(runId, next);
     this.persist(next);
     return cloneRecord(next);

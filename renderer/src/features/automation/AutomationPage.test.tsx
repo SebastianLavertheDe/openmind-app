@@ -147,7 +147,7 @@ describe("AutomationPage", () => {
     expect(container.querySelector(".automation-editor-card")).toBeTruthy();
     expect(container.querySelector(".automation-editor-grid")).toBeTruthy();
     expect(container.querySelector(".cron-row")).toBeNull();
-    expect(container.querySelectorAll(".automation-editor-grid .ui-select").length).toBe(3);
+    expect(container.querySelectorAll(".automation-editor-grid .ui-select").length).toBe(1);
     expect(screen.getByText("调度设置")).toBeTruthy();
     expect(screen.getByLabelText("每日时间")).toBeTruthy();
 
@@ -171,14 +171,12 @@ describe("AutomationPage", () => {
 
     fireEvent.change(screen.getByLabelText("触发类型"), { target: { value: "interval" } });
     fireEvent.change(screen.getByLabelText("间隔分钟"), { target: { value: "30" } });
-    fireEvent.change(screen.getByLabelText("Automation 输入 JSON"), { target: { value: '{"date":"20260809"}' } });
     fireEvent.click(screen.getByRole("button", { name: /保存规则/ }));
 
     await waitFor(() => expect(saveAutomationRule).toHaveBeenCalledTimes(1));
     expect(saveAutomationRule.mock.calls[0][0]).toMatchObject({
       target: { type: "skill", id: "daily-article-summarizer" },
-      trigger: { type: "interval", everyMinutes: 30 },
-      inputs: { date: "20260809" }
+      trigger: { type: "interval", everyMinutes: 30 }
     });
   });
 

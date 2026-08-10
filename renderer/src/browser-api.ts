@@ -601,7 +601,6 @@ export function installBrowserPreviewApi(): boolean {
     getSkillRunEvents: async () => [],
     listRunArtifacts: async () => [],
     retrySkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
-    resumeAgentRun: async () => { throw new Error("浏览器预览不执行真实 Agent Run。 "); },
     retryWorkflowStep: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
     deleteRunHistory: async () => false,
     cancelSkillRun: async () => false,

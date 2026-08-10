@@ -50,10 +50,11 @@ in the first place (ADR-004).
 | Arbitrary subprocess | declared capability; Broker tracks the process tree; best-effort kill on stop; residual reporting | spawned children that double-fork can escape tracking |
 | Infinite log/file/CPU/memory | limits on stdout size, file count/size, timeout, graceful-stop, CPU/memory quotas (best-effort on platforms that lack enforcement) | — |
 | Process tree escape | Windows Job Object; POSIX process group; orphan detection on worker restart | untrackable descendants |
-| Agent prompt injection | instructions & web content treated as untrusted; approval per tool class; max iterations; prompt-injection defence prompts | — |
+| Agent prompt injection | instructions & web content are untrusted; only exact-digest, `approved-host` packages cross the CLI bridge; Claude Code/Codex own tool approval and session controls | the external CLI and its tools retain the OS user's authority; the app cannot enforce per-tool or per-path isolation |
+| Agent provider secret confusion | Agent bridge never resolves a Provider Profile, injects its Credential, or loads a Skill `.env`; CLI authentication stays in the selected CLI | a CLI may use credentials from its own user configuration, outside the App CredentialVault boundary |
 | Malicious update | three independent signed chains; trust chain (ADR-009) is a gate, not optional | — |
 | Crash mid-migration leaves half-state | staging + atomic switch + schemaVersion last; fail does not change active | — |
-| mymind modified by 3rd-party approved-host skill | pre/post tree audit; alarm + abort workflow on new top-level/rename/delete; Resolver enforced only for app/internal-agent | cannot technically prevent — only detect & alarm |
+| mymind modified by 3rd-party approved-host skill or external CLI | pre/post tree audit for managed Process/Workflow runs; App/App-native Workflow paths use the Resolver; bridge package/reference paths are boundary-checked | cannot technically prevent an external CLI or approved-host process from modifying other paths — only detect where an App-owned audit exists |
 
 ## 4. Security acceptance (must pass before GA)
 
@@ -75,7 +76,9 @@ in the first place (ADR-004).
   executionTrust → inspect-only.
 - Tampered runtime → refused.
 - `executionTrust=inspect-only` cannot run.
-- Manual run cannot bypass executionTrust / risk confirmation / Broker.
+- Managed Process/Workflow manual run cannot bypass executionTrust, risk
+  confirmation or Broker. Agent Skills have no manual/Broker run path: only an
+  approved package may cross the selected Claude Code/Codex AI-console bridge.
 - Publisher revocation + key rotation have a tested recovery path.
 
 ## 5. Out of scope (explicit non-goals)

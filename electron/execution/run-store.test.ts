@@ -85,26 +85,6 @@ describe("RunStore", () => {
     expect(() => store.deleteHistory("run-active")).toThrow(/已经结束/);
     expect(store.get("run-active").state).toBe("queued");
   });
-
-  it("persists a bounded Agent checkpoint without persisting request values", () => {
-    const root = makeRoot();
-    const checkpoint = {
-      protocol: "openai-responses" as const,
-      responseId: "resp-1",
-      toolOutputs: [{ callId: "call-1", output: '{"path":"creative/result.md"}' }],
-      turn: 1,
-      updatedAt: new Date().toISOString()
-    };
-    const first = new RunStore(root);
-    const run = first.create(request({ task: "private task" }), "run-agent", { agentCheckpoint: checkpoint });
-    expect(run.agentCheckpoint).toEqual(checkpoint);
-    first.attachAgentCheckpoint(run.id, null);
-    first.attachAgentCheckpoint(run.id, checkpoint);
-
-    const reopened = new RunStore(root);
-    expect(reopened.get(run.id).agentCheckpoint).toEqual(checkpoint);
-    expect(fs.readFileSync(path.join(root, run.id, "run.json"), "utf8")).not.toContain("private task");
-  });
 });
 
 function request(inputs: Record<string, unknown> = {}) {

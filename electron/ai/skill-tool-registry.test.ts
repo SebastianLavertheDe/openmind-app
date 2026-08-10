@@ -240,8 +240,8 @@ describe("SkillToolRegistry", () => {
       const skill = registry.list()[0];
       const skillDir = path.join(root, skill.cwd);
       fs.writeFileSync(path.join(skillDir, ".env"), [
-        "NVIDIA_API_KEY=nvapi-skill-local",
-        "NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1"
+        "DOUBAO_API_KEY=local-skill-secret",
+        "DOUBAO_API_BASE_URL=https://ark.cn-beijing.volces.com/api/v3"
       ].join("\n"));
       let childRef: ReturnType<typeof makeFakeChild> | null = null;
       let spawnedEnv: Record<string, string> = {};
@@ -257,8 +257,8 @@ describe("SkillToolRegistry", () => {
       await runPromise;
 
       expect(spawnedEnv).toMatchObject({
-        NVIDIA_API_KEY: "nvapi-skill-local",
-        NVIDIA_API_BASE_URL: "https://integrate.api.nvidia.com/v1",
+        DOUBAO_API_KEY: "local-skill-secret",
+        DOUBAO_API_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3",
         CCTOOLS_SKILL_ID: skill.id
       });
     });
@@ -405,6 +405,7 @@ describe("SkillToolRegistry", () => {
     }));
     const installedResolver = {
       active: vi.fn(() => active),
+      assertBrokerRunnable: vi.fn(),
       resolve: resolve as unknown as InstalledSkillExecutionResolver["resolve"]
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1, installedResolver });
@@ -423,7 +424,37 @@ describe("SkillToolRegistry", () => {
       version: "1.0.0",
       digest,
       inputs: { date: "20260805", sourceId: "source-1", sourceUrl: "https://example.com/feed" }
-    }), expect.any(String), expect.any(Object));
+    }), expect.any(String));
+  });
+
+  it("Agent Skill 在创建 Broker Run 前被引导到 Claude Code/Codex CLI", () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const installedResolver = {
+      assertBrokerRunnable: vi.fn(() => {
+        throw new Error("Agent Skill 仅支持通过 AI 控制台使用 Claude Code CLI 或 Codex CLI 运行。 ");
+      }),
+      resolve: vi.fn()
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, {
+      paths,
+      mymindRoot,
+      rootGeneration: 1,
+      installedResolver
+    });
+
+    expect(() => registry.submitRun({
+      skillId: "creative-writing",
+      inputs: {},
+      providerBindings: {},
+      trigger: { type: "manual" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    })).toThrow("Claude Code CLI 或 Codex CLI");
+    expect(registry.listRuns()).toEqual([]);
   });
 
   it("通用 Skill Run 不再把 Legacy workspace Skill 当作可执行 Installed Skill", async () => {

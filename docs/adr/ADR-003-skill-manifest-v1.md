@@ -111,7 +111,8 @@ compatibility:
 `compatibility.minAppVersion`.
 
 **Conditionally required:**
-- `runtime` (process kind only; agent kind uses `provider`).
+- `runtime` (process kind only; Agent execution is hosted by the selected
+  Claude Code or Codex CLI).
 - `inputs` (if the skill takes run inputs).
 - `capabilities.mymind.write` (if the skill writes to mymind; patterns must be
   a subset of `mymind-layout-v1` contentContract).
@@ -132,9 +133,11 @@ compatibility:
 - **workflow:** has `workflow.steps[]` referencing installed skill IDs +
   version ranges. Never concatenates sub-skill commands. Each step runs
   through the Broker independently.
-- **agent:** `SKILL.md` is the entrypoint; executed by `ExternalAgentHost`
-  (Codex/Claude bridge) or `InternalAgentHost`. No fake python/uv command is
-  shown in UI. References must stay within the package boundary.
+- **agent:** `SKILL.md` is the entrypoint; executed only by the selected
+  Claude Code CLI or Codex CLI bridge from an AI console session. It has no
+  Process entrypoint and no app-owned provider/tool loop. Broker, manual Run,
+  Automation and Workflow submissions fail closed. References must stay
+  within the installed package boundary.
 
 ### 5. Templating
 
@@ -152,6 +155,12 @@ Templates are resolved by the Broker at run-prepare time, **after** schema
 validation, and the resolved values are schema-checked again. Provider Profile
 metadata is never persisted as a Secret value, and unresolved/extra bindings
 fail closed.
+
+Provider templates and `provider-profile` config bindings apply to managed
+Process execution. They are not an Agent host selection mechanism. An Agent
+uses the authentication and model configuration of the Claude Code or Codex
+CLI selected for its AI session; the Agent bridge does not resolve a Provider
+Profile, inject its Credential, or load a Skill `.env` provider fallback.
 
 ### 6. Legacy adapter
 

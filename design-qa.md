@@ -158,7 +158,11 @@ final result: passed
 - Focused UI tests: 5 files, 64 tests passed.
 - TypeScript renderer and Electron checks passed.
 - Renderer production build passed.
-- Full unit suite still has unrelated environment/platform failures (`/tmp` unavailable, Windows path separator assertion, and existing internal-agent request failures).
+- At the time of this capture, the full unit suite still had unrelated
+  environment/platform failures (`/tmp` unavailable and a Windows executable
+  canonicalization assertion). Those cross-platform test fixtures were later
+  corrected. The Internal Agent request failures mentioned in the original
+  note are obsolete under ADR-010 because that runtime was removed.
 
 final result: blocked
 

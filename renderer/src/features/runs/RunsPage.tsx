@@ -136,29 +136,6 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
     }
   };
 
-  const resumeAgent = async () => {
-    if (!selected || selected.kind !== "skill" || !canResumeAgent(selected.record)) return;
-    try {
-      const parsed = JSON.parse(resumeInputs);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("恢复输入必须是 JSON object。 ");
-      const providerId = selected.record.request.providerBindingIds[0];
-      if (!providerId) throw new Error("恢复 Agent 需要重新提供 Provider Profile 绑定。 ");
-      setResumeBusy(true);
-      const next = await window.cctools.resumeAgentRun({
-        runId: selected.record.id,
-        inputs: parsed as Record<string, unknown>,
-        providerBindings: { default: providerId },
-        rootGeneration: selected.record.rootGeneration
-      });
-      await load();
-      setSelectedKey(`skill:${next.id}`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setResumeBusy(false);
-    }
-  };
-
   return (
     <div className="feature-page runs-page">
       <header className="runs-page-header">
@@ -193,7 +170,6 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
               <div className="run-actions">
                 {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" onClick={() => void cancel()}><X size={14} />取消</button> : null}
                 {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void retry()}><RotateCcw size={14} />重试</button> : null}
-                {selected.kind === "skill" && canResumeAgent(selected.record) ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeAgent()} disabled={resumeBusy}><RotateCcw size={14} />{resumeBusy ? "恢复中…" : "恢复 Agent"}</button> : null}
                 {selected.kind === "workflow" && selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}><RotateCcw size={14} />{resumeBusy ? "恢复中…" : "恢复 Workflow"}</button> : null}
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteHistory()}><Trash2 size={14} />删除历史</button>
               </div>
@@ -217,7 +193,6 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
               {selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <section className="run-section run-resume-section"><h3>恢复输入</h3><p className="runs-muted">应用重启后不会保存 Workflow 输入。确认 active Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Workflow 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
               <WorkflowSteps record={selected.record} onRetry={retryStep} />
             </> : <>
-              {canResumeAgent(selected.record) ? <section className="run-section run-resume-section"><h3>恢复 Agent</h3><p className="runs-muted">只恢复 provider 的 Responses checkpoint；原 Run 保留为审计记录。不会从历史中读取本次输入或 Credential，请重新提供非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Agent 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeAgent()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
               <section className="run-section"><h3>运行产物</h3><ArtifactList artifacts={selectedArtifacts} /></section>
               <section className="run-section"><h3>事件</h3><EventList events={events} /></section>
             </>}
@@ -257,9 +232,6 @@ function EventList({ events }: { events: BrokerRunEvent[] }) {
 function entryKey(entry: RunEntry): string { return `${entry.kind}:${entry.record.id}`; }
 function isTerminal(state: string): boolean { return ["succeeded", "failed", "timed_out", "cancelled"].includes(state); }
 function canRetry(state: string): boolean { return ["failed", "timed_out", "cancelled"].includes(state); }
-function canResumeAgent(record: BrokerRunRecord): boolean {
-  return canRetry(record.state) && record.agentCheckpoint?.protocol === "openai-responses";
-}
 function stateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
 function stateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "等待授权", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" } as Record<string, string>)[state] || state; }
 function formatTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }

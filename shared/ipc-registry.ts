@@ -123,7 +123,6 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "getSkillRunEvents", channel: IPC.SKILL_RUN_EVENTS },
   { method: "listRunArtifacts", channel: IPC.RUN_LIST_ARTIFACTS },
   { method: "retrySkillRun", channel: IPC.RUN_RETRY },
-  { method: "resumeAgentRun", channel: IPC.AGENT_RUN_RESUME },
   { method: "retryWorkflowStep", channel: IPC.RUN_RETRY_STEP },
   { method: "deleteRunHistory", channel: IPC.RUN_DELETE_HISTORY },
   { method: "cancelSkillRun", channel: IPC.SKILL_RUN_CANCEL },

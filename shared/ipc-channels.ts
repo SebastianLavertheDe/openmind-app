@@ -121,7 +121,6 @@ export const IPC = {
   SKILL_RUN_EVENTS: "skill:run-events",
   RUN_LIST_ARTIFACTS: "run:list-artifacts",
   RUN_RETRY: "run:retry",
-  AGENT_RUN_RESUME: "agent:run-resume",
   RUN_RETRY_STEP: "run:retry-step",
   RUN_DELETE_HISTORY: "run:delete-history",
   SKILL_RUN_CANCEL: "skill:run-cancel",

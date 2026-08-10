@@ -62,16 +62,26 @@ terminal state or the recovery steps below have been completed.
 
 ## Run, Agent and Provider failures
 
-- A failed or cancelled Run can be inspected and retried from Runs. A Run
-  marked interrupted after restart is terminal failed and remains auditable.
+- A failed or cancelled managed Process/Workflow Run can be inspected and
+  retried from Runs. A Run marked interrupted after restart is terminal failed
+  and remains auditable.
 - If Diagnostics reports a possible orphan PID, do not automatically kill a
   reused PID. Record the PID and let an operator identify the process before
   terminating it.
-- Provider profiles store references to credentials, not credential values in
-  Run metadata. Native Provider and WSL diagnostics must be investigated
-  separately; Provider E2E is not closed by unit or local contract tests.
-- Internal Agent approval, path policy, tool/output limits and Artifact
-  declarations are host-owned. Chrome extension and user-authorized Browser
+- An Agent Skill runs only from an AI console using the selected, available
+  Claude Code CLI or Codex CLI and `/skill-id ...`. Authentication, model
+  selection, session continuation and tool approval are owned by that CLI.
+- Submitting `kind: agent` through manual Skill Run, ExecutionBroker,
+  Automation, Workflow, Broker retry or the removed Internal Agent resume API
+  is intentionally rejected. Do not work around that failure by treating the
+  Agent as a Process Skill or by adding a direct provider/API-key fallback.
+- Provider Profiles store references to credentials, not credential values in
+  Run metadata. They remain the managed Process API connection mechanism and
+  are not Agent host configuration. Agent CLI login/configuration and Process
+  Provider diagnostics must be investigated separately.
+- Claude Code/Codex and their tools have the current user's OS privileges.
+  Package trust, CLI-native approvals, capability text and Artifact
+  declarations are not a sandbox. Chrome extension and user-authorized Browser
   E2E require the real desktop environment and remain manual evidence.
 
 ## Backup and restore

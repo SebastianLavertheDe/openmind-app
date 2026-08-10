@@ -329,6 +329,11 @@ function dueFor(
   }
   const parts = zonedParts(at, rule.timezone);
   const key = `${parts.year}-${parts.month}-${parts.day}-${parts.hour}-${parts.minute}`;
+  if (trigger.type === "hourly") {
+    const hourKey = `${parts.year}-${parts.month}-${parts.day}-${parts.hour}`;
+    const due = parts.minute === 0 && rule.lastScheduledKey !== hourKey;
+    return due ? { reason: "hourly", scheduledFor: at, key: hourKey, missed: false } : null;
+  }
   if (trigger.type === "daily") {
     const due = `${parts.hour}:${parts.minute}` >= trigger.at && rule.lastScheduledKey !== key.slice(0, 10);
     return due ? { reason: `daily:${trigger.at}`, scheduledFor: at, key: key.slice(0, 10), missed: `${parts.hour}:${parts.minute}` > trigger.at } : null;
@@ -375,6 +380,10 @@ function nextRunAt(rule: AutomationRule, from: Date): string | null {
   const start = new Date(from);
   start.setSeconds(0, 0);
   if (start.getTime() < from.getTime()) start.setMinutes(start.getMinutes() + 1);
+  if (rule.trigger.type === "hourly") {
+    const parts = zonedParts(start, rule.timezone);
+    return (parts.minute === 0 ? start : new Date(start.getTime() + (60 - parts.minute) * 60_000)).toISOString();
+  }
   for (let offset = 0; offset <= 8 * 24 * 60; offset++) {
     const candidate = new Date(start.getTime() + offset * 60_000);
     const parts = zonedParts(candidate, rule.timezone);

@@ -95,7 +95,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));
     case "run-list-artifacts": return scheduler.listRunArtifacts(typeof first === "string" && first ? first : undefined);
     case "run-retry": return scheduler.retrySkillRun(String(first));
-    case "agent-run-resume": return scheduler.resumeAgentRun(first as never);
     case "credential-revoked": return scheduler.revokeCredential(String(first));
     case "credential-available": return scheduler.restoreCredential(String(first));
     case "credential-replaced": return scheduler.rotateCredential(String(first));

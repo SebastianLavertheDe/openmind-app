@@ -59,7 +59,7 @@ import { getAppPaths } from "./paths/app-paths-service";
 import { previewMymindRelocation, relocateMymind } from "./paths/mymind-relocation-service";
 import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
-import { AgentResumeRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
+import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import { RuntimePackIdSchema, RuntimePackMetadataSchema, RuntimeTargetSchema, type RuntimePackMetadata } from "../shared/runtime-targets";
 
@@ -881,7 +881,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.getSkillRunEvents, handler: (runId) => ai().call("skill-run-events", parseString(runId)) },
     { channel: C.listRunArtifacts, handler: (runId) => ai().call("run-list-artifacts", parseOptionalString(runId)) },
     { channel: C.retrySkillRun, handler: (runId) => ai().call("run-retry", parseString(runId)) },
-    { channel: C.resumeAgentRun, handler: (input) => ai().call("agent-run-resume", AgentResumeRequestSchema.parse(input)) },
     { channel: C.retryWorkflowStep, handler: (runId, stepId) => ai().call("run-retry-step", parseString(runId), parseString(stepId)) },
     { channel: C.deleteRunHistory, handler: (runId) => ai().call("run-delete-history", parseString(runId)) },
     { channel: C.cancelSkillRun, handler: (runId) => ai().call("skill-run-cancel", parseString(runId)) },

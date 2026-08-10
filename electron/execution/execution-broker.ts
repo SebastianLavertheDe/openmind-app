@@ -3,10 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type { AppPaths } from "../paths/app-paths-service";
 import {
-  AgentResumeRequestSchema,
   SkillRunRequestSchema,
-  type AgentCheckpoint,
-  type AgentResumeRequest,
   type BrokerRunEvent,
   type BrokerRunRecord,
   type SkillRunRequest
@@ -25,17 +22,7 @@ export type ExecutionPlan = {
   skillHome: string;
   mymindRoot: string;
   capabilities: unknown;
-  /** Process plans use the host ProcessHost. Agent plans use the in-process
-   * tool loop below the same consent, queue, mutex and Artifact lifecycle. */
   process: ProcessSpec;
-  agent?: {
-    timeoutMs: number;
-    run(input: {
-      signal: AbortSignal;
-      onOutput(stream: "system" | "stdout" | "stderr", text: string): void;
-      saveCheckpoint?(checkpoint: AgentCheckpoint | null): void;
-    }): Promise<ProcessResult>;
-  };
   /** Number of retries after the first process attempt. */
   retry?: { maxAttempts: number };
   maxInstances?: number;
@@ -62,13 +49,8 @@ export type ExecutionPlan = {
 
 export type ExecutionPlanResolver = (
   request: SkillRunRequest,
-  runId: string,
-  options?: { agentCheckpoint?: AgentCheckpoint }
+  runId: string
 ) => Promise<ExecutionPlan>;
-export type ExecutionSubmitOptions = {
-  agentCheckpoint?: AgentCheckpoint | null;
-  resumedFromRunId?: string | null;
-};
 
 type QueuedExecution = { request: SkillRunRequest; runId: string; plan: ExecutionPlan };
 type ActiveExecution = { controller: AbortController; skillId: string; mutexes: string[]; credentialIds: string[] };
@@ -109,52 +91,14 @@ export class ExecutionBroker {
 
   private readonly maxConcurrentRuns: number;
 
-  submit(rawRequest: SkillRunRequest, options: ExecutionSubmitOptions = {}): BrokerRunRecord {
+  submit(rawRequest: SkillRunRequest): BrokerRunRecord {
     const request = SkillRunRequestSchema.parse(rawRequest);
     rejectSecretLikeInputKeys(request.inputs);
-    const record = this.store.create(request, crypto.randomUUID(), {
-      agentCheckpoint: options.agentCheckpoint,
-      resumedFromRunId: options.resumedFromRunId
-    });
+    const record = this.store.create(request, crypto.randomUUID());
     this.retryRequests.set(record.id, cloneRequest(request));
     this.emitLatest(record.id);
-    this.inspect(request, record.id, options);
+    this.inspect(request, record.id);
     return record;
-  }
-
-  /**
-   * Starts a new auditable Run from a durable Internal Agent checkpoint. The
-   * old failed/cancelled Run remains immutable history; only safe provider
-   * continuation state crosses the boundary.
-   */
-  resumeAgentRun(rawRequest: AgentResumeRequest): BrokerRunRecord {
-    const request = AgentResumeRequestSchema.parse(rawRequest);
-    const current = this.store.get(request.runId);
-    if (!["failed", "timed_out", "cancelled"].includes(current.state)) {
-      throw new Error("只有失败、超时或取消的 Agent Run 可以恢复。 ");
-    }
-    if (!current.agentCheckpoint) throw new Error("该 Agent Run 没有可恢复的 Provider checkpoint。 ");
-    if (request.rootGeneration !== current.rootGeneration) throw new Error("当前 root snapshot 已过期，拒绝恢复 Agent。 ");
-    const providerBindings = Object.keys(request.providerBindings).length
-      ? request.providerBindings
-      : current.request.providerBindingIds.length === 1
-        ? { default: current.request.providerBindingIds[0] }
-        : {};
-    if (!Object.keys(providerBindings).length) throw new Error("恢复 Agent 需要重新提供 Provider Profile 绑定。 ");
-    const nextRequest = SkillRunRequestSchema.parse({
-      skillId: current.request.skillId,
-      ...(current.request.version ? { version: current.request.version } : {}),
-      ...(current.request.digest || current.skillDigest ? { digest: current.request.digest || current.skillDigest || undefined } : {}),
-      inputs: request.inputs,
-      providerBindings,
-      trigger: { type: "manual" },
-      externalExportBindingIds: current.request.externalExportBindingIds,
-      rootGeneration: request.rootGeneration
-    });
-    return this.submit(nextRequest, {
-      agentCheckpoint: current.agentCheckpoint,
-      resumedFromRunId: current.id
-    });
   }
 
   get(runId: string): BrokerRunRecord { return this.store.get(runId); }
@@ -282,15 +226,13 @@ export class ExecutionBroker {
     return this.consent.revoke(this.consentInput(plan));
   }
 
-  private inspect(request: SkillRunRequest, runId: string, options: ExecutionSubmitOptions): void {
+  private inspect(request: SkillRunRequest, runId: string): void {
     this.inspecting.set(runId, request);
     void (async () => {
       try {
         this.store.transition(runId, "inspecting");
         this.emitLatest(runId);
-        const plan = await this.resolvePlan(request, runId, {
-          ...(options.agentCheckpoint ? { agentCheckpoint: options.agentCheckpoint } : {})
-        });
+        const plan = await this.resolvePlan(request, runId);
         validateExecutionPlan(request, plan);
         if (usesCredential(plan, this.revokedCredentialIds)) {
           throw new Error("Run 使用的 Credential 已撤销，拒绝注入。 ");
@@ -373,65 +315,36 @@ export class ExecutionBroker {
         return;
       }
       let process: ProcessResult | null = null;
-      if (entry.plan.agent) {
-        this.store.transition(entry.runId, "running", { reason: "agent-started" });
+      while (!process) {
+        this.store.transition(entry.runId, "running", { reason: "process-started" });
         this.store.beginAttempt(entry.runId);
         this.emitLatest(entry.runId);
-        let timedOut = false;
-        const timeout = setTimeout(() => {
-          timedOut = true;
-          active.controller.abort();
-        }, entry.plan.agent.timeoutMs);
-        try {
-          process = await entry.plan.agent.run({
-            signal: active.controller.signal,
-            saveCheckpoint: (checkpoint) => {
-              this.store.attachAgentCheckpoint(entry.runId, checkpoint);
-            },
-            onOutput: (stream, text) => {
-              const currentState = this.store.get(entry.runId).state;
-              if (currentState === "running" || currentState === "cancelling") {
-                const event = this.store.appendOutput(entry.runId, stream, logRedactor.redact(text));
-                this.publish(event);
-              }
+        const result = await this.processHost.run({
+          ...requireProcessPlan(entry.plan),
+          cwd: entry.plan.skillHome,
+          env: buildMinimalEnvironment(this.paths, entry.runId, entry.plan, runDir, skillDataDir)
+        }, {
+          signal: active.controller.signal,
+          onSpawn: (pid) => {
+            this.store.bindProcessPid(entry.runId, pid);
+          },
+          knownSecrets: entry.plan.knownSecrets,
+          onOutput: (output) => {
+            if (this.store.get(entry.runId).state === "running" || this.store.get(entry.runId).state === "cancelling") {
+              const event = this.store.appendOutput(entry.runId, output.stream, output.text, output.droppedBytes);
+              this.publish(event);
             }
-          });
-        } finally {
-          clearTimeout(timeout);
-        }
-        if (timedOut) process = { ...process, outcome: "timed_out" };
-      } else {
-        while (!process) {
-          this.store.transition(entry.runId, "running", { reason: "process-started" });
-          this.store.beginAttempt(entry.runId);
-          this.emitLatest(entry.runId);
-          const result = await this.processHost.run({
-            ...requireProcessPlan(entry.plan),
-            cwd: entry.plan.skillHome,
-            env: buildMinimalEnvironment(this.paths, entry.runId, entry.plan, runDir, skillDataDir)
-          }, {
-            signal: active.controller.signal,
-            onSpawn: (pid) => {
-              this.store.bindProcessPid(entry.runId, pid);
-            },
-            knownSecrets: entry.plan.knownSecrets,
-            onOutput: (output) => {
-              if (this.store.get(entry.runId).state === "running" || this.store.get(entry.runId).state === "cancelling") {
-                const event = this.store.appendOutput(entry.runId, output.stream, output.text, output.droppedBytes);
-                this.publish(event);
-              }
-            }
-          });
-          this.store.clearProcessPid(entry.runId);
-          if (shouldRetry(result, entry.plan.retry, this.store.get(entry.runId).attempt, active.controller.signal)) {
-            const attempt = this.store.get(entry.runId).attempt;
-            this.store.transition(entry.runId, "preparing_runtime", { reason: `retry-after-${result.outcome}` });
-            const event = this.store.appendOutput(entry.runId, "system", `第 ${attempt} 次执行${result.outcome === "timed_out" ? "超时" : "失败"}，按策略重试。`);
-            this.publish(event);
-            continue;
           }
-          process = result;
+        });
+        this.store.clearProcessPid(entry.runId);
+        if (shouldRetry(result, entry.plan.retry, this.store.get(entry.runId).attempt, active.controller.signal)) {
+          const attempt = this.store.get(entry.runId).attempt;
+          this.store.transition(entry.runId, "preparing_runtime", { reason: `retry-after-${result.outcome}` });
+          const event = this.store.appendOutput(entry.runId, "system", `第 ${attempt} 次执行${result.outcome === "timed_out" ? "超时" : "失败"}，按策略重试。`);
+          this.publish(event);
+          continue;
         }
+        process = result;
       }
       if (entry.plan.cleanupRuntime) {
         try { await entry.plan.cleanupRuntime(); } catch { /* transient credential cleanup is best effort */ }
@@ -475,9 +388,6 @@ export class ExecutionBroker {
       }
       if (collection) this.store.attachArtifacts(entry.runId, collection.artifacts);
       if (process.usage) this.store.attachUsage(entry.runId, process.usage);
-      if (process.outcome === "succeeded" && this.store.get(entry.runId).agentCheckpoint) {
-        this.store.attachAgentCheckpoint(entry.runId, null);
-      }
     } catch (error) {
       const current = this.store.get(entry.runId);
       const state = current.state === "cancelling" || process.outcome === "cancelled"
@@ -543,12 +453,8 @@ function validateExecutionPlan(request: SkillRunRequest, plan: ExecutionPlan): v
     throw new Error("Runtime plan retry.maxAttempts 无效。");
   }
   if (!path.isAbsolute(plan.skillHome) || !path.isAbsolute(plan.mymindRoot)) throw new Error("Runtime plan 路径必须是绝对路径。");
-  if (plan.agent) {
-    if (!Number.isInteger(plan.agent.timeoutMs) || plan.agent.timeoutMs < 1_000) throw new Error("Agent timeoutMs 无效。");
-  } else {
-    if (path.resolve(plan.process.cwd) !== path.resolve(plan.skillHome)) throw new Error("Process cwd 必须绑定到已安装 Skill 目录。");
-    validateProcessSpec(plan.process);
-  }
+  if (path.resolve(plan.process.cwd) !== path.resolve(plan.skillHome)) throw new Error("Process cwd 必须绑定到已安装 Skill 目录。");
+  validateProcessSpec(plan.process);
 }
 
 function requireProcessPlan(plan: ExecutionPlan): ProcessSpec {

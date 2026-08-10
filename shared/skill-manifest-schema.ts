@@ -313,11 +313,7 @@ export const ProcessManifestSchema = BaseManifestSchema.extend({
 export type ProcessManifest = z.infer<typeof ProcessManifestSchema>;
 
 const AgentManifestObjectSchema = BaseManifestSchema.extend({
-  kind: z.literal("agent"),
-  provider: z.object({
-    required: z.boolean().default(true),
-    fallbackOk: z.boolean().default(false)
-  }).default({ required: true, fallbackOk: false })
+  kind: z.literal("agent")
 });
 export type AgentManifest = z.infer<typeof AgentManifestObjectSchema>;
 

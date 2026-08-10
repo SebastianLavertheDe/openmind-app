@@ -14,8 +14,9 @@ and release work that follows.
 | [ADR-005](./ADR-005-runtime-targets.md) | Runtime targets — platform / arch / WSL | Accepted |
 | [ADR-006](./ADR-006-managed-runtime-provenance.md) | Managed runtime provenance & verification | Accepted |
 | [ADR-007](./ADR-007-secret-backend.md) | Secret backend — CredentialVault | Accepted |
-| [ADR-008](./ADR-008-provider-bridge-and-internal-agent.md) | Provider Bridge & Internal Agent Runtime | Accepted |
+| [ADR-008](./ADR-008-provider-bridge-and-internal-agent.md) | Provider Bridge & Internal Agent Runtime | Superseded by ADR-010 |
 | [ADR-009](./ADR-009-release-identity-and-update-chain.md) | Release identity & update trust chain | Accepted |
+| [ADR-010](./ADR-010-cli-only-agent-execution.md) | CLI-only Agent execution | Accepted |
 
 ## Supporting architecture docs
 

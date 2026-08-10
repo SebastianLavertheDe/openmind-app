@@ -84,38 +84,6 @@ describe("RunsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /删除历史/ }));
     await waitFor(() => expect(deleteRunHistory).toHaveBeenCalledWith("workflow-run-1"));
   });
-
-  it("offers Agent checkpoint recovery with re-entered inputs", async () => {
-    const agentRun = BrokerRunRecordSchema.parse({
-      ...skillRun,
-      id: "agent-run-1",
-      request: { ...skillRun.request, skillId: "agent-skill", providerBindingIds: ["provider-main"] },
-      agentCheckpoint: {
-        protocol: "openai-responses",
-        responseId: "resp-1",
-        toolOutputs: [{ callId: "call-1", output: "{\"ok\":true}" }],
-        turn: 1,
-        updatedAt: "2026-08-05T08:00:01.000Z"
-      }
-    });
-    const resumeAgentRun = vi.fn(async () => ({ ...agentRun, id: "agent-run-2", resumedFromRunId: agentRun.id }));
-    window.cctools = makeApi({
-      listSkillRuns: async () => [agentRun],
-      listWorkflowRuns: async () => [],
-      resumeAgentRun
-    });
-    render(<RunsPage initialRunId="agent-run-1" />);
-
-    expect(await screen.findByRole("button", { name: "恢复 Agent" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "使用这些输入恢复" }));
-    await waitFor(() => expect(resumeAgentRun).toHaveBeenCalledWith({
-      runId: "agent-run-1",
-      inputs: {},
-      providerBindings: { default: "provider-main" },
-      rootGeneration: 1
-    }));
-  });
-
   it("opens and reveals logical Artifacts without exposing external paths", async () => {
     const openPath = vi.fn(async () => "");
     const revealPath = vi.fn(async () => true);

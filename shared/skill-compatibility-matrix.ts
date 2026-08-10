@@ -251,7 +251,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "creative/01-内容生产/文稿库/...",
-    notes: "Agent Bridge/Internal Agent; methodology references; capability approval."
+    notes: "Claude Code/Codex CLI Agent Bridge; methodology references; capability approval."
   },
   {
     id: "rss-to-summary-workflow",

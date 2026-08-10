@@ -1,8 +1,16 @@
 # ADR-008: Provider Bridge & Internal Agent Runtime
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-010
 - **Date:** 2026-08-05
 - **Phase:** 0 (Architecture freeze)
+
+> **Supersession notice (2026-08-10):** ADR-010 removes the Internal Agent
+> Runtime path. Installed Agent Skills now run only through Claude Code CLI or
+> Codex CLI from an AI console session. The External Bridge rules in this ADR
+> remain historical context where they do not conflict with ADR-010;
+> API-key-only Agent execution, Broker Agent execution and Internal Agent
+> checkpoints are no longer current architecture. Provider Profiles remain
+> supported for Process Skills.
 
 ## Context
 

@@ -45,9 +45,9 @@ describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
     // The registry intentionally excludes removed manual Skill run, update,
     // and host-trust revocation endpoints.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(158);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(158);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(158);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(157);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(157);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(157);
   });
 
   it("builds preload bridge entries from the registry", async () => {

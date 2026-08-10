@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { SkillDefinition } from "../../shared/contracts";
-import type { AgentResumeRequest, BrokerRunEvent, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
+import type { BrokerRunEvent, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
 import { messages } from "../../shared/messages";
 import { decodeProcessOutput, killProcessTree, spawnInDirectory } from "./process-utils";
 import { discoverSkills, type SkillConfig } from "./skill-discovery";
@@ -99,7 +99,7 @@ export class SkillToolRegistry {
     this.broker = brokerOptions
       ? new ExecutionBroker(
         brokerOptions.paths,
-        (request, runId, options) => this.resolveExecutionPlan(request, runId, options),
+        (request, runId) => this.resolveExecutionPlan(request, runId),
         (event) => {
           this.onRunEvent(event);
           this.handleBrokerEvent(event);
@@ -177,6 +177,7 @@ export class SkillToolRegistry {
 
   submitRun(request: SkillRunRequest): BrokerRunRecord {
     if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    this.installedResolver?.assertBrokerRunnable(request.skillId);
     return this.broker.submit(request);
   }
 
@@ -199,12 +200,8 @@ export class SkillToolRegistry {
 
   retryRun(runId: string): BrokerRunRecord {
     if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    this.installedResolver?.assertBrokerRunnable(this.broker.get(runId).request.skillId);
     return this.broker.retry(runId);
-  }
-
-  resumeAgentRun(request: AgentResumeRequest): BrokerRunRecord {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
-    return this.broker.resumeAgentRun(request);
   }
 
   revokeCredential(credentialId: string): Promise<number> {
@@ -409,7 +406,7 @@ export class SkillToolRegistry {
       };
       this.brokerInvocations.set(invocationId, invocation);
       try {
-        const record = broker.submit({
+        const record = this.submitRun({
           skillId,
           version: active.version,
           digest: active.digest,
@@ -429,9 +426,9 @@ export class SkillToolRegistry {
     });
   }
 
-  private resolveExecutionPlan(request: import("../../shared/execution-contracts").SkillRunRequest, runId: string, options: { agentCheckpoint?: import("../../shared/execution-contracts").AgentCheckpoint } = {}): Promise<ExecutionPlan> {
+  private resolveExecutionPlan(request: import("../../shared/execution-contracts").SkillRunRequest, runId: string): Promise<ExecutionPlan> {
     if (!this.installedResolver) throw new Error(`没有可执行的 active Installed Skill：${request.skillId}。请先完成安装、ready 和 host 授权。`);
-    return this.installedResolver.resolve(request, runId, options);
+    return this.installedResolver.resolve(request, runId);
   }
 
   private handleBrokerEvent(event: BrokerRunEvent): void {

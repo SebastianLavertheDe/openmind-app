@@ -35,7 +35,7 @@ import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-life
 import { titleFromPrompt } from "./scheduler-prompts";
 import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { type BrowserAutomationConfig } from "./browser-evidence";
-import { AgentResumeRequestSchema, WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type AgentResumeRequest, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
+import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
 import { buildAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
@@ -51,11 +51,6 @@ import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
 import { ProviderProfileRepository } from "../security/provider-profile-repository";
 import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
-import { InternalAgentRuntime } from "./internal-agent";
-import { BrowserToolSession } from "./browser-tool";
-import { resolveAgentBrowserOutputDir } from "./agent-browser-output";
-import { AgentApprovalBroker } from "./agent-approval-broker";
-import type { AgentPlanFactory } from "../skills/installed-skill-execution-resolver";
 import { appendScheduledEvent, cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
 
 export class RunScheduler {
@@ -63,7 +58,6 @@ export class RunScheduler {
   private readonly registry: ProviderRegistry;
   private readonly legacyChanges: LegacyChangeManager;
   private readonly approvals: ApprovalBroker;
-  private readonly agentApprovals: AgentApprovalBroker;
   private readonly skillTools: SkillToolRegistry;
   private readonly manualSkills: ManualSkillController;
   private readonly changeApplications: ChangeApplicationService;
@@ -95,67 +89,10 @@ export class RunScheduler {
     this.store = new SessionStore(projectRoot, stateRoot);
     this.registry = new ProviderRegistry(projectRoot);
     this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
-    this.agentApprovals = new AgentApprovalBroker(() => this.publishSnapshot());
     const appPaths = mymindRoot ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR) : null;
     const packageService = appPaths && mymindRoot ? new SkillPackageService(appPaths) : null;
     const providerProfileRepository = appPaths && mymindRoot ? new ProviderProfileRepository(appPaths) : null;
     const credentialFiles = appPaths && mymindRoot ? new ManagedCredentialFileAdapter(appPaths) : undefined;
-    const internalAgent = new InternalAgentRuntime();
-    const createAgentPlan: AgentPlanFactory | undefined = appPaths && mymindRoot
-      ? (input) => {
-        const secretRef = { value: "" };
-        const browserOutputDir = input.manifest.capabilities.browser
-          ? resolveAgentBrowserOutputDir(input.manifest.artifacts, input.externalBindings)
-          : undefined;
-        const browser = input.manifest.capabilities.browser && this.browserAutomation.enabled
-          ? new BrowserToolSession({
-            workspaceRoot: input.packageRoot,
-            outputDir: browserOutputDir!,
-            reuseExistingTabs: this.browserAutomation.reuseExistingTabs,
-            extensionToken: this.browserAutomation.extensionToken
-          })
-          : null;
-        const plan = internalAgent.createPlan({
-          manifest: input.manifest,
-          skillHome: input.packageRoot,
-          mymindRoot: input.mymindRoot,
-          provider: input.provider,
-          providerSecretRef: secretRef,
-          inputs: input.inputs,
-          checkpoint: input.checkpoint,
-          digest: input.digest,
-          rootGeneration: input.rootGeneration,
-          externalBindings: input.externalBindings,
-          approval: (request) => this.agentApprovals.request(input.runId, request),
-          handlers: {
-            runSkill: (skillId, skillInputs) => this.skillTools.run(skillId, skillInputs, this.projectRoot),
-            browser: async (browserInput) => {
-              if (!browser) throw new Error("Browser Automation 未启用或 Playwright MCP 尚未就绪。");
-              return browser.call(browserInput);
-            },
-            close: () => browser?.close()
-          }
-        });
-        const prepare = plan.prepareRuntime;
-        plan.prepareRuntime = async () => {
-          if (input.providerSecretValue) {
-            secretRef.value = input.providerSecretValue;
-            plan.knownSecrets = [secretRef.value];
-          } else if (input.provider.credentialId) {
-            if (!input.resolveCredential) throw new Error("Agent Provider Credential 未连接 CredentialVault。 ");
-            secretRef.value = await input.resolveCredential(input.provider.credentialId, {
-              publisherId: input.manifest.publisher.id,
-              skillId: input.manifest.id,
-              version: input.manifest.version,
-              digest: input.digest
-            });
-            plan.knownSecrets = [secretRef.value];
-          }
-          await prepare?.();
-        };
-        return plan;
-      }
-      : undefined;
     const installedResolver = appPaths && mymindRoot
       ? new InstalledSkillExecutionResolver(
         packageService!,
@@ -178,7 +115,6 @@ export class RunScheduler {
           return { bindingId: binding.id, canonicalPath: binding.canonicalPath, revoked: binding.revoked };
         },
         (profileId) => providerProfileRepository?.get(profileId) || null,
-        createAgentPlan,
         credentialKindResolver,
         credentialFiles
       )
@@ -241,7 +177,7 @@ export class RunScheduler {
       providers: this.registry.detect(),
       sessions: this.store.listSessions(),
       runs: this.store.listRuns(),
-      pendingApprovals: [...this.approvals.list(), ...this.agentApprovals.list()]
+      pendingApprovals: this.approvals.list()
     };
   }
 
@@ -291,18 +227,11 @@ export class RunScheduler {
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
   listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.skillTools.listRunArtifacts(runId); }
   retrySkillRun(runId: string): BrokerRunRecord { return this.skillTools.retryRun(runId); }
-  resumeAgentRun(rawRequest: AgentResumeRequest): BrokerRunRecord {
-    return this.skillTools.resumeAgentRun(AgentResumeRequestSchema.parse(rawRequest));
-  }
   revokeCredential(credentialId: string): Promise<number> { return this.skillTools.revokeCredential(credentialId); }
   restoreCredential(credentialId: string): number { return this.skillTools.restoreCredential(credentialId); }
   rotateCredential(credentialId: string): Promise<number> { return this.skillTools.rotateCredential(credentialId); }
   deleteRunHistory(runId: string): boolean { return this.skillTools.deleteRunHistory(runId); }
   async cancelSkillRun(runId: string): Promise<boolean> {
-    // An Agent may be awaiting a renderer decision. Resolve that wait before
-    // aborting the Broker controller, otherwise the tool loop could linger on
-    // a Promise even though the Run was cancelled.
-    this.agentApprovals.declineForRun(runId);
     const cancelled = await this.skillTools.cancelRun(runId);
     this.publishSnapshot();
     return cancelled;
@@ -424,8 +353,6 @@ export class RunScheduler {
 
   async resolveApproval(id: string, rawDecision: ApprovalDecision): Promise<boolean> {
     const decision = ApprovalDecisionSchema.parse(rawDecision);
-    const resolvedAgentApproval = this.agentApprovals.resolve(id, decision);
-    if (resolvedAgentApproval) { this.publishSnapshot(); return true; }
     return resolveScheduledApproval(this.executionHost(), id, decision);
   }
 

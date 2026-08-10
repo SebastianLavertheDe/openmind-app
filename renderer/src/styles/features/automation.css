@@ -756,6 +756,20 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+/* Read-only target display: bound skill of the selected rule, not editable here. */
+.automation-target-readonly .automation-target-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius, 8px);
+  background: var(--surface-2, color-mix(in srgb, var(--accent) 6%, var(--surface)));
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
 .automation-field .ui-select.rect .ui-select-trigger {
   width: 100%;
   height: 34px;

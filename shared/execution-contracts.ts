@@ -82,15 +82,8 @@ export const RunUsageSchema = z.object({
 }).strict();
 export type RunUsage = z.infer<typeof RunUsageSchema>;
 
-/**
- * Safe-boundary continuation state for an Internal Agent. It deliberately
- * contains no user inputs, credentials, or tool arguments. OpenAI Responses
- * can use its response id natively; Anthropic Messages has no equivalent
- * server-side continuation in this contract, so its message id is retained
- * for correlation while the bounded, redacted tool results are replayed as
- * host-owned resume context.
- */
-const AgentCheckpointBaseSchema = z.object({
+/** Legacy read-only shape retained so existing Run history remains loadable. */
+const LegacyAgentCheckpointBaseSchema = z.object({
   turn: z.number().int().nonnegative().max(100),
   updatedAt: z.string().datetime()
 }).strict();
@@ -106,19 +99,18 @@ const AgentToolResultSchema = z.object({
   output: z.string().max(32 * 1024)
 }).strict();
 
-export const AgentCheckpointSchema = z.discriminatedUnion("protocol", [
-  AgentCheckpointBaseSchema.extend({
+const LegacyAgentCheckpointSchema = z.discriminatedUnion("protocol", [
+  LegacyAgentCheckpointBaseSchema.extend({
     protocol: z.literal("openai-responses"),
     responseId: z.string().trim().min(1).max(200),
     toolOutputs: z.array(AgentToolOutputSchema).max(32)
   }),
-  AgentCheckpointBaseSchema.extend({
+  LegacyAgentCheckpointBaseSchema.extend({
     protocol: z.literal("anthropic-messages"),
     messageId: z.string().trim().min(1).max(200),
     toolResults: z.array(AgentToolResultSchema).max(32)
   })
 ]);
-export type AgentCheckpoint = z.infer<typeof AgentCheckpointSchema>;
 
 export const BrokerRunRecordSchema = z.object({
   schemaVersion: z.literal(EXECUTION_SCHEMA_VERSION),
@@ -143,7 +135,8 @@ export const BrokerRunRecordSchema = z.object({
   processPid: z.number().int().positive().nullable().default(null),
   orphanPid: z.number().int().positive().nullable().default(null),
   usage: RunUsageSchema.nullable().default(null),
-  agentCheckpoint: AgentCheckpointSchema.nullable().default(null),
+  /** Deprecated history-only fields from the removed direct-API Agent runtime. */
+  agentCheckpoint: LegacyAgentCheckpointSchema.nullable().default(null),
   resumedFromRunId: z.string().min(1).max(120).nullable().default(null),
   artifacts: z.array(RunArtifactSchema)
 }).strict();
@@ -229,16 +222,6 @@ export const WorkflowResumeRequestSchema = z.object({
   rootGeneration: z.number().int().nonnegative()
 }).strict();
 export type WorkflowResumeRequest = z.infer<typeof WorkflowResumeRequestSchema>;
-
-/** Inputs and Provider Profile references are re-entered on resume; neither
- * the values nor credential material are stored in the original Run. */
-export const AgentResumeRequestSchema = z.object({
-  runId: z.string().trim().min(1).max(120),
-  inputs: z.record(z.string().max(120), z.unknown()).default({}),
-  providerBindings: z.record(z.string().max(120), z.string().trim().min(1).max(120)).default({}),
-  rootGeneration: z.number().int().nonnegative()
-}).strict();
-export type AgentResumeRequest = z.infer<typeof AgentResumeRequestSchema>;
 
 export function toStoredSkillRunRequest(request: SkillRunRequest): StoredSkillRunRequest {
   return StoredSkillRunRequestSchema.parse({

@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentCheckpoint, SkillRunRequest } from "../../shared/execution-contracts";
+import type { SkillRunRequest } from "../../shared/execution-contracts";
 import type { SkillDefinition } from "../../shared/contracts";
-import { matchesSemverRange, type AgentManifest, type ProcessManifest, type SkillManifest } from "../../shared/skill-manifest-schema";
+import { matchesSemverRange, type ProcessManifest, type SkillManifest } from "../../shared/skill-manifest-schema";
 import { ProviderProfileSchema, type CredentialKind, type CredentialScope, type ProviderProfile } from "../../shared/provider-profiles";
 import { SkillPackageService } from "./skill-package-service";
 import type { InstalledSkillRecord } from "./installed-skill-repository";
@@ -20,21 +20,6 @@ export type SkillCredentialResolver = (credentialId: string, scope: CredentialSc
 export type SkillCredentialKindResolver = (credentialId: string) => Promise<CredentialKind | null>;
 export type SkillExportBindingResolver = (bindingId: string) => ExternalBinding | undefined;
 export type SkillProviderProfileResolver = (profileId: string) => ProviderProfile | null;
-export type AgentPlanFactory = (input: {
-  runId: string;
-  manifest: AgentManifest;
-  packageRoot: string;
-  mymindRoot: string;
-  rootGeneration: number;
-  digest: string;
-  inputs: Record<string, unknown>;
-  checkpoint?: AgentCheckpoint;
-  provider: ProviderProfile;
-  providerSecretValue?: string;
-  externalBindings?: Record<string, ExternalBinding>;
-  resolveCredential?: SkillCredentialResolver;
-}) => ExecutionPlan;
-
 export class InstalledSkillExecutionError extends Error {
   constructor(message: string) {
     super(message);
@@ -56,13 +41,20 @@ export class InstalledSkillExecutionResolver {
     private readonly resolveCredential?: SkillCredentialResolver,
     private readonly resolveExportBinding?: SkillExportBindingResolver,
     private readonly resolveProviderProfile?: SkillProviderProfileResolver,
-    private readonly createAgentPlan?: AgentPlanFactory,
     private readonly resolveCredentialKind?: SkillCredentialKindResolver,
     private readonly credentialFiles?: ManagedCredentialFileAdapter
   ) {}
 
   active(skillId: string): InstalledSkillRecord | undefined {
     return this.packages.getActiveInstalled(skillId);
+  }
+
+  /** Agent packages are executed only by the selected Claude Code/Codex CLI bridge. */
+  assertBrokerRunnable(skillId: string): void {
+    const record = this.active(skillId);
+    if (!record) return;
+    const inspection = this.packages.inspect(record.packagePath);
+    if (inspection.valid && inspection.manifest?.kind === "agent") throw cliOnlyAgentError(skillId);
   }
 
   /**
@@ -141,11 +133,11 @@ export class InstalledSkillExecutionResolver {
     if (!inspection.valid || !inspection.manifest || inspection.digest !== record.digest || inspection.manifest.kind !== "workflow") {
       throw new InstalledSkillExecutionError("active Workflow Manifest 校验失败。 ");
     }
-    if (record.readiness !== "ready" || record.executionTrust !== "approved-host") throw new InstalledSkillExecutionError(`Workflow Skill 尚未 ready/approved-host：${skillId}`);
+    if (record.readiness !== "ready") throw new InstalledSkillExecutionError(`Workflow Skill 尚未 ready：${skillId}`);
     return inspection.manifest;
   }
 
-  async resolve(request: SkillRunRequest, runId: string, options: { agentCheckpoint?: AgentCheckpoint } = {}): Promise<ExecutionPlan> {
+  async resolve(request: SkillRunRequest, runId: string): Promise<ExecutionPlan> {
     const record = this.active(request.skillId);
     if (!record) throw new InstalledSkillExecutionError(`没有 active Installed Skill：${request.skillId}`);
     if (request.version && !matchesSemverRange(record.version, request.version)) throw new InstalledSkillExecutionError("请求的 Skill version 不是 active 版本。 ");
@@ -155,11 +147,18 @@ export class InstalledSkillExecutionResolver {
     if (!inspection.valid || !inspection.manifest) throw new InstalledSkillExecutionError("active Installed Skill Manifest 校验失败。 ");
     if (inspection.digest !== record.digest) throw new InstalledSkillExecutionError("active Installed Skill 内容 digest 已变化，拒绝运行。 ");
     if (record.readiness !== "ready") throw new InstalledSkillExecutionError("Installed Skill 尚未 ready，拒绝运行。 ");
-    if (record.executionTrust !== "approved-host") throw new InstalledSkillExecutionError("Installed Skill 尚未获得 approved-host 授权。 ");
+    // Automation rules and their workflow step runs are explicit user
+    // authorisation to run a Skill on a schedule; treat a configured
+    // Automation rule (and the workflow steps it drives) as the approved-host
+    // grant so users are not forced to flip executionTrust per-Skill before a
+    // scheduled run can execute.
+    const automationAuthorised = request.trigger.type === "automation" || request.trigger.type === "workflow";
+    if (!automationAuthorised && record.executionTrust !== "approved-host") throw new InstalledSkillExecutionError("Installed Skill 尚未获得 approved-host 授权。 ");
     const manifest = inspection.manifest;
     const inputs = applyInputDefaults(manifest, request.inputs);
     validateInputs(manifest, inputs);
     if (request.rootGeneration !== this.rootGeneration) throw new InstalledSkillExecutionError("Run root generation 已过期。 ");
+    if (manifest.kind === "agent") throw cliOnlyAgentError(manifest.id);
     const packageRoot = canonicalDirectory(record.packagePath);
     const skillEnv = loadInstalledSkillEnv(record);
     const localProvider = localProviderFromEnv(skillEnv.values);
@@ -183,26 +182,7 @@ export class InstalledSkillExecutionResolver {
       if (!binding) throw new InstalledSkillExecutionError(`Export Location Binding 不可用：${artifact.externalExportId}`);
       externalBindings[artifact.externalExportId] = binding;
     }
-    if (manifest.kind === "agent") {
-      if (!this.createAgentPlan) throw new InstalledSkillExecutionError("Internal Agent Runtime 尚未初始化。 ");
-      const provider = localProvider?.profile || providerBindings.default || Object.values(providerBindings)[0];
-      if (!provider) throw new InstalledSkillExecutionError("Agent 缺少 Provider Profile 绑定。 ");
-      return this.createAgentPlan({
-        runId,
-        manifest,
-        packageRoot,
-        mymindRoot: canonicalDirectory(this.mymindRoot),
-        rootGeneration: this.rootGeneration,
-        digest: record.digest,
-        inputs,
-        ...(options.agentCheckpoint ? { checkpoint: options.agentCheckpoint } : {}),
-        provider,
-        ...(localProvider ? { providerSecretValue: localProvider.secret } : {}),
-        externalBindings,
-        resolveCredential: this.resolveCredential
-      });
-    }
-    if (manifest.kind !== "process") throw new InstalledSkillExecutionError("只有 process/agent Installed Skill 可由当前 Broker 执行。 ");
+    if (manifest.kind !== "process") throw new InstalledSkillExecutionError("只有 Process Skill 可由 Execution Broker 执行。 ");
     const script = resolvePackageFile(packageRoot, manifest.entrypoint.script);
     const runtime = this.runtimes.resolve(manifest, packageRoot, record.digest);
     const credentialFiles = this.credentialFiles;
@@ -374,9 +354,6 @@ function resolveProviderBindings(
   const fields = Object.entries(manifest.config)
     .filter(([, field]) => field.type === "provider-profile");
   const fieldMap = new Map(fields);
-  if (manifest.kind === "agent" && manifest.provider.required && fields.length === 0) {
-    throw new InstalledSkillExecutionError("Agent Manifest 未声明 Provider Profile binding。 ");
-  }
   for (const [name, field] of fields) {
     if (field.required && !requested[name] && !allowMissingRequired) throw new InstalledSkillExecutionError(`缺少 Provider Profile 绑定：${name}`);
   }
@@ -393,6 +370,12 @@ function resolveProviderBindings(
     result[name] = profile;
   }
   return result;
+}
+
+export function cliOnlyAgentError(skillId: string): InstalledSkillExecutionError {
+  return new InstalledSkillExecutionError(
+    `Agent Skill 仅支持通过 AI 控制台使用 Claude Code CLI 或 Codex CLI 运行。请选择一个可用的 CLI Provider，并在会话中输入 /${skillId} …`
+  );
 }
 
 function usesUnboundProvider(
@@ -449,7 +432,6 @@ function localProviderFromEnv(values: Record<string, string>): { profile: Provid
     : [
         { prefix: "CLAUDE", secret: values.CLAUDE_API_KEY, baseUrl: values.CLAUDE_API_BASE_URL, model: values.CLAUDE_MODEL, protocol: "anthropic-messages" },
         { prefix: "OPENAI", secret: values.OPENAI_API_KEY, baseUrl: values.OPENAI_API_BASE_URL || values.OPENAI_BASE_URL, model: values.OPENAI_MODEL, protocol: "openai-chat" },
-        { prefix: "NVIDIA", secret: values.NVIDIA_API_KEY, baseUrl: values.NVIDIA_API_BASE_URL || values.NVIDIA_API_BASE, model: values.NVIDIA_MODEL, protocol: "openai-chat" },
         { prefix: "DOUBAO", secret: values.DOUBAO_API_KEY, baseUrl: values.DOUBAO_API_BASE_URL, model: values.DOUBAO_MODEL, protocol: "openai-chat" },
         { prefix: "DEEPSEEK", secret: values.DEEPSEEK_API_KEY, baseUrl: values.DEEPSEEK_API_BASE_URL, model: values.DEEPSEEK_MODEL, protocol: "anthropic-messages" },
         { prefix: "ZHIPU", secret: values.ZHIPU_API_KEY, baseUrl: values.ZHIPU_API_BASE_URL, model: values.ZHIPU_MODEL, protocol: "openai-chat" },

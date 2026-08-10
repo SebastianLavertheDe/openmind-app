@@ -25,6 +25,7 @@ export const AutomationTriggerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("weekly"), daysOfWeek: z.array(WeekdaySchema).min(1).max(7), at: TimeOfDaySchema }).strict().superRefine((value, context) => {
     if (new Set(value.daysOfWeek).size !== value.daysOfWeek.length) context.addIssue({ code: "custom", path: ["daysOfWeek"], message: "Weekly 触发器不能重复星期。" });
   }),
+  z.object({ type: z.literal("hourly") }).strict(),
   z.object({ type: z.literal("interval"), everyMinutes: z.number().int().min(1).max(7 * 24 * 60) }).strict(),
   z.object({ type: z.literal("cron"), expression: z.string().trim().min(1).max(160) }).strict(),
   z.object({ type: z.literal("app-start") }).strict(),
