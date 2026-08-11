@@ -2159,20 +2159,6 @@
 }
 
 /* ── AI Provider configuration ── */
-.settings-provider-add-row {
-  min-height: 78px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 14px;
-  padding: 15px 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-
-.settings-provider-add-row > div,
 .settings-provider-config-actions,
 .settings-provider-dialog footer,
 .settings-provider-dialog > header {
@@ -2180,24 +2166,27 @@
   align-items: center;
 }
 
-.settings-provider-add-row > div { min-width: 0; gap: 12px; }
-.settings-provider-add-row strong,
-.settings-provider-add-row p { display: block; }
-.settings-provider-add-row strong { color: var(--text); font-size: 13px; }
-.settings-provider-add-row p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-
-.settings-provider-add-icon {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  display: grid;
+.settings-provider-add-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  display: inline-grid;
   place-items: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text-dim);
+}
+
+.settings-provider-add-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
   color: var(--accent-fg);
 }
 
-.settings-provider-add-row button,
+.settings-provider-list-note { margin: 0 0 14px; }
+
 .settings-provider-save-row button,
 .settings-provider-dialog footer button {
   min-height: 34px;
@@ -2341,7 +2330,6 @@
     flex-direction: column;
   }
 
-  .settings-provider-add-row,
   .settings-provider-config-header {
     align-items: flex-start;
     flex-direction: column;
@@ -2349,6 +2337,5 @@
 
   .settings-provider-config-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .settings-grid-2 { grid-template-columns: 1fr; }
-  .settings-provider-save-row button,
-  .settings-provider-add-row > button { width: 100%; }
+  .settings-provider-save-row button { width: 100%; }
 }

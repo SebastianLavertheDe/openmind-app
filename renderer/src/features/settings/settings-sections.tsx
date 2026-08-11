@@ -824,22 +824,16 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
  * and an empty password field means "keep the existing key".
  */
 export function AiProvidersSettingsSection({
-  mode,
   view,
   busy,
   onSave,
   onDelete,
-  onRefresh,
-  onAdded,
   notify
 }: {
-  mode: "config" | "list";
   view: ProvidersYamlView | null;
   busy: boolean;
   onSave(input: ProvidersYamlInput): Promise<void>;
   onDelete(id: string): Promise<void>;
-  onRefresh(): void;
-  onAdded(): void;
   notify(message: string, tone?: "info" | "success" | "error"): void;
 }) {
   const [draft, setDraft] = useState<ProviderYamlInputEntry[]>([]);
@@ -909,7 +903,6 @@ export function AiProvidersSettingsSection({
     if (!defaultId) setDefaultId(entry.id);
     setAdding(false);
     setNewProvider(null);
-    onAdded();
   };
 
   useEffect(() => {
@@ -936,19 +929,9 @@ export function AiProvidersSettingsSection({
 
   return (
     <>
-      {mode === "config" ? <SettingsPanel title="AI Provider 配置" scope="config/providers.yaml" variant="standard"
-        action={<button type="button" className="settings-subtle-action" data-motion="icon" onClick={onRefresh} disabled={busy} aria-label="刷新"><RefreshCw size={14} /></button>}>
-        <p className="settings-note">桌面运行与定时任务共用此配置。API Key 仅保存在本地，不会在界面中回显。</p>
-        <div className="settings-provider-add-row">
-          <div>
-            <span className="settings-provider-add-icon" aria-hidden><Plus size={17} /></span>
-            <div><strong>添加 AI Provider</strong><p>通过预设快速填写，也可以完整自定义连接信息。</p></div>
-          </div>
-          <button type="button" className="primary-button" data-motion="action" onClick={openAddDialog}><Plus size={14} />添加 Provider</button>
-        </div>
-      </SettingsPanel> : null}
-
-      {mode === "list" ? <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard">
+      <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
+        action={<button type="button" className="settings-provider-add-button" data-motion="icon" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider" title="添加 Provider"><Plus size={17} /></button>}>
+        <p className="settings-note settings-provider-list-note">桌面运行与定时任务共用此配置。API Key 仅保存在本地，不会在界面中回显。</p>
         <div className="settings-stack">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
           {draft.map((entry) => (
@@ -993,7 +976,7 @@ export function AiProvidersSettingsSection({
           <p className="settings-note">修改只会在点击保存后写入本地配置。</p>
           <button type="button" className="primary-button" data-motion="action" onClick={submit} disabled={busy}>{busy ? "保存中…" : "保存配置"}</button>
         </div>
-      </SettingsPanel> : null}
+      </SettingsPanel>
 
       {adding && newProvider && typeof document !== "undefined" ? createPortal(
         <div className="modal-scrim settings-provider-dialog-scrim ui-overlay" onMouseDown={() => setAdding(false)}>

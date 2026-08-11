@@ -169,7 +169,7 @@ describe("SettingsPage", () => {
     expect(within(navigation).queryByRole("button", { name: "常规" })).toBeNull();
   });
 
-  it("adds an AI Provider from a focused dialog without exposing proxy or TLS fields", async () => {
+  it("manages the Provider list inside AI 与模型 without redundant navigation tabs", async () => {
     const providerView = {
       schemaVersion: 1 as const,
       default: "existing",
@@ -184,11 +184,13 @@ describe("SettingsPage", () => {
     window.cctools = makeApi({ getProviders, saveProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
-    openCategory("AI Provider 配置");
+    openCategory("AI 与模型");
 
     await waitFor(() => expect(getProviders).toHaveBeenCalled());
     const navigation = screen.getByRole("navigation", { name: "设置分类" });
-    expect(within(navigation).getByRole("button", { name: "Provider 列表" })).toBeTruthy();
+    expect(within(navigation).queryByRole("button", { name: "AI Provider 配置" })).toBeNull();
+    expect(within(navigation).queryByRole("button", { name: "Provider 列表" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Provider 列表" })).toBeTruthy();
     expect(screen.queryByLabelText("代理策略")).toBeNull();
     expect(screen.queryByText("TLS")).toBeNull();
     expect(screen.queryByText("代理 URL（可选）")).toBeNull();
@@ -203,7 +205,6 @@ describe("SettingsPage", () => {
     fireEvent.change(within(dialog).getByLabelText("API Key"), { target: { value: "sk-new-provider" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "添加到列表" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "添加 Provider" })).toBeNull());
-    expect(screen.getAllByRole("heading", { name: "Provider 列表" }).length).toBeGreaterThan(0);
     expect(screen.getByText("DeepSeek")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
