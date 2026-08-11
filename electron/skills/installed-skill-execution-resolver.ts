@@ -3,23 +3,18 @@ import path from "node:path";
 import type { SkillRunRequest } from "../../shared/execution-contracts";
 import type { SkillDefinition } from "../../shared/contracts";
 import { matchesSemverRange, type ProcessManifest, type SkillManifest } from "../../shared/skill-manifest-schema";
-import { ProviderProfileSchema, type CredentialKind, type CredentialScope, type ProviderProfile } from "../../shared/provider-profiles";
 import { SkillPackageService } from "./skill-package-service";
 import type { InstalledSkillRecord } from "./installed-skill-repository";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import type { ExecutionPlan } from "../execution/execution-broker";
 import type { ExternalBinding } from "../execution/artifact-collector";
-import type { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
 import type { ProviderSkillBridge } from "../ai/providers/skill-bridge";
-import { loadSkillEnvFile, type SkillEnvFile } from "../security/skill-env-file";
+import { readDefaultProviderEnv } from "../config/providers-yaml";
 
 const FORBIDDEN_ENV_NAMES = new Set(["PATH", "HOME", "NODE_OPTIONS", "PYTHONPATH", "LD_PRELOAD"]);
-const SECRET_TEMPLATE = /\{\{\s*secrets\.([A-Za-z0-9_.-]+)\s*\}\}/g;
 
-export type SkillCredentialResolver = (credentialId: string, scope: CredentialScope) => Promise<string>;
-export type SkillCredentialKindResolver = (credentialId: string) => Promise<CredentialKind | null>;
 export type SkillExportBindingResolver = (bindingId: string) => ExternalBinding | undefined;
-export type SkillProviderProfileResolver = (profileId: string) => ProviderProfile | null;
+
 export class InstalledSkillExecutionError extends Error {
   constructor(message: string) {
     super(message);
@@ -29,8 +24,10 @@ export class InstalledSkillExecutionError extends Error {
 
 /**
  * Converts one active, ready, approved-host package into a Broker plan. This
- * resolver performs package/input checks; RuntimeManager and the Credential
- * bridge own execution-time preparation, and Broker owns process lifecycle.
+ * resolver performs package/input checks; RuntimeManager owns execution-time
+ * preparation, and Broker owns process lifecycle. The AI provider comes from
+ * the single plaintext `config/providers.yaml` source of truth (injected as
+ * `CCTOOLS_PROVIDER_*` env), shared with the crontab-driven Python path.
  */
 export class InstalledSkillExecutionResolver {
   constructor(
@@ -38,11 +35,7 @@ export class InstalledSkillExecutionResolver {
     private readonly runtimes: RuntimeManager,
     private readonly mymindRoot: string,
     private readonly rootGeneration: number,
-    private readonly resolveCredential?: SkillCredentialResolver,
-    private readonly resolveExportBinding?: SkillExportBindingResolver,
-    private readonly resolveProviderProfile?: SkillProviderProfileResolver,
-    private readonly resolveCredentialKind?: SkillCredentialKindResolver,
-    private readonly credentialFiles?: ManagedCredentialFileAdapter
+    private readonly resolveExportBinding?: SkillExportBindingResolver
   ) {}
 
   active(skillId: string): InstalledSkillRecord | undefined {
@@ -111,7 +104,7 @@ export class InstalledSkillExecutionResolver {
             command: "managed-runtime",
             runner: "managed-runtime",
             args: [],
-            envFile: installedSkillEnvDirectory(record) ? ".env" : null,
+            envFile: null,
             group: manifest.display.group,
             permission: manifest.capabilities.mymind.write.length ? "edit" as const : "read-only" as const,
             outputArtifacts: manifest.artifacts.map((artifact) => artifact.path
@@ -160,18 +153,9 @@ export class InstalledSkillExecutionResolver {
     if (request.rootGeneration !== this.rootGeneration) throw new InstalledSkillExecutionError("Run root generation 已过期。 ");
     if (manifest.kind === "agent") throw cliOnlyAgentError(manifest.id);
     const packageRoot = canonicalDirectory(record.packagePath);
-    const skillEnv = loadInstalledSkillEnv(record);
-    const localProvider = localProviderFromEnv(skillEnv.values);
-    const localProviderFallback = Boolean(localProvider);
-    const requestedProviderBindings = localProviderFallback
-      ? {}
-      : request.providerBindings;
-    const providerBindings = resolveProviderBindings(
-      manifest,
-      requestedProviderBindings,
-      this.resolveProviderProfile,
-      localProviderFallback
-    );
+    // The single plaintext config/providers.yaml feeds the 7 CCTOOLS_PROVIDER_*
+    // env vars; the crontab Python path reads the same file directly.
+    const provider = readDefaultProviderEnv();
     const externalBindings: Record<string, ExternalBinding> = {};
     for (const artifact of manifest.artifacts) {
       if (!artifact.externalExportId) continue;
@@ -185,10 +169,8 @@ export class InstalledSkillExecutionResolver {
     if (manifest.kind !== "process") throw new InstalledSkillExecutionError("只有 Process Skill 可由 Execution Broker 执行。 ");
     const script = resolvePackageFile(packageRoot, manifest.entrypoint.script);
     const runtime = this.runtimes.resolve(manifest, packageRoot, record.digest);
-    const credentialFiles = this.credentialFiles;
-    const args = manifest.entrypoint.args.map((arg) => resolveTemplate(arg, inputs, providerBindings, externalBindings));
-    const manifestEnv = resolveEntrypointEnv(manifest, inputs, providerBindings, localProviderFallback);
-    const localProviderEnv = localProvider ? processProviderEnvironment(localProvider.profile, localProvider.secret) : {};
+    const args = manifest.entrypoint.args.map((arg) => resolveTemplate(arg, inputs, externalBindings));
+    const manifestEnv = resolveEntrypointEnv(manifest, inputs);
     const artifacts = manifest.artifacts.map((artifact) => artifact.path
       ? { id: artifact.id, type: artifact.type, logicalPath: resolveTemplate(artifact.path, inputs) }
       : { id: artifact.id, type: artifact.type, externalPathRef: artifact.externalExportId });
@@ -210,7 +192,7 @@ export class InstalledSkillExecutionResolver {
         executable: runtime.executable,
         args: [script, ...args],
         cwd: packageRoot,
-        env: { ...runtime.env, ...manifestEnv.values, ...skillEnv.values, ...localProviderEnv },
+        env: { ...runtime.env, ...manifestEnv.values, ...provider.env },
         timeoutMs: manifest.execution.timeoutSeconds * 1000,
         gracefulStopMs: manifest.execution.gracefulStopSeconds * 1000
       },
@@ -222,40 +204,15 @@ export class InstalledSkillExecutionResolver {
       artifacts,
       ...(Object.keys(externalBindings).length ? { externalBindings } : {}),
       requiresHostConsent: true,
-      credentialIds: [...new Set(manifestEnv.secretBindings.map((binding) => binding.credentialId))],
-      knownSecrets: [...skillEnv.secretValues],
+      credentialIds: [],
+      knownSecrets: provider.apiKey ? [provider.apiKey] : [],
       prepareRuntime: async () => {
         await runtime.prepare();
-        if (manifestEnv.secretBindings.length) {
-          if (!this.resolveCredential) throw new InstalledSkillExecutionError("Skill 需要 Credential，但当前执行 Worker 未连接 CredentialVault。 ");
-          const secretValues: Record<string, string> = {};
-          for (const binding of manifestEnv.secretBindings) {
-            secretValues[binding.name] = await this.resolveCredential(binding.credentialId, {
-              publisherId: manifest.publisher.id,
-              skillId: manifest.id,
-              version: manifest.version,
-              digest: record.digest
-            });
-          }
-          const values = { ...secretValues };
-          for (const binding of manifestEnv.secretBindings) {
-            const kind = await this.resolveCredentialKind?.(binding.credentialId);
-            if (kind === "credential-file") {
-              if (!this.credentialFiles) throw new InstalledSkillExecutionError("Credential File adapter 未初始化，拒绝注入。 ");
-              values[binding.name] = this.credentialFiles.materialize(runId, binding.credentialId, secretValues[binding.name]);
-            }
-          }
-          for (const binding of manifestEnv.secretBindings) {
-            plan.process.env[binding.envName] = replaceSecretTemplate(binding.template, values);
-          }
-          plan.knownSecrets = [...new Set([...skillEnv.secretValues, ...Object.values(secretValues)])];
-        }
         // Python environments are created only after host-execution consent;
         // refresh the process spec with the prepared absolute interpreter.
         plan.process.executable = runtime.executable;
-        plan.process.env = { ...plan.process.env, ...runtime.env, ...skillEnv.values, ...localProviderEnv };
-      },
-      ...(credentialFiles ? { cleanupRuntime: () => credentialFiles.cleanup(runId) } : {})
+        plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...provider.env };
+      }
     };
     return plan;
   }
@@ -293,32 +250,19 @@ function applyInputDefaults(manifest: SkillManifest, inputs: Record<string, unkn
 
 function resolveEntrypointEnv(
   manifest: ProcessManifest,
-  inputs: Record<string, unknown>,
-  providers: Record<string, ProviderProfile> = {},
-  allowLocalProviderFallback = false
+  inputs: Record<string, unknown>
 ): {
   values: Record<string, string>;
-  secretBindings: Array<{ name: string; envName: string; credentialId: string; template: string }>;
 } {
   const env = manifest.entrypoint.env || {};
   const result: Record<string, string> = {};
-  const secretBindings: Array<{ name: string; envName: string; credentialId: string; template: string }> = [];
   for (const [name, value] of Object.entries(env)) {
     if (FORBIDDEN_ENV_NAMES.has(name) || name.startsWith("DYLD_")) {
       throw new InstalledSkillExecutionError(`Manifest 禁止绑定危险环境变量：${name}`);
     }
-    if (allowLocalProviderFallback && usesUnboundProvider(value, manifest, providers)) continue;
-    const secretNames = [...value.matchAll(SECRET_TEMPLATE)].map((match) => match[1]).filter((item): item is string => Boolean(item));
-    for (const secretName of secretNames) {
-      const field = manifest.config[secretName];
-      if (!field || field.type !== "secret-ref" || !field.secretRef) {
-        throw new InstalledSkillExecutionError(`Manifest 未声明 secrets.${secretName} 的 Credential binding。`);
-      }
-      secretBindings.push({ name: secretName, envName: name, credentialId: resolveCredentialReference(field.secretRef, providers), template: value });
-    }
-    result[name] = resolveTemplate(value.replace(SECRET_TEMPLATE, ""), inputs, providers);
+    result[name] = resolveTemplate(value, inputs);
   }
-  return { values: { ...result, ...resolveSourceContextEnv(inputs) }, secretBindings };
+  return { values: { ...result, ...resolveSourceContextEnv(inputs) } };
 }
 
 /**
@@ -345,185 +289,18 @@ function resolveSourceContextEnv(inputs: Record<string, unknown>): Record<string
   return result;
 }
 
-function resolveProviderBindings(
-  manifest: SkillManifest,
-  requested: Record<string, string>,
-  resolveProfile?: SkillProviderProfileResolver,
-  allowMissingRequired = false
-): Record<string, ProviderProfile> {
-  const fields = Object.entries(manifest.config)
-    .filter(([, field]) => field.type === "provider-profile");
-  const fieldMap = new Map(fields);
-  for (const [name, field] of fields) {
-    if (field.required && !requested[name] && !allowMissingRequired) throw new InstalledSkillExecutionError(`缺少 Provider Profile 绑定：${name}`);
-  }
-  for (const name of Object.keys(requested)) {
-    const field = fieldMap.get(name);
-    if (!field) throw new InstalledSkillExecutionError(`Manifest 未声明 Provider Profile 绑定：${name}`);
-  }
-  if (!Object.keys(requested).length) return {};
-  if (!resolveProfile) throw new InstalledSkillExecutionError("当前执行 Worker 未连接 Provider Profile 仓库。 ");
-  const result: Record<string, ProviderProfile> = {};
-  for (const [name, profileId] of Object.entries(requested)) {
-    const profile = resolveProfile(profileId);
-    if (!profile) throw new InstalledSkillExecutionError(`Provider Profile 不存在：${profileId}`);
-    result[name] = profile;
-  }
-  return result;
-}
-
 export function cliOnlyAgentError(skillId: string): InstalledSkillExecutionError {
   return new InstalledSkillExecutionError(
     `Agent Skill 仅支持通过 AI 控制台使用 Claude Code CLI 或 Codex CLI 运行。请选择一个可用的 CLI Provider，并在会话中输入 /${skillId} …`
   );
 }
 
-function usesUnboundProvider(
-  value: string,
-  manifest: ProcessManifest,
-  providers: Record<string, ProviderProfile>
-): boolean {
-  const providerNames = [...value.matchAll(/\{\{\s*providers\.([A-Za-z0-9_.-]+)\./g)]
-    .map((match) => match[1])
-    .filter((item): item is string => Boolean(item));
-  if (providerNames.some((name) => !providers[name])) return true;
-  const secretNames = [...value.matchAll(SECRET_TEMPLATE)]
-    .map((match) => match[1])
-    .filter((item): item is string => Boolean(item));
-  return secretNames.some((name) => {
-    const field = manifest.config[name];
-    if (!field || field.type !== "secret-ref" || !field.secretRef?.startsWith("provider:")) return false;
-    return !providers[field.secretRef.slice("provider:".length).trim()];
-  });
-}
-
-function loadInstalledSkillEnv(record: InstalledSkillRecord): SkillEnvFile {
-  const directory = installedSkillEnvDirectory(record);
-  if (!directory) return { path: null, values: {}, secretValues: [], ignoredNames: [] };
-  try {
-    return loadSkillEnvFile(directory);
-  } catch (error) {
-    throw new InstalledSkillExecutionError(error instanceof Error ? error.message : String(error));
-  }
-}
-
-function installedSkillEnvDirectory(record: InstalledSkillRecord): string | null {
-  const candidates = [record.sourcePath, record.sourceLocator]
-    .filter((candidate): candidate is string => Boolean(candidate));
-  for (const candidate of candidates) {
-    try {
-      if (!fs.existsSync(candidate) || !fs.statSync(candidate).isDirectory()) continue;
-      if (fs.existsSync(path.join(candidate, ".env"))) return candidate;
-    } catch { /* Try the next source locator. */ }
-  }
-  return null;
-}
-
-function localProviderFromEnv(values: Record<string, string>): { profile: ProviderProfile; secret: string } | null {
-  const standardKey = values.CCTOOLS_PROVIDER_API_KEY?.trim();
-  const candidates = standardKey
-    ? [{
-        prefix: "CCTOOLS_PROVIDER",
-        secret: standardKey,
-        baseUrl: values.CCTOOLS_PROVIDER_BASE_URL,
-        model: values.CCTOOLS_PROVIDER_MODEL,
-        protocol: values.CCTOOLS_PROVIDER_PROTOCOL || "openai-chat"
-      }]
-    : [
-        { prefix: "CLAUDE", secret: values.CLAUDE_API_KEY, baseUrl: values.CLAUDE_API_BASE_URL, model: values.CLAUDE_MODEL, protocol: "anthropic-messages" },
-        { prefix: "OPENAI", secret: values.OPENAI_API_KEY, baseUrl: values.OPENAI_API_BASE_URL || values.OPENAI_BASE_URL, model: values.OPENAI_MODEL, protocol: "openai-chat" },
-        { prefix: "DOUBAO", secret: values.DOUBAO_API_KEY, baseUrl: values.DOUBAO_API_BASE_URL, model: values.DOUBAO_MODEL, protocol: "openai-chat" },
-        { prefix: "DEEPSEEK", secret: values.DEEPSEEK_API_KEY, baseUrl: values.DEEPSEEK_API_BASE_URL, model: values.DEEPSEEK_MODEL, protocol: "anthropic-messages" },
-        { prefix: "ZHIPU", secret: values.ZHIPU_API_KEY, baseUrl: values.ZHIPU_API_BASE_URL, model: values.ZHIPU_MODEL, protocol: "openai-chat" },
-        { prefix: "GEMINI", secret: values.GEMINI_API_KEY, baseUrl: values.GEMINI_OPENAI_BASE_URL, model: values.GEMINI_MODEL, protocol: "openai-chat" }
-      ];
-  const selected = candidates.find((candidate) => candidate.secret?.trim());
-  if (!selected) return null;
-  if (!selected.baseUrl?.trim() || !selected.model?.trim()) {
-    throw new InstalledSkillExecutionError(`Skill 的 .env 已配置 ${selected.prefix} Key，但缺少对应的 Base URL 或 Model。`);
-  }
-  try {
-    const profile = ProviderProfileSchema.parse({
-      schemaVersion: 1,
-      id: "local-skill-env",
-      name: "Skill .env",
-      protocol: selected.protocol,
-      credentialId: null,
-      baseUrl: selected.baseUrl.trim(),
-      proxyUrl: values.CCTOOLS_PROVIDER_PROXY_URL?.trim() || undefined,
-      model: selected.model.trim(),
-      timeoutMs: boundedInteger(values.CCTOOLS_PROVIDER_TIMEOUT_MS, 120_000, 1_000, 600_000),
-      maxRetries: boundedInteger(values.CCTOOLS_PROVIDER_MAX_RETRIES, 2, 0, 10),
-      proxyPolicy: values.CCTOOLS_PROVIDER_PROXY_POLICY?.trim() || "system",
-      tlsPolicy: values.CCTOOLS_PROVIDER_TLS_POLICY?.trim() || "verify",
-      fallbackProfileId: null,
-      test: { status: "never", testedAt: null, diagnostic: null }
-    });
-    if (profile.protocol === "provider-native") {
-      throw new InstalledSkillExecutionError("Agent Skill 的 .env 不能使用 provider-native，请使用 openai-chat、openai-responses 或 anthropic-messages。");
-    }
-    return { profile, secret: selected.secret!.trim() };
-  } catch (error) {
-    if (error instanceof InstalledSkillExecutionError) throw error;
-    throw new InstalledSkillExecutionError(`Skill 的 .env Provider 配置无效：${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-function processProviderEnvironment(profile: ProviderProfile, secret: string): Record<string, string> {
-  return {
-    CCTOOLS_PROVIDER_API_KEY: secret,
-    CCTOOLS_PROVIDER_BASE_URL: providerEndpoint(profile.baseUrl, profile.protocol),
-    CCTOOLS_PROVIDER_MODEL: profile.model,
-    CCTOOLS_PROVIDER_PROTOCOL: profile.protocol,
-    CCTOOLS_PROVIDER_PROXY_URL: profile.proxyUrl || "",
-    CCTOOLS_PROVIDER_PROXY_POLICY: profile.proxyPolicy,
-    CCTOOLS_PROVIDER_TLS_POLICY: profile.tlsPolicy
-  };
-}
-
-function providerEndpoint(baseUrl: string, protocol: ProviderProfile["protocol"]): string {
-  const base = baseUrl.replace(/\/+$/, "");
-  if (protocol === "anthropic-messages") return base.endsWith("/messages") ? base : `${base}/messages`;
-  if (protocol === "openai-responses") return base.endsWith("/responses") ? base : `${base}/responses`;
-  if (protocol === "openai-chat") return base.endsWith("/chat/completions") ? base : `${base}/chat/completions`;
-  return base;
-}
-
-function boundedInteger(raw: string | undefined, fallback: number, min: number, max: number): number {
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
-}
-
-function resolveCredentialReference(reference: string, providers: Record<string, ProviderProfile>): string {
-  if (!reference.startsWith("provider:")) return reference;
-  const bindingName = reference.slice("provider:".length).trim();
-  const profile = providers[bindingName];
-  if (!profile) throw new InstalledSkillExecutionError(`Secret 引用了未绑定的 Provider Profile：${bindingName}`);
-  if (!profile.credentialId) throw new InstalledSkillExecutionError(`Provider Profile 没有 Credential：${profile.id}`);
-  return profile.credentialId;
-}
-
-function replaceSecretTemplate(value: string, secrets: Record<string, string>): string {
-  return value.replace(SECRET_TEMPLATE, (_match, name: string) => {
-    const secret = secrets[name];
-    if (!secret) throw new InstalledSkillExecutionError(`Credential binding 为空：${name}`);
-    return secret;
-  });
-}
-
 function resolveTemplate(
   value: string,
   inputs: Record<string, unknown>,
-  providers: Record<string, ProviderProfile> = {},
   exports: Record<string, ExternalBinding> = {}
 ): string {
-  const withProviders = value.replace(/\{\{\s*providers\.([A-Za-z0-9_.-]+)\.(baseUrl|model|protocol|profileId|proxyUrl|tlsPolicy|proxyPolicy)\s*\}\}/g, (_match, binding: string, field: string) => {
-    const profile = providers[binding];
-    if (!profile) throw new InstalledSkillExecutionError(`模板引用的 Provider Profile 未绑定：${binding}`);
-    if (field === "profileId") return profile.id;
-    return String(profile[field as "baseUrl" | "model" | "protocol" | "proxyUrl" | "tlsPolicy" | "proxyPolicy"] || "");
-  });
-  const withExports = withProviders.replace(/\{\{\s*exports\.([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, bindingId: string) => {
+  const withExports = value.replace(/\{\{\s*exports\.([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, bindingId: string) => {
     const binding = exports[bindingId];
     if (!binding) throw new InstalledSkillExecutionError(`模板引用的 Export Location Binding 未绑定：${bindingId}`);
     return binding.canonicalPath;

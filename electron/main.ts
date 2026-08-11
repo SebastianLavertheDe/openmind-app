@@ -30,12 +30,8 @@ import { migrateLegacyState } from "./paths/legacy-state-migration";
 import { recoverPendingMymindRelocations } from "./paths/mymind-relocation-service";
 import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
-import { CredentialVault, type CredentialCodec } from "./security/credential-vault";
-import { ProviderProfileRepository } from "./security/provider-profile-repository";
-import { ProviderConnectivityService } from "./security/provider-connectivity-service";
 import { logRedactor } from "./security/log-redactor";
 import { EnvFileAnalyzer } from "./security/env-file-analyzer";
-import { CredentialScopeSchema } from "../shared/provider-profiles";
 import { ExportLocationService } from "./execution/export-location-service";
 import { RuntimePackService } from "./runtime/runtime-pack-service";
 import { loadRuntimeTrustRoots } from "./runtime/runtime-pack-trust";
@@ -59,39 +55,12 @@ let mymindFileSearchRoot = "";
 let skillPackageService: SkillPackageService | null = null;
 let skillSourceService: SkillSourceService | null = null;
 let browserTokenStore: BrowserExtensionTokenStore | null = null;
-let credentialVault: CredentialVault | null = null;
-let providerProfileRepository: ProviderProfileRepository | null = null;
-let providerConnectivityService: ProviderConnectivityService | null = null;
 let exportLocationService: ExportLocationService | null = null;
 let runtimePackService: RuntimePackService | null = null;
 let runtimePackDownloadService: RuntimePackDownloadService | null = null;
 let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
 let appStateBackupService: AppStateBackupService | null = null;
 const envFileAnalyzer = new EnvFileAnalyzer();
-
-const safeStorageCodec: CredentialCodec = {
-  isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
-  encryptString: (value) => safeStorage.encryptString(value),
-  decryptString: (value) => safeStorage.decryptString(value)
-};
-
-function ensureCredentialVault(): CredentialVault {
-  ensureAppPaths(getAppPaths());
-  credentialVault ||= new CredentialVault(getAppPaths(), safeStorageCodec);
-  return credentialVault;
-}
-
-function ensureProviderProfileRepository(): ProviderProfileRepository {
-  ensureAppPaths(getAppPaths());
-  providerProfileRepository ||= new ProviderProfileRepository(getAppPaths());
-  return providerProfileRepository;
-}
-
-function ensureProviderConnectivity(): ProviderConnectivityService {
-  ensureAppPaths(getAppPaths());
-  providerConnectivityService ||= new ProviderConnectivityService(ensureProviderProfileRepository(), ensureCredentialVault());
-  return providerConnectivityService;
-}
 
 function ensureRuntimePackService(): RuntimePackService {
   ensureAppPaths(getAppPaths());
@@ -226,27 +195,7 @@ class AiWorkerClient {
   }
 
   private onMessage(raw: unknown): void {
-    const message = raw as { type?: string; id?: string; result?: unknown; error?: string; payload?: unknown; credentialId?: unknown; scope?: unknown };
-    if (message.type === "credential-kind-request" && message.id && message.credentialId) {
-      const metadata = ensureCredentialVault().list().find((item) => item.id === String(message.credentialId));
-      this.worker.postMessage({ type: "credential-kind-response", id: message.id, kind: metadata?.kind || null });
-      return;
-    }
-    if (message.type === "credential-request" && message.id && message.credentialId) {
-      const requestId = message.id;
-      let scope: ReturnType<typeof CredentialScopeSchema.parse>;
-      try { scope = CredentialScopeSchema.parse(message.scope); }
-      catch (error) {
-        this.worker.postMessage({ type: "credential-response", id: requestId, error: error instanceof Error ? error.message : String(error) });
-        return;
-      }
-      void ensureCredentialVault().withSecret(
-        String(message.credentialId),
-        scope,
-        (secret) => this.worker.postMessage({ type: "credential-response", id: requestId, secret })
-      ).catch((error) => this.worker.postMessage({ type: "credential-response", id: requestId, error: error instanceof Error ? error.message : String(error) }));
-      return;
-    }
+    const message = raw as { type?: string; id?: string; result?: unknown; error?: string; payload?: unknown };
     if (message.type === "push") {
       const push = message.payload as { kind?: string; event?: Record<string, unknown> } | undefined;
       if (push?.kind === "skill-event" && push.event) {
@@ -425,20 +374,10 @@ function registerIpc(): void {
       ensureSkillPackageService,
       ensureSkillSourceService,
       ensureExportLocationService,
-      ensureCredentialVault,
-      ensureProviderProfileRepository,
-      ensureProviderConnectivity,
       ensureRuntimePackService,
       ensureRuntimePackDownloadService,
       ensureSharedPythonRuntimeService,
       ensureAppStateBackupService,
-      updateCredentialRuns: async (credentialId, state) => {
-        try {
-          const method = state === "available" ? "credential-available" : state === "replaced" ? "credential-replaced" : "credential-revoked";
-          await aiWorker?.call(method, credentialId);
-        }
-        catch { /* Credential mutation remains successful; cancellation is best-effort. */ }
-      },
       analyzeEnvFile,
       getActiveRunCount: () => aiWorker?.activeRunCount() || Promise.resolve(0),
       restartAiWorker,

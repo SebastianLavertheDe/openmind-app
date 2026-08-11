@@ -278,9 +278,6 @@ export class AppStateBackupService {
       try {
         fs.writeFileSync(temporary, bytes, { flag: "wx" });
         replaceFileAtomicallySync(temporary, file.targetPath);
-        if (file.logicalPath === "settings/provider-profiles.json") {
-          try { fs.chmodSync(file.targetPath, 0o600); } catch { /* Windows may not expose POSIX modes. */ }
-        }
       } finally {
         if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
       }

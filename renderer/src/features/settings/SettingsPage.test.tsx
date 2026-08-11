@@ -169,6 +169,53 @@ describe("SettingsPage", () => {
     expect(within(navigation).queryByRole("button", { name: "常规" })).toBeNull();
   });
 
+  it("adds an AI Provider from a focused dialog without exposing proxy or TLS fields", async () => {
+    const providerView = {
+      schemaVersion: 1 as const,
+      default: "existing",
+      providers: [{
+        id: "existing", name: "现有 Provider", enabled: true, protocol: "openai-chat" as const,
+        baseUrl: "https://api.example.com/v1", model: "example-model", apiKeySet: true,
+        proxyUrl: "http://127.0.0.1:7890", proxyPolicy: "explicit" as const, tlsPolicy: "verify" as const
+      }]
+    };
+    const getProviders = vi.fn().mockResolvedValue(providerView);
+    const saveProviders = vi.fn().mockResolvedValue(providerView);
+    window.cctools = makeApi({ getProviders, saveProviders });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI Provider 配置");
+
+    await waitFor(() => expect(getProviders).toHaveBeenCalled());
+    const navigation = screen.getByRole("navigation", { name: "设置分类" });
+    expect(within(navigation).getByRole("button", { name: "Provider 列表" })).toBeTruthy();
+    expect(screen.queryByLabelText("代理策略")).toBeNull();
+    expect(screen.queryByText("TLS")).toBeNull();
+    expect(screen.queryByText("代理 URL（可选）")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "添加 Provider" }));
+    const dialog = await screen.findByRole("dialog", { name: "添加 Provider" });
+    expect(within(dialog).getByLabelText("Provider 预设")).toBeTruthy();
+    expect(within(dialog).getByLabelText("API Key")).toBeTruthy();
+    expect(within(dialog).queryByText("代理策略")).toBeNull();
+    expect(within(dialog).queryByText("TLS")).toBeNull();
+
+    fireEvent.change(within(dialog).getByLabelText("API Key"), { target: { value: "sk-new-provider" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加到列表" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "添加 Provider" })).toBeNull());
+    expect(screen.getAllByRole("heading", { name: "Provider 列表" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("DeepSeek")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(saveProviders).toHaveBeenCalled());
+    expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      providers: expect.arrayContaining([
+        expect.objectContaining({ id: "existing", proxyUrl: "http://127.0.0.1:7890", proxyPolicy: "explicit", tlsPolicy: "verify" }),
+        expect.objectContaining({ id: "deepseek", apiKey: "sk-new-provider", proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify" })
+      ])
+    }));
+  });
+
   it("shows a recoverable error when preferences fail to load", async () => {
     const getPreferences = vi.fn()
       .mockRejectedValueOnce(new Error("preferences unavailable"))

@@ -153,6 +153,11 @@ export const JsonSchemaFragmentSchema = z.object({
 export type JsonSchemaFragment = z.infer<typeof JsonSchemaFragmentSchema>;
 
 export const ConfigFieldSchema = z.object({
+  // `provider-profile` and `secret-ref` are retained for non-provider skills
+  // (e.g. x-following-fetcher's X-session credential). The four AI content
+  // skills no longer declare them — their provider comes from
+  // config/providers.yaml — but the enum stays permissive so legacy/other
+  // skills still validate.
   type: z.enum(["string", "number", "boolean", "provider-profile", "secret-ref", "enum", "path-mymind", "path-export"]),
   required: z.boolean().default(false),
   default: z.unknown().optional(),

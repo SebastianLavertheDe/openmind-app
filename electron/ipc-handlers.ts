@@ -28,13 +28,9 @@ import {
   BrowserExtensionTokenSchema,
   McpServerCatalogSchema,
   UserPreferencesSchema,
-  CredentialMetadataSchema,
-  CredentialSetInputSchema,
-  CredentialTestResultSchema,
-  CredentialVaultStatusSchema,
   EnvFileAnalysisSchema,
-  ProviderProfileInputSchema,
-  ProviderProfileSchema,
+  ProvidersYamlInputSchema,
+  ProvidersYamlViewSchema,
   SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
@@ -47,9 +43,7 @@ import { toSkillPackageInspectionView } from "./skills/skill-package-service";
 import type { InstalledSkillRecord } from "./skills/installed-skill-repository";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
-import type { CredentialVault } from "./security/credential-vault";
-import type { ProviderProfileRepository } from "./security/provider-profile-repository";
-import type { ProviderConnectivityService } from "./security/provider-connectivity-service";
+import { deleteProviderEntry, listProvidersForUi, saveProvidersFromInput } from "./config/providers-yaml";
 import type { RuntimePackService } from "./runtime/runtime-pack-service";
 import type { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
@@ -133,14 +127,10 @@ export type IpcMainContext = {
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
   ensureExportLocationService: () => import("./execution/export-location-service").ExportLocationService;
-  ensureCredentialVault: () => CredentialVault;
-  ensureProviderProfileRepository: () => ProviderProfileRepository;
-  ensureProviderConnectivity: () => ProviderConnectivityService;
   ensureRuntimePackService?: () => RuntimePackService;
   ensureRuntimePackDownloadService?: () => RuntimePackDownloadService;
   ensureSharedPythonRuntimeService?: () => SharedPythonRuntimeService;
   ensureAppStateBackupService?: () => AppStateBackupService;
-  updateCredentialRuns?: (credentialId: string, state: "available" | "revoked" | "replaced") => Promise<unknown>;
   analyzeEnvFile: (filePath: string) => unknown;
   getActiveRunCount: () => Promise<number>;
   restartAiWorker: () => void;
@@ -167,9 +157,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const ai = () => ctx.ensureAiWorker();
   const skillPackages = () => ctx.ensureSkillPackageService();
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
-  const credentials = () => ctx.ensureCredentialVault();
-  const providerProfiles = () => ctx.ensureProviderProfileRepository();
-  const providerConnectivity = () => ctx.ensureProviderConnectivity();
   const runtimePacks = () => {
     if (!ctx.ensureRuntimePackService) throw new Error("Runtime Pack 服务尚未初始化。 ");
     return ctx.ensureRuntimePackService();
@@ -200,9 +187,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     if (!stat.isFile()) throw new Error("Runtime Pack 文件不是普通文件。");
     if (stat.size > 2 * 1024 * 1024 * 1024) throw new Error("Runtime Pack 超过单包大小限制。");
     return { metadata, bytes: new Uint8Array(await fs.readFile(packagePath)) };
-  };
-  const notifyCredentialState = (id: string, state: "available" | "revoked" | "replaced"): void => {
-    void ctx.updateCredentialRuns?.(id, state);
   };
 
   return [
@@ -616,67 +600,26 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: () => BrowserAutomationStatusSchema.parse(ctx.clearBrowserExtensionToken())
     },
     {
-      channel: C.getCredentialStatus,
-      handler: () => CredentialVaultStatusSchema.parse(credentials().status())
-    },
-    {
-      channel: C.setCredential,
-      handler: (input) => {
-        const metadata = credentials().set(CredentialSetInputSchema.parse(input));
-        notifyCredentialState(metadata.id, "available");
-        return CredentialMetadataSchema.parse(metadata);
-      }
-    },
-    {
-      channel: C.replaceCredential,
-      handler: (id, input) => {
-        const credentialId = IdentifierArgSchema.parse(id);
-        const metadata = credentials().replace(credentialId, CredentialSetInputSchema.omit({ id: true }).parse(input));
-        notifyCredentialState(credentialId, "replaced");
-        return CredentialMetadataSchema.parse(metadata);
-      }
-    },
-    {
-      channel: C.revokeCredential,
-      handler: (id) => {
-        const credentialId = IdentifierArgSchema.parse(id);
-        const metadata = credentials().revoke(credentialId);
-        notifyCredentialState(credentialId, "revoked");
-        return CredentialMetadataSchema.parse(metadata);
-      }
-    },
-    {
-      channel: C.deleteCredential,
-      handler: (id) => {
-        const credentialId = IdentifierArgSchema.parse(id);
-        const deleted = credentials().delete(credentialId);
-        if (deleted) notifyCredentialState(credentialId, "revoked");
-        return deleted;
-      }
-    },
-    {
-      channel: C.testCredential,
-      handler: (id) => CredentialTestResultSchema.parse(credentials().test(IdentifierArgSchema.parse(id)))
-    },
-    {
       channel: C.analyzeEnvFile,
       handler: (filePath) => EnvFileAnalysisSchema.parse(ctx.analyzeEnvFile(parseString(filePath)))
     },
     {
-      channel: C.listProviderProfiles,
-      handler: () => providerProfiles().list().map((profile) => ProviderProfileSchema.parse(profile))
+      channel: C.getProviders,
+      handler: () => ProvidersYamlViewSchema.parse(listProvidersForUi())
     },
     {
-      channel: C.saveProviderProfile,
-      handler: (input) => ProviderProfileSchema.parse(providerProfiles().save(ProviderProfileInputSchema.parse(input)))
+      channel: C.saveProviders,
+      handler: (input) => {
+        saveProvidersFromInput(ProvidersYamlInputSchema.parse(input));
+        return ProvidersYamlViewSchema.parse(listProvidersForUi());
+      }
     },
     {
-      channel: C.deleteProviderProfile,
-      handler: (id) => providerProfiles().remove(IdentifierArgSchema.parse(id))
-    },
-    {
-      channel: C.testProviderProfile,
-      handler: (id) => providerConnectivity().test(IdentifierArgSchema.parse(id))
+      channel: C.deleteProvider,
+      handler: (id) => {
+        deleteProviderEntry(parseString(id));
+        return ProvidersYamlViewSchema.parse(listProvidersForUi());
+      }
     },
     {
       channel: C.getEnvironmentDiagnostics,

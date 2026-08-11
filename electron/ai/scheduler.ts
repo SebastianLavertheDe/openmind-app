@@ -40,7 +40,6 @@ import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, Automati
 import { buildAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
 import { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
-import type { SkillCredentialKindResolver, SkillCredentialResolver } from "../skills/installed-skill-execution-resolver";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import { SharedPythonRuntimeService } from "../runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "../runtime/installed-python-projects";
@@ -49,8 +48,6 @@ import { AutomationRepository } from "../automation/automation-repository";
 import { AutomationScheduler } from "../automation/automation-scheduler";
 import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
-import { ProviderProfileRepository } from "../security/provider-profile-repository";
-import { ManagedCredentialFileAdapter } from "../security/credential-file-adapter";
 import { appendScheduledEvent, cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
 
 export class RunScheduler {
@@ -79,9 +76,7 @@ export class RunScheduler {
     browserAutomation?: BrowserAutomationConfig,
     stateRoot?: string,
     mymindRoot?: string,
-    rootGeneration = 1,
-    credentialResolver?: SkillCredentialResolver,
-    credentialKindResolver?: SkillCredentialKindResolver
+    rootGeneration = 1
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
     this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR, extensionToken: null };
@@ -91,8 +86,6 @@ export class RunScheduler {
     this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
     const appPaths = mymindRoot ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR) : null;
     const packageService = appPaths && mymindRoot ? new SkillPackageService(appPaths) : null;
-    const providerProfileRepository = appPaths && mymindRoot ? new ProviderProfileRepository(appPaths) : null;
-    const credentialFiles = appPaths && mymindRoot ? new ManagedCredentialFileAdapter(appPaths) : undefined;
     const installedResolver = appPaths && mymindRoot
       ? new InstalledSkillExecutionResolver(
         packageService!,
@@ -106,17 +99,13 @@ export class RunScheduler {
         }),
         mymindRoot,
         rootGeneration,
-        credentialResolver,
         (bindingId) => {
           const binding = new ExportLocationService(
             path.join(appPaths.settings, "export-bindings.json"),
             () => [appPaths.userData, mymindRoot]
           ).resolve(bindingId);
           return { bindingId: binding.id, canonicalPath: binding.canonicalPath, revoked: binding.revoked };
-        },
-        (profileId) => providerProfileRepository?.get(profileId) || null,
-        credentialKindResolver,
-        credentialFiles
+        }
       )
       : undefined;
     this.skillTools = new SkillToolRegistry(projectRoot, stateRoot, appPaths && mymindRoot ? {
@@ -227,9 +216,6 @@ export class RunScheduler {
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
   listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.skillTools.listRunArtifacts(runId); }
   retrySkillRun(runId: string): BrokerRunRecord { return this.skillTools.retryRun(runId); }
-  revokeCredential(credentialId: string): Promise<number> { return this.skillTools.revokeCredential(credentialId); }
-  restoreCredential(credentialId: string): number { return this.skillTools.restoreCredential(credentialId); }
-  rotateCredential(credentialId: string): Promise<number> { return this.skillTools.rotateCredential(credentialId); }
   deleteRunHistory(runId: string): boolean { return this.skillTools.deleteRunHistory(runId); }
   async cancelSkillRun(runId: string): Promise<boolean> {
     const cancelled = await this.skillTools.cancelRun(runId);

@@ -1,33 +1,28 @@
 import { z } from "zod";
 
 export {
-  CredentialKindSchema,
-  CredentialScopeSchema,
-  CredentialStatusSchema,
-  CredentialMetadataSchema,
-  CredentialSetInputSchema,
-  CredentialVaultStatusSchema,
-  CredentialTestResultSchema,
+  PROVIDERS_YAML_SCHEMA_VERSION,
   ProviderProtocolSchema,
   ProxyPolicySchema,
   TlsPolicySchema,
-  ProviderTestStateSchema,
-  ProviderProfileSchema,
-  ProviderProfileInputSchema,
-  type CredentialKind,
-  type CredentialScope,
-  type CredentialStatus,
-  type CredentialMetadata,
-  type CredentialSetInput,
-  type CredentialVaultStatus,
-  type CredentialTestResult,
+  ProviderYamlEntrySchema,
+  ProvidersYamlSchema,
+  ProviderYamlInputEntrySchema,
+  ProvidersYamlInputSchema,
+  ProviderYamlViewSchema,
+  ProvidersYamlViewSchema,
+  PROVIDER_PRESETS,
   type ProviderProtocol,
   type ProxyPolicy,
   type TlsPolicy,
-  type ProviderTestState,
-  type ProviderProfile,
-  type ProviderProfileInput
-} from "./provider-profiles";
+  type ProviderYamlEntry,
+  type ProvidersYaml,
+  type ProviderYamlInputEntry,
+  type ProvidersYamlInput,
+  type ProviderYamlView,
+  type ProvidersYamlView,
+  type ProviderPreset
+} from "./providers-yaml";
 export {
   EnvVariableKindSchema,
   EnvVariableInsightSchema,
@@ -36,14 +31,7 @@ export {
   type EnvVariableInsight,
   type EnvFileAnalysis
 } from "./env-file-analysis";
-import type {
-  CredentialMetadata,
-  CredentialSetInput,
-  CredentialTestResult,
-  CredentialVaultStatus,
-  ProviderProfile,
-  ProviderProfileInput
-} from "./provider-profiles";
+import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
 import type { BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
 import { RuntimeTargetSchema, type RuntimePackDownloadDescriptor, type RuntimePackDownloadJob, type RuntimePackReadiness, type RuntimePackId, type RuntimeTarget } from "./runtime-targets";
@@ -1302,17 +1290,10 @@ export interface DesktopApi {
   getMcpServers(): Promise<McpServerDefinition[]>;
   saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
   clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
-  getCredentialStatus(): Promise<CredentialVaultStatus>;
-  setCredential(input: CredentialSetInput): Promise<CredentialMetadata>;
-  replaceCredential(id: string, input: Omit<CredentialSetInput, "id">): Promise<CredentialMetadata>;
-  revokeCredential(id: string): Promise<CredentialMetadata>;
-  deleteCredential(id: string): Promise<boolean>;
-  testCredential(id: string): Promise<CredentialTestResult>;
   analyzeEnvFile(path: string): Promise<EnvFileAnalysis>;
-  listProviderProfiles(): Promise<ProviderProfile[]>;
-  saveProviderProfile(input: ProviderProfileInput): Promise<ProviderProfile>;
-  deleteProviderProfile(id: string): Promise<boolean>;
-  testProviderProfile(id: string): Promise<ProviderProfile>;
+  getProviders(): Promise<ProvidersYamlView>;
+  saveProviders(input: ProvidersYamlInput): Promise<ProvidersYamlView>;
+  deleteProvider(id: string): Promise<ProvidersYamlView>;
   importPreferences(path: string): Promise<PreferencesImportResult>;
   getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostic[]>;
   getSharedPythonRuntimeStatus(): Promise<SharedPythonRuntimeStatus>;

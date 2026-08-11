@@ -206,10 +206,9 @@ describe("SkillPackageService", () => {
       "--subtitle", "{{ inputs.subtitleFile }}",
       "--output-name", "{{ inputs.outputName }}"
     ]);
-    expect(video?.manifest?.entrypoint.env).toMatchObject({
-      CCTOOLS_PROVIDER_API_KEY: "{{ secrets.providerCredential }}",
-      CCTOOLS_PROVIDER_MODEL: "{{ providers.default.model }}"
-    });
+    // Provider config moved to config/providers.yaml; the manifest no longer
+    // carries the CCTOOLS_PROVIDER_* env templates.
+    expect(video?.manifest?.entrypoint.env).toBeFalsy();
     expect(video?.manifest?.runtime.lockFile).toBe("uv.lock");
     expect(video?.manifest?.artifacts[0]).toMatchObject({ path: "video/**" });
     const videoScript = fs.readFileSync(path.join(skillsRoot, "video-burnin-subtitles", "scripts", "burnin_subtitles.py"), "utf8");

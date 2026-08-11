@@ -1,0 +1,167 @@
+import { z } from "zod";
+
+/**
+ * Pure schema + types for the plaintext `config/providers.yaml` provider
+ * source of truth. This module is dependency-free (no `fs`, no Electron) so
+ * it can be imported from both the Electron main process (which adds the
+ * file/repository layer in `electron/config/providers-yaml.ts`) and the
+ * Renderer (via `shared/contracts.ts`) and the IPC contract surface.
+ *
+ * See `docs/providers-yaml-migration.md`.
+ */
+
+export const PROVIDERS_YAML_SCHEMA_VERSION = 1 as const;
+
+const IdentifierSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "标识只能包含字母、数字、点、下划线和连字符。");
+
+export const ProviderProtocolSchema = z.enum([
+  "openai-chat",
+  "openai-responses",
+  "anthropic-messages"
+]);
+export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
+
+export const ProxyPolicySchema = z.enum(["system", "disabled", "explicit"]);
+export type ProxyPolicy = z.infer<typeof ProxyPolicySchema>;
+
+export const TlsPolicySchema = z.enum(["verify", "allow-insecure"]);
+export type TlsPolicy = z.infer<typeof TlsPolicySchema>;
+
+/**
+ * One provider entry inside `config/providers.yaml`. `apiKey` is stored in
+ * plaintext alongside the non-secret knobs — same threat model as the legacy
+ * per-skill `.env` files, now collapsed to one file.
+ */
+export const ProviderYamlEntrySchema = z.object({
+  id: IdentifierSchema,
+  name: z.string().trim().min(1).max(160),
+  enabled: z.boolean().default(true),
+  protocol: ProviderProtocolSchema,
+  apiKey: z.string().min(1).max(2048),
+  baseUrl: z.string().trim().min(1).max(2048).refine((value) => isSafeBaseUrl(value), {
+    message: "Base URL 必须是无凭据的 HTTPS URL；HTTP 仅允许 localhost/loopback。"
+  }),
+  model: z.string().trim().min(1).max(200),
+  proxyUrl: z.string().trim().max(2048).default("").refine((value) => !value || isSafeProxyUrl(value), {
+    message: "Proxy URL 必须是无凭据的 HTTP(S) URL。"
+  }),
+  proxyPolicy: ProxyPolicySchema.default("system"),
+  tlsPolicy: TlsPolicySchema.default("verify")
+}).strict();
+export type ProviderYamlEntry = z.infer<typeof ProviderYamlEntrySchema>;
+
+export const ProvidersYamlSchema = z.object({
+  schemaVersion: z.literal(PROVIDERS_YAML_SCHEMA_VERSION),
+  default: IdentifierSchema,
+  providers: z.array(ProviderYamlEntrySchema).min(1)
+}).strict();
+export type ProvidersYaml = z.infer<typeof ProvidersYamlSchema>;
+
+/**
+ * Save input: `apiKey` may be empty to mean "keep the previously stored key"
+ * (the UI never reads the plaintext key back). Validation of a non-empty key
+ * still applies.
+ */
+export const ProviderYamlInputEntrySchema = ProviderYamlEntrySchema.omit({ apiKey: true }).extend({
+  apiKey: z.string().max(2048)
+});
+export type ProviderYamlInputEntry = z.infer<typeof ProviderYamlInputEntrySchema>;
+
+export const ProvidersYamlInputSchema = z.object({
+  schemaVersion: z.literal(PROVIDERS_YAML_SCHEMA_VERSION),
+  default: IdentifierSchema,
+  providers: z.array(ProviderYamlInputEntrySchema).min(1)
+}).strict();
+export type ProvidersYamlInput = z.infer<typeof ProvidersYamlInputSchema>;
+
+/** UI view of a provider: never exposes the plaintext apiKey. */
+export const ProviderYamlViewSchema = ProviderYamlEntrySchema.omit({ apiKey: true }).extend({
+  apiKeySet: z.boolean()
+});
+export type ProviderYamlView = z.infer<typeof ProviderYamlViewSchema>;
+
+/** Top-level UI document returned by `getProviders()`. */
+export const ProvidersYamlViewSchema = z.object({
+  schemaVersion: z.literal(PROVIDERS_YAML_SCHEMA_VERSION),
+  default: z.string(),
+  providers: z.array(ProviderYamlViewSchema)
+});
+export type ProvidersYamlView = z.infer<typeof ProvidersYamlViewSchema>;
+
+/**
+ * Built-in presets for the UI "add provider" flow. Selecting one pre-fills
+ * protocol / baseUrl / model; the user only supplies the apiKey.
+ */
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  protocol: ProviderProtocol;
+  baseUrl: string;
+  model: string;
+}
+
+export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
+  { id: "deepseek", name: "DeepSeek", protocol: "anthropic-messages", baseUrl: "https://api.deepseek.com", model: "deepseek-chat" },
+  { id: "glm", name: "智谱 GLM", protocol: "anthropic-messages", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6" },
+  { id: "doubao", name: "火山豆包", protocol: "openai-chat", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-pro-32k" },
+  { id: "openai", name: "OpenAI", protocol: "openai-chat", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  { id: "gemini", name: "Google Gemini", protocol: "openai-chat", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" }
+];
+
+/**
+ * The 7-var `CCTOOLS_PROVIDER_*` output contract, shared by the desktop
+ * Broker path and the Python `_resolve_bound_provider()` reader. Kept stable
+ * so the two execution paths stay identical.
+ */
+export function processProviderEnvironment(entry: ProviderYamlEntry): Record<string, string> {
+  return {
+    CCTOOLS_PROVIDER_API_KEY: entry.apiKey,
+    CCTOOLS_PROVIDER_BASE_URL: providerEndpoint(entry.baseUrl, entry.protocol),
+    CCTOOLS_PROVIDER_MODEL: entry.model,
+    CCTOOLS_PROVIDER_PROTOCOL: entry.protocol,
+    CCTOOLS_PROVIDER_PROXY_URL: entry.proxyUrl || "",
+    CCTOOLS_PROVIDER_PROXY_POLICY: entry.proxyPolicy,
+    CCTOOLS_PROVIDER_TLS_POLICY: entry.tlsPolicy
+  };
+}
+
+/** Append the protocol-specific request path to the base URL (idempotent). */
+export function providerEndpoint(baseUrl: string, protocol: ProviderProtocol): string {
+  const base = baseUrl.replace(/\/+$/, "");
+  if (protocol === "anthropic-messages") return base.endsWith("/messages") ? base : `${base}/messages`;
+  if (protocol === "openai-responses") return base.endsWith("/responses") ? base : `${base}/responses`;
+  if (protocol === "openai-chat") return base.endsWith("/chat/completions") ? base : `${base}/chat/completions`;
+  return base;
+}
+
+function isSafeBaseUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw.trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    if (!url.hostname || url.username || url.password || url.search || url.hash) return false;
+    if (url.protocol === "http:" && !isLoopbackHost(url.hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSafeProxyUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw.trim());
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && Boolean(url.hostname)
+      && !url.username
+      && !url.password
+      && url.pathname === "/"
+      && !url.search
+      && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return host === "localhost" || host === "::1" || host === "127.0.0.1" || host.startsWith("127.");
+}

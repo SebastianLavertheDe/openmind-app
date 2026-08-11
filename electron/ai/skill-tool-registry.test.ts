@@ -234,11 +234,13 @@ describe("SkillToolRegistry", () => {
       expect(states).toContain("success");
     });
 
-    it("loads the .env from the selected Skill directory before spawning", async () => {
+    it("injects provider env from the global providers.yaml (not a per-skill .env)", async () => {
       const root = createRoot();
       const registry = new SkillToolRegistry(root);
       const skill = registry.list()[0];
       const skillDir = path.join(root, skill.cwd);
+      // A per-skill .env is no longer a provider source; the legacy spawn
+      // path draws provider config from config/providers.yaml instead.
       fs.writeFileSync(path.join(skillDir, ".env"), [
         "DOUBAO_API_KEY=local-skill-secret",
         "DOUBAO_API_BASE_URL=https://ark.cn-beijing.volces.com/api/v3"
@@ -256,11 +258,10 @@ describe("SkillToolRegistry", () => {
       childRef!.emitClose(0);
       await runPromise;
 
-      expect(spawnedEnv).toMatchObject({
-        DOUBAO_API_KEY: "local-skill-secret",
-        DOUBAO_API_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3",
-        CCTOOLS_SKILL_ID: skill.id
-      });
+      expect(spawnedEnv.CCTOOLS_SKILL_ID).toBe(skill.id);
+      expect(spawnedEnv.PYTHONIOENCODING).toBe("utf-8");
+      // The per-skill .env must NOT leak into the spawn environment anymore.
+      expect(spawnedEnv.DOUBAO_API_KEY).toBeUndefined();
     });
 
     it("非零退出码 emit failed 并抛错,含 output", async () => {

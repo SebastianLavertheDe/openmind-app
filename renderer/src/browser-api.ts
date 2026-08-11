@@ -1,14 +1,12 @@
 import type {
   AiEvent,
   AiSnapshot,
-  CredentialMetadata,
-  CredentialSetInput,
   EnvFileAnalysis,
   CreativeProjectManifest,
   CreativeStage,
   DesktopApi,
-  ProviderProfile,
-  ProviderProfileInput,
+  ProvidersYamlInput,
+  ProvidersYamlView,
   SkillDefinition,
   UserPreferences
 } from "@shared/contracts";
@@ -167,8 +165,6 @@ export function installBrowserPreviewApi(): boolean {
     { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["mymind/daily-summary/${date}_daily_summary.md"], timeoutMs: 3600000 },
     { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/x_*.md", "mymind/post/${date}/"], timeoutMs: 7200000 }
   ];
-  let previewCredentials: CredentialMetadata[] = [];
-  let previewProviderProfiles: ProviderProfile[] = [];
   const previewAutomationRules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.map((input, index) => ({
     schemaVersion: 1,
     ...input,
@@ -489,81 +485,10 @@ export function installBrowserPreviewApi(): boolean {
       evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: false, secureStorageAvailable: true,
       packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
     }),
-    getCredentialStatus: async () => ({ available: true, backend: "safeStorage", credentials: previewCredentials }),
-    setCredential: async (input: CredentialSetInput) => {
-      const now = new Date().toISOString();
-      const metadata: CredentialMetadata = {
-        schemaVersion: 1,
-        id: input.id || `preview-credential-${previewCredentials.length + 1}`,
-        label: input.label,
-        kind: input.kind,
-        scope: input.scope || null,
-        status: "active",
-        createdAt: now,
-        updatedAt: now
-      };
-      previewCredentials = [...previewCredentials.filter((item) => item.id !== metadata.id), metadata];
-      return metadata;
-    },
-    replaceCredential: async (id, input) => {
-      const current = previewCredentials.find((item) => item.id === id);
-      if (!current) throw new Error("Credential 不存在。");
-      const metadata: CredentialMetadata = {
-        ...current,
-        label: input.label,
-        kind: input.kind,
-        scope: input.scope || null,
-        updatedAt: new Date().toISOString()
-      };
-      previewCredentials = previewCredentials.map((item) => item.id === id ? metadata : item);
-      return metadata;
-    },
-    revokeCredential: async (id) => {
-      const current = previewCredentials.find((item) => item.id === id);
-      if (!current) throw new Error("Credential 不存在。");
-      const metadata: CredentialMetadata = { ...current, status: "revoked", updatedAt: new Date().toISOString() };
-      previewCredentials = previewCredentials.map((item) => item.id === id ? metadata : item);
-      return metadata;
-    },
-    deleteCredential: async (id) => {
-      const next = previewCredentials.filter((item) => item.id !== id);
-      const changed = next.length !== previewCredentials.length;
-      previewCredentials = next;
-      return changed;
-    },
-    testCredential: async (id) => {
-      const current = previewCredentials.find((item) => item.id === id);
-      return current && current.status === "active"
-        ? { id, ok: true, status: "available" as const, diagnostic: "Credential 可由安全存储解密。（预览）" }
-        : { id, ok: false, status: current ? "revoked" as const : "missing" as const, diagnostic: current ? "Credential 已撤销。（预览）" : "Credential 不存在。（预览）" };
-    },
-    analyzeEnvFile: async (filePath): Promise<EnvFileAnalysis> => ({ path: filePath, variables: [], ignoredLines: 0, warnings: ["浏览器预览不读取本地 Credential 文件。"], containsPotentialSecrets: false }),
-    listProviderProfiles: async () => previewProviderProfiles,
-    saveProviderProfile: async (input: ProviderProfileInput) => {
-      const profile: ProviderProfile = {
-        ...input,
-        schemaVersion: 1,
-        test: { status: "never", testedAt: null, diagnostic: null }
-      };
-      previewProviderProfiles = [...previewProviderProfiles.filter((item) => item.id !== profile.id), profile];
-      return profile;
-    },
-    testProviderProfile: async (id) => {
-      const current = previewProviderProfiles.find((item) => item.id === id);
-      if (!current) throw new Error("Provider Profile 不存在。（预览）");
-      const profile: ProviderProfile = {
-        ...current,
-        test: { status: "success", testedAt: new Date().toISOString(), diagnostic: "连接成功（预览）。" }
-      };
-      previewProviderProfiles = previewProviderProfiles.map((item) => item.id === id ? profile : item);
-      return profile;
-    },
-    deleteProviderProfile: async (id) => {
-      const next = previewProviderProfiles.filter((item) => item.id !== id);
-      const changed = next.length !== previewProviderProfiles.length;
-      previewProviderProfiles = next;
-      return changed;
-    },
+    analyzeEnvFile: async (filePath): Promise<EnvFileAnalysis> => ({ path: filePath, variables: [], ignoredLines: 0, warnings: ["浏览器预览不读取本地配置文件。"], containsPotentialSecrets: false }),
+    getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
+    saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
+    deleteProvider: async (_id: string): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
     getEnvironmentDiagnostics: async () => [
       { id: "repo", label: "项目目录", status: "ok", value: snapshot.projectRoot, detail: null, path: snapshot.projectRoot },
       { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },

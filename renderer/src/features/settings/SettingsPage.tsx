@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, KeyRound, List, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
@@ -9,6 +9,7 @@ import { SkillsPage } from "../skills";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
+  AiProvidersSettingsSection,
   BrowserSettingsSection,
   DataRetentionSettingsSection,
   PathSettingsSection,
@@ -23,7 +24,7 @@ import {
 const m = messages;
 const BLUE_ACCENT = "#2563eb";
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
+type SettingsSectionId = "general" | "providers" | "ai-providers" | "provider-list" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -37,6 +38,8 @@ type SettingsSectionDefinition = {
 const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
   { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
+  { id: "ai-providers", group: "ai", icon: KeyRound, title: "AI Provider 配置", description: "统一管理 config/providers.yaml 中的 AI Provider（全局默认，桌面运行与定时任务共用）。" },
+  { id: "provider-list", group: "ai", icon: List, title: "Provider 列表", description: "查看、编辑并保存已经添加的 AI Provider。" },
   { id: "runtime", group: "ai", icon: Cpu, title: "内置运行时", description: "统一管理供 Skill 与自动化任务使用的共享 Python 环境。" },
   { id: "skills", group: "ai", icon: Package, ...m.settings.navigation.sections.skills },
   { id: "mcp", group: "ai", icon: Server, ...m.settings.navigation.sections.mcp },
@@ -62,6 +65,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [runtimeDownloadCandidate, setRuntimeDownloadCandidate] = useState<RuntimePackDownloadDescriptor | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [sharedPythonRuntime, setSharedPythonRuntime] = useState<SharedPythonRuntimeStatus | null>(null);
+  const [providersYaml, setProvidersYaml] = useState<ProvidersYamlView | null>(null);
+  const [providersYamlBusy, setProvidersYamlBusy] = useState(false);
   const [savingBrowserToken, setSavingBrowserToken] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [skillPackageInspections, setSkillPackageInspections] = useState<SkillPackageInspectionView[]>([]);
@@ -139,6 +144,43 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try { setSharedPythonRuntime(await window.cctools.getSharedPythonRuntimeStatus()); }
     catch { setSharedPythonRuntime(null); }
   }, []);
+
+  const loadProvidersYaml = useCallback(async () => {
+    try { setProvidersYaml(await window.cctools.getProviders()); }
+    catch { setProvidersYaml({ schemaVersion: 1, default: "", providers: [] }); }
+  }, []);
+
+  useEffect(() => {
+    if ((activeSection === "ai-providers" || activeSection === "provider-list") && !providersYaml && !loading && prefs) void loadProvidersYaml();
+  }, [activeSection, loadProvidersYaml, loading, prefs, providersYaml]);
+
+  const saveProvidersYaml = useCallback(async (input: ProvidersYamlInput) => {
+    if (providersYamlBusy) return;
+    setProvidersYamlBusy(true);
+    try {
+      setProvidersYaml(await window.cctools.saveProviders(input));
+      ai.notify("AI Provider 配置已保存", "success");
+    } catch (error) {
+      ai.notify(error instanceof Error ? error.message : "AI Provider 配置保存失败", "error");
+      await loadProvidersYaml();
+    } finally {
+      setProvidersYamlBusy(false);
+    }
+  }, [ai, loadProvidersYaml, providersYamlBusy]);
+
+  const deleteProviderYaml = useCallback(async (id: string) => {
+    if (providersYamlBusy) return;
+    setProvidersYamlBusy(true);
+    try {
+      setProvidersYaml(await window.cctools.deleteProvider(id));
+      ai.notify("Provider 已删除", "success");
+    } catch (error) {
+      ai.notify(error instanceof Error ? error.message : "Provider 删除失败", "error");
+      await loadProvidersYaml();
+    } finally {
+      setProvidersYamlBusy(false);
+    }
+  }, [ai, loadProvidersYaml, providersYamlBusy]);
 
   useEffect(() => {
     if (activeSection === "runtime" && !loading && prefs) void loadSharedPythonRuntime();
@@ -598,6 +640,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                 </>
               ) : null}
               {activeSection === "providers" ? <ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /> : null}
+              {activeSection === "ai-providers" || activeSection === "provider-list" ? <AiProvidersSettingsSection mode={activeSection === "ai-providers" ? "config" : "list"} view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} onDelete={deleteProviderYaml} onRefresh={() => void loadProvidersYaml()} onAdded={() => selectSection("provider-list")} notify={ai.notify} /> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}

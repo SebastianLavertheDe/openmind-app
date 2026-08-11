@@ -1,17 +1,11 @@
-import crypto from "node:crypto";
 import { RunScheduler } from "./scheduler";
 import { AUTO_MODEL } from "../../shared/model-catalog";
 import { browserAutomationConfigFromEnv } from "./browser-evidence";
-import { CredentialKindSchema, type CredentialKind } from "../../shared/provider-profiles";
 
 type WorkerRequest = { id: string; method: string; args: unknown[] };
-type CredentialResponse = { type: "credential-response"; id: string; secret?: string; error?: string } | { type: "credential-kind-response"; id: string; kind?: CredentialKind | null; error?: string };
-const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest | CredentialResponse }) => void): void; postMessage(message: unknown): void } }).parentPort;
+const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest }) => void): void; postMessage(message: unknown): void } }).parentPort;
 if (!parentPort) throw new Error("AI worker must run as an Electron utility process.");
 const port = parentPort;
-
-const pendingCredentials = new Map<string, { resolve: (secret: string) => void; reject: (error: Error) => void }>();
-const pendingCredentialKinds = new Map<string, { resolve: (kind: CredentialKind | null) => void; reject: (error: Error) => void }>();
 
 const projectRoot = process.env.CCTOOLS_REPO_ROOT;
 if (!projectRoot) throw new Error("CCTOOLS_REPO_ROOT is required.");
@@ -27,9 +21,7 @@ const scheduler = new RunScheduler(
   browserAutomationConfigFromEnv(),
   stateRoot,
   mymindRoot,
-  rootGeneration,
-  (credentialId, scope) => requestCredential(credentialId, scope),
-  (credentialId) => requestCredentialKind(credentialId)
+  rootGeneration
 );
 
 // 启动时异步探测一次 provider（本机 + WSL），完成后由 scheduler 推送 snapshot。
@@ -37,43 +29,11 @@ const scheduler = new RunScheduler(
 void scheduler.refreshProviders();
 
 port.on("message", ({ data }) => {
-  if (data && "type" in data && data.type === "credential-kind-response") {
-    const pending = pendingCredentialKinds.get(data.id);
-    if (!pending) return;
-    pendingCredentialKinds.delete(data.id);
-    if (data.error) pending.reject(new Error(data.error));
-    else {
-      try { pending.resolve(data.kind === null || data.kind === undefined ? null : CredentialKindSchema.parse(data.kind)); }
-      catch (error) { pending.reject(error instanceof Error ? error : new Error(String(error))); }
-    }
-    return;
-  }
-  if (data && "type" in data && data.type === "credential-response") {
-    const pending = pendingCredentials.get(data.id);
-    if (!pending) return;
-    pendingCredentials.delete(data.id);
-    if (data.error) pending.reject(new Error(data.error));
-    else if (data.secret) pending.resolve(data.secret);
-    else pending.reject(new Error("Credential response 为空。"));
-    return;
-  }
   void dispatch(data as WorkerRequest).then(
     (result) => port.postMessage({ type: "response", id: (data as WorkerRequest).id, result }),
     (error) => port.postMessage({ type: "response", id: (data as WorkerRequest).id, error: error instanceof Error ? error.message : String(error) })
   );
 });
-
-function requestCredential(credentialId: string, scope: unknown): Promise<string> {
-  const id = `credential-${crypto.randomUUID()}`;
-  port.postMessage({ type: "credential-request", id, credentialId, scope });
-  return new Promise((resolve, reject) => pendingCredentials.set(id, { resolve, reject }));
-}
-
-function requestCredentialKind(credentialId: string): Promise<CredentialKind | null> {
-  const id = `credential-kind-${crypto.randomUUID()}`;
-  port.postMessage({ type: "credential-kind-request", id, credentialId });
-  return new Promise((resolve, reject) => pendingCredentialKinds.set(id, { resolve, reject }));
-}
 
 async function dispatch(request: WorkerRequest): Promise<unknown> {
   const [first, second, third] = request.args;
@@ -95,9 +55,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));
     case "run-list-artifacts": return scheduler.listRunArtifacts(typeof first === "string" && first ? first : undefined);
     case "run-retry": return scheduler.retrySkillRun(String(first));
-    case "credential-revoked": return scheduler.revokeCredential(String(first));
-    case "credential-available": return scheduler.restoreCredential(String(first));
-    case "credential-replaced": return scheduler.rotateCredential(String(first));
     case "run-retry-step": return scheduler.retryWorkflowStep(String(first), String(second));
     case "run-delete-history": return scheduler.deleteRunHistory(String(first));
     case "skill-run-cancel": return scheduler.cancelSkillRun(String(first));

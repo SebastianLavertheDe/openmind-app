@@ -45,9 +45,9 @@ describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
     // The registry intentionally excludes removed manual Skill run, update,
     // and host-trust revocation endpoints.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(157);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(157);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(157);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(150);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(150);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(150);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -93,16 +93,6 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
       listInstalled: () => []
     }) as never,
     ensureExportLocationService: () => ({ list: () => [], create: () => ({}), get: () => undefined, relink: () => ({}), revoke: () => false, resolve: () => ({}) }) as never,
-    ensureCredentialVault: () => ({
-      status: () => ({ available: true, backend: "safeStorage", credentials: [] }),
-      set: (input: unknown) => ({ schemaVersion: 1, id: "credential-test", label: (input as { label: string }).label, kind: (input as { kind: string }).kind, scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
-      replace: () => ({ schemaVersion: 1, id: "credential-test", label: "test", kind: "token", scope: null, status: "active", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
-      revoke: () => ({ schemaVersion: 1, id: "credential-test", label: "test", kind: "token", scope: null, status: "revoked", createdAt: "2026-07-08T00:00:00.000Z", updatedAt: "2026-07-08T00:00:00.000Z" }),
-      delete: () => true,
-      test: (id: string) => ({ id, ok: true, status: "available", diagnostic: "ok" })
-    }) as never,
-    ensureProviderProfileRepository: () => ({ list: () => [], save: (input: unknown) => ({ ...(input as object), schemaVersion: 1, test: { status: "never", testedAt: null, diagnostic: null } }), remove: () => true }) as never,
-    ensureProviderConnectivity: () => ({ test: async (id: string) => ({ id, schemaVersion: 1, name: "Test", protocol: "provider-native", credentialId: null, baseUrl: "", model: "", timeoutMs: 120000, maxRetries: 2, proxyPolicy: "system", tlsPolicy: "verify", fallbackProfileId: null, test: { status: "success", testedAt: "2026-07-08T00:00:00.000Z", diagnostic: "ok" } }) }) as never,
     ensureRuntimePackService: () => ({ listReadiness: () => [], getReadiness: () => undefined, activate: () => ({}), rollback: () => ({}), remove: () => false }) as never,
     analyzeEnvFile: () => ({ path: ".env", variables: [], ignoredLines: 0, warnings: [], containsPotentialSecrets: false }),
     getActiveRunCount: async () => 0,
@@ -152,33 +142,19 @@ describe("ipc handlers", () => {
     expect(result).toEqual(catalog);
   });
 
-  it("validates credential input and never returns a secret field", () => {
-    const result = invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.setCredential, {
-      label: "API key",
-      kind: "api-key",
-      secret: "renderer-secret"
-    });
-    expect(result).not.toHaveProperty("secret");
-    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.setCredential, {
-      label: "API key",
-      kind: "api-key",
-      secret: ""
-    })).toThrow();
-  });
-
-  it("validates Provider Profile URLs at the IPC boundary", () => {
-    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.saveProviderProfile, {
-      id: "unsafe",
-      name: "Unsafe",
-      protocol: "provider-native",
-      credentialId: null,
-      baseUrl: "https://user:password@example.com",
-      model: "model",
-      timeoutMs: 120000,
-      maxRetries: 2,
-      proxyPolicy: "system",
-      tlsPolicy: "verify",
-      fallbackProfileId: null
+  it("validates provider yaml input at the IPC boundary", () => {
+    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.saveProviders, {
+      schemaVersion: 1,
+      default: "missing",
+      providers: [{
+        id: "deepseek",
+        name: "DeepSeek",
+        enabled: true,
+        protocol: "anthropic-messages",
+        apiKey: "sk-test",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat"
+      }]
     })).toThrow();
   });
 });

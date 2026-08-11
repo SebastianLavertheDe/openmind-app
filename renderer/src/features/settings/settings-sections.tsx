@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import type { AiSession, BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { PROVIDER_PRESETS } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
@@ -811,6 +813,225 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
         </div>
       </PreferenceRow>
     </SettingsPanel>
+    </>
+  );
+}
+
+/**
+ * Manages the plaintext `config/providers.yaml` — the single source of truth
+ * for the AI provider used by both desktop runs and crontab Python runs. The
+ * apiKey is never read back from main; the UI only knows whether one is set,
+ * and an empty password field means "keep the existing key".
+ */
+export function AiProvidersSettingsSection({
+  mode,
+  view,
+  busy,
+  onSave,
+  onDelete,
+  onRefresh,
+  onAdded,
+  notify
+}: {
+  mode: "config" | "list";
+  view: ProvidersYamlView | null;
+  busy: boolean;
+  onSave(input: ProvidersYamlInput): Promise<void>;
+  onDelete(id: string): Promise<void>;
+  onRefresh(): void;
+  onAdded(): void;
+  notify(message: string, tone?: "info" | "success" | "error"): void;
+}) {
+  const [draft, setDraft] = useState<ProviderYamlInputEntry[]>([]);
+  const [defaultId, setDefaultId] = useState("");
+  const [apiKeyKeys, setApiKeyKeys] = useState<Record<string, string>>({});
+  const [apiKeySetMap, setApiKeySetMap] = useState<Record<string, boolean>>({});
+  const [presetId, setPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? "custom");
+  const [adding, setAdding] = useState(false);
+  const [newProvider, setNewProvider] = useState<ProviderYamlInputEntry | null>(null);
+
+  useEffect(() => {
+    if (!view) return;
+    setDraft(view.providers.map((provider) => ({
+      id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol,
+      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, proxyUrl: provider.proxyUrl,
+      proxyPolicy: provider.proxyPolicy, tlsPolicy: provider.tlsPolicy
+    })));
+    setDefaultId(view.default);
+    setApiKeyKeys({});
+    setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
+  }, [view]);
+
+  const update = (id: string, patch: Partial<ProviderYamlInputEntry>) => {
+    setDraft((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry));
+  };
+  const updateKey = (id: string, value: string) => {
+    setApiKeyKeys((current) => ({ ...current, [id]: value }));
+  };
+
+  const providerFromPreset = (nextPresetId: string): ProviderYamlInputEntry => {
+    const preset = PROVIDER_PRESETS.find((item) => item.id === nextPresetId);
+    const base = preset ?? { id: "custom", name: "自定义", protocol: "openai-chat" as ProviderProtocol, baseUrl: "", model: "" };
+    let counter = 0;
+    let id = base.id;
+    while (draft.some((entry) => entry.id === id)) id = `${base.id}-${++counter}`;
+    return {
+      id, name: base.name, enabled: true, protocol: base.protocol, apiKey: "",
+      baseUrl: base.baseUrl, model: base.model, proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify"
+    };
+  };
+
+  const openAddDialog = () => {
+    setNewProvider(providerFromPreset(presetId));
+    setAdding(true);
+  };
+
+  const changePreset = (nextPresetId: string) => {
+    setPresetId(nextPresetId);
+    setNewProvider(providerFromPreset(nextPresetId));
+  };
+
+  const addProvider = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newProvider) return;
+    const entry = { ...newProvider, id: newProvider.id.trim(), name: newProvider.name.trim(), baseUrl: newProvider.baseUrl.trim(), model: newProvider.model.trim() };
+    if (!entry.id || !entry.name || !entry.baseUrl || !entry.model || !entry.apiKey) {
+      notify("请填写所有必填项", "info");
+      return;
+    }
+    if (draft.some((item) => item.id === entry.id)) {
+      notify("Provider ID 已存在，请换一个 ID", "info");
+      return;
+    }
+    setDraft((current) => [...current, { ...entry, apiKey: "" }]);
+    setApiKeyKeys((current) => ({ ...current, [entry.id]: entry.apiKey }));
+    setApiKeySetMap((current) => ({ ...current, [entry.id]: false }));
+    if (!defaultId) setDefaultId(entry.id);
+    setAdding(false);
+    setNewProvider(null);
+    onAdded();
+  };
+
+  useEffect(() => {
+    if (!adding) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAdding(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [adding]);
+
+  const remove = (id: string) => {
+    if (draft.length <= 1) { notify("至少需要保留一个 Provider", "info"); return; }
+    void onDelete(id);
+    setDraft((current) => current.filter((entry) => entry.id !== id));
+  };
+
+  const submit = () => {
+    if (!draft.length) { notify("至少需要一个 Provider", "info"); return; }
+    if (!draft.some((entry) => entry.id === defaultId)) { notify("默认 Provider 不存在", "info"); return; }
+    const providers = draft.map((entry) => ({ ...entry, apiKey: apiKeyKeys[entry.id] ?? "" }));
+    void onSave({ schemaVersion: 1, default: defaultId, providers });
+  };
+
+  return (
+    <>
+      {mode === "config" ? <SettingsPanel title="AI Provider 配置" scope="config/providers.yaml" variant="standard"
+        action={<button type="button" className="settings-subtle-action" data-motion="icon" onClick={onRefresh} disabled={busy} aria-label="刷新"><RefreshCw size={14} /></button>}>
+        <p className="settings-note">桌面运行与定时任务共用此配置。API Key 仅保存在本地，不会在界面中回显。</p>
+        <div className="settings-provider-add-row">
+          <div>
+            <span className="settings-provider-add-icon" aria-hidden><Plus size={17} /></span>
+            <div><strong>添加 AI Provider</strong><p>通过预设快速填写，也可以完整自定义连接信息。</p></div>
+          </div>
+          <button type="button" className="primary-button" data-motion="action" onClick={openAddDialog}><Plus size={14} />添加 Provider</button>
+        </div>
+      </SettingsPanel> : null}
+
+      {mode === "list" ? <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard">
+        <div className="settings-stack">
+          {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
+          {draft.map((entry) => (
+            <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
+              <header className="settings-provider-config-header">
+                <div>
+                  <strong>{entry.name || entry.id}</strong>
+                  <p>{entry.protocol} · {entry.model || "未设置模型"}</p>
+                </div>
+                <div className="settings-provider-config-actions">
+                  {entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}
+                  <StatusBadge tone={entry.enabled ? "success" : "neutral"}>{entry.enabled ? "启用" : "停用"}</StatusBadge>
+                  <ToggleSwitch checked={entry.enabled} disabled={entry.id === defaultId} label={`启用 ${entry.name || entry.id}`} onChange={(checked) => update(entry.id, { enabled: checked })} />
+                  <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => setDefaultId(entry.id)} disabled={entry.id === defaultId || !entry.enabled}>设为默认</button>
+                  <button type="button" className="settings-subtle-action settings-provider-delete" data-motion="icon" onClick={() => remove(entry.id)} aria-label={`删除 ${entry.id}`}><Trash2 size={14} /></button>
+                </div>
+              </header>
+              <div className="settings-provider-config-body">
+                <div className="settings-grid-2">
+                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={entry.id} readOnly title="Provider ID 添加后不可修改" /></label>
+                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={entry.name} onChange={(event) => update(entry.id, { name: event.target.value })} /></label>
+                  <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" value={entry.baseUrl} onChange={(event) => update(entry.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
+                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={entry.model} onChange={(event) => update(entry.id, { model: event.target.value })} /></label>
+                  <label className="settings-field"><span>协议</span>
+                    <select className="settings-select" value={entry.protocol} onChange={(event) => update(entry.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
+                      <option value="anthropic-messages">anthropic-messages</option>
+                      <option value="openai-chat">openai-chat</option>
+                      <option value="openai-responses">openai-responses</option>
+                    </select>
+                  </label>
+                  <label className="settings-field"><span>API Key</span>
+                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[entry.id] ?? ""}
+                      placeholder={apiKeySetMap[entry.id] ? "已设置（留空保留）" : "未设置"}
+                      onChange={(event) => updateKey(entry.id, event.target.value)} />
+                  </label>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="settings-panel-footer settings-provider-save-row">
+          <p className="settings-note">修改只会在点击保存后写入本地配置。</p>
+          <button type="button" className="primary-button" data-motion="action" onClick={submit} disabled={busy}>{busy ? "保存中…" : "保存配置"}</button>
+        </div>
+      </SettingsPanel> : null}
+
+      {adding && newProvider && typeof document !== "undefined" ? createPortal(
+        <div className="modal-scrim settings-provider-dialog-scrim ui-overlay" onMouseDown={() => setAdding(false)}>
+          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><span>AI Provider</span><h2 id="add-provider-title">添加 Provider</h2><p>选择预设并确认连接信息，添加后仍可在列表中修改。</p></div>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Provider 弹窗" onClick={() => setAdding(false)}><X size={16} /></button>
+            </header>
+            <form onSubmit={addProvider}>
+              <div className="settings-provider-dialog-body">
+                <label className="settings-field settings-field--wide"><span>Provider 预设</span>
+                  <select className="settings-select" value={presetId} aria-label="Provider 预设" onChange={(event) => changePreset(event.target.value)} autoFocus data-motion="selection">
+                    {PROVIDER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+                    <option value="custom">自定义</option>
+                  </select>
+                  <small>预设会自动填写协议、Base URL 和推荐模型。</small>
+                </label>
+                <div className="settings-grid-2">
+                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
+                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
+                  <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
+                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder="例如：deepseek-chat" onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
+                  <label className="settings-field"><span>协议</span>
+                    <select className="settings-select" value={newProvider.protocol} onChange={(event) => setNewProvider({ ...newProvider, protocol: event.target.value as ProviderProtocol })} data-motion="selection">
+                      <option value="anthropic-messages">anthropic-messages</option>
+                      <option value="openai-chat">openai-chat</option>
+                      <option value="openai-responses">openai-responses</option>
+                    </select>
+                  </label>
+                  <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input" type="password" value={newProvider.apiKey} required placeholder="请输入 API Key" onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
+                </div>
+              </div>
+              <footer><button type="button" className="settings-subtle-action" onClick={() => setAdding(false)}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
+            </form>
+          </section>
+        </div>,
+        document.body
+      ) : null}
     </>
   );
 }
