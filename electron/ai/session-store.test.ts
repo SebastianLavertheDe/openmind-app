@@ -222,7 +222,15 @@ describe("SessionStore", () => {
 
   it("forks surviving rollout history into a new independent session", async () => {
     const store = new SessionStore(createRoot());
-    const source = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Source", permissionProfile: "edit" });
+    const source = store.createSession({
+      provider: "codex",
+      providerId: "codex-native",
+      serviceProviderId: "managed-codex",
+      serviceProviderRevision: "a".repeat(64),
+      cwd: ".",
+      title: "Source",
+      permissionProfile: "edit"
+    });
     const first = await addCompletedTurn(store, source, "first prompt", "first answer");
     await addCompletedTurn(store, store.getSession(source.id), "second prompt", "second answer");
 
@@ -231,6 +239,8 @@ describe("SessionStore", () => {
 
     expect(fork.forkedFromId).toBe(source.id);
     expect(fork.providerSessionId).toBeNull();
+    expect(fork.serviceProviderId).toBe("managed-codex");
+    expect(fork.serviceProviderRevision).toBe("a".repeat(64));
     expect(forkTurns.data).toHaveLength(1);
     expect(forkTurns.data[0].events.map((event) => event.payload.text)).toEqual(["first prompt", "first answer"]);
     expect(forkTurns.data[0].events.every((event) => event.sessionId === fork.id)).toBe(true);

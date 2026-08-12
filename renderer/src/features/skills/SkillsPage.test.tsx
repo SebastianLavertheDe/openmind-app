@@ -99,9 +99,22 @@ describe("SkillsPage", () => {
     expect(screen.getByText("成功")).toBeTruthy();
 
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "不存在" } });
-    expect(screen.getAllByText("没有匹配的 Skill")).toHaveLength(2);
+    expect(screen.getByText("没有匹配的 Skill")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "Demo" } });
     expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+  });
+
+  it("keeps the catalog focused on search instead of redundant status categories", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+
+    const search = screen.getByRole("searchbox", { name: "搜索 Skills" }) as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "Demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "清空搜索" }));
+    expect(search.value).toBe("");
   });
 
   it("removes every Skill management action from the page", async () => {
@@ -114,7 +127,7 @@ describe("SkillsPage", () => {
     ]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
-  it("switches run history when another Skill is selected", async () => {
+  it("supports keyboard navigation and switches run history with the selection", async () => {
     const otherInspection: SkillPackageInspectionView = {
       ...inspection,
       sourcePath: "/workspace/.claude/skills/other-skill",
@@ -129,9 +142,22 @@ describe("SkillsPage", () => {
       terminalState: "failed"
     });
     renderPage({ inspectSkillWorkspace: async () => [inspection, otherInspection], listSkillRuns: async () => [demoRun, otherRun] });
-    const otherButton = await screen.findByRole("button", { name: /Other Skill/ });
-    fireEvent.click(otherButton);
+    const demoButton = await screen.findByRole("button", { name: /Demo Skill/ });
+    fireEvent.keyDown(demoButton, { key: "ArrowDown" });
     expect(screen.getByText("other-run-1", { exact: false })).toBeTruthy();
     expect(screen.queryByText("demo-run-1", { exact: false })).toBeNull();
+  });
+
+  it("merges installed and workspace versions of the same Skill into one row", async () => {
+    const changedWorkspaceInspection: SkillPackageInspectionView = {
+      ...inspection,
+      digest: "b".repeat(64),
+      manifest: { ...manifest, version: "1.3.0" }
+    };
+    renderPage({ inspectSkillWorkspace: async () => [changedWorkspaceInspection] });
+
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    expect(document.querySelectorAll(".skills-list-item")).toHaveLength(1);
+    expect(screen.getByText("已安装 · 工作区已关联")).toBeTruthy();
   });
 });

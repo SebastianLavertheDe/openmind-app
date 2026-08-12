@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,28 +5,10 @@ import type { ProviderCapabilities } from "../../shared/contracts";
 import { resolveModelSpec, type ProviderKind } from "../../shared/model-catalog";
 import { messages } from "../../shared/messages";
 import { buildWslLoginCommand, parseWslPath } from "./process-utils";
-import { resolveNativeClaudeExecutable } from "./providers/claude-agent-sdk";
-
-/**
- * 异步跑一条命令，返回 trim 后的 stdout；启动失败或超时返回 null。
- * 用 spawn 而非 execFileSync，保证探测永不阻塞 worker 事件循环。
- */
-function runCommand(command: string, args: string[], timeoutMs = 15_000): Promise<string | null> {
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-    } catch {
-      resolve(null);
-      return;
-    }
-    let stdout = "";
-    const timer = setTimeout(() => { try { child.kill(); } catch { /* ignore */ } }, timeoutMs);
-    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
-    child.on("error", () => { clearTimeout(timer); resolve(null); });
-    child.on("close", () => { clearTimeout(timer); resolve(stdout.trim() || null); });
-  });
-}
+import { MIN_MANAGED_CLAUDE_VERSION, resolveNativeClaudeExecutable, supportsManagedClaudeVersion } from "./providers/claude-agent-sdk";
+import { resolveCliProvider } from "../config/providers-yaml";
+import type { ProviderYamlEntry } from "../../shared/providers-yaml";
+import { runProviderCommand as runCommand } from "./provider-command-runner";
 
 interface ProbeResult {
   version: string | null;
@@ -62,7 +43,15 @@ export class ProviderRegistry {
    * 并发调用复用同一个 in-flight promise。仅在启动、窗口获焦、进入设置等
    * 明确时机调用——不在 send/snapshot 路径上。
    */
-  async refresh(): Promise<ProviderCapabilities[]> {
+  async refresh(forceAfterCurrent = false): Promise<ProviderCapabilities[]> {
+    const current = this.inflight;
+    if (current) {
+      if (!forceAfterCurrent) return current;
+      // A providers.yaml save must not reuse a probe that captured the old
+      // binding. Wait for it, then ensure one fresh probe observes the file.
+      try { await current; } catch { /* the replacement probe still runs */ }
+      if (this.inflight && this.inflight !== current) return this.inflight;
+    }
     if (this.inflight) return this.inflight;
     this.inflight = (async () => {
       try {
@@ -77,11 +66,15 @@ export class ProviderRegistry {
 
   private async probeAll(): Promise<ProviderCapabilities[]> {
     const providers: ProviderCapabilities[] = [];
+    const managed = Object.fromEntries((["codex", "claude"] as const).map((kind) => {
+      try { return [kind, resolveCliProvider(kind)]; }
+      catch { return [kind, null]; }
+    })) as Record<ProviderKind, ProviderYamlEntry | null>;
     const wsl = process.platform === "win32" ? parseWslPath(this.projectRoot) : null;
     if (wsl) {
       for (const spec of PROVIDER_PROBE_SPECS) {
         const [probe, model] = await Promise.all([
-          probeWslProvider(wsl.distro, wsl.linuxPath, spec),
+          probeWslProvider(wsl.distro, wsl.linuxPath, spec, managed[spec.kind]),
           probeWslModel(wsl.distro, spec.kind)
         ]);
         providers.push({
@@ -89,30 +82,30 @@ export class ProviderRegistry {
           provider: spec.kind,
           label: messages.provider.wslLabel(spec.label, wsl.distro),
           runtime: "wsl",
-          available: Boolean(probe.version),
+          available: Boolean(probe.version) && !probe.diagnostic,
           version: probe.version,
           supportsApprovals: true,
           supportsResume: true,
           supportsImages: true,
           diagnostic: probe.diagnostic,
-          ...modelFields(spec.kind, model)
+          ...modelFields(spec.kind, managed[spec.kind]?.model || model)
         });
       }
     }
     for (const spec of PROVIDER_PROBE_SPECS) {
-      const probe = await probeNativeProvider(spec);
+      const probe = await probeNativeProvider(spec, managed[spec.kind]);
       providers.push({
         id: `${spec.kind}-native`,
         provider: spec.kind,
         label: messages.provider.nativeLabel(spec.label),
         runtime: "native",
-        available: Boolean(probe.version),
+        available: Boolean(probe.version) && !probe.diagnostic,
         version: probe.version,
         supportsApprovals: true,
         supportsResume: true,
         supportsImages: true,
         diagnostic: probe.diagnostic,
-        ...modelFields(spec.kind, probeNativeModel(spec.kind))
+        ...modelFields(spec.kind, managed[spec.kind]?.model || probeNativeModel(spec.kind))
       });
     }
     return providers;
@@ -180,7 +173,7 @@ async function probeWslModel(distro: string, kind: ProviderKind): Promise<string
   const relativePath = kind === "claude" ? ".claude/settings.json" : ".codex/config.toml";
   const text = await runCommand(
     "wsl.exe",
-    ["-d", distro, "--", "sh", "-lc", `test -r "$HOME/${relativePath}" && cat "$HOME/${relativePath}"`],
+    ["-d", distro, "--exec", "sh", "-lc", `test -r "$HOME/${relativePath}" && cat "$HOME/${relativePath}"`],
     5_000
   );
   if (!text) return null;
@@ -192,7 +185,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
     kind: "codex",
     label: "Codex",
     probeWslExtra: async (distro, cwd) => {
-      if (await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", "codex", "app-server", "--help"])) return null;
+      if (await runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--exec", "codex", "app-server", "--help"])) return null;
       return messages.errors.provider.codexWslNoAppServer(distro);
     },
     probeNativeExtra: async (command) => {
@@ -216,11 +209,19 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
   }
 ];
 
-async function probeWslProvider(distro: string, cwd: string, spec: ProviderProbeSpec): Promise<ProbeResult> {
+async function probeWslProvider(distro: string, cwd: string, spec: ProviderProbeSpec, managed: ProviderYamlEntry | null): Promise<ProbeResult> {
   const found = await runWslProviderCommand(distro, cwd, spec.kind, ["--version"]);
   if (!found) return { version: null, diagnostic: messages.errors.provider.wslStartFailed(spec.label, distro) };
-  const extra = await spec.probeWslExtra(distro, cwd);
-  if (extra) return { version: null, diagnostic: extra };
+  if (spec.kind === "claude" && managed && !supportsManagedClaudeVersion(found)) {
+    return {
+      version: null,
+      diagnostic: `WSL Claude Code 托管 Provider 需要 ${MIN_MANAGED_CLAUDE_VERSION.join(".")} 或更高版本；${distro} 当前为 ${found}。`
+    };
+  }
+  const extra = spec.kind === "claude" && managed ? null : await spec.probeWslExtra(distro, cwd);
+  // Preserve Claude's executable version when only its own login is missing:
+  // a session pinned to a providers.yaml credential can still use the binary.
+  if (extra) return { version: spec.kind === "claude" ? found : null, diagnostic: extra };
   return { version: found, diagnostic: null };
 }
 
@@ -233,32 +234,43 @@ function runWslProviderCommand(
   const invocation = kind === "claude"
     ? buildWslLoginCommand(kind, args)
     : { command: kind, args };
-  return runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--", invocation.command, ...invocation.args]);
+  return runCommand("wsl.exe", ["-d", distro, "--cd", cwd, "--exec", invocation.command, ...invocation.args]);
 }
 
-async function probeNativeProvider(spec: ProviderProbeSpec): Promise<ProbeResult> {
+async function probeNativeProvider(spec: ProviderProbeSpec, managed: ProviderYamlEntry | null): Promise<ProbeResult> {
   if (process.platform !== "win32") {
     const found = await runCommand(spec.kind, ["--version"]);
     if (!found) return { version: null, diagnostic: messages.errors.provider.notInPath(spec.label) };
-    const extra = await spec.probeNativeExtra(spec.kind);
-    if (extra) return { version: null, diagnostic: extra };
+    const extra = spec.kind === "claude" && managed ? null : await spec.probeNativeExtra(spec.kind);
+    if (extra) return { version: spec.kind === "claude" ? found : null, diagnostic: extra };
     return { version: found, diagnostic: null };
   }
   const candidates = await locateWindowsCommands(spec.kind);
+  let unauthenticatedClaude: ProbeResult | null = null;
   for (const candidate of candidates) {
     const found = await runWindowsCommand(candidate, ["--version"]);
     if (!found) continue;
-    const extra = await spec.probeNativeExtra(candidate);
-    if (extra) continue;
+    const extra = spec.kind === "claude" && managed ? null : await spec.probeNativeExtra(candidate);
+    if (extra) {
+      if (spec.kind === "claude" && !unauthenticatedClaude) {
+        unauthenticatedClaude = { version: found, diagnostic: extra };
+      }
+      continue;
+    }
     return { version: found, diagnostic: null };
   }
   if (spec.kind === "claude") {
     try {
       const executable = resolveNativeClaudeExecutable();
       const found = await runWindowsCommand(executable, ["--version"]);
-      if (found && !(await spec.probeNativeExtra(executable))) return { version: found, diagnostic: null };
+      if (found) {
+        const extra = managed ? null : await spec.probeNativeExtra(executable);
+        if (!extra) return { version: found, diagnostic: null };
+        unauthenticatedClaude ||= { version: found, diagnostic: extra };
+      }
     } catch { /* packaged claude.exe unavailable */ }
   }
+  if (unauthenticatedClaude) return unauthenticatedClaude;
   return { version: null, diagnostic: spec.nativeFailureDiagnostic };
 }
 

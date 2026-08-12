@@ -1,5 +1,6 @@
 import { EventEmitter, PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderRunContext } from "./types";
 
 /**
@@ -11,6 +12,9 @@ const hoisted = vi.hoisted(() => ({
   fakeChild: null as null | FakeChild,
   killCalls: 0
 }));
+const providerConfigMock = vi.hoisted(() => ({
+  resolveCliProvider: vi.fn<(kind: "claude" | "codex", requestedId?: string | null) => ProviderYamlEntry | null>(() => null)
+}));
 vi.mock(import("../process-utils"), () => ({
   spawnInDirectory: vi.fn(() => hoisted.fakeChild),
   spawnNativeInDirectory: vi.fn(() => hoisted.fakeChild),
@@ -18,8 +22,19 @@ vi.mock(import("../process-utils"), () => ({
   parseWslPath: vi.fn(() => null),
   toWslPath: vi.fn((v: string) => v)
 }));
+vi.mock(import("../../config/providers-yaml"), () => ({
+  resolveCliProvider: providerConfigMock.resolveCliProvider
+}));
 
-import { CodexAppServerAdapter, buildCodexTurnInput, normalizeCodexNotification } from "./codex-app-server";
+import { spawnInDirectory, spawnNativeInDirectory } from "../process-utils";
+import {
+  CodexAppServerAdapter,
+  buildCodexTurnInput,
+  CODEX_MANAGED_API_KEY_ENV,
+  CODEX_MANAGED_PROVIDER_ID,
+  codexProviderEnvironment,
+  normalizeCodexNotification
+} from "./codex-app-server";
 
 interface FakeChild extends EventEmitter {
   stdout: PassThrough;
@@ -57,8 +72,60 @@ const wait = (ms = 15) => new Promise((r) => setTimeout(r, ms));
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
   hoisted.fakeChild = null;
   hoisted.killCalls = 0;
+  providerConfigMock.resolveCliProvider.mockReset();
+  providerConfigMock.resolveCliProvider.mockReturnValue(null);
+});
+
+function makeServiceProvider(overrides: Partial<ProviderYamlEntry> = {}): ProviderYamlEntry {
+  return {
+    id: "responses-managed",
+    name: "Managed Responses",
+    enabled: true,
+    protocol: "openai-responses",
+    authMode: "bearer",
+    apiKey: "managed-secret-key",
+    baseUrl: "https://gateway.example/v1/responses",
+    model: "yaml-responses-model",
+    proxyUrl: "",
+    proxyPolicy: "system",
+    tlsPolicy: "verify",
+    ...overrides
+  };
+}
+
+describe("codexProviderEnvironment", () => {
+  it("overrides every standard proxy spelling for an explicit proxy", () => {
+    expect(codexProviderEnvironment(makeServiceProvider({
+      proxyPolicy: "explicit",
+      proxyUrl: "http://fresh-proxy:8080"
+    }))).toMatchObject({
+      HTTP_PROXY: "http://fresh-proxy:8080",
+      HTTPS_PROXY: "http://fresh-proxy:8080",
+      http_proxy: "http://fresh-proxy:8080",
+      https_proxy: "http://fresh-proxy:8080",
+      NO_PROXY: "",
+      no_proxy: "",
+      ALL_PROXY: "",
+      all_proxy: ""
+    });
+  });
+
+  it("neutralizes inherited proxies when proxy use is disabled", () => {
+    expect(codexProviderEnvironment(makeServiceProvider({ proxyPolicy: "disabled" }))).toMatchObject({
+      HTTP_PROXY: "",
+      HTTPS_PROXY: "",
+      http_proxy: "",
+      https_proxy: "",
+      ALL_PROXY: "",
+      all_proxy: "",
+      NO_PROXY: "*",
+      no_proxy: "*"
+    });
+  });
 });
 
 function makeContext(overrides: Partial<ProviderRunContext> = {}): ProviderRunContext {
@@ -156,6 +223,98 @@ describe("CodexAppServerAdapter.run()", () => {
       mode: "plan",
       settings: { model: "gpt-5.4", reasoning_effort: null, developer_instructions: null }
     });
+  });
+
+  it("pins the YAML Responses provider and model while passing native credentials only through env", async () => {
+    const managed = makeServiceProvider({
+      id: "responses.pinned",
+      apiKey: "native-secret with spaces=kept",
+      model: 'yaml/model "quoted"'
+    });
+    providerConfigMock.resolveCliProvider.mockReturnValue(managed);
+    const base = makeContext();
+    const ctx = makeContext({
+      providerModel: "auto",
+      provider: { ...base.provider, detectedModel: "stale-codex-config-model" } as never,
+      session: { ...base.session, serviceProviderId: managed.id, serviceProviderRevision: "a".repeat(64) }
+    });
+
+    const child = await driveSuccessfulRun(ctx);
+
+    expect(providerConfigMock.resolveCliProvider).toHaveBeenCalledWith("codex", managed.id, "a".repeat(64));
+    const spawnCall = vi.mocked(spawnNativeInDirectory).mock.calls.at(-1);
+    if (!spawnCall) throw new Error("expected native Codex spawn");
+    const [cwd, command, args, spawnOptions] = spawnCall;
+    expect(cwd).toBe(ctx.cwd);
+    expect(command).toBe("codex");
+    expect(args).toContain(`model=${JSON.stringify(managed.model)}`);
+    expect(args).toContain(`model_provider=${JSON.stringify(CODEX_MANAGED_PROVIDER_ID)}`);
+    expect(args).toContain(`model_providers.${CODEX_MANAGED_PROVIDER_ID}.wire_api="responses"`);
+    expect(args).toContain("shell_environment_policy.ignore_default_excludes=false");
+    expect(args).toContain("features.codex_hooks=false");
+    expect(args).toContain("notify=[]");
+    expect(JSON.stringify(args)).not.toContain(managed.apiKey);
+    expect(spawnOptions?.env).toMatchObject({ [CODEX_MANAGED_API_KEY_ENV]: managed.apiKey });
+
+    const turn = child.writtenLines
+      .map((line) => JSON.parse(line))
+      .find((message) => message.method === "turn/start");
+    expect(turn.params.collaborationMode.settings.model).toBe(managed.model);
+  });
+
+  it("forwards x-api-key credentials into WSL with WSLENV and keeps the key out of argv", async () => {
+    const managed = makeServiceProvider({
+      id: "responses-wsl",
+      authMode: "x-api-key",
+      apiKey: "wsl-secret with spaces=kept",
+      proxyPolicy: "explicit",
+      proxyUrl: "http://fresh-proxy:8080"
+    });
+    providerConfigMock.resolveCliProvider.mockReturnValue(managed);
+    vi.stubEnv("WSLENV", `EXISTING_PATH/p:${CODEX_MANAGED_API_KEY_ENV}/u:https_proxy/u:NO_PROXY:ALL_PROXY`);
+    const base = makeContext();
+    const ctx = makeContext({
+      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\project",
+      providerModel: "auto",
+      provider: { ...base.provider, id: "codex-wsl-Ubuntu", runtime: "wsl" } as never,
+      session: {
+        ...base.session,
+        providerId: "codex-wsl-Ubuntu",
+        serviceProviderId: managed.id,
+        serviceProviderRevision: "b".repeat(64)
+      }
+    });
+
+    await driveSuccessfulRun(ctx);
+
+    expect(spawnNativeInDirectory).not.toHaveBeenCalled();
+    const spawnCall = vi.mocked(spawnInDirectory).mock.calls.at(-1);
+    if (!spawnCall) throw new Error("expected WSL Codex spawn");
+    const [cwd, command, args, spawnOptions] = spawnCall;
+    expect(cwd).toBe(ctx.cwd);
+    expect(command).toBe("codex");
+    expect(args).toContain(
+      `model_providers.${CODEX_MANAGED_PROVIDER_ID}.env_http_headers={ "X-API-Key" = ${JSON.stringify(CODEX_MANAGED_API_KEY_ENV)} }`
+    );
+    expect(JSON.stringify(args)).not.toContain(managed.apiKey);
+    expect(spawnOptions?.env).toMatchObject({ [CODEX_MANAGED_API_KEY_ENV]: managed.apiKey });
+    expect(spawnOptions?.env).toMatchObject({
+      HTTP_PROXY: "http://fresh-proxy:8080",
+      http_proxy: "http://fresh-proxy:8080",
+      NO_PROXY: "",
+      no_proxy: "",
+      ALL_PROXY: "",
+      all_proxy: ""
+    });
+    expect(String(spawnOptions?.env?.WSLENV).split(":")).toEqual(expect.arrayContaining([
+      "EXISTING_PATH/p",
+      CODEX_MANAGED_API_KEY_ENV,
+      "https_proxy",
+      "NO_PROXY",
+      "ALL_PROXY"
+    ]));
+    expect(String(spawnOptions?.env?.WSLENV)).not.toContain(`${CODEX_MANAGED_API_KEY_ENV}/u`);
+    expect(String(spawnOptions?.env?.WSLENV)).not.toContain("https_proxy/u");
   });
 
   it("只把 Codex 真实 Plan/Todo 通知归一化为工作状态事件", () => {

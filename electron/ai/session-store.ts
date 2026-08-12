@@ -106,6 +106,8 @@ export class SessionStore {
   createSession(input: {
     provider: ProviderKind;
     providerId: string;
+    serviceProviderId?: string | null;
+    serviceProviderRevision?: string | null;
     cwd: string;
     title: string;
     permissionProfile: AiSession["permissionProfile"];
@@ -122,6 +124,8 @@ export class SessionStore {
       title: input.title.slice(0, 120),
       provider: input.provider,
       providerId: input.providerId,
+      serviceProviderId: input.serviceProviderId || null,
+      serviceProviderRevision: input.serviceProviderRevision || null,
       forkedFromId: input.forkedFromId || null,
       cwd: input.cwd,
       permissionProfile: input.permissionProfile,
@@ -148,6 +152,8 @@ export class SessionStore {
     const target = this.createSession({
       provider: source.provider,
       providerId: source.providerId,
+      serviceProviderId: source.serviceProviderId || null,
+      serviceProviderRevision: source.serviceProviderRevision || null,
       cwd: source.cwd,
       title: `${source.title} (branch)`.slice(0, 120),
       permissionProfile: source.permissionProfile,
@@ -208,7 +214,16 @@ export class SessionStore {
 
   updateSession(id: string, patch: SessionPatch | Partial<AiSession>): AiSession {
     const current = this.getSession(id);
-    const next = AiSessionSchema.parse({ ...current, ...patch, id: current.id, provider: current.provider, providerId: current.providerId, updatedAt: new Date().toISOString() });
+    const next = AiSessionSchema.parse({
+      ...current,
+      ...patch,
+      id: current.id,
+      provider: current.provider,
+      providerId: current.providerId,
+      serviceProviderId: current.serviceProviderId || null,
+      serviceProviderRevision: current.serviceProviderRevision || null,
+      updatedAt: new Date().toISOString()
+    });
     writeJsonAtomic(this.sessionFile(id), next);
     this.sessions.set(id, next);
     if (next.title !== current.title) this.writeSearchIndex(id);

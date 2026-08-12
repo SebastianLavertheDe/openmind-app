@@ -33,6 +33,38 @@ export function buildWslLoginCommand(command: string, args: string[]): { command
   };
 }
 
+export interface WslLoginExecutable {
+  executable: string;
+  loginPath: string;
+}
+
+/** Resolve a WSL executable and PATH through the login shell without using that shell for the managed run. */
+export function resolveWslLoginExecutable(cwd: string, command: string): WslLoginExecutable {
+  const wsl = parseWslPath(cwd);
+  if (process.platform !== "win32" || !wsl) {
+    return { executable: command, loginPath: process.env.PATH || "" };
+  }
+  const output = String(execFileSync("wsl.exe", [
+    "-d", wsl.distro,
+    "--cd", wsl.linuxPath,
+    "--exec", "/bin/sh", "-lc",
+    'resolved="$(command -v "$1")" || exit 127; printf \'__CCTOOLS_EXEC__%s\\n__CCTOOLS_PATH__%s\\n\' "$resolved" "$PATH"',
+    "cctools-wsl-resolve",
+    command
+  ], {
+    windowsHide: true,
+    timeout: 10_000,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  }));
+  const lines = output.replaceAll("\r", "").split("\n");
+  const executable = lines.find((line) => line.startsWith("__CCTOOLS_EXEC__"))?.slice("__CCTOOLS_EXEC__".length) || "";
+  const loginPath = lines.find((line) => line.startsWith("__CCTOOLS_PATH__"))?.slice("__CCTOOLS_PATH__".length) || "";
+  if (!executable.startsWith("/")) throw new Error(`WSL 中未找到可执行文件：${command}`);
+  if (!loginPath) throw new Error("无法读取 WSL 登录 PATH。");
+  return { executable, loginPath };
+}
+
 export async function execInProject(projectRoot: string, command: string, args: string[], options: ExecFileOptions & { input?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   if (options.input !== undefined) {
     const input = options.input;
@@ -52,7 +84,7 @@ export async function execInProject(projectRoot: string, command: string, args: 
   }
   const wsl = parseWslPath(projectRoot);
   if (wsl && process.platform === "win32") {
-    const result = await execFileAsync("wsl.exe", ["-d", wsl.distro, "--cd", wsl.linuxPath, "--", command, ...args.map((arg) => toWslPath(arg, wsl.distro))], {
+    const result = await execFileAsync("wsl.exe", ["-d", wsl.distro, "--cd", wsl.linuxPath, "--exec", command, ...args.map((arg) => toWslPath(arg, wsl.distro))], {
       windowsHide: true,
       maxBuffer: 64 * 1024 * 1024,
       ...options
@@ -117,7 +149,7 @@ function spawnResolved(
 ): ChildProcessWithoutNullStreams {
   const wsl = parseWslPath(cwd);
   if (allowWsl && wsl && process.platform === "win32") {
-    return spawn("wsl.exe", ["-d", wsl.distro, "--cd", wsl.linuxPath, "--", command, ...args], {
+    return spawn("wsl.exe", ["-d", wsl.distro, "--cd", wsl.linuxPath, "--exec", command, ...args], {
       windowsHide: true,
       ...options,
       env: { ...process.env, ...options.env, WSL_UTF8: "1" },

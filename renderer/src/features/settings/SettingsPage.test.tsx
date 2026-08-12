@@ -194,6 +194,8 @@ describe("SettingsPage", () => {
     expect(screen.queryByLabelText("代理策略")).toBeNull();
     expect(screen.queryByText("TLS")).toBeNull();
     expect(screen.queryByText("代理 URL（可选）")).toBeNull();
+    expect((screen.getByRole("combobox", { name: "Claude Code 服务商" }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "Codex CLI 服务商" }) as HTMLSelectElement).value).toBe("");
 
     fireEvent.click(screen.getByRole("button", { name: "添加 Provider" }));
     const dialog = await screen.findByRole("dialog", { name: "添加 Provider" });
@@ -210,11 +212,137 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
     await waitFor(() => expect(saveProviders).toHaveBeenCalled());
     expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      cli: { claude: null, codex: null },
       providers: expect.arrayContaining([
-        expect.objectContaining({ id: "existing", proxyUrl: "http://127.0.0.1:7890", proxyPolicy: "explicit", tlsPolicy: "verify" }),
+        expect.objectContaining({ id: "existing", authMode: "bearer", proxyUrl: "http://127.0.0.1:7890", proxyPolicy: "explicit", tlsPolicy: "verify" }),
         expect.objectContaining({ id: "deepseek", apiKey: "sk-new-provider", proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify" })
       ])
     }));
+  });
+
+  it("switches Claude and Codex service providers independently and keeps CLI defaults available", async () => {
+    const providerEntry = (
+      id: string,
+      name: string,
+      protocol: "openai-chat" | "openai-responses" | "anthropic-messages",
+      model: string
+    ) => ({
+      id, name, enabled: true, protocol, authMode: protocol === "anthropic-messages" ? "x-api-key" as const : "bearer" as const,
+      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
+      proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+    });
+    const providerView = {
+      schemaVersion: 1 as const,
+      default: "general-chat",
+      cli: { claude: "claude-a", codex: "codex-a" },
+      providers: [
+        providerEntry("general-chat", "通用 Chat", "openai-chat", "chat-model"),
+        providerEntry("claude-a", "Claude A", "anthropic-messages", "claude-a-model"),
+        providerEntry("claude-b", "Claude B", "anthropic-messages", "claude-b-model"),
+        providerEntry("codex-a", "Codex A", "openai-responses", "codex-a-model"),
+        providerEntry("codex-b", "Codex B", "openai-responses", "codex-b-model")
+      ]
+    };
+    const getProviders = vi.fn().mockResolvedValue(providerView);
+    const saveProviders = vi.fn().mockResolvedValue(providerView);
+    window.cctools = makeApi({ getProviders, saveProviders });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    const claudeSelect = await screen.findByRole("combobox", { name: "Claude Code 服务商" }) as HTMLSelectElement;
+    const codexSelect = screen.getByRole("combobox", { name: "Codex CLI 服务商" }) as HTMLSelectElement;
+    await waitFor(() => {
+      expect(claudeSelect.value).toBe("claude-a");
+      expect(codexSelect.value).toBe("codex-a");
+    });
+    expect(within(claudeSelect).getByRole("option", { name: "使用 Claude Code 自身配置" })).toBeTruthy();
+    expect(within(codexSelect).getByRole("option", { name: "使用 Codex CLI 自身配置" })).toBeTruthy();
+    expect(within(claudeSelect).queryByRole("option", { name: /Codex A/ })).toBeNull();
+    expect(within(claudeSelect).queryByRole("option", { name: /通用 Chat/ })).toBeNull();
+    expect(within(codexSelect).queryByRole("option", { name: /Claude A/ })).toBeNull();
+    expect(within(codexSelect).queryByRole("option", { name: /通用 Chat/ })).toBeNull();
+    expect(screen.getAllByText(/新会话生效/)).toHaveLength(2);
+
+    fireEvent.change(claudeSelect, { target: { value: "claude-b" } });
+    fireEvent.change(codexSelect, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() => expect(saveProviders).toHaveBeenCalled());
+    expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      default: "general-chat",
+      cli: { claude: "claude-b", codex: null }
+    }));
+  });
+
+  it("keeps unsaved edits when a Provider is removed from the draft", async () => {
+    const providerEntry = (id: string, name: string, model: string) => ({
+      id, name, enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
+      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
+      proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+    });
+    const providerView = {
+      schemaVersion: 1 as const,
+      default: "keep",
+      cli: { claude: null, codex: null },
+      providers: [
+        providerEntry("keep", "保留 Provider", "model-before"),
+        providerEntry("remove", "删除 Provider", "remove-model")
+      ]
+    };
+    const getProviders = vi.fn().mockResolvedValue(providerView);
+    const saveProviders = vi.fn().mockResolvedValue(providerView);
+    const deleteProvider = vi.fn().mockResolvedValue(providerView);
+    window.cctools = makeApi({ getProviders, saveProviders, deleteProvider });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    const model = await screen.findByDisplayValue("model-before");
+    fireEvent.change(model, { target: { value: "model-after" } });
+    fireEvent.change(screen.getAllByLabelText("API Key")[0], { target: { value: "sk-unsaved" } });
+    fireEvent.click(screen.getByRole("button", { name: "删除 remove" }));
+
+    expect(deleteProvider).not.toHaveBeenCalled();
+    expect(screen.queryByText("删除 Provider")).toBeNull();
+    expect((screen.getByDisplayValue("model-after") as HTMLInputElement).value).toBe("model-after");
+
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(saveProviders).toHaveBeenCalled());
+    expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      default: "keep",
+      providers: [expect.objectContaining({ id: "keep", model: "model-after", apiKey: "sk-unsaved" })]
+    }));
+  });
+
+  it("does not delete the only enabled default Provider", async () => {
+    const providerView = {
+      schemaVersion: 1 as const,
+      default: "enabled",
+      cli: { claude: null, codex: null },
+      providers: [
+        {
+          id: "enabled", name: "启用项", enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
+          baseUrl: "https://enabled.example.com/v1", model: "enabled-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+        },
+        {
+          id: "disabled", name: "停用项", enabled: false, protocol: "openai-chat" as const, authMode: "bearer" as const,
+          baseUrl: "https://disabled.example.com/v1", model: "disabled-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+        }
+      ]
+    };
+    window.cctools = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    fireEvent.click(await screen.findByRole("button", { name: "删除 enabled" }));
+
+    expect(await screen.findByText("请先启用另一个 Provider，再删除当前默认 Provider")).toBeTruthy();
+    expect(screen.getByText("启用项")).toBeTruthy();
+    expect(screen.getByText("停用项")).toBeTruthy();
   });
 
   it("shows a recoverable error when preferences fail to load", async () => {

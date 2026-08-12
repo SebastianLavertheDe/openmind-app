@@ -5,6 +5,7 @@ import type { ProviderRegistry } from "./provider-registry";
 import { resolveCwd } from "./scheduler-paths";
 import type { SessionStore } from "./session-store";
 import type { BrowserAutomationConfig } from "./browser-evidence";
+import { resolveCliProvider } from "../config/providers-yaml";
 
 export async function prewarmProviderSession(input: {
   projectRoot: string;
@@ -32,8 +33,14 @@ export async function prewarmProviderSession(input: {
     interactionMode = session.interactionMode;
     providerSessionId = session.providerSessionId;
   }
-  const provider = input.registry.detect()
-    .find((item) => item.provider === input.provider && item.available && (!providerId || item.id === providerId));
+  const pinnedManagedProvider = session?.serviceProviderId
+    ? resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null)
+    : null;
+  const provider = input.registry.detect().find((item) => (
+    item.provider === input.provider
+    && (item.available || Boolean(pinnedManagedProvider && item.version))
+    && (!providerId || item.id === providerId)
+  ));
   if (!provider) return false;
   return input.adapter.prewarm({
     session,

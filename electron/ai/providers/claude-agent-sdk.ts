@@ -3,8 +3,9 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval, isOutsideWorkspace } from "./types";
-import { buildWslLoginCommand, decodeProcessOutput, spawnInDirectory } from "../process-utils";
+import { buildWslLoginCommand, decodeProcessOutput, resolveWslLoginExecutable, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
+import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { Options, SDKUserMessage, SpawnOptions, SpawnedProcess, WarmQuery } from "@anthropic-ai/claude-agent-sdk";
 import {
@@ -13,6 +14,7 @@ import {
   buildBrowserMcpProcess
 } from "../browser-evidence";
 import { buildClaudeSkillBridgeInstructions } from "./skill-bridge";
+import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 
 /** 有图片附件时，把 prompt 转成 SDK 多模态 user message 流（image blocks + text block）。 */
 async function* claudeImageMessageStream(
@@ -133,9 +135,15 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
 
   async prewarm(context: ProviderPrewarmContext): Promise<boolean> {
     const sdk = await import("@anthropic-ai/claude-agent-sdk");
-    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId);
+    const serviceProvider = context.session
+      ? resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null)
+      : resolveCliProvider("claude");
+    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider);
     const existing = this.warmSlots.get(key);
     if (existing) return true;
+    // A manually edited providers.yaml may change a draft before Main has sent
+    // refresh-providers. Never retain the obsolete credential-bearing process.
+    if (!context.session) this.disposeDraftWarmSlots();
     let slot!: WarmSlot;
     const captureStderr = (text: string) => { slot.stderr = appendBounded(slot.stderr, text); };
     slot = {
@@ -152,6 +160,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
             interactionMode: context.interactionMode || "default",
             providerSessionId: context.providerSessionId,
             providerModel: context.providerModel,
+            serviceProvider,
             browserAutomation: context.browserAutomation
           },
           () => slot.activeContext,
@@ -170,6 +179,21 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   disposeSession(sessionId: string): void {
     for (const [key, slot] of this.warmSlots) {
       if (slot.ownerSessionId !== sessionId) continue;
+      this.warmSlots.delete(key);
+      void slot.promise.then((warm) => warm.close()).catch(() => undefined);
+    }
+  }
+
+  disposeWarmSlots(): void {
+    for (const [key, slot] of this.warmSlots) {
+      this.warmSlots.delete(key);
+      void slot.promise.then((warm) => warm.close()).catch(() => undefined);
+    }
+  }
+
+  private disposeDraftWarmSlots(): void {
+    for (const [key, slot] of this.warmSlots) {
+      if (slot.ownerSessionId !== null) continue;
       this.warmSlots.delete(key);
       void slot.promise.then((warm) => warm.close()).catch(() => undefined);
     }
@@ -358,21 +382,28 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       interactionMode: ProviderRunContext["session"]["interactionMode"];
       providerSessionId: string | null;
       providerModel: string;
+      serviceProvider: ProviderYamlEntry | null;
       browserAutomation: ProviderRunContext["browserAutomation"];
       skillBridge?: ProviderRunContext["skillBridge"];
     },
     getRunContext: ClaudeRunContextGetter,
     captureStderr: (text: string) => void
   ): Options {
+    if (context.serviceProvider && context.provider.runtime === "wsl") {
+      assertManagedClaudeVersion(context.provider.version);
+    }
     const nativeExecutable = context.provider.runtime === "native" && process.platform === "win32"
-      ? resolveClaudeExecutable()
+      ? context.serviceProvider ? resolveNativeClaudeExecutable() : resolveClaudeExecutable()
       : null;
     const browserServer = buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
     const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
     const skillBridgeInstructions = context.skillBridge ? buildClaudeSkillBridgeInstructions(context.skillBridge) : "";
     const systemAppend = [browserInstructions, skillBridgeInstructions].filter(Boolean).join("\n\n");
     return {
-      ...(context.providerModel && context.providerModel !== AUTO_MODEL ? { model: context.providerModel } : {}),
+      ...(context.providerModel && context.providerModel !== AUTO_MODEL
+        ? { model: context.providerModel }
+        : context.serviceProvider ? { model: context.serviceProvider.model } : {}),
+      ...(context.serviceProvider ? { env: claudeProviderEnvironment(context.serviceProvider) } : {}),
       cwd: context.cwd,
       resume: context.providerSessionId || undefined,
       permissionMode: context.interactionMode === "plan" ? "plan" : "default",
@@ -426,11 +457,12 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   }
 
   private claimWarmSlot(context: ProviderRunContext): WarmSlot | null {
+    const serviceProvider = resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null);
     const keys = [
-      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId)
+      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider)
     ];
     if (!context.session.providerSessionId) {
-      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null));
+      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider));
     }
     for (const key of keys) {
       const slot = this.warmSlots.get(key);
@@ -442,8 +474,11 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   }
 }
 
-function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null): string {
-  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || ""].join("\0");
+function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null): string {
+  const serviceRevision = serviceProvider
+    ? providerConfigurationRevision(serviceProvider)
+    : "cli";
+  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision].join("\0");
 }
 
 function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext, "provider" | "cwd"> & {
@@ -451,6 +486,7 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
   interactionMode: ProviderRunContext["session"]["interactionMode"];
   providerSessionId: string | null;
   providerModel: string;
+  serviceProvider: ProviderYamlEntry | null;
   browserAutomation: ProviderRunContext["browserAutomation"];
   skillBridge?: ProviderRunContext["skillBridge"];
 } {
@@ -461,9 +497,104 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
     interactionMode: context.session.interactionMode || "default",
     providerSessionId: context.session.providerSessionId,
     providerModel: context.providerModel,
+    serviceProvider: resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null),
     browserAutomation: context.browserAutomation,
     skillBridge: context.skillBridge
   };
+}
+
+export function claudeProviderEnvironment(provider: ProviderYamlEntry): NodeJS.ProcessEnv {
+  if (provider.protocol !== "anthropic-messages") {
+    throw new Error("Claude Code 只能使用 anthropic-messages Provider。");
+  }
+  if (provider.tlsPolicy !== "verify") {
+    throw new Error("Claude Code 托管 Provider 仅支持 tlsPolicy: verify。");
+  }
+  const environment: NodeJS.ProcessEnv = {
+    ...process.env
+  };
+  scrubInheritedClaudeProviderEnvironment(environment, provider.proxyPolicy);
+  Object.assign(environment, {
+    ANTHROPIC_BASE_URL: provider.baseUrl.replace(/\/+$/, ""),
+    ANTHROPIC_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: provider.model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.model,
+    CLAUDE_CODE_SUBAGENT_MODEL: provider.model,
+    // Prevent user/project settings.json from replacing the host-selected
+    // endpoint, credentials, model or proxy after this environment is built.
+    CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1",
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+  });
+  if (provider.authMode === "x-api-key") environment.ANTHROPIC_API_KEY = provider.apiKey;
+  else environment.ANTHROPIC_AUTH_TOKEN = provider.apiKey;
+  if (provider.proxyPolicy === "explicit" && provider.proxyUrl) {
+    environment.HTTP_PROXY = provider.proxyUrl;
+    environment.HTTPS_PROXY = provider.proxyUrl;
+    environment.http_proxy = provider.proxyUrl;
+    environment.https_proxy = provider.proxyUrl;
+  } else if (provider.proxyPolicy === "disabled") {
+    environment.NO_PROXY = "*";
+    environment.no_proxy = "*";
+  }
+  return environment;
+}
+
+const CLAUDE_PROVIDER_ROUTE_ENV = new Set([
+  "_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL",
+  "CLAUDE_CODE_API_BASE_URL",
+  "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
+  "CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL",
+  "CLAUDE_CODE_CUSTOM_OAUTH_URL",
+  "CLAUDE_CODE_EXTRA_BODY",
+  "CLAUDE_CODE_FORCE_BRIDGE",
+  "CLAUDE_CODE_GB_BASE_URL",
+  "CLAUDE_CODE_HFI_BEARER_TOKEN",
+  "CLAUDE_CODE_HOST_AUTH_ENV_VAR",
+  "CLAUDE_CODE_HOST_AUTH_REFRESH_TIMEOUT_MS",
+  "CLAUDE_CODE_HOST_HTTP_PROXY_PORT",
+  "CLAUDE_CODE_HOST_SOCKS_PROXY_PORT",
+  "CLAUDE_CODE_HTTP_PROXY",
+  "CLAUDE_CODE_HTTPS_PROXY",
+  "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH",
+  "CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH",
+  "CLAUDE_CODE_SESSION_ACCESS_TOKEN",
+  "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
+  "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+  "CLAUDE_CODE_SKIP_FOUNDRY_AUTH",
+  "CLAUDE_CODE_SKIP_MANTLE_AUTH",
+  "CLAUDE_CODE_SKIP_VERTEX_AUTH",
+  "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_CCR_V2",
+  "CLAUDE_CODE_USE_FOUNDRY",
+  "CLAUDE_CODE_USE_GATEWAY",
+  "CLAUDE_CODE_USE_MANTLE",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR",
+  "NODE_TLS_REJECT_UNAUTHORIZED"
+]);
+
+const STANDARD_PROXY_ENV = new Set(["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY"]);
+
+function scrubInheritedClaudeProviderEnvironment(environment: NodeJS.ProcessEnv, proxyPolicy: ProviderYamlEntry["proxyPolicy"]): void {
+  for (const key of Object.keys(environment)) {
+    if (isClaudeProviderControlledEnv(key, proxyPolicy !== "system")) delete environment[key];
+  }
+}
+
+function isClaudeProviderControlledEnv(key: string, includeStandardProxy: boolean): boolean {
+  const normalized = key.toUpperCase();
+  return normalized.startsWith("ANTHROPIC_")
+    || normalized.startsWith("AGENT_PROXY_")
+    || normalized.startsWith("CLAUDE_CODE_OAUTH_")
+    || normalized.startsWith("CLAUDE_CODE_PROXY_")
+    || normalized.startsWith("CLAUDE_CODE_CLIENT_")
+    || normalized === "API_TOKEN"
+    || normalized === "AWS_BEARER_TOKEN_BEDROCK"
+    || CLAUDE_PROVIDER_ROUTE_ENV.has(normalized)
+    || (includeStandardProxy && STANDARD_PROXY_ENV.has(normalized));
 }
 
 function waitForWarmSlot(slot: WarmSlot, signal: AbortSignal): Promise<WarmQuery> {
@@ -703,20 +834,55 @@ export function orderClaudeEvents(events: ClaudeSemanticEvent[], initialReasonin
 }
 
 function spawnWslClaude(options: SpawnOptions, captureStderr: (text: string) => void): SpawnedProcess {
-  const assignments = Object.entries(options.env)
-    .filter(([key, value]) => value !== undefined && shouldForwardToWsl(key))
-    .map(([key, value]) => `${key}=${value}`);
-  const invocation = buildWslLoginCommand("claude", options.args);
-  const child = spawnInDirectory(options.cwd || process.cwd(), "/usr/bin/env", [...assignments, invocation.command, ...invocation.args], {
-    signal: options.signal
+  const forwarded = Object.fromEntries(Object.entries(options.env)
+    .filter(([key, value]) => value !== undefined && shouldForwardToWsl(key))) as Record<string, string>;
+  const managed = options.env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST === "1";
+  // Managed runs use the login shell only to discover the user's CLI path.
+  // Starting that absolute executable directly prevents ~/.profile from
+  // replacing the host-selected URL, credential, backend or proxy afterwards.
+  const invocation = managed
+    ? (() => {
+        const resolved = resolveWslLoginExecutable(options.cwd || process.cwd(), "claude");
+        // npm/NVM launchers commonly use `#!/usr/bin/env node`. Preserve the
+        // login PATH for that interpreter without running the managed turn
+        // through a profile-reading shell.
+        return {
+          command: "/usr/bin/env",
+          args: [`PATH=${resolved.loginPath}`, resolved.executable, ...options.args]
+        };
+      })()
+    : buildWslLoginCommand("claude", options.args);
+  const child = spawnInDirectory(options.cwd || process.cwd(), invocation.command, invocation.args, {
+    signal: options.signal,
+    env: {
+      ...forwarded,
+      WSLENV: mergeWslenv(
+        process.env.WSLENV,
+        Object.keys(forwarded),
+        managed
+      )
+    }
   });
   child.stderr.on("data", (chunk) => captureStderr(decodeProcessOutput(chunk)));
   return child;
 }
 
+function mergeWslenv(current: string | undefined, names: string[], managed = false): string {
+  const entries = (current || "").split(":").filter(Boolean).filter((entry) => {
+    if (!managed) return true;
+    return !isClaudeProviderControlledEnv(entry.split("/")[0], true);
+  });
+  const existing = new Set(entries.map((entry) => entry.split("/")[0]));
+  for (const name of names) if (!existing.has(name)) entries.push(name);
+  return entries.join(":");
+}
+
 function shouldForwardToWsl(key: string): boolean {
   if (key === "CLAUDE_CONFIG_DIR" || key === "CLAUDE_SECURESTORAGE_CONFIG_DIR") return false;
-  return key === "DEBUG" || key.startsWith("CLAUDE_") || key.startsWith("ANTHROPIC_");
+  return key === "DEBUG"
+    || key.startsWith("CLAUDE_")
+    || key.startsWith("ANTHROPIC_")
+    || ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"].includes(key);
 }
 
 function appendBounded(current: string, next: string, limit = 512 * 1024): string {
@@ -760,6 +926,25 @@ function resolveLocalClaudePath(): string | null {
 
 export function resolveClaudeExecutable(): string {
   return resolveLocalClaudePath() || resolveNativeClaudeExecutable();
+}
+
+export const MIN_MANAGED_CLAUDE_VERSION = [2, 1, 175] as const;
+
+export function supportsManagedClaudeVersion(value: string | null | undefined): boolean {
+  const match = String(value || "").match(/(?:^|\s)(\d+)\.(\d+)\.(\d+)(?:\s|$)/);
+  if (!match) return false;
+  const version = match.slice(1, 4).map(Number);
+  for (let index = 0; index < MIN_MANAGED_CLAUDE_VERSION.length; index += 1) {
+    if (version[index] !== MIN_MANAGED_CLAUDE_VERSION[index]) {
+      return version[index] > MIN_MANAGED_CLAUDE_VERSION[index];
+    }
+  }
+  return true;
+}
+
+function assertManagedClaudeVersion(value: string | null | undefined): void {
+  if (supportsManagedClaudeVersion(value)) return;
+  throw new Error(`WSL Claude Code 托管 Provider 需要 ${MIN_MANAGED_CLAUDE_VERSION.join(".")} 或更高版本，当前版本：${value || "未知"}。`);
 }
 
 function isAsarPath(value: string): boolean {

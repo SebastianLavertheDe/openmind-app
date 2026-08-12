@@ -49,6 +49,7 @@ import { AutomationScheduler } from "../automation/automation-scheduler";
 import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
 import { appendScheduledEvent, cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
+import { providerConfigurationRevision, resolveCliProvider } from "../config/providers-yaml";
 
 export class RunScheduler {
   private readonly store: SessionStore;
@@ -175,8 +176,11 @@ export class RunScheduler {
    * 完成后推送新 snapshot。探测走 spawn、不阻塞 worker；且绝不进入 send 路径。
    */
   refreshProviders(): Promise<void> {
+    // Config saves may replace URL/key/model. Idle warm processes already hold
+    // the previous environment, so close them before refreshing capabilities.
+    for (const adapter of Object.values(this.adapters)) adapter.disposeWarmSlots?.();
     return this.registry
-      .refresh()
+      .refresh(true)
       .then(() => this.publishSnapshot())
       .catch(() => undefined);
   }
@@ -304,14 +308,25 @@ export class RunScheduler {
     const skillInvocation = parseSkillSlashInvocation(input.prompt, this.skillTools.listDefinitions());
     const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
-    const provider = this.registry.detect().find((item) => item.id === input.providerId);
-    if (!provider?.available) throw new Error(provider?.diagnostic || "所选 AI Provider 当前不可用。");
     let session = input.sessionId ? this.store.getSession(input.sessionId) : null;
+    const provider = this.registry.detect().find((item) => item.id === input.providerId);
+    const pinnedManagedProvider = session?.serviceProviderId
+      ? resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null)
+      : null;
+    if (!provider?.available && !(pinnedManagedProvider && provider?.version)) {
+      throw new Error(provider?.diagnostic || "所选 AI Provider 当前不可用。");
+    }
     if (session && session.providerId !== provider.id) throw new Error("会话 Provider 已锁定，不能中途切换。");
     if (!session) {
+      const selectedServiceProvider = resolveCliProvider(provider.provider);
       session = this.store.createSession({
         provider: provider.provider,
         providerId: provider.id,
+        // Freeze the selected API service into the session. Changing the
+        // top-level binding affects new sessions without sending an existing
+        // native provider thread to a different backend mid-conversation.
+        serviceProviderId: selectedServiceProvider?.id || null,
+        serviceProviderRevision: selectedServiceProvider ? providerConfigurationRevision(selectedServiceProvider) : null,
         cwd,
         title: titleFromPrompt(input.prompt),
         permissionProfile: input.permissionProfile,

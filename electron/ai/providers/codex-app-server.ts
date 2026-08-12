@@ -3,12 +3,14 @@ import path from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import type { AiEvent } from "../../../shared/contracts";
+import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { ProviderAdapter, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
 import { killProcessTree, parseWslPath, spawnInDirectory, spawnNativeInDirectory, toWslPath } from "../process-utils";
 import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser-evidence";
 import { buildProviderSkillContext } from "./skill-bridge";
+import { resolveCliProvider } from "../../config/providers-yaml";
 
 interface RpcMessage {
   id?: string | number;
@@ -44,7 +46,8 @@ const CODEX_TERMINAL_AGENT_STATUSES = new Set([
 
 export class CodexAppServerAdapter implements ProviderAdapter {
   async run(context: ProviderRunContext): Promise<void> {
-    const child = spawnCodex(context);
+    const serviceProvider = resolveCliProvider("codex", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null);
+    const child = spawnCodex(context, serviceProvider);
     const rpc = new JsonRpcClient(child);
     context.signal.addEventListener("abort", () => rpc.close(), { once: true });
     rpc.onNotification = async (message) => {
@@ -117,7 +120,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       if (context.skillInvocation && !nativeSkill) {
         throw new Error(`Codex 没有在 ${cwd} 发现 Skill：${context.skillInvocation.name}。请确认 .claude/skills 或 .agents/skills 中存在对应的 SKILL.md。`);
       }
-      const collaborationMode = buildCodexCollaborationMode(context);
+      const collaborationMode = buildCodexCollaborationMode(context, serviceProvider);
       await rpc.request("turn/start", {
         threadId: thread.id,
         cwd,
@@ -538,10 +541,13 @@ function codexTurnStatus(params: Record<string, unknown> | undefined): string {
  * CollaborationMode.settings.model.
  * provider.detectedModel 来自同一台机器的 Codex config；显式模型覆盖优先。
  */
-export function buildCodexCollaborationMode(context: Pick<ProviderRunContext, "session" | "provider" | "providerModel">): Record<string, unknown> | null {
+export function buildCodexCollaborationMode(
+  context: Pick<ProviderRunContext, "session" | "provider" | "providerModel">,
+  serviceProvider: ProviderYamlEntry | null = null
+): Record<string, unknown> | null {
   const model = context.providerModel && context.providerModel !== AUTO_MODEL
     ? context.providerModel
-    : context.provider.detectedModel;
+    : serviceProvider?.model || context.provider.detectedModel;
   if (!model) {
     if (context.session.interactionMode === "plan") {
       throw new Error("无法进入 Codex Plan 模式：当前 CLI 没有可用的模型配置。请先在 Codex 中选择模型。");
@@ -558,21 +564,116 @@ export function buildCodexCollaborationMode(context: Pick<ProviderRunContext, "s
   };
 }
 
-/** 构造 `codex app-server` 的启动参数；非 auto 模型时追加 `-c model=<id>` 覆盖。 */
-export function buildCodexAppServerArgs(providerModel: string | null | undefined): string[] {
+// Intentionally collision-resistant: Codex recursively merges config tables,
+// so a common id could retain user-defined sibling headers/auth fields.
+export const CODEX_MANAGED_PROVIDER_ID = "cctools_managed_6f1b38d4b0e94c6a";
+export const CODEX_MANAGED_API_KEY_ENV = "CCTOOLS_CODEX_API_KEY";
+
+/** 构造 `codex app-server` 启动参数，并把选中的 Responses Provider 映射为临时 config 覆盖。 */
+export function buildCodexAppServerArgs(
+  providerModel: string | null | undefined,
+  serviceProvider: ProviderYamlEntry | null = null
+): string[] {
   const args = ["app-server"];
-  if (providerModel && providerModel !== AUTO_MODEL) {
+  const model = providerModel && providerModel !== AUTO_MODEL
+    ? providerModel
+    : serviceProvider?.model;
+  if (model) {
     // codex 支持 `-c key=value` 覆盖 ~/.codex/config.toml，值按 TOML 解析、失败则按字面量。
-    args.push("-c", `model=${providerModel}`);
+    args.push("-c", `model=${tomlString(model)}`);
+  }
+  if (serviceProvider) {
+    if (serviceProvider.protocol !== "openai-responses") {
+      throw new Error("Codex CLI 只能使用 openai-responses Provider。");
+    }
+    if (serviceProvider.tlsPolicy !== "verify") {
+      throw new Error("Codex CLI 托管 Provider 仅支持 tlsPolicy: verify。");
+    }
+    args.push(
+      "-c", `model_provider=${tomlString(CODEX_MANAGED_PROVIDER_ID)}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.name=${tomlString(serviceProvider.name)}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.base_url=${tomlString(codexBaseUrl(serviceProvider.baseUrl))}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.wire_api=${tomlString("responses")}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.requires_openai_auth=false`,
+      // The app-server needs the credential, but model-invoked shell commands
+      // must not inherit KEY/SECRET/TOKEN variables. Enabling Codex's built-in
+      // filter preserves any user-defined exclude/include_only policy.
+      "-c", "shell_environment_policy.ignore_default_excludes=false",
+      // Hooks and legacy notify commands inherit the app-server environment
+      // outside the shell policy. Disable both for managed credentials.
+      "-c", "features.codex_hooks=false",
+      "-c", "notify=[]"
+    );
+    args.push(
+      "-c",
+      serviceProvider.authMode === "x-api-key"
+        ? `model_providers.${CODEX_MANAGED_PROVIDER_ID}.env_http_headers={ ${tomlString("X-API-Key")} = ${tomlString(CODEX_MANAGED_API_KEY_ENV)} }`
+        : `model_providers.${CODEX_MANAGED_PROVIDER_ID}.env_key=${tomlString(CODEX_MANAGED_API_KEY_ENV)}`
+    );
   }
   return args;
 }
 
-function spawnCodex(context: ProviderRunContext): ChildProcessWithoutNullStreams {
-  const args = buildCodexAppServerArgs(context.providerModel);
+export function codexProviderEnvironment(serviceProvider: ProviderYamlEntry): Record<string, string> {
+  const environment: Record<string, string> = { [CODEX_MANAGED_API_KEY_ENV]: serviceProvider.apiKey };
+  if (serviceProvider.proxyPolicy === "explicit" && serviceProvider.proxyUrl) {
+    Object.assign(environment, {
+      HTTP_PROXY: serviceProvider.proxyUrl,
+      HTTPS_PROXY: serviceProvider.proxyUrl,
+      http_proxy: serviceProvider.proxyUrl,
+      https_proxy: serviceProvider.proxyUrl,
+      NO_PROXY: "",
+      no_proxy: "",
+      ALL_PROXY: "",
+      all_proxy: ""
+    });
+  } else if (serviceProvider.proxyPolicy === "disabled") {
+    Object.assign(environment, {
+      HTTP_PROXY: "",
+      HTTPS_PROXY: "",
+      http_proxy: "",
+      https_proxy: "",
+      ALL_PROXY: "",
+      all_proxy: "",
+      NO_PROXY: "*",
+      no_proxy: "*"
+    });
+  }
+  return environment;
+}
+
+function spawnCodex(context: ProviderRunContext, serviceProvider: ProviderYamlEntry | null): ChildProcessWithoutNullStreams {
+  const args = buildCodexAppServerArgs(context.providerModel, serviceProvider);
+  const environment = serviceProvider ? codexProviderEnvironment(serviceProvider) : undefined;
+  if (context.provider.runtime === "wsl" && serviceProvider) {
+    // WSLENV forwards the secret via the child environment, keeping it out of
+    // the visible wsl.exe command line.
+    return spawnInDirectory(context.cwd, "codex", args, {
+      env: {
+        ...environment,
+        WSLENV: mergeWslenv(process.env.WSLENV, Object.keys(environment!))
+      }
+    });
+  }
   return context.provider.runtime === "wsl"
     ? spawnInDirectory(context.cwd, "codex", args)
-    : spawnNativeInDirectory(context.cwd, "codex", args);
+    : spawnNativeInDirectory(context.cwd, "codex", args, environment ? { env: environment } : {});
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function codexBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "").replace(/\/responses$/i, "");
+}
+
+function mergeWslenv(current: string | undefined, names: string[]): string {
+  const replacements = new Set(names.map((name) => name.toUpperCase()));
+  const entries = (current || "").split(":").filter(Boolean).filter((entry) => (
+    !replacements.has(entry.split("/")[0].toUpperCase())
+  ));
+  return [...entries, ...names].join(":");
 }
 
 function providerCwd(context: ProviderRunContext): string {

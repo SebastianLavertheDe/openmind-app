@@ -142,8 +142,8 @@ describe("ipc handlers", () => {
     expect(result).toEqual(catalog);
   });
 
-  it("validates provider yaml input at the IPC boundary", () => {
-    expect(() => invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.saveProviders, {
+  it("validates provider yaml input at the IPC boundary", async () => {
+    await expect(invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.saveProviders, {
       schemaVersion: 1,
       default: "missing",
       providers: [{
@@ -155,7 +155,7 @@ describe("ipc handlers", () => {
         baseUrl: "https://api.deepseek.com",
         model: "deepseek-chat"
       }]
-    })).toThrow();
+    })).rejects.toThrow();
   });
 });
 

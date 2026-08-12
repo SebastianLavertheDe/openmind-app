@@ -609,15 +609,17 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     {
       channel: C.saveProviders,
-      handler: (input) => {
+      handler: async (input) => {
         saveProvidersFromInput(ProvidersYamlInputSchema.parse(input));
+        await ai().call("refresh-providers");
         return ProvidersYamlViewSchema.parse(listProvidersForUi());
       }
     },
     {
       channel: C.deleteProvider,
-      handler: (id) => {
+      handler: async (id) => {
         deleteProviderEntry(parseString(id));
+        await ai().call("refresh-providers");
         return ProvidersYamlViewSchema.parse(listProvidersForUi());
       }
     },

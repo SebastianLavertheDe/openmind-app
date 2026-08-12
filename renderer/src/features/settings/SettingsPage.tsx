@@ -145,8 +145,11 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const loadProvidersYaml = useCallback(async () => {
     try { setProvidersYaml(await window.cctools.getProviders()); }
-    catch { setProvidersYaml({ schemaVersion: 1, default: "", providers: [] }); }
-  }, []);
+    catch (error) {
+      setProvidersYaml({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] });
+      ai.notify(error instanceof Error ? error.message : "config/providers.yaml 读取失败", "error");
+    }
+  }, [ai]);
 
   useEffect(() => {
     if (activeSection === "providers" && !providersYaml && !loading && prefs) void loadProvidersYaml();
@@ -160,20 +163,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       ai.notify("AI Provider 配置已保存", "success");
     } catch (error) {
       ai.notify(error instanceof Error ? error.message : "AI Provider 配置保存失败", "error");
-      await loadProvidersYaml();
-    } finally {
-      setProvidersYamlBusy(false);
-    }
-  }, [ai, loadProvidersYaml, providersYamlBusy]);
-
-  const deleteProviderYaml = useCallback(async (id: string) => {
-    if (providersYamlBusy) return;
-    setProvidersYamlBusy(true);
-    try {
-      setProvidersYaml(await window.cctools.deleteProvider(id));
-      ai.notify("Provider 已删除", "success");
-    } catch (error) {
-      ai.notify(error instanceof Error ? error.message : "Provider 删除失败", "error");
       await loadProvidersYaml();
     } finally {
       setProvidersYamlBusy(false);
@@ -637,7 +626,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} onDelete={deleteProviderYaml} notify={ai.notify} /></> : null}
+              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}

@@ -17,6 +17,22 @@ import {
 } from "./rollout";
 
 describe("Codex-aligned rollout reconstruction", () => {
+  it("persists the managed provider id and revision without persisting its API key", () => {
+    const session = {
+      ...makeSession(),
+      serviceProviderId: "managed-codex",
+      serviceProviderRevision: "a".repeat(64)
+    };
+
+    const item = sessionMetaItem(session);
+
+    expect(item.payload).toMatchObject({
+      serviceProviderId: "managed-codex",
+      serviceProviderRevision: "a".repeat(64)
+    });
+    expect(JSON.stringify(item)).not.toContain("apiKey");
+  });
+
   it("rebuilds complete turns and model-visible context from canonical items", () => {
     const session = makeSession();
     const run = makeRun("turn-1", "2026-07-01T00:00:00.000Z");

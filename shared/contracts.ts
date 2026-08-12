@@ -3,6 +3,8 @@ import { z } from "zod";
 export {
   PROVIDERS_YAML_SCHEMA_VERSION,
   ProviderProtocolSchema,
+  ProviderAuthModeSchema,
+  CliProviderBindingsSchema,
   ProxyPolicySchema,
   TlsPolicySchema,
   ProviderYamlEntrySchema,
@@ -12,7 +14,10 @@ export {
   ProviderYamlViewSchema,
   ProvidersYamlViewSchema,
   PROVIDER_PRESETS,
+  supportsCliProvider,
   type ProviderProtocol,
+  type ProviderAuthMode,
+  type CliProviderBindings,
   type ProxyPolicy,
   type TlsPolicy,
   type ProviderYamlEntry,
@@ -211,6 +216,10 @@ export const AiSessionSchema = z.object({
   title: z.string(),
   provider: ProviderKindSchema,
   providerId: z.string(),
+  /** API profile from config/providers.yaml frozen when the session is created. */
+  serviceProviderId: z.string().nullable().default(null),
+  /** SHA-256 fingerprint used to prevent an existing conversation crossing API backends. */
+  serviceProviderRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
   providerSessionId: z.string().nullable().default(null),
   forkedFromId: z.string().nullable().optional(),
   cwd: z.string(),
@@ -224,8 +233,12 @@ export const AiSessionSchema = z.object({
   lastRunId: z.string().nullable().default(null)
 });
 type ParsedAiSession = z.infer<typeof AiSessionSchema>;
-/** interactionMode 可选仅用于兼容旧持久化对象与既有调用方；Schema 解析后始终补 default。 */
-export type AiSession = Omit<ParsedAiSession, "interactionMode"> & { interactionMode?: InteractionMode };
+/** Defaulted fields stay optional for old persisted objects and existing callers. */
+export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision"> & {
+  interactionMode?: InteractionMode;
+  serviceProviderId?: string | null;
+  serviceProviderRevision?: string | null;
+};
 
 export const AiRunSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -289,6 +302,8 @@ export const AiRolloutSessionMetaSchema = z.object({
   appVersion: z.string(),
   provider: ProviderKindSchema,
   providerId: z.string(),
+  serviceProviderId: z.string().nullable().default(null),
+  serviceProviderRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
   baseInstructions: z.string().nullable().default(null),
   dynamicTools: z.array(z.string()).default([]),
   selectedCapabilityRoots: z.array(z.string()).default([]),

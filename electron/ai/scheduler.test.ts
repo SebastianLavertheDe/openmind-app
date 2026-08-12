@@ -421,6 +421,7 @@ type SchedulerInternals = {
     claude: {
       prewarm?: (context: { session: { id: string } | null; cwd: string; providerSessionId: string | null }) => Promise<boolean>;
       disposeSession?: (sessionId: string) => void;
+      disposeWarmSlots?: () => void;
       run: (context: ProviderRunContext) => Promise<void>;
     };
   };
@@ -600,8 +601,13 @@ describe("RunScheduler 公共委托方法", () => {
       available: true, version: "1", supportsApprovals: true, supportsResume: true,
       supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false
     }];
-    internals.registry = { detect: () => providers, refresh: async () => providers } as never;
+    const refresh = vi.fn(async () => providers);
+    internals.registry = { detect: () => providers, refresh } as never;
+    const disposeWarmSlots = vi.fn();
+    internals.adapters.claude.disposeWarmSlots = disposeWarmSlots;
     await scheduler.refreshProviders();
+    expect(disposeWarmSlots).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledWith(true);
     expect(scheduler.snapshot().providers).toEqual(providers);
   });
 });

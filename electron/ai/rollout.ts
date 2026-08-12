@@ -38,6 +38,8 @@ export function sessionMetaItem(session: AiSession): AiRolloutItem {
       appVersion: "1.0.17",
       provider: session.provider,
       providerId: session.providerId,
+      serviceProviderId: session.serviceProviderId || null,
+      serviceProviderRevision: session.serviceProviderRevision || null,
       baseInstructions: PROVIDER_BASE_INSTRUCTIONS[session.provider],
       dynamicTools: [],
       selectedCapabilityRoots: [session.cwd],

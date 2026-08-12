@@ -56,6 +56,8 @@ export interface ProviderAdapter {
   run(context: ProviderRunContext): Promise<void>;
   prewarm?(context: ProviderPrewarmContext): Promise<boolean>;
   disposeSession?(sessionId: string): void;
+  /** Close every idle prewarmed process after provider configuration changes. */
+  disposeWarmSlots?(): void;
   /** 该 provider 的运行是否依赖预先捕获的 turnContext（Claude 用，Codex 不用）。 */
   needsTurnContext?: boolean;
 }

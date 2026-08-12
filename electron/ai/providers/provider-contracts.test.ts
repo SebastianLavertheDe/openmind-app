@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
-import { buildCodexTurnInput, buildCodexAppServerArgs, normalizeCodexNotification, resolveCodexNativeSkill } from "./codex-app-server";
+import {
+  buildCodexTurnInput,
+  buildCodexAppServerArgs,
+  CODEX_MANAGED_API_KEY_ENV,
+  CODEX_MANAGED_PROVIDER_ID,
+  normalizeCodexNotification,
+  resolveCodexNativeSkill
+} from "./codex-app-server";
 import { CLAUDE_SETTING_SOURCES, CLAUDE_SKILL_SELECTION, decideClaudePermission, normalizeClaudeMessage, orderClaudeEvents, toAsarUnpackedPath } from "./claude-agent-sdk";
 import { parseClaudeAuthStatus } from "../provider-registry";
 
@@ -9,6 +17,23 @@ const context = {
   session: { permissionProfile: "edit" },
   cwd: "/project"
 } as ProviderRunContext;
+
+function makeCodexServiceProvider(overrides: Partial<ProviderYamlEntry> = {}): ProviderYamlEntry {
+  return {
+    id: "yaml.provider.with-dots",
+    name: "Managed Responses",
+    enabled: true,
+    protocol: "openai-responses",
+    authMode: "bearer",
+    apiKey: "secret-must-not-enter-argv",
+    baseUrl: "https://gateway.example/v1/responses/",
+    model: "vendor/model-fast",
+    proxyUrl: "",
+    proxyPolicy: "system",
+    tlsPolicy: "verify",
+    ...overrides
+  };
+}
 
 describe("provider contracts", () => {
   it("normalizes Codex semantic events", () => {
@@ -208,8 +233,51 @@ describe("provider contracts", () => {
     expect(buildCodexAppServerArgs("auto")).toEqual(["app-server"]);
     expect(buildCodexAppServerArgs(undefined)).toEqual(["app-server"]);
     expect(buildCodexAppServerArgs(null)).toEqual(["app-server"]);
-    expect(buildCodexAppServerArgs("gpt-5")).toEqual(["app-server", "-c", "model=gpt-5"]);
-    // 含特殊字符的模型 id（如 GLM 的 [1m]）原样透传。
-    expect(buildCodexAppServerArgs("glm-5.2[1m]")).toEqual(["app-server", "-c", "model=glm-5.2[1m]"]);
+    expect(buildCodexAppServerArgs("gpt-5")).toEqual(["app-server", "-c", 'model="gpt-5"']);
+    // `-c` 的值按 TOML 解析，模型 id 必须始终是有引号的 TOML 字符串。
+    const model = 'glm-5.2[1m] "fast"';
+    expect(buildCodexAppServerArgs(model)).toEqual(["app-server", "-c", `model=${JSON.stringify(model)}`]);
+  });
+
+  it("maps a YAML Responses provider to a fixed internal Codex provider without leaking its key", () => {
+    const provider = makeCodexServiceProvider({
+      name: 'Vendor "Responses"',
+      model: 'vendor/model "fast"'
+    });
+
+    const args = buildCodexAppServerArgs("auto", provider);
+
+    expect(args).toEqual([
+      "app-server",
+      "-c", `model=${JSON.stringify(provider.model)}`,
+      "-c", `model_provider=${JSON.stringify(CODEX_MANAGED_PROVIDER_ID)}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.name=${JSON.stringify(provider.name)}`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.base_url="https://gateway.example/v1"`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.wire_api="responses"`,
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.requires_openai_auth=false`,
+      "-c", "shell_environment_policy.ignore_default_excludes=false",
+      "-c", "features.codex_hooks=false",
+      "-c", "notify=[]",
+      "-c", `model_providers.${CODEX_MANAGED_PROVIDER_ID}.env_key=${JSON.stringify(CODEX_MANAGED_API_KEY_ENV)}`
+    ]);
+    expect(JSON.stringify(args)).not.toContain(provider.apiKey);
+    expect(JSON.stringify(args)).not.toContain(provider.id);
+  });
+
+  it("uses an environment-backed X-API-Key header for x-api-key providers", () => {
+    const provider = makeCodexServiceProvider({ authMode: "x-api-key" });
+
+    const args = buildCodexAppServerArgs("auto", provider);
+
+    expect(args).toContain(
+      `model_providers.${CODEX_MANAGED_PROVIDER_ID}.env_http_headers={ "X-API-Key" = ${JSON.stringify(CODEX_MANAGED_API_KEY_ENV)} }`
+    );
+    expect(args.some((arg) => arg.includes(".env_key="))).toBe(false);
+    expect(JSON.stringify(args)).not.toContain(provider.apiKey);
+  });
+
+  it("rejects non-Responses YAML providers before Codex starts", () => {
+    const provider = makeCodexServiceProvider({ protocol: "openai-chat" });
+    expect(() => buildCodexAppServerArgs("auto", provider)).toThrow("openai-responses");
   });
 });

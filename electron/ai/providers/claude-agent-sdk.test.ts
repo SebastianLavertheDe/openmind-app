@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderPrewarmContext, ProviderRunContext } from "./types";
 
 /**
@@ -17,17 +18,158 @@ const sdkMock = vi.hoisted(() => ({
     // 默认空生成器
   }) as unknown as (opts: unknown) => AsyncGenerator<unknown>
 }));
+const providerConfigMock = vi.hoisted(() => ({
+  resolveCliProvider: vi.fn<(kind: "claude" | "codex", requestedId?: string | null) => ProviderYamlEntry | null>(() => null),
+  providerConfigurationRevision: vi.fn((provider: ProviderYamlEntry) => JSON.stringify(provider))
+}));
+const processUtilsMock = vi.hoisted(() => ({
+  spawnInDirectory: vi.fn(),
+  resolveWslLoginExecutable: vi.fn(() => ({
+    executable: "/home/say/.nvm/versions/node/v24/bin/claude",
+    loginPath: "/home/say/.nvm/versions/node/v24/bin:/usr/bin:/bin"
+  }))
+}));
 vi.mock(import("@anthropic-ai/claude-agent-sdk"), () => ({
   startup: sdkMock.startup,
   query: sdkMock.query,
   Options: class {}
 }));
+vi.mock(import("../../config/providers-yaml"), () => ({
+  resolveCliProvider: providerConfigMock.resolveCliProvider,
+  providerConfigurationRevision: providerConfigMock.providerConfigurationRevision
+}));
+vi.mock(import("../process-utils"), async (importOriginal) => ({
+  ...await importOriginal<typeof import("../process-utils")>(),
+  spawnInDirectory: processUtilsMock.spawnInDirectory,
+  resolveWslLoginExecutable: processUtilsMock.resolveWslLoginExecutable
+}));
 
-import { ClaudeAgentSdkAdapter, createClaudeNormalizerState, normalizeClaudeMessage } from "./claude-agent-sdk";
+import { ClaudeAgentSdkAdapter, claudeProviderEnvironment, createClaudeNormalizerState, normalizeClaudeMessage, resolveNativeClaudeExecutable, supportsManagedClaudeVersion } from "./claude-agent-sdk";
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  providerConfigMock.resolveCliProvider.mockReset();
+  providerConfigMock.resolveCliProvider.mockReturnValue(null);
+  processUtilsMock.spawnInDirectory.mockReset();
+  processUtilsMock.resolveWslLoginExecutable.mockClear();
+});
+
+function makeServiceProvider(overrides: Partial<ProviderYamlEntry> = {}): ProviderYamlEntry {
+  return {
+    id: "glm-managed",
+    name: "Managed GLM",
+    enabled: true,
+    protocol: "anthropic-messages",
+    authMode: "bearer",
+    apiKey: "managed-secret-key",
+    baseUrl: "https://open.bigmodel.cn/api/anthropic/",
+    model: "glm-5.2[1m]",
+    proxyUrl: "",
+    proxyPolicy: "system",
+    tlsPolicy: "verify",
+    ...overrides
+  };
+}
+
+describe("claudeProviderEnvironment", () => {
+  it("maps an anthropic-messages bearer profile without retaining a stale x-api-key", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "stale-x-api-key");
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "stale-bearer-token");
+
+    const environment = claudeProviderEnvironment(makeServiceProvider({
+      authMode: "bearer",
+      apiKey: "fresh-bearer-token"
+    }));
+
+    expect(environment).toMatchObject({
+      ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
+      ANTHROPIC_AUTH_TOKEN: "fresh-bearer-token",
+      ANTHROPIC_MODEL: "glm-5.2[1m]",
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.2[1m]",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.2[1m]",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.2[1m]",
+      CLAUDE_CODE_SUBAGENT_MODEL: "glm-5.2[1m]",
+      CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1",
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    });
+    expect(environment).not.toHaveProperty("ANTHROPIC_API_KEY");
+  });
+
+  it("maps an anthropic-messages x-api-key profile without retaining a stale bearer token", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "stale-x-api-key");
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "stale-bearer-token");
+
+    const environment = claudeProviderEnvironment(makeServiceProvider({
+      id: "anthropic-managed",
+      authMode: "x-api-key",
+      apiKey: "fresh-x-api-key",
+      baseUrl: "https://api.anthropic.com///",
+      model: "claude-sonnet-4-6"
+    }));
+
+    expect(environment.ANTHROPIC_BASE_URL).toBe("https://api.anthropic.com");
+    expect(environment.ANTHROPIC_API_KEY).toBe("fresh-x-api-key");
+    expect(environment.ANTHROPIC_MODEL).toBe("claude-sonnet-4-6");
+    expect(environment).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
+  });
+
+  it("rejects a non-Anthropic wire protocol before Claude Code starts", () => {
+    expect(() => claudeProviderEnvironment(makeServiceProvider({ protocol: "openai-responses" })))
+      .toThrow("anthropic-messages");
+  });
+
+  it("rejects allow-insecure TLS and removes inherited Node TLS bypass in verify mode", () => {
+    expect(() => claudeProviderEnvironment(makeServiceProvider({ tlsPolicy: "allow-insecure" })))
+      .toThrow("tlsPolicy: verify");
+    vi.stubEnv("NODE_TLS_REJECT_UNAUTHORIZED", "0");
+    expect(claudeProviderEnvironment(makeServiceProvider())).not.toHaveProperty("NODE_TLS_REJECT_UNAUTHORIZED");
+  });
+
+  it("removes inherited backend, transport and auth overrides before applying an explicit proxy", () => {
+    vi.stubEnv("ANTHROPIC_UNIX_SOCKET", "/tmp/stale.sock");
+    vi.stubEnv("ANTHROPIC_CUSTOM_HEADERS", "X-Stale: yes");
+    vi.stubEnv("CLAUDE_CODE_USE_BEDROCK", "1");
+    vi.stubEnv("_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL", "1");
+    vi.stubEnv("CLAUDE_CODE_OAUTH_TOKEN", "stale-oauth");
+    vi.stubEnv("CLAUDE_CODE_SESSION_ACCESS_TOKEN", "stale-session");
+    vi.stubEnv("AGENT_PROXY_AUTH_TOKEN", "stale-agent-token");
+    vi.stubEnv("API_TOKEN", "stale-api-token");
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "stale-aws-token");
+    vi.stubEnv("http_proxy", "http://stale-proxy:9000");
+    vi.stubEnv("https_proxy", "http://stale-proxy:9000");
+    vi.stubEnv("no_proxy", "stale.example.com");
+
+    const environment = claudeProviderEnvironment(makeServiceProvider({
+      proxyPolicy: "explicit",
+      proxyUrl: "http://fresh-proxy:8080"
+    }));
+
+    for (const key of [
+      "ANTHROPIC_UNIX_SOCKET", "ANTHROPIC_CUSTOM_HEADERS", "CLAUDE_CODE_USE_BEDROCK", "_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL",
+      "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_SESSION_ACCESS_TOKEN", "AGENT_PROXY_AUTH_TOKEN",
+      "API_TOKEN", "AWS_BEARER_TOKEN_BEDROCK"
+    ]) expect(environment).not.toHaveProperty(key);
+    expect(environment).toMatchObject({
+      HTTP_PROXY: "http://fresh-proxy:8080",
+      HTTPS_PROXY: "http://fresh-proxy:8080",
+      http_proxy: "http://fresh-proxy:8080",
+      https_proxy: "http://fresh-proxy:8080"
+    });
+    expect(environment).not.toHaveProperty("NO_PROXY");
+    expect(environment).not.toHaveProperty("no_proxy");
+  });
+});
+
+describe("managed Claude compatibility", () => {
+  it("requires a CLI version with managed-host and subprocess scrubbing support", () => {
+    expect(supportsManagedClaudeVersion("2.1.175 (Claude Code)")).toBe(true);
+    expect(supportsManagedClaudeVersion("2.2.0")).toBe(true);
+    expect(supportsManagedClaudeVersion("2.1.174 (Claude Code)")).toBe(false);
+    expect(supportsManagedClaudeVersion("unknown")).toBe(false);
+  });
 });
 
 function makePrewarmContext(overrides: Partial<ProviderPrewarmContext> = {}): ProviderPrewarmContext {
@@ -80,6 +222,54 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     await adapter.prewarm(ctx);
     await adapter.prewarm(ctx);
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reuse a draft warm process after the managed Claude provider changes", async () => {
+    providerConfigMock.resolveCliProvider
+      .mockReturnValueOnce(makeServiceProvider({ id: "provider-a", apiKey: "key-a" }))
+      .mockReturnValueOnce(makeServiceProvider({ id: "provider-b", apiKey: "key-b" }));
+    const adapter = new ClaudeAgentSdkAdapter();
+    const ctx = makePrewarmContext({ session: null });
+
+    await adapter.prewarm(ctx);
+    const firstWarm = await sdkMock.startup.mock.results[0].value;
+    await adapter.prewarm(ctx);
+    await Promise.resolve();
+
+    expect(providerConfigMock.resolveCliProvider).toHaveBeenNthCalledWith(1, "claude");
+    expect(providerConfigMock.resolveCliProvider).toHaveBeenNthCalledWith(2, "claude");
+    expect(sdkMock.startup).toHaveBeenCalledTimes(2);
+    expect(firstWarm.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reuse a draft warm process after only proxy routing changes", async () => {
+    providerConfigMock.resolveCliProvider
+      .mockReturnValueOnce(makeServiceProvider({ proxyPolicy: "system", proxyUrl: "" }))
+      .mockReturnValueOnce(makeServiceProvider({ proxyPolicy: "explicit", proxyUrl: "http://proxy:8080" }));
+    const adapter = new ClaudeAgentSdkAdapter();
+    const ctx = makePrewarmContext({ session: null });
+
+    await adapter.prewarm(ctx);
+    const firstWarm = await sdkMock.startup.mock.results[0].value;
+    await adapter.prewarm(ctx);
+    await Promise.resolve();
+
+    expect(providerConfigMock.providerConfigurationRevision).toHaveBeenCalledTimes(2);
+    expect(sdkMock.startup).toHaveBeenCalledTimes(2);
+    expect(firstWarm.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes every idle warm process when provider configuration refreshes", async () => {
+    const adapter = new ClaudeAgentSdkAdapter();
+    await adapter.prewarm(makePrewarmContext());
+    const warm = await sdkMock.startup.mock.results[0].value;
+
+    adapter.disposeWarmSlots();
+    await Promise.resolve();
+
+    expect(warm.close).toHaveBeenCalledTimes(1);
+    await adapter.prewarm(makePrewarmContext());
+    expect(sdkMock.startup).toHaveBeenCalledTimes(2);
   });
 
   it("startup reject 时移除 warm slot,可重试", async () => {
@@ -590,6 +780,125 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     await adapter.run(ctx);
     const opts = sdkMock.query.mock.calls[0][0] as { options: { model?: string } };
     expect(opts.options.model).toBe("claude-opus-4");
+  });
+
+  it("resolves the serviceProviderId frozen into the session instead of the current Claude binding", async () => {
+    const pinned = makeServiceProvider({ id: "glm-pinned", apiKey: "pinned-key", model: "glm-pinned-model" });
+    const currentBinding = makeServiceProvider({ id: "glm-current", apiKey: "current-key", model: "glm-current-model" });
+    providerConfigMock.resolveCliProvider.mockImplementation((_kind, requestedId) => (
+      requestedId === "glm-pinned" ? pinned : currentBinding
+    ));
+    sdkMock.query.mockReturnValueOnce(makeQuery([]));
+    const ctx = makeRunContext({
+      providerModel: "auto",
+      session: { ...makeRunContext().session, serviceProviderId: "glm-pinned", serviceProviderRevision: "a".repeat(64) }
+    });
+
+    await new ClaudeAgentSdkAdapter().run(ctx);
+
+    expect(providerConfigMock.resolveCliProvider).toHaveBeenCalledWith("claude", "glm-pinned", "a".repeat(64));
+    const call = sdkMock.query.mock.calls[0][0] as {
+      options: { model?: string; env?: NodeJS.ProcessEnv; pathToClaudeCodeExecutable?: string };
+    };
+    expect(call.options.model).toBe("glm-pinned-model");
+    expect(call.options.env).toMatchObject({
+      ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
+      ANTHROPIC_AUTH_TOKEN: "pinned-key",
+      ANTHROPIC_MODEL: "glm-pinned-model"
+    });
+    expect(JSON.stringify(call.options.env)).not.toContain("current-key");
+    if (process.platform === "win32") {
+      expect(call.options.pathToClaudeCodeExecutable).toBe(resolveNativeClaudeExecutable());
+    }
+  });
+
+  it("passes managed WSL credentials through WSLENV while keeping the key out of argv", async () => {
+    const secret = "wsl-secret with spaces=kept";
+    const managed = makeServiceProvider({
+      id: "glm-wsl",
+      apiKey: secret,
+      proxyPolicy: "explicit",
+      proxyUrl: "http://fresh-proxy:8080"
+    });
+    providerConfigMock.resolveCliProvider.mockReturnValue(managed);
+    sdkMock.query.mockReturnValueOnce(makeQuery([]));
+    vi.stubEnv("ANTHROPIC_UNIX_SOCKET", "/tmp/stale.sock");
+    vi.stubEnv("CLAUDE_CODE_USE_BEDROCK", "1");
+    vi.stubEnv("https_proxy", "http://stale-proxy:9000");
+    vi.stubEnv("WSLENV", "EXISTING_PATH/p:ANTHROPIC_UNIX_SOCKET/u:CLAUDE_CODE_USE_BEDROCK:https_proxy");
+    const stderrOn = vi.fn();
+    processUtilsMock.spawnInDirectory.mockReturnValue({ stderr: { on: stderrOn } } as never);
+    const base = makeRunContext();
+    const ctx = makeRunContext({
+      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\project",
+      provider: { ...base.provider, id: "claude-wsl-Ubuntu", runtime: "wsl", version: "2.1.175 (Claude Code)" },
+      session: {
+        ...base.session,
+        providerId: "claude-wsl-Ubuntu",
+        serviceProviderId: "glm-wsl",
+        serviceProviderRevision: "b".repeat(64)
+      }
+    });
+
+    await new ClaudeAgentSdkAdapter().run(ctx);
+
+    const call = sdkMock.query.mock.calls[0][0] as {
+      options: {
+        env: Record<string, string | undefined>;
+        spawnClaudeCodeProcess: (options: {
+          command: string;
+          args: string[];
+          cwd?: string;
+          env: Record<string, string | undefined>;
+          signal: AbortSignal;
+        }) => unknown;
+      };
+    };
+    call.options.spawnClaudeCodeProcess({
+      command: "C:\\ignored\\claude.exe",
+      args: ["--model", managed.model],
+      cwd: ctx.cwd,
+      env: {
+        ...call.options.env,
+        CLAUDE_CONFIG_DIR: "C:\\Users\\say\\.claude",
+        CLAUDE_SECURESTORAGE_CONFIG_DIR: "C:\\Users\\say\\.claude"
+      },
+      signal: new AbortController().signal
+    });
+
+    expect(processUtilsMock.spawnInDirectory).toHaveBeenCalledTimes(1);
+    const [cwd, command, args, spawnOptions] = processUtilsMock.spawnInDirectory.mock.calls[0] as [
+      string,
+      string,
+      string[],
+      { env: Record<string, string>; signal: AbortSignal }
+    ];
+    expect(cwd).toBe(ctx.cwd);
+    expect(processUtilsMock.resolveWslLoginExecutable).toHaveBeenCalledWith(ctx.cwd, "claude");
+    expect(command).toBe("/usr/bin/env");
+    expect(args.slice(0, 2)).toEqual([
+      "PATH=/home/say/.nvm/versions/node/v24/bin:/usr/bin:/bin",
+      "/home/say/.nvm/versions/node/v24/bin/claude"
+    ]);
+    expect(args).toContain(managed.model);
+    expect(JSON.stringify([command, args])).not.toContain(secret);
+    expect(spawnOptions.env.ANTHROPIC_AUTH_TOKEN).toBe(secret);
+    expect(spawnOptions.env.https_proxy).toBe("http://fresh-proxy:8080");
+    expect(spawnOptions.env).not.toHaveProperty("ANTHROPIC_UNIX_SOCKET");
+    expect(spawnOptions.env).not.toHaveProperty("CLAUDE_CODE_USE_BEDROCK");
+    expect(spawnOptions.env).not.toHaveProperty("CLAUDE_CONFIG_DIR");
+    expect(spawnOptions.env).not.toHaveProperty("CLAUDE_SECURESTORAGE_CONFIG_DIR");
+    expect(spawnOptions.env.WSLENV.split(":")).toEqual(expect.arrayContaining([
+      "EXISTING_PATH/p",
+      "ANTHROPIC_AUTH_TOKEN",
+      "ANTHROPIC_BASE_URL",
+      "ANTHROPIC_MODEL",
+      "https_proxy"
+    ]));
+    expect(spawnOptions.env.WSLENV).not.toContain("ANTHROPIC_UNIX_SOCKET");
+    expect(spawnOptions.env.WSLENV).not.toContain("CLAUDE_CODE_USE_BEDROCK");
+    expect(spawnOptions.env.WSLENV.split(":").filter((entry) => entry === "https_proxy")).toHaveLength(1);
+    expect(stderrOn).toHaveBeenCalledWith("data", expect.any(Function));
   });
 
   it("从 SkillStore 注入 Agent instructions，并禁用 project-local skill discovery", async () => {

@@ -20,6 +20,7 @@ import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
 import { type ProviderKind } from "../../shared/model-catalog";
 import { updateSessionStatus } from "./scheduler-lifecycle";
 import type { ProviderAdapter, ProviderRunContext } from "./providers/types";
+import { resolveCliProvider } from "../config/providers-yaml";
 
 export interface ActiveRun {
   run: AiRun;
@@ -98,7 +99,12 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     await host.store.appendTurnContext(run);
     await appendScheduledEvent(host, run, "status", { state: "running", cwd: directCwd, mode: "direct" });
     const provider = host.registry.detect().find((item) => item.id === session.providerId);
-    if (!provider?.available) throw new Error(provider?.diagnostic || "会话绑定的 Provider 当前不可用。");
+    const pinnedManagedProvider = session.serviceProviderId
+      ? resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null)
+      : null;
+    if (!provider?.available && !(pinnedManagedProvider && provider?.version)) {
+      throw new Error(provider?.diagnostic || "会话绑定的 Provider 当前不可用。");
+    }
     const turnImages = extractImageContexts(host.projectRoot, run.contexts, host.stateRoot);
     if (turnImages.length && provider.supportsImages === false) throw new Error("当前 Provider 不支持图片附件。");
     const skillInvocation = parseSkillSlashInvocation(run.prompt, host.skillTools.listDefinitions());

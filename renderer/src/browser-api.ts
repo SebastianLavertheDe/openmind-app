@@ -486,9 +486,9 @@ export function installBrowserPreviewApi(): boolean {
       packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
     }),
     analyzeEnvFile: async (filePath): Promise<EnvFileAnalysis> => ({ path: filePath, variables: [], ignoredLines: 0, warnings: ["浏览器预览不读取本地配置文件。"], containsPotentialSecrets: false }),
-    getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
-    saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
-    deleteProvider: async (_id: string): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", providers: [] }),
+    getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
+    saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
+    deleteProvider: async (_id: string): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     getEnvironmentDiagnostics: async () => [
       { id: "repo", label: "项目目录", status: "ok", value: snapshot.projectRoot, detail: null, path: snapshot.projectRoot },
       { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
-import { PROVIDER_PRESETS } from "@shared/contracts";
+import type { AiSession, BrowserAutomationStatus, CliProviderBindings, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
@@ -827,17 +827,16 @@ export function AiProvidersSettingsSection({
   view,
   busy,
   onSave,
-  onDelete,
   notify
 }: {
   view: ProvidersYamlView | null;
   busy: boolean;
   onSave(input: ProvidersYamlInput): Promise<void>;
-  onDelete(id: string): Promise<void>;
   notify(message: string, tone?: "info" | "success" | "error"): void;
 }) {
   const [draft, setDraft] = useState<ProviderYamlInputEntry[]>([]);
   const [defaultId, setDefaultId] = useState("");
+  const [cliBindings, setCliBindings] = useState<CliProviderBindings>({ claude: null, codex: null });
   const [apiKeyKeys, setApiKeyKeys] = useState<Record<string, string>>({});
   const [apiKeySetMap, setApiKeySetMap] = useState<Record<string, boolean>>({});
   const [presetId, setPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? "custom");
@@ -847,17 +846,26 @@ export function AiProvidersSettingsSection({
   useEffect(() => {
     if (!view) return;
     setDraft(view.providers.map((provider) => ({
-      id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol,
+      id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol, authMode: provider.authMode || "bearer",
       apiKey: "", baseUrl: provider.baseUrl, model: provider.model, proxyUrl: provider.proxyUrl,
       proxyPolicy: provider.proxyPolicy, tlsPolicy: provider.tlsPolicy
     })));
     setDefaultId(view.default);
+    setCliBindings(view.cli || { claude: null, codex: null });
     setApiKeyKeys({});
     setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
   }, [view]);
 
   const update = (id: string, patch: Partial<ProviderYamlInputEntry>) => {
+    const currentEntry = draft.find((entry) => entry.id === id);
+    const nextEntry = currentEntry ? { ...currentEntry, ...patch } : null;
     setDraft((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry));
+    if (nextEntry) {
+      setCliBindings((current) => ({
+        claude: current.claude === id && (!nextEntry.enabled || !supportsCliProvider("claude", nextEntry.protocol)) ? null : current.claude,
+        codex: current.codex === id && (!nextEntry.enabled || !supportsCliProvider("codex", nextEntry.protocol)) ? null : current.codex
+      }));
+    }
   };
   const updateKey = (id: string, value: string) => {
     setApiKeyKeys((current) => ({ ...current, [id]: value }));
@@ -865,12 +873,12 @@ export function AiProvidersSettingsSection({
 
   const providerFromPreset = (nextPresetId: string): ProviderYamlInputEntry => {
     const preset = PROVIDER_PRESETS.find((item) => item.id === nextPresetId);
-    const base = preset ?? { id: "custom", name: "自定义", protocol: "openai-chat" as ProviderProtocol, baseUrl: "", model: "" };
+    const base = preset ?? { id: "custom", name: "自定义", protocol: "openai-chat" as ProviderProtocol, authMode: "bearer" as ProviderAuthMode, baseUrl: "", model: "" };
     let counter = 0;
     let id = base.id;
     while (draft.some((entry) => entry.id === id)) id = `${base.id}-${++counter}`;
     return {
-      id, name: base.name, enabled: true, protocol: base.protocol, apiKey: "",
+      id, name: base.name, enabled: true, protocol: base.protocol, authMode: base.authMode, apiKey: "",
       baseUrl: base.baseUrl, model: base.model, proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify"
     };
   };
@@ -916,22 +924,50 @@ export function AiProvidersSettingsSection({
 
   const remove = (id: string) => {
     if (draft.length <= 1) { notify("至少需要保留一个 Provider", "info"); return; }
-    void onDelete(id);
-    setDraft((current) => current.filter((entry) => entry.id !== id));
+    const survivors = draft.filter((entry) => entry.id !== id);
+    const nextEnabledDefault = survivors.find((entry) => entry.enabled);
+    if (defaultId === id && !nextEnabledDefault) {
+      notify("请先启用另一个 Provider，再删除当前默认 Provider", "info");
+      return;
+    }
+    setDraft(survivors);
+    if (defaultId === id) setDefaultId(nextEnabledDefault!.id);
+    setCliBindings((current) => ({
+      claude: current.claude === id ? null : current.claude,
+      codex: current.codex === id ? null : current.codex
+    }));
+    setApiKeyKeys((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+    setApiKeySetMap((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
   };
 
   const submit = () => {
     if (!draft.length) { notify("至少需要一个 Provider", "info"); return; }
     if (!draft.some((entry) => entry.id === defaultId)) { notify("默认 Provider 不存在", "info"); return; }
     const providers = draft.map((entry) => ({ ...entry, apiKey: apiKeyKeys[entry.id] ?? "" }));
-    void onSave({ schemaVersion: 1, default: defaultId, providers });
+    void onSave({ schemaVersion: 1, default: defaultId, cli: cliBindings, providers });
   };
 
   return (
     <>
       <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
         action={<button type="button" className="settings-provider-add-button" data-motion="icon" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider" title="添加 Provider"><Plus size={17} /></button>}>
-        <p className="settings-note settings-provider-list-note">桌面运行与定时任务共用此配置。API Key 仅保存在本地，不会在界面中回显。</p>
+        <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml，不会在界面中回显；请仅在受信任的本地项目中使用。</p>
+        <div className="settings-grid-2 settings-provider-cli-bindings">
+          <label className="settings-field"><span>Claude Code 服务商</span>
+            <select className="settings-select" aria-label="Claude Code 服务商" value={cliBindings.claude || ""} onChange={(event) => setCliBindings((current) => ({ ...current, claude: event.target.value || null }))}>
+              <option value="">使用 Claude Code 自身配置</option>
+              {draft.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider("claude", entry.protocol)).map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.model}</option>)}
+            </select>
+            <small>仅支持 anthropic-messages；切换或修改配置仅对新会话生效。</small>
+          </label>
+          <label className="settings-field"><span>Codex CLI 服务商</span>
+            <select className="settings-select" aria-label="Codex CLI 服务商" value={cliBindings.codex || ""} onChange={(event) => setCliBindings((current) => ({ ...current, codex: event.target.value || null }))}>
+              <option value="">使用 Codex CLI 自身配置</option>
+              {draft.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider("codex", entry.protocol)).map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.model}</option>)}
+            </select>
+            <small>仅支持 openai-responses；新会话生效，托管 Key 模式会禁用 Codex hooks/notify。</small>
+          </label>
+        </div>
         <div className="settings-stack">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
           {draft.map((entry) => (
@@ -960,6 +996,12 @@ export function AiProvidersSettingsSection({
                       <option value="anthropic-messages">anthropic-messages</option>
                       <option value="openai-chat">openai-chat</option>
                       <option value="openai-responses">openai-responses</option>
+                    </select>
+                  </label>
+                  <label className="settings-field"><span>认证方式</span>
+                    <select className="settings-select" value={entry.authMode} onChange={(event) => update(entry.id, { authMode: event.target.value as ProviderAuthMode })}>
+                      <option value="bearer">Bearer Token</option>
+                      <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
                   <label className="settings-field"><span>API Key</span>
@@ -998,12 +1040,18 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
                   <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
                   <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
-                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder="例如：deepseek-chat" onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
+                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder="例如：deepseek-v4-flash" onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
                   <label className="settings-field"><span>协议</span>
                     <select className="settings-select" value={newProvider.protocol} onChange={(event) => setNewProvider({ ...newProvider, protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>
                       <option value="openai-chat">openai-chat</option>
                       <option value="openai-responses">openai-responses</option>
+                    </select>
+                  </label>
+                  <label className="settings-field"><span>认证方式</span>
+                    <select className="settings-select" value={newProvider.authMode} onChange={(event) => setNewProvider({ ...newProvider, authMode: event.target.value as ProviderAuthMode })}>
+                      <option value="bearer">Bearer Token</option>
+                      <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
                   <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input" type="password" value={newProvider.apiKey} required placeholder="请输入 API Key" onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>

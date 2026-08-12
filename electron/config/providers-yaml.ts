@@ -1,17 +1,20 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
-import { findRepoRoot } from "../lib/settings";
+import { findRepoRoot, resolveWorkspaceRoot } from "../lib/settings";
 import { writeTextAtomic } from "../lib/fs-utils";
 import {
   PROVIDERS_YAML_SCHEMA_VERSION,
   ProviderYamlEntrySchema,
+  supportsCliProvider,
   ProvidersYamlInputSchema,
   ProvidersYamlSchema,
   processProviderEnvironment,
+  type CliProviderBindings,
   type ProviderYamlEntry,
-  type ProviderYamlView,
   type ProvidersYaml,
-  type ProvidersYamlInput
+  type ProvidersYamlInput,
+  type ProvidersYamlView
 } from "../../shared/providers-yaml";
 
 /**
@@ -31,9 +34,11 @@ import {
 type YamlLoader = { load(input: string, options?: Record<string, unknown>): unknown; dump(value: unknown, options?: Record<string, unknown>): string };
 const yaml = require("js-yaml") as YamlLoader;
 
-/** Absolute path to `config/providers.yaml` inside the repo root. */
+/** Absolute path to `config/providers.yaml` inside the active code workspace. */
 export function providersYamlPath(): string {
-  return path.join(findRepoRoot(), "config", "providers.yaml");
+  // Provider config belongs to the AI/code workspace, not the independently
+  // selectable mymind content root (ADR-001).
+  return path.join(resolveWorkspaceRoot() || findRepoRoot(), "config", "providers.yaml");
 }
 
 /**
@@ -48,12 +53,17 @@ export function readProvidersYaml(): ProvidersYaml | null {
   let parsed: unknown;
   try {
     parsed = yaml.load(fs.readFileSync(filePath, "utf8"), { json: true });
-  } catch (error) {
-    throw new Error(`config/providers.yaml 解析失败：${error instanceof Error ? error.message : String(error)}`);
+  } catch {
+    // js-yaml diagnostics can echo nearby source lines, including apiKey.
+    throw new Error("config/providers.yaml 解析失败。请在设置中重新保存完整配置，或手动修复 YAML。");
   }
   const result = ProvidersYamlSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`config/providers.yaml 校验失败：${result.error.issues.map((issue) => issue.path.join(".") || issue.message).join("; ")}`);
+    const details = result.error.issues.map((issue) => {
+      const location = issue.path.join(".");
+      return location ? `${location}: ${issue.message}` : issue.message;
+    }).join("; ");
+    throw new Error(`config/providers.yaml 校验失败：${details}`);
   }
   return result.data;
 }
@@ -79,11 +89,71 @@ export function readDefaultProviderEnv(): { env: Record<string, string>; apiKey:
   return { env: processProviderEnvironment(defaultEntry), apiKey: defaultEntry.apiKey };
 }
 
+/**
+ * Resolve the API profile used by a Claude Code/Codex CLI session.
+ *
+ * - `requestedId === undefined`: use the current top-level `cli` binding.
+ * - `requestedId === null`: explicitly use the CLI's own login/configuration.
+ * - a string: resolve the profile frozen into an existing desktop session.
+ */
+export function resolveCliProvider(
+  kind: keyof CliProviderBindings,
+  requestedId?: string | null,
+  expectedRevision?: string | null
+): ProviderYamlEntry | null {
+  if (requestedId === null) return null;
+  if (requestedId !== undefined && expectedRevision == null) {
+    throw new Error(`${kind} 会话缺少 Provider 配置指纹，请新建会话后重试。`);
+  }
+  const config = readProvidersYaml();
+  if (!config) {
+    if (requestedId !== undefined) {
+      throw new Error(`${kind} 绑定的 Provider 不存在：${requestedId}`);
+    }
+    return null;
+  }
+  const id = requestedId === undefined ? config.cli[kind] : requestedId;
+  if (!id) return null;
+  const provider = config.providers.find((entry) => entry.id === id);
+  if (!provider) throw new Error(`${kind} 绑定的 Provider 不存在：${id}`);
+  if (!provider.enabled) throw new Error(`${kind} 绑定的 Provider 已停用：${id}`);
+  if (!supportsCliProvider(kind, provider.protocol)) {
+    throw new Error(kind === "claude"
+      ? "Claude Code 只能绑定 anthropic-messages Provider。"
+      : "Codex CLI 只能绑定 openai-responses Provider。");
+  }
+  if (provider.tlsPolicy !== "verify") {
+    throw new Error(`${kind === "claude" ? "Claude Code" : "Codex CLI"} 托管 Provider 仅支持 tlsPolicy: verify。`);
+  }
+  // Explicitly requested providers come from persisted sessions. A revision
+  // is mandatory so legacy or partially migrated sessions cannot resume on a
+  // newly created profile that happens to reuse the same id.
+  if (expectedRevision !== undefined && providerConfigurationRevision(provider) !== expectedRevision) {
+    throw new Error(`${kind} 会话绑定的 Provider 配置已变更：${id}。为避免把旧会话发送到不同服务，请新建会话。`);
+  }
+  return provider;
+}
+
+/** Stable, non-secret fingerprint of every routing-relevant provider field. */
+export function providerConfigurationRevision(provider: ProviderYamlEntry): string {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    id: provider.id,
+    protocol: provider.protocol,
+    authMode: provider.authMode,
+    apiKey: provider.apiKey,
+    baseUrl: provider.baseUrl.replace(/\/+$/, ""),
+    model: provider.model,
+    proxyUrl: provider.proxyUrl,
+    proxyPolicy: provider.proxyPolicy,
+    tlsPolicy: provider.tlsPolicy
+  })).digest("hex");
+}
+
 /** Serialize and persist the full providers document (atomic write + 0600). */
 export function writeProvidersYaml(value: ProvidersYaml): void {
   const filePath = providersYamlPath();
   const serialized = yaml.dump(value, { lineWidth: 120, noRefs: true });
-  writeTextAtomic(filePath, serialized);
+  writeTextAtomic(filePath, serialized, { mode: 0o600 });
   try {
     fs.chmodSync(filePath, 0o600);
   } catch {
@@ -98,7 +168,16 @@ export function writeProvidersYaml(value: ProvidersYaml): void {
  */
 export function saveProvidersFromInput(input: ProvidersYamlInput): ProvidersYaml {
   const parsed = ProvidersYamlInputSchema.parse(input);
-  const previous = readProvidersYaml();
+  let previous: ProvidersYaml | null = null;
+  try {
+    previous = readProvidersYaml();
+  } catch {
+    // A corrupt file is recoverable from the UI only when every replacement
+    // entry supplies a fresh key; no secret can be safely recovered from it.
+    if (parsed.providers.some((provider) => !provider.apiKey.trim())) {
+      throw new Error("原 config/providers.yaml 已损坏。请为所有 Provider 重新输入 API Key 后保存完整配置。");
+    }
+  }
   const previousKeys = new Map((previous?.providers ?? []).map((provider) => [provider.id, provider.apiKey]));
   const providers: ProviderYamlEntry[] = parsed.providers.map((entry) => {
     const apiKey = entry.apiKey.trim() || previousKeys.get(entry.id) || "";
@@ -108,7 +187,14 @@ export function saveProvidersFromInput(input: ProvidersYamlInput): ProvidersYaml
   if (!providers.some((provider) => provider.id === parsed.default)) {
     throw new Error(`default 指向不存在的 provider：${parsed.default}`);
   }
-  const document: ProvidersYaml = { schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION, default: parsed.default, providers };
+  const document: ProvidersYaml = {
+    schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION,
+    default: parsed.default,
+    cli: parsed.cli,
+    providers
+  };
+  // Validate cross-field CLI bindings after old keys have been restored.
+  ProvidersYamlSchema.parse(document);
   writeProvidersYaml(document);
   return document;
 }
@@ -123,27 +209,43 @@ export function deleteProviderEntry(id: string): ProvidersYaml {
   let nextDefault = current.default;
   if (nextDefault === id) {
     const firstEnabled = survivors.find((provider) => provider.enabled);
-    nextDefault = (firstEnabled ?? survivors[0]).id;
+    if (!firstEnabled) throw new Error("删除后将没有可用的默认 Provider；请先启用另一个 Provider。");
+    nextDefault = firstEnabled.id;
   }
-  const document: ProvidersYaml = { schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION, default: nextDefault, providers: survivors };
+  const document: ProvidersYaml = {
+    schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION,
+    default: nextDefault,
+    cli: {
+      claude: current.cli.claude === id ? null : current.cli.claude,
+      codex: current.cli.codex === id ? null : current.cli.codex
+    },
+    providers: survivors
+  };
   writeProvidersYaml(document);
   return document;
 }
 
 /** Return a UI-safe view (apiKey replaced by `apiKeySet`). Empty document when no file exists. */
-export function listProvidersForUi(): { schemaVersion: typeof PROVIDERS_YAML_SCHEMA_VERSION; default: string; providers: ProviderYamlView[] } {
+export function listProvidersForUi(): ProvidersYamlView {
   const current = readProvidersYaml();
   if (!current) {
-    return { schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION, default: "", providers: [] };
+    return {
+      schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION,
+      default: "",
+      cli: { claude: null, codex: null },
+      providers: []
+    };
   }
   return {
     schemaVersion: current.schemaVersion,
     default: current.default,
+    cli: current.cli,
     providers: current.providers.map((provider) => ({
       id: provider.id,
       name: provider.name,
       enabled: provider.enabled,
       protocol: provider.protocol,
+      authMode: provider.authMode,
       baseUrl: provider.baseUrl,
       model: provider.model,
       proxyUrl: provider.proxyUrl,

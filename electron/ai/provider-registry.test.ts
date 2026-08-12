@@ -3,6 +3,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProviderCapabilities } from "../../shared/contracts";
+
+const spawnState = vi.hoisted(() => ({
+  route: null as null | ((command: string, args: string[]) => string | null)
+}));
+
+vi.mock(import("./provider-command-runner"), () => ({
+  runProviderCommand: async (command: string, args: string[] = []) => (
+    spawnState.route?.(String(command), args.map(String)) ?? null
+  )
+}));
 
 const roots: string[] = [];
 const originalPath = process.env.PATH;
@@ -13,39 +24,17 @@ function createRoot(): string {
 }
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+  spawnState.route = null;
   vi.restoreAllMocks();
   process.env.PATH = originalPath;
 });
 
 /** 设置 spawn 命令路由表。 */
 function mockSpawnByCommand(routes: Record<string, (args: string[]) => string | null>) {
-  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-bin-"));
-  roots.push(bin);
-  process.env.PATH = bin;
-
-  for (const [command, route] of Object.entries(routes)) {
-    const cases = [
-      ["--version"],
-      ["app-server", "--help"],
-      ["auth", "status"]
-    ].map((args) => ({ args, output: route(args) }));
-    const script = [
-      "#!/bin/bash",
-      "case \"$*\" in",
-      ...cases
-        .filter((item): item is { args: string[]; output: string } => item.output !== null)
-        .map((item) => `  "${item.args.join(" ")}") printf %s ${shellLiteral(item.output)}; exit 0 ;;`),
-      "esac",
-      "exit 1"
-    ].join("\n");
-    const file = path.join(bin, command);
-    fs.writeFileSync(file, script, "utf8");
-    fs.chmodSync(file, 0o755);
-  }
-}
-
-function shellLiteral(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
+  spawnState.route = (command, args) => {
+    const name = path.basename(command).replace(/\.(?:exe|cmd|bat|ps1)$/i, "");
+    return routes[name]?.(args) ?? null;
+  };
 }
 
 describe("ProviderRegistry", () => {
@@ -130,6 +119,28 @@ describe("ProviderRegistry", () => {
       const [a, b, c] = await Promise.all([registry.refresh(), registry.refresh(), registry.refresh()]);
       expect(a).toBe(b);
       expect(b).toBe(c);
+    });
+
+    it("强制刷新会等待旧探测并重新读取配置", async () => {
+      const registry = new ProviderRegistry(createRoot());
+      const stale: ProviderCapabilities[] = [];
+      const fresh: ProviderCapabilities[] = [];
+      let release!: (value: ProviderCapabilities[]) => void;
+      const pending = new Promise<ProviderCapabilities[]>((resolve) => { release = resolve; });
+      const probe = vi.spyOn(
+        registry as unknown as { probeAll(): Promise<ProviderCapabilities[]> },
+        "probeAll"
+      ).mockImplementationOnce(() => pending).mockResolvedValueOnce(fresh);
+
+      const oldRefresh = registry.refresh();
+      const forcedRefresh = registry.refresh(true);
+      expect(probe).toHaveBeenCalledTimes(1);
+
+      release(stale);
+      await oldRefresh;
+      expect(await forcedRefresh).toBe(fresh);
+      expect(probe).toHaveBeenCalledTimes(2);
+      expect(registry.detect()).toBe(fresh);
     });
 
     it("refresh 完成后 inflight 清空(可再次 refresh)", async () => {
@@ -258,30 +269,18 @@ describe("ProviderRegistry", () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("win32");
       // WSL UNC 路径 → parseWslPath 返回 {distro, linuxPath}
       const wslProjectRoot = "\\\\wsl.localhost\\Ubuntu\\home\\user\\project";
-      // mock wsl.exe 返回版本 + codex/claude native 探测
-      // wsl 命令参数复杂,用通配脚本:只要 exit 0 就输出版本
-      const bin = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-wsl-bin-"));
-      roots.push(bin);
-      process.env.PATH = bin;
       // Claude 只有经登录 shell 才能命中新版 CLI；直接调用模拟被旧版遮蔽。
-      const wslScript = `#!/bin/bash
-if [[ "$*" == *"auth status"* ]]; then
-  if [[ "$*" == *"/bin/sh -lc"* ]]; then echo '{"loggedIn":true}'; else echo 'old claude prompt'; fi
-  exit 0
-fi
-if [[ "$*" == *"claude --version"* ]]; then
-  if [[ "$*" == *"/bin/sh -lc"* ]]; then echo "2.1.177 (Claude Code)"; else echo "1.0.71 (Claude Code)"; fi
-  exit 0
-fi
-if [[ "$*" == *"--version" ]]; then echo "tool-1.0"; exit 0; fi
-if [[ "$*" == *"app-server --help"* ]]; then echo "ok"; exit 0; fi
-if [[ "$*" == *".claude/settings.json"* ]]; then echo '{"model":"wsl-claude-model"}'; exit 0; fi
-if [[ "$*" == *".codex/config.toml"* ]]; then echo 'model = "wsl-codex-model"'; exit 0; fi
-exit 1`;
-      fs.writeFileSync(path.join(bin, "wsl.exe"), wslScript, { mode: 0o755 });
-      // native 命令(在 win32 下走 locateWindowsCommands → where.exe,这里跳过)
-      // 给 where.exe 一个空输出脚本,避免 native 路径报错
-      fs.writeFileSync(path.join(bin, "where.exe"), "#!/bin/bash\necho ''\nexit 0", { mode: 0o755 });
+      spawnState.route = (command, args) => {
+        if (path.basename(command).toLowerCase() !== "wsl.exe") return null;
+        const invocation = args.join(" ");
+        if (invocation.includes("auth status")) return invocation.includes("/bin/sh -lc") ? '{"loggedIn":true}' : "old claude prompt";
+        if (invocation.includes("claude --version")) return invocation.includes("/bin/sh -lc") ? "2.1.177 (Claude Code)" : "1.0.71 (Claude Code)";
+        if (invocation.includes("app-server --help")) return "ok";
+        if (invocation.includes(".claude/settings.json")) return '{"model":"wsl-claude-model"}';
+        if (invocation.includes(".codex/config.toml")) return 'model = "wsl-codex-model"';
+        if (invocation.includes("--version")) return "tool-1.0";
+        return null;
+      };
 
       const registry = new ProviderRegistry(wslProjectRoot);
       const providers = await registry.refresh();

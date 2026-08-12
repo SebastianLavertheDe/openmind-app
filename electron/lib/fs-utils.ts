@@ -83,12 +83,15 @@ export function writeJsonAtomic(filePath: string, value: unknown, options?: { on
   }
 }
 
-/** 文本原子写（creative 文稿保存等）。 */
-export function writeTextAtomic(filePath: string, value: string): void {
+/** 文本原子写（creative 文稿保存等）；可在落盘前收紧临时文件权限。 */
+export function writeTextAtomic(filePath: string, value: string, options: { mode?: number } = {}): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.tmp-${process.pid}-${crypto.randomUUID()}`;
   try {
-    fs.writeFileSync(temporary, value, "utf8");
+    fs.writeFileSync(temporary, value, { encoding: "utf8", ...(options.mode === undefined ? {} : { mode: options.mode }) });
+    if (options.mode !== undefined) {
+      try { fs.chmodSync(temporary, options.mode); } catch { /* Windows may not expose POSIX modes. */ }
+    }
     replaceFileAtomicallySync(temporary, filePath);
   } finally {
     if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
