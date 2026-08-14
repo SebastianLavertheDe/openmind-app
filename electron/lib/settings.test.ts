@@ -62,7 +62,7 @@ describe("settings path handling", () => {
 
   it("normalizes and trims repo roots with quotes", () => {
     expect(normalizeRepoRoot('  "/home/say/repo"  ')).toBe("/home/say/repo");
-    expect(normalizeRepoRoot("/home/say/repo/../repo/")).toBe(path.normalize("/home/say/repo/../repo/"));
+    expect(normalizeRepoRoot("/home/say/repo/../repo/")).toBe(path.posix.normalize("/home/say/repo/../repo/"));
   });
 
   it("recognises valid cctools repositories", () => {

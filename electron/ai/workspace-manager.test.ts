@@ -19,6 +19,11 @@ function createRepo(): string {
   git(root, ["init"]);
   git(root, ["config", "user.email", "test@example.com"]);
   git(root, ["config", "user.name", "Test"]);
+  // Keep patch application deterministic across hosts with different global
+  // core.autocrlf settings. The production code must respect the user's Git
+  // configuration; this fixture only needs a stable byte-for-byte contract.
+  git(root, ["config", "core.autocrlf", "false"]);
+  git(root, ["config", "core.eol", "lf"]);
   fs.writeFileSync(path.join(root, "base.txt"), "base\n");
   git(root, ["add", "base.txt"]);
   git(root, ["commit", "-m", "base"]);

@@ -35,6 +35,7 @@ export function App() {
 function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
   const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo && bootstrap.onboardingCompleted !== false ? "ai" : "onboarding", state: {}, nonce: 0 }));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsRouteState, setSettingsRouteState] = useState<AppRouteState>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
   const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
@@ -43,7 +44,11 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
-    if (page === "settings") {
+    if (page === "settings" || page === "skills" || page === "sources") {
+      setSettingsRouteState({
+        ...state,
+        ...(page === "skills" || page === "sources" ? { settingsSection: "skills" as const } : {})
+      });
       setSettingsOpen(true);
       return;
     }
@@ -146,7 +151,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
       {workspaceFilePath && !settingsOpen ? <WorkspaceFilePreview path={workspaceFilePath} onClose={closeWorkspaceFile} /> : null}
       {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
-          {renderActiveRoute({ route: { page: "settings", state: {}, nonce: 0 }, ...routeRenderProps })}
+          {renderActiveRoute({ route: { page: "settings", state: settingsRouteState, nonce: 0 }, ...routeRenderProps })}
         </Suspense>
       ) : null}
       <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} />

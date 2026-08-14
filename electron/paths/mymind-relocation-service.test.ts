@@ -10,6 +10,7 @@ import {
   relocateMymind,
   type MymindRelocationInput
 } from "./mymind-relocation-service";
+import { copyDirectoryRecursively } from "../lib/fs-utils";
 
 const cleanupRoots: string[] = [];
 
@@ -75,7 +76,9 @@ describe("mymind relocation", () => {
 
     const sourceWithSymlink = path.join(testCase.source, "linked");
     try {
-      fs.symlinkSync(path.join(testCase.source, "one.md"), sourceWithSymlink);
+      const linkTarget = path.join(testCase.source, "link-target");
+      fs.mkdirSync(linkTarget);
+      fs.symlinkSync(linkTarget, sourceWithSymlink, process.platform === "win32" ? "junction" : "dir");
     } catch {
       return;
     }
@@ -96,7 +99,7 @@ describe("mymind relocation", () => {
     const prefix = `.cctools-mymind-relocation-${base}-${transactionId}-`;
     const staging = path.join(path.dirname(testCase.target), `${prefix}staging`);
     const backup = path.join(path.dirname(testCase.target), `${prefix}backup`);
-    fs.cpSync(testCase.source, staging, { recursive: true });
+    copyDirectoryRecursively(testCase.source, staging);
     fs.renameSync(testCase.target, backup);
     const tree = inspectTreeForFixture(staging);
     const markerDirectory = path.join(testCase.input.paths.migrations, "mymind-relocation");

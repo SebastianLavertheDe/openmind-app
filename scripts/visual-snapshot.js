@@ -16,13 +16,17 @@ const command = process.platform === "linux" && !process.env.DISPLAY && commandE
 const args = command === "xvfb-run"
   ? ["-a", electron, "--no-sandbox", runner]
   : ["--no-sandbox", runner];
+const childEnv = { ...process.env };
+// An empty ELECTRON_RUN_AS_NODE is still truthy to Electron on Windows and
+// makes it parse --no-sandbox as a Node option. Visual snapshots must launch
+// the real Electron binary, so remove the flag entirely.
+delete childEnv.ELECTRON_RUN_AS_NODE;
 
 const result = spawnSync(command, args, {
   cwd: appRoot,
   stdio: "inherit",
   env: {
-    ...process.env,
-    ELECTRON_RUN_AS_NODE: "",
+    ...childEnv,
     ELECTRON_DISABLE_SANDBOX: "1",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "1"
   }

@@ -1009,12 +1009,18 @@ describe("handler forwarding — 剩余 AI passthrough", () => {
   it("aiRefreshProviders / aiPrewarm / aiSearchSessions 转发", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiRefreshProviders);
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiPrewarm, "sess-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiSearchSessions, "query");
-    expect(ai.call).toHaveBeenCalledWith("refresh-providers");
-    expect(ai.call).toHaveBeenCalledWith("prewarm", "sess-1");
-    expect(ai.call).toHaveBeenCalledWith("search", "query");
+    const settings = await import("./lib/settings");
+    vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
+    try {
+      await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiRefreshProviders);
+      await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiPrewarm, "sess-1");
+      await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiSearchSessions, "query");
+      expect(ai.call).toHaveBeenCalledWith("refresh-providers");
+      expect(ai.call).toHaveBeenCalledWith("prewarm", "sess-1");
+      expect(ai.call).toHaveBeenCalledWith("search", "query");
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("aiUpdateSession / aiDeleteSession / aiGetEvents 转发", async () => {

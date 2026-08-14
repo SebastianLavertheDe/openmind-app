@@ -177,7 +177,7 @@
 .skills-list-copy { min-width: 0; display: grid; gap: 3px; }
 .skills-list-copy strong,
 .skills-list-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.skills-list-copy strong { color: var(--text); font-size: 13px; font-weight: 630; }
+.skills-list-copy strong { color: var(--text); font-size: 13px; font-weight: 500; }
 .skills-list-copy small { color: var(--muted-2); font-size: 10.5px; }
 
 .skills-list-status {
@@ -235,7 +235,7 @@
 }
 
 .skills-detail-header .eyebrow { color: var(--muted-2); font-size: 10px; letter-spacing: .04em; }
-.skills-detail-header h2 { margin: 3px 0 4px; color: var(--text); font-size: 18px; line-height: 1.3; }
+.skills-detail-header h2 { margin: 3px 0 4px; color: var(--text); font-size: 18px; font-weight: 600; line-height: 1.3; }
 .skills-detail-header p { max-width: 62ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 
 .skills-overview { padding: 18px 0 0; }
@@ -257,7 +257,7 @@
   overflow: hidden;
   color: var(--text-dim);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -280,7 +280,7 @@
 .skills-detail-section { margin-top: 24px; }
 .skills-run-history { padding-top: 0; }
 .skills-run-history > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.skills-run-history > header h3 { margin: 0; color: var(--text); font-size: 13px; }
+.skills-run-history > header h3 { margin: 0; color: var(--text); font-size: 13px; font-weight: 600; }
 .skills-run-history > header span { color: var(--muted-2); font-size: 11px; }
 
 .skills-run-empty {
@@ -330,7 +330,7 @@
   color: var(--muted);
   text-align: center;
 }
-.skills-empty strong { color: var(--text); }
+.skills-empty strong { color: var(--text); font-weight: 500; }
 .skills-empty span { max-width: 280px; color: var(--muted-2); font-size: 11px; }
 .skills-detail-empty { height: 100%; }
 .skills-detail-empty p { max-width: 300px; margin: 0; font-size: 12px; }
@@ -369,7 +369,7 @@
   color: var(--accent, #4b7bec); cursor: pointer; font-size: 12px;
 }
 .skills-source-picker-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-.skills-source-picker-body header h3 { margin: 0 0 2px; font-size: 13px; }
+.skills-source-picker-body header h3 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
 .skills-source-picker-body header p { margin: 0; color: var(--muted-2); font-size: 11px; }
 .skills-source-picker-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .skills-source-picker-local {

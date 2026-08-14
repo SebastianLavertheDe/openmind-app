@@ -196,6 +196,18 @@ export class RunScheduler {
     return this.queue.length + this.active.size + this.skillTools.activeCount();
   }
 
+  revokeCredential(credentialId: string): Promise<number> {
+    return this.skillTools.revokeCredential(credentialId);
+  }
+
+  restoreCredential(credentialId: string): number {
+    return this.skillTools.restoreCredential(credentialId);
+  }
+
+  rotateCredential(credentialId: string): Promise<number> {
+    return this.skillTools.rotateCredential(credentialId);
+  }
+
   /** 重新扫描 skill 目录并返回最新列表(用于新对话时刷新前端缓存)。 */
   refreshSkills(): SkillDefinition[] {
     this.skillTools.refresh();

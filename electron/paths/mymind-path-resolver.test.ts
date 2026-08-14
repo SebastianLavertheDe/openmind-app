@@ -127,7 +127,8 @@ describe("MymindPathResolver — symlink safety", () => {
     fs.mkdirSync(path.join(tmpRoot, "article", "real"), { recursive: true });
     fs.symlinkSync(
       path.join(tmpRoot, "article", "real"),
-      path.join(tmpRoot, "article", "link")
+      path.join(tmpRoot, "article", "link"),
+      process.platform === "win32" ? "junction" : "dir"
     );
     expect(() =>
       resolver().resolve("article/link/file.md")
@@ -138,7 +139,11 @@ describe("MymindPathResolver — symlink safety", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-outside-"));
     try {
       fs.mkdirSync(path.join(tmpRoot, "article"), { recursive: true });
-      fs.symlinkSync(outside, path.join(tmpRoot, "article", "escape"));
+      fs.symlinkSync(
+        outside,
+        path.join(tmpRoot, "article", "escape"),
+        process.platform === "win32" ? "junction" : "dir"
+      );
       try {
         resolver().resolve("article/escape/leaked.md");
         throw new Error("expected escaping symlink to be rejected");

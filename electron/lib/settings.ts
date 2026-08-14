@@ -166,7 +166,14 @@ function looksLikeRepo(candidate: unknown): boolean {
 }
 
 function normalizeRepoRoot(candidate: unknown): string {
-  return path.normalize(String(candidate || "").trim().replace(/^["']|["']$/g, ""));
+  const value = String(candidate || "").trim().replace(/^["']|["']$/g, "");
+  // A leading slash without a drive is a POSIX/WSL logical path, even when
+  // the desktop process itself runs on Windows. Do not turn `/home/...` into
+  // `\home\...`, which loses the path's meaning at the WSL boundary.
+  if (process.platform === "win32" && value.startsWith("/") && !value.startsWith("//") && !/^\/[A-Za-z]:/.test(value)) {
+    return path.posix.normalize(value);
+  }
+  return path.normalize(value);
 }
 
 function parseWslRepoPath(repoRoot: unknown): WslRepoPath | null {

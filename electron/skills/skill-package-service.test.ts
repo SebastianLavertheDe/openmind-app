@@ -311,11 +311,14 @@ describe("SkillPackageService", () => {
   it("rejects a symlink escaping the package root", () => {
     const source = createPackage(tempRoot);
     const outside = path.join(tempRoot, "outside");
-    fs.writeFileSync(outside, "private\n");
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, "private.txt"), "private\n");
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
-    fs.symlinkSync(outside, path.join(source, "leak"));
+    // Directory junctions exercise the same escape boundary on Windows
+    // without requiring Developer Mode or administrator privileges.
+    fs.symlinkSync(outside, path.join(source, "leak"), process.platform === "win32" ? "junction" : "dir");
 
     const inspection = service.inspect(source);
 

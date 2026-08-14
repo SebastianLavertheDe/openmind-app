@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 import { appPrivateStatePath, findRepoRoot, ensureInsideRepo, relativeToMymind, resolveMymindRoot } from "./settings";
 import { readJson } from "./content";
-import { moveDirectoryWithFallback, writeJsonAtomic, writeTextAtomic } from "./fs-utils";
+import { copyDirectoryRecursively, moveDirectoryWithFallback, writeJsonAtomic, writeTextAtomic } from "./fs-utils";
 import {
   ALLOWED_STAGE_TRANSITIONS,
   CREATIVE_STAGE_DISK_FOLDERS,
@@ -811,7 +811,7 @@ export function copyCreativeProject(projectDir: string): CreativeProjectFullDeta
   let target = path.join(parent, base);
   let counter = 2;
   while (fs.existsSync(target)) target = path.join(parent, `${base}-${counter++}`);
-  fs.cpSync(absDir, target, { recursive: true, errorOnExist: true });
+  copyDirectoryRecursively(absDir, target, { errorOnExist: true });
   const manifestPath = path.join(target, "manifest.json");
   const manifest = readJson<DiskManifest>(manifestPath, {});
   manifest.topic = `${(manifest.topic as string) || path.basename(absDir)}${messages.creative.defaults.copySuffix}`;

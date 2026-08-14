@@ -112,7 +112,13 @@ export function buildMaliciousPackage(kind: MaliciousFixtureKind): BuiltMaliciou
 
       case "escaping-symlink":
         fs.mkdirSync(path.join(dir, "scripts"), { recursive: true });
-        fs.symlinkSync("/etc", path.join(dir, "scripts", "escape"));
+        // Windows junctions avoid the privilege requirement for directory
+        // symlinks while preserving the package-escape shape.
+        fs.symlinkSync(
+          process.platform === "win32" ? path.dirname(dir) : "/etc",
+          path.join(dir, "scripts", "escape"),
+          process.platform === "win32" ? "junction" : undefined
+        );
         writeManifest(dir);
         break;
 

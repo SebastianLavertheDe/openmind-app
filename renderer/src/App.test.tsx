@@ -118,7 +118,7 @@ describe("App bootstrap", () => {
     const creativePage = document.querySelector(".creative-workspace-page");
 
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
-    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".app-nav")).toBeNull();
     expect(document.querySelector(".global-toolbar")).toBeNull();
     expect(screen.getByRole("navigation", { name: "设置分类" })).toBeTruthy();
@@ -131,6 +131,30 @@ describe("App bootstrap", () => {
     expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
     expect(document.querySelector(".global-toolbar")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
+  }, 15_000);
+
+  it("returns to onboarding after opening the Skill import entry", async () => {
+    installApi({
+      getBootstrap: async () => ({
+        repoRoot: "/project",
+        mymindRoot: "/project/mymind",
+        workspaceRoot: "/project",
+        validRepo: true,
+        onboardingCompleted: false,
+        runtime: "test",
+        environment: { mode: "desktop", platform: "linux" },
+        overview,
+        skills,
+        ai: snapshot
+      })
+    });
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".onboarding-page")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "打开导入入口" }));
+    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
+    await waitFor(() => expect(document.querySelector(".onboarding-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
   }, 15_000);
 
   it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {

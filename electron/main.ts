@@ -46,6 +46,14 @@ import { IPC } from "../shared/ipc-channels";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
+const DESKTOP_E2E_TEST = process.argv.includes("--e2e-test");
+if (DESKTOP_E2E_TEST) {
+  // Keep E2E state isolated from a developer's normal Electron profile.
+  const e2eUserData = process.env.CCTOOLS_E2E_USER_DATA_DIR?.trim();
+  if (e2eUserData) app.setPath("userData", path.resolve(e2eUserData));
+  app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-gpu");
+}
 const DEFAULT_WINDOW_SIZE = { width: 1600, height: 1000 };
 const WINDOW_STATE_SAVE_DELAY_MS = 240;
 
@@ -473,7 +481,7 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
 function createWindow(): void {
   syncWindowTheme(settings.getPreferences().themeMode);
   const workAreas = displayWorkAreas();
-  const restoredState = PACKAGED_SMOKE_TEST
+  const restoredState = PACKAGED_SMOKE_TEST || DESKTOP_E2E_TEST
     ? normalizeWindowState(null, workAreas, DEFAULT_WINDOW_SIZE, DESKTOP_WINDOW_MIN_SIZE)
     : loadWindowState(windowStatePath(), workAreas, DEFAULT_WINDOW_SIZE, DESKTOP_WINDOW_MIN_SIZE);
   const window = new BrowserWindow({
@@ -500,8 +508,21 @@ function createWindow(): void {
   }
   window.setMenuBarVisibility(false);
   window.setAutoHideMenuBar(true);
-  if (!PACKAGED_SMOKE_TEST) registerWindowStatePersistence(window);
-  if (PACKAGED_SMOKE_TEST) {
+  if (!PACKAGED_SMOKE_TEST && !DESKTOP_E2E_TEST) registerWindowStatePersistence(window);
+  if (DESKTOP_E2E_TEST) {
+    const timeout = setTimeout(() => {
+      console.error("Desktop E2E timed out before the real preload bridge became ready.");
+      app.exit(1);
+    }, 20_000);
+    window.webContents.once("did-finish-load", () => {
+      void runDesktopE2e(window, timeout);
+    });
+    window.webContents.once("did-fail-load", (_event, code, description) => {
+      clearTimeout(timeout);
+      console.error(`Desktop E2E failed to load renderer (${code}): ${description}`);
+      app.exit(1);
+    });
+  } else if (PACKAGED_SMOKE_TEST) {
     const timeout = setTimeout(() => {
       console.error("Packaged smoke test timed out before the renderer bridge became ready.");
       app.exit(1);
@@ -541,7 +562,51 @@ function createWindow(): void {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
-  if (!PACKAGED_SMOKE_TEST && settings.resolveWorkspaceRoot()) ensureAiWorker();
+  if (!PACKAGED_SMOKE_TEST && !DESKTOP_E2E_TEST && settings.resolveWorkspaceRoot()) ensureAiWorker();
+}
+
+async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Promise<void> {
+  try {
+    const date = localDate();
+    const result = await window.webContents.executeJavaScript(`(async () => {
+      const api = window.cctools;
+      if (!api || typeof api.getBootstrap !== "function") throw new Error("preload bridge is unavailable");
+      const bootstrap = await api.getBootstrap();
+      const preferences = await api.getPreferences();
+      const articles = await api.listContent("articles", ${JSON.stringify(date)});
+      const index = await api.rebuildContentIndex();
+      const browser = await api.getBrowserAutomationStatus();
+      return {
+        documentReady: document.readyState,
+        rootMounted: Boolean(document.querySelector("#root")),
+        validRepo: bootstrap.validRepo,
+        mymindRoot: bootstrap.mymindRoot,
+        articleCount: Array.isArray(articles) ? articles.length : 0,
+        indexPath: index.indexPath,
+        themeMode: preferences.themeMode,
+        browserStatus: browser?.state || null
+      };
+    })()`, true) as {
+      documentReady?: string;
+      rootMounted?: boolean;
+      validRepo?: boolean;
+      mymindRoot?: string;
+      articleCount?: number;
+      indexPath?: string;
+    };
+    if (result.documentReady !== "complete" || !result.rootMounted) throw new Error("renderer did not mount");
+    if (!result.validRepo || !result.mymindRoot) throw new Error("bootstrap did not resolve the E2E mymind root");
+    if (!result.articleCount || result.indexPath !== ".cctools/content-index.json") {
+      throw new Error(`IPC content contract failed: ${JSON.stringify(result)}`);
+    }
+    clearTimeout(timeout);
+    console.log(`Desktop Electron E2E passed: ${JSON.stringify(result)}`);
+    app.exit(0);
+  } catch (error) {
+    clearTimeout(timeout);
+    console.error("Desktop Electron E2E failed:", error);
+    app.exit(1);
+  }
 }
 
 app.whenReady().then(() => {

@@ -48,7 +48,11 @@ describe("MymindFileSearch", () => {
     write(root, "mymind/.cctools/target.log");
     write(outside, "outside-target.md");
     fs.mkdirSync(path.join(root, "mymind"), { recursive: true });
-    fs.symlinkSync(outside, path.join(root, "mymind", "linked-outside"), "dir");
+    fs.symlinkSync(
+      outside,
+      path.join(root, "mymind", "linked-outside"),
+      process.platform === "win32" ? "junction" : "dir"
+    );
 
     const result = await new MymindFileSearch(root).search("target", 20);
 
@@ -90,7 +94,11 @@ describe("MymindFileSearch", () => {
     const linkedRoot = createRoot();
     const outside = createRoot();
     write(outside, "outside.md");
-    fs.symlinkSync(outside, path.join(linkedRoot, "mymind"), "dir");
+    fs.symlinkSync(
+      outside,
+      path.join(linkedRoot, "mymind"),
+      process.platform === "win32" ? "junction" : "dir"
+    );
 
     expect(await new MymindFileSearch(missingRoot).search("outside", 10)).toEqual({
       items: [],
@@ -109,16 +117,20 @@ describe("MymindFileSearch", () => {
     const inside = path.join(root, "mymind", "daily-summary", "today.md");
     const outside = path.join(root, "desktop-app", "package.json");
     const outsideTarget = path.join(root, "outside.md");
-    const linked = path.join(root, "mymind", "linked.md");
+    const linked = path.join(root, "mymind", "linked");
     write(root, "mymind/daily-summary/today.md");
     write(root, "desktop-app/package.json");
     write(root, "outside.md");
-    fs.symlinkSync(outsideTarget, linked, "file");
+    fs.symlinkSync(
+      path.dirname(outsideTarget),
+      linked,
+      process.platform === "win32" ? "junction" : "dir"
+    );
 
     expect(normalizeMymindSelection(root, inside)).toBe("mymind/daily-summary/today.md");
     expect(() => normalizeMymindSelection(root, outside)).toThrow("只能通过 @ 引用 mymind");
     expect(() => normalizeMymindSelection(root, path.join(root, "mymind"))).toThrow("只能通过 @ 引用 mymind");
-    expect(() => normalizeMymindSelection(root, linked)).toThrow("普通文件");
+    expect(() => normalizeMymindSelection(root, path.join(linked, path.basename(outsideTarget)))).toThrow("只能通过 @ 引用 mymind");
   });
 });
 

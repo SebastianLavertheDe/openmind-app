@@ -137,8 +137,10 @@ export class ContentIndexStore {
       // ADR-001: report state paths relative to the state base dir (which
       // may be userData rather than mymindRoot), so the logical `.cctools/...`
       // path stays stable regardless of where state is stored.
-      indexPath: path.relative(this.stateBaseDir, this.contentIndexPath),
-      statePath: path.relative(this.stateBaseDir, this.state.statePath),
+      // These are logical state paths exposed over IPC. Do not leak the host
+      // separator into the renderer contract on Windows.
+      indexPath: path.relative(this.stateBaseDir, this.contentIndexPath).split(path.sep).join("/"),
+      statePath: path.relative(this.stateBaseDir, this.state.statePath).split(path.sep).join("/"),
       rebuiltAt: new Date().toISOString()
     });
   }

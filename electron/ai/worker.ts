@@ -46,6 +46,9 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "search": return scheduler.searchSessions(String(first || ""));
     case "skills": return scheduler.listSkills();
     case "active-count": return scheduler.activeTaskCount();
+    case "credential-revoked": return scheduler.revokeCredential(String(first));
+    case "credential-available": return scheduler.restoreCredential(String(first));
+    case "credential-replaced": return scheduler.rotateCredential(String(first));
     case "refresh-skills": return scheduler.refreshSkills();
     case "prewarm": return scheduler.prewarmClaude(typeof first === "string" ? first : undefined);
     case "run-skill": return scheduler.startSkill(String(first), typeof second === "string" ? second : undefined);

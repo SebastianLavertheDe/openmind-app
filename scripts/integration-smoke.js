@@ -17,6 +17,7 @@ const settings = require("../.build/electron/electron/lib/settings.js");
 const content = require("../.build/electron/electron/lib/content.js");
 const creative = require("../.build/electron/electron/lib/creative.js");
 const processUtils = require("../.build/electron/electron/ai/process-utils.js");
+const codexProvider = require("../.build/electron/electron/ai/providers/codex-app-server.js");
 Module._load = originalLoad;
 
 const date = "20260610";
@@ -50,12 +51,9 @@ const providerSources = [
 ].map((file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8")).join("\n");
 assert(!providerSources.includes("dangerously-bypass"), "Dangerous Codex bypass flag is forbidden");
 assert(!providerSources.includes("dangerously-skip"), "Dangerous Claude bypass flag is forbidden");
-assert(
-  providerSources.includes("buildCodexAppServerArgs")
-  && providerSources.includes('const args = ["app-server"]')
-  && providerSources.includes('spawnNativeInDirectory(context.cwd, "codex", args)'),
-  "Codex app-server integration is missing"
-);
+const codexArgs = codexProvider.buildCodexAppServerArgs("gpt-5-codex");
+assert(Array.isArray(codexArgs) && codexArgs[0] === "app-server", "Codex app-server integration is missing");
+assert(codexArgs.includes("model=\"gpt-5-codex\""), "Codex app-server model wiring is missing");
 assert(providerSources.includes("@anthropic-ai/claude-agent-sdk"), "Claude Agent SDK integration is missing");
 
 const schedulerSource = ["scheduler.ts", "scheduler-execution.ts"]

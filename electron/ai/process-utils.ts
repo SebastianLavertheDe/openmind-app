@@ -234,7 +234,9 @@ export function decodeProcessOutput(chunk: Buffer | string): string {
 export function safeRelative(root: string, target: string): string {
   const relative = path.relative(root, target);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("路径超出项目目录。");
-  return relative;
+  // Logical paths cross the renderer/IPC boundary, so keep them stable across
+  // Windows and POSIX hosts even though the filesystem separator differs.
+  return relative.split(path.sep).join("/");
 }
 
 function waitForExit(child: ChildProcessWithoutNullStreams): Promise<number | null> {

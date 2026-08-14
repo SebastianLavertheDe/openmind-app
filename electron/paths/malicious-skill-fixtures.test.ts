@@ -46,7 +46,9 @@ describe("malicious-skill-fixtures", () => {
     try {
       const link = path.join(p.dir, "scripts", "escape");
       expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
-      expect(fs.realpathSync(link)).toBe("/etc");
+      expect(fs.realpathSync(link)).toBe(
+        process.platform === "win32" ? path.dirname(p.dir) : "/etc"
+      );
     } finally {
       disposeMaliciousPackage(p);
     }

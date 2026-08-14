@@ -35,7 +35,14 @@ describe("EnvFileAnalyzer", () => {
     const target = path.join(root, "real.env");
     const link = path.join(root, ".env");
     fs.writeFileSync(target, "API_KEY=value\n");
-    fs.symlinkSync(target, link);
+    if (process.platform === "win32") {
+      const targetDirectory = path.join(root, "env-target");
+      fs.mkdirSync(targetDirectory);
+      fs.copyFileSync(target, path.join(targetDirectory, "real.env"));
+      fs.symlinkSync(targetDirectory, link, "junction");
+    } else {
+      fs.symlinkSync(target, link);
+    }
     expect(() => new EnvFileAnalyzer().analyze(link)).toThrow("符号链接");
     fs.writeFileSync(target, "x".repeat(512 * 1024 + 1));
     expect(() => new EnvFileAnalyzer().analyze(target)).toThrow("过大");

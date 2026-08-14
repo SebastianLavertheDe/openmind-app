@@ -50,6 +50,9 @@ export default defineConfig({
         "**/*.d.ts",
         "**/index.ts",
         "**/index.tsx",
+        // Electron entrypoints are exercised by the real-process E2E gate;
+        // importing them into jsdom would not test the actual main/preload
+        // boundary and would distort the renderer-focused coverage report.
         "**/electron/main.ts",
         "**/electron/preload.ts",
         "**/renderer/src/main.tsx",

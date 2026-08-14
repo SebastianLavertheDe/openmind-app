@@ -39,7 +39,7 @@ describe("RuntimeManager", () => {
       prepareEnvironment: prepare
     });
     const resolved = manager.resolve(manifest(), packageRoot, digest);
-    expect(resolved.executable).toBe(process.execPath);
+    expect(resolved.executable).toBe(fs.realpathSync(process.execPath));
     expect(resolved.env.CCTOOLS_RUNTIME_PACK_DIGEST).toBe(pack.digest);
     expect(resolved.fingerprint).toMatch(/^[a-f0-9]{64}$/);
     resolved.acquire("run-runtime");

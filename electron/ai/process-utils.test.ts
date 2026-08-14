@@ -94,12 +94,26 @@ describe("toWslPath", () => {
 });
 
 describe("buildWslLoginCommand", () => {
-  it("通过登录 shell 解析命令并原样转发参数", async () => {
+  it("通过登录 shell 构造解析命令并原样转发参数", () => {
+    const invocation = buildWslLoginCommand("printf", ["%s|%s", "a b", "$HOME"]);
+    expect(invocation.command).toBe("/bin/sh");
+    expect(invocation.args).toEqual([
+      "-lc",
+      expect.stringContaining('resolved="$(command -v "$1")"'),
+      "cctools-wsl-login",
+      "printf",
+      "%s|%s",
+      "a b",
+      "$HOME"
+    ]);
+  });
+
+  it.skipIf(process.platform === "win32")("通过登录 shell 解析命令并原样转发参数", async () => {
     const invocation = buildWslLoginCommand("printf", ["%s|%s", "a b", "$HOME"]);
     const child = spawnInDirectory(createRoot(), invocation.command, invocation.args);
     let stdout = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });
-    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    const code = await waitForClose(child);
     expect(code).toBe(0);
     expect(stdout).toBe("a b|$HOME");
   });
@@ -108,7 +122,7 @@ describe("buildWslLoginCommand", () => {
 describe("execInProject", () => {
   it("成功执行命令并返回 stdout", async () => {
     const root = createRoot();
-    const result = await execInProject(root, "echo", ["hello"]);
+    const result = await execInProject(root, process.execPath, ["-e", "process.stdout.write('hello')"]);
     expect(result.stdout.trim()).toBe("hello");
   });
 
@@ -184,10 +198,10 @@ describe("execInProjectToFile", () => {
 describe("spawnInDirectory / spawnNativeInDirectory", () => {
   it("spawnInDirectory 返回子进程,stdout 可读", async () => {
     const root = createRoot();
-    const child = spawnInDirectory(root, "echo", ["spawned"]);
+    const child = spawnInDirectory(root, process.execPath, ["-e", "process.stdout.write('spawned')"]);
     let stdout = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });
-    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    const code = await waitForClose(child);
     expect(code).toBe(0);
     expect(stdout.trim()).toBe("spawned");
   });
@@ -205,10 +219,10 @@ describe("spawnInDirectory / spawnNativeInDirectory", () => {
 
   it("spawnNativeInDirectory 返回子进程(linux 上等价 spawn)", async () => {
     const root = createRoot();
-    const child = spawnNativeInDirectory(root, "echo", ["native"]);
+    const child = spawnNativeInDirectory(root, process.execPath, ["-e", "process.stdout.write('native')"]);
     let stdout = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });
-    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    const code = await waitForClose(child);
     expect(code).toBe(0);
     expect(stdout.trim()).toBe("native");
   });
@@ -217,21 +231,22 @@ describe("spawnInDirectory / spawnNativeInDirectory", () => {
 describe("killProcessTree", () => {
   it("终止一个运行中的子进程(linux: process group kill)", async () => {
     const root = createRoot();
-    // 启动一个 sleep 进程(linux 下 detached 形成进程组)
-    const child = spawnInDirectory(root, "sleep", ["30"]);
+    // Use Node instead of sleep so the same process fixture works on Windows.
+    const child = spawnInDirectory(root, process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);
     // 等它真正启动
     await new Promise((r) => setTimeout(r, 50));
     expect(child.pid).toBeTruthy();
+    const closed = waitForClose(child);
     await killProcessTree(child);
     // 进程应被终止(close 事件触发)
-    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    const code = await closed;
     expect(code).not.toBe(0); // 被 signal 杀掉
   });
 
   it("pid 为空时 early return 不抛错", async () => {
     const root = createRoot();
-    const child = spawnInDirectory(root, "echo", ["done"]);
-    await new Promise<number | null>((resolve) => child.on("close", resolve));
+    const child = spawnInDirectory(root, process.execPath, ["-e", "process.stdout.write('done')"]);
+    await waitForClose(child);
     // 进程已退出,pid 可能已被回收 —— 不抛错即可
     await expect(killProcessTree(child)).resolves.toBeUndefined();
   });
@@ -269,14 +284,25 @@ describe("decodeProcessOutput", () => {
 
 describe("safeRelative", () => {
   it("正常相对路径返回", () => {
-    expect(safeRelative("/project", "/project/src/file.ts")).toBe("src/file.ts");
+    const root = path.resolve(path.sep, "project");
+    expect(safeRelative(root, path.join(root, "src", "file.ts"))).toBe("src/file.ts");
   });
 
   it("超出项目目录(父级)时抛错", () => {
-    expect(() => safeRelative("/project", "/etc/passwd")).toThrow("路径超出项目目录");
+    const root = createRoot();
+    expect(() => safeRelative(root, path.resolve(root, "..", "outside.txt"))).toThrow("路径超出项目目录");
   });
 
   it("绝对路径(其他盘/根)时抛错", () => {
-    expect(() => safeRelative("/project", "/absolute/elsewhere")).toThrow("路径超出项目目录");
+    const root = createRoot();
+    const otherRoot = process.platform === "win32" ? `${path.parse(root).root}outside` : "/absolute/elsewhere";
+    expect(() => safeRelative(root, otherRoot)).toThrow("路径超出项目目录");
   });
 });
+
+function waitForClose(child: ReturnType<typeof spawnInDirectory>): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
+}

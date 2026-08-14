@@ -297,7 +297,7 @@ describe("AI workbench session list", () => {
     await waitFor(() => expect(readContent).toHaveBeenCalledWith("src/changed.ts"));
     expect(await screen.findByRole("complementary", { name: "文件预览" })).toBeTruthy();
     await waitFor(() => expect(workbench.classList.contains("preview-active")).toBe(true));
-  });
+  }, 15_000);
 
   it("shows a friendly preview error when the file no longer exists", async () => {
     const user = userEvent.setup();

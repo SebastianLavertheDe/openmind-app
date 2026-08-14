@@ -51,7 +51,7 @@ try {
   fs.writeFileSync(path.join(preparedRoot, "manifest.json"), `${JSON.stringify({ schemaVersion: 2, target, pythonVersion: resolvedPythonVersion, uvVersion: resolvedUvVersion, filesDigest }, null, 2)}\n`, "utf8");
   if (fs.existsSync(targetRoot)) fs.rmSync(targetRoot, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(targetRoot), { recursive: true });
-  fs.cpSync(preparedRoot, targetRoot, { recursive: true, errorOnExist: true, preserveTimestamps: true });
+  copyDirectoryRecursively(preparedRoot, targetRoot);
   console.log(`Embedded Python ready: ${targetRoot}`);
   console.log(`Python ${resolvedPythonVersion}, uv ${resolvedUvVersion}, sha256 ${filesDigest}`);
 } finally {
@@ -114,6 +114,25 @@ function findNamedFile(root, names) {
     }
   }
   return null;
+}
+
+function copyDirectoryRecursively(source, target) {
+  const sourceStat = fs.lstatSync(source);
+  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) throw new Error(`Runtime staging source is not a directory: ${source}`);
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (entry.isSymbolicLink()) throw new Error(`Bundled runtime may not contain symlinks: ${path.relative(source, from)}`);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursively(from, to);
+      continue;
+    }
+    if (!entry.isFile()) throw new Error(`Bundled runtime contains unsupported file: ${path.relative(source, from)}`);
+    fs.copyFileSync(from, to);
+    try { fs.utimesSync(to, fs.statSync(from).atime, fs.statSync(from).mtime); } catch { /* Best effort on Windows. */ }
+  }
+  try { fs.utimesSync(target, sourceStat.atime, sourceStat.mtime); } catch { /* Best effort on Windows. */ }
 }
 
 function digestTree(root, excluded) {

@@ -898,7 +898,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     { channel: C.revokeExportLocation, handler: (id) => ctx.ensureExportLocationService().revoke(parseString(id)) },
-    { channel: C.aiPrewarm, handler: (sessionId) => ai().call("prewarm", parseOptionalString(sessionId)) },
+    {
+      channel: C.aiPrewarm,
+      handler: (sessionId) => settings.resolveWorkspaceRoot()
+        ? ai().call("prewarm", parseOptionalString(sessionId))
+        : false
+    },
     { channel: C.aiSearchSessions, handler: (query) => ai().call("search", z.string().max(500).parse(query || "")) },
     { channel: C.aiStartRun, handler: (input) => ai().call("start", StartRunInputSchema.parse(input)) },
     { channel: C.aiCancelRun, handler: (runId) => ai().call("cancel", parseString(runId)) },

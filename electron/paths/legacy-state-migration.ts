@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { writeJsonAtomic } from "../lib/fs-utils";
+import { copyDirectoryRecursively, writeJsonAtomic } from "../lib/fs-utils";
 
 type LegacyTreeEntry = {
   relativePath: string;
@@ -145,7 +145,7 @@ export function migrateLegacyState(input: LegacyStateMigrationInput): LegacyStat
   const stagingDirectory = path.join(path.resolve(input.stagingRoot), `legacy-state-${safeRootId}`);
   fs.mkdirSync(path.dirname(stagingDirectory), { recursive: true });
   fs.rmSync(stagingDirectory, { recursive: true, force: true });
-  fs.cpSync(sourceDirectory, stagingDirectory, { recursive: true, force: true });
+  copyDirectoryRecursively(sourceDirectory, stagingDirectory, { force: true });
   const tree = snapshotTree(stagingDirectory);
   const prepared: LegacyStateMigrationPending = {
     schemaVersion: 1,

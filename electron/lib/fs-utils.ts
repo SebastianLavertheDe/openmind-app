@@ -98,13 +98,89 @@ export function writeTextAtomic(filePath: string, value: string, options: { mode
   }
 }
 
+export type CopyDirectoryOptions = {
+  force?: boolean;
+  errorOnExist?: boolean;
+  preserveTimestamps?: boolean;
+};
+
+/**
+ * Copy a directory tree without relying on fs.cpSync.
+ *
+ * Node's Windows fs.cpSync path currently terminates the host process for
+ * some non-ASCII directory names. Desktop content paths are user-controlled
+ * and commonly contain Chinese names, so the app-owned copy boundary uses
+ * the smaller, explicit fs primitives instead.
+ */
+export function copyDirectoryRecursively(source: string, target: string, options: CopyDirectoryOptions = {}): void {
+  const sourceStat = fs.lstatSync(source);
+  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) throw new Error(`复制源不是目录：${source}`);
+  const targetStat = lstatIfExists(target);
+  if (targetStat) {
+    if (options.errorOnExist) {
+      const error = Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+      throw error;
+    }
+    if (!options.force) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+    if (!targetStat.isDirectory() || targetStat.isSymbolicLink()) fs.rmSync(target, { recursive: true, force: true });
+  }
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    copyDirectoryEntry(path.join(source, entry.name), path.join(target, entry.name), options);
+  }
+  if (options.preserveTimestamps) preserveDirectoryTimestamps(source, target, sourceStat);
+}
+
+function copyDirectoryEntry(source: string, target: string, options: CopyDirectoryOptions): void {
+  const sourceStat = fs.lstatSync(source);
+  const targetStat = lstatIfExists(target);
+  if (sourceStat.isSymbolicLink()) {
+    if (targetStat) {
+      if (options.errorOnExist) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+      if (!options.force) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+      fs.rmSync(target, { recursive: true, force: true });
+    }
+    let windowsLinkType: "junction" | "file" = "file";
+    if (process.platform === "win32") {
+      try { windowsLinkType = fs.statSync(source).isDirectory() ? "junction" : "file"; } catch { /* Preserve dangling links as file links. */ }
+    }
+    fs.symlinkSync(fs.readlinkSync(source), target, process.platform === "win32" ? windowsLinkType : undefined);
+    return;
+  }
+  if (sourceStat.isDirectory()) {
+    if (targetStat && (!targetStat.isDirectory() || targetStat.isSymbolicLink())) {
+      if (options.errorOnExist || !options.force) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+      fs.rmSync(target, { recursive: true, force: true });
+    }
+    copyDirectoryRecursively(source, target, options);
+    return;
+  }
+  if (targetStat && options.errorOnExist) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+  if (targetStat && !options.force) throw Object.assign(new Error(`目标已存在：${target}`), { code: "EEXIST" });
+  fs.copyFileSync(source, target);
+  if (options.preserveTimestamps) {
+    try { fs.utimesSync(target, sourceStat.atime, sourceStat.mtime); } catch { /* Timestamp preservation is best effort on Windows. */ }
+  }
+}
+
+function lstatIfExists(filePath: string): fs.Stats | null {
+  try { return fs.lstatSync(filePath); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function preserveDirectoryTimestamps(source: string, target: string, sourceStat: fs.Stats): void {
+  try { fs.utimesSync(target, sourceStat.atime, sourceStat.mtime); } catch { /* Timestamp preservation is best effort on Windows. */ }
+}
+
 /** 目录移动（rename 失败时 copy+rm，跨设备/权限回退）。 */
 export function moveDirectoryWithFallback(source: string, target: string): void {
   try {
     fs.renameSync(source, target);
   } catch (error) {
     if (!isReplaceUnsupported(error)) throw error;
-    fs.cpSync(source, target, { recursive: true, errorOnExist: true });
+    copyDirectoryRecursively(source, target, { errorOnExist: true });
     fs.rmSync(source, { recursive: true, force: false });
   }
 }

@@ -8,7 +8,7 @@ import type { SharedPythonRuntimeStatus } from "../../shared/contracts";
 import { detectRuntimeTarget, type RuntimeTarget } from "../../shared/runtime-targets";
 import { matchesSemverRange, type ProcessManifest } from "../../shared/skill-manifest-schema";
 import type { AppPaths } from "../paths/app-paths-service";
-import { writeJsonAtomic, writeTextAtomic } from "../lib/fs-utils";
+import { copyDirectoryRecursively, writeJsonAtomic, writeTextAtomic } from "../lib/fs-utils";
 
 const execFile = promisify(nodeExecFile);
 const STATE_SCHEMA_VERSION = 1 as const;
@@ -275,7 +275,7 @@ export class SharedPythonRuntimeService {
     try {
       // Keep source mtimes aligned with bundled .pyc headers. Python otherwise
       // treats the copied bytecode as stale and rewrites the app-owned payload.
-      fs.cpSync(this.assetTargetRoot(), staging, { recursive: true, errorOnExist: true, preserveTimestamps: true });
+      copyDirectoryRecursively(this.assetTargetRoot(), staging, { errorOnExist: true, preserveTimestamps: true });
       const actual = digestTree(staging, new Set(["manifest.json"]));
       if (actual !== asset.filesDigest) throw new Error("内置 Python 安装副本校验失败。");
       if (replaceExisting) {

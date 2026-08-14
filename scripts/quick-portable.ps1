@@ -13,6 +13,7 @@ function Assert-LastExitCode {
 }
 
 $sourceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $sourceRoot ".."))
 
 # Require Node 22+
 $nodeVersion = (& node.exe -p "process.versions.node").Trim()
@@ -24,14 +25,23 @@ if ($nodeMajor -lt 22) { throw "Windows Node.js 22+ required. Found: $nodeVersio
 if (Test-Path -LiteralPath $StageRoot) {
   Remove-Item -LiteralPath $StageRoot -Recurse -Force
 }
-New-Item -ItemType Directory -Path $StageRoot | Out-Null
+New-Item -ItemType Directory -Path "$StageRoot\desktop-app" | Out-Null
 
 Write-Host "Staging to $StageRoot"
-& robocopy.exe $sourceRoot $StageRoot /E /XD node_modules dist .build /XF "*.log" | Out-Null
+& robocopy.exe $sourceRoot "$StageRoot\desktop-app" /E /XD node_modules dist .build /XF "*.log" | Out-Null
 if ($LASTEXITCODE -gt 7) { throw "Staging source failed (robocopy $LASTEXITCODE)." }
 $global:LASTEXITCODE = 0
 
-Push-Location $StageRoot
+# lint:manifests resolves .claude/skills two levels above desktop-app/scripts
+# (the repo root), so stage the skill manifests to keep the staged tree valid.
+$sourceSkills = Join-Path $repoRoot ".claude\skills"
+if (Test-Path -LiteralPath $sourceSkills) {
+  & robocopy.exe $sourceSkills (Join-Path $StageRoot ".claude\skills") /E /IF cctools.skill.yaml | Out-Null
+  if ($LASTEXITCODE -gt 7) { throw "Staging skill manifests failed (robocopy $LASTEXITCODE)." }
+  $global:LASTEXITCODE = 0
+}
+
+Push-Location (Join-Path $StageRoot "desktop-app")
 try {
   Write-Host "npm ci (Windows deps, Node $nodeVersion)"
   & npm.cmd ci
@@ -49,12 +59,12 @@ try {
     New-Item -ItemType Directory -Path $OutDir | Out-Null
   }
   $copied = 0
-  Get-ChildItem -Path (Join-Path $StageRoot "dist") -Filter "CC-Tools-Portable-*.exe" -File | ForEach-Object {
+  Get-ChildItem -Path (Join-Path $StageRoot "desktop-app\dist") -Filter "CC-Tools-Portable-*.exe" -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $OutDir -Force
     Write-Host ("Copied: " + $_.Name)
     $copied++
   }
-  if ($copied -eq 0) { throw "No portable exe found in " + (Join-Path $StageRoot "dist") }
+  if ($copied -eq 0) { throw "No portable exe found in " + (Join-Path $StageRoot "desktop-app\dist") }
   Write-Host "Done. $copied portable package(s) on Desktop: $OutDir"
 }
 finally {

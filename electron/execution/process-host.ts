@@ -57,7 +57,11 @@ export class ProcessHost {
     try {
       child = spawn(spec.executable, spec.args, {
         cwd: spec.cwd,
-        env: spec.env,
+        // Windows supplies a default PATH when the environment block omits
+        // it. ProcessHost runs absolute executables and intentionally must not
+        // expose the host PATH to managed work, so make the empty value
+        // explicit on every platform.
+        env: { ...spec.env, PATH: "" },
         shell: false,
         windowsHide: true,
         detached: process.platform !== "win32",
@@ -125,7 +129,8 @@ export function validateProcessSpec(spec: ProcessSpec): void {
     throw new ProcessHostError("invalid-spec", "Process graceful stop 时间不在允许范围内。");
   }
   for (const name of Object.keys(spec.env)) {
-    if (FORBIDDEN_ENV_NAMES.has(name) || name.startsWith("DYLD_")) {
+    const normalizedName = process.platform === "win32" ? name.toUpperCase() : name;
+    if (FORBIDDEN_ENV_NAMES.has(normalizedName) || normalizedName.startsWith("DYLD_")) {
       throw new ProcessHostError("invalid-spec", `拒绝注入危险环境变量：${name}`);
     }
   }

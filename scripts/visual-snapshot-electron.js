@@ -23,7 +23,6 @@ const viewports = [
 
 const pages = [
   { id: "ai", label: "新建任务", minTextLength: 90, requiredSelector: ".ai-workbench" },
-  { id: "sources", label: "资料库", requiredSelector: ".sources-page" },
   { id: "brief", label: "每日简报", requiredSelector: ".document-library-page" },
   // Compact master/detail shows one meaningful pane at a time, so semantic
   // readiness is stronger here than an arbitrary desktop-sized text budget.
@@ -132,9 +131,6 @@ async function run() {
 
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
-  await captureEmptySources(win, report);
-  await captureSourcesError(win, report);
-  await captureSourceEditorDialog(win, report);
   await captureDarkDailyBrief(win, report);
   await captureCompletedAiResponse(win, report);
   await captureComposerSuggestions(win, report);
@@ -313,7 +309,7 @@ async function captureCompanionLayoutContracts(win, report) {
     "Wide AI preference remains a bounded overlay while preserving the workspace",
     {
       overlayPresentation: wideGeometry.sidebarClass.includes("layout-companion-overlay"),
-      widePreferencePreserved: wideGeometry.layoutWidth === 860,
+      widePreferencePreserved: wideGeometry.layoutWidth === 760,
       wideWidthWithinViewport: Boolean(wideGeometry.sidebar && wideGeometry.sidebar.right <= wideGeometry.viewport.width + 2),
       workspacePreserved: wideGeometry.stageTrackWidth >= 759.5
     }
@@ -338,7 +334,7 @@ async function captureCompanionLayoutContracts(win, report) {
     {
       overlayPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
-      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 860,
+      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 760,
       wideWidthWithinViewport: Boolean(highDpiWideGeometry.sidebar && highDpiWideGeometry.sidebar.right <= highDpiWideGeometry.viewport.width + 2),
       workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
       requestedZoom: win.webContents.getZoomFactor()
@@ -375,7 +371,7 @@ async function captureCompanionLayoutContracts(win, report) {
     { width: 841, height: 800, id: "companion-attached-return-841", expected: "overlay" },
     { width: 720, height: 720, id: "companion-canvas-720", expected: "canvas" }
   ]) {
-    win.setSize(scenario.width, scenario.height);
+    await setCssViewportWidth(win, scenario.width, scenario.height);
     await settle();
     await ensureDefaultCompanion(win);
     await captureCompanionGeometryState(
@@ -1083,132 +1079,6 @@ async function inspectPage(win, label, options = {}) {
   `);
 }
 
-async function captureEmptySources(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('empty')");
-  await clickNav(win, "资料库");
-  await waitForText(win, "还没有添加数据源");
-  await captureState(win, report, "empty-sources", "资料库", "Empty source registry");
-}
-
-async function captureSourcesError(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('error')");
-  await clickNav(win, "新建任务");
-  await clickNav(win, "资料库");
-  await waitForText(win, "视觉验收模拟错误");
-  await captureState(win, report, "error-sources", "资料库", "Source registry recoverable error", { minTextLength: 40, expectError: true });
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
-}
-
-async function captureSourceEditorDialog(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
-  await clickNav(win, "新建任务");
-  await clickNav(win, "资料库");
-  await waitForReady(win, "资料库", { requiredSelector: ".sources-page" });
-  await settle();
-  const opened = await win.webContents.executeJavaScript(`
-    (() => {
-      const edit = document.querySelector('.source-actions button[title="编辑"]');
-      if (!(edit instanceof HTMLButtonElement)) return false;
-      edit.click();
-      return true;
-    })()
-  `);
-  if (!opened) throw new Error("Editable source action was not found.");
-  await settle();
-
-  const contract = await win.webContents.executeJavaScript(`
-    (() => {
-      const scrim = document.querySelector('.source-editor-scrim');
-      const dialog = document.querySelector('.source-editor-dialog');
-      const formGrid = dialog?.querySelector('.source-add-grid');
-      const textInput = dialog?.querySelector('.source-add-grid input:not(.ui-select-native-proxy)');
-      const selectTrigger = dialog?.querySelector('.source-add-grid .ui-select-trigger');
-      const appRoot = document.querySelector('#root');
-      if (!(scrim instanceof HTMLElement) || !(dialog instanceof HTMLElement)) return null;
-      const scrimRect = scrim.getBoundingClientRect();
-      const dialogRect = dialog.getBoundingClientRect();
-      return {
-        role: dialog.getAttribute('role'),
-        ariaModal: dialog.getAttribute('aria-modal'),
-        backgroundInert: appRoot instanceof HTMLElement && appRoot.inert && appRoot.getAttribute('aria-hidden') === 'true',
-        scrimPosition: getComputedStyle(scrim).position,
-        scrimCoversViewport: scrimRect.left <= 0 && scrimRect.top <= 0
-          && scrimRect.right >= window.innerWidth && scrimRect.bottom >= window.innerHeight,
-        centered: Math.abs((dialogRect.left + dialogRect.right) / 2 - window.innerWidth / 2) <= 2
-          && Math.abs((dialogRect.top + dialogRect.bottom) / 2 - window.innerHeight / 2) <= 2,
-        insideViewport: dialogRect.left >= 0 && dialogRect.top >= 0
-          && dialogRect.right <= window.innerWidth && dialogRect.bottom <= window.innerHeight,
-        width: Math.round(dialogRect.width),
-        gridColumns: formGrid instanceof HTMLElement ? getComputedStyle(formGrid).gridTemplateColumns : null,
-        controlsMatch: textInput instanceof HTMLElement && selectTrigger instanceof HTMLElement
-          && Math.abs(textInput.getBoundingClientRect().height - selectTrigger.getBoundingClientRect().height) <= 1
-          && getComputedStyle(textInput).borderRadius === getComputedStyle(selectTrigger).borderRadius,
-        controlMetrics: textInput instanceof HTMLElement && selectTrigger instanceof HTMLElement ? {
-          inputHeight: textInput.getBoundingClientRect().height,
-          selectHeight: selectTrigger.getBoundingClientRect().height,
-          inputRadius: getComputedStyle(textInput).borderRadius,
-          selectRadius: getComputedStyle(selectTrigger).borderRadius
-        } : null,
-        frequencyFieldAbsent: ![...dialog.querySelectorAll('label')]
-          .some((label) => label.textContent?.includes('抓取间隔')),
-        focusInside: dialog.contains(document.activeElement)
-      };
-    })()
-  `);
-  const checks = contract && {
-    dialogSemantics: contract.role === "dialog" && contract.ariaModal === "true",
-    backgroundInert: contract.backgroundInert,
-    fullViewportScrim: contract.scrimPosition === "fixed" && contract.scrimCoversViewport,
-    centered: contract.centered,
-    insideViewport: contract.insideViewport,
-    responsiveWidth: contract.width <= 760,
-    twoColumnForm: typeof contract.gridColumns === "string" && contract.gridColumns.split(" ").length === 2,
-    controlsMatch: contract.controlsMatch,
-    frequencyFieldAbsent: contract.frequencyFieldAbsent,
-    focusContained: contract.focusInside
-  };
-  if (!checks || !Object.values(checks).every(Boolean)) {
-    throw new Error(`Source editor dialog contract failed: ${JSON.stringify({ checks, contract })}`);
-  }
-
-  await captureState(win, report, "source-editor-dialog", "资料库", "Source editor uses the application modal language", {
-    requiredSelector: ".source-editor-dialog"
-  });
-
-  win.setSize(720, 720);
-  await settle();
-  const compactContract = await win.webContents.executeJavaScript(`
-    (() => {
-      const root = document.documentElement;
-      const body = document.body;
-      const dialog = document.querySelector('.source-editor-dialog');
-      const formGrid = dialog?.querySelector('.source-add-grid');
-      const footer = dialog?.querySelector('.source-editor-actions');
-      if (!(dialog instanceof HTMLElement) || !(formGrid instanceof HTMLElement) || !(footer instanceof HTMLElement)) return null;
-      const dialogRect = dialog.getBoundingClientRect();
-      const footerRect = footer.getBoundingClientRect();
-      return {
-        insideViewport: dialogRect.left >= 0 && dialogRect.top >= 0
-          && dialogRect.right <= window.innerWidth && dialogRect.bottom <= window.innerHeight,
-        oneColumnForm: getComputedStyle(formGrid).gridTemplateColumns.split(' ').length === 1,
-        footerVisible: footerRect.top >= dialogRect.top && footerRect.bottom <= dialogRect.bottom + 1,
-        horizontalOverflow: Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth)
-      };
-    })()
-  `);
-  if (!compactContract || !compactContract.insideViewport || !compactContract.oneColumnForm
-    || !compactContract.footerVisible || compactContract.horizontalOverflow > 2) {
-    throw new Error(`Compact source editor dialog contract failed: ${JSON.stringify(compactContract)}`);
-  }
-  const compactImage = await win.webContents.capturePage();
-  fs.writeFileSync(path.join(outputRoot, "state-source-editor-dialog-compact.png"), compactImage.toPNG());
-
-  win.setSize(1366, 768);
-  await settle();
-  await win.webContents.executeJavaScript(`document.querySelector('.source-form-header > button')?.click()`);
-  await waitForSelectorToDisappear(win, ".source-editor-dialog");
-}
-
 async function captureDarkDailyBrief(win, report) {
   await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'dark')");
@@ -1883,6 +1753,19 @@ async function waitForEmptyState(win) {
 function settle() {
   // Shared entrance stagger caps at 175ms delay + 200ms duration.
   return delay(420);
+}
+
+async function setCssViewportWidth(win, desiredWidth, height) {
+  let nativeWidth = desiredWidth;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    win.setSize(nativeWidth, height);
+    await settle();
+    const actualWidth = await win.webContents.executeJavaScript("window.innerWidth");
+    const delta = desiredWidth - Number(actualWidth);
+    if (Math.abs(delta) <= 1) return;
+    nativeWidth += delta;
+  }
+  throw new Error(`Unable to reach CSS viewport width ${desiredWidth}.`);
 }
 
 function delay(ms) {

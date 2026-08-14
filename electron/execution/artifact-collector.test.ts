@@ -39,11 +39,12 @@ describe("ArtifactCollector", () => {
     const root = makeRoot();
     const mymind = path.join(root, "mymind");
     const run = path.join(root, "run");
-    const outside = path.join(root, "outside.txt");
+    const outside = path.join(root, "outside");
     fs.mkdirSync(mymind, { recursive: true });
     fs.mkdirSync(run, { recursive: true });
-    fs.writeFileSync(outside, "secret");
-    fs.symlinkSync(outside, path.join(mymind, "leak.txt"));
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, "secret.txt"), "secret");
+    fs.symlinkSync(outside, path.join(mymind, "leak"), process.platform === "win32" ? "junction" : "dir");
     const collector = new ArtifactCollector();
 
     const result = collector.collect({
@@ -53,10 +54,10 @@ describe("ArtifactCollector", () => {
       runDir: run,
       before: collector.snapshot(mymind),
       declarations: [
-        { id: "leak", type: "other", logicalPath: "leak.txt" },
+        { id: "leak", type: "other", logicalPath: "leak/**" },
         { id: "export", type: "video", externalPathRef: "export-1" }
       ],
-      externalBindings: { "export-1": { bindingId: "export-1", canonicalPath: outside, revoked: true } }
+      externalBindings: { "export-1": { bindingId: "export-1", canonicalPath: path.join(outside, "secret.txt"), revoked: true } }
     });
 
     expect(result.artifacts).toEqual([]);

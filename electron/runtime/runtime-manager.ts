@@ -190,7 +190,7 @@ export class RuntimeManager {
         await prepare({ manifest, packageRoot, target, pack: { ...pack, packagePath: packPath }, fingerprint, packageDigest });
         if (!this.prepareEnvironment && !this.resolveExecutable && manifest.entrypoint.runtime === "python") {
           const environmentRoot = this.environmentPath(manifest, pack, fingerprint);
-          const python = environmentPython(environmentRoot);
+          const python = environmentPython(environmentRoot, target);
           if (!fs.existsSync(python)) throw new RuntimeManagerError("executable-unresolved", "Python Skill environment 缺少 python executable。 ");
           preparation.executable = fs.realpathSync(python);
           preparation.env = { ...preparation.env, VIRTUAL_ENV: environmentRoot };
@@ -210,7 +210,7 @@ export class RuntimeManager {
       throw new RuntimeManagerError("pack-tampered", `Runtime Pack 内容 digest 与 registry 不一致：${packId}@${target}`);
     }
     const root = this.ensurePackRoot(pack);
-    const executable = firstExisting(executableCandidates(runtime, root));
+    const executable = firstExisting(executableCandidates(runtime, root, target));
     if (!executable) throw new RuntimeManagerError("executable-unresolved", `Managed Runtime Pack 缺少 ${runtime} executable。`);
     ensureExecutable(executable);
     return fs.realpathSync(executable);
@@ -218,7 +218,7 @@ export class RuntimeManager {
 
   private resolveManagedExecutable(input: RuntimeExecutableResolutionInput): string {
     const root = this.ensurePackRoot(input.pack);
-    const candidates = executableCandidates(input.manifest.entrypoint.runtime, root);
+    const candidates = executableCandidates(input.manifest.entrypoint.runtime, root, input.target);
     for (const candidate of candidates) {
       if (!fs.existsSync(candidate)) continue;
       let stat: fs.Stats;
@@ -241,11 +241,9 @@ export class RuntimeManager {
   }): Promise<void> {
     if (input.manifest.entrypoint.runtime !== "python") return;
     const packRoot = this.ensurePackRoot(input.pack);
-    const python = firstExisting(executableCandidates("python", packRoot));
+    const python = firstExisting(executableCandidates("python", packRoot, input.target));
     const uv = firstExisting([
-      path.join(packRoot, "bin", process.platform === "win32" ? "uv.exe" : "uv"),
-      path.join(packRoot, "uv.exe"),
-      path.join(packRoot, "uv")
+      ...executableCandidates("uv", packRoot, input.target)
     ]);
     if (!python || !uv) throw new RuntimeManagerError("executable-unresolved", "python-core Pack 缺少 python 或 uv executable。 ");
     ensureExecutable(python);
@@ -255,7 +253,7 @@ export class RuntimeManager {
     if (fs.existsSync(marker)) {
       try {
         const parsed = JSON.parse(fs.readFileSync(marker, "utf8")) as { fingerprint?: string };
-        if (parsed.fingerprint === input.fingerprint && fs.existsSync(environmentPython(environmentRoot))) return;
+        if (parsed.fingerprint === input.fingerprint && fs.existsSync(environmentPython(environmentRoot, input.target))) return;
       } catch { /* Rebuild a corrupt environment below. */ }
     }
     const staging = createRuntimeStaging(this.paths, "runtime-env-", "python-environment");
@@ -264,7 +262,7 @@ export class RuntimeManager {
     try {
       const env = minimalRuntimeEnvironment(input.packageRoot, input.target, input.fingerprint, stagedEnvironment);
       await this.runCommand(uv, ["venv", "--python", python, stagedEnvironment], input.packageRoot, env);
-      await this.runCommand(uv, ["sync", "--locked", "--project", input.packageRoot, "--python", environmentPython(stagedEnvironment)], input.packageRoot, {
+      await this.runCommand(uv, ["sync", "--locked", "--project", input.packageRoot, "--python", environmentPython(stagedEnvironment, input.target)], input.packageRoot, {
         ...env,
         UV_PROJECT_ENVIRONMENT: stagedEnvironment,
         UV_PYTHON_DOWNLOADS: "never"
@@ -344,13 +342,16 @@ async function defaultRunCommand(executable: string, args: string[], cwd: string
   await execFile(executable, args, { cwd, env, shell: false, windowsHide: true, maxBuffer: 128 * 1024 });
 }
 
-function executableCandidates(runtime: ProcessManifest["entrypoint"]["runtime"] | "python", root: string): string[] {
+function executableCandidates(runtime: ProcessManifest["entrypoint"]["runtime"] | "python" | "uv", root: string, target: RuntimeTarget): string[] {
   const names = runtime === "python" ? ["python", "python3"] : runtime === "node" ? ["node"] : runtime === "shell" ? ["sh", "bash"] : [];
+  if (runtime === "uv") names.push("uv");
+  const windowsLayout = getRuntimeTargetDescriptor(target).os === "windows";
   const candidates: string[] = [];
   for (const name of names) {
-    candidates.push(path.join(root, "bin", process.platform === "win32" ? `${name}.exe` : name));
-    candidates.push(path.join(root, "Scripts", `${name}.exe`));
-    candidates.push(path.join(root, process.platform === "win32" ? `${name}.exe` : name));
+    const executableName = windowsLayout ? `${name}.exe` : name;
+    candidates.push(path.join(root, "bin", executableName));
+    if (windowsLayout) candidates.push(path.join(root, "Scripts", executableName));
+    candidates.push(path.join(root, executableName));
   }
   return candidates;
 }
@@ -370,8 +371,10 @@ function ensureExecutable(candidate: string): void {
   }
 }
 
-function environmentPython(root: string): string {
-  return process.platform === "win32" ? path.join(root, "Scripts", "python.exe") : path.join(root, "bin", "python");
+function environmentPython(root: string, target: RuntimeTarget): string {
+  return getRuntimeTargetDescriptor(target).os === "windows"
+    ? path.join(root, "Scripts", "python.exe")
+    : path.join(root, "bin", "python");
 }
 
 function minimalRuntimeEnvironment(packageRoot: string, target: RuntimeTarget, fingerprint: string, environmentRoot: string): Record<string, string> {
@@ -383,7 +386,7 @@ function minimalRuntimeEnvironment(packageRoot: string, target: RuntimeTarget, f
     PYTHONUNBUFFERED: "1",
     // Keep uv caches out of the user's real home without making the venv
     // destination itself exist before `uv venv` creates it.
-    ...(process.platform === "win32" ? {} : { HOME: path.dirname(environmentRoot) })
+    ...(getRuntimeTargetDescriptor(target).os === "windows" ? {} : { HOME: path.dirname(environmentRoot) })
   };
 }
 

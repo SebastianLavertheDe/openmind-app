@@ -103,13 +103,15 @@ function buildInto(root: string, outside: string): void {
   }
 
   // --- symlink that stays inside the root (must be allowed) ---
+  const directoryLinkType = process.platform === "win32" ? "junction" : "dir";
   fs.symlinkSync(
     path.join(root, "article", "20260805"),
-    path.join(root, "article", "20260805-link")
+    path.join(root, "article", "20260805-link"),
+    directoryLinkType
   );
 
   // --- symlink that escapes the root (must be REJECTED by resolver) ---
-  fs.symlinkSync(outside, path.join(root, "article", "escape-link"));
+  fs.symlinkSync(outside, path.join(root, "article", "escape-link"), directoryLinkType);
 
   // --- partial / damaged layout: missing `wiki/` would be flagged by health,
   //     but here we instead drop a stray non-md file in a content dir ---
