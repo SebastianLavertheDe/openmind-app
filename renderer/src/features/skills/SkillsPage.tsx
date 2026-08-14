@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Clock3, Package, Search, X } from "lucide-react";
+import { CheckCircle2, Clock3, Download, FolderOpen, Package, Search, X } from "lucide-react";
 import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView } from "@shared/contracts";
+import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
 import { StatusBadge } from "../../design-system/components";
 
@@ -19,7 +20,7 @@ type ManifestSummary = {
   kind: string;
 };
 
-export function SkillsPage({ initialSkillId, embedded = false }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean }) {
+export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean }) {
   const [inspections, setInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
   const [installedInspections, setInstalledInspections] = useState<Record<string, SkillPackageInspectionView>>({});
@@ -73,6 +74,13 @@ export function SkillsPage({ initialSkillId, embedded = false }: { skills: Skill
 
   useEffect(() => { void load(); }, [load]);
 
+  const sourcePickerApiAvailable = Boolean(window.cctools.inspectSkillSource && window.cctools.installSkillSource);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(initialSourcePickerOpen);
+  const onSourceInstalled = useCallback(() => {
+    setSourcePickerOpen(false);
+    void load();
+  }, [load]);
+
   const items = useMemo(() => buildItems(inspections, installed, installedInspections), [inspections, installed, installedInspections]);
   const filteredItems = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -124,6 +132,7 @@ export function SkillsPage({ initialSkillId, embedded = false }: { skills: Skill
       </header> : null}
 
       {error ? <p className="skills-error" role="alert">{error}</p> : null}
+      {sourcePickerApiAvailable ? <SkillSourcePicker open={sourcePickerOpen} onToggle={() => setSourcePickerOpen((open) => !open)} onInstalled={onSourceInstalled} /> : null}
       <section className="skills-layout">
         <aside className="workspace-card skills-catalog">
           <header className="skills-catalog-header">
@@ -173,6 +182,200 @@ export function SkillsPage({ initialSkillId, embedded = false }: { skills: Skill
       </section>
     </div>
   );
+}
+
+/** Import panel for directory / ZIP / public HTTPS Git sources. Inspection
+ * always precedes installation; nothing here executes package code. */
+function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onToggle(): void; onInstalled(): void }) {
+  const picker = m.sourcePicker;
+  const [gitUrl, setGitUrl] = useState("");
+  const [gitRef, setGitRef] = useState("");
+  const [candidate, setCandidate] = useState<SkillPackageSourceInput | null>(null);
+  const [inspection, setInspection] = useState<SkillPackageInspectionView | null>(null);
+  const [busy, setBusy] = useState<"inspect" | "install" | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const inspectRequestId = useRef<string | null>(null);
+
+  const inspectSource = useCallback(async (source: SkillPackageSourceInput) => {
+    const requestId = `skill-source-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    inspectRequestId.current = requestId;
+    setFailure(null);
+    setInspection(null);
+    setBusy("inspect");
+    try {
+      const result = await window.cctools.inspectSkillSource!(source, requestId);
+      if (inspectRequestId.current === requestId) setInspection(result);
+    } catch (cause) {
+      if (!isSourceCancelled(cause)) {
+        setCandidate(null);
+        setInspection(null);
+        setFailure(sourceErrorMessage(cause));
+      }
+    } finally {
+      if (inspectRequestId.current === requestId) inspectRequestId.current = null;
+      setBusy(null);
+    }
+  }, []);
+
+  const selectLocal = useCallback(async () => {
+    setFailure(null);
+    setInspection(null);
+    try {
+      const source = await window.cctools.selectSkillPackageSource?.() ?? null;
+      if (!source) return;
+      setCandidate(source);
+      void inspectSource(source);
+    } catch (cause) {
+      setCandidate(null);
+      setFailure(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [inspectSource]);
+
+  const inspectGit = useCallback(async () => {
+    const locator = gitUrl.trim();
+    if (!locator) { setFailure(picker.noCandidate); return; }
+    if (!isPublicHttpsGitLocator(locator)) { setFailure(picker.sourceErrors.invalid); return; }
+    const source: SkillPackageSourceInput = { type: "git", locator, ...(gitRef.trim() ? { ref: gitRef.trim() } : {}) };
+    setCandidate(source);
+    void inspectSource(source);
+  }, [gitUrl, gitRef, inspectSource, picker.sourceErrors.invalid, picker.noCandidate]);
+
+  const cancelInspect = useCallback(async () => {
+    const requestId = inspectRequestId.current;
+    if (requestId) await window.cctools.cancelSkillSourceInspection?.(requestId);
+    inspectRequestId.current = null;
+    setCandidate(null);
+    setInspection(null);
+    setFailure(null);
+    setBusy(null);
+  }, []);
+
+  const install = useCallback(async () => {
+    if (!candidate) { setFailure(picker.noCandidate); return; }
+    if (!inspection || !inspection.valid) { setFailure(picker.notInspected); return; }
+    setFailure(null);
+    setBusy("install");
+    try {
+      await window.cctools.installSkillSource!(candidate);
+      setCandidate(null);
+      setInspection(null);
+      setGitUrl("");
+      setGitRef("");
+      onInstalled();
+    } catch (cause) {
+      setFailure(sourceErrorMessage(cause));
+    } finally {
+      setBusy(null);
+    }
+  }, [candidate, inspection, onInstalled]);
+
+  return <section className="workspace-card skills-source-picker" aria-label={picker.title}>
+    <button type="button" className="skills-source-picker-toggle" aria-expanded={open} onClick={onToggle}>
+      <Download size={15} aria-hidden />
+      <span>{open ? picker.close : picker.open}</span>
+    </button>
+    {open ? <div className="skills-source-picker-body">
+      <header><h3>{picker.title}</h3><p>{picker.description}</p></header>
+      <div className="skills-source-picker-row">
+        <button type="button" className="skills-source-picker-local" disabled={busy !== null} onClick={() => void selectLocal()}>
+          <FolderOpen size={15} aria-hidden />
+          <span>{picker.local}</span>
+        </button>
+      </div>
+      <div className="skills-source-picker-row">
+        <label className="skills-source-picker-git">
+          <span>{picker.git}</span>
+          <input
+            type="url"
+            inputMode="url"
+            placeholder={picker.gitPlaceholder}
+            value={gitUrl}
+            onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setFailure(null); }}
+            onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
+          />
+          <input
+            type="text"
+            placeholder={picker.refPlaceholder}
+            value={gitRef}
+            onChange={(event) => setGitRef(event.target.value)}
+          />
+          <button type="button" disabled={busy !== null} onClick={() => void inspectGit()}>
+            {busy === "inspect" ? picker.inspecting : picker.inspect}
+          </button>
+          {busy === "inspect" ? <button type="button" className="skills-source-picker-cancel" onClick={() => void cancelInspect()}>{picker.cancel}</button> : null}
+        </label>
+      </div>
+      {candidate ? <div className="skills-source-picker-candidate">
+        <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
+        {inspection ? <StatusBadge tone={inspection.valid ? "success" : "danger"}>
+          {inspection.valid ? picker.valid : picker.invalid}
+        </StatusBadge> : null}
+        {inspection ? <dl>
+          <div><dt>{picker.name}</dt><dd>{inspectionName(inspection)}</dd></div>
+          <div><dt>{picker.publisher}</dt><dd>{inspectionPublisher(inspection)}</dd></div>
+          <div><dt>{picker.version}</dt><dd>{inspectionVersion(inspection)}</dd></div>
+          <div><dt>{picker.digest}</dt><dd title={inspection.digest}>{inspection.digest.slice(0, 16)}…</dd></div>
+          <div><dt>{picker.filesLabel}</dt><dd>{picker.files(inspection.files.length)}</dd></div>
+        </dl> : null}
+        {inspection?.warnings.length ? <ul className="skills-source-picker-warnings">
+          {inspection.warnings.slice(0, 5).map((warning, index) => <li key={index}>{warning}</li>)}
+        </ul> : null}
+        {inspection?.issues.length ? <ul className="skills-source-picker-issues">
+          {inspection.issues.slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
+        </ul> : null}
+        <button type="button" className="skills-source-picker-install" disabled={busy !== null || !inspection?.valid} onClick={() => void install()}>
+          {busy === "install" ? picker.importing : picker.import}
+        </button>
+      </div> : null}
+      {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
+    </div> : null}
+  </section>;
+}
+
+function sourceErrorMessage(cause: unknown): string {
+  const errors = m.sourcePicker.sourceErrors;
+  if (cause && typeof cause === "object") {
+    const code = (cause as { code?: unknown }).code;
+    if (typeof code === "string" && errors[code]) return errors[code];
+  }
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return /HTTPS|Git 地址|Git 来源/.test(message) ? errors.invalid : `${errors.unknown}${message ? `（${message}）` : ""}`;
+}
+
+function isPublicHttpsGitLocator(locator: string): boolean {
+  try {
+    const url = new URL(locator);
+    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+function isSourceCancelled(cause: unknown): boolean {
+  return Boolean(cause && typeof cause === "object" && (cause as { code?: unknown }).code === "git-cancelled");
+}
+
+function inspectionManifest(inspection: SkillPackageInspectionView): Record<string, unknown> {
+  return inspection.manifest && typeof inspection.manifest === "object" ? inspection.manifest as Record<string, unknown> : {};
+}
+
+function inspectionName(inspection: SkillPackageInspectionView): string {
+  const display = inspectionManifest(inspection).display;
+  return display && typeof display === "object" && typeof (display as { name?: unknown }).name === "string"
+    ? (display as { name: string }).name
+    : "未命名 Skill";
+}
+
+function inspectionPublisher(inspection: SkillPackageInspectionView): string {
+  const publisher = inspectionManifest(inspection).publisher;
+  if (!publisher || typeof publisher !== "object") return "未声明";
+  const value = publisher as { displayName?: unknown; id?: unknown };
+  return typeof value.displayName === "string" ? value.displayName : typeof value.id === "string" ? value.id : "未声明";
+}
+
+function inspectionVersion(inspection: SkillPackageInspectionView): string {
+  const value = inspectionManifest(inspection).version;
+  return typeof value === "string" ? value : "未声明";
 }
 
 function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { item: SkillItem; index: number; total: number; active: boolean; onSelect(): void; onNavigate(index: number): void }) {
@@ -302,7 +505,7 @@ function manifestSummary(input: unknown, record?: InstalledSkillView): ManifestS
 function stringValue(value: unknown, fallback: string): string { return typeof value === "string" && value.trim() ? value : fallback; }
 function needsAttention(item: SkillItem): boolean {
   if (item.kind === "workspace") return !item.inspection.valid || item.inspection.sourceKind === "legacy-claude";
-  return item.record.status !== "active" || item.record.readiness !== "ready" || item.record.executionTrust !== "approved-host";
+  return item.record.status !== "active" || item.record.readiness !== "ready";
 }
 function skillState(item: SkillItem): { label: string; tone: "success" | "warning" | "danger" | "info" } {
   if (item.kind === "workspace") {
@@ -313,7 +516,6 @@ function skillState(item: SkillItem): { label: string; tone: "success" | "warnin
   if (item.record.readiness === "blocked") return { label: m.blockedLabel, tone: "danger" };
   if (item.record.readiness === "stale") return { label: m.staleLabel, tone: "danger" };
   if (item.record.status !== "active" || item.record.readiness !== "ready") return { label: m.notReady, tone: "warning" };
-  if (item.record.executionTrust !== "approved-host") return { label: m.pendingTrust, tone: "warning" };
   return { label: m.available, tone: "success" };
 }
 function kindLabel(kind: string): string { return ({ process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }

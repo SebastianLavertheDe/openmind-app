@@ -1,8 +1,14 @@
 # ADR-004: Skill Trust Model — Independent Trust Dimensions
 
-- **Status:** Accepted
+- **Status:** Superseded for the current distribution flow
 - **Date:** 2026-08-05
 - **Phase:** 0 (Architecture freeze)
+
+> This ADR records the historical four-dimension host-consent design. The
+> current distribution flow removed the persisted `executionTrust` gate:
+> source inspection, exact digest checks, Runtime readiness and active-version
+> selection now determine whether an installed Skill can run. See
+> `docs/distribution-ux-plan.md` and `CHANGELOG.md` for the superseding flow.
 
 ## Context
 

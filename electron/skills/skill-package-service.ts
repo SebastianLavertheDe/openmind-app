@@ -129,7 +129,6 @@ export type LegacySkillSuggestion = {
   frontmatter: ParsedSkillFrontmatter;
   /** Only present when the legacy file explicitly declares a runner and args. */
   suggestedEntrypoint?: { runner: string; args: string[]; cwd: string };
-  executionTrust: "inspect-only";
   migrationReason: string;
 };
 
@@ -243,7 +242,7 @@ export class SkillPackageService {
       legacy = buildLegacySuggestion(canonicalSource, fs.readFileSync(legacyPath, "utf8"));
       issues.push({
         code: "legacy-inspect-only",
-        message: "该 Skill 只有 SKILL.md，处于 inspect-only；需迁移为正式 cctools.skill.yaml 后才可安装运行。",
+        message: "该 Skill 只有 SKILL.md，只能检查；需迁移为正式 cctools.skill.yaml 后才可安装运行。",
         path: LEGACY_FILE
       });
     } else {
@@ -351,7 +350,6 @@ export class SkillPackageService {
         readiness: "installed-not-ready",
         signatureStatus: "unsigned",
         reviewStatus: "unreviewed",
-        executionTrust: "inspect-only",
         skillUpdatePolicy: "manual",
         installedAt: new Date().toISOString()
       };
@@ -369,13 +367,6 @@ export class SkillPackageService {
 
   markReadiness(key: string, digest: string, readiness: InstalledSkillReadiness): InstalledSkillRecord {
     return this.repository.markReadiness(key, digest, readiness);
-  }
-
-  approveHostExecution(key: string, digest: string): InstalledSkillRecord {
-    const record = this.getInstalled(key, digest);
-    if (!record) throw new SkillPackageError("installed-path-invalid", `Installed Skill 不存在：${key}@${digest}`);
-    this.assertInstalledCopyIntegrity(record);
-    return this.repository.approveHostExecution(key, digest);
   }
 
   activate(key: string, digest: string): { active: InstalledSkillRecord; previous?: InstalledSkillRecord } {
@@ -404,8 +395,8 @@ export class SkillPackageService {
 
   /**
    * Batch migration entry for the old `.claude/skills` surface. Valid Manifest
-   * packages are copied to quarantine; Legacy packages remain inspect-only and
-   * are returned as skipped, never silently upgraded or executed.
+   * packages are copied to quarantine; Legacy packages remain inspection-only
+   * and are returned as skipped, never silently upgraded or executed.
    */
   migrateClaudeSkills(workspaceRoot: string): ClaudeSkillMigrationReport {
     const inspected = this.inspectClaudeSkills(workspaceRoot);
@@ -679,7 +670,6 @@ function buildLegacySuggestion(sourceRoot: string, content: string): LegacySkill
         cwd: frontmatter.cwd || path.join(".claude", "skills", dirName)
       }
     } : {}),
-    executionTrust: "inspect-only",
     migrationReason: explicitRunner
       ? "旧 frontmatter 声明了 runner/args，但尚未形成 Manifest、能力、Runtime 和 Artifact 合同。"
       : "旧 Skill 没有可验证的进程入口，应按 Agent/Prompt Skill 迁移。"

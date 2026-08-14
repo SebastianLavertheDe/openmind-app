@@ -19,6 +19,7 @@ export type GitCommandOptions = {
   cwd: string;
   env: NodeJS.ProcessEnv;
   timeout: number;
+  signal?: AbortSignal;
 };
 
 export type GitCommandRunner = (
@@ -30,6 +31,7 @@ export type SkillSourceErrorCode =
   | "git-unavailable"
   | "git-command-failed"
   | "git-timeout"
+  | "git-cancelled"
   | "git-package-missing"
   | "git-package-ambiguous";
 
@@ -49,13 +51,15 @@ export class SkillSourceError extends Error {
  * Nothing in this adapter executes package code.
  */
 export class SkillSourceService {
+  private readonly activeGitInspections = new Map<string, AbortController>();
+
   constructor(
     private readonly packages: SkillPackageService,
     private readonly paths: AppPaths = getAppPaths(),
     private readonly runGit: GitCommandRunner = runGitCommand
   ) {}
 
-  async inspect(input: SkillPackageSourceInput): Promise<SkillPackageInspection> {
+  async inspect(input: SkillPackageSourceInput, requestId?: string): Promise<SkillPackageInspection> {
     const source = parseSkillPackageSourceInput(input);
     if (source.type !== "git") {
       const inspection = this.packages.inspect(source.locator);
@@ -64,7 +68,14 @@ export class SkillSourceService {
     return this.withGitCheckout(source, (packageRoot) => {
       const inspection = this.packages.inspect(packageRoot);
       return { ...inspection, sourcePath: source.locator, sourceKind: "git" as const };
-    });
+    }, requestId);
+  }
+
+  cancelInspection(requestId: string): boolean {
+    const controller = this.activeGitInspections.get(requestId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
   }
 
   async install(input: SkillPackageSourceInput): Promise<InstalledSkillRecord> {
@@ -79,16 +90,20 @@ export class SkillSourceService {
 
   private async withGitCheckout<T>(
     source: Extract<SkillPackageSourceInput, { type: "git" }>,
-    callback: (packageRoot: string) => T | Promise<T>
+    callback: (packageRoot: string) => T | Promise<T>,
+    requestId?: string
   ): Promise<T> {
     fs.mkdirSync(this.paths.staging, { recursive: true });
     const stagingRoot = fs.mkdtempSync(path.join(this.paths.staging, "skill-git-"));
     const checkoutRoot = path.join(stagingRoot, "repo");
+    const controller = new AbortController();
+    if (requestId) this.activeGitInspections.set(requestId, controller);
     try {
       await this.runGit(buildCloneArgs(source, checkoutRoot), {
         cwd: stagingRoot,
         env: gitEnvironment(stagingRoot),
-        timeout: GIT_TIMEOUT_MS
+        timeout: GIT_TIMEOUT_MS,
+        signal: controller.signal
       });
       return await callback(resolveGitPackageRoot(checkoutRoot));
     } catch (error) {
@@ -96,6 +111,7 @@ export class SkillSourceService {
       const message = error instanceof Error ? error.message : String(error);
       throw new SkillSourceError("git-command-failed", `Git 来源检查失败：${redactGitError(message)}`);
     } finally {
+      if (requestId && this.activeGitInspections.get(requestId) === controller) this.activeGitInspections.delete(requestId);
       fs.rmSync(stagingRoot, { recursive: true, force: true });
     }
   }
@@ -160,6 +176,7 @@ function runGitCommand(args: string[], options: GitCommandOptions): Promise<{ st
       env: options.env,
       shell: false,
       timeout: options.timeout,
+      signal: options.signal,
       maxBuffer: GIT_MAX_BUFFER,
       windowsHide: true
     }, (error, stdout, stderr) => {
@@ -167,6 +184,10 @@ function runGitCommand(args: string[], options: GitCommandOptions): Promise<{ st
         const code = (error as NodeJS.ErrnoException & { killed?: boolean }).code;
         if (code === "ENOENT") {
           reject(new SkillSourceError("git-unavailable", "当前环境未找到 Git，无法导入 Git Skill。"));
+          return;
+        }
+        if (code === "ABORT_ERR" || error.name === "AbortError") {
+          reject(new SkillSourceError("git-cancelled", "已取消 Git 来源检查。"));
           return;
         }
         if (code === "ETIMEDOUT" || (error as { killed?: boolean }).killed) {

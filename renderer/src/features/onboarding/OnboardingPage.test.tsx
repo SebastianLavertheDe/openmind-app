@@ -34,9 +34,39 @@ describe("OnboardingPage", () => {
     installApi();
     render(<AiProvider initial={snapshot}><OnboardingPage bootstrap={bootstrap} go={go} onRefresh={vi.fn()} /></AiProvider>);
     await screen.findByRole("heading", { name: "先准备本地工作台" });
-    fireEvent.click(screen.getByRole("button", { name: "打开 Skill Center" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开导入入口" }));
     fireEvent.click(screen.getByRole("button", { name: "查看诊断" }));
-    expect(go).toHaveBeenNthCalledWith(1, "skills");
+    expect(go).toHaveBeenNthCalledWith(1, "skills", { openSkillImport: true });
     expect(go).toHaveBeenNthCalledWith(2, "diagnostics");
+  });
+
+  it("requires both optional steps to be completed or skipped before entering the app", async () => {
+    const go = vi.fn();
+    let onboardingState = { completed: false, skill: "pending" as const, provider: "pending" as const };
+    const updateOnboardingState = vi.fn(async (patch: Partial<typeof onboardingState>) => {
+      onboardingState = { ...onboardingState, ...patch };
+      return onboardingState;
+    });
+    installApi({
+      getMymindRoot: vi.fn().mockResolvedValue(rootStatus(true)),
+      getOnboardingState: vi.fn().mockResolvedValue({ completed: false, skill: "pending", provider: "pending" }),
+      updateOnboardingState,
+      listInstalledSkills: vi.fn().mockResolvedValue([])
+    });
+    const onRefresh = vi.fn();
+    render(<AiProvider initial={snapshot}><OnboardingPage bootstrap={{ ...bootstrap, mymindRoot: "/workspace/mymind" }} go={go} onRefresh={onRefresh} /></AiProvider>);
+    await screen.findByRole("heading", { name: "先准备本地工作台" });
+    const finish = screen.getByRole("button", { name: "进入工作台" });
+    expect((finish as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "跳过 Skill" }));
+    await waitFor(() => expect(updateOnboardingState).toHaveBeenCalledWith({ skill: "skipped" }));
+    expect((finish as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "稍后配置" }));
+    await waitFor(() => expect(updateOnboardingState).toHaveBeenCalledWith({ provider: "skipped" }));
+    await waitFor(() => expect((finish as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(finish);
+    await waitFor(() => expect(updateOnboardingState).toHaveBeenCalledWith({ completed: true }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(go).toHaveBeenCalledWith("ai");
   });
 });

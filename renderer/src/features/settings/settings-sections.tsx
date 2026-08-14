@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CliProviderBindings, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -60,11 +60,45 @@ export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferen
 }
 
 export function ProviderSettingsSection({ providers, defaultProviderId, save }: { providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
+  const [installingCli, setInstallingCli] = useState<"claude" | "codex" | null>(null);
+  const [installProgress, setInstallProgress] = useState<CliInstallProgress | null>(null);
+  const [installError, setInstallError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
+
+  useEffect(() => window.cctools.onCliInstallProgress?.((progress) => {
+    setInstallProgress(progress);
+    if (progress.phase === "done" || progress.phase === "cancelled") setInstallingCli(null);
+  }) || undefined, []);
+
+  const installCli = async (cli: "claude" | "codex") => {
+    setInstallError(null);
+    setInstallProgress({ cli, phase: "resolving", message: "正在准备安装…" });
+    setInstallingCli(cli);
+    try {
+      await window.cctools.installCliTool(cli);
+      await window.cctools.aiRefreshProviders();
+    } catch (cause) {
+      setInstallError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
+    } finally {
+      setInstallingCli(null);
+    }
+  };
+
+  const cancelInstall = async (cli: "claude" | "codex") => {
+    await window.cctools.cancelCliToolInstall(cli);
+    setInstallingCli(null);
+  };
+
   return (
     <SettingsPanel title="模型提供方" scope="新会话行为">
       <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
         {providers.length ? providers.map((provider) => {
           const active = provider.id === defaultProviderId;
+          const canInstall = provider.runtime === "native" && provider.installable && !provider.available && provider.version === null
+            && provider.provider !== undefined && (provider.provider === "claude" || provider.provider === "codex");
+          // Installed but not logged in (version known, still unavailable).
+          const canLogin = !provider.available && provider.version !== null
+            && (provider.provider === "claude" || provider.provider === "codex");
+          const installing = installingCli === provider.provider;
           return (
             <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
               <span className="settings-provider-dot" aria-hidden="true" />
@@ -80,6 +114,44 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                     </small>
                   </span>
                 </div>
+                {canInstall ? <div className="settings-provider-install">
+                  {installing ? <>
+                    <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
+                      <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
+                      <small>{installProgress?.message || m.settings.provider.installing}</small>
+                    </div>
+                    <button type="button" className="settings-provider-recheck" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
+                  </> : <button type="button" className="settings-provider-install-button" disabled={installingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
+                    {m.settings.provider.install}
+                  </button>}
+                  <small>{m.settings.provider.installHint}</small>
+                  {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
+                    <span>{m.settings.provider.installFailed}{installError.message}</span>
+                    <button type="button" className="settings-provider-recheck" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
+                  </div> : null}
+                  <details className="settings-provider-manual-steps">
+                    <summary>{m.settings.provider.manualStepsTitle}</summary>
+                    <p>{provider.provider === "claude" ? m.settings.provider.claudeManual : m.settings.provider.codexManual}</p>
+                    <code>{provider.provider === "claude" ? m.settings.provider.claudeManualCommand : m.settings.provider.codexManualCommand}</code>
+                  </details>
+                </div> : null}
+                {canLogin ? <div className="settings-provider-install">
+                  <button type="button" className="settings-provider-install-button" onClick={() => void window.cctools.openCliLogin(provider.provider as "claude" | "codex")}>
+                    {m.settings.provider.openLogin}
+                  </button>
+                  <button type="button" className="settings-provider-recheck" onClick={() => void window.cctools.aiRefreshProviders()}>
+                    {m.settings.provider.recheck}
+                  </button>
+                  <small>{m.settings.provider.loginHint}</small>
+                </div> : null}
+                {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
+                  <summary>{m.settings.provider.wslStepsTitle}</summary>
+                  <ol>
+                    <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
+                    <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
+                    <li>{m.settings.provider.wslStepsRecheck}</li>
+                  </ol>
+                </details> : null}
               </div>
               <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
               <label className="settings-provider-default">

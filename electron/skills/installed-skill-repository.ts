@@ -5,7 +5,6 @@ export const INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION = 1 as const;
 
 export type InstalledSkillStatus = "quarantined" | "installed-not-ready" | "active" | "previous";
 export type InstalledSkillReadiness = "installed-not-ready" | "ready" | "blocked" | "stale";
-export type InstalledSkillExecutionTrust = "denied" | "inspect-only" | "approved-host";
 export type InstalledSkillSignatureStatus = "unsigned" | "valid" | "invalid" | "revoked";
 export type InstalledSkillReviewStatus = "unreviewed" | "automated-scan" | "manually-reviewed";
 export type InstalledSkillUpdatePolicy = "manual" | "download-only";
@@ -28,7 +27,6 @@ export type InstalledSkillRecord = {
   readiness: InstalledSkillReadiness;
   signatureStatus: InstalledSkillSignatureStatus;
   reviewStatus: InstalledSkillReviewStatus;
-  executionTrust: InstalledSkillExecutionTrust;
   skillUpdatePolicy: InstalledSkillUpdatePolicy;
   installedAt: string;
 };
@@ -119,26 +117,11 @@ export class InstalledSkillRepository {
     return target;
   }
 
-  /** Explicit user trust for one exact active package digest. */
-  approveHostExecution(key: string, digest: string): InstalledSkillRecord {
-    const registry = this.read();
-    const index = registry.records.findIndex((record) => record.key === key && record.digest === digest);
-    if (index < 0) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    const current = registry.records[index];
-    if (current.status !== "active") throw new Error("只有 active Skill 才能获得 approved-host 授权。 ");
-    if (current.readiness !== "ready") throw new Error("只有 ready Skill 才能获得 approved-host 授权。 ");
-    const target = { ...current, executionTrust: "approved-host" as const };
-    registry.records[index] = target;
-    this.write(registry);
-    return target;
-  }
-
   /**
-   * Mark a package as changed after installation. This deliberately updates
-   * the trust dimensions independently: a valid signature becomes invalid,
-   * review evidence is discarded, and host execution approval is revoked.
-   * Unsigned packages remain unsigned because there was no signature to
-   * invalidate, but they still require a fresh review/trust decision.
+   * Mark a package as changed after installation. A valid signature becomes
+   * invalid and review evidence is discarded; execution readiness is derived
+   * from the installed digest, static validation and Runtime state rather than
+   * from these informational labels.
    */
   markModified(key: string, digest: string): InstalledSkillRecord {
     const registry = this.read();
@@ -148,10 +131,9 @@ export class InstalledSkillRepository {
     const target: InstalledSkillRecord = {
       ...current,
       signatureStatus: current.signatureStatus === "valid" ? "invalid" : current.signatureStatus,
-      reviewStatus: "unreviewed",
-      executionTrust: "inspect-only"
+      reviewStatus: "unreviewed"
     };
-    if (sameTrustState(current, target)) return current;
+    if (sameReviewState(current, target)) return current;
     registry.records[index] = target;
     this.write(registry);
     return target;
@@ -172,10 +154,7 @@ export class InstalledSkillRepository {
     const records = registry.records.map((record) => {
       if (record.key !== key) return record;
       if (record.digest === digest) {
-        // A newly promoted digest must never inherit host execution approval
-        // from a malformed/legacy registry record. The user must explicitly
-        // approve this exact active package again.
-        return { ...record, status: "active" as const, executionTrust: "inspect-only" as const };
+        return { ...record, status: "active" as const };
       }
       if (record.status === "active") return { ...record, status: "previous" as const };
       if (record.status === "previous") return { ...record, status: "quarantined" as const };
@@ -258,7 +237,8 @@ function validateRegistry(registry: InstalledSkillRegistryFile): void {
 
 function validateRecord(value: unknown): InstalledSkillRecord {
   if (!value || typeof value !== "object") throw new Error("Skill registry record 不是对象");
-  const record = value as Partial<InstalledSkillRecord>;
+  const record = { ...(value as Partial<InstalledSkillRecord>) };
+  delete (record as Record<string, unknown>).executionTrust;
   const normalized = {
     ...record,
     signatureStatus: record.signatureStatus ?? "unsigned",
@@ -275,7 +255,6 @@ function validateRecord(value: unknown): InstalledSkillRecord {
     || !readiness.includes(normalized.readiness as InstalledSkillReadiness)
     || !["unsigned", "valid", "invalid", "revoked"].includes(normalized.signatureStatus || "")
     || !["unreviewed", "automated-scan", "manually-reviewed"].includes(normalized.reviewStatus || "")
-    || !["denied", "inspect-only", "approved-host"].includes(normalized.executionTrust || "")
     || !["manual", "download-only"].includes(normalized.skillUpdatePolicy || "")
     || !nonEmptyString(normalized.installedAt)) {
     throw new Error("Skill registry record schema mismatch");
@@ -295,10 +274,9 @@ function validateRecord(value: unknown): InstalledSkillRecord {
   return normalized as InstalledSkillRecord;
 }
 
-function sameTrustState(left: InstalledSkillRecord, right: InstalledSkillRecord): boolean {
+function sameReviewState(left: InstalledSkillRecord, right: InstalledSkillRecord): boolean {
   return left.signatureStatus === right.signatureStatus
-    && left.reviewStatus === right.reviewStatus
-    && left.executionTrust === right.executionTrust;
+    && left.reviewStatus === right.reviewStatus;
 }
 
 function nonEmptyString(value: unknown): value is string {

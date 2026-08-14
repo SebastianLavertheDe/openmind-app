@@ -86,11 +86,13 @@ App/Skill/Runtime.
 - Publisher + digest; entrypoint / Declared Access / Secret / host-risk diff
   shown before activation.
 - Parallel install; environment prepare only via RuntimeManager and only
-  after the new digest is `approved-host`.
-- Smoke only via ExecutionBroker and only after `approved-host` + run
-  Execution Consent.
-- A new digest may download/verify/static-check pre-approval but cannot
-  activate, prepare environment, or smoke without explicit `approved-host`.
+  after the new exact digest passes static checks and is selected active +
+  ready.
+- Smoke only via ExecutionBroker and only after the active + ready package is
+  resolved for the run.
+- A new digest may download/verify/static-check before activation, but cannot
+  activate or prepare an environment until its exact digest and Runtime are
+  valid.
 - A new digest does not inherit Secret bindings or automation permissions.
 
 ### 6. Runtime update specifics

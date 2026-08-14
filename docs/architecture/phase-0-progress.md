@@ -147,7 +147,7 @@ Remaining Phase 1 work:
   evidence remain external; the local copy-only contract is complete and
   remains separate from legacy settings migration.
 
-## Phase 2 — SkillPackageService — 🟡 LOCAL/GIT SOURCES COMPLETE, EXECUTION GATED
+## Phase 2 — SkillPackageService — 🟡 LOCAL/GIT SOURCES COMPLETE, ACTIVE + READY
 
 The first static package boundary is now implemented in
 `electron/skills/skill-package-service.ts`:
@@ -155,7 +155,7 @@ The first static package boundary is now implemented in
 - local directory Inspect with strict `cctools.skill.yaml` parsing;
 - safe ZIP Inspect/Install with central-directory validation, path traversal,
   duplicate-entry, encrypted/special-file, size and compression-ratio guards;
-- Legacy `SKILL.md` classification as inspect-only, without defaulting to
+- Legacy `SKILL.md` classification as inspection-only, without defaulting to
   `uv`;
 - package path, symlink, hardlink and special-file checks;
 - exclusion of `.env`, virtualenv, cache, logs, browser state, credentials,
@@ -166,10 +166,10 @@ The first static package boundary is now implemented in
   separate from metadata;
 - batch inspection/migration scans the current workspace `.claude/skills`,
   imports only valid Manifest packages, and leaves Legacy `SKILL.md` as
-  inspect-only;
+  inspection-only;
 - Main IPC exposes inspect/migrate/list-installed contracts, and Settings
   provides a basic static-check/import surface that explicitly shows
-  `quarantine`, `installed-not-ready`, `unsigned`, and `inspect-only` state;
+  `quarantine`, `installed-not-ready`, `unsigned`, and inspection-only state;
 - new installs/updates remain `quarantined` / `installed-not-ready`, with
   readiness-gated `active`/`previous` transitions owned by one atomic registry;
 - `InstalledSkillRepository` validates the registry fail-closed, enforces one
@@ -194,19 +194,20 @@ The first static package boundary is now implemented in
   exclusion and quarantine boundary before it can be imported.
 
 This intentionally does not support Signed Catalog sources, runtime-pack
-dependency preparation, signatures for Skill packages, or Skill execution.
-Automatic readiness and package execution remain behind the later
-RuntimeManager, ExecutionConsentService and ExecutionBroker gates. The
-current tests cover the static package boundary, quarantine behavior,
-active/previous transaction behavior, Git source safety, IPC contracts, and
-the Skill Center surface.
+dependency preparation, signatures for Skill packages, or direct package
+execution from the source picker. A successful explicit import is promoted to
+active + ready; RuntimeManager and ExecutionBroker still own dependency
+preparation and the actual execution boundary. The current tests cover the
+static package boundary, quarantine behavior, active/previous transaction
+behavior, Git source safety, IPC contracts, and the Skill Center surface.
 
 Remaining Phase 2 work:
 
 - local interruption coverage now simulates a registry swap failure and verifies
   the active record/package remain intact while staging is cleaned; packaged
   crash drills and Windows/WSL path variants remain external;
-- RuntimeManager-owned dependency preparation and trust promotion (Phase 4/5).
+- RuntimeManager-owned dependency preparation and active + ready execution
+  resolution (Phase 4/5).
 
 ## Phase 3 — Config, Provider, CredentialVault — 🟡 FOUNDATION IN PROGRESS
 
@@ -387,7 +388,7 @@ The first single-process execution chain is now implemented and exercised:
   events and Artifact collection. Retry increments a persisted attempt counter,
   never creates a second terminal Run, and never retries user cancellation.
 - `electron/skills/installed-skill-execution-resolver.ts` now binds generic
-  Runs to an active, ready, host-approved InstalledSkill digest, resolves a
+  Runs to an active, ready InstalledSkill digest, resolves a
   verified RuntimeManager plan, validates capabilities/paths, and supports
   exact-scope secret references plus explicit External ExportLocation
   bindings.
@@ -440,17 +441,17 @@ The first single-process execution chain is now implemented and exercised:
 - `SkillToolRegistry` manual/source calls now use the same installed-package
   resolver as renderer, Workflow and Automation Runs. The old event shape is
   retained at the controller boundary, while package digest/version, Runtime,
-  Artifact declarations, root generation and host trust all come from the
+  Artifact declarations, root generation and readiness all come from the
   active Installed Skill. Source trigger context is type/length checked by the
   resolver before entering the Broker's minimal environment.
 - When the Installed Resolver is available, AI slash/tool definitions are
-  derived from active, ready, `approved-host` formal Manifests. Legacy
+  derived from active, ready formal Manifests. Legacy
   `SKILL.md` discovery remains available for migration/inspection but is not
   exposed as a runnable definition; Renderer receives a logical installed
   package identifier and `managed-runtime`, never the absolute executable.
 - Renderer no longer exposes the generic manual `startSkillRun` boundary.
   Internal source, Automation and Workflow submissions remain behind
-  active/ready/approved-host package checks; no Broker legacy opt-in remains.
+  active/ready package checks; no Broker legacy opt-in remains.
 - `CCTOOLS_MYMIND_ROOT` and `CCTOOLS_ROOT_GENERATION` are pinned into the AI
   worker bootstrap so root switching restarts the Broker with a new snapshot.
 - Automation now has a versioned shared Rule/Run/Schedule contract, an
@@ -577,19 +578,19 @@ from the runnable Skill migration list. Production packages continue to carry
 their own adapter rather than importing `_shared` through a workspace-relative
 path.
 
-Installed Skill trust metadata now keeps signature, review, host-execution
-trust, and update policy independent. `SkillPackageService` audits both the
-app-private installed copy and a local source before exposing records; a
-changed digest clears review evidence, turns a previously valid signature into
-`invalid`, and resets `approved-host` to `inspect-only`. No publisher signing
-or Catalog is introduced by this local integrity gate.
+Installed Skill integrity metadata keeps signature, review and update policy
+independent. `SkillPackageService` audits both the app-private installed copy
+and a local source before exposing records; a changed digest clears review
+evidence and turns a previously valid signature into `invalid`. Static
+inspection, exact digest checks and active + ready state remain required; no
+publisher signing or Catalog is introduced by this local integrity gate.
 
 New candidate versions also receive a deterministic Manifest capability diff in
 Skill Center (added/removed mymind, network, browser and process capabilities).
-Promotion always resets a candidate to `inspect-only`, while Broker execution
-consent remains bound to the complete digest plus capability fingerprint. This
-keeps the local re-authorization path explicit without adding publisher signing
-or a Signed Catalog.
+Promotion requires a candidate to pass static inspection and Runtime
+preparation before it becomes active + ready; Broker execution remains bound
+to the complete digest plus capability fingerprint. This keeps the local
+integrity path explicit without adding publisher signing or a Signed Catalog.
 
 `desktop-app/scripts/test_batch_b_skill_overlays.py` covers the five Batch B
 configuration/path overlays from an unrelated working directory.
@@ -634,8 +635,8 @@ Renderer and therefore show the binding without leaking a physical path.
 The local UI scope now also includes:
 
 - a standalone Skill Center route with installed/workspace status, source and
-  digest details, quarantine import, update/rollback/uninstall, host trust and
-  revoke actions;
+  digest details, quarantine import, active + ready status, update/rollback and
+  uninstall actions;
 - a dynamic per-Process-Skill Run form driven by the Manifest input/config/artifact
   schema, Provider Profile and Export Location selectors, fixed root snapshot,
   Main-only validation boundary and no Secret/executable fields in Renderer;
@@ -670,7 +671,7 @@ clean-machine, crash/repair and manual-upgrade evidence remains external.
 
 Installed `kind: agent` packages now run only from an AI console through the
 selected Claude Code CLI or Codex CLI bridge. The bridge resolves an active,
-ready, exact-digest, `approved-host` package from the app-private SkillStore.
+ready, exact-digest package from the app-private SkillStore.
 Codex receives the boundary-checked package `SKILL.md` through its app-server
 bridge; Claude receives bounded package `SKILL.md`/`references` content
 transiently with project-local Skill discovery disabled.

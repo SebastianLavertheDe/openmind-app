@@ -17,12 +17,34 @@ CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端�
 
 - 打包 App 的产品目标是 Windows 11 和现代 macOS；Linux 仅作为开发/测试环境，
   不发布 Linux AppImage/deb/rpm，也不提供 Linux 正式支持矩阵。
-- 打包后的 managed Skill 运行依赖 App 私有 Runtime Pack；不能因为宿主机恰好安装了
+- **产品运行依赖（App 自带，用户无需安装）**：打包后的 managed Skill 运行依赖
+  App 私有 Runtime Pack（Python/uv/ffmpeg 等）；不能因为宿主机恰好安装了
   Python、`uv`、Node、Git 或 ffmpeg 就静默改变运行路径。真实 Windows/macOS
   clean-machine 验收仍见 `docs/CLEAN_MACHINE_EVIDENCE.md`。
+- **可选外部依赖（影响 AI 会话，不影响 Skill 运行）**：
+  - Claude Code / Codex CLI：未安装时可在「设置 → AI 与模型」点 **一键安装**，
+    安装到 App 私有 `userData/tools/bin`，不修改系统 PATH；已安装但未登录时提供
+    「打开终端登录」与重新检测。WSL 场景提供分步复制指引，不做一键安装。
+  - `config/providers.yaml` 的 API key：AI 类 Skill 与会话需要；key 不会随
+    安装包分发，需用户自行配置。
 - 从源码开发需要 Node.js 22.12+、Git、Python 3/`uv`，以及要测试的 Claude Code
   或 Codex CLI 登录环境；这些是开发/Provider E2E 前置，不是 managed packaged
   Skill 的产品运行依赖。
+
+## 分发给别人
+
+把打包产物发给没有开发环境的用户时，最小交付是两样东西：
+
+1. `desktop-app/dist/` 下的 Windows 安装包 / Portable 或 macOS dmg；
+2. 一个包含 skill 的公开 HTTPS Git 仓库地址（或 zip 包）。
+
+对方流程：安装 App → 首启引导选择 mymind 根目录 → 技能中心「添加其他来源」
+粘贴 Git 地址 → 检查 → 安装（安装即生效，可直接运行）→ 需要会话/AI 能力时再
+在设置里一键安装 CLI 或配置自己的 provider key。
+
+> 注意：自本版本起，Installed Skill 的 `executionTrust` 审批门禁已移除——
+> 从 Git/ZIP 来源安装的 skill 安装完成即可在本机执行。安装前的静态检查、
+> quarantine 与 digest 校验保持不变。
 
 Windows 安装包可连接 Windows 本地项目，也可直接连接：
 

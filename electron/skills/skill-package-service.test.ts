@@ -89,7 +89,6 @@ describe("SkillPackageService", () => {
 
     expect(installed.status).toBe("quarantined");
     expect(installed.readiness).toBe("installed-not-ready");
-    expect(installed.executionTrust).toBe("inspect-only");
     expect(service.listInstalled()).toHaveLength(1);
     expect(fs.existsSync(path.join(installed.packagePath, "run.sh"))).toBe(true);
     expect(fs.existsSync(path.join(installed.packagePath, ".env.local"))).toBe(false);
@@ -365,7 +364,7 @@ describe("SkillPackageService", () => {
     expect(service.getInstalled(candidate.key, candidate.digest)?.status).toBe("previous");
   });
 
-  it("audits the installed copy and local source before exposing active trust", () => {
+  it("audits the installed copy and local source after activation", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
@@ -373,7 +372,6 @@ describe("SkillPackageService", () => {
     const installed = service.install(source);
     service.markReadiness(installed.key, installed.digest, "ready");
     service.activate(installed.key, installed.digest);
-    service.approveHostExecution(installed.key, installed.digest);
 
     fs.writeFileSync(path.join(installed.packagePath, "run.sh"), "echo tampered\n");
 
@@ -383,10 +381,8 @@ describe("SkillPackageService", () => {
       readiness: "ready",
       signatureStatus: "unsigned",
       reviewStatus: "unreviewed",
-      executionTrust: "inspect-only",
       skillUpdatePolicy: "manual"
     });
-    expect(() => service.approveHostExecution(installed.key, installed.digest)).toThrow(/digest/);
   });
 
   it("uninstalls a candidate through a staging rename without touching the active version", () => {

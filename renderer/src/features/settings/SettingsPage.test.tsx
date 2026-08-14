@@ -6,8 +6,8 @@ import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
 
 const providers: ProviderCapabilities[] = [
-  { id: "codex-preview", provider: "codex", label: "Codex CLI", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: false, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false },
-  { id: "claude-preview", provider: "claude", label: "Claude Code", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, oneMillion: true }
+  { id: "codex-preview", provider: "codex", label: "Codex CLI", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: false, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
+  { id: "claude-preview", provider: "claude", label: "Claude Code", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, installable: false, oneMillion: true }
 ];
 
 const skills: SkillDefinition[] = [
@@ -167,6 +167,107 @@ describe("SettingsPage", () => {
     const navigation = screen.getByRole("navigation", { name: "设置分类" });
     expect(within(navigation).getByRole("button", { name: "权限与安全" })).toBeTruthy();
     expect(within(navigation).queryByRole("button", { name: "常规" })).toBeNull();
+  });
+
+  it("offers one-click install for an uninstalled native CLI provider", async () => {
+    const unavailable: ProviderCapabilities[] = [{
+      id: "claude-native", provider: "claude", label: "Claude Code（本机）", runtime: "native",
+      available: false, version: null, supportsApprovals: true, supportsResume: true, supportsImages: true,
+      diagnostic: "Claude Code 未安装在 Windows PATH 中。", detectedModel: null, contextWindow: null,
+      installable: true, oneMillion: false
+    }];
+    const installCliTool = vi.fn().mockResolvedValue({ cli: "claude", installed: true, version: "v1.2.3", digest: "d".repeat(64), sourceUrl: "https://github.com", installedAt: "2026-08-14T00:00:00Z", executablePath: "/tools/bin/claude" });
+    const aiRefreshProviders = vi.fn().mockResolvedValue(undefined);
+    window.cctools = makeApi({ installCliTool, aiRefreshProviders });
+    render(
+      <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
+        <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
+        <FeedbackHost />
+      </AiProvider>
+    );
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    const installButton = await screen.findByRole("button", { name: "一键安装" });
+    expect(screen.getByText("安装到应用私有目录，不影响系统环境。")).toBeTruthy();
+    fireEvent.click(installButton);
+    await waitFor(() => expect(installCliTool).toHaveBeenCalledWith("claude"));
+    await waitFor(() => expect(aiRefreshProviders).toHaveBeenCalled());
+  });
+
+  it("shows progress, cancel and manual fallback for native CLI installation", async () => {
+    const unavailable: ProviderCapabilities[] = [{
+      id: "codex-native", provider: "codex", label: "Codex CLI（本机）", runtime: "native",
+      available: false, version: null, supportsApprovals: true, supportsResume: true, supportsImages: true,
+      diagnostic: "Codex 未安装。", detectedModel: null, contextWindow: null, installable: true, oneMillion: false
+    }];
+    let progressListener: ((progress: { cli: "codex"; phase: "downloading"; receivedBytes: number; totalBytes: number; message: string }) => void) | undefined;
+    const installCliTool = vi.fn(() => new Promise<never>(() => undefined));
+    const cancelCliToolInstall = vi.fn().mockResolvedValue(true);
+    window.cctools = makeApi({
+      installCliTool,
+      cancelCliToolInstall,
+      onCliInstallProgress: (callback) => { progressListener = callback as typeof progressListener; return () => undefined; }
+    });
+    render(
+      <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
+        <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
+        <FeedbackHost />
+      </AiProvider>
+    );
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    fireEvent.click(await screen.findByRole("button", { name: "一键安装" }));
+    await waitFor(() => expect(installCliTool).toHaveBeenCalledWith("codex"));
+    progressListener?.({ cli: "codex", phase: "downloading", receivedBytes: 50, totalBytes: 100, message: "下载中" });
+    expect(screen.getByRole("progressbar", { name: /Codex CLI.*安装进度/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "取消安装" }));
+    await waitFor(() => expect(cancelCliToolInstall).toHaveBeenCalledWith("codex"));
+    expect(screen.getByText("查看手动安装步骤")).toBeTruthy();
+  });
+
+  it("shows retry after a native CLI install failure", async () => {
+    const unavailable: ProviderCapabilities[] = [{
+      id: "claude-native", provider: "claude", label: "Claude Code（本机）", runtime: "native",
+      available: false, version: null, supportsApprovals: true, supportsResume: true, supportsImages: true,
+      diagnostic: "Claude Code 未安装。", detectedModel: null, contextWindow: null, installable: true, oneMillion: false
+    }];
+    const installCliTool = vi.fn()
+      .mockRejectedValueOnce(new Error("网络失败"))
+      .mockResolvedValueOnce({ cli: "claude", installed: true, version: "2.1.0", digest: "d".repeat(64), sourceUrl: "https://claude.ai/install.sh", installedAt: "2026-08-14T00:00:00Z", executablePath: "/tools/bin/claude" });
+    window.cctools = makeApi({ installCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
+    render(
+      <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
+        <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
+        <FeedbackHost />
+      </AiProvider>
+    );
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    fireEvent.click(await screen.findByRole("button", { name: "一键安装" }));
+    expect(await screen.findByText(/一键安装失败：网络失败/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重试安装" }));
+    await waitFor(() => expect(installCliTool).toHaveBeenCalledTimes(2));
+  });
+
+  it("uses manual copy steps for an unavailable WSL provider", async () => {
+    const unavailable: ProviderCapabilities[] = [{
+      id: "codex-wsl", provider: "codex", label: "Codex CLI（WSL）", runtime: "wsl",
+      available: false, version: null, supportsApprovals: true, supportsResume: true, supportsImages: true,
+      diagnostic: "WSL 未安装。", detectedModel: null, contextWindow: null, installable: false, oneMillion: false
+    }];
+    render(
+      <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
+        <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
+        <FeedbackHost />
+      </AiProvider>
+    );
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    expect(screen.queryByRole("button", { name: "一键安装" })).toBeNull();
+    fireEvent.click(screen.getByText("查看 WSL 手动安装步骤"));
+    expect(screen.getByText("npm install -g @openai/codex")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "复制命令" })).toHaveLength(2);
   });
 
   it("manages the Provider list inside AI 与模型 without redundant navigation tabs", async () => {
@@ -455,7 +556,6 @@ describe("SettingsPage", () => {
       readiness: "installed-not-ready",
       signatureStatus: "unsigned",
       reviewStatus: "unreviewed",
-      executionTrust: "inspect-only",
       skillUpdatePolicy: "manual",
       installedAt: "2026-08-05T00:00:00.000Z"
     };

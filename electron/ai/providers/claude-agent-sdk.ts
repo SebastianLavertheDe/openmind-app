@@ -15,6 +15,7 @@ import {
 } from "../browser-evidence";
 import { buildClaudeSkillBridgeInstructions } from "./skill-bridge";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
+import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 
 /** 有图片附件时，把 prompt 转成 SDK 多模态 user message 流（image blocks + text block）。 */
 async function* claudeImageMessageStream(
@@ -910,6 +911,10 @@ export function resolveNativeClaudeExecutable(): string {
 }
 
 function resolveLocalClaudePath(): string | null {
+  // A one-click installed claude lives in the app-private tools/bin; prefer
+  // it over user-managed installs.
+  const appTool = resolveAppToolExecutable("claude");
+  if (appTool) return appTool;
   if (process.platform !== "win32") return null;
   const home = process.env.USERPROFILE || "";
   const appdata = process.env.APPDATA || "";

@@ -24,14 +24,16 @@
 There is **one** trust boundary: the OS user account. Every Process skill,
 External Agent, Browser CLI, and their children run as the current OS user.
 The app's process-tree management, minimal-env, secret-scope, and redaction
-are **hygiene and UX**, not a security sandbox. Approved-host code can:
+are **hygiene and UX**, not a security sandbox. An installed active + ready
+Skill can:
 - read any file the user can read,
 - open any network connection the user can open,
 - spawn any process,
 - modify any mymind path (not just declared ones).
 
-Therefore the strongest control is **gating which code reaches approved-host**
-in the first place (ADR-004).
+Therefore the strongest controls are **static inspection before installation,
+exact-digest checks, Runtime readiness and explicit active-version selection**;
+none of them turn a Skill into an OS sandbox.
 
 ## 3. Threats & mitigations
 
@@ -39,7 +41,7 @@ in the first place (ADR-004).
 |---|---|---|
 | Malicious ZIP/Git path traversal (Zip Slip) | staging extraction; reject absolute/`..`/device/symlink-out/hardlink; cap count/size/ratio/time | — |
 | Skill impersonates an existing id | install dedups by `publisher+id+version+digest`; impersonation surfaces a conflict, not silent replace | — |
-| Publisher change | publisher is part of the binding; change resets `executionTrust` to inspect-only | — |
+| Publisher change | publisher and digest are part of the installed binding; changed content must pass inspection and be installed as a new active version | — |
 | Catalog replay of old version | anti-downgrade rule; `previous`-only rollback path | — |
 | Runtime binary tampered | hash + signature + expiry + embedded root; fail closed | offline-root compromise |
 | Install hook arbitrary exec | package install never executes package code; npm `postinstall` disabled; build-backend install treated as host-code exec, gated by digest approval | — |
@@ -50,11 +52,11 @@ in the first place (ADR-004).
 | Arbitrary subprocess | declared capability; Broker tracks the process tree; best-effort kill on stop; residual reporting | spawned children that double-fork can escape tracking |
 | Infinite log/file/CPU/memory | limits on stdout size, file count/size, timeout, graceful-stop, CPU/memory quotas (best-effort on platforms that lack enforcement) | — |
 | Process tree escape | Windows Job Object; POSIX process group; orphan detection on worker restart | untrackable descendants |
-| Agent prompt injection | instructions & web content are untrusted; only exact-digest, `approved-host` packages cross the CLI bridge; Claude Code/Codex own tool approval and session controls | the external CLI and its tools retain the OS user's authority; the app cannot enforce per-tool or per-path isolation |
+| Agent prompt injection | instructions & web content are untrusted; only exact-digest, active + ready packages cross the CLI bridge; Claude Code/Codex own tool approval and session controls | the external CLI and its tools retain the OS user's authority; the app cannot enforce per-tool or per-path isolation |
 | Agent provider secret confusion | Agent bridge never resolves a Provider Profile, injects its Credential, or loads a Skill `.env`; CLI authentication stays in the selected CLI | a CLI may use credentials from its own user configuration, outside the App CredentialVault boundary |
 | Malicious update | three independent signed chains; trust chain (ADR-009) is a gate, not optional | — |
 | Crash mid-migration leaves half-state | staging + atomic switch + schemaVersion last; fail does not change active | — |
-| mymind modified by 3rd-party approved-host skill or external CLI | pre/post tree audit for managed Process/Workflow runs; App/App-native Workflow paths use the Resolver; bridge package/reference paths are boundary-checked | cannot technically prevent an external CLI or approved-host process from modifying other paths — only detect where an App-owned audit exists |
+| mymind modified by a third-party Skill or external CLI | pre/post tree audit for managed Process/Workflow runs; App/App-native Workflow paths use the Resolver; bridge package/reference paths are boundary-checked | cannot technically prevent an external CLI or Skill process from modifying other paths — only detect where an App-owned audit exists |
 
 ## 4. Security acceptance (must pass before GA)
 
@@ -72,19 +74,19 @@ in the first place (ADR-004).
   or diagnostic-platform audit.
 - Secret delete/rotate → revoke injection, delete vault copy, best-effort kill
   trackable runs.
-- Local skill modified → signature/review/executionTrust update independently;
-  executionTrust → inspect-only.
+- Local Skill modified → digest changes, review evidence is cleared and the
+  package must pass static inspection before a new active + ready install.
 - Tampered runtime → refused.
-- `executionTrust=inspect-only` cannot run.
-- Managed Process/Workflow manual run cannot bypass executionTrust, risk
-  confirmation or Broker. Agent Skills have no manual/Broker run path: only an
-  approved package may cross the selected Claude Code/Codex AI-console bridge.
+- Non-active or non-ready packages cannot run. Managed Process/Workflow manual
+  run cannot bypass digest, Runtime or Broker checks. Agent Skills have no
+  manual/Broker run path: only an active + ready package may cross the selected
+  Claude Code/Codex AI-console bridge.
 - Publisher revocation + key rotation have a tested recovery path.
 
 ## 5. Out of scope (explicit non-goals)
 
 - Container/VM/separate-account isolation.
-- Technically preventing an approved-host skill from reading other files or
+- Technically preventing an installed Skill from reading other files or
   opening network connections.
 - Recovering secrets from escaped subprocesses, skill-created files, memory
   copies, or exfiltrated data.

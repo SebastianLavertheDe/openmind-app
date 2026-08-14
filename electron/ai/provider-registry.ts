@@ -9,6 +9,8 @@ import { MIN_MANAGED_CLAUDE_VERSION, resolveNativeClaudeExecutable, supportsMana
 import { resolveCliProvider } from "../config/providers-yaml";
 import type { ProviderYamlEntry } from "../../shared/providers-yaml";
 import { runProviderCommand as runCommand } from "./provider-command-runner";
+import { detectCliToolPlatform, resolveAppToolExecutable } from "../install/cli-installer-service";
+import { getAppPaths } from "../paths/app-paths-service";
 
 interface ProbeResult {
   version: string | null;
@@ -88,6 +90,7 @@ export class ProviderRegistry {
           supportsResume: true,
           supportsImages: true,
           diagnostic: probe.diagnostic,
+          installable: false,
           ...modelFields(spec.kind, managed[spec.kind]?.model || model)
         });
       }
@@ -105,11 +108,26 @@ export class ProviderRegistry {
         supportsResume: true,
         supportsImages: true,
         diagnostic: probe.diagnostic,
+        installable: cliToolInstallable(spec.kind),
         ...modelFields(spec.kind, managed[spec.kind]?.model || probeNativeModel(spec.kind))
       });
     }
     return providers;
   }
+}
+
+/** The first distribution phase promises native Windows/macOS only;
+ * Linux and WSL remain manual until their installer channels are verified. */
+function cliToolInstallable(kind: ProviderKind): boolean {
+  return (process.platform === "win32" || process.platform === "darwin")
+    && detectCliToolPlatform() !== null
+    && (kind === "claude" || kind === "codex");
+}
+
+/** App-private tools/bin executables that probes try before PATH. */
+function appToolCandidates(kind: ProviderKind): string[] {
+  const resolved = resolveAppToolExecutable(kind);
+  return resolved ? [resolved] : [];
 }
 
 /** 把探测到的模型 id 解析成 ProviderCapabilities 的三个字段。 */
@@ -239,9 +257,20 @@ function runWslProviderCommand(
 
 async function probeNativeProvider(spec: ProviderProbeSpec, managed: ProviderYamlEntry | null): Promise<ProbeResult> {
   if (process.platform !== "win32") {
-    const found = await runCommand(spec.kind, ["--version"]);
+    // App-private one-click installs are probed before PATH so a fresh
+    // install is picked up without restarting the host shell environment.
+    const candidates = appToolCandidates(spec.kind).filter((candidate) => {
+      try { return fs.existsSync(candidate); } catch { return false; }
+    });
+    let found: string | null = null;
+    let command: string = spec.kind;
+    for (const candidate of candidates) {
+      found = await runCommand(candidate, ["--version"]);
+      if (found) { command = candidate; break; }
+    }
+    if (!found) found = await runCommand(spec.kind, ["--version"]);
     if (!found) return { version: null, diagnostic: messages.errors.provider.notInPath(spec.label) };
-    const extra = spec.kind === "claude" && managed ? null : await spec.probeNativeExtra(spec.kind);
+    const extra = spec.kind === "claude" && managed ? null : await spec.probeNativeExtra(command);
     if (extra) return { version: spec.kind === "claude" ? found : null, diagnostic: extra };
     return { version: found, diagnostic: null };
   }
@@ -278,9 +307,12 @@ async function locateWindowsCommands(command: string): Promise<string[]> {
   const found: string[] = [];
   const home = process.env.USERPROFILE || "";
   const appdata = process.env.APPDATA || "";
-  const explicit = command === "claude"
-    ? [path.join(home, ".local\\bin\\claude.exe"), path.join(appdata, "npm\\claude.cmd")]
-    : [path.join(home, ".local\\bin\\codex.exe"), path.join(appdata, "npm\\codex.cmd")];
+  const explicit = [
+    ...appToolCandidates(command as ProviderKind),
+    ...(command === "claude"
+      ? [path.join(home, ".local\\bin\\claude.exe"), path.join(appdata, "npm\\claude.cmd")]
+      : [path.join(home, ".local\\bin\\codex.exe"), path.join(appdata, "npm\\codex.cmd")])
+  ];
   for (const candidate of explicit) {
     if (candidate && !found.includes(candidate)) {
       try { if (fs.existsSync(candidate)) found.push(candidate); } catch { /* ignore */ }

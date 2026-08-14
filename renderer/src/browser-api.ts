@@ -5,6 +5,7 @@ import type {
   CreativeProjectManifest,
   CreativeStage,
   DesktopApi,
+  OnboardingState,
   ProvidersYamlInput,
   ProvidersYamlView,
   SkillDefinition,
@@ -20,8 +21,8 @@ export function installBrowserPreviewApi(): boolean {
   let snapshot: AiSnapshot = {
     projectRoot: "/home/say/work/github/cctools",
     providers: [
-      { id: "codex-preview", provider: "codex", label: "Codex · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false },
-      { id: "claude-preview", provider: "claude", label: "Claude Code · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, oneMillion: true }
+      { id: "codex-preview", provider: "codex", label: "Codex · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
+      { id: "claude-preview", provider: "claude", label: "Claude Code · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, installable: false, oneMillion: true }
     ],
     sessions: [{
       schemaVersion: 1,
@@ -160,6 +161,7 @@ export function installBrowserPreviewApi(): boolean {
     workflowAutoArchiveEnabled: false,
     workflowAutoBriefOnSourceComplete: false
   };
+  let onboardingState: OnboardingState = { completed: true, skill: "complete", provider: "complete" };
   const skills: SkillDefinition[] = [
     { id: "rss-article-saver", title: "RSS 文章抓取", description: "拉取订阅、提取正文并保存到文章库。", cwd: ".claude/skills/rss-article-saver", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/"], timeoutMs: 7200000 },
     { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["mymind/daily-summary/${date}_daily_summary.md"], timeoutMs: 3600000 },
@@ -179,6 +181,7 @@ export function installBrowserPreviewApi(): boolean {
       mymindRoot: `${snapshot.projectRoot}/mymind`,
       workspaceRoot: snapshot.projectRoot,
       validRepo: true,
+      onboardingCompleted: true,
       runtime: "浏览器预览 · Preview 数据",
       environment: { mode: "preview", platform: "web" },
       overview: { repoRoot: snapshot.projectRoot, metrics: { articles: 28, posts: 14, summaries: 1, topics: 9, reddit: 5 }, recent: [] },
@@ -439,6 +442,8 @@ export function installBrowserPreviewApi(): boolean {
     selectWorkspaceRoot: async () => snapshot.projectRoot,
     getPreferences: async () => preferences,
     updatePreferences: async (patch) => { preferences = { ...preferences, ...patch }; return preferences; },
+    getOnboardingState: async () => onboardingState,
+    updateOnboardingState: async (patch) => { onboardingState = { ...onboardingState, ...patch }; return onboardingState; },
     resetPreferences: async () => { preferences = { ...preferences, themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default" }; return preferences; },
     importPreferences: async () => ({ imported: true, preferences }),
     exportAppStateBackup: async () => null,
@@ -515,12 +520,15 @@ export function installBrowserPreviewApi(): boolean {
     rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: ["20260610"], itemCount: 1, indexPath: ".cctools/content-index.json", statePath: ".cctools/content-state.json", rebuiltAt: new Date().toISOString() }),
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
+    installCliTool: async () => { throw new Error("浏览器预览不支持一键安装 CLI。 "); },
+    cancelCliToolInstall: async () => false,
+    listCliToolStatuses: async () => [],
+    openCliLogin: async () => { throw new Error("浏览器预览不支持打开终端登录。 "); },
     aiRefreshSkills: async () => skills,
     inspectSkillWorkspace: async () => [],
     inspectInstalledSkill: async () => null,
     migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
     listInstalledSkills: async () => [],
-    approveInstalledSkillHost: async () => { throw new Error("浏览器预览不管理 Installed Skill 信任。 "); },
     listSkillRuns: async () => [],
     getSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
     getSkillRunEvents: async () => [],
@@ -562,7 +570,8 @@ export function installBrowserPreviewApi(): boolean {
     onAiEvent: (callback) => { listeners.add(callback as never); return () => listeners.delete(callback as never); },
     onSkillEvent: () => () => {},
     onSkillRunEvent: () => () => {},
-    onRuntimePackDownloadEvent: () => () => {}
+    onRuntimePackDownloadEvent: () => () => {},
+    onCliInstallProgress: () => () => {}
   };
   window.cctools = api;
   return true;

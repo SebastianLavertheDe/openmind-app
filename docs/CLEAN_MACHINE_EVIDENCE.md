@@ -47,6 +47,31 @@ formal Linux support and the WSL support matrix are out of scope.
 | any-external-export-relink | pending | |
 | any-app-crash-recovery | pending | |
 
+## Distribution UX acceptance (W1–W5)
+
+The existing matrix rows cover the packaged product gate. For the distribution
+UX additions, the target Windows 11 x64 and macOS Apple Silicon clean-machine
+runs must additionally record these assertions in the same redacted evidence
+bundle:
+
+- import a public HTTPS Git Skill: inspect identity/digest, confirm install,
+  observe active + ready in Skill Center, and run it without a terminal;
+- import a ZIP/local directory and confirm warnings/issues are visible before
+  installation;
+- install Claude Code and Codex from Settings without system Node/npm, verify
+  the launcher and manifest under App-private `userData/tools`, restart the App,
+  and confirm detection is `app-tools` before PATH fallback;
+- cancel an install and verify no staging directory or partial manifest remains;
+- complete CLI login in the external terminal, return to Settings and use
+  “重新检测”; for WSL, verify only the manual copy steps are shown;
+- complete or skip all three onboarding steps and verify the next launch enters
+  the main workspace without repeating onboarding.
+
+Local automated evidence for these flows is covered by the installer, IPC,
+provider, Skills, Settings and Onboarding unit tests. It is not a substitute
+for the target-host run; do not mark the matrix `complete` from this Linux
+development host.
+
 ## Commands
 
 ```bash

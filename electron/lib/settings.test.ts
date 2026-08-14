@@ -24,6 +24,8 @@ import {
   resetPreferences,
   getEnvironmentDiagnostics,
   settingsFile,
+  getOnboardingState,
+  updateOnboardingState,
   DEFAULT_PREFERENCES
 } from "./settings";
 
@@ -124,5 +126,13 @@ describe("settings path handling", () => {
     const diagnostics = getEnvironmentDiagnostics();
     expect(diagnostics.some((item) => item.id === "node")).toBe(true);
     expect(diagnostics.some((item) => item.id === "repo" && item.status === "ok")).toBe(true);
+  });
+
+  it("persists the first-run onboarding state in app-private settings", () => {
+    expect(getOnboardingState()).toEqual({ completed: false, skill: "pending", provider: "pending" });
+    const updated = updateOnboardingState({ skill: "skipped", provider: "complete" });
+    expect(updated).toEqual({ completed: false, skill: "skipped", provider: "complete" });
+    expect(getOnboardingState()).toEqual(updated);
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).onboarding).toEqual(updated);
   });
 });

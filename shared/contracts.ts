@@ -452,6 +452,8 @@ export const ProviderCapabilitiesSchema = z.object({
   supportsResume: z.boolean(),
   supportsImages: z.boolean(),
   diagnostic: z.string().nullable().default(null),
+  /** 未安装时是否支持一键安装（App 私有目录，仅 native Windows/macOS/Linux）。 */
+  installable: z.boolean().default(false),
   /** 探测到的 provider 当前生效模型 id（读 codex config / Claude settings），探测不到为 null。 */
   detectedModel: z.string().nullable().default(null),
   /** 该模型的上下文窗口（token），未知为 null。 */
@@ -460,6 +462,27 @@ export const ProviderCapabilitiesSchema = z.object({
   oneMillion: z.boolean().default(false)
 });
 export type ProviderCapabilities = z.infer<typeof ProviderCapabilitiesSchema>;
+
+export const CliToolStatusSchema = z.object({
+  cli: z.enum(["claude", "codex"]),
+  installed: z.boolean(),
+  version: z.string().nullable(),
+  digest: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  installedAt: z.string().nullable(),
+  executablePath: z.string()
+});
+export type CliToolStatusView = z.infer<typeof CliToolStatusSchema>;
+
+export const CliInstallProgressSchema = z.object({
+  cli: z.enum(["claude", "codex"]),
+  phase: z.enum(["resolving", "downloading", "verifying", "extracting", "installing", "done", "cancelled"]),
+  receivedBytes: z.number().int().nonnegative().optional(),
+  totalBytes: z.number().int().nonnegative().optional(),
+  version: z.string().optional(),
+  message: z.string().max(240).optional()
+});
+export type CliInstallProgress = z.infer<typeof CliInstallProgressSchema>;
 
 export const StartRunInputSchema = z.object({
   sessionId: z.string().optional(),
@@ -759,7 +782,6 @@ export interface InstalledSkillView {
   readiness: "installed-not-ready" | "ready" | "blocked" | "stale";
   signatureStatus: "unsigned" | "valid" | "invalid" | "revoked";
   reviewStatus: "unreviewed" | "automated-scan" | "manually-reviewed";
-  executionTrust: "denied" | "inspect-only" | "approved-host";
   skillUpdatePolicy: "manual" | "download-only";
   installedAt: string;
 }
@@ -1134,6 +1156,15 @@ export const PreferencesImportResultSchema = z.object({
 });
 export type PreferencesImportResult = z.infer<typeof PreferencesImportResultSchema>;
 
+export const OnboardingStepStatusSchema = z.enum(["pending", "complete", "skipped"]);
+export type OnboardingStepStatus = z.infer<typeof OnboardingStepStatusSchema>;
+export const OnboardingStateSchema = z.object({
+  completed: z.boolean(),
+  skill: OnboardingStepStatusSchema,
+  provider: OnboardingStepStatusSchema
+});
+export type OnboardingState = z.infer<typeof OnboardingStateSchema>;
+
 /**
  * Product environment is a machine-readable contract. `runtime` remains a
  * human-facing diagnostic label and must not be parsed for product behavior.
@@ -1151,6 +1182,8 @@ export type AppBootstrap = {
   /** ADR-001: optional AI/code workspace, independent of mymind. */
   workspaceRoot: string;
   validRepo: boolean;
+  /** False only while the first-start checklist still needs attention. */
+  onboardingCompleted?: boolean;
   runtime: string;
   environment: AppEnvironment;
   overview: AppOverview;
@@ -1297,6 +1330,8 @@ export interface DesktopApi {
   setWorkspaceRoot(path: string): Promise<string>;
   selectWorkspaceRoot(): Promise<string | null>;
   getPreferences(): Promise<UserPreferences>;
+  getOnboardingState(): Promise<OnboardingState>;
+  updateOnboardingState(patch: Partial<OnboardingState>): Promise<OnboardingState>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;
   resetPreferences(section?: string): Promise<UserPreferences>;
   exportAppStateBackup(): Promise<AppStateBackupReport | null>;
@@ -1333,6 +1368,12 @@ export interface DesktopApi {
   aiRefresh(): Promise<AiSnapshot>;
   /** 异步重新探测 provider（启动后/登录后/换模型后），完成后推送新 snapshot；不在 send 路径上。 */
   aiRefreshProviders(): Promise<void>;
+  /** 一键安装 CLI（Claude Code / Codex）到 App 私有 tools/bin；安装即用户信任决定。 */
+  installCliTool(cli: "claude" | "codex"): Promise<CliToolStatusView>;
+  cancelCliToolInstall(cli: "claude" | "codex"): Promise<boolean>;
+  listCliToolStatuses(): Promise<CliToolStatusView[]>;
+  /** 打开系统终端并引导 CLI 登录；凭据只进入 CLI 自己的登录流程。 */
+  openCliLogin(cli: "claude" | "codex"): Promise<void>;
   /** 重新扫描 .claude/skills/ 下所有 SKILL.md，返回最新 skill 列表。新对话开始时调用。 */
   aiRefreshSkills(): Promise<SkillDefinition[]>;
   /** 静态检查当前 workspace 下的 .claude/skills，不执行包内代码。 */
@@ -1351,11 +1392,10 @@ export interface DesktopApi {
   /** 选择本地目录或 ZIP；Git 通过 inspectSkillSource 输入地址。 */
   selectSkillPackageSource?(): Promise<import("./skill-package-sources").SkillPackageSourceInput | null>;
   /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。 */
-  inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<SkillPackageInspectionView>;
+  inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, requestId?: string): Promise<SkillPackageInspectionView>;
+  cancelSkillSourceInspection?(requestId: string): Promise<boolean>;
   /** 将检查过的本地/Git 来源写入 quarantine；不执行包代码。 */
   installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
-  /** 对 exact active digest 授予 host execution 信任。 */
-  approveInstalledSkillHost(key: string, digest: string): Promise<InstalledSkillView>;
   listSkillRuns(): Promise<BrokerRunRecord[]>;
   getSkillRun(runId: string): Promise<BrokerRunRecord>;
   getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;
@@ -1403,4 +1443,5 @@ export interface DesktopApi {
   onSkillEvent(callback: (event: Record<string, unknown>) => void): () => void;
   onSkillRunEvent(callback: (event: BrokerRunEvent) => void): () => void;
   onRuntimePackDownloadEvent(callback: (job: RuntimePackDownloadJob) => void): () => void;
+  onCliInstallProgress(callback: (progress: CliInstallProgress) => void): () => void;
 }

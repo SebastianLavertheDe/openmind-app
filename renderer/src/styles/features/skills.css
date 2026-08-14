@@ -360,3 +360,48 @@
   .skills-run-row { grid-template-columns: auto minmax(0, 1fr); }
   .skills-run-row time { grid-column: 2; }
 }
+
+/* Source picker (directory / ZIP / HTTPS Git import) */
+.skills-source-picker { padding: 12px 14px; }
+.skills-source-picker-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 0;
+  color: var(--accent, #4b7bec); cursor: pointer; font-size: 12px;
+}
+.skills-source-picker-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.skills-source-picker-body header h3 { margin: 0 0 2px; font-size: 13px; }
+.skills-source-picker-body header p { margin: 0; color: var(--muted-2); font-size: 11px; }
+.skills-source-picker-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.skills-source-picker-local {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border, #d0d5dd); border-radius: 8px; background: none;
+}
+.skills-source-picker-local:disabled, .skills-source-picker-cancel:disabled { opacity: 0.55; cursor: default; }
+.skills-source-picker-git { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 320px; flex-wrap: wrap; }
+.skills-source-picker-git > span { font-size: 12px; color: var(--muted); }
+.skills-source-picker-git input[type="url"] { flex: 2; min-width: 220px; }
+.skills-source-picker-git input[type="text"] { flex: 1; min-width: 120px; }
+.skills-source-picker-git button {
+  padding: 6px 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border, #d0d5dd); border-radius: 8px; background: none;
+}
+.skills-source-picker-git button:disabled, .skills-source-picker-install:disabled { opacity: 0.55; cursor: default; }
+.skills-source-picker-cancel { color: var(--danger-600); }
+.skills-source-picker-candidate {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; border: 1px solid var(--border, #d0d5dd); border-radius: 8px;
+}
+.skills-source-picker-candidate code {
+  font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.skills-source-picker-candidate dl { display: flex; gap: 16px; margin: 0; }
+.skills-source-picker-candidate dl div { display: flex; gap: 4px; }
+.skills-source-picker-candidate dt { color: var(--muted-2); font-size: 11px; }
+.skills-source-picker-candidate dd { margin: 0; font-size: 11px; }
+.skills-source-picker-issues { margin: 0; padding-left: 16px; color: var(--danger-600); font-size: 11px; }
+.skills-source-picker-warnings { margin: 0; padding-left: 16px; color: var(--warning-600); font-size: 11px; }
+.skills-source-picker-install {
+  align-self: flex-start; padding: 6px 14px; font-size: 12px; cursor: pointer;
+  border: 0; border-radius: 8px; color: #fff; background: var(--accent, #4b7bec);
+}

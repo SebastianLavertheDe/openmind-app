@@ -27,6 +27,7 @@ import {
   BrowserAutomationStatusSchema,
   BrowserExtensionTokenSchema,
   McpServerCatalogSchema,
+  OnboardingStateSchema,
   UserPreferencesSchema,
   EnvFileAnalysisSchema,
   ProvidersYamlInputSchema,
@@ -60,6 +61,7 @@ import { RuntimePackIdSchema, RuntimePackMetadataSchema, RuntimeTargetSchema, ty
 const StringArgSchema = z.string().min(1).max(4096);
 const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const OptionalStringArgSchema = z.string().min(1).max(4096).optional();
+const RequestIdSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
 const ExportLabelSchema = z.string().trim().min(1).max(160);
 const FileContentSchema = z.string().max(5 * 1024 * 1024, messages.errors.file.tooLarge);
 const RuntimePackBytesSchema = z.instanceof(Uint8Array).refine((value) => value.byteLength <= 2 * 1024 * 1024 * 1024, "Runtime Pack 超过单包大小限制。");
@@ -74,6 +76,11 @@ function parseOptionalString(value: unknown): string | undefined {
   return value == null || value === "" ? undefined : OptionalStringArgSchema.parse(value);
 }
 
+function parseCliToolId(value: unknown): "claude" | "codex" {
+  if (value !== "claude" && value !== "codex") throw new Error("CLI 必须是 claude 或 codex。 ");
+  return value;
+}
+
 function parseDate(value: unknown): string {
   return DateArgSchema.parse(value);
 }
@@ -82,17 +89,16 @@ function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
 }
 
-/** Installing is the user's trust decision. Static package validation happens
- * before this point; a successful install is promoted atomically and can run
- * immediately. */
+/** Installing is the user's explicit execution decision. Static package
+ * validation happens before this point; a successful install is promoted
+ * atomically and can run immediately once its Runtime is ready. */
 function makeInstalledSkillUsable(service: SkillPackageService, record: InstalledSkillRecord): InstalledSkillRecord {
   // Lightweight test/source adapters may expose only install/list operations.
   // In production SkillPackageService supplies the full promotion lifecycle.
-  if (typeof service.markReadiness !== "function" || typeof service.activate !== "function" || typeof service.approveHostExecution !== "function") return record;
+  if (typeof service.markReadiness !== "function" || typeof service.activate !== "function") return record;
   let current = record;
   if (current.readiness !== "ready") current = service.markReadiness(current.key, current.digest, "ready");
   if (current.status !== "active") current = service.activate(current.key, current.digest).active;
-  if (current.executionTrust !== "approved-host") current = service.approveHostExecution(current.key, current.digest);
   return current;
 }
 
@@ -124,6 +130,7 @@ export type IpcMainContext = {
   ensureProductService: () => ProductService;
   ensureAiWorker: () => AiWorkerCaller;
   ensureMymindFileSearch: () => MymindFileSearch;
+  ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
   ensureExportLocationService: () => import("./execution/export-location-service").ExportLocationService;
@@ -208,6 +215,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return {
           repoRoot,
           validRepo,
+          onboardingCompleted: settings.getOnboardingState().completed,
           mymindRoot,
           workspaceRoot,
           runtime: settings.parseWslRepoPath(repoRoot) ? "Windows → WSL" : process.platform,
@@ -530,6 +538,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     { channel: C.getPreferences, handler: () => UserPreferencesSchema.parse(settings.getPreferences()) },
+    { channel: C.getOnboardingState, handler: () => OnboardingStateSchema.parse(settings.getOnboardingState()) },
+    {
+      channel: C.updateOnboardingState,
+      handler: (patch) => OnboardingStateSchema.parse(settings.updateOnboardingState(OnboardingStateSchema.partial().parse(patch)))
+    },
     {
       channel: C.updatePreferences,
       handler: (patch) => {
@@ -751,6 +764,29 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     { channel: C.aiRefresh, handler: () => ai().call("snapshot") },
     { channel: C.aiRefreshProviders, handler: () => ai().call("refresh-providers") },
+    {
+      channel: C.installCliTool,
+      handler: async (cli) => {
+        const service = ctx.ensureCliInstallerService?.();
+        if (!service) throw new Error("当前环境不支持一键安装 CLI。 ");
+        return service.install(parseCliToolId(cli));
+      }
+    },
+    {
+      channel: C.cancelCliToolInstall,
+      handler: (cli) => ctx.ensureCliInstallerService?.()?.cancel(parseCliToolId(cli)) ?? false
+    },
+    {
+      channel: C.listCliToolStatuses,
+      handler: () => ctx.ensureCliInstallerService?.()?.list() ?? []
+    },
+    {
+      channel: C.openCliLogin,
+      handler: (cli) => {
+        const { openCliLoginTerminal } = require("./install/cli-login") as typeof import("./install/cli-login");
+        openCliLoginTerminal(parseCliToolId(cli));
+      }
+    },
     { channel: C.aiRefreshSkills, handler: () => ai().call("refresh-skills") },
     {
       channel: C.inspectSkillWorkspace,
@@ -806,7 +842,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     {
       channel: C.inspectSkillSource,
-      handler: (input) => skillSources().inspect(SkillPackageSourceInputSchema.parse(input)).then(toSkillPackageInspectionView)
+      handler: (input, requestId) => skillSources().inspect(
+        SkillPackageSourceInputSchema.parse(input),
+        requestId == null ? undefined : RequestIdSchema.parse(requestId)
+      ).then(toSkillPackageInspectionView)
+    },
+    {
+      channel: C.cancelSkillSourceInspection,
+      handler: (requestId) => skillSources().cancelInspection(RequestIdSchema.parse(requestId))
     },
     {
       channel: C.installSkillSource,
@@ -816,10 +859,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.uninstallSkillPackage,
       handler: (key, digest) => skillPackages().uninstall(parseString(key), parseOptionalString(digest))
-    },
-    {
-      channel: C.approveInstalledSkillHost,
-      handler: (key, digest) => skillPackages().approveHostExecution(parseString(key), parseString(digest))
     },
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },

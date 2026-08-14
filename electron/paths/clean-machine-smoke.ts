@@ -48,7 +48,7 @@ export type SmokeAssertionCode =
   | "stops-run-cleanly"
   | "opens-artifact"
   | "automation-runs-on-schedule"
-  | "skill-update-approved-host-only"
+  | "skill-update-active-ready-only"
   | "runtime-update-atomic"
   | "rollback-restores-previous"
   | "uninstall-preserves-mymind"

@@ -23,7 +23,7 @@ export class InstalledSkillExecutionError extends Error {
 }
 
 /**
- * Converts one active, ready, approved-host package into a Broker plan. This
+ * Converts one active, ready package into a Broker plan. This
  * resolver performs package/input checks; RuntimeManager owns execution-time
  * preparation, and Broker owns process lifecycle. The AI provider comes from
  * the single plaintext `config/providers.yaml` source of truth (injected as
@@ -51,7 +51,7 @@ export class InstalledSkillExecutionResolver {
   }
 
   /**
-   * Resolves an approved Agent package for the external Codex/Claude bridge.
+   * Resolves a ready Agent package for the external Codex/Claude bridge.
    * The returned physical paths never cross the Renderer boundary; adapters
    * re-check the package boundary before reading or handing them to a host.
    */
@@ -63,8 +63,8 @@ export class InstalledSkillExecutionResolver {
       throw new InstalledSkillExecutionError("active Agent Skill 内容 digest 已变化，拒绝交给 Provider Bridge。 ");
     }
     if (inspection.manifest.kind !== "agent") return null;
-    if (record.status !== "active" || record.readiness !== "ready" || record.executionTrust !== "approved-host") {
-      throw new InstalledSkillExecutionError(`Agent Skill 尚未 ready/approved-host：${skillId}`);
+    if (record.status !== "active" || record.readiness !== "ready") {
+      throw new InstalledSkillExecutionError(`Agent Skill 尚未 ready：${skillId}`);
     }
     const packageRoot = canonicalDirectory(record.packagePath);
     const skillPath = resolvePackageFile(packageRoot, "SKILL.md");
@@ -88,7 +88,7 @@ export class InstalledSkillExecutionResolver {
    */
   listDefinitions(): SkillDefinition[] {
     return this.packages.listInstalled()
-      .filter((record) => record.status === "active" && record.readiness === "ready" && record.executionTrust === "approved-host")
+      .filter((record) => record.status === "active" && record.readiness === "ready")
       .flatMap((record) => {
         try {
           const inspection = this.packages.inspect(record.packagePath);
@@ -140,13 +140,6 @@ export class InstalledSkillExecutionResolver {
     if (!inspection.valid || !inspection.manifest) throw new InstalledSkillExecutionError("active Installed Skill Manifest 校验失败。 ");
     if (inspection.digest !== record.digest) throw new InstalledSkillExecutionError("active Installed Skill 内容 digest 已变化，拒绝运行。 ");
     if (record.readiness !== "ready") throw new InstalledSkillExecutionError("Installed Skill 尚未 ready，拒绝运行。 ");
-    // Automation rules and their workflow step runs are explicit user
-    // authorisation to run a Skill on a schedule; treat a configured
-    // Automation rule (and the workflow steps it drives) as the approved-host
-    // grant so users are not forced to flip executionTrust per-Skill before a
-    // scheduled run can execute.
-    const automationAuthorised = request.trigger.type === "automation" || request.trigger.type === "workflow";
-    if (!automationAuthorised && record.executionTrust !== "approved-host") throw new InstalledSkillExecutionError("Installed Skill 尚未获得 approved-host 授权。 ");
     const manifest = inspection.manifest;
     const inputs = applyInputDefaults(manifest, request.inputs);
     validateInputs(manifest, inputs);

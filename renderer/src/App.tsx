@@ -33,7 +33,7 @@ export function App() {
 }
 
 function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
-  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo ? "ai" : "onboarding", state: {}, nonce: 0 }));
+  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo && bootstrap.onboardingCompleted !== false ? "ai" : "onboarding", state: {}, nonce: 0 }));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);

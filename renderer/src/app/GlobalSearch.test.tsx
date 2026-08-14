@@ -10,7 +10,7 @@ const INPUT_LABEL = "说一句话或搜索资料、创作、会话和自动化";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
-  providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false }],
+  providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false }],
   sessions: [],
   runs: [],
   pendingApprovals: []

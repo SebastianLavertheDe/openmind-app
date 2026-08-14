@@ -10,6 +10,7 @@ import { canAutoApprove, classifyApproval } from "./types";
 import { killProcessTree, parseWslPath, spawnInDirectory, spawnNativeInDirectory, toWslPath } from "../process-utils";
 import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser-evidence";
 import { buildProviderSkillContext } from "./skill-bridge";
+import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
 
 interface RpcMessage {
@@ -645,10 +646,13 @@ export function codexProviderEnvironment(serviceProvider: ProviderYamlEntry): Re
 function spawnCodex(context: ProviderRunContext, serviceProvider: ProviderYamlEntry | null): ChildProcessWithoutNullStreams {
   const args = buildCodexAppServerArgs(context.providerModel, serviceProvider);
   const environment = serviceProvider ? codexProviderEnvironment(serviceProvider) : undefined;
+  // A one-click installed codex lives in the app-private tools/bin; prefer it
+  // over the bare name so runs work without a shell PATH entry.
+  const command = context.provider.runtime === "wsl" ? "codex" : resolveAppToolExecutable("codex") || "codex";
   if (context.provider.runtime === "wsl" && serviceProvider) {
     // WSLENV forwards the secret via the child environment, keeping it out of
     // the visible wsl.exe command line.
-    return spawnInDirectory(context.cwd, "codex", args, {
+    return spawnInDirectory(context.cwd, command, args, {
       env: {
         ...environment,
         WSLENV: mergeWslenv(process.env.WSLENV, Object.keys(environment!))
@@ -656,8 +660,8 @@ function spawnCodex(context: ProviderRunContext, serviceProvider: ProviderYamlEn
     });
   }
   return context.provider.runtime === "wsl"
-    ? spawnInDirectory(context.cwd, "codex", args)
-    : spawnNativeInDirectory(context.cwd, "codex", args, environment ? { env: environment } : {});
+    ? spawnInDirectory(context.cwd, command, args)
+    : spawnNativeInDirectory(context.cwd, command, args, environment ? { env: environment } : {});
 }
 
 function tomlString(value: string): string {

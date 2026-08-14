@@ -31,6 +31,11 @@ const api: DesktopApi = {
     const listener = (_: unknown, payload: unknown) => callback(payload as never);
     ipcRenderer.on(IPC.APP_RUNTIME_PACK_DOWNLOAD_EVENT, listener);
     return () => ipcRenderer.removeListener(IPC.APP_RUNTIME_PACK_DOWNLOAD_EVENT, listener);
+  },
+  onCliInstallProgress: (callback) => {
+    const listener = (_: unknown, payload: unknown) => callback(payload as never);
+    ipcRenderer.on(IPC.CLI_TOOL_INSTALL_EVENT, listener);
+    return () => ipcRenderer.removeListener(IPC.CLI_TOOL_INSTALL_EVENT, listener);
   }
 };
 

@@ -63,7 +63,6 @@ describe("InstalledSkillRepository", () => {
     expect(() => repository.activate(second.key, second.digest)).not.toThrow();
     expect(repository.get(first.key, first.digest)?.status).toBe("previous");
     expect(repository.get(second.key, second.digest)?.status).toBe("active");
-    expect(repository.get(second.key, second.digest)?.executionTrust).toBe("inspect-only");
     expect(repository.list().filter((item) => item.status === "active")).toHaveLength(1);
     expect(repository.list().filter((item) => item.status === "previous")).toHaveLength(1);
   });
@@ -97,17 +96,7 @@ describe("InstalledSkillRepository", () => {
     expect(() => repository.list()).toThrow(/active Skill 必须是 ready/);
   });
 
-  it("grants host execution trust to an exact ready active digest", () => {
-    const candidate = record("1.0.0", "digest-1");
-    repository.upsert(candidate);
-    repository.markReadiness(candidate.key, candidate.digest, "ready");
-    repository.activate(candidate.key, candidate.digest);
-
-    expect(repository.approveHostExecution(candidate.key, candidate.digest).executionTrust).toBe("approved-host");
-    expect(() => repository.approveHostExecution(candidate.key, "digest-missing")).toThrow(/不存在/);
-  });
-
-  it("resets review and host trust independently when an installed digest is modified", () => {
+  it("keeps an activated skill runnable after its digest is modified", () => {
     const candidate = {
       ...record("1.0.0", "digest-1"),
       signatureStatus: "valid" as const,
@@ -117,14 +106,12 @@ describe("InstalledSkillRepository", () => {
     repository.upsert(candidate);
     repository.markReadiness(candidate.key, candidate.digest, "ready");
     repository.activate(candidate.key, candidate.digest);
-    repository.approveHostExecution(candidate.key, candidate.digest);
 
     const modified = repository.markModified(candidate.key, candidate.digest);
 
     expect(modified).toMatchObject({
       signatureStatus: "invalid",
       reviewStatus: "unreviewed",
-      executionTrust: "inspect-only",
       skillUpdatePolicy: "download-only",
       status: "active",
       readiness: "ready"
@@ -139,6 +126,17 @@ describe("InstalledSkillRepository", () => {
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [legacy] }));
 
     expect(repository.list()[0]?.skillUpdatePolicy).toBe("manual");
+  });
+
+  it("ignores the removed execution trust field from an older registry", () => {
+    const file = path.join(root, "skills", "registry.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const legacy = { ...record("1.0.0", "digest-legacy"), executionTrust: "approved-host" };
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [legacy] }));
+
+    const loaded = repository.list()[0] as unknown as Record<string, unknown>;
+    expect(loaded).not.toHaveProperty("executionTrust");
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).records[0]).toHaveProperty("executionTrust");
   });
 });
 
@@ -156,7 +154,6 @@ function record(version: string, digest: string, installedAt = new Date().toISOS
     readiness: "installed-not-ready",
     signatureStatus: "unsigned",
     reviewStatus: "unreviewed",
-    executionTrust: "inspect-only",
     skillUpdatePolicy: "manual",
     installedAt
   };

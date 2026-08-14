@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/execution-contracts";
 import { SkillsPage } from "./SkillsPage";
@@ -44,7 +44,6 @@ const active: InstalledSkillView = {
   readiness: "ready",
   signatureStatus: "unsigned",
   reviewStatus: "unreviewed",
-  executionTrust: "inspect-only",
   skillUpdatePolicy: "manual",
   installedAt: "2026-08-06T00:00:00.000Z"
 };
@@ -78,9 +77,9 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   } as unknown as DesktopApi;
 }
 
-function renderPage(overrides: Partial<DesktopApi> = {}, initialSkillId?: string) {
+function renderPage(overrides: Partial<DesktopApi> = {}, initialSkillId?: string, initialSourcePickerOpen = false) {
   window.cctools = makeApi(overrides);
-  render(<SkillsPage skills={skills} initialSkillId={initialSkillId} />);
+  render(<SkillsPage skills={skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSourcePickerOpen} />);
 }
 
 beforeEach(() => {
@@ -121,10 +120,84 @@ describe("SkillsPage", () => {
     renderPage();
     await screen.findByRole("heading", { name: "Demo Skill" });
     for (const name of [
-      "刷新列表", "添加其他来源", "同步工作区 Skill", "打开来源目录",
+      "刷新列表", "同步工作区 Skill", "打开来源目录",
       "撤销宿主机信任", "打开运行表单", "更新", "导入到 quarantine",
       "查看扫描结果", "信任并允许运行", "回滚", "卸载候选版本"
     ]) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("imports a Git source through inspect → confirm → install", async () => {
+    const gitInspection: SkillPackageInspectionView = { ...inspection, sourcePath: "https://github.com/example/skill.git", sourceKind: "git" };
+    const installSkillSource = vi.fn().mockResolvedValue(active);
+    renderPage({
+      inspectSkillSource: vi.fn().mockResolvedValue(gitInspection),
+      installSkillSource
+    });
+    await screen.findByRole("heading", { name: "Demo Skill" });
+
+    fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/skill.git"), { target: { value: "https://github.com/example/skill.git" } });
+    fireEvent.click(screen.getByRole("button", { name: "检查 Git 来源" }));
+    expect(await screen.findByText("静态检查通过")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "安装" }));
+    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith({
+      type: "git",
+      locator: "https://github.com/example/skill.git"
+    }));
+  });
+
+  it("opens the import entry when reached from onboarding", async () => {
+    renderPage({ inspectSkillSource: vi.fn(), installSkillSource: vi.fn() }, undefined, true);
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    expect(screen.getByRole("button", { name: "收起来源选择" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByPlaceholderText("https://github.com/org/skill.git")).toBeTruthy();
+  });
+
+  it("inspects a local directory or ZIP before enabling install", async () => {
+    const source = { type: "zip" as const, locator: "/tmp/demo.zip" };
+    const inspectSkillSource = vi.fn().mockResolvedValue({ ...inspection, sourcePath: source.locator, sourceKind: "zip" as const, warnings: ["包含可选文件"] });
+    const installSkillSource = vi.fn().mockResolvedValue(active);
+    renderPage({ selectSkillPackageSource: vi.fn().mockResolvedValue(source), inspectSkillSource, installSkillSource });
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
+    fireEvent.click(screen.getByRole("button", { name: "选择本地目录或 ZIP" }));
+    await waitFor(() => expect(inspectSkillSource).toHaveBeenCalledWith(source, expect.any(String)));
+    expect(screen.getByText("包含可选文件")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "安装" }));
+    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source));
+  });
+
+  it("rejects non-HTTPS Git addresses in the renderer", async () => {
+    const inspectSkillSource = vi.fn();
+    renderPage({ inspectSkillSource, installSkillSource: vi.fn() });
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/skill.git"), { target: { value: "http://example.com/skill.git" } });
+    fireEvent.click(screen.getByRole("button", { name: "检查 Git 来源" }));
+    expect(await screen.findByText(/来源输入不合法/)).toBeTruthy();
+    expect(inspectSkillSource).not.toHaveBeenCalled();
+  });
+
+  it("cancels an in-flight Git inspection", async () => {
+    let release!: (value: SkillPackageInspectionView) => void;
+    const inspectSkillSource = vi.fn().mockReturnValue(new Promise<SkillPackageInspectionView>((resolve) => { release = resolve; }));
+    const cancelSkillSourceInspection = vi.fn().mockResolvedValue(true);
+    renderPage({ inspectSkillSource, cancelSkillSourceInspection, installSkillSource: vi.fn() });
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/skill.git"), { target: { value: "https://github.com/example/skill.git" } });
+    fireEvent.click(screen.getByRole("button", { name: "检查 Git 来源" }));
+    expect(await screen.findByRole("button", { name: "取消检查" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "取消检查" }));
+    await waitFor(() => expect(cancelSkillSourceInspection).toHaveBeenCalledWith(expect.any(String)));
+    release(inspection);
+  });
+
+  it("hides the source picker when the environment has no import API", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    expect(screen.queryByRole("button", { name: "添加其他来源" })).toBeNull();
   });
 
   it("supports keyboard navigation and switches run history with the selection", async () => {

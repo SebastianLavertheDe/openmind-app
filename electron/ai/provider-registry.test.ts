@@ -84,6 +84,7 @@ describe("ProviderRegistry", () => {
       expect(codexNative!.available).toBe(true);
       expect(codexNative!.version).toBe("codex 0.42.0");
       expect(codexNative!.runtime).toBe("native");
+      expect(codexNative!.installable).toBe(false);
 
       const claudeNative = providers.find((p) => p.id === "claude-native");
       expect(claudeNative!.available).toBe(true);
@@ -291,6 +292,15 @@ describe("ProviderRegistry", () => {
       expect(wslProviders.find((p) => p.provider === "claude")!.version).toBe("2.1.177 (Claude Code)");
       expect(wslProviders.find((p) => p.provider === "claude")!.detectedModel).toBe("wsl-claude-model");
       expect(wslProviders.find((p) => p.provider === "codex")!.detectedModel).toBe("wsl-codex-model");
+      expect(wslProviders.every((p) => p.installable === false)).toBe(true);
+    });
+
+    it("marks native Windows providers installable even when the CLI is absent", async () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      vi.spyOn(process, "arch", "get").mockReturnValue("x64");
+      mockSpawnByCommand({});
+      const providers = await new ProviderRegistry("/project").refresh();
+      expect(providers.filter((p) => p.runtime === "native").every((p) => p.installable === true)).toBe(true);
     });
 
     it("parseClaudeAuthStatus: 'not logged in' 返回 false", async () => {

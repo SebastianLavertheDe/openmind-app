@@ -7,7 +7,7 @@ import { AiSidebar } from "./AiSidebar";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
-  providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false }],
+  providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false }],
   sessions: [{
     schemaVersion: 1, id: "sess-1", projectId: "p", projectRoot: "/project", title: "我的会话",
     provider: "codex", providerId: "codex-native", providerSessionId: null, cwd: ".", permissionProfile: "edit",

@@ -56,9 +56,10 @@ terminal state or the recovery steps below have been completed.
    signature, version, license and SBOM before activation.
 3. If the new Pack fails, use Runtime rollback. The previous verified Pack is
    retained until the replacement is active and no Run is using it.
-4. In Skill Center, inspect the source, digest, review state and
-   `executionTrust`. A changed local package returns to inspect-only and must
-   be approved again; do not bypass this state to make a run start.
+4. In Skill Center, inspect the source, digest, review state and Runtime
+   readiness. A changed local package must pass static inspection again and be
+   reinstalled before it can become the active ready version; do not bypass
+   this state to make a run start.
 
 ## Run, Agent and Provider failures
 
@@ -98,7 +99,7 @@ Before importing a backup:
    checksum.
 3. Import through Diagnostics; do not unpack files directly into `userData`.
 4. Restart the App and verify root generation, Runtime readiness, Run history
-   and Skill trust. If restore is interrupted, startup recovery restores the
+   and Skill active/readiness state. If restore is interrupted, startup recovery restores the
    previous snapshot and removes only the completed transaction staging.
 
 ## External Export Location

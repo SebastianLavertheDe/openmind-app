@@ -4,7 +4,7 @@
  * Frozen by ADR-003. A `cctools.skill.yaml` is validated strictly by
  * {@link SkillManifestSchema}. A skill is NOT runnable without a valid
  * manifest. Legacy `SKILL.md`-only skills go through a separate legacy
- * adapter and remain inspect-only.
+ * adapter and remain available for inspection only.
  *
  * Invariants enforced here (and re-checked at install/run):
  *  - `apiVersion` is exactly `cctools.dev/skill/v1`.

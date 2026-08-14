@@ -43,11 +43,12 @@ vi.mock(import("electron"), async (importOriginal) => {
 
 describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
-    // The registry intentionally excludes removed manual Skill run, update,
-    // and host-trust revocation endpoints.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(150);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(150);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(150);
+    // The registry intentionally excludes removed manual Skill run and update
+    // endpoints while exposing the current onboarding/source-cancel/install
+    // controls.
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(156);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(156);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(156);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -552,8 +553,7 @@ describe("handler forwarding — Skill package lifecycle", () => {
       listInstalled: vi.fn(() => []),
       install: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed" })),
       rollback: vi.fn(() => ({ active: { digest: "digest-active" }, previous: { digest: "digest-previous" } })),
-      uninstall: vi.fn(() => true),
-      approveHostExecution: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed", executionTrust: "approved-host" }))
+      uninstall: vi.fn(() => true)
     };
     const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
@@ -565,7 +565,6 @@ describe("handler forwarding — Skill package lifecycle", () => {
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.rollbackSkillPackage, "cctools/installed")).toEqual(expect.objectContaining({ active: expect.any(Object) }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "cctools/installed", "digest-installed")).toBe(true);
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.approveInstalledSkillHost, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ executionTrust: "approved-host" }));
     expect(service.inspectClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.getInstalled).toHaveBeenCalledWith("cctools/installed", "digest-installed");
     expect(service.inspect).toHaveBeenCalledWith("/userData/skills/cctools/installed/1.0.0");
@@ -573,7 +572,6 @@ describe("handler forwarding — Skill package lifecycle", () => {
     expect(service.install).toHaveBeenCalledWith("/tmp/skill");
     expect(service.rollback).toHaveBeenCalledWith("cctools/installed");
     expect(service.uninstall).toHaveBeenCalledWith("cctools/installed", "digest-installed");
-    expect(service.approveHostExecution).toHaveBeenCalledWith("cctools/installed", "digest-installed");
     vi.restoreAllMocks();
   });
 
@@ -600,7 +598,7 @@ describe("handler forwarding — Skill package lifecycle", () => {
 
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual(expect.objectContaining({ sourceKind: "git", sourcePath: source.locator }));
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git" }));
-    expect(sourceService.inspect).toHaveBeenCalledWith(source);
+    expect(sourceService.inspect).toHaveBeenCalledWith(source, undefined);
     expect(sourceService.install).toHaveBeenCalledWith(source);
   });
 });

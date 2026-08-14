@@ -2339,3 +2339,29 @@
   .settings-grid-2 { grid-template-columns: 1fr; }
   .settings-provider-save-row button { width: 100%; }
 }
+
+/* One-click CLI install inside provider cards */
+.settings-provider-install { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.settings-provider-install-button {
+  padding: 5px 12px; font-size: 12px; cursor: pointer;
+  border: 0; border-radius: 8px; color: #fff; background: var(--accent, #4b7bec);
+}
+.settings-provider-install-button:disabled { opacity: 0.55; cursor: default; }
+.settings-provider-install small { color: var(--muted-2); font-size: 11px; }
+.settings-provider-install-error { color: var(--danger-600); }
+.settings-provider-install-progress { display: flex; align-items: center; gap: 8px; min-width: min(360px, 100%); }
+.settings-provider-install-progress progress { width: 150px; height: 7px; accent-color: var(--accent); }
+.settings-provider-install-failure { display: flex; align-items: center; gap: 8px; color: var(--danger-600); font-size: 11px; flex-wrap: wrap; }
+.settings-provider-manual-steps { flex-basis: 100%; margin-top: 2px; font-size: 11px; }
+.settings-provider-manual-steps summary { cursor: pointer; color: var(--muted); }
+.settings-provider-manual-steps p { margin: 6px 0; color: var(--muted-2); }
+.settings-provider-manual-steps code { display: block; padding: 6px 8px; overflow-wrap: anywhere; border-radius: 6px; background: var(--panel-muted); color: var(--text); }
+.settings-provider-recheck {
+  padding: 5px 12px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border, #d0d5dd); border-radius: 8px; background: none;
+}
+.settings-provider-wsl-steps { margin-top: 8px; font-size: 12px; }
+.settings-provider-wsl-steps summary { cursor: pointer; color: var(--muted); }
+.settings-provider-wsl-steps ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.settings-provider-wsl-steps li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.settings-provider-wsl-steps code { font-size: 11px; }

@@ -34,6 +34,9 @@ export interface AppPaths {
   readonly automation: string;
   readonly catalog: string;
   readonly updates: string;
+  /** App-private install root for third-party CLI tools (claude/codex). */
+  readonly tools: string;
+  readonly toolBin: string;
   readonly staging: string;
   readonly cache: string;
   readonly logs: string;
@@ -82,6 +85,8 @@ export function buildAppPaths(userDataDir?: string): AppPaths {
     automation: path.join(userData, "automation"),
     catalog: path.join(userData, "catalog"),
     updates: path.join(userData, "updates"),
+    tools: path.join(userData, "tools"),
+    toolBin: path.join(userData, "tools", "bin"),
     staging: path.join(userData, "staging"),
     cache: path.join(userData, "cache"),
     logs: path.join(userData, "logs")
@@ -132,6 +137,8 @@ export function ensureAppPaths(paths: AppPaths): void {
     paths.automation,
     paths.catalog,
     paths.updates,
+    paths.tools,
+    paths.toolBin,
     paths.staging,
     paths.cache,
     paths.logs

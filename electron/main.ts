@@ -37,6 +37,9 @@ import { RuntimePackService } from "./runtime/runtime-pack-service";
 import { loadRuntimeTrustRoots } from "./runtime/runtime-pack-trust";
 import { AppStateBackupService } from "./backup/app-state-backup";
 import { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
+import { CliInstallerService, resolveNpmCliPath, type ManagedNodeRuntime } from "./install/cli-installer-service";
+import { RuntimeManager } from "./runtime/runtime-manager";
+import { detectRuntimeTarget } from "../shared/runtime-targets";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
@@ -82,6 +85,30 @@ function ensureRuntimePackDownloadService(): RuntimePackDownloadService {
     (job) => sendToRenderer(IPC.APP_RUNTIME_PACK_DOWNLOAD_EVENT, job)
   );
   return runtimePackDownloadService;
+}
+
+let cliInstallerService: CliInstallerService | null = null;
+
+function ensureCliInstallerService(): CliInstallerService {
+  ensureAppPaths(getAppPaths());
+  cliInstallerService ||= new CliInstallerService(getAppPaths(), {
+    resolveNodeRuntime: resolveManagedNodeRuntime,
+    onProgress: (progress) => sendToRenderer(IPC.CLI_TOOL_INSTALL_EVENT, progress)
+  });
+  return cliInstallerService;
+}
+
+function resolveManagedNodeRuntime(): ManagedNodeRuntime | null {
+  const target = detectRuntimeTarget({ platform: process.platform, arch: process.arch });
+  if (!target) return null;
+  try {
+    const manager = new RuntimeManager(getAppPaths(), { target });
+    const nodeExecutable = manager.resolveManagedPackExecutable("node-22", target, "node");
+    const npmCliPath = resolveNpmCliPath(nodeExecutable);
+    return npmCliPath ? { nodeExecutable, npmCliPath } : null;
+  } catch {
+    return null;
+  }
 }
 
 function bundledPythonAssetRoot(): string {
@@ -339,8 +366,11 @@ function normalizeIpcError(error: unknown): Error {
     ? messages.errors.ipc.invalidContract
     : error instanceof Error ? error.message : String(error);
   const message = logRedactor.redact(rawMessage);
+  const explicitCode = error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
+    ? String((error as { code: string }).code)
+    : null;
   const payload = IpcErrorSchema.parse({
-    code: zodError ? "INVALID_ARGUMENT" : classifyIpcError(message),
+    code: zodError ? "INVALID_ARGUMENT" : explicitCode && /^(?:git-|cancelled|platform-|runtime-|install-)/.test(explicitCode) ? explicitCode : classifyIpcError(message),
     message,
     detail: zodError ? logRedactor.redact(JSON.stringify(error.issues)) : null,
     recoverable: true
@@ -371,6 +401,7 @@ function registerIpc(): void {
       ensureProductService,
       ensureAiWorker,
       ensureMymindFileSearch,
+      ensureCliInstallerService,
       ensureSkillPackageService,
       ensureSkillSourceService,
       ensureExportLocationService,

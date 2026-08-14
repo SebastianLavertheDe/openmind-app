@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, type EnvironmentDiagnostic, type MymindRootPreview, type UserPreferences } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type EnvironmentDiagnostic, type MymindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { computeRootId, MymindPathResolver } from "../paths/mymind-path-resolver";
@@ -27,6 +27,12 @@ type RawSettings = Record<string, unknown>;
  *     migration input; new code MUST NOT read it.
  */
 export const SETTINGS_SCHEMA_VERSION = 2;
+
+export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
+  completed: false,
+  skill: "pending",
+  provider: "pending"
+};
 
 /**
  * Cached AppPaths (singleton from AppPathsService). Computed once and reused
@@ -75,6 +81,19 @@ function loadSettings(): RawSettings {
     }
   }
   return {};
+}
+
+export function getOnboardingState(): OnboardingState {
+  const raw = loadSettings().onboarding;
+  const parsed = OnboardingStateSchema.safeParse(raw);
+  return parsed.success ? parsed.data : { ...DEFAULT_ONBOARDING_STATE };
+}
+
+export function updateOnboardingState(patch: Partial<OnboardingState>): OnboardingState {
+  const current = getOnboardingState();
+  const next = OnboardingStateSchema.parse({ ...current, ...patch });
+  saveSettings({ ...loadSettings(), onboarding: next });
+  return next;
 }
 
 /**

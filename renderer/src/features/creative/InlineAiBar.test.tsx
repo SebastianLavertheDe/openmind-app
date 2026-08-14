@@ -27,7 +27,7 @@ const snapshot: AiSnapshot = {
   providers: [{
     id: "codex-native", provider: "codex", label: "Codex", runtime: "native",
     available: true, version: "1", supportsApprovals: true, supportsResume: true,
-    supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, oneMillion: false
+    supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false
   }],
   sessions: [],
   runs: [],

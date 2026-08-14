@@ -41,15 +41,16 @@
    `userData/state/<root-id>/` (copy; original kept), refusing merge/overwrite.
 7. Original `.cctools` preserved untouched.
 8. Scan `<repoRoot>/.claude/skills` via the SkillPackageService legacy adapter.
-9. Run install pre-check + clean copy (Phase 2). No code execution; result
-   stays `quarantined` / `installed-not-ready` until Phase 4/5.
+9. Run install pre-check + clean copy. No code execution occurs during
+   inspection; a valid package is promoted atomically to active + ready only
+   after its declared Runtime is prepared.
 10. `.env` — analyse variable **names** only; never copy values.
 11. User re-confirms each secret in the Vault.
 12. Migrate resolvable non-sensitive settings.
 13. Rebuild indexes under `userData/state/<root-id>/indexes/`.
-14. Static consistency check + index validation. (Smoke, if any, only after
-    Phase 5 Broker is ready, only via Broker, only on a temp fixture or the
-    skill's documented no-write mode, only after this digest is `approved-host`.)
+14. Static consistency check + index validation. Any smoke uses the selected
+   active + ready digest, the Runtime resolver and a disposable fixture or the
+   Skill's documented no-write mode.
 15. Write migration marker + `schemaVersion: 2`.
 16. Save migration report.
 

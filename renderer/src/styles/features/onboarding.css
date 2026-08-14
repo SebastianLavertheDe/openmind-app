@@ -18,7 +18,17 @@
 .onboarding-card-actions button, .onboarding-next-actions button { display: inline-flex; align-items: center; gap: 6px; }
 .onboarding-inline-status { display: inline-flex; align-items: center; gap: 5px; color: var(--success-fg); font-size: 11px; }
 .onboarding-next-card { grid-column: 1 / -1; }
+.onboarding-three-step-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .onboarding-next-actions .primary-button svg:last-child { margin-left: 10px; }
 .onboarding-text-action { border: 0; background: none; color: var(--text-secondary); cursor: pointer; padding: 7px 4px; }
 .onboarding-text-action:disabled { cursor: not-allowed; opacity: .5; }
 @media (max-width: 760px) { .onboarding-header { flex-direction: column; }.onboarding-grid { grid-template-columns: 1fr; }.onboarding-next-card { grid-column: auto; } }
+
+.onboarding-provider-status { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.onboarding-provider-status small { color: var(--muted-2); font-size: 11px; }
+.onboarding-check.skipped { background: color-mix(in srgb, var(--warning-fg) 13%, transparent); color: var(--warning-fg); }
+.onboarding-finish-card { padding: 20px; }
+.onboarding-finish-card > p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
+.onboarding-finish-hint { color: var(--warning-fg) !important; margin-top: 8px !important; }
+@media (max-width: 980px) { .onboarding-three-step-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .onboarding-three-step-grid { grid-template-columns: 1fr; } }

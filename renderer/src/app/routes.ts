@@ -20,6 +20,7 @@ export type AppRouteState = {
   skillId?: string;
   stage?: "today" | "drafting" | "review" | "ready" | "published";
   sourceId?: string;
+  openSkillImport?: boolean;
   search?: string;
   settingsSection?: "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sources" | "storage" | "sessions";
 };

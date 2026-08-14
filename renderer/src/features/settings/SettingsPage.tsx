@@ -50,7 +50,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean }) {
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -628,7 +628,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
-              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} /> : null}
+              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}

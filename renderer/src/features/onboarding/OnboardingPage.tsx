@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, Check, FolderCog, Settings, ShieldCheck, Wrench } from "lucide-react";
-import type { AppBootstrap, MymindRootStatus } from "@shared/contracts";
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, ArrowRight, Check, Download, FolderCog, Settings, ShieldCheck, Wrench } from "lucide-react";
+import type { AppBootstrap, MymindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import type { Navigate } from "../../app/routes";
 import { StatusBadge } from "../../design-system/components";
@@ -8,6 +8,7 @@ import { useAi } from "../../ai-context";
 import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
 
 const m = messages.onboarding;
+const DEFAULT_ONBOARDING: OnboardingState = { completed: false, skill: "pending", provider: "pending" };
 
 type Props = {
   bootstrap: AppBootstrap;
@@ -18,21 +19,34 @@ type Props = {
 export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const ai = useAi();
   const [root, setRoot] = useState<MymindRootStatus | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingState>(DEFAULT_ONBOARDING);
+  const [installedSkillCount, setInstalledSkillCount] = useState(0);
+  const [configuredProvider, setConfiguredProvider] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"root" | "workspace" | null>(null);
+  const [busy, setBusy] = useState<"root" | "state" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void window.cctools.getMymindRoot().then((value) => {
-      if (!cancelled) setRoot(value);
-    }).catch((cause) => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+  const refresh = useCallback(async () => {
+    try {
+      const [nextRoot, nextState, installed, providers] = await Promise.all([
+        window.cctools.getMymindRoot(),
+        window.cctools.getOnboardingState?.() || Promise.resolve(DEFAULT_ONBOARDING),
+        window.cctools.listInstalledSkills?.() || Promise.resolve([]),
+        window.cctools.getProviders?.() || Promise.resolve(null)
+      ]);
+      setRoot(nextRoot);
+      setOnboarding(nextState);
+      setInstalledSkillCount(installed.length);
+      setConfiguredProvider(Boolean(providers?.providers.some((provider) => provider.enabled && provider.apiKeySet)));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const chooseRoot = async () => {
     setBusy("root");
@@ -44,35 +58,45 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!preview.canBind) throw new Error(mymindRootPreviewError(preview));
       if (!await ai.confirm({ title: "确认绑定 mymind 根目录", body: mymindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
       await window.cctools.setMymindRoot(selected);
-      const next = await window.cctools.getMymindRoot();
-      setRoot(next);
+      await refresh();
       onRefresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : m.selectFailed);
+      setError(cause instanceof Error ? cause.message : "根目录选择失败，请在诊断页查看原因。");
     } finally {
       setBusy(null);
     }
   };
 
-  const chooseWorkspace = async () => {
-    if (!window.cctools.selectWorkspaceRoot) return;
-    setBusy("workspace");
+  const updateStep = async (patch: Partial<OnboardingState>): Promise<boolean> => {
+    setBusy("state");
     setError(null);
     try {
-      const selected = await window.cctools.selectWorkspaceRoot();
-      if (!selected) return;
-      const next = await window.cctools.getMymindRoot();
-      setRoot(next);
-      onRefresh();
+      const next = await window.cctools.updateOnboardingState?.(patch) || { ...onboarding, ...patch } as OnboardingState;
+      setOnboarding(next);
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "工作区选择失败");
+      setError(cause instanceof Error ? cause.message : String(cause));
+      return false;
     } finally {
       setBusy(null);
     }
   };
 
   const rootReady = Boolean(root?.health.configured && root.health.accessible && root.health.readable && root.health.writable);
-  const workspaceReady = Boolean(root?.workspaceRoot || bootstrap.workspaceRoot);
+  const providerReady = Boolean(configuredProvider || ai.snapshot.providers.some((provider) => provider.available));
+  const skillReady = installedSkillCount > 0;
+  const skillStatus = skillReady ? "complete" : onboarding.skill;
+  const providerStatus = providerReady ? "complete" : onboarding.provider;
+  const canFinish = rootReady && skillStatus !== "pending" && providerStatus !== "pending";
+
+  const statusLabel = (status: "pending" | "complete" | "skipped") => status === "complete" ? m.completed : status === "skipped" ? "已跳过" : m.pending;
+
+  const finish = async () => {
+    if (!canFinish) return;
+    if (!await updateStep({ completed: true })) return;
+    onRefresh();
+    go("ai");
+  };
 
   return (
     <div className="feature-page onboarding-page">
@@ -86,27 +110,39 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       </section>
       {error ? <p className="onboarding-error" role="alert">{error}</p> : null}
 
-      <section className="onboarding-grid">
-        <section className="workspace-card onboarding-card onboarding-root-card">
-          <header className="onboarding-card-header"><div><span className="eyebrow">MYMIND ROOT</span><h2>{m.rootTitle}</h2></div><span className={`onboarding-check ${rootReady ? "ready" : "pending"}`}>{rootReady ? <Check size={14} /> : "1"}</span></header>
+      <section className="onboarding-grid onboarding-three-step-grid">
+        <section className="workspace-card onboarding-card">
+          <header className="onboarding-card-header"><div><span className="eyebrow">MYMIND ROOT</span><h2>{m.rootTitle}</h2></div><StepMark status={rootReady ? "complete" : "pending"} number="1" /></header>
           <p>{m.rootBody}</p>
           <div className="onboarding-path">{loading ? "正在检查根目录…" : root?.mymindRoot || m.rootMissing}</div>
           <div className="onboarding-card-actions"><button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => void chooseRoot()}><FolderCog size={14} />{busy === "root" ? m.selecting : rootReady ? m.chooseAgain : m.chooseRoot}</button>{rootReady ? <span className="onboarding-inline-status"><Check size={13} />{m.rootSelected}</span> : null}</div>
         </section>
 
         <section className="workspace-card onboarding-card">
-          <header className="onboarding-card-header"><div><span className="eyebrow">OPTIONAL WORKSPACE</span><h2>{m.workspaceTitle}</h2></div><span className={`onboarding-check ${workspaceReady ? "ready" : "pending"}`}>{workspaceReady ? <Check size={14} /> : "2"}</span></header>
-          <p>{m.workspaceBody}</p>
-          <div className="onboarding-path">{workspaceReady ? (root?.workspaceRoot || bootstrap.workspaceRoot) : m.workspaceSkipped}</div>
-          <div className="onboarding-card-actions"><button type="button" className="settings-subtle-action" data-motion="action" disabled={busy !== null || !window.cctools.selectWorkspaceRoot} onClick={() => void chooseWorkspace()}><FolderCog size={14} />{busy === "workspace" ? m.selecting : m.chooseWorkspace}</button></div>
+          <header className="onboarding-card-header"><div><span className="eyebrow">SKILL CENTER</span><h2>{m.skillTitle}</h2></div><StepMark status={skillStatus} number="2" /></header>
+          <p>{m.skillBody}</p>
+          <div className="onboarding-path">{skillStatus === "complete" ? m.skillReady : skillStatus === "skipped" ? m.skillSkipped : m.pending}</div>
+          <div className="onboarding-card-actions"><button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => go("skills", { openSkillImport: true })}><Download size={14} />{m.importSkill}<ArrowRight size={14} /></button>{skillStatus === "pending" ? <button type="button" className="onboarding-text-action" disabled={busy !== null} onClick={() => void updateStep({ skill: "skipped" })}>{m.skipSkill}</button> : null}</div>
         </section>
 
-        <section className="workspace-card onboarding-card onboarding-next-card">
-          <header className="onboarding-card-header"><div><span className="eyebrow">NEXT STEPS</span><h2>{m.nextTitle}</h2></div><span className="onboarding-check pending">3</span></header>
-          <p>{m.nextBody}</p>
-          <div className="onboarding-next-actions"><button type="button" className="primary-button" data-motion="action" onClick={() => go("skills")}><ShieldCheck size={14} />{m.openSkills}<ArrowRight size={14} /></button><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => go("diagnostics")}><Wrench size={14} />{m.openDiagnostics}</button><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => go("settings")}><Settings size={14} />{m.openSettings}</button><button type="button" className="onboarding-text-action" data-motion="action" onClick={() => go("ai")} disabled={!rootReady}>{m.continueApp}</button></div>
+        <section className="workspace-card onboarding-card">
+          <header className="onboarding-card-header"><div><span className="eyebrow">AI PROVIDER</span><h2>{m.providerTitle}</h2></div><StepMark status={providerStatus} number="3" /></header>
+          <p>{m.providerBody}</p>
+          <div className="onboarding-provider-status"><StatusBadge tone={providerStatus === "complete" ? "success" : providerStatus === "skipped" ? "neutral" : "warning"}>{statusLabel(providerStatus)}</StatusBadge>{providerReady ? <small>{m.providerReady}</small> : null}</div>
+          <div className="onboarding-card-actions"><button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => go("settings", { settingsSection: "providers" })}><Settings size={14} />{m.installProvider}<ArrowRight size={14} /></button>{providerStatus === "pending" ? <button type="button" className="onboarding-text-action" disabled={busy !== null} onClick={() => void updateStep({ provider: "skipped" })}>{m.skipProvider}</button> : null}</div>
         </section>
+      </section>
+
+      <section className="workspace-card onboarding-next-card onboarding-finish-card">
+        <header className="onboarding-card-header"><div><span className="eyebrow">READY</span><h2>{m.finishTitle}</h2></div><ShieldCheck size={20} aria-hidden /></header>
+        <p>{m.finishBody}</p>
+        {!rootReady ? <p className="onboarding-finish-hint">请先完成第 1 步；Skill 和 Provider 可以跳过。</p> : null}
+        <div className="onboarding-next-actions"><button type="button" className="primary-button" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>{busy === "state" ? "正在保存…" : m.finish}<ArrowRight size={14} /></button><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => go("diagnostics")}><Wrench size={14} />{m.openDiagnostics}</button></div>
       </section>
     </div>
   );
+}
+
+function StepMark({ status, number }: { status: "pending" | "complete" | "skipped"; number: string }) {
+  return <span className={`onboarding-check ${status === "complete" ? "ready" : status === "skipped" ? "skipped" : "pending"}`}>{status === "complete" ? <Check size={14} /> : number}</span>;
 }

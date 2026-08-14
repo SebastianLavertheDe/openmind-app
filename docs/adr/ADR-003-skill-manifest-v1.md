@@ -31,8 +31,8 @@ strict, versioned, machine-verifiable contract.
   Manifest Parser.
 
 A skill is **not runnable** without a valid `cctools.skill.yaml`. A legacy
-skill with only `SKILL.md` is inspect-only until a Manifest is produced
-(legacy adapter, §6.4 of the plan).
+skill with only `SKILL.md` is available for inspection and migration guidance
+until a Manifest is produced (legacy adapter, §6.4 of the plan).
 
 ### 2. Manifest v1 shape
 
@@ -170,8 +170,8 @@ A `SKILL.md`-only skill:
   explicit user confirmation;
 - never auto-defaults to `runner=uv`;
 - has `signatureStatus: unsigned`, `reviewStatus: unreviewed`,
-  `executionTrust: inspect-only` (see ADR-004) — being locally discovered
-  does **not** imply verified.
+  and cannot be installed as a runnable package — being locally discovered does
+  **not** imply that it passed the Manifest and Runtime checks.
 
 ## Consequences
 

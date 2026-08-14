@@ -23,22 +23,22 @@ afterEach(() => {
 });
 
 describe("InstalledSkillExecutionResolver", () => {
-  it("requires ready + approved-host before building an execution plan", async () => {
+  it("builds an execution plan once the installed package is active and ready", async () => {
     const fixture = createFixture();
     const resolver = fixture.resolver;
     const request = runRequest(fixture.digest);
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    await expect(resolver.resolve(request, "run-1")).rejects.toThrow(/approved-host/);
+    const plan = await resolver.resolve(request, "run-1");
+    expect(plan).toBeTruthy();
   });
 
-  it("lists only approved Installed Skill metadata without exposing executable paths", () => {
+  it("lists only active, ready Installed Skill metadata without exposing executable paths", () => {
     const fixture = createFixture();
     expect(fixture.resolver.listDefinitions()).toEqual([]);
 
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     expect(fixture.resolver.listDefinitions()).toEqual([
       expect.objectContaining({
@@ -53,13 +53,12 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(fixture.resolver.listDefinitions()[0]?.command).not.toContain(process.execPath);
   });
 
-  it("bridges an approved Agent from the app-private SkillStore without falling back to workspace paths", () => {
+  it("bridges a ready Agent from the app-private SkillStore without falling back to workspace paths", () => {
     const fixture = createBatchAFixture("creative-writing", {
       resolveProviderProfile: (profileId) => profileId === "profile-main" ? providerProfile() : null
     });
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const bridge = fixture.resolver.providerSkillBridge("creative-writing");
     expect(bridge).toMatchObject({
@@ -78,7 +77,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const processFixture = createFixture();
     processFixture.packages.markReadiness(processFixture.key, processFixture.digest, "ready");
     processFixture.packages.activate(processFixture.key, processFixture.digest);
-    processFixture.packages.approveHostExecution(processFixture.key, processFixture.digest);
     expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
   });
 
@@ -86,7 +84,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createBatchAFixture("creative-writing");
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     await expect(fixture.resolver.resolve(SkillRunRequestSchema.parse({
       skillId: "creative-writing",
@@ -104,7 +101,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-3");
     expect(plan.version).toBe("1.0.0");
@@ -122,7 +118,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-default-input");
 
@@ -135,7 +130,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture(false, "python", { externalExport: true });
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve({
       ...runRequest(fixture.digest),
@@ -153,7 +147,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve({
       ...runRequest(fixture.digest),
@@ -176,7 +169,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const request = { ...runRequest(fixture.digest), version: "^1.0.0" };
     const plan = await fixture.resolver.resolve(request, "run-range");
@@ -187,7 +179,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
     const active = fixture.packages.getActiveInstalled("resolver-fixture")!;
     fs.appendFileSync(path.join(active.packagePath, "main.py"), "\nchanged = True\n");
     await expect(fixture.resolver.resolve(runRequest(fixture.digest), "run-4")).rejects.toThrow(/digest/);
@@ -197,7 +188,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture(false, "node");
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -225,7 +215,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createFixture(false, "node", { managedRuntime: true });
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -259,7 +248,6 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(python).toBeTruthy();
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -309,7 +297,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -373,7 +360,6 @@ describe("InstalledSkillExecutionResolver", () => {
     );
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -444,7 +430,6 @@ describe("InstalledSkillExecutionResolver", () => {
     );
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
-    fixture.packages.approveHostExecution(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -537,7 +522,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
       fixture.packages.markReadiness(installed.key, installed.digest, "ready");
       fixture.packages.activate(installed.key, installed.digest);
-      fixture.packages.approveHostExecution(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         fixture.paths,
@@ -675,7 +659,6 @@ describe("InstalledSkillExecutionResolver", () => {
       const installed = packages.install(sourceCopy);
       packages.markReadiness(installed.key, installed.digest, "ready");
       packages.activate(installed.key, installed.digest);
-      packages.approveHostExecution(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -789,7 +772,6 @@ describe("InstalledSkillExecutionResolver", () => {
       const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/knowledge-wiki-compiler"));
       packages.markReadiness(installed.key, installed.digest, "ready");
       packages.activate(installed.key, installed.digest);
-      packages.approveHostExecution(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -935,7 +917,6 @@ describe("InstalledSkillExecutionResolver", () => {
       const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/x-following-fetcher"));
       packages.markReadiness(installed.key, installed.digest, "ready");
       packages.activate(installed.key, installed.digest);
-      packages.approveHostExecution(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -1095,7 +1076,6 @@ describe("InstalledSkillExecutionResolver", () => {
       const redditInstalled = packages.install(redditSourceCopy);
       packages.markReadiness(redditInstalled.key, redditInstalled.digest, "ready");
       packages.activate(redditInstalled.key, redditInstalled.digest);
-      packages.approveHostExecution(redditInstalled.key, redditInstalled.digest);
 
       // Install daily-article-summarizer (no overlay; uses bundled config).
       const summarizerSource = path.join(paths.staging, "summarizer-source");
@@ -1103,14 +1083,12 @@ describe("InstalledSkillExecutionResolver", () => {
       const summarizerInstalled = packages.install(summarizerSource);
       packages.markReadiness(summarizerInstalled.key, summarizerInstalled.digest, "ready");
       packages.activate(summarizerInstalled.key, summarizerInstalled.digest);
-      packages.approveHostExecution(summarizerInstalled.key, summarizerInstalled.digest);
 
       // Install the third link against the exact same root and Runtime Pack.
       const topicSource = path.resolve(__dirname, "../../../.claude/skills/daily-topic-selector");
       const topicInstalled = packages.install(topicSource);
       packages.markReadiness(topicInstalled.key, topicInstalled.digest, "ready");
       packages.activate(topicInstalled.key, topicInstalled.digest);
-      packages.approveHostExecution(topicInstalled.key, topicInstalled.digest);
 
       const broker = new ExecutionBroker(
         paths,

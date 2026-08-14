@@ -108,5 +108,22 @@ describe("SkillSourceService", () => {
     await expect(ambiguous.inspect({ type: "git", locator: "https://github.com/example/many-skills.git" }))
       .rejects.toMatchObject<SkillSourceError>({ code: "git-package-ambiguous" });
   });
-});
 
+  it("cancels an in-flight Git inspection and removes its staging checkout", async () => {
+    let started!: () => void;
+    const startedPromise = new Promise<void>((resolve) => { started = resolve; });
+    const runGit: GitCommandRunner = async (_args, options) => {
+      started();
+      await new Promise<never>((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(new SkillSourceError("git-cancelled", "已取消 Git 来源检查。")), { once: true });
+      });
+      return { stdout: "", stderr: "" };
+    };
+    const service = new SkillSourceService(new SkillPackageService(paths), paths, runGit);
+    const pending = service.inspect({ type: "git", locator: "https://github.com/example/slow.git" }, "request-1");
+    await startedPromise;
+    expect(service.cancelInspection("request-1")).toBe(true);
+    await expect(pending).rejects.toMatchObject<SkillSourceError>({ code: "git-cancelled" });
+    expect(fs.readdirSync(paths.staging)).toHaveLength(0);
+  });
+});

@@ -105,7 +105,7 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
 2. No new code may call `path.join(repoRoot, ...)`. A `scripts/audit-no-reporoot.js`
    grep fails the build on any re-introduction.
 3. No new App or App-native Workflow code may join `mymind` content paths
-   except through `MymindPathResolver`. Claude Code/Codex and approved-host
+   except through `MymindPathResolver`. Claude Code/Codex and active + ready
    Process Skills run with the OS user's authority and cannot be technically
    constrained to Resolver paths; the product must state that boundary.
 4. Renderer never receives or sends raw absolute mymind paths for editing;

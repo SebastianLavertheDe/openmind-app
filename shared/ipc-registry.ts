@@ -64,6 +64,8 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "setWorkspaceRoot", channel: IPC.APP_SET_WORKSPACE_ROOT },
   { method: "selectWorkspaceRoot", channel: IPC.APP_SELECT_WORKSPACE_ROOT },
   { method: "getPreferences", channel: IPC.APP_PREFERENCES_GET },
+  { method: "getOnboardingState", channel: IPC.APP_ONBOARDING_GET },
+  { method: "updateOnboardingState", channel: IPC.APP_ONBOARDING_UPDATE },
   { method: "updatePreferences", channel: IPC.APP_PREFERENCES_UPDATE },
   { method: "resetPreferences", channel: IPC.APP_PREFERENCES_RESET },
   { method: "importPreferences", channel: IPC.APP_PREFERENCES_IMPORT },
@@ -99,6 +101,10 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "rebuildContentIndex", channel: IPC.APP_REBUILD_CONTENT_INDEX },
   { method: "aiRefresh", channel: IPC.AI_SNAPSHOT },
   { method: "aiRefreshProviders", channel: IPC.AI_REFRESH_PROVIDERS },
+  { method: "installCliTool", channel: IPC.CLI_TOOL_INSTALL },
+  { method: "cancelCliToolInstall", channel: IPC.CLI_TOOL_INSTALL_CANCEL },
+  { method: "listCliToolStatuses", channel: IPC.CLI_TOOL_STATUS_LIST },
+  { method: "openCliLogin", channel: IPC.CLI_OPEN_LOGIN },
   { method: "aiRefreshSkills", channel: IPC.AI_REFRESH_SKILLS },
   { method: "inspectSkillWorkspace", channel: IPC.SKILL_INSPECT_WORKSPACE },
   { method: "inspectInstalledSkill", channel: IPC.SKILL_INSPECT_INSTALLED },
@@ -109,8 +115,8 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "uninstallSkillPackage", channel: IPC.SKILL_UNINSTALL },
   { method: "selectSkillPackageSource", channel: IPC.SKILL_SOURCE_SELECT },
   { method: "inspectSkillSource", channel: IPC.SKILL_SOURCE_INSPECT },
+  { method: "cancelSkillSourceInspection", channel: IPC.SKILL_SOURCE_INSPECT_CANCEL },
   { method: "installSkillSource", channel: IPC.SKILL_SOURCE_INSTALL },
-  { method: "approveInstalledSkillHost", channel: IPC.SKILL_APPROVE_HOST },
   { method: "listSkillRuns", channel: IPC.SKILL_RUN_LIST },
   { method: "getSkillRun", channel: IPC.SKILL_RUN_GET },
   { method: "getSkillRunEvents", channel: IPC.SKILL_RUN_EVENTS },
@@ -158,7 +164,7 @@ export const IPC_INVOKE_REGISTRY = [
 export type IpcInvokeMethod = (typeof IPC_INVOKE_REGISTRY)[number]["method"];
 export type IpcInvokeChannel = (typeof IPC_INVOKE_REGISTRY)[number]["channel"];
 
-type DesktopInvokeMethods = keyof Omit<DesktopApi, "onAiEvent" | "onSkillEvent" | "onSkillRunEvent" | "onRuntimePackDownloadEvent">;
+type DesktopInvokeMethods = keyof Omit<DesktopApi, "onAiEvent" | "onSkillEvent" | "onSkillRunEvent" | "onRuntimePackDownloadEvent" | "onCliInstallProgress">;
 
 type RegistryCoversDesktopApi = DesktopInvokeMethods extends IpcInvokeMethod
   ? IpcInvokeMethod extends DesktopInvokeMethods ? true : false

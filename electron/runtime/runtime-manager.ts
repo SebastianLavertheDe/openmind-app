@@ -200,6 +200,22 @@ export class RuntimeManager {
     return preparation;
   }
 
+  /** Resolve a verified active executable for app-owned auxiliary services
+   * (for example the npm CLI used by the app-private Codex installer). */
+  resolveManagedPackExecutable(packId: RuntimePackId, target: RuntimeTarget, runtime: "node" | "python"): string {
+    const pack = this.getActivePack(packId, target);
+    if (!pack || pack.status !== "active") throw new RuntimeManagerError("pack-not-ready", `Runtime Pack 尚未 ready：${packId}@${target}`);
+    const packPath = this.assertManagedPackPath(pack.packagePath);
+    if (digestManagedRuntimePath(packPath) !== pack.digest.toLowerCase()) {
+      throw new RuntimeManagerError("pack-tampered", `Runtime Pack 内容 digest 与 registry 不一致：${packId}@${target}`);
+    }
+    const root = this.ensurePackRoot(pack);
+    const executable = firstExisting(executableCandidates(runtime, root));
+    if (!executable) throw new RuntimeManagerError("executable-unresolved", `Managed Runtime Pack 缺少 ${runtime} executable。`);
+    ensureExecutable(executable);
+    return fs.realpathSync(executable);
+  }
+
   private resolveManagedExecutable(input: RuntimeExecutableResolutionInput): string {
     const root = this.ensurePackRoot(input.pack);
     const candidates = executableCandidates(input.manifest.entrypoint.runtime, root);

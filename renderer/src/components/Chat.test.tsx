@@ -24,7 +24,7 @@ const snapshot: AiSnapshot = {
     diagnostic: null,
     detectedModel: null,
     contextWindow: null,
-    oneMillion: false
+    installable: false, oneMillion: false
   }],
   sessions: [],
   runs: [],
