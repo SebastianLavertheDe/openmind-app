@@ -53,7 +53,9 @@ export function AppShell({
   // sources / skills remain valid legacy routes, but now live inside the
   // dedicated settings information architecture.
   const settingsMode = page === "settings" || page === "sources" || page === "skills";
-  const showAiSidebar = page !== "ai" && !settingsMode;
+  const onboardingMode = page === "onboarding";
+  const fullPageMode = settingsMode || onboardingMode;
+  const showAiSidebar = page !== "ai" && !fullPageMode;
   const previewMode = environment.mode === "preview";
   const windowsMica = environment.mode === "desktop" && environment.platform === "win32";
   const responsiveLayout = useResponsiveLayout();
@@ -157,12 +159,12 @@ export function AppShell({
   return (
     <div
       ref={shellRef}
-      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
+      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""}${onboardingMode ? " onboarding-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
       style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
     >
       {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
-      {!settingsMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
-      {!settingsMode ? <aside
+      {!fullPageMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
+      {!fullPageMode ? <aside
         id="primary-navigation"
         ref={navRef}
         className={`app-nav${effectiveNavCollapsed ? " collapsed" : ""}${mobileNavOpen ? " mobile-open" : ""}`}
@@ -236,7 +238,7 @@ export function AppShell({
         </footer>
       </aside> : null}
       <section className="app-stage">
-        {!settingsMode ? <header className="global-toolbar">
+        {!fullPageMode ? <header className="global-toolbar">
           <Tooltip content={m.shell.navMenu} side="bottom">
             <button
               ref={navTriggerRef}

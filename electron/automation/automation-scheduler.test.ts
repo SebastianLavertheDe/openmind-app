@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
-import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION, type BrokerRunEvent, type BrokerRunRecord } from "../../shared/execution-contracts";
+import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION, WorkflowRunRecordSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowRunRecord } from "../../shared/execution-contracts";
 import { AutomationRepository } from "./automation-repository";
 import { AutomationScheduler } from "./automation-scheduler";
 import type { AutomationEnvironment } from "./automation-environment";
@@ -60,14 +60,18 @@ describe("AutomationScheduler", () => {
     expect(harness.scheduler.listRuns("daily")[0].state).toBe("succeeded");
   });
 
-  it("applies skip overlap policy to manual runs", async () => {
+  it("reuses the active run for a second manual click under skip overlap policy", async () => {
     const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
     harness.scheduler.saveRule(rule({ id: "overlap", trigger: { type: "interval", everyMinutes: 5 } }));
-    await harness.scheduler.runNow("overlap");
-    const skipped = await harness.scheduler.runNow("overlap");
+    const active = await harness.scheduler.runNow("overlap");
+    const reused = await harness.scheduler.runNow("overlap");
 
-    expect(skipped.state).toBe("skipped");
+    expect(reused).toMatchObject({ id: active.id, state: "running", childRunId: "child-1" });
     expect(harness.submitted).toHaveLength(1);
+    expect(harness.scheduler.listRuns("overlap")).toEqual([expect.objectContaining({
+      id: active.id,
+      state: "running"
+    })]);
   });
 
   it("queues an overlapping run instead of launching it immediately", async () => {
@@ -98,6 +102,36 @@ describe("AutomationScheduler", () => {
     expect(harness.scheduler.listRuns("retry")[0].state).toBe("succeeded");
   });
 
+  it("expedites a queued retry when the user manually runs a skip-policy rule", async () => {
+    const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
+    harness.scheduler.saveRule(rule({ id: "retry-now", retryPolicy: { maxAttempts: 1, backoffMs: 60_000 }, trigger: { type: "interval", everyMinutes: 5 } }));
+    const first = await harness.scheduler.runNow("retry-now");
+    harness.children.get("child-1")!.state = "failed";
+    harness.children.get("child-1")!.error = "child failed once";
+    harness.setNow(new Date("2026-08-05T09:01:00.000Z"));
+    await harness.scheduler.tick();
+
+    expect(harness.scheduler.listRuns("retry-now")).toEqual([expect.objectContaining({
+      id: first.id,
+      state: "queued",
+      attempt: 1,
+      childRunId: null,
+      retryAt: "2026-08-05T09:02:00.000Z"
+    })]);
+
+    const expedited = await harness.scheduler.runNow("retry-now");
+
+    expect(harness.submitted).toEqual(["example-skill", "example-skill"]);
+    expect(harness.scheduler.listRuns("retry-now")).toHaveLength(1);
+    expect(expedited).toMatchObject({
+      id: first.id,
+      state: "running",
+      attempt: 2,
+      retryAt: null,
+      childRunId: "child-2"
+    });
+  });
+
   it("turns a successful Broker completion into a data-driven run-completed trigger", async () => {
     const harness = createHarness(new Date("2026-08-05T10:00:00.000Z"));
     harness.scheduler.saveRule({
@@ -110,6 +144,75 @@ describe("AutomationScheduler", () => {
 
     expect(harness.submitted).toEqual(["downstream-skill"]);
     expect(harness.scheduler.listRuns("after-source")[0].triggerReason).toBe("run-completed:source-1");
+  });
+
+  it("reconciles a failed workflow immediately from its terminal event", async () => {
+    const harness = createHarness(new Date("2026-08-05T10:00:00.000Z"));
+    harness.scheduler.saveRule({
+      ...rule({ id: "workflow-failure" }),
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    });
+
+    await harness.scheduler.runNow("workflow-failure");
+    expect(harness.submittedWorkflows).toEqual(["rss-to-summary-workflow"]);
+    const workflow = harness.workflows.get("workflow-1")!;
+    workflow.state = "failed";
+    workflow.completedAt = new Date("2026-08-05T10:00:01.000Z").toISOString();
+    workflow.error = "Workflow Step fetch failed.";
+    await harness.scheduler.handleWorkflowRunEvent(workflow);
+
+    expect(harness.scheduler.listRuns("workflow-failure")[0]).toMatchObject({
+      state: "failed",
+      childRunId: "workflow-1",
+      error: "Workflow Step fetch failed."
+    });
+  });
+
+  it("reconciles a workflow that fails before its parent run is linked", async () => {
+    const harness = createHarness(new Date("2026-08-05T10:00:00.000Z"), {
+      onWorkflowSubmitted: (record) => ({
+        ...record,
+        state: "failed",
+        completedAt: new Date("2026-08-05T10:00:01.000Z").toISOString(),
+        error: "Workflow Step fetch failed."
+      })
+    });
+    harness.scheduler.saveRule({
+      ...rule({ id: "workflow-immediate-failure" }),
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    });
+
+    await harness.scheduler.runNow("workflow-immediate-failure");
+
+    expect(harness.scheduler.listRuns("workflow-immediate-failure")[0]).toMatchObject({
+      state: "failed",
+      childRunId: "workflow-1",
+      error: "Workflow Step fetch failed."
+    });
+  });
+
+  it("supplies the local run date to date-based built-in targets when the rule omits it", async () => {
+    const harness = createHarness(new Date(2026, 7, 5, 9, 0, 0));
+    harness.scheduler.saveRule({
+      ...rule({ id: "dated-workflow" }),
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    });
+
+    await harness.scheduler.runNow("dated-workflow");
+
+    expect(harness.submittedWorkflowInputs).toEqual([{ date: "20260805" }]);
+  });
+
+  it("preserves an explicitly configured date input", async () => {
+    const harness = createHarness(new Date(2026, 7, 5, 9, 0, 0));
+    harness.scheduler.saveRule({
+      ...rule({ id: "dated-workflow", inputs: { date: "20260804" } }),
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    });
+
+    await harness.scheduler.runNow("dated-workflow");
+
+    expect(harness.submittedWorkflowInputs).toEqual([{ date: "20260804" }]);
   });
 
   it("runs weekly rules only once on a matching local weekday", async () => {
@@ -171,12 +274,19 @@ function rule(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
-function createHarness(initialNow: Date, options: { fileFingerprint?: (paths: readonly string[]) => string | undefined; environment?: () => AutomationEnvironment } = {}) {
+function createHarness(initialNow: Date, options: {
+  fileFingerprint?: (paths: readonly string[]) => string | undefined;
+  environment?: () => AutomationEnvironment;
+  onWorkflowSubmitted?: (record: WorkflowRunRecord) => WorkflowRunRecord;
+} = {}) {
   const root = makeRoot();
   const paths = buildAppPaths(path.join(root, "user-data"));
   ensureAppPaths(paths);
   const children = new Map<string, BrokerRunRecord>();
+  const workflows = new Map<string, WorkflowRunRecord>();
   const submitted: string[] = [];
+  const submittedWorkflows: string[] = [];
+  const submittedWorkflowInputs: Record<string, unknown>[] = [];
   let now = initialNow;
   const scheduler = new AutomationScheduler({
     repository: new AutomationRepository(paths),
@@ -189,19 +299,30 @@ function createHarness(initialNow: Date, options: { fileFingerprint?: (paths: re
       children.set(id, record);
       return record;
     },
-    submitWorkflow: () => { throw new Error("workflow not used in this test"); },
+    submitWorkflow: (request) => {
+      const id = `workflow-${submittedWorkflows.length + 1}`;
+      submittedWorkflows.push(request.skillId);
+      submittedWorkflowInputs.push({ ...request.inputs });
+      const record = workflow(id, "running", request.skillId);
+      workflows.set(id, options.onWorkflowSubmitted?.(record) || record);
+      return record;
+    },
     readSkill: (runId) => {
       const record = children.get(runId);
       if (!record) throw new Error(`missing child ${runId}`);
       return record;
     },
-    readWorkflow: () => { throw new Error("workflow not used in this test"); },
+    readWorkflow: (runId) => {
+      const record = workflows.get(runId);
+      if (!record) throw new Error(`missing workflow ${runId}`);
+      return record;
+    },
     cancelSkill: async () => true,
     cancelWorkflow: async () => true,
     fileFingerprint: options.fileFingerprint,
     environment: options.environment
   });
-  return { scheduler, children, submitted, setNow: (value: Date) => { now = value; } };
+  return { scheduler, children, workflows, submitted, submittedWorkflows, submittedWorkflowInputs, setNow: (value: Date) => { now = value; } };
 }
 
 function child(id: string, state: BrokerRunRecord["state"], skillId: string): BrokerRunRecord {
@@ -223,6 +344,22 @@ function child(id: string, state: BrokerRunRecord["state"], skillId: string): Br
     processPid: null,
     orphanPid: null,
     artifacts: []
+  });
+}
+
+function workflow(id: string, state: WorkflowRunRecord["state"], skillId: string): WorkflowRunRecord {
+  return WorkflowRunRecordSchema.parse({
+    schemaVersion: EXECUTION_SCHEMA_VERSION,
+    id,
+    workflowSkillId: skillId,
+    workflowVersion: "1.0.0",
+    workflowFingerprint: "0".repeat(64),
+    state,
+    rootGeneration: 1,
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    error: null,
+    stepRuns: []
   });
 }
 

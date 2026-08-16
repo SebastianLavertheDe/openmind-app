@@ -594,7 +594,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   return (
-    <div className="settings-page">
+    <div className="settings-page" data-settings-section={activeSection}>
       <SettingsNavigation
         activeSection={activeSection}
         onBack={onBack}
@@ -684,7 +684,13 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
                     key={section.id}
                     aria-current={activeSection === section.id ? "page" : undefined}
                     aria-controls="settings-detail-panel"
-                    onClick={() => onSelect(section.id)}
+                    onClick={(event) => {
+                      // Pointer clicks should not leave the global keyboard-focus
+                      // ring on the newly selected destination. Keyboard activation
+                      // reports detail === 0 and intentionally keeps focus.
+                      if (event.detail > 0) event.currentTarget.blur();
+                      onSelect(section.id);
+                    }}
                   >
                     <Icon size={15} aria-hidden />
                     <span>{section.title}</span>

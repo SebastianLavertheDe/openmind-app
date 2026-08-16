@@ -17,6 +17,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { listIncompatibleWindowsDistlibLaunchers } = require("./bundled-python-runtime-utils.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 const args = parseArgs(process.argv.slice(2));
@@ -155,20 +156,99 @@ function scanArtifact(artifact, extractor, index) {
   });
   const parsed = readJson(scannerReport);
   const containsAsar = containsFileNamed(extractionRoot, "app.asar");
+  const bundledPythonRuntimes = verifyBundledPythonRuntimes(extractionRoot);
+  const runtimeFailure = bundledPythonRuntimes.length === 0
+    ? { error: "container does not contain a bundled Python runtime" }
+    : bundledPythonRuntimes.find((runtime) => runtime.status !== "passed");
   const scanError = scan.status === 0 && parsed?.status === "passed"
     ? null
     : (parsed?.findings?.join("; ") || scan.stderr || scan.stdout || `scanner exited with ${scan.status}`).trim();
-  const error = scanError || (!containsAsar ? "container does not contain app.asar" : null);
+  const error = scanError
+    || (!containsAsar ? "container does not contain app.asar" : null)
+    || (runtimeFailure ? `bundled Python runtime validation failed: ${runtimeFailure.error}` : null);
   return {
     ...identity,
     status: error ? "failed" : "passed",
     extractedFiles,
     nestedArchives,
     containsAsar,
+    bundledPythonRuntimes,
     scannedFiles: Number(parsed?.scannedFiles || 0),
     findings: parsed?.findings || [],
     error
   };
+}
+
+function verifyBundledPythonRuntimes(root) {
+  const runtimeRoots = findBundledPythonRuntimeRoots(root);
+  return runtimeRoots.map((runtimeRoot) => {
+    const manifestFile = path.join(runtimeRoot, "manifest.json");
+    const relativeRoot = path.relative(root, runtimeRoot).replaceAll(path.sep, "/");
+    try {
+      const manifest = readJson(manifestFile);
+      const target = path.basename(runtimeRoot);
+      if (!manifest || manifest.schemaVersion !== 2 || manifest.target !== target || !/^[a-f0-9]{64}$/i.test(manifest.filesDigest || "")) {
+        return { relativeRoot, status: "failed", error: "manifest is incomplete or has an unexpected target" };
+      }
+      const actualDigest = digestTree(runtimeRoot, new Set(["manifest.json"]));
+      if (actualDigest !== manifest.filesDigest.toLowerCase()) {
+        return { relativeRoot, target, status: "failed", error: `digest mismatch (expected ${manifest.filesDigest}, got ${actualDigest})` };
+      }
+      const incompatibleLaunchers = listIncompatibleWindowsDistlibLaunchers(runtimeRoot, target);
+      if (incompatibleLaunchers.length) {
+        return {
+          relativeRoot,
+          target,
+          status: "failed",
+          error: `contains ${incompatibleLaunchers.length} incompatible distlib launcher(s): ${incompatibleLaunchers.join(", ")}`
+        };
+      }
+      return { relativeRoot, target, status: "passed", digest: actualDigest };
+    } catch (error) {
+      return { relativeRoot, status: "failed", error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+}
+
+function findBundledPythonRuntimeRoots(root) {
+  const roots = [];
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      const child = path.join(directory, entry.name);
+      if (entry.name === "python-runtime") {
+        for (const target of fs.readdirSync(child, { withFileTypes: true })) {
+          if (!target.isDirectory() || target.isSymbolicLink()) continue;
+          const runtimeRoot = path.join(child, target.name);
+          if (fs.existsSync(path.join(runtimeRoot, "manifest.json"))) roots.push(runtimeRoot);
+        }
+        continue;
+      }
+      visit(child);
+    }
+  };
+  visit(root);
+  return roots.sort((left, right) => left.localeCompare(right));
+}
+
+function digestTree(root, excludedRelativePaths) {
+  const hash = crypto.createHash("sha256");
+  const walk = (directory) => {
+    const entries = fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const relative = path.relative(root, absolute).split(path.sep).join("/");
+      if (excludedRelativePaths.has(relative)) continue;
+      if (entry.isSymbolicLink()) throw new Error(`bundled runtime contains symlink: ${relative}`);
+      if (entry.isDirectory()) walk(absolute);
+      else if (entry.isFile()) {
+        hash.update(relative); hash.update("\0");
+        hash.update(fs.readFileSync(absolute)); hash.update("\0");
+      } else throw new Error(`bundled runtime contains unsupported file: ${relative}`);
+    }
+  };
+  walk(root);
+  return hash.digest("hex");
 }
 
 function expandNestedArchives(root, extractor) {

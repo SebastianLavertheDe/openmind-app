@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildAppPaths, ensureAppPaths, type AppPaths } from "../paths/app-paths-service";
+import { ArtifactCollector } from "./artifact-collector";
 import { ExecutionBroker, type ExecutionPlan } from "./execution-broker";
 
 describe("ExecutionBroker", () => {
@@ -26,7 +27,7 @@ describe("ExecutionBroker", () => {
 
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  it("uses consent, minimal process execution and declared Artifact collection", async () => {
+  it("starts immediately, uses a minimal process environment, and collects declared Artifacts", async () => {
     const run = broker.submit({
       skillId: "example-skill",
       version: "1.0.0",
@@ -35,18 +36,38 @@ describe("ExecutionBroker", () => {
       trigger: { type: "manual" },
       rootGeneration: 1
     });
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
-    expect(broker.get(run.id).terminalState).toBeNull();
-    expect(broker.approveExecution(run.id)).toBe(true);
+    await waitFor(() => broker.get(run.id).state !== "queued" && broker.get(run.id).state !== "inspecting");
+    expect(broker.get(run.id).state).not.toBe("waiting_execution_consent");
     await waitFor(() => broker.get(run.id).state === "succeeded");
 
     const completed = broker.get(run.id);
     expect(completed.terminalState).toBe("succeeded");
     expect(completed.artifacts).toHaveLength(1);
     expect(completed.artifacts[0].logicalPath).toBe("mymind/daily-summary/out.md");
-    expect(broker.events(run.id).map((event) => event.state)).toContain("waiting_execution_consent");
+    expect(broker.events(run.id).map((event) => event.state)).not.toContain("waiting_execution_consent");
     expect(broker.events(run.id).find((event) => event.text?.includes("sk-secret"))).toBeUndefined();
     expect(fs.readFileSync(path.join(paths.runs, run.id, "run.json"), "utf8")).not.toContain("20260805");
+  });
+
+  it("accepts a compatible semver range returned by an execution plan", async () => {
+    const run = broker.submit({ ...request(), version: "^1.0.0" });
+
+    await waitFor(() => broker.get(run.id).state === "succeeded");
+  });
+
+  it("does not fail a successful process when optional Artifact registration exceeds its limit", async () => {
+    const limitedBroker = new ExecutionBroker(
+      paths,
+      (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId)),
+      undefined,
+      { maxConcurrentRuns: 1, artifactCollector: new ArtifactCollector(1) }
+    );
+
+    const run = limitedBroker.submit(request());
+    await waitFor(() => limitedBroker.get(run.id).state === "succeeded");
+
+    expect(limitedBroker.get(run.id).artifacts).toEqual([]);
+    expect(limitedBroker.events(run.id).some((event) => event.text?.includes("Artifact 登记失败，已忽略"))).toBe(true);
   });
 
   it("queues on a mutex and cancels an active process through the broker", async () => {
@@ -57,9 +78,6 @@ describe("ExecutionBroker", () => {
     }, undefined, { maxConcurrentRuns: 1 });
     const first = broker.submit(request());
     const second = broker.submit(request());
-    await waitFor(() => broker.get(first.id).state === "waiting_execution_consent" && broker.get(second.id).state === "waiting_execution_consent");
-    broker.approveExecution(first.id);
-    broker.approveExecution(second.id);
     await waitFor(() => broker.get(first.id).state === "running");
     expect(broker.get(second.id).state).toBe("preparing_runtime");
     await broker.cancel(first.id);
@@ -71,8 +89,6 @@ describe("ExecutionBroker", () => {
   it("makes timeout a terminal state and rejects secret-like direct inputs", async () => {
     const timeoutBroker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, { script: "setTimeout(() => {}, 30_000)", timeoutMs: 30 })), undefined, { maxConcurrentRuns: 1 });
     const run = timeoutBroker.submit(request());
-    await waitFor(() => timeoutBroker.get(run.id).state === "waiting_execution_consent");
-    timeoutBroker.approveExecution(run.id);
     await waitFor(() => timeoutBroker.get(run.id).state === "timed_out");
     expect(timeoutBroker.get(run.id).terminalState).toBe("timed_out");
     expect(() => broker.submit({ ...request(), inputs: { apiKey: "secret" } })).toThrow(/不能直接携带 Secret/);
@@ -88,8 +104,6 @@ describe("ExecutionBroker", () => {
       { maxConcurrentRuns: 1 }
     );
     const run = retryBroker.submit(request());
-    await waitFor(() => retryBroker.get(run.id).state === "waiting_execution_consent");
-    expect(retryBroker.approveExecution(run.id)).toBe(true);
     await waitFor(() => retryBroker.get(run.id).state === "succeeded");
 
     const completed = retryBroker.get(run.id);
@@ -109,8 +123,6 @@ describe("ExecutionBroker", () => {
       { maxConcurrentRuns: 1 }
     );
     const run = credentialBroker.submit(request());
-    await waitFor(() => credentialBroker.get(run.id).state === "waiting_execution_consent");
-    credentialBroker.approveExecution(run.id);
     await waitFor(() => credentialBroker.get(run.id).state === "running");
 
     await expect(credentialBroker.revokeCredentials(["credential-token"])).resolves.toBe(1);
@@ -135,8 +147,6 @@ describe("ExecutionBroker", () => {
       { maxConcurrentRuns: 1 }
     );
     const run = leaseBroker.submit(request());
-    await waitFor(() => leaseBroker.get(run.id).state === "waiting_execution_consent");
-    leaseBroker.approveExecution(run.id);
     await waitFor(() => leaseBroker.get(run.id).state === "succeeded");
     expect(acquired).toBe(1);
     expect(released).toBe(1);

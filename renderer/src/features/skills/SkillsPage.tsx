@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, Clock3, Download, FolderOpen, Package, Search, X } from "lucide-react";
 import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView } from "@shared/contracts";
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
@@ -269,67 +270,77 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     }
   }, [candidate, inspection, onInstalled]);
 
-  return <section className="workspace-card skills-source-picker" aria-label={picker.title}>
+  return <>
     <button type="button" className="skills-source-picker-toggle" aria-expanded={open} onClick={onToggle}>
       <Download size={15} aria-hidden />
       <span>{open ? picker.close : picker.open}</span>
     </button>
-    {open ? <div className="skills-source-picker-body">
-      <header><h3>{picker.title}</h3><p>{picker.description}</p></header>
-      <div className="skills-source-picker-row">
-        <button type="button" className="skills-source-picker-local" disabled={busy !== null} onClick={() => void selectLocal()}>
-          <FolderOpen size={15} aria-hidden />
-          <span>{picker.local}</span>
-        </button>
-      </div>
-      <div className="skills-source-picker-row">
-        <label className="skills-source-picker-git">
-          <span>{picker.git}</span>
-          <input
-            type="url"
-            inputMode="url"
-            placeholder={picker.gitPlaceholder}
-            value={gitUrl}
-            onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setFailure(null); }}
-            onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
-          />
-          <input
-            type="text"
-            placeholder={picker.refPlaceholder}
-            value={gitRef}
-            onChange={(event) => setGitRef(event.target.value)}
-          />
-          <button type="button" disabled={busy !== null} onClick={() => void inspectGit()}>
-            {busy === "inspect" ? picker.inspecting : picker.inspect}
-          </button>
-          {busy === "inspect" ? <button type="button" className="skills-source-picker-cancel" onClick={() => void cancelInspect()}>{picker.cancel}</button> : null}
-        </label>
-      </div>
-      {candidate ? <div className="skills-source-picker-candidate">
-        <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
-        {inspection ? <StatusBadge tone={inspection.valid ? "success" : "danger"}>
-          {inspection.valid ? picker.valid : picker.invalid}
-        </StatusBadge> : null}
-        {inspection ? <dl>
-          <div><dt>{picker.name}</dt><dd>{inspectionName(inspection)}</dd></div>
-          <div><dt>{picker.publisher}</dt><dd>{inspectionPublisher(inspection)}</dd></div>
-          <div><dt>{picker.version}</dt><dd>{inspectionVersion(inspection)}</dd></div>
-          <div><dt>{picker.digest}</dt><dd title={inspection.digest}>{inspection.digest.slice(0, 16)}…</dd></div>
-          <div><dt>{picker.filesLabel}</dt><dd>{picker.files(inspection.files.length)}</dd></div>
-        </dl> : null}
-        {inspection?.warnings.length ? <ul className="skills-source-picker-warnings">
-          {inspection.warnings.slice(0, 5).map((warning, index) => <li key={index}>{warning}</li>)}
-        </ul> : null}
-        {inspection?.issues.length ? <ul className="skills-source-picker-issues">
-          {inspection.issues.slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
-        </ul> : null}
-        <button type="button" className="skills-source-picker-install" disabled={busy !== null || !inspection?.valid} onClick={() => void install()}>
-          {busy === "install" ? picker.importing : picker.import}
-        </button>
-      </div> : null}
-      {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
-    </div> : null}
-  </section>;
+    {open && typeof document !== "undefined" ? createPortal(
+      <div className="modal-scrim skills-source-dialog-scrim ui-overlay" onMouseDown={onToggle}>
+        <section className="skills-source-dialog" role="dialog" aria-modal="true" aria-labelledby="skills-source-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+          <header className="skills-source-dialog-header">
+            <div><span className="eyebrow">SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
+            <button type="button" className="skills-source-dialog-close" aria-label="关闭添加 Skill 来源" onClick={onToggle}><X size={17} aria-hidden /></button>
+          </header>
+          <div className="skills-source-picker-body">
+            <div className="skills-source-picker-row">
+              <button type="button" className="skills-source-picker-local" disabled={busy !== null} onClick={() => void selectLocal()}>
+                <FolderOpen size={15} aria-hidden />
+                <span>{picker.local}</span>
+              </button>
+            </div>
+            <div className="skills-source-picker-row">
+              <label className="skills-source-picker-git">
+                <span>{picker.git}</span>
+                <input
+                  type="url"
+                  inputMode="url"
+                  placeholder={picker.gitPlaceholder}
+                  value={gitUrl}
+                  onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setFailure(null); }}
+                  onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
+                />
+                <input
+                  type="text"
+                  placeholder={picker.refPlaceholder}
+                  value={gitRef}
+                  onChange={(event) => setGitRef(event.target.value)}
+                />
+                <button type="button" disabled={busy !== null} onClick={() => void inspectGit()}>
+                  {busy === "inspect" ? picker.inspecting : picker.inspect}
+                </button>
+                {busy === "inspect" ? <button type="button" className="skills-source-picker-cancel" onClick={() => void cancelInspect()}>{picker.cancel}</button> : null}
+              </label>
+            </div>
+            {candidate ? <div className="skills-source-picker-candidate">
+              <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
+              {inspection ? <StatusBadge tone={inspection.valid ? "success" : "danger"}>
+                {inspection.valid ? picker.valid : picker.invalid}
+              </StatusBadge> : null}
+              {inspection ? <dl>
+                <div><dt>{picker.name}</dt><dd>{inspectionName(inspection)}</dd></div>
+                <div><dt>{picker.publisher}</dt><dd>{inspectionPublisher(inspection)}</dd></div>
+                <div><dt>{picker.version}</dt><dd>{inspectionVersion(inspection)}</dd></div>
+                <div><dt>{picker.digest}</dt><dd title={inspection.digest}>{inspection.digest.slice(0, 16)}…</dd></div>
+                <div><dt>{picker.filesLabel}</dt><dd>{picker.files(inspection.files.length)}</dd></div>
+              </dl> : null}
+              {inspection?.warnings.length ? <ul className="skills-source-picker-warnings">
+                {inspection.warnings.slice(0, 5).map((warning, index) => <li key={index}>{warning}</li>)}
+              </ul> : null}
+              {inspection?.issues.length ? <ul className="skills-source-picker-issues">
+                {inspection.issues.slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
+              </ul> : null}
+              <button type="button" className="skills-source-picker-install" disabled={busy !== null || !inspection?.valid} onClick={() => void install()}>
+                {busy === "install" ? picker.importing : picker.import}
+              </button>
+            </div> : null}
+            {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
+          </div>
+        </section>
+      </div>,
+      document.body
+    ) : null}
+  </>;
 }
 
 function sourceErrorMessage(cause: unknown): string {
@@ -520,5 +531,5 @@ function skillState(item: SkillItem): { label: string; tone: "success" | "warnin
 }
 function kindLabel(kind: string): string { return ({ process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }
 function runStateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
-function runStateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "等待授权", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中" } as Record<string, string>)[state] || state; }
+function runStateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "准备运行环境", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中" } as Record<string, string>)[state] || state; }
 function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }

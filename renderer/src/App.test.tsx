@@ -139,7 +139,7 @@ describe("App bootstrap", () => {
         repoRoot: "/project",
         mymindRoot: "/project/mymind",
         workspaceRoot: "/project",
-        validRepo: true,
+        validRepo: false,
         onboardingCompleted: false,
         runtime: "test",
         environment: { mode: "desktop", platform: "linux" },

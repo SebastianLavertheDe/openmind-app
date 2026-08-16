@@ -251,11 +251,6 @@ export class SkillToolRegistry {
     return this.broker.cancel(runId);
   }
 
-  approveRun(runId: string): boolean {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
-    return this.broker.approveExecution(runId);
-  }
-
   startWorkflowRun(request: WorkflowStartRequest): WorkflowRunRecord {
     if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
     const manifest = this.resolveWorkflowManifest(request.skillId, request.version);

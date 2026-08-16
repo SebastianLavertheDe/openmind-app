@@ -108,7 +108,6 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(plan.process.executable).toBe(fs.realpathSync(process.execPath));
     expect(plan.process.args.at(-1)).toBe("20260805");
     expect(plan.process.cwd).toContain("1.0.0-");
-    expect(plan.requiresHostConsent).toBe(true);
     expect(plan.maxInstances).toBe(1);
     expect(plan.artifacts?.[0]).toMatchObject({ logicalPath: "daily-summary/20260805.md", type: "markdown" });
     await plan.prepareRuntime?.();
@@ -196,8 +195,6 @@ describe("InstalledSkillExecutionResolver", () => {
       { maxConcurrentRuns: 1 }
     );
     const run = broker.submit(runRequest(fixture.digest));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded");
 
     const completed = broker.get(run.id);
@@ -223,8 +220,6 @@ describe("InstalledSkillExecutionResolver", () => {
       { maxConcurrentRuns: 1 }
     );
     const run = broker.submit(runRequest(fixture.digest));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded");
 
     const output = fs.readFileSync(path.join(fixture.mymindRoot, "daily-summary", "20260805.md"), "utf8");
@@ -265,8 +260,6 @@ describe("InstalledSkillExecutionResolver", () => {
       externalExportBindingIds: [],
       rootGeneration: 1
     }));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent");
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded");
 
     const events = broker.events(run.id).map((event) => event.text || "").join("\n");
@@ -318,8 +311,6 @@ describe("InstalledSkillExecutionResolver", () => {
       externalExportBindingIds: [],
       rootGeneration: 1
     }));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
     const completed = broker.get(run.id);
@@ -377,8 +368,6 @@ describe("InstalledSkillExecutionResolver", () => {
       externalExportBindingIds: [],
       rootGeneration: 1
     }));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
     const inboxPath = path.join(fixture.mymindRoot, "creative", "01-内容生产", "选题管理", "00-兴趣收集箱.md");
@@ -447,8 +436,6 @@ describe("InstalledSkillExecutionResolver", () => {
       externalExportBindingIds: [],
       rootGeneration: 1
     }));
-    await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-    expect(broker.approveExecution(run.id)).toBe(true);
     await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
     const packagesRoot = path.join(fixture.mymindRoot, "creative", "01-内容生产", "文稿库", "02-制作中");
@@ -539,8 +526,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(run.id)).toBe(true);
       await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
       const completed = broker.get(run.id);
@@ -676,8 +661,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(run.id)).toBe(true);
       await waitFor(
         () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
         60_000
@@ -789,8 +772,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(run.id)).toBe(true);
       await waitFor(
         () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
         60_000
@@ -934,8 +915,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(run.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(run.id)).toBe(true);
       await waitFor(
         () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
         60_000
@@ -1108,8 +1087,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(fetchRun.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(fetchRun.id)).toBe(true);
       await waitFor(() => broker.get(fetchRun.id).state === "succeeded", 30_000);
       const redditFile = path.join(mymindRoot, "reddit", "20260805", "artificial.md");
       expect(fs.existsSync(redditFile)).toBe(true);
@@ -1126,8 +1103,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(summaryRun.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(summaryRun.id)).toBe(true);
       await waitFor(() => broker.get(summaryRun.id).state === "succeeded", 60_000);
 
       const summaryCompleted = broker.get(summaryRun.id);
@@ -1159,8 +1134,6 @@ describe("InstalledSkillExecutionResolver", () => {
         externalExportBindingIds: [],
         rootGeneration: 1
       }));
-      await waitFor(() => broker.get(topicRun.id).state === "waiting_execution_consent", 10_000);
-      expect(broker.approveExecution(topicRun.id)).toBe(true);
       await waitFor(
         () => ["succeeded", "failed", "cancelled"].includes(broker.get(topicRun.id).state),
         60_000

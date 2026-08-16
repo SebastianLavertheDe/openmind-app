@@ -17,7 +17,6 @@ import {
   CreativeStageSchema,
   CreativeTopicStatePatchSchema,
   ContentIndexMaintenanceSchema,
-  EnvironmentDiagnosticSchema,
   ProjectFileSearchResultSchema,
   PreferencesImportResultSchema,
   SourcePatchSchema,
@@ -637,10 +636,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
-      channel: C.getEnvironmentDiagnostics,
-      handler: () => settings.getEnvironmentDiagnostics().map((item: unknown) => EnvironmentDiagnosticSchema.parse(item))
-    },
-    {
       channel: C.getSharedPythonRuntimeStatus,
       handler: () => SharedPythonRuntimeStatusSchema.parse(sharedPython().status())
     },
@@ -773,6 +768,22 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
+      channel: C.upgradeCliTool,
+      handler: async (cli) => {
+        const service = ctx.ensureCliInstallerService?.();
+        if (!service) throw new Error("当前环境不支持升级 CLI。 ");
+        return service.upgrade(parseCliToolId(cli));
+      }
+    },
+    {
+      channel: C.checkCliToolUpdate,
+      handler: async (cli) => {
+        const service = ctx.ensureCliInstallerService?.();
+        if (!service) throw new Error("当前环境不支持检查 CLI 版本。 ");
+        return service.checkForUpdate(parseCliToolId(cli));
+      }
+    },
+    {
       channel: C.cancelCliToolInstall,
       handler: (cli) => ctx.ensureCliInstallerService?.()?.cancel(parseCliToolId(cli)) ?? false
     },
@@ -868,7 +879,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.retryWorkflowStep, handler: (runId, stepId) => ai().call("run-retry-step", parseString(runId), parseString(stepId)) },
     { channel: C.deleteRunHistory, handler: (runId) => ai().call("run-delete-history", parseString(runId)) },
     { channel: C.cancelSkillRun, handler: (runId) => ai().call("skill-run-cancel", parseString(runId)) },
-    { channel: C.approveSkillRun, handler: (runId) => ai().call("skill-run-approve", parseString(runId)) },
     { channel: C.startWorkflowRun, handler: (input) => ai().call("workflow-run-start", WorkflowStartRequestSchema.parse(input)) },
     { channel: C.listWorkflowRuns, handler: () => ai().call("workflow-run-list") },
     { channel: C.getWorkflowRun, handler: (runId) => ai().call("workflow-run-get", parseString(runId)) },

@@ -244,14 +244,15 @@ The first configuration and secret boundary is now implemented:
   exposed as the Settings `testProviderProfile` IPC method.
 - The AI worker now has a Main-mediated, exact-scope credential request bridge;
   plaintext is returned only to the worker-side execution path after the Run
-  has passed consent and is never exposed through renderer IPC.
+  has passed execution-plan validation and is never exposed through renderer
+  IPC.
 - Installed process Manifests now validate `providerBindings` against declared
   `provider-profile` config fields, resolve safe Profile metadata in the
   worker, support `{{ providers.<binding>.* }}` templates and
   `secretRef: provider:<binding>`; the resulting Credential ID is tracked
   only in the in-memory execution plan.
 - Credential set/replace/revoke/delete IPC mutations notify the worker. The
-  Broker blocks revoked Credentials before injection, cancels queued/consent/
+  Broker blocks revoked Credentials before injection, cancels queued and
   active Broker Runs using them, and permits a replacement only after the
   replacement transition restores the binding.
 - Tests cover Base URL and scope contracts, ciphertext-only storage, file
@@ -376,16 +377,15 @@ The first single-process execution chain is now implemented and exercised:
 - `electron/execution/process-host.ts` owns absolute-executable, `shell:false`
   child startup, bounded stdout/stderr rings, known-secret/common-pattern
   redaction, timeout, abort and POSIX process-group best-effort cleanup.
-- `electron/execution/artifact-collector.ts` snapshots `mymind` and Run
-  directories, collects declared logical Artifacts with hashes, rejects
-  symlink/traversal collection and reports undeclared writes.
-- `electron/execution/execution-consent-service.ts` persists exact
-  Skill/version/digest/capability approvals and supports revocation without
-  storing secrets.
-- `electron/execution/execution-broker.ts` implements inspect → consent →
-  prepare → queue → run → terminal transitions, global concurrency and
+- `electron/execution/artifact-collector.ts` scans only declared output
+  prefixes, collects logical Artifacts with hashes, and rejects
+  symlink/traversal collection. It does not perform whole-tree before/after
+  auditing or claim to detect undeclared host-process writes.
+- `electron/execution/execution-broker.ts` implements inspect → prepare →
+  queue → run → terminal transitions, global concurrency and
   mutexes, cancellation, timeout, same-Run retry budgets, durable output
-  events and Artifact collection. Retry increments a persisted attempt counter,
+  events and best-effort Artifact registration. Artifact indexing failures are
+  reported without overriding the process exit outcome. Retry increments a persisted attempt counter,
   never creates a second terminal Run, and never retries user cancellation.
 - `electron/skills/installed-skill-execution-resolver.ts` now binds generic
   Runs to an active, ready InstalledSkill digest, resolves a
@@ -394,8 +394,8 @@ The first single-process execution chain is now implemented and exercised:
   bindings.
 - `electron/skills/installed-skill-execution-resolver.test.ts` now has a
   real formal-package execution gate: it installs a signed Runtime Pack
-  fixture, promotes it through RuntimePackService, installs/activates and
-  host-approves a formal package, then starts a real Node child through
+  fixture, promotes it through RuntimePackService, installs/activates a
+  formal package, then starts a real Node child through
   RuntimeManager + ExecutionBroker and verifies declared Artifact persistence
   and Runtime Pack lease cleanup. This is a generic chain gate; it does not
   yet certify every production Batch A/B Python package.
@@ -604,8 +604,8 @@ Remaining Phase 6 work:
   `reddit-fetcher` → `daily-article-summarizer` → `daily-topic-selector`
   chain plus local RSS→article, article→wiki and managed-credential
   HTTP→post Artifact gates for `rss-article-saver`,
-  `knowledge-wiki-compiler` and `x-following-fetcher`. These tests install,
-  activate and host-approve the formal package, run through RuntimeManager +
+  `knowledge-wiki-compiler` and `x-following-fetcher`. These tests install
+  and activate the formal package, run through RuntimeManager +
   ExecutionBroker, and assert the declared output boundary. The simple
   package gates inject the host Python interpreter; RSS/Wiki use a test-only
   wrapper around each Skill's development venv. None of these gates replaces

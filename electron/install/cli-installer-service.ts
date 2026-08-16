@@ -36,6 +36,17 @@ export type CliInstallStatus = {
   executablePath: string;
 };
 
+export type CliToolUpdate = {
+  cli: CliToolId;
+  installed: boolean;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  canUpgrade: boolean;
+  checkedAt: string;
+  source: "official" | "npm" | "unknown";
+};
+
 export type CliInstallerErrorCode =
   | "platform-unsupported"
   | "release-lookup-failed"
@@ -203,11 +214,11 @@ export class CliInstallerService {
     return true;
   }
 
-  async install(cli: CliToolId, onProgress: (progress: CliInstallProgress) => void = () => undefined): Promise<CliInstallStatus> {
+  async install(cli: CliToolId, onProgress: (progress: CliInstallProgress) => void = () => undefined, options: { force?: boolean } = {}): Promise<CliInstallStatus> {
     const platform = detectCliToolPlatform(this.platform, this.arch);
     if (!platform) throw new CliInstallerError({ code: "platform-unsupported", message: "当前版本只支持 Windows 原生和 macOS 一键安装，请参考手动安装步骤。" });
     const current = this.status(cli);
-    if (current.installed) return current;
+    if (current.installed && !options.force) return current;
     if (this.active.has(cli)) throw new CliInstallerError({ code: "install-command-failed", message: `${cli} 正在安装，请等待当前安装完成。` });
 
     const controller = new AbortController();
@@ -235,6 +246,52 @@ export class CliInstallerService {
       if (this.active.get(cli) === controller) this.active.delete(cli);
       fs.rmSync(stagingRoot, { recursive: true, force: true });
     }
+  }
+
+  async upgrade(cli: CliToolId): Promise<CliInstallStatus> {
+    return this.install(cli, () => undefined, { force: true });
+  }
+
+  async checkForUpdate(cli: CliToolId): Promise<CliToolUpdate> {
+    const current = this.status(cli);
+    const source = cli === "codex" ? "npm" : "official";
+    let latestVersion: string | null = null;
+    try {
+      const url = cli === "codex"
+        ? CODEX_NPM_REGISTRY
+        : this.platform === "win32" ? CLAUDE_INSTALL_SCRIPT.win32 : CLAUDE_INSTALL_SCRIPT.darwin;
+      const response = await this.transport(url);
+      if (response.statusCode !== 200) throw new Error(`HTTP ${response.statusCode}`);
+      if (cli === "codex") {
+        let payload: unknown;
+        try { payload = JSON.parse(response.body.toString("utf8")); } catch { payload = null; }
+        const distTags = payload && typeof payload === "object" && "dist-tags" in payload ? (payload as { "dist-tags"?: unknown })["dist-tags"] : null;
+        latestVersion = distTags && typeof distTags === "object" && typeof (distTags as { latest?: unknown }).latest === "string"
+          ? (distTags as { latest: string }).latest
+          : null;
+      } else {
+        // The Claude bootstrap script does not promise a stable metadata API.
+        // When it embeds a concrete release version we can compare it; when
+        // it only points at the latest channel, upgrade remains available but
+        // the UI avoids claiming a false version number.
+        latestVersion = parseVersion(response.body.toString("utf8"));
+      }
+    } catch {
+      // Version checks are best-effort. The caller still receives the local
+      // version and can use the official upgrade path when available.
+      latestVersion = null;
+    }
+    const comparison = current.version && latestVersion ? compareVersions(current.version, latestVersion) : null;
+    return {
+      cli,
+      installed: current.installed,
+      currentVersion: current.version,
+      latestVersion,
+      updateAvailable: comparison !== null ? comparison < 0 : false,
+      canUpgrade: current.installed && Boolean(current.digest),
+      checkedAt: new Date().toISOString(),
+      source: current.installed ? source : "unknown"
+    };
   }
 
   private async installClaudeNative(
@@ -476,6 +533,23 @@ function sha256Tree(root: string): string {
 
 function parseVersion(value: string): string | null {
   return value.match(/\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/)?.[0] || null;
+}
+
+function compareVersions(left: string, right: string): number | null {
+  const parse = (value: string) => {
+    const match = value.match(/^(?:v)?(\d+)\.(\d+)\.(\d+)(?:[-+]([0-9A-Za-z.-]+))?$/);
+    return match ? { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]), pre: match[4] || null } : null;
+  };
+  const a = parse(left);
+  const b = parse(right);
+  if (!a || !b) return null;
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (a[key] !== b[key]) return a[key] < b[key] ? -1 : 1;
+  }
+  if (a.pre === b.pre) return 0;
+  if (!a.pre) return 1;
+  if (!b.pre) return -1;
+  return a.pre.localeCompare(b.pre);
 }
 
 function tailOutput(value: string): string {

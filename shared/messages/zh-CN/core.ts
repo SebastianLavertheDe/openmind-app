@@ -9,7 +9,6 @@ export const coreMessages = {
     creative: "创作",
     automation: "自动化",
     runs: "运行中心",
-    diagnostics: "诊断",
     ai: "新建任务",
     settings: "设置"
   },

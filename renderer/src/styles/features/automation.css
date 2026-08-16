@@ -670,6 +670,7 @@
 
 .automation-editor-card {
   min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--panel);
@@ -679,7 +680,8 @@
 .automation-editor-grid {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) minmax(130px, .7fr) minmax(160px, .85fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  align-items: end;
   gap: 12px;
   padding: 16px;
   border-bottom: 1px solid var(--hairline);
@@ -696,6 +698,15 @@
 
 .automation-field > span:first-child {
   min-height: 17px;
+}
+
+.automation-target-field {
+  max-width: 720px;
+}
+
+.automation-editor-grid > .automation-field:not(.automation-target-field) {
+  width: min(100%, 220px);
+  justify-self: end;
 }
 
 .automation-field input,
@@ -787,7 +798,7 @@
 .automation-input-panel {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(210px, .75fr) minmax(0, 1.8fr);
+  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
   gap: 20px;
   padding: 16px;
   border-bottom: 1px solid var(--hairline);
@@ -828,7 +839,8 @@
 .automation-schedule-fields {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  justify-content: start;
   align-items: start;
   gap: 12px;
 }
@@ -839,6 +851,7 @@
 
 .automation-input-suffix {
   min-width: 0;
+  width: min(100%, 260px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -871,6 +884,7 @@
 
 .automation-schedule-empty {
   grid-column: 1 / -1;
+  max-width: 540px;
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -901,7 +915,8 @@
 .automation-editor-meta {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 210px));
+  justify-content: start;
   margin: 0;
   padding: 0;
   background: color-mix(in srgb, var(--panel-muted) 58%, var(--panel));
@@ -1009,6 +1024,11 @@
   .automation-target-field,
   .automation-field-wide {
     grid-column: auto;
+  }
+
+  .automation-editor-grid > .automation-field:not(.automation-target-field) {
+    width: 100%;
+    justify-self: stretch;
   }
 }
 

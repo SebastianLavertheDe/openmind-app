@@ -19,6 +19,14 @@ type SkillReader = (runId: string) => BrokerRunRecord;
 type WorkflowReader = (runId: string) => WorkflowRunRecord;
 type ChildCanceller = (runId: string) => Promise<boolean>;
 
+const DATE_INPUT_TARGETS = new Set([
+  "rss-article-saver",
+  "rss-to-summary-workflow",
+  "daily-article-summarizer",
+  "daily-topic-selector",
+  "reddit-fetcher"
+]);
+
 export type AutomationSchedulerOptions = {
   repository: AutomationRepository;
   rootGeneration: number;
@@ -105,7 +113,28 @@ export class AutomationScheduler {
   async runNow(id: string): Promise<AutomationRunRecord> {
     const rule = this.getRule(id);
     if (!rule.enabled) throw new Error("Automation Rule 已禁用。 ");
-    return this.trigger(rule, "manual", null, null, this.now());
+    const at = this.now();
+    // A retry waits in `queued` until its backoff expires. It is not an
+    // executing child, so an explicit user request to run now should advance
+    // that durable retry instead of being reported as an overlap-skipped
+    // second run. Keep the existing record so its attempt/history remain
+    // intact. Likewise, a second manual click while a child is genuinely
+    // running should surface that active record to the caller instead of
+    // creating a misleading terminal `skipped` record.
+    const runs = this.options.repository.listRuns(rule.id);
+    const running = rule.concurrencyPolicy === "skip"
+      ? runs.find((run) => run.state === "running")
+      : undefined;
+    if (running) return running;
+    const queuedRetry = rule.concurrencyPolicy === "skip"
+      ? runs.find((run) => run.state === "queued" && !run.childRunId)
+      : undefined;
+    if (queuedRetry) {
+      const ready = this.options.repository.updateRun(queuedRetry.id, { retryAt: null });
+      await this.launch(ready, rule, at);
+      return this.options.repository.getRun(ready.id)!;
+    }
+    return this.trigger(rule, "manual", null, null, at);
   }
 
   async tick(at = this.now()): Promise<void> {
@@ -144,10 +173,11 @@ export class AutomationScheduler {
 
   /** Workflow completion is delivered separately because WorkflowEngine owns its record. */
   async handleWorkflowRunEvent(run: WorkflowRunRecord): Promise<void> {
-    if (run.state !== "succeeded") return;
+    if (!isTerminalWorkflowState(run.state)) return;
     const at = this.now();
     if (this.leader && !this.leader.tryAcquire(at)) return;
     await this.reconcile(at);
+    if (run.state !== "succeeded") return;
     await this.triggerCompletedRules(null, run.workflowSkillId, run.id, at);
   }
 
@@ -265,11 +295,12 @@ export class AutomationScheduler {
         ? undefined
         : this.options.resolveTargetVersion?.(rule.target);
       if (rule.target.versionPolicy !== "*" && !version) throw new Error(`Automation Rule 的 Skill version policy 未解析：${rule.target.id}@${rule.target.versionPolicy}`);
+      const inputs = materializeInputs(rule, at);
       const child = rule.target.type === "skill"
         ? this.options.submitSkill({
           skillId: rule.target.id,
           ...(version ? { version } : {}),
-          inputs: rule.inputs,
+          inputs,
           providerBindings: rule.providerBindings,
           externalExportBindingIds: rule.externalExportBindingIds,
           trigger: { type: "automation", ruleId: rule.id },
@@ -278,7 +309,7 @@ export class AutomationScheduler {
         : this.options.submitWorkflow({
           skillId: rule.target.id,
           ...(version ? { version } : {}),
-          inputs: rule.inputs,
+          inputs,
           providerBindings: rule.providerBindings,
           rootGeneration: this.options.rootGeneration
         });
@@ -289,6 +320,10 @@ export class AutomationScheduler {
         childRunId: child.id,
         error: null
       });
+      // A Workflow can fail while its synchronous start path is still
+      // returning. Its terminal event may arrive before the parent record has
+      // a childRunId, so reconcile once after that durable linkage exists.
+      await this.reconcile(at);
     } catch (error) {
       this.options.repository.updateRun(record.id, {
         state: "blocked",
@@ -306,6 +341,20 @@ export class AutomationScheduler {
   private cancelChild(rule: AutomationRule, childRunId: string): Promise<boolean> {
     return rule.target.type === "skill" ? this.options.cancelSkill(childRunId) : this.options.cancelWorkflow(childRunId);
   }
+}
+
+function isTerminalWorkflowState(state: WorkflowRunRecord["state"]): boolean {
+  return state === "succeeded" || state === "failed" || state === "cancelled";
+}
+
+function materializeInputs(rule: AutomationRule, at: Date): Record<string, unknown> {
+  if (Object.prototype.hasOwnProperty.call(rule.inputs, "date") || !DATE_INPUT_TARGETS.has(rule.target.id)) {
+    return { ...rule.inputs };
+  }
+  const year = at.getFullYear();
+  const month = String(at.getMonth() + 1).padStart(2, "0");
+  const day = String(at.getDate()).padStart(2, "0");
+  return { ...rule.inputs, date: `${year}${month}${day}` };
 }
 
 type Due = { reason: string; scheduledFor: Date; key: string; missed: boolean };

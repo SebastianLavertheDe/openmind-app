@@ -233,7 +233,7 @@ function entryKey(entry: RunEntry): string { return `${entry.kind}:${entry.recor
 function isTerminal(state: string): boolean { return ["succeeded", "failed", "timed_out", "cancelled"].includes(state); }
 function canRetry(state: string): boolean { return ["failed", "timed_out", "cancelled"].includes(state); }
 function stateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
-function stateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "等待授权", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" } as Record<string, string>)[state] || state; }
+function stateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "准备运行环境", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" } as Record<string, string>)[state] || state; }
 function formatTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
 function formatBytes(value: number): string { return value < 1024 ? `${value} B` : value < 1024 * 1024 ? `${Math.round(value / 102.4) / 10} KB` : `${Math.round(value / 104857.6) / 10} MB`; }
 function formatUsage(usage: NonNullable<BrokerRunRecord["usage"]>): string {

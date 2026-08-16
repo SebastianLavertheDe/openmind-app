@@ -10,14 +10,11 @@ afterEach(() => {
 });
 
 describe("ArtifactCollector", () => {
-  it("collects declared mymind artifacts and reports undeclared writes", () => {
+  it("collects only declared mymind artifacts without auditing sibling writes", () => {
     const root = makeRoot();
     const mymind = path.join(root, "mymind");
-    const run = path.join(root, "run");
     fs.mkdirSync(path.join(mymind, "daily-summary"), { recursive: true });
-    fs.mkdirSync(run, { recursive: true });
     const collector = new ArtifactCollector();
-    const before = collector.snapshot(mymind);
     fs.writeFileSync(path.join(mymind, "daily-summary", "20260805_daily_summary.md"), "summary");
     fs.writeFileSync(path.join(mymind, "daily-summary", "private.md"), "undeclared");
 
@@ -25,23 +22,41 @@ describe("ArtifactCollector", () => {
       runId: "run-1",
       skillId: "daily-article-summarizer",
       mymindRoot: mymind,
-      runDir: run,
-      before,
       declarations: [{ id: "summary", type: "markdown", logicalPath: "daily-summary/20260805_daily_summary.md" }]
     });
 
     expect(result.artifacts).toHaveLength(1);
     expect(result.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.undeclaredPaths).toEqual(["mymind/daily-summary/private.md"]);
+    expect(result.artifacts[0].logicalPath).toBe("mymind/daily-summary/20260805_daily_summary.md");
+  });
+
+  it("does not scan unrelated historical content", () => {
+    const root = makeRoot();
+    const mymind = path.join(root, "mymind");
+    fs.mkdirSync(path.join(mymind, "article", "history"), { recursive: true });
+    fs.mkdirSync(path.join(mymind, "daily-summary"), { recursive: true });
+    for (let index = 0; index < 20; index += 1) {
+      fs.writeFileSync(path.join(mymind, "article", "history", `${index}.md`), "old");
+    }
+    fs.writeFileSync(path.join(mymind, "daily-summary", "20260805_daily_summary.md"), "summary");
+
+    const result = new ArtifactCollector(5).collect({
+      runId: "run-scoped",
+      skillId: "daily-article-summarizer",
+      mymindRoot: mymind,
+      declarations: [{ id: "summary", type: "markdown", logicalPath: "daily-summary/20260805_daily_summary.md" }]
+    });
+
+    expect(result.artifacts.map((artifact) => artifact.logicalPath)).toEqual([
+      "mymind/daily-summary/20260805_daily_summary.md"
+    ]);
   });
 
   it("does not collect an escaping symlink or revoked external binding", () => {
     const root = makeRoot();
     const mymind = path.join(root, "mymind");
-    const run = path.join(root, "run");
     const outside = path.join(root, "outside");
     fs.mkdirSync(mymind, { recursive: true });
-    fs.mkdirSync(run, { recursive: true });
     fs.mkdirSync(outside, { recursive: true });
     fs.writeFileSync(path.join(outside, "secret.txt"), "secret");
     fs.symlinkSync(outside, path.join(mymind, "leak"), process.platform === "win32" ? "junction" : "dir");
@@ -51,8 +66,6 @@ describe("ArtifactCollector", () => {
       runId: "run-2",
       skillId: "skill",
       mymindRoot: mymind,
-      runDir: run,
-      before: collector.snapshot(mymind),
       declarations: [
         { id: "leak", type: "other", logicalPath: "leak/**" },
         { id: "export", type: "video", externalPathRef: "export-1" }

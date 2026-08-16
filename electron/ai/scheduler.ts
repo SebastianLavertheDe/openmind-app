@@ -238,8 +238,6 @@ export class RunScheduler {
     this.publishSnapshot();
     return cancelled;
   }
-  approveSkillRun(runId: string): boolean { return this.skillTools.approveRun(runId); }
-
   startWorkflowRun(rawRequest: WorkflowStartRequest): WorkflowRunRecord {
     return this.skillTools.startWorkflowRun(WorkflowStartRequestSchema.parse(rawRequest));
   }

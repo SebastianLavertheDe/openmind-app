@@ -76,6 +76,7 @@
     "appId": "com.cctools.desktop",
     "productName": "CC Tools",
     "icon": "build/icon.svg",
+    "afterPack": "scripts/finalize-bundled-python-runtime.cjs",
     "afterSign": "scripts/finalize-bundled-python-runtime.cjs",
     "files": [
       ".build/**/*",

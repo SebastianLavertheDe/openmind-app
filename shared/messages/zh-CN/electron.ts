@@ -114,18 +114,6 @@ export const electronMessages = {
     defaultPlatform: "公众号"
   },
 
-  diagnostics: {
-    repo: { label: "项目目录", missingDetail: "目录缺少 .claude/skills 或 mymind。" },
-    wsl: {
-      label: "WSL 路径",
-      notConnected: "未连接 WSL 项目",
-      notWindows: "当前不是 Windows 环境",
-      hint: "打开 \\\\wsl.localhost\\... 项目后可检测。"
-    },
-    skills: { label: "Skill", count: (n: number) => `${n} 个结构化 Skill`, missingDetail: "未发现 SKILL.md。" },
-    command: { notDetected: "未检测到", notInPath: (label: string) => `${label} 不在 PATH 中或无法执行。` }
-  },
-
   model: {
     contextWindowUnknown: "未知"
   },

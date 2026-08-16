@@ -56,7 +56,7 @@ none of them turn a Skill into an OS sandbox.
 | Agent provider secret confusion | Agent bridge never resolves a Provider Profile, injects its Credential, or loads a Skill `.env`; CLI authentication stays in the selected CLI | a CLI may use credentials from its own user configuration, outside the App CredentialVault boundary |
 | Malicious update | three independent signed chains; trust chain (ADR-009) is a gate, not optional | — |
 | Crash mid-migration leaves half-state | staging + atomic switch + schemaVersion last; fail does not change active | — |
-| mymind modified by a third-party Skill or external CLI | pre/post tree audit for managed Process/Workflow runs; App/App-native Workflow paths use the Resolver; bridge package/reference paths are boundary-checked | cannot technically prevent an external CLI or Skill process from modifying other paths — only detect where an App-owned audit exists |
+| mymind modified by a third-party Skill or external CLI | capability declarations are reviewed before install; App/App-native Workflow paths use the Resolver; declared output paths are indexed for Run history | host processes can modify other paths; the App neither prevents nor claims to detect undeclared writes |
 
 ## 4. Security acceptance (must pass before GA)
 

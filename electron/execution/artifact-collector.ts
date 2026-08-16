@@ -16,11 +16,8 @@ export type ExternalBinding = {
   revoked?: boolean;
 };
 
-export type ArtifactSnapshot = Map<string, { absolutePath: string; kind: "file" | "directory" | "symlink"; size: number }>;
-
 export type ArtifactCollectionResult = {
   artifacts: RunArtifact[];
-  undeclaredPaths: string[];
 };
 
 export class ArtifactCollector {
@@ -30,29 +27,18 @@ export class ArtifactCollector {
     private readonly now: () => Date = () => new Date()
   ) {}
 
-  snapshot(root: string): ArtifactSnapshot {
-    const canonicalRoot = fs.realpathSync(root);
-    const result: ArtifactSnapshot = new Map();
-    walk(canonicalRoot, canonicalRoot, result, this.maxEntries);
-    return result;
-  }
-
   collect(input: {
     runId: string;
     skillId: string;
     mymindRoot: string;
-    runDir: string;
-    before: ArtifactSnapshot;
     declarations: ArtifactDeclaration[];
     externalBindings?: Record<string, ExternalBinding>;
   }): ArtifactCollectionResult {
-    const afterMymind = this.snapshot(input.mymindRoot);
-    const afterRun = this.snapshot(input.runDir);
     const artifacts: RunArtifact[] = [];
-    const declaredPaths = new Set<string>();
     for (const declaration of input.declarations) {
       if (declaration.logicalPath) {
-        for (const [relative, entry] of afterMymind) {
+        const entries = scanPattern(input.mymindRoot, declaration.logicalPath, this.maxEntries);
+        for (const [relative, entry] of entries) {
           if (!matchesPattern(declaration.logicalPath, relative)) continue;
           if (entry.kind === "symlink" || !isWithin(input.mymindRoot, entry.absolutePath)) continue;
           if (entry.kind !== "file" && entry.kind !== "directory") continue;
@@ -61,7 +47,6 @@ export class ArtifactCollector {
             kind: entry.kind as "file" | "directory",
             size: entry.size
           };
-          declaredPaths.add(`mymind/${relative}`);
           artifacts.push(this.toArtifact(input.runId, input.skillId, declaration, safeEntry, `mymind/${relative}`));
         }
       }
@@ -72,19 +57,10 @@ export class ArtifactCollector {
         if (!isWithin(binding.canonicalPath, canonical)) continue;
         const stat = fs.lstatSync(canonical);
         const entry = { absolutePath: canonical, kind: stat.isDirectory() ? "directory" as const : "file" as const, size: stat.isFile() ? stat.size : 0 };
-        declaredPaths.add(`external/${binding.bindingId}`);
         artifacts.push(this.toArtifact(input.runId, input.skillId, declaration, entry, `external/${binding.bindingId}`));
       }
     }
-    const undeclaredPaths: string[] = [];
-    for (const [relative, entry] of afterMymind) {
-      const logical = `mymind/${relative}`;
-      if (!input.before.has(relative) && entry.kind !== "symlink" && !declaredPaths.has(logical)) undeclaredPaths.push(logical);
-    }
-    for (const [relative, entry] of afterRun) {
-      if (!input.before.has(`run/${relative}`) && entry.kind !== "symlink" && !declaredPaths.has(`run/${relative}`)) undeclaredPaths.push(`run/${relative}`);
-    }
-    return { artifacts: deduplicateArtifacts(artifacts), undeclaredPaths: undeclaredPaths.sort() };
+    return { artifacts: deduplicateArtifacts(artifacts) };
   }
 
   private toArtifact(
@@ -111,7 +87,33 @@ export class ArtifactCollector {
   }
 }
 
-function walk(root: string, current: string, result: ArtifactSnapshot, maxEntries: number): void {
+type ScannedEntry = { absolutePath: string; kind: "file" | "directory" | "symlink"; size: number };
+
+function scanPattern(root: string, pattern: string, maxEntries: number): Map<string, ScannedEntry> {
+  const canonicalRoot = fs.realpathSync(root);
+  const scanRoot = resolveScanRoot(canonicalRoot, pattern);
+  const result = new Map<string, ScannedEntry>();
+  if (fs.existsSync(scanRoot)) walk(canonicalRoot, scanRoot, result, maxEntries);
+  return result;
+}
+
+/**
+ * Scan only the static prefix of a declared Artifact pattern. For an exact
+ * file path we scan its parent so the file can be discovered after creation;
+ * wildcard declarations scan the directory before the first wildcard.
+ */
+function resolveScanRoot(root: string, pattern: string): string {
+  const normalized = pattern.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/$/, "");
+  const segments = normalized.split("/").filter(Boolean);
+  if (!segments.length || segments.includes("..")) throw new Error(`Artifact 路径无效：${pattern}`);
+  const wildcardIndex = segments.findIndex((segment) => segment.includes("*"));
+  const staticSegments = wildcardIndex >= 0 ? segments.slice(0, wildcardIndex) : segments.slice(0, -1);
+  const candidate = path.resolve(root, ...staticSegments);
+  if (!isWithin(root, candidate)) throw new Error(`Artifact 路径越出 mymind：${pattern}`);
+  return candidate;
+}
+
+function walk(root: string, current: string, result: Map<string, ScannedEntry>, maxEntries: number): void {
   if (result.size >= maxEntries) throw new Error(`Artifact 扫描超过 ${maxEntries} 个条目。`);
   const stat = fs.lstatSync(current);
   const relative = path.relative(root, current).split(path.sep).join("/");

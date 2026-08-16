@@ -31,7 +31,6 @@ import {
   resolveMymindPath,
   relativeToMymind,
   previewMymindRoot,
-  getEnvironmentDiagnostics,
   loadSettings,
   getPreferences,
   settingsFile,
@@ -321,25 +320,6 @@ describe("ADR-001 atomic settings write", () => {
       const dirOfSettings = path.dirname(settingsFile());
       const tmps = fs.readdirSync(dirOfSettings).filter((f) => f.includes(".tmp-"));
       expect(tmps).toEqual([]);
-    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-  });
-});
-
-describe("ADR-001 environment diagnostics", () => {
-  it("reports a mymind diagnostic", () => {
-    const diags = getEnvironmentDiagnostics();
-    expect(diags.some((d) => d.id === "mymind")).toBe(true);
-  });
-
-  it("reports mymind as ok when a valid root is set", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-diag-"));
-    fs.mkdirSync(path.join(dir, "article"), { recursive: true });
-    try {
-      setMymindRoot(dir);
-      const diags = getEnvironmentDiagnostics();
-      const mymindDiag = diags.find((d) => d.id === "mymind");
-      expect(mymindDiag?.status).toBe("ok");
-      expect(mymindDiag?.value).toBe(path.resolve(dir));
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });

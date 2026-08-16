@@ -474,6 +474,18 @@ export const CliToolStatusSchema = z.object({
 });
 export type CliToolStatusView = z.infer<typeof CliToolStatusSchema>;
 
+export const CliToolUpdateSchema = z.object({
+  cli: z.enum(["claude", "codex"]),
+  installed: z.boolean(),
+  currentVersion: z.string().nullable(),
+  latestVersion: z.string().nullable(),
+  updateAvailable: z.boolean(),
+  canUpgrade: z.boolean(),
+  checkedAt: z.string(),
+  source: z.enum(["official", "npm", "unknown"])
+});
+export type CliToolUpdateView = z.infer<typeof CliToolUpdateSchema>;
+
 export const CliInstallProgressSchema = z.object({
   cli: z.enum(["claude", "codex"]),
   phase: z.enum(["resolving", "downloading", "verifying", "extracting", "installing", "done", "cancelled"]),
@@ -1130,16 +1142,6 @@ export type BrowserAutomationStatus = z.infer<typeof BrowserAutomationStatusSche
 
 export const BrowserExtensionTokenSchema = z.string().trim().min(1).max(4096);
 
-export const EnvironmentDiagnosticSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  status: z.enum(["ok", "warning", "error"]),
-  value: z.string(),
-  detail: z.string().nullable().default(null),
-  path: z.string().nullable().default(null)
-});
-export type EnvironmentDiagnostic = z.infer<typeof EnvironmentDiagnosticSchema>;
-
 export const ContentIndexMaintenanceSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
   indexedDates: z.array(z.string()),
@@ -1345,7 +1347,6 @@ export interface DesktopApi {
   saveProviders(input: ProvidersYamlInput): Promise<ProvidersYamlView>;
   deleteProvider(id: string): Promise<ProvidersYamlView>;
   importPreferences(path: string): Promise<PreferencesImportResult>;
-  getEnvironmentDiagnostics(): Promise<EnvironmentDiagnostic[]>;
   getSharedPythonRuntimeStatus(): Promise<SharedPythonRuntimeStatus>;
   setSharedPythonRuntimeEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus>;
   listRuntimePacks(): Promise<RuntimePackReadiness[]>;
@@ -1370,6 +1371,10 @@ export interface DesktopApi {
   aiRefreshProviders(): Promise<void>;
   /** 一键安装 CLI（Claude Code / Codex）到 App 私有 tools/bin；安装即用户信任决定。 */
   installCliTool(cli: "claude" | "codex"): Promise<CliToolStatusView>;
+  /** 重新从官方来源安装 App 私有 CLI，用于升级。 */
+  upgradeCliTool(cli: "claude" | "codex"): Promise<CliToolStatusView>;
+  /** 检查当前 CLI 的官方版本信息，不执行升级。 */
+  checkCliToolUpdate(cli: "claude" | "codex"): Promise<CliToolUpdateView>;
   cancelCliToolInstall(cli: "claude" | "codex"): Promise<boolean>;
   listCliToolStatuses(): Promise<CliToolStatusView[]>;
   /** 打开系统终端并引导 CLI 登录；凭据只进入 CLI 自己的登录流程。 */
@@ -1404,7 +1409,6 @@ export interface DesktopApi {
   retryWorkflowStep(runId: string, stepId: string): Promise<WorkflowRunRecord>;
   deleteRunHistory(runId: string): Promise<boolean>;
   cancelSkillRun(runId: string): Promise<boolean>;
-  approveSkillRun(runId: string): Promise<boolean>;
   startWorkflowRun(input: WorkflowStartRequest): Promise<WorkflowRunRecord>;
   listWorkflowRuns(): Promise<WorkflowRunRecord[]>;
   getWorkflowRun(runId: string): Promise<WorkflowRunRecord>;

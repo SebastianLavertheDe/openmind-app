@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, Check, Download, FolderCog, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Download, FolderCog, Settings, ShieldCheck } from "lucide-react";
 import type { AppBootstrap, MymindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import type { Navigate } from "../../app/routes";
@@ -61,7 +61,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       await refresh();
       onRefresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "根目录选择失败，请在诊断页查看原因。");
+      setError(cause instanceof Error ? cause.message : "根目录选择失败，请返回设置检查目录配置。");
     } finally {
       setBusy(null);
     }
@@ -137,7 +137,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
         <header className="onboarding-card-header"><div><span className="eyebrow">READY</span><h2>{m.finishTitle}</h2></div><ShieldCheck size={20} aria-hidden /></header>
         <p>{m.finishBody}</p>
         {!rootReady ? <p className="onboarding-finish-hint">请先完成第 1 步；Skill 和 Provider 可以跳过。</p> : null}
-        <div className="onboarding-next-actions"><button type="button" className="primary-button" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>{busy === "state" ? "正在保存…" : m.finish}<ArrowRight size={14} /></button><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => go("diagnostics")}><Wrench size={14} />{m.openDiagnostics}</button></div>
+        <div className="onboarding-next-actions"><button type="button" className="primary-button" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>{busy === "state" ? "正在保存…" : m.finish}<ArrowRight size={14} /></button></div>
       </section>
     </div>
   );

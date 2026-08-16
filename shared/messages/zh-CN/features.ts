@@ -235,11 +235,9 @@ export const featureMessages = {
     providerReady: "AI Provider 已就绪",
     providerPending: "AI Provider 未就绪",
     providerHint: "在设置的「AI 与模型」中一键安装 Claude Code / Codex CLI 并登录。",
-    openDiagnostics: "查看诊断",
     openSettings: "打开设置",
     continueApp: "进入工作台",
-    selecting: "选择中…",
-    selectFailed: "根目录选择失败，请在诊断页查看原因。"
+    selecting: "选择中…"
   },
 
   brief: {

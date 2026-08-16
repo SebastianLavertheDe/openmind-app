@@ -36,14 +36,33 @@ describe("AutomationLeader", () => {
     expect(second.tryAcquire(new Date(acquiredAt.getTime() + 1_001))).toBe(true);
   });
 
-  it("fails closed on malformed lease state", () => {
+  it("quarantines a zero-filled lease state and elects a new owner", () => {
     const directory = makeDirectory();
     const file = path.join(directory, "scheduler-leader.json");
-    fs.writeFileSync(file, "not-json");
+    const corrupted = Buffer.alloc(64);
+    fs.writeFileSync(file, corrupted);
     const leader = new AutomationLeader(directory, { ownerId: "next", pid: 203, isProcessAlive: () => false });
 
-    expect(leader.tryAcquire(new Date("2026-08-06T10:00:00.000Z"))).toBe(false);
-    expect(fs.readFileSync(file, "utf8")).toBe("not-json");
+    expect(leader.tryAcquire(new Date("2026-08-06T10:00:00.000Z"))).toBe(true);
+    expect(leader.isLeader()).toBe(true);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ownerId: "next", pid: 203 });
+    const quarantined = fs.readdirSync(directory).find((entry) => entry.startsWith("scheduler-leader.json.corrupt-"));
+    expect(quarantined).toBeDefined();
+    expect(fs.readFileSync(path.join(directory, quarantined!))).toEqual(corrupted);
+  });
+
+  it("reclaims a lease after its active heartbeat file is corrupted", () => {
+    const directory = makeDirectory();
+    const file = path.join(directory, "scheduler-leader.json");
+    const leader = new AutomationLeader(directory, { ownerId: "owner", pid: 204, isProcessAlive: () => true });
+    const acquiredAt = new Date("2026-08-06T10:00:00.000Z");
+
+    expect(leader.tryAcquire(acquiredAt)).toBe(true);
+    fs.writeFileSync(file, Buffer.alloc(16));
+
+    expect(leader.tryAcquire(new Date(acquiredAt.getTime() + 1_000))).toBe(true);
+    expect(leader.isLeader()).toBe(true);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ ownerId: "owner", pid: 204 });
   });
 });
 

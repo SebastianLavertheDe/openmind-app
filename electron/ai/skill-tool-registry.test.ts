@@ -400,7 +400,6 @@ describe("SkillToolRegistry", () => {
         timeoutMs: 5_000,
         gracefulStopMs: 1_000
       },
-      requiresHostConsent: false,
       artifacts: [],
       knownSecrets: []
     }));

@@ -9,8 +9,8 @@ import {
   type SkillRunRequest
 } from "../../shared/execution-contracts";
 import { logRedactor } from "../security/log-redactor";
-import { ArtifactCollector, type ArtifactCollectionResult, type ArtifactDeclaration, type ExternalBinding } from "./artifact-collector";
-import { ExecutionConsentService, type ConsentInput } from "./execution-consent-service";
+import { matchesSemverRange } from "../../shared/skill-manifest-schema";
+import { ArtifactCollector, type ArtifactDeclaration, type ExternalBinding } from "./artifact-collector";
 import { ProcessHost, type ProcessResult, type ProcessSpec, validateProcessSpec } from "./process-host";
 import { RunStore } from "./run-store";
 
@@ -29,7 +29,6 @@ export type ExecutionPlan = {
   mutexes?: string[];
   artifacts?: ArtifactDeclaration[];
   externalBindings?: Record<string, ExternalBinding>;
-  requiresHostConsent?: boolean;
   /** Credential IDs used by this plan; values are never persisted. */
   credentialIds?: string[];
   knownSecrets?: string[];
@@ -59,11 +58,9 @@ export class ExecutionBroker {
   private readonly store: RunStore;
   private readonly processHost: ProcessHost;
   private readonly artifacts: ArtifactCollector;
-  private readonly consent: ExecutionConsentService;
   private readonly queue: QueuedExecution[] = [];
   private readonly active = new Map<string, ActiveExecution>();
   private readonly inspecting = new Map<string, SkillRunRequest>();
-  private readonly pendingConsent = new Map<string, QueuedExecution>();
   private readonly revokedCredentialIds = new Set<string>();
   /** 仅保存在 worker 内存中，用于当前进程内重试；RunStore 永不落盘输入值。 */
   private readonly retryRequests = new Map<string, SkillRunRequest>();
@@ -77,14 +74,12 @@ export class ExecutionBroker {
       maxConcurrentRuns?: number;
       processHost?: ProcessHost;
       artifactCollector?: ArtifactCollector;
-      consentService?: ExecutionConsentService;
       now?: () => Date;
     } = {}
   ) {
     this.store = new RunStore(paths.runs, options.now);
     this.processHost = options.processHost || new ProcessHost();
     this.artifacts = options.artifactCollector || new ArtifactCollector();
-    this.consent = options.consentService || new ExecutionConsentService(path.join(paths.runs, "execution-consents.json"), options.now);
     this.maxConcurrentRuns = options.maxConcurrentRuns ?? 3;
     this.store.recoverInterrupted();
   }
@@ -106,7 +101,7 @@ export class ExecutionBroker {
   events(runId: string): BrokerRunEvent[] { return this.store.events(runId); }
   listArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.store.listArtifacts(runId); }
   deleteHistory(runId: string): boolean {
-    if (this.active.has(runId) || this.queue.some((entry) => entry.runId === runId) || this.inspecting.has(runId) || this.pendingConsent.has(runId)) {
+    if (this.active.has(runId) || this.queue.some((entry) => entry.runId === runId) || this.inspecting.has(runId)) {
       throw new Error("运行中的 Run 不能删除历史。");
     }
     this.retryRequests.delete(runId);
@@ -128,13 +123,6 @@ export class ExecutionBroker {
       this.queue.splice(index, 1);
       this.store.transition(entry.runId, "cancelled", { reason: "credential-revoked-before-start" });
       this.emitLatest(entry.runId);
-      affected += 1;
-    }
-    for (const [runId, entry] of this.pendingConsent) {
-      if (!usesCredential(entry.plan, revoked)) continue;
-      this.pendingConsent.delete(runId);
-      this.store.transition(runId, "cancelled", { reason: "credential-revoked-awaiting-consent" });
-      this.emitLatest(runId);
       affected += 1;
     }
     const activeRunIds = [...this.active.entries()]
@@ -177,7 +165,7 @@ export class ExecutionBroker {
     });
     return this.submit({ ...request, trigger: { type: "manual" } });
   }
-  activeTaskCount(): number { return this.queue.length + this.active.size + this.inspecting.size + this.pendingConsent.size; }
+  activeTaskCount(): number { return this.queue.length + this.active.size + this.inspecting.size; }
 
   async cancel(runId: string, reason = "user-cancelled"): Promise<boolean> {
     const current = this.store.get(runId);
@@ -186,11 +174,6 @@ export class ExecutionBroker {
     if (queueIndex >= 0) {
       this.queue.splice(queueIndex, 1);
       const cancelled = this.store.transition(runId, "cancelled", { reason: `${reason}-before-start` });
-      this.emitLatest(runId);
-      return cancelled.state === "cancelled";
-    }
-    if (this.pendingConsent.delete(runId)) {
-      const cancelled = this.store.transition(runId, "cancelled", { reason: `${reason}-awaiting-consent` });
       this.emitLatest(runId);
       return cancelled.state === "cancelled";
     }
@@ -210,22 +193,6 @@ export class ExecutionBroker {
     return true;
   }
 
-  approveExecution(runId: string): boolean {
-    const queued = this.pendingConsent.get(runId);
-    if (!queued) return false;
-    this.consent.approve(this.consentInput(queued.plan));
-    this.pendingConsent.delete(runId);
-    this.store.transition(runId, "preparing_runtime", { reason: "execution-consent-approved" });
-    this.emitLatest(runId);
-    this.queue.push(queued);
-    this.pump();
-    return true;
-  }
-
-  revokeExecutionConsent(plan: Pick<ExecutionPlan, "skillId" | "version" | "digest" | "capabilities">): boolean {
-    return this.consent.revoke(this.consentInput(plan));
-  }
-
   private inspect(request: SkillRunRequest, runId: string): void {
     this.inspecting.set(runId, request);
     void (async () => {
@@ -241,13 +208,7 @@ export class ExecutionBroker {
         this.store.bindSkill(runId, plan.digest);
         if (plan.runtime) this.store.bindRuntime(runId, plan.runtime);
         const queued = { request, runId, plan };
-        if (plan.requiresHostConsent !== false && !this.consent.isApproved(this.consentInput(plan))) {
-          this.pendingConsent.set(runId, queued);
-          this.store.transition(runId, "waiting_execution_consent", { reason: "host-execution-consent-required" });
-          this.emitLatest(runId);
-          return;
-        }
-        this.store.transition(runId, "preparing_runtime", { reason: "execution-consent-already-approved" });
+        this.store.transition(runId, "preparing_runtime", { reason: "execution-preparation-started" });
         this.emitLatest(runId);
         this.queue.push(queued);
         this.pump();
@@ -294,7 +255,6 @@ export class ExecutionBroker {
     const runDir = path.join(this.paths.runs, entry.runId, "work");
     const skillDataDir = path.join(runDir, "skill-data");
     fs.mkdirSync(skillDataDir, { recursive: true });
-    let before: ReturnType<ArtifactCollector["snapshot"]> | null = null;
     let runtimeAcquired = false;
     try {
       if (usesCredential(entry.plan, this.revokedCredentialIds)) {
@@ -304,7 +264,6 @@ export class ExecutionBroker {
         await entry.plan.acquireRuntime();
         runtimeAcquired = true;
       }
-      before = mergeSnapshots(this.artifacts.snapshot(entry.plan.mymindRoot), this.artifacts.snapshot(runDir));
       if (entry.plan.prepareRuntime) await entry.plan.prepareRuntime();
       if (usesCredential(entry.plan, this.revokedCredentialIds)) {
         throw new Error("Run 准备期间 Credential 已撤销，拒绝启动。 ");
@@ -349,7 +308,7 @@ export class ExecutionBroker {
       if (entry.plan.cleanupRuntime) {
         try { await entry.plan.cleanupRuntime(); } catch { /* transient credential cleanup is best effort */ }
       }
-      await this.finish(entry, process, before);
+      await this.finish(entry, process);
     } catch (error) {
       const current = this.store.get(entry.runId);
       if (current.processPid) this.store.clearProcessPid(entry.runId);
@@ -370,36 +329,21 @@ export class ExecutionBroker {
     }
   }
 
-  private async finish(entry: QueuedExecution, process: ProcessResult, before: ReturnType<ArtifactCollector["snapshot"]> | null): Promise<void> {
-    let collection: ArtifactCollectionResult | null = null;
+  private async finish(entry: QueuedExecution, process: ProcessResult): Promise<void> {
     try {
-      collection = before ? this.artifacts.collect({
+      const collection = this.artifacts.collect({
         runId: entry.runId,
         skillId: entry.plan.skillId,
         mymindRoot: entry.plan.mymindRoot,
-        runDir: path.join(this.paths.runs, entry.runId, "work"),
-        before,
         declarations: entry.plan.artifacts || [],
         externalBindings: entry.plan.externalBindings
-      }) : null;
-      if (collection?.undeclaredPaths.length) {
-        const event = this.store.appendOutput(entry.runId, "system", `检测到未声明写入：${collection.undeclaredPaths.slice(0, 50).join(", ")}`);
-        this.publish(event);
-      }
-      if (collection) this.store.attachArtifacts(entry.runId, collection.artifacts);
-      if (process.usage) this.store.attachUsage(entry.runId, process.usage);
+      });
+      this.store.attachArtifacts(entry.runId, collection.artifacts);
     } catch (error) {
-      const current = this.store.get(entry.runId);
-      const state = current.state === "cancelling" || process.outcome === "cancelled"
-        ? "cancelled"
-        : process.outcome === "timed_out" ? "timed_out" : "failed";
-      if (state === "cancelled" && current.state !== "cancelling") {
-        this.store.transition(entry.runId, "cancelling", { reason: "artifact-collection-after-cancel" });
-      }
-      this.store.transition(entry.runId, state, { reason: "artifact-collection-failed", error: redactError(error) });
-      this.emitLatest(entry.runId);
-      return;
+      const event = this.store.appendOutput(entry.runId, "system", `Artifact 登记失败，已忽略：${redactError(error)}`);
+      this.publish(event);
     }
+    if (process.usage) this.store.attachUsage(entry.runId, process.usage);
     const current = this.store.get(entry.runId);
     if (process.outcome === "cancelled") {
       if (current.state !== "cancelling") this.store.transition(entry.runId, "cancelling", { reason: "process-cancelled" });
@@ -422,10 +366,6 @@ export class ExecutionBroker {
     return activeForSkill >= maxInstances;
   }
 
-  private consentInput(plan: Pick<ExecutionPlan, "skillId" | "version" | "digest" | "capabilities">): ConsentInput {
-    return { skillId: plan.skillId, version: plan.version, digest: plan.digest, capabilities: plan.capabilities };
-  }
-
   private emitLatest(runId: string): void {
     const event = this.store.events(runId).at(-1);
     if (event) this.publish(event);
@@ -445,7 +385,7 @@ function shouldRetry(
 
 function validateExecutionPlan(request: SkillRunRequest, plan: ExecutionPlan): void {
   if (plan.skillId !== request.skillId) throw new Error("Runtime plan Skill ID 与请求不一致。");
-  if (request.version && request.version !== plan.version) throw new Error("Runtime plan Skill version 与请求不一致。");
+  if (request.version && !matchesSemverRange(plan.version, request.version)) throw new Error("Runtime plan Skill version 与请求不一致。");
   if (request.digest && request.digest.toLowerCase() !== plan.digest.toLowerCase()) throw new Error("Runtime plan Skill digest 与请求不一致。");
   if (request.rootGeneration !== plan.rootGeneration) throw new Error("Run root generation 已过期。");
   if (!/^[a-f0-9]{64}$/i.test(plan.digest)) throw new Error("Runtime plan digest 无效。");
@@ -476,15 +416,6 @@ function buildMinimalEnvironment(paths: AppPaths, runId: string, plan: Execution
     CCTOOLS_MANAGED_RUN: "1"
   };
   return { ...plan.process.env, ...standard, CCTOOLS_APP_USER_DATA: paths.userData };
-}
-
-function mergeSnapshots(
-  mymind: ReturnType<ArtifactCollector["snapshot"]>,
-  run: ReturnType<ArtifactCollector["snapshot"]>
-): ReturnType<ArtifactCollector["snapshot"]> {
-  const merged = new Map(mymind);
-  for (const [relative, entry] of run) merged.set(`run/${relative}`, entry);
-  return merged;
 }
 
 function rejectSecretLikeInputKeys(inputs: Record<string, unknown>): void {

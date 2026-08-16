@@ -22,7 +22,6 @@ import {
   updatePreferences,
   importPreferences,
   resetPreferences,
-  getEnvironmentDiagnostics,
   settingsFile,
   getOnboardingState,
   updateOnboardingState,
@@ -120,12 +119,6 @@ describe("settings path handling", () => {
     expect(result.preferences.themeMode).toBe("light");
     expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).themeMode).toBe("light");
     fs.rmSync(file, { force: true });
-  });
-
-  it("reports environment diagnostics for settings center", () => {
-    const diagnostics = getEnvironmentDiagnostics();
-    expect(diagnostics.some((item) => item.id === "node")).toBe(true);
-    expect(diagnostics.some((item) => item.id === "repo" && item.status === "ok")).toBe(true);
   });
 
   it("persists the first-run onboarding state in app-private settings", () => {

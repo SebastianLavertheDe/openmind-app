@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AutomationRule, AutomationRunRecord, DesktopApi, SkillDefinition, SourceRun } from "@shared/contracts";
+import type { AutomationRule, AutomationRunRecord, BrokerRunRecord, DesktopApi, SkillDefinition, SourceRun, WorkflowRunRecord } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { AutomationPage } from "./AutomationPage";
 
@@ -73,6 +73,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     runSkill: async () => true,
     stopSkill: async () => true,
     onSkillEvent: () => () => undefined,
+    onSkillRunEvent: () => () => undefined,
     listAutomationRules: async () => currentRules,
     listAutomationSchedules: async () => [],
     listAutomationRuns: async () => [],
@@ -191,5 +192,168 @@ describe("AutomationPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: messages.common.copy }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("生成完成"));
+  });
+
+  it("shows workflow step failures and live broker errors for workflow automation", async () => {
+    const workflowRule: AutomationRule = {
+      ...seedRules[2],
+      id: "rss-workflow",
+      name: "RSS 抓取与每日总结",
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    };
+    const automationRun: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "automation-workflow-run",
+      ruleId: workflowRule.id,
+      target: workflowRule.target,
+      state: "running",
+      attempt: 1,
+      retryAt: null,
+      childRunId: "workflow-run",
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: "2026-08-16T07:43:51.000Z",
+      completedAt: null,
+      error: null
+    };
+    const workflow: WorkflowRunRecord = {
+      schemaVersion: 1,
+      id: "workflow-run",
+      workflowSkillId: "rss-to-summary-workflow",
+      workflowVersion: "1.0.0",
+      workflowFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      state: "failed",
+      rootGeneration: 1,
+      createdAt: "2026-08-16T07:43:51.000Z",
+      completedAt: "2026-08-16T07:44:24.000Z",
+      error: "Workflow Step fetch failed.",
+      stepRuns: [{ stepId: "fetch", skillId: "rss-article-saver", state: "failed", attempt: 1, retryAt: null, runId: "fetch-run", error: null, artifacts: [] }]
+    };
+    const fetchRun = { id: "fetch-run", state: "failed", error: null, completedAt: "2026-08-16T07:44:24.000Z", artifacts: [] } as unknown as BrokerRunRecord;
+    let onRunEvent: Parameters<DesktopApi["onSkillRunEvent"]>[0] | undefined;
+    window.cctools = makeApi({
+      listAutomationRules: async () => [workflowRule],
+      listAutomationRuns: async () => [automationRun],
+      getWorkflowRun: async () => workflow,
+      getSkillRun: async () => fetchRun,
+      getSkillRunEvents: async () => [],
+      onSkillRunEvent: (callback) => { onRunEvent = callback; return () => undefined; }
+    });
+
+    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    expect(await screen.findByText(/Workflow Step fetch failed/)).toBeTruthy();
+    expect(screen.getByText(/Step fetch（rss-article-saver） 状态：failed/)).toBeTruthy();
+    expect(onRunEvent).toBeTruthy();
+
+    onRunEvent?.({ schemaVersion: 1, runId: "fetch-run", sequence: 2, timestamp: "2026-08-16T07:44:24.000Z", state: "failed", error: "内置 Python 资源完整性校验失败。" });
+    expect(await screen.findByText(/内置 Python 资源完整性校验失败/)).toBeTruthy();
+  });
+
+  it("prefers an active workflow over newer skipped runs and keeps its live logs visible", async () => {
+    const workflowRule: AutomationRule = {
+      ...seedRules[2],
+      id: "rss-workflow",
+      name: "RSS 抓取与每日总结",
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    };
+    const activeRun: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "automation-active-run",
+      ruleId: workflowRule.id,
+      target: workflowRule.target,
+      state: "running",
+      attempt: 2,
+      retryAt: null,
+      childRunId: "workflow-active-run",
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: "2026-08-16T09:11:00.000Z",
+      completedAt: null,
+      error: null
+    };
+    const skippedRun: AutomationRunRecord = {
+      ...activeRun,
+      id: "automation-skipped-run",
+      state: "skipped",
+      attempt: 0,
+      childRunId: null,
+      createdAt: "2026-08-16T09:17:00.000Z",
+      completedAt: "2026-08-16T09:17:00.000Z",
+      error: "已有 Automation Run 正在执行。"
+    };
+    const workflow: WorkflowRunRecord = {
+      schemaVersion: 1,
+      id: "workflow-active-run",
+      workflowSkillId: "rss-to-summary-workflow",
+      workflowVersion: "1.0.0",
+      workflowFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      state: "running",
+      rootGeneration: 1,
+      createdAt: activeRun.createdAt,
+      completedAt: null,
+      error: null,
+      stepRuns: [{ stepId: "fetch", skillId: "rss-article-saver", state: "running", attempt: 1, retryAt: null, runId: "fetch-active-run", error: null, artifacts: [] }]
+    };
+    const fetchRun: BrokerRunRecord = {
+      id: "fetch-active-run",
+      state: "running",
+      error: null,
+      completedAt: null,
+      artifacts: []
+    } as unknown as BrokerRunRecord;
+    window.cctools = makeApi({
+      listAutomationRules: async () => [workflowRule],
+      // The store returns newest-first; a skipped click must not hide this active parent.
+      listAutomationRuns: async () => [skippedRun, activeRun],
+      getWorkflowRun: async () => workflow,
+      getSkillRun: async () => fetchRun,
+      getSkillRunEvents: async () => [{
+        schemaVersion: 1,
+        runId: "fetch-active-run",
+        sequence: 1,
+        timestamp: "2026-08-16T09:11:01.000Z",
+        state: "running",
+        stream: "stdout",
+        text: "开始抓取 RSS"
+      }]
+    });
+
+    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+
+    expect(await screen.findByRole("button", { name: "停止运行" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /立即运行/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /授权/ })).toBeNull();
+    expect(screen.queryByText(/等待授权/)).toBeNull();
+    expect(container.querySelector(".rule-item .rule-copy small")?.textContent).toContain("运行中");
+    await waitFor(() => expect(screen.getByRole("log").textContent).toContain("子 Run 状态：运行中"));
+    expect(screen.getByRole("log").textContent).toContain("stdout: 开始抓取 RSS");
+    expect(container.querySelector(".automation-history-row")?.textContent).toContain("running");
+  });
+
+  it("labels a queued retry error as the previous attempt instead of a current Automation failure", async () => {
+    const queuedRetry: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "queued-retry",
+      ruleId: seedRules[0].id,
+      target: seedRules[0].target,
+      state: "queued",
+      attempt: 1,
+      retryAt: "2026-08-16T14:50:05.000Z",
+      childRunId: null,
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: "2026-08-16T14:49:34.000Z",
+      completedAt: null,
+      error: "Workflow Step fetch failed."
+    };
+    window.cctools = makeApi({
+      listAutomationRules: async () => [seedRules[0]],
+      listAutomationRuns: async () => [queuedRetry]
+    });
+
+    render(<AutomationPage skills={skills} go={vi.fn()} />);
+
+    expect(await screen.findAllByText(/上次尝试失败，等待重试/)).toHaveLength(2);
+    expect(screen.queryByText(/Automation 失败/)).toBeNull();
   });
 });

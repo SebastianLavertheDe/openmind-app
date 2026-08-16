@@ -494,11 +494,6 @@ export function installBrowserPreviewApi(): boolean {
     getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     deleteProvider: async (_id: string): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
-    getEnvironmentDiagnostics: async () => [
-      { id: "repo", label: "项目目录", status: "ok", value: snapshot.projectRoot, detail: null, path: snapshot.projectRoot },
-      { id: "node", label: "Node.js", status: "ok", value: "preview", detail: null, path: null },
-      { id: "git", label: "Git", status: "ok", value: "preview", detail: null, path: null }
-    ],
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "windows-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.10" : null, uvVersion: enabled ? "0.8.15" : null, managedSkills: enabled ? 3 : 0, ready: enabled, lastError: null }),
     listRuntimePacks: async () => [],
@@ -521,6 +516,8 @@ export function installBrowserPreviewApi(): boolean {
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
     installCliTool: async () => { throw new Error("浏览器预览不支持一键安装 CLI。 "); },
+    upgradeCliTool: async () => { throw new Error("浏览器预览不支持升级 CLI。 "); },
+    checkCliToolUpdate: async (cli) => ({ cli, installed: false, currentVersion: null, latestVersion: null, updateAvailable: false, canUpgrade: false, checkedAt: new Date().toISOString(), source: "unknown" }),
     cancelCliToolInstall: async () => false,
     listCliToolStatuses: async () => [],
     openCliLogin: async () => { throw new Error("浏览器预览不支持打开终端登录。 "); },
@@ -537,7 +534,6 @@ export function installBrowserPreviewApi(): boolean {
     retryWorkflowStep: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
     deleteRunHistory: async () => false,
     cancelSkillRun: async () => false,
-    approveSkillRun: async () => false,
     startWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
     listWorkflowRuns: async () => [],
     getWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },

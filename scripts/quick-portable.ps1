@@ -51,6 +51,12 @@ try {
   & npm.cmd run build
   Assert-LastExitCode "npm run build"
 
+  $runtimeTarget = (& node.exe -p "process.arch === 'x64' ? 'windows-x64' : process.arch === 'arm64' ? 'windows-arm64' : ''").Trim()
+  if (-not $runtimeTarget) { throw "Quick portable packaging requires a Windows x64 or arm64 host. Found: " + (& node.exe -p "process.arch") }
+  Write-Host "Preparing bundled Python runtime for $runtimeTarget"
+  & npm.cmd run prepare:python-runtime -- "--target=$runtimeTarget"
+  Assert-LastExitCode "Bundled Python runtime"
+
   Write-Host "Packaging portable exe"
   & node.exe "node_modules/electron-builder/cli.js" --win portable
   Assert-LastExitCode "electron-builder portable"

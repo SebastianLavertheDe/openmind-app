@@ -45,7 +45,7 @@ describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
     // The registry intentionally excludes removed manual Skill run and update
     // endpoints while exposing the current onboarding/source-cancel/install
-    // controls.
+    // controls, including CLI version checks and upgrades.
     expect(IPC_INVOKE_REGISTRY).toHaveLength(156);
     expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(156);
     expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(156);
@@ -283,16 +283,15 @@ describe("handler forwarding — AI 透传类", () => {
     expect(ai.call).toHaveBeenCalledWith("stop-skill", "rss-article-saver");
   });
 
-  it("通用 Skill Run 查询、取消和审批转发到 worker", async () => {
+  it("通用 Skill Run 查询和取消转发到 worker", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.listSkillRuns);
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRun, "run-1");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEvents, "run-1");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.cancelSkillRun, "run-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.approveSkillRun, "run-1");
     expect(ai.call.mock.calls.map(([method]) => method)).toEqual([
-      "skill-run-list", "skill-run-get", "skill-run-events", "skill-run-cancel", "skill-run-approve"
+      "skill-run-list", "skill-run-get", "skill-run-events", "skill-run-cancel"
     ]);
   });
 
@@ -886,13 +885,6 @@ describe("handler forwarding — preferences 类", () => {
     expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
   });
 
-  it("getEnvironmentDiagnostics 委托 settings.getEnvironmentDiagnostics", async () => {
-    const settings = await import("./lib/settings");
-    vi.spyOn(settings, "getEnvironmentDiagnostics").mockReturnValue([] as never);
-    const ctx = makeCtx();
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getEnvironmentDiagnostics);
-    expect(settings.getEnvironmentDiagnostics).toHaveBeenCalled();
-  });
 });
 
 describe("handler forwarding — 剩余创作类 passthrough", () => {

@@ -7,7 +7,6 @@ export type AppPage =
   | "projects"
   | "automation"
   | "runs"
-  | "diagnostics"
   | "ai"
   | "settings";
 

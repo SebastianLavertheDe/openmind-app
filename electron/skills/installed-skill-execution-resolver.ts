@@ -196,13 +196,11 @@ export class InstalledSkillExecutionResolver {
       mutexes: [...manifest.execution.concurrency.mutexes],
       artifacts,
       ...(Object.keys(externalBindings).length ? { externalBindings } : {}),
-      requiresHostConsent: true,
       credentialIds: [],
       knownSecrets: provider.apiKey ? [provider.apiKey] : [],
       prepareRuntime: async () => {
         await runtime.prepare();
-        // Python environments are created only after host-execution consent;
-        // refresh the process spec with the prepared absolute interpreter.
+        // Refresh the process spec with the prepared absolute interpreter.
         plan.process.executable = runtime.executable;
         plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...provider.env };
       }

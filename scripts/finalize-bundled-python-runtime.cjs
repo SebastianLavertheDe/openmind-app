@@ -1,11 +1,13 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { pruneIncompatibleWindowsDistlibLaunchers } = require("./bundled-python-runtime-utils.cjs");
 
 /**
- * electron-builder signs executable files copied through extraResources on
- * Windows. Authenticode changes their bytes after the source manifest was
- * produced, so finalize the payload digest only after signing is complete.
+ * `afterPack` runs for every target, including unsigned portable builds.
+ * `afterSign` runs again when Authenticode modifies executable bytes. Register
+ * this hook for both stages so every distributable container gets an accurate
+ * manifest, whether it is signed or not.
  */
 module.exports = async function finalizeBundledPythonRuntime(context) {
   const resourcesDir = context.packager.getResourcesDir(context.appOutDir);
@@ -21,6 +23,8 @@ module.exports = async function finalizeBundledPythonRuntime(context) {
     if (manifest.schemaVersion !== 2 || manifest.target !== entry.name) {
       throw new Error(`Cannot finalize invalid bundled Python manifest: ${manifestFile}`);
     }
+    const prunedLaunchers = pruneIncompatibleWindowsDistlibLaunchers(targetRoot, entry.name);
+    if (prunedLaunchers.length) console.log(`Pruned ${prunedLaunchers.length} incompatible distlib launcher(s) from ${entry.name}.`);
     const filesDigest = digestTree(targetRoot, new Set(["manifest.json"]));
     const temporary = `${manifestFile}.tmp-${process.pid}`;
     fs.writeFileSync(temporary, `${JSON.stringify({ ...manifest, filesDigest }, null, 2)}\n`, "utf8");

@@ -372,11 +372,6 @@ const api = {
   inspectSkillWorkspace: async () => [],
   listInstalledSkills: async () => [],
   listSkillRuns: async () => [],
-  getEnvironmentDiagnostics: async () => [
-    { id: "node", label: "Node.js", status: "ok", value: "v24.13.1", detail: null, path: "node" },
-    { id: "claude", label: "Claude Code WSL", status: "error", value: "未登录", detail: "需要运行 claude /login。", path: null },
-    { id: "codex", label: "Codex CLI", status: "ok", value: "app-server ready", detail: null, path: "codex" }
-  ],
   rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: [date], itemCount: contentItems.length, indexPath: ".cctools/content-index.json", statePath: ".cctools/content-state.json", rebuiltAt: now }),
   aiRefresh: async () => currentAiSnapshot(),
   aiPrewarm: async () => true,

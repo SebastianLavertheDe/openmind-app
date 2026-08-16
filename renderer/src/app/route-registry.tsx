@@ -5,7 +5,6 @@ import {
   FilePenLine,
   Settings,
   SquarePen,
-  Wrench,
   type LucideIcon
 } from "lucide-react";
 import type { AiSnapshot, AppBootstrap } from "@shared/contracts";
@@ -18,7 +17,6 @@ const DailyBriefPage = lazy(() => import("../features/daily-brief").then((module
 const CreativeWorkspacePage = lazy(() => import("../features/creative").then((module) => ({ default: module.CreativeWorkspacePage })));
 const AutomationPage = lazy(() => import("../features/automation").then((module) => ({ default: module.AutomationPage })));
 const RunsPage = lazy(() => import("../features/runs").then((module) => ({ default: module.RunsPage })));
-const DiagnosticsPage = lazy(() => import("../features/diagnostics").then((module) => ({ default: module.DiagnosticsPage })));
 const AiWorkbench = lazy(() => import("../features/ai-console").then((module) => ({ default: module.AiWorkbench })));
 const SettingsPage = lazy(() => import("../features/settings").then((module) => ({ default: module.SettingsPage })));
 
@@ -32,7 +30,6 @@ const ROUTE_LAZY: Record<AppPage, () => Promise<unknown>> = {
   projects: () => import("../features/creative"),
   automation: () => import("../features/automation"),
   runs: () => import("../features/runs"),
-  diagnostics: () => import("../features/diagnostics"),
   ai: () => import("../features/ai-console"),
   settings: () => import("../features/settings"),
 };
@@ -77,7 +74,6 @@ export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
   { page: "skills", needsRepo: false, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> },
   { page: "automation", needsRepo: true, nav: { label: navLabel("automation"), icon: Command, group: "core" }, render: ({ route, bootstrap, navigate }) => <AutomationPage key={route.nonce} skills={bootstrap.skills} initialSkillId={route.state.skillId} go={navigate} /> },
   { page: "runs", needsRepo: true, render: ({ route }) => <RunsPage key={route.nonce} initialRunId={route.state.runId} initialSkillId={route.state.skillId} /> },
-  { page: "diagnostics", needsRepo: false, nav: { label: navLabel("diagnostics"), icon: Wrench, group: "core" }, render: ({ route, bootstrap, navigate }) => <DiagnosticsPage key={route.nonce} bootstrap={bootstrap} go={navigate} /> },
   { page: "projects", needsRepo: true, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
   { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection={route.state.settingsSection === "sources" ? "skills" : route.state.settingsSection} initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> }
 ];

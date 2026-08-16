@@ -1,9 +1,8 @@
 import { app } from "electron";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type EnvironmentDiagnostic, type MymindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type MymindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { computeRootId, MymindPathResolver } from "../paths/mymind-path-resolver";
@@ -782,45 +781,6 @@ function tagsPref(value: unknown, strict: boolean): string[] {
   return DEFAULT_PREFERENCES.userTags;
 }
 
-function getEnvironmentDiagnostics(): EnvironmentDiagnostic[] {
-  const repoRoot = findRepoRoot();
-  const wsl = parseWslRepoPath(repoRoot);
-  const skillsDir = path.join(repoRoot, ".claude", "skills");
-  const skillCount = safeList(skillsDir).filter((entry) => fs.existsSync(path.join(skillsDir, entry, "SKILL.md"))).length;
-  // ADR-001: the primary content root is mymindRoot. Report its health; the
-  // legacy "repo" diagnostic is retained for back-compat.
-  const mymind = resolveMymindRoot();
-  const mymindOk = isValidMymindRoot(mymind);
-  return [
-    diagnostic("repo", messages.diagnostics.repo.label, looksLikeRepo(repoRoot), repoRoot, looksLikeRepo(repoRoot) ? null : messages.diagnostics.repo.missingDetail, repoRoot),
-    diagnostic("mymind", "mymind 内容根", mymindOk, mymind || "未选择", mymindOk ? null : "请在设置中选择一个 mymind 目录。", mymind || null),
-    diagnostic("node", "Node.js", true, process.version, null, null),
-    commandDiagnostic("python", "Python", [["python3", ["--version"]], ["python", ["--version"]]]),
-    commandDiagnostic("uv", "uv", [["uv", ["--version"]]]),
-    commandDiagnostic("git", "Git", [["git", ["--version"]]]),
-    diagnostic("wsl", messages.diagnostics.wsl.label, Boolean(wsl) || process.platform !== "win32", wsl ? `${wsl.distro} · ${wsl.linuxPath}` : process.platform === "win32" ? messages.diagnostics.wsl.notConnected : messages.diagnostics.wsl.notWindows, wsl || process.platform !== "win32" ? null : messages.diagnostics.wsl.hint, null),
-    diagnostic("skills", messages.diagnostics.skills.label, skillCount > 0, messages.diagnostics.skills.count(skillCount), skillCount > 0 ? null : messages.diagnostics.skills.missingDetail, skillsDir)
-  ];
-}
-
-function diagnostic(id: string, label: string, ok: boolean, value: unknown, detail: string | null, targetPath: string | null): EnvironmentDiagnostic {
-  return { id, label, status: ok ? "ok" : "warning", value: String(value || ""), detail, path: targetPath };
-}
-
-function commandDiagnostic(id: string, label: string, commands: ReadonlyArray<readonly [string, readonly string[]]>): EnvironmentDiagnostic {
-  for (const [command, args] of commands) {
-    try {
-      const output = execFileSync(command, args as string[], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 5000 }).trim();
-      return { id, label, status: "ok", value: output.split(/\r?\n/)[0], detail: null, path: command };
-    } catch { /* try next */ }
-  }
-  return { id, label, status: "warning", value: messages.diagnostics.command.notDetected, detail: messages.diagnostics.command.notInPath(label), path: null };
-}
-
-function safeList(dir: string): string[] {
-  try { return fs.readdirSync(dir); } catch { return []; }
-}
-
 function startsWithPrefix(key: string, prefix: string): boolean {
   const groups: Record<string, string[]> = {
     theme: ["themeMode", "accentColor", "density", "fontSize"],
@@ -866,6 +826,5 @@ export {
   getPreferences,
   updatePreferences,
   resetPreferences,
-  importPreferences,
-  getEnvironmentDiagnostics
+  importPreferences
 };

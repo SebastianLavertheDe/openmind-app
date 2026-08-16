@@ -4,6 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import runtimeUtils from "./bundled-python-runtime-utils.cjs";
+
+const { listIncompatibleWindowsDistlibLaunchers, pruneIncompatibleWindowsDistlibLaunchers } = runtimeUtils;
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(scriptRoot, "..");
@@ -46,6 +49,8 @@ try {
   if (!pythonExecutable) throw new Error("uv installed Python but no interpreter was found in the staged distribution.");
   const resolvedPythonVersion = execFileSync(pythonExecutable, ["--version"], { encoding: "utf8", windowsHide: true }).trim().replace(/^Python\s+/i, "");
   const resolvedUvVersion = execFileSync(uvExecutable, ["--version"], { encoding: "utf8", windowsHide: true }).trim().replace(/^uv\s+/i, "").split(/\s+/)[0];
+  const prunedLaunchers = pruneIncompatibleWindowsDistlibLaunchers(preparedRoot, target);
+  if (prunedLaunchers.length) console.log(`Pruned ${prunedLaunchers.length} incompatible distlib launcher(s) for ${target}.`);
   const filesDigest = digestTree(preparedRoot, new Set(["manifest.json"]));
 
   fs.writeFileSync(path.join(preparedRoot, "manifest.json"), `${JSON.stringify({ schemaVersion: 2, target, pythonVersion: resolvedPythonVersion, uvVersion: resolvedUvVersion, filesDigest }, null, 2)}\n`, "utf8");
@@ -69,11 +74,18 @@ function preparedRuntimeExists(root, expectedTargetName) {
   if (!fs.existsSync(manifestFile)) return false;
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-    if (manifest.schemaVersion !== 2 || manifest.target !== expectedTargetName || !manifest.filesDigest) return false;
-    return Boolean(
+    if (
+      manifest.schemaVersion !== 2
+      || manifest.target !== expectedTargetName
+      || !/^[a-f0-9]{64}$/i.test(manifest.filesDigest || "")
+      || listIncompatibleWindowsDistlibLaunchers(root, expectedTargetName).length
+    ) return false;
+    const hasRequiredBinaries = Boolean(
       findNamedFile(path.join(root, "distribution"), process.platform === "win32" ? ["python.exe"] : ["python3", "python"])
       && findNamedFile(path.join(root, "bin"), process.platform === "win32" ? ["uv.exe"] : ["uv"])
     );
+    return hasRequiredBinaries
+      && digestTree(root, new Set(["manifest.json"])) === manifest.filesDigest.toLowerCase();
   } catch {
     return false;
   }

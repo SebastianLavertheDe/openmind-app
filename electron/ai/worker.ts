@@ -61,7 +61,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "run-retry-step": return scheduler.retryWorkflowStep(String(first), String(second));
     case "run-delete-history": return scheduler.deleteRunHistory(String(first));
     case "skill-run-cancel": return scheduler.cancelSkillRun(String(first));
-    case "skill-run-approve": return scheduler.approveSkillRun(String(first));
     case "workflow-run-start": return scheduler.startWorkflowRun(first as never);
     case "workflow-run-list": return scheduler.listWorkflowRuns();
     case "workflow-run-get": return scheduler.getWorkflowRun(String(first));

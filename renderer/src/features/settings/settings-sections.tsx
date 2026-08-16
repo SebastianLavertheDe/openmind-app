@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -63,6 +63,10 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   const [installingCli, setInstallingCli] = useState<"claude" | "codex" | null>(null);
   const [installProgress, setInstallProgress] = useState<CliInstallProgress | null>(null);
   const [installError, setInstallError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
+  const [versionChecks, setVersionChecks] = useState<Partial<Record<"claude" | "codex", CliToolUpdateView>>>({});
+  const [versionError, setVersionError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
+  const [versionCheckBusy, setVersionCheckBusy] = useState<"claude" | "codex" | null>(null);
+  const [upgradingCli, setUpgradingCli] = useState<"claude" | "codex" | null>(null);
 
   useEffect(() => window.cctools.onCliInstallProgress?.((progress) => {
     setInstallProgress(progress);
@@ -88,6 +92,36 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
     setInstallingCli(null);
   };
 
+  const checkVersion = async (cli: "claude" | "codex", force = false) => {
+    if (!force && (versionCheckBusy || upgradingCli)) return;
+    setVersionError(null);
+    setVersionCheckBusy(cli);
+    try {
+      const result = await window.cctools.checkCliToolUpdate(cli);
+      setVersionChecks((current) => ({ ...current, [cli]: result }));
+    } catch (cause) {
+      setVersionError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
+    } finally {
+      setVersionCheckBusy(null);
+    }
+  };
+
+  const upgradeCli = async (cli: "claude" | "codex") => {
+    if (upgradingCli || installingCli || versionCheckBusy) return;
+    setInstallError(null);
+    setInstallProgress({ cli, phase: "resolving", message: "正在准备升级…" });
+    setUpgradingCli(cli);
+    try {
+      await window.cctools.upgradeCliTool(cli);
+      await window.cctools.aiRefreshProviders();
+      await checkVersion(cli, true);
+    } catch (cause) {
+      setInstallError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
+    } finally {
+      setUpgradingCli(null);
+    }
+  };
+
   return (
     <SettingsPanel title="模型提供方" scope="新会话行为">
       <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
@@ -99,6 +133,8 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
           const canLogin = !provider.available && provider.version !== null
             && (provider.provider === "claude" || provider.provider === "codex");
           const installing = installingCli === provider.provider;
+          const upgrading = upgradingCli === provider.provider;
+          const versionCheck = provider.provider ? versionChecks[provider.provider] : undefined;
           return (
             <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
               <span className="settings-provider-dot" aria-hidden="true" />
@@ -114,27 +150,6 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                     </small>
                   </span>
                 </div>
-                {canInstall ? <div className="settings-provider-install">
-                  {installing ? <>
-                    <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
-                      <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
-                      <small>{installProgress?.message || m.settings.provider.installing}</small>
-                    </div>
-                    <button type="button" className="settings-provider-recheck" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
-                  </> : <button type="button" className="settings-provider-install-button" disabled={installingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
-                    {m.settings.provider.install}
-                  </button>}
-                  <small>{m.settings.provider.installHint}</small>
-                  {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
-                    <span>{m.settings.provider.installFailed}{installError.message}</span>
-                    <button type="button" className="settings-provider-recheck" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
-                  </div> : null}
-                  <details className="settings-provider-manual-steps">
-                    <summary>{m.settings.provider.manualStepsTitle}</summary>
-                    <p>{provider.provider === "claude" ? m.settings.provider.claudeManual : m.settings.provider.codexManual}</p>
-                    <code>{provider.provider === "claude" ? m.settings.provider.claudeManualCommand : m.settings.provider.codexManualCommand}</code>
-                  </details>
-                </div> : null}
                 {canLogin ? <div className="settings-provider-install">
                   <button type="button" className="settings-provider-install-button" onClick={() => void window.cctools.openCliLogin(provider.provider as "claude" | "codex")}>
                     {m.settings.provider.openLogin}
@@ -153,11 +168,45 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   </ol>
                 </details> : null}
               </div>
-              <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
-              <label className="settings-provider-default">
-                <input type="radio" name="default-provider" checked={active} disabled={!provider.available} aria-label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
-                <span>{active ? "默认" : "设为默认"}</span>
-              </label>
+              <div className="settings-provider-actions">
+                {canInstall ? <div className="settings-provider-install settings-provider-install--action">
+                  {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
+                    <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
+                    <small>{installProgress?.message || m.settings.provider.installing}</small>
+                    <button type="button" className="settings-provider-recheck" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
+                  </div> : <button type="button" className="settings-provider-install-button" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
+                    {m.settings.provider.install}
+                  </button>}
+                  {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
+                    <span>{m.settings.provider.installFailed}{installError.message}</span>
+                    <button type="button" className="settings-provider-recheck" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
+                  </div> : null}
+                </div> : null}
+                {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
+                  <span className="settings-provider-version">v{provider.version}</span>
+                  {versionCheck?.updateAvailable ? <button type="button" className="settings-provider-upgrade" disabled={upgrading || versionCheckBusy !== null || !versionCheck.canUpgrade} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
+                    {upgrading ? "更新中…" : "一键更新"}
+                  </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion ? "settings-provider-version-latest" : ""}`} role="status">
+                    {versionCheck.latestVersion ? "已是最新" : "暂无法确认最新版本"}
+                  </small> : <button type="button" className="settings-provider-recheck" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
+                    {versionCheckBusy === provider.provider ? "检查中…" : "检查更新"}
+                  </button>}
+                  {versionCheck ? <button type="button" className="settings-provider-recheck" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
+                    {versionCheckBusy === provider.provider ? "检查中…" : "重新检查"}
+                  </button> : null}
+                  {versionError?.cli === provider.provider ? <div className="settings-provider-version-error" role="alert">
+                    <span>版本检测失败：{versionError.message}</span>
+                    <button type="button" className="settings-provider-recheck" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>重试检测</button>
+                  </div> : null}
+                </div> : null}
+                {!canInstall ? <>
+                  <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
+                  <label className="settings-provider-default">
+                    <input type="radio" name="default-provider" checked={active} disabled={!provider.available} aria-label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
+                    <span>{active ? "默认" : "设为默认"}</span>
+                  </label>
+                </> : null}
+              </div>
             </article>
           );
         }) : <p className="settings-note">{m.settings.provider.empty}</p>}
@@ -697,7 +746,7 @@ export function BrowserSettingsSection({
     <SettingsPanel title="浏览器连接" scope={m.settings.browser.scope} variant="resource">
       <div className="settings-resource-row settings-browser-backend">
         <span className="settings-browser-icon" aria-hidden><Globe size={18} /></span>
-        <div>
+        <div className="settings-browser-backend-copy">
           <strong>{m.settings.browser.backend}</strong>
           <span>Microsoft Playwright MCP · {m.settings.browser.extension}</span>
           <small>{status?.diagnostic || m.settings.browser.loadFailed}</small>
@@ -1024,22 +1073,6 @@ export function AiProvidersSettingsSection({
       <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
         action={<button type="button" className="settings-provider-add-button" data-motion="icon" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider" title="添加 Provider"><Plus size={17} /></button>}>
         <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml，不会在界面中回显；请仅在受信任的本地项目中使用。</p>
-        <div className="settings-grid-2 settings-provider-cli-bindings">
-          <label className="settings-field"><span>Claude Code 服务商</span>
-            <select className="settings-select" aria-label="Claude Code 服务商" value={cliBindings.claude || ""} onChange={(event) => setCliBindings((current) => ({ ...current, claude: event.target.value || null }))}>
-              <option value="">使用 Claude Code 自身配置</option>
-              {draft.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider("claude", entry.protocol)).map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.model}</option>)}
-            </select>
-            <small>仅支持 anthropic-messages；切换或修改配置仅对新会话生效。</small>
-          </label>
-          <label className="settings-field"><span>Codex CLI 服务商</span>
-            <select className="settings-select" aria-label="Codex CLI 服务商" value={cliBindings.codex || ""} onChange={(event) => setCliBindings((current) => ({ ...current, codex: event.target.value || null }))}>
-              <option value="">使用 Codex CLI 自身配置</option>
-              {draft.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider("codex", entry.protocol)).map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.model}</option>)}
-            </select>
-            <small>仅支持 openai-responses；新会话生效，托管 Key 模式会禁用 Codex hooks/notify。</small>
-          </label>
-        </div>
         <div className="settings-stack">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
           {draft.map((entry) => (

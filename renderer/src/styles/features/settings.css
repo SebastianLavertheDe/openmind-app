@@ -3,6 +3,13 @@
   background: var(--app-chrome-bg);
 }
 
+/* First-start configuration is a focused full-page flow. The primary app
+ * navigation and global toolbar only become useful after a workspace exists. */
+.app-shell.onboarding-mode {
+  display: block;
+  background: var(--app-chrome-bg);
+}
+
 .settings-shared-runtime-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
 .settings-shared-runtime-header,
 .settings-shared-runtime-tool,
@@ -50,9 +57,26 @@
   box-shadow: none;
 }
 
+.app-shell.onboarding-mode > .app-stage {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .app-shell.settings-mode > .app-stage > .main-area {
   height: 100%;
   overflow: hidden;
+  background: transparent;
+}
+
+.app-shell.onboarding-mode > .app-stage > .main-area {
+  height: 100%;
+  overflow: auto;
   background: transparent;
 }
 
@@ -537,7 +561,7 @@
 
 .settings-provider-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(220px, auto);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -644,7 +668,74 @@
 
 .settings-provider-default:has(input:checked) {
   color: var(--accent-fg);
-  font-weight: 500;
+  font-weight: 400;
+}
+
+.settings-provider-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-provider-install--action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-provider-version-actions {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.settings-provider-version {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-provider-version-result {
+  flex-basis: 100%;
+  color: var(--muted-2);
+  font-size: 10px;
+  text-align: right;
+}
+
+.settings-provider-version-latest {
+  color: var(--success-600, var(--accent-fg));
+}
+
+.settings-provider-version-error {
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  color: var(--danger-600);
+  font-size: 10px;
+  text-align: right;
+}
+
+.settings-provider-upgrade {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent-fg);
+  font-size: 11px;
+}
+
+.settings-provider-upgrade:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
 }
 
 .settings-config-stack {
@@ -1618,17 +1709,26 @@
   height: 36px;
   display: grid;
   place-items: center;
+  flex: none;
+  margin: 0;
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent-fg);
+  line-height: 0;
 }
 
-.settings-browser-backend strong,
-.settings-browser-backend span,
-.settings-browser-backend small { display: block; }
-.settings-browser-backend strong { color: var(--text); font-size: var(--fs-sm); }
-.settings-browser-backend span { margin-top: 2px; color: var(--text-dim); font-size: 12px; }
-.settings-browser-backend small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.settings-browser-icon svg { display: block; }
+
+.settings-browser-backend-copy {
+  min-width: 0;
+}
+
+.settings-browser-backend-copy > strong,
+.settings-browser-backend-copy > span,
+.settings-browser-backend-copy > small { display: block; }
+.settings-browser-backend-copy > strong { color: var(--text); font-size: var(--fs-sm); }
+.settings-browser-backend-copy > span { margin-top: 2px; color: var(--text-dim); font-size: 12px; }
+.settings-browser-backend-copy > small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .settings-browser-path-input,
 .settings-browser-token-controls input {
@@ -1725,10 +1825,10 @@
   }
 
   .settings-provider-card {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
-      "dot main badge"
-      ". main default";
+      "dot main"
+      ". actions";
     align-items: start;
   }
 
@@ -1741,13 +1841,8 @@
     grid-area: main;
   }
 
-  .settings-provider-card > .ui-status-badge {
-    grid-area: badge;
-    justify-self: end;
-  }
-
-  .settings-provider-card > .settings-provider-default {
-    grid-area: default;
+  .settings-provider-actions {
+    grid-area: actions;
     justify-self: end;
   }
 
@@ -2297,6 +2392,52 @@
 
 .settings-page strong {
   font-weight: 500;
+}
+
+/* Descriptive copy in the utility settings tabs should stay quiet; headings
+ * keep their hierarchy through h1/h2/h3 rather than an incidental <strong>. */
+.settings-page[data-settings-section="browser"] strong,
+.settings-page[data-settings-section="permissions"] strong,
+.settings-page[data-settings-section="workflow"] strong,
+.settings-page[data-settings-section="storage"] strong,
+.settings-page[data-settings-section="sessions"] strong,
+.settings-page[data-settings-section="runtime"] strong {
+  font-weight: 400;
+}
+
+.settings-page[data-settings-section="browser"] .ui-select-trigger,
+.settings-page[data-settings-section="browser"] .ui-select-value,
+.settings-page[data-settings-section="browser"] .ui-select-option,
+.settings-page[data-settings-section="browser"] .ui-select-option-label,
+.settings-page[data-settings-section="permissions"] .ui-select-trigger,
+.settings-page[data-settings-section="permissions"] .ui-select-value,
+.settings-page[data-settings-section="permissions"] .ui-select-option,
+.settings-page[data-settings-section="permissions"] .ui-select-option-label,
+.settings-page[data-settings-section="workflow"] .ui-select-trigger,
+.settings-page[data-settings-section="workflow"] .ui-select-value,
+.settings-page[data-settings-section="workflow"] .ui-select-option,
+.settings-page[data-settings-section="workflow"] .ui-select-option-label,
+.settings-page[data-settings-section="storage"] .ui-select-trigger,
+.settings-page[data-settings-section="storage"] .ui-select-value,
+.settings-page[data-settings-section="storage"] .ui-select-option,
+.settings-page[data-settings-section="storage"] .ui-select-option-label,
+.settings-page[data-settings-section="sessions"] .ui-select-trigger,
+.settings-page[data-settings-section="sessions"] .ui-select-value,
+.settings-page[data-settings-section="sessions"] .ui-select-option,
+.settings-page[data-settings-section="sessions"] .ui-select-option-label,
+.settings-page[data-settings-section="runtime"] .ui-select-trigger,
+.settings-page[data-settings-section="runtime"] .ui-select-value,
+.settings-page[data-settings-section="runtime"] .ui-select-option,
+.settings-page[data-settings-section="runtime"] .ui-select-option-label {
+  font-weight: 400;
+}
+
+.settings-page[data-settings-section="workflow"] .settings-stage-list .ui-status-badge {
+  font-weight: 400;
+}
+
+.settings-page .settings-nav-button[aria-current="page"] {
+  font-weight: 400;
 }
 
 .settings-page h1 {

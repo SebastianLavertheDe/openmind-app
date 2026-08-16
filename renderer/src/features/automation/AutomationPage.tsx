@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { CalendarClock, Check, Clock3, Play, Save, Square, Target } from "lucide-react";
-import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, SkillDefinition } from "@shared/contracts";
+import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, SkillDefinition, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import type { Navigate } from "../../app/routes";
 import { messages } from "@shared/messages";
@@ -10,6 +10,7 @@ const m = messages;
 
 type RuntimeState = { running: boolean; state: string };
 type TriggerType = "daily" | "weekly" | "hourly" | "interval";
+type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
 export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDefinition[]; initialSkillId?: string; go: Navigate }) {
   void go;
@@ -21,6 +22,9 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [childRun, setChildRun] = useState<BrokerRunRecord | null>(null);
   const [childEvents, setChildEvents] = useState<BrokerRunEvent[]>([]);
+  const [workflowRun, setWorkflowRun] = useState<WorkflowRunRecord | null>(null);
+  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepDetails[]>([]);
+  const [liveEvents, setLiveEvents] = useState<Record<string, BrokerRunEvent[]>>({});
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,16 +58,24 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   useEffect(() => window.cctools.onSkillEvent((event) => {
     const skillId = String(event.skillId || "");
     if (!skillId) return;
-    if (event.text) setLogs((current) => ({ ...current, [skillId]: [...(current[skillId] || []).slice(-800), String(event.text)] }));
+    const message = typeof event.text === "string" ? event.text : typeof event.error === "string" ? event.error : typeof event.reason === "string" ? event.reason : "";
+    if (message) setLogs((current) => ({ ...current, [skillId]: [...(current[skillId] || []).slice(-800), message] }));
     if (event.state) {
       const state = String(event.state);
       setRuntime((current) => ({ ...current, [skillId]: { running: state === "running", state } }));
       if (state !== "running") void load();
     }
   }), [load]);
+  useEffect(() => {
+    if (typeof window.cctools.onSkillRunEvent !== "function") return;
+    return window.cctools.onSkillRunEvent((event) => {
+      setLiveEvents((current) => ({ ...current, [event.runId]: appendRunEvent(current[event.runId] || [], event) }));
+      if (!isActiveRunState(event.state)) void load();
+    });
+  }, [load]);
 
   const selected = rules.find((rule) => rule.id === selectedId) || rules[0];
-  const selectedRuns = useMemo(() => selected ? runs.filter((run) => run.ruleId === selected.id) : [], [runs, selected]);
+  const selectedRuns = useMemo(() => selected ? prioritizeAutomationRuns(runs.filter((run) => run.ruleId === selected.id)) : [], [runs, selected]);
   const latestRun = selectedRuns[0];
   const selectedSkill = selected ? skills.find((skill) => skill.id === selected.target.id) : undefined;
   const selectedRuntime = selected ? runtime[selected.target.id] : undefined;
@@ -72,19 +84,51 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer = 0;
     setChildRun(null);
     setChildEvents([]);
-    if (!latestRun?.childRunId || latestRun.target.type !== "skill" || typeof window.cctools.getSkillRun !== "function") return () => { cancelled = true; };
-    void Promise.all([
-      window.cctools.getSkillRun(latestRun.childRunId),
-      typeof window.cctools.getSkillRunEvents === "function" ? window.cctools.getSkillRunEvents(latestRun.childRunId) : Promise.resolve([])
-    ]).then(([record, events]) => {
-      if (!cancelled) { setChildRun(record); setChildEvents(events); }
-    }).catch(() => {
-      if (!cancelled) { setChildRun(null); setChildEvents([]); }
-    });
-    return () => { cancelled = true; };
-  }, [latestRun]);
+    setWorkflowRun(null);
+    setWorkflowSteps([]);
+    const runId = latestRun?.childRunId;
+    const targetType = latestRun?.target.type;
+    if (!runId) return () => { cancelled = true; };
+    const readSkill = async (id: string): Promise<{ child: BrokerRunRecord | null; events: BrokerRunEvent[] }> => {
+      if (typeof window.cctools.getSkillRun !== "function") return { child: null, events: [] };
+      const [child, events] = await Promise.all([
+        window.cctools.getSkillRun(id).catch(() => null),
+        typeof window.cctools.getSkillRunEvents === "function" ? window.cctools.getSkillRunEvents(id).catch(() => []) : Promise.resolve([])
+      ]);
+      return { child, events };
+    };
+    const refresh = async () => {
+      try {
+        if (targetType === "skill") {
+          const details = await readSkill(runId);
+          if (!cancelled) { setChildRun(details.child); setChildEvents(details.events); }
+          return;
+        }
+        if (typeof window.cctools.getWorkflowRun !== "function") return;
+        const workflow = await window.cctools.getWorkflowRun(runId);
+        const steps = await Promise.all(workflow.stepRuns.map(async (step) => {
+          const details = step.runId ? await readSkill(step.runId) : { child: null, events: [] };
+          return { step, ...details };
+        }));
+        if (!cancelled) { setWorkflowRun(workflow); setWorkflowSteps(steps); }
+        if (!isActiveRunState(workflow.state) && pollTimer) {
+          window.clearInterval(pollTimer);
+          void load();
+        }
+      } catch {
+        if (!cancelled) { setChildRun(null); setChildEvents([]); setWorkflowRun(null); setWorkflowSteps([]); }
+      }
+    };
+    void refresh();
+    if (targetType === "workflow") pollTimer = window.setInterval(() => { void refresh(); }, 1_000);
+    return () => { cancelled = true; if (pollTimer) window.clearInterval(pollTimer); };
+  }, [latestRun?.childRunId, latestRun?.target.type, load]);
+
+  const visibleChildEvents = useMemo(() => mergeRunEvents(childEvents, childRun ? liveEvents[childRun.id] || [] : []), [childEvents, childRun, liveEvents]);
+  const visibleWorkflowSteps = useMemo(() => workflowSteps.map((details) => ({ ...details, events: mergeRunEvents(details.events, details.step.runId ? liveEvents[details.step.runId] || [] : []) })), [liveEvents, workflowSteps]);
 
   if (loading && !selected) return <div className="feature-page automation-page"><section className="workspace-card"><p>正在加载 Automation Rule…</p></section></div>;
   if (!rules.length) return (
@@ -98,13 +142,18 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   if (!selected) return null;
 
   const selectedEnabled = selected.enabled;
-  const consoleText = selectedLogs.length ? selectedLogs.join("") : runLogText(selected, latestRun, childRun, childEvents);
-  const runState = latestRun?.state || (selectedRuntime?.running ? "running" : "ready");
+  const hasRunDetails = Boolean(childRun || childEvents.length || workflowRun || workflowSteps.length || latestRun?.error);
+  const consoleText = hasRunDetails || !selectedLogs.length ? runLogText(selected, latestRun, childRun, visibleChildEvents, workflowRun, visibleWorkflowSteps) : selectedLogs.join("");
+  const observedState = selected.target.type === "workflow" ? workflowRun?.state : childRun?.state;
+  const runState = observedState || latestRun?.state || (selectedRuntime?.running ? "running" : "ready");
+  const isActive = isActiveAutomationRunState(latestRun?.state);
+  const isRunning = isActive && Boolean(latestRun?.childRunId);
 
   const run = async () => {
     if (!selected.enabled) return;
     try {
-      if (latestRun?.state === "running" && latestRun.childRunId) {
+      if (isActive) {
+        if (!latestRun?.childRunId) return;
         if (latestRun.target.type === "skill") await window.cctools.cancelSkillRun(latestRun.childRunId);
         else await window.cctools.cancelWorkflowRun(latestRun.childRunId);
       } else {
@@ -138,7 +187,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
           <div className="rule-list">
             {rules.map((rule) => {
               const active = selected.id === rule.id;
-              const latest = runs.find((runItem) => runItem.ruleId === rule.id);
+              const latest = prioritizeAutomationRuns(runs.filter((runItem) => runItem.ruleId === rule.id))[0];
               return (
                 <article key={rule.id} className={`rule-item-shell ${active ? "active" : ""}`}>
                   <div className="rule-item" role="button" tabIndex={0} aria-pressed={active} data-motion="selection" onClick={() => setSelectedId(rule.id)} onKeyDown={(event) => selectRuleWithKeyboard(event, () => setSelectedId(rule.id))}>
@@ -157,8 +206,8 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
             <header>
               <div><span className="eyebrow">{selected.target.type}:{selected.target.id}</span><h1>{selected.name}</h1><p>{selected.description || "未填写规则说明。"}</p></div>
               <div className="settings-inline-controls">
-                <button type="button" className={latestRun?.state === "running" ? "danger-button" : "primary-button"} data-motion="action" aria-busy={latestRun?.state === "running" || undefined} disabled={!selectedEnabled} onClick={() => void run()}>
-                  {latestRun?.state === "running" ? <><Square size={14} />{m.automation.actions.stop}</> : <><Play size={14} />{m.automation.actions.run}</>}
+                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={isActive || undefined} disabled={!selectedEnabled || (isActive && !latestRun?.childRunId)} onClick={() => void run()}>
+                  {isRunning ? <><Square size={14} />{m.automation.actions.stop}</> : isActive ? <>正在运行…</> : <><Play size={14} />{m.automation.actions.run}</>}
                 </button>
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteRule(selected, load, setError)}>删除规则</button>
               </div>
@@ -284,7 +333,7 @@ function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRu
 function RunHistory({ runs, artifacts, onRetry }: { runs: AutomationRunRecord[]; artifacts: RunArtifact[]; onRetry: () => void }) {
   if (!runs.length) return <p className="automation-params-hint">尚无运行记录。运行会持久化状态、重试次数和子 Run ID。</p>;
   return <div className="automation-history-list">
-    {runs.slice(0, 8).map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.error}</small> : null}{["failed", "blocked"].includes(run.state) ? <button type="button" data-motion="action" onClick={onRetry}>重试</button> : null}</div>)}
+    {runs.slice(0, 8).map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.state === "queued" ? `上次尝试失败，等待重试：${run.error}` : run.error}</small> : null}{["failed", "blocked"].includes(run.state) ? <button type="button" data-motion="action" onClick={onRetry}>重试</button> : null}</div>)}
     {artifacts.length ? <div className="automation-artifacts"><strong>Artifacts</strong>{artifacts.map((artifact) => <div className="automation-artifact" key={artifact.id}><span className="automation-artifact-name"><span>{artifact.logicalPath || artifact.externalPathRef || artifact.id}</span></span><small>{artifact.type} · {artifact.size ?? 0} bytes · {artifact.declared ? "declared" : "undeclared"}</small></div>)}</div> : <small className="automation-artifacts-note">最近子 Run 尚未产生 Artifact。</small>}
   </div>;
 }
@@ -351,11 +400,73 @@ function initialRuleId(initialSkillId: string | undefined, rules: AutomationRule
 
 function selectRuleWithKeyboard(event: KeyboardEvent<HTMLDivElement>, select: () => void) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } }
 function triggerLabel(rule: AutomationRule): string { const trigger = rule.trigger; if (trigger.type === "daily") return `每天 ${trigger.at}`; if (trigger.type === "weekly") return `每周 ${trigger.daysOfWeek.join(",")} ${trigger.at}`; if (trigger.type === "hourly") return "每小时"; if (trigger.type === "interval") return `每 ${trigger.everyMinutes} 分钟`; if (trigger.type === "cron") return `Cron ${trigger.expression}`; if (trigger.type === "app-start") return "应用启动"; if (trigger.type === "file-change") return `文件变化 · ${trigger.paths.length} 个路径`; if (trigger.type === "network") return `网络 ${trigger.state}`; if (trigger.type === "power") return `电源 ${trigger.state}`; return "Run 完成"; }
-function runTone(state: AutomationRunRecord["state"] | undefined): string { if (state === "running") return "running"; if (state === "succeeded") return "completed"; if (state === "failed" || state === "blocked") return "failed"; return ""; }
-function runtimeTone(state: string): "ok" | "warn" | "muted" { return state === "succeeded" ? "ok" : ["failed", "blocked", "cancelled"].includes(state) ? "warn" : state === "running" ? "warn" : "muted"; }
-function runListStatus(run: AutomationRunRecord | undefined): string { return run ? run.state : m.automation.status.ready; }
-function detailStatus(state: string): string { if (state === "running") return m.automation.status.running; if (state === "succeeded") return m.automation.status.lastSucceeded; if (["failed", "blocked"].includes(state)) return m.automation.status.lastFailed; return m.automation.status.ready; }
-function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, child: BrokerRunRecord | null, events: BrokerRunEvent[]): string { if (!run) return `[--:--:--] 等待触发：${rule.name}\n[--:--:--] 运行后 stdout、stderr、阶段和失败原因会显示在这里。`; const start = formatLogTime(run.createdAt); const end = run.completedAt ? `\n[${formatLogTime(run.completedAt)}] 结束：${run.state}` : ""; const output = events.filter((event) => event.text).map((event) => `\n[${formatLogTime(event.timestamp)}] ${event.stream || event.state || "output"}: ${event.text}`).join(""); const artifacts = child?.artifacts.length ? `\n产物：${child.artifacts.map((item) => item.logicalPath || item.externalPathRef || item.id).join(", ")}` : ""; return `[${start}] 触发：${rule.name}\n[${start}] 子 Run：${run.childRunId || "未提交"}${output}${end}${artifacts}`; }
+function runTone(state: AutomationRunRecord["state"] | undefined): string { if (state === "running" || state === "queued") return "running"; if (state === "succeeded") return "completed"; if (state === "failed" || state === "blocked") return "failed"; return ""; }
+function runtimeTone(state: string): "ok" | "warn" | "muted" { return state === "succeeded" ? "ok" : ["failed", "blocked", "cancelled"].includes(state) ? "warn" : isActiveRunState(state) ? "warn" : "muted"; }
+function runListStatus(run: AutomationRunRecord | undefined): string { return run ? automationStateLabel(run.state) : m.automation.status.ready; }
+function detailStatus(state: string): string { return automationStateLabel(state, true); }
+function automationStateLabel(state: string, detailed = false): string {
+  if (state === "running") return m.automation.status.running;
+  if (state === "queued") return "排队中";
+  if (state === "inspecting") return "检查中";
+  if (state === "waiting_execution_consent") return "准备运行环境";
+  if (state === "preparing_runtime") return "准备运行环境";
+  if (state === "cancelling") return "正在停止";
+  if (state === "succeeded") return m.automation.status.lastSucceeded;
+  if (["failed", "blocked"].includes(state)) return m.automation.status.lastFailed;
+  if (state === "cancelled") return "已取消";
+  if (state === "skipped") return "已跳过";
+  return m.automation.status.ready;
+}
+function isActiveAutomationRunState(state: AutomationRunRecord["state"] | undefined): boolean { return state === "queued" || state === "running"; }
+function prioritizeAutomationRuns(runs: AutomationRunRecord[]): AutomationRunRecord[] {
+  return [...runs].sort((left, right) => {
+    const priority = (run: AutomationRunRecord): number => run.state === "running" ? 0 : run.state === "queued" ? 1 : 2;
+    const priorityDelta = priority(left) - priority(right);
+    if (priorityDelta) return priorityDelta;
+    return Date.parse(right.createdAt) - Date.parse(left.createdAt);
+  });
+}
+function isActiveRunState(state: string | null | undefined): boolean { return ["queued", "inspecting", "waiting_execution_consent", "preparing_runtime", "running", "cancelling"].includes(state || ""); }
+function appendRunEvent(events: BrokerRunEvent[], next: BrokerRunEvent): BrokerRunEvent[] {
+  if (events.some((event) => event.sequence === next.sequence)) return events;
+  return [...events, next].slice(-800);
+}
+function mergeRunEvents(...groups: BrokerRunEvent[][]): BrokerRunEvent[] {
+  const merged = new Map<string, BrokerRunEvent>();
+  for (const event of groups.flat()) merged.set(`${event.runId}:${event.sequence}`, event);
+  return [...merged.values()].sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.sequence - right.sequence);
+}
+function eventLogLines(events: BrokerRunEvent[], prefix = ""): string {
+  return events.map((event) => {
+    const detail = event.text || event.error || event.reason || (event.code != null ? `退出码 ${event.code}` : event.signal ? `信号 ${event.signal}` : event.state);
+    return `\n[${formatLogTime(event.timestamp)}] ${prefix}${event.stream || event.state || "output"}: ${detail}`;
+  }).join("");
+}
+function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, child: BrokerRunRecord | null, events: BrokerRunEvent[], workflow: WorkflowRunRecord | null, workflowSteps: WorkflowStepDetails[]): string {
+  if (!run) return `[--:--:--] 等待触发：${rule.name}\n[--:--:--] 运行后 stdout、stderr、阶段和失败原因会显示在这里。`;
+  const start = formatLogTime(run.createdAt);
+  const automationError = run.error
+    ? `\n[${run.completedAt ? formatLogTime(run.completedAt) : start}] ${run.state === "queued" ? "上次尝试失败，等待重试" : "Automation 失败"}：${run.error}`
+    : "";
+  if (workflow) {
+    const workflowEnd = workflow.completedAt ? `\n[${formatLogTime(workflow.completedAt)}] Workflow 结束：${workflow.state}` : `\n[${start}] Workflow 状态：${workflow.state}`;
+    const workflowError = workflow.error ? `\n[${workflow.completedAt ? formatLogTime(workflow.completedAt) : start}] Workflow 失败：${workflow.error}` : "";
+    const steps = workflowSteps.map(({ step, child: stepChild, events: stepEvents }) => {
+      const label = `Step ${step.stepId}（${step.skillId}）`;
+      const childId = step.runId ? `\n[${start}] ${label} 子 Run：${step.runId}` : "";
+      const childState = stepChild ? `\n[${start}] ${label} 子 Run 状态：${automationStateLabel(stepChild.state, true)}` : "";
+      const stepError = step.error ? `\n[${start}] ${label} 失败：${step.error}` : "";
+      const childError = stepChild?.error && stepChild.error !== step.error ? `\n[${stepChild.completedAt ? formatLogTime(stepChild.completedAt) : start}] ${label} 子 Run 失败：${stepChild.error}` : "";
+      return `\n[${start}] ${label} 状态：${step.state}${childId}${childState}${stepError}${childError}${eventLogLines(stepEvents, `${label} · `)}`;
+    }).join("");
+    return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${workflowEnd}${workflowError}${steps}${automationError}`;
+  }
+  const end = run.completedAt ? `\n[${formatLogTime(run.completedAt)}] 结束：${run.state}` : "";
+  const childState = child ? `\n[${start}] 子 Run 状态：${automationStateLabel(child.state, true)}` : "";
+  const childError = child?.error ? `\n[${child.completedAt ? formatLogTime(child.completedAt) : start}] 子 Run 失败：${child.error}` : "";
+  const artifacts = child?.artifacts.length ? `\n产物：${child.artifacts.map((item) => item.logicalPath || item.externalPathRef || item.id).join(", ")}` : "";
+  return `[${start}] 触发：${rule.name}\n[${start}] 子 Run：${run.childRunId || "未提交"}${childState}${eventLogLines(events)}${childError}${automationError}${end}${artifacts}`;
+}
 function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 function formatLogTime(value: string): string { return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }
 function todayCompact(): string { return new Date().toISOString().slice(0, 10).replaceAll("-", ""); }

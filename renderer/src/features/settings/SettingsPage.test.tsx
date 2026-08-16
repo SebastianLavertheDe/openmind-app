@@ -143,12 +143,14 @@ describe("SettingsPage", () => {
     const navigation = screen.getByRole("navigation", { name: "设置分类" });
     expect(screen.getByRole("searchbox", { name: "搜索设置…" })).toBeTruthy();
     expect(within(navigation).getByRole("button", { name: "常规" }).getAttribute("aria-current")).toBe("page");
+    expect(document.querySelector(".settings-page")?.getAttribute("data-settings-section")).toBe("general");
     expect(screen.getByRole("heading", { name: "外观" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "项目路径" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "模型提供方" })).toBeNull();
 
     openCategory("AI 与模型");
     expect(screen.getByRole("heading", { name: "AI 与模型" })).toBeTruthy();
+    expect(document.querySelector(".settings-page")?.getAttribute("data-settings-section")).toBe("providers");
     expect(screen.getByRole("heading", { name: "模型提供方" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "外观" })).toBeNull();
   });
@@ -167,6 +169,22 @@ describe("SettingsPage", () => {
     const navigation = screen.getByRole("navigation", { name: "设置分类" });
     expect(within(navigation).getByRole("button", { name: "权限与安全" })).toBeTruthy();
     expect(within(navigation).queryByRole("button", { name: "常规" })).toBeNull();
+  });
+
+  it("clears pointer focus after choosing a settings category but preserves keyboard focus", async () => {
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    const navigation = screen.getByRole("navigation", { name: "设置分类" });
+    const browserTab = within(navigation).getByRole("button", { name: "浏览器" });
+    browserTab.focus();
+    expect(document.activeElement).toBe(browserTab);
+    fireEvent.click(browserTab, { detail: 1 });
+    expect(document.activeElement).not.toBe(browserTab);
+
+    const permissionsTab = within(navigation).getByRole("button", { name: "权限与安全" });
+    permissionsTab.focus();
+    fireEvent.click(permissionsTab, { detail: 0 });
+    expect(document.activeElement).toBe(permissionsTab);
   });
 
   it("offers one-click install for an uninstalled native CLI provider", async () => {
@@ -189,13 +207,14 @@ describe("SettingsPage", () => {
     openCategory("AI 与模型");
 
     const installButton = await screen.findByRole("button", { name: "一键安装" });
-    expect(screen.getByText("安装到应用私有目录，不影响系统环境。")).toBeTruthy();
+    expect(screen.queryByText("安装到应用私有目录，不影响系统环境。")).toBeNull();
+    expect(screen.queryByText("不可用")).toBeNull();
     fireEvent.click(installButton);
     await waitFor(() => expect(installCliTool).toHaveBeenCalledWith("claude"));
     await waitFor(() => expect(aiRefreshProviders).toHaveBeenCalled());
   });
 
-  it("shows progress, cancel and manual fallback for native CLI installation", async () => {
+  it("shows progress and cancel controls for native CLI installation", async () => {
     const unavailable: ProviderCapabilities[] = [{
       id: "codex-native", provider: "codex", label: "Codex CLI（本机）", runtime: "native",
       available: false, version: null, supportsApprovals: true, supportsResume: true, supportsImages: true,
@@ -223,7 +242,8 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("progressbar", { name: /Codex CLI.*安装进度/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "取消安装" }));
     await waitFor(() => expect(cancelCliToolInstall).toHaveBeenCalledWith("codex"));
-    expect(screen.getByText("查看手动安装步骤")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "一键安装" })).toBeTruthy();
+    expect(screen.queryByText("查看手动安装步骤")).toBeNull();
   });
 
   it("shows retry after a native CLI install failure", async () => {
@@ -248,6 +268,25 @@ describe("SettingsPage", () => {
     expect(await screen.findByText(/一键安装失败：网络失败/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "重试安装" }));
     await waitFor(() => expect(installCliTool).toHaveBeenCalledTimes(2));
+  });
+
+  it("checks an installed CLI version and refreshes it after upgrade", async () => {
+    const checkCliToolUpdate = vi.fn()
+      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-08-15T00:00:00Z", source: "npm" })
+      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.1.0", latestVersion: "1.1.0", updateAvailable: false, canUpgrade: true, checkedAt: "2026-08-15T00:01:00Z", source: "npm" });
+    const upgradeCliTool = vi.fn().mockResolvedValue({ cli: "codex", installed: true, version: "1.1.0", digest: "d".repeat(64), sourceUrl: "https://registry.npmjs.org/@openai%2fcodex", installedAt: "2026-08-15T00:01:00Z", executablePath: "/tools/bin/codex" });
+    window.cctools = makeApi({ checkCliToolUpdate, upgradeCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "检查更新" })[0]);
+    await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledWith("codex"));
+    expect(await screen.findByRole("button", { name: "一键更新" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "一键更新" }));
+    await waitFor(() => expect(upgradeCliTool).toHaveBeenCalledWith("codex"));
+    await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("已是最新")).toBeTruthy();
   });
 
   it("uses manual copy steps for an unavailable WSL provider", async () => {
@@ -295,8 +334,9 @@ describe("SettingsPage", () => {
     expect(screen.queryByLabelText("代理策略")).toBeNull();
     expect(screen.queryByText("TLS")).toBeNull();
     expect(screen.queryByText("代理 URL（可选）")).toBeNull();
-    expect((screen.getByRole("combobox", { name: "Claude Code 服务商" }) as HTMLSelectElement).value).toBe("");
-    expect((screen.getByRole("combobox", { name: "Codex CLI 服务商" }) as HTMLSelectElement).value).toBe("");
+    expect(screen.queryByRole("combobox", { name: "Claude Code 服务商" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Codex CLI 服务商" })).toBeNull();
+    expect(screen.getByRole("button", { name: "添加 Provider" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "添加 Provider" }));
     const dialog = await screen.findByRole("dialog", { name: "添加 Provider" });
@@ -321,59 +361,28 @@ describe("SettingsPage", () => {
     }));
   });
 
-  it("switches Claude and Codex service providers independently and keeps CLI defaults available", async () => {
-    const providerEntry = (
-      id: string,
-      name: string,
-      protocol: "openai-chat" | "openai-responses" | "anthropic-messages",
-      model: string
-    ) => ({
-      id, name, enabled: true, protocol, authMode: protocol === "anthropic-messages" ? "x-api-key" as const : "bearer" as const,
-      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
-      proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
-    });
+  it("keeps CLI binding controls out of the compact Provider list", async () => {
     const providerView = {
       schemaVersion: 1 as const,
       default: "general-chat",
       cli: { claude: "claude-a", codex: "codex-a" },
-      providers: [
-        providerEntry("general-chat", "通用 Chat", "openai-chat", "chat-model"),
-        providerEntry("claude-a", "Claude A", "anthropic-messages", "claude-a-model"),
-        providerEntry("claude-b", "Claude B", "anthropic-messages", "claude-b-model"),
-        providerEntry("codex-a", "Codex A", "openai-responses", "codex-a-model"),
-        providerEntry("codex-b", "Codex B", "openai-responses", "codex-b-model")
-      ]
+      providers: [{
+        id: "general-chat", name: "通用 Chat", enabled: true, protocol: "openai-chat" as const,
+        authMode: "bearer" as const, baseUrl: "https://general-chat.example.com/v1", model: "chat-model", apiKeySet: true,
+        proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+      }]
     };
-    const getProviders = vi.fn().mockResolvedValue(providerView);
-    const saveProviders = vi.fn().mockResolvedValue(providerView);
-    window.cctools = makeApi({ getProviders, saveProviders });
+    window.cctools = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    const claudeSelect = await screen.findByRole("combobox", { name: "Claude Code 服务商" }) as HTMLSelectElement;
-    const codexSelect = screen.getByRole("combobox", { name: "Codex CLI 服务商" }) as HTMLSelectElement;
-    await waitFor(() => {
-      expect(claudeSelect.value).toBe("claude-a");
-      expect(codexSelect.value).toBe("codex-a");
-    });
-    expect(within(claudeSelect).getByRole("option", { name: "使用 Claude Code 自身配置" })).toBeTruthy();
-    expect(within(codexSelect).getByRole("option", { name: "使用 Codex CLI 自身配置" })).toBeTruthy();
-    expect(within(claudeSelect).queryByRole("option", { name: /Codex A/ })).toBeNull();
-    expect(within(claudeSelect).queryByRole("option", { name: /通用 Chat/ })).toBeNull();
-    expect(within(codexSelect).queryByRole("option", { name: /Claude A/ })).toBeNull();
-    expect(within(codexSelect).queryByRole("option", { name: /通用 Chat/ })).toBeNull();
-    expect(screen.getAllByText(/新会话生效/)).toHaveLength(2);
-
-    fireEvent.change(claudeSelect, { target: { value: "claude-b" } });
-    fireEvent.change(codexSelect, { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
-
-    await waitFor(() => expect(saveProviders).toHaveBeenCalled());
-    expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
-      default: "general-chat",
-      cli: { claude: "claude-b", codex: null }
-    }));
+    await waitFor(() => expect(window.cctools.getProviders).toHaveBeenCalled());
+    expect(screen.queryByRole("combobox", { name: "Claude Code 服务商" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Codex CLI 服务商" })).toBeNull();
+    expect(screen.queryByText("使用 Claude Code 自身配置")).toBeNull();
+    expect(screen.queryByText("使用 Codex CLI 自身配置")).toBeNull();
+    expect(screen.getByRole("button", { name: "添加 Provider" })).toBeTruthy();
   });
 
   it("keeps unsaved edits when a Provider is removed from the draft", async () => {

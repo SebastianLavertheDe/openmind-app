@@ -35,9 +35,7 @@ describe("OnboardingPage", () => {
     render(<AiProvider initial={snapshot}><OnboardingPage bootstrap={bootstrap} go={go} onRefresh={vi.fn()} /></AiProvider>);
     await screen.findByRole("heading", { name: "先准备本地工作台" });
     fireEvent.click(screen.getByRole("button", { name: "打开导入入口" }));
-    fireEvent.click(screen.getByRole("button", { name: "查看诊断" }));
     expect(go).toHaveBeenNthCalledWith(1, "skills", { openSkillImport: true });
-    expect(go).toHaveBeenNthCalledWith(2, "diagnostics");
   });
 
   it("requires both optional steps to be completed or skipped before entering the app", async () => {

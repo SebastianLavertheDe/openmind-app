@@ -33,7 +33,10 @@ export function App() {
 }
 
 function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
-  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo && bootstrap.onboardingCompleted !== false ? "ai" : "onboarding", state: {}, nonce: 0 }));
+  // A valid mymind root is the actual first-start gate. The checklist remains
+  // available during setup, but a stale app-private onboarding flag must not
+  // stop an already configured workspace on every launch.
+  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo ? "ai" : "onboarding", state: {}, nonce: 0 }));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsRouteState, setSettingsRouteState] = useState<AppRouteState>({});
   const [searchOpen, setSearchOpen] = useState(false);

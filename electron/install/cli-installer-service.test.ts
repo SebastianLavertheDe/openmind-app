@@ -106,6 +106,37 @@ describe("CliInstallerService", () => {
     expect(fs.readFileSync(status.executablePath, "utf8")).toContain(node);
   });
 
+  it("checks the official Codex version and forces an app-private upgrade", async () => {
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    const runtimeRoot = path.join(root, "runtime");
+    const node = path.join(runtimeRoot, "bin", "node");
+    const npmCli = path.join(runtimeRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js");
+    fs.mkdirSync(path.dirname(node), { recursive: true });
+    fs.mkdirSync(path.dirname(npmCli), { recursive: true });
+    fs.writeFileSync(node, "node");
+    fs.writeFileSync(npmCli, "npm");
+    let installedVersion = "0.42.0";
+    const commandRunner = vi.fn(async (_command, args) => {
+      const prefix = String(args[args.indexOf("--prefix") + 1]);
+      const packageRoot = path.join(prefix, "node_modules", "@openai", "codex");
+      fs.mkdirSync(path.join(packageRoot, "bin"), { recursive: true });
+      fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ name: "@openai/codex", version: installedVersion, bin: { codex: "bin/codex.js" } }));
+      fs.writeFileSync(path.join(packageRoot, "bin", "codex.js"), `console.log('${installedVersion}')\n`);
+      return { stdout: "", stderr: "" };
+    });
+    const transport: CliInstallerTransport = vi.fn(async (url) => {
+      expect(url).toBe("https://registry.npmjs.org/@openai%2fcodex");
+      return { statusCode: 200, body: Buffer.from(JSON.stringify({ "dist-tags": { latest: "0.43.0" } })) };
+    });
+    const service = new CliInstallerService(paths, { platform: "darwin", arch: "arm64", transport, commandRunner, resolveNodeRuntime: () => ({ nodeExecutable: node, npmCliPath: npmCli }) });
+    await service.install("codex");
+
+    await expect(service.checkForUpdate("codex")).resolves.toMatchObject({ currentVersion: "0.42.0", latestVersion: "0.43.0", updateAvailable: true, canUpgrade: true, source: "npm" });
+    installedVersion = "0.43.0";
+    await expect(service.upgrade("codex")).resolves.toMatchObject({ installed: true, version: "0.43.0" });
+    expect(commandRunner).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects a redirect from the official Claude host", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     const commandRunner = vi.fn();

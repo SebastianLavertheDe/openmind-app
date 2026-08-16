@@ -197,8 +197,8 @@ export type SkillCapabilityDiff = {
 
 /**
  * Produce a human-readable, deterministic diff for the capability section of
- * two manifests. This is an explanation surface only; execution consent is
- * still bound to the complete capability fingerprint in ExecutionBroker.
+ * two manifests. This is an explanation surface for install/update review;
+ * it does not gate execution.
  */
 export function diffSkillCapabilities(previousManifest: unknown, nextManifest: unknown): SkillCapabilityDiff {
   const previous = capabilityEntries(extractCapabilities(previousManifest));

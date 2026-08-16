@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { writeTextAtomic } from "../lib/fs-utils";
 
 const LEADER_SCHEMA_VERSION = 1 as const;
 
@@ -19,7 +20,7 @@ export type AutomationLeaderOptions = {
   isProcessAlive?: (pid: number) => boolean;
 };
 
-/** Cross-process exclusive scheduler lease. Invalid state fails closed. */
+/** Cross-process exclusive scheduler lease. Corrupt lease state is quarantined before recovery. */
 export class AutomationLeader {
   private readonly filePath: string;
   private readonly ownerId: string;
@@ -42,17 +43,16 @@ export class AutomationLeader {
   tryAcquire(now = new Date()): boolean {
     if (this.owned) {
       const current = this.read();
-      if (!current || current.ownerId !== this.ownerId || current.pid !== this.pid) {
-        this.owned = false;
-        return false;
+      if (current?.ownerId === this.ownerId && current.pid === this.pid) {
+        try {
+          this.write({ ...current, heartbeatAt: now.toISOString() });
+          return true;
+        } catch {
+          // Fall through to reacquisition. A failed atomic heartbeat should
+          // never leave this process believing it still owns the lease.
+        }
       }
-      try {
-        this.write({ ...current, heartbeatAt: now.toISOString() });
-        return true;
-      } catch {
-        this.owned = false;
-        return false;
-      }
+      this.owned = false;
     }
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -64,7 +64,11 @@ export class AutomationLeader {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         const current = this.read();
-        if (!current || !this.isExpired(current, now)) return false;
+        if (!current) {
+          this.quarantineCorruptLease();
+          continue;
+        }
+        if (!this.isExpired(current, now)) return false;
         const stalePath = `${this.filePath}.stale-${this.ownerId}-${attempt}`;
         try { fs.renameSync(this.filePath, stalePath); }
         catch { continue; }
@@ -94,7 +98,22 @@ export class AutomationLeader {
   }
 
   private write(record: LeaderRecord): void {
-    fs.writeFileSync(this.filePath, JSON.stringify(record), { encoding: "utf8", flag: "w", mode: 0o600 });
+    writeTextAtomic(this.filePath, JSON.stringify(record), { mode: 0o600 });
+  }
+
+  /**
+   * A malformed lease cannot identify a live owner. Keep it for diagnostics,
+   * then let a scheduler create a fresh lease on the next acquisition attempt.
+   */
+  private quarantineCorruptLease(): boolean {
+    const quarantinedPath = `${this.filePath}.corrupt-${Date.now()}-${crypto.randomUUID()}`;
+    try {
+      fs.renameSync(this.filePath, quarantinedPath);
+      return true;
+    } catch {
+      // Another scheduler may have repaired/replaced it. Re-read on retry.
+      return false;
+    }
   }
 
   private read(): LeaderRecord | undefined {
