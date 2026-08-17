@@ -46,6 +46,7 @@
     "test:unit": "vitest run",
     "test:integration": "node scripts/integration-smoke.js",
     "test:e2e": "node scripts/electron-e2e.js",
+    "cli:install:smoke": "node scripts/cli-install-smoke.js",
     "test:coverage": "vitest run --coverage",
     "dist": "npm run build && npm run prepare:python-runtime && electron-builder",
     "dist:win": "npm run build && npm run prepare:python-runtime -- --target=windows-x64 && electron-builder --win",

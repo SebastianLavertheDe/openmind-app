@@ -58,25 +58,27 @@
 - **PATH 注入**：诊断/启动逻辑（`provider-registry.ts` 的探测顺序）在检测 CLI 时优先查 `userData/tools/` 及其 bin 子目录；仍保留系统 PATH 探测作为回退（用户自己装的仍可用）
 
 ### 任务拆解
-1. **W2.1 安装器服务（electron/install/cli-installer-service.ts，新建）**
-   - `detect(cli): { installed, source: "system-path" | "app-tools" | null }`
-   - `install(cli): Promise<InstallResult>`——按平台选择安装脚本/便携 npm 方案
-   - 下载走 HTTPS、校验（有官方 hash 签名则验，无则记录 digest 到安装清单）
-   - 进度事件经 IPC 推送到 renderer（复用现有推送事件通道模式）
-   - 幂等：已安装同版本直接返回；失败回滚半成品目录
-2. **W2.2 诊断接线**
+1. **W2.1 安装器服务（electron/install/cli-installer-service.ts，新建）** ✅ 已实现（实现与初稿有一处方案调整）
+   - 实际机制：**Claude Code 走官方安装脚本**（`https://claude.ai/install.ps1` / `install.sh`，下载后校验 SHA-256 并记录到安装清单，在隔离 HOME 下执行）；**Codex CLI 走 npm 便携安装**（App 内置 Node 运行 `npm install --prefix` 到 `userData/tools/npm-global`，`--ignore-scripts`，不碰系统 npm）
+   - 初稿的「GitHub release 资产匹配（assetHints）」方案已放弃：两个 CLI 的 release 资产命名不稳定且 codex release 混有 `codex-app-server-*` 等同前缀资产，官方脚本/npm 通道更稳
+   - 进度事件经 IPC 推送到 renderer；幂等安装、`upgrade(force)`、`checkForUpdate`、取消（AbortController）、失败回滚
+2. **W2.2 诊断接线** ✅
    - `provider-registry.ts` / 现有 CLI 诊断（`shared/messages/zh-CN/electron.ts:72-77` 的判断来源）增加 app-tools 路径探测
    - 诊断结果新增字段 `installable: boolean`（当前平台 + 当前 CLI 是否支持一键安装；WSL 场景为 false）
-3. **W2.3 UI**
+3. **W2.3 UI** ✅
    - `settings-sections.tsx` Provider 区诊断卡片改造：
      - 未安装且 `installable` → 显示 **[一键安装]** + [查看手动步骤]（折叠显示现有文案）
      - 安装中 → 进度条 + 取消
      - 安装失败 → 错误信息 + 重试 + 手动步骤
    - 文案明确"安装到应用私有目录，不影响系统"
-4. **W2.4 测试**
+4. **W2.4 测试** ✅
    - 单测：installer 服务的 detect/幂等/回滚（mock 下载）；诊断探测顺序
    - UI 测试：三种状态的卡片渲染与按钮行为
-   - 真机验收：Windows 11 干净虚拟机 + macOS 干净虚拟机各跑一遍（纳入现有 clean-machine 验收流程 `docs/CLEAN_MACHINE_EVIDENCE.md`）
+   - 真机验收：已接入 multi-OS CI（`.github/workflows/desktop-app.yml` 的
+     `Clean-machine one-click CLI install smoke` 步骤，windows-latest / macos-latest
+     干净 runner 上执行 `npm run cli:install:smoke`，真实走官方脚本/npm 安装并验证
+     `--version`）。打包产物的完整 clean-machine 场景（离线、非管理员、强退安装等）
+     仍按 `docs/CLEAN_MACHINE_EVIDENCE.md` 的表格逐项人工/CI 补齐。
 
 ### 明确不做（第一期）
 - WSL 内一键安装（W4 处理）

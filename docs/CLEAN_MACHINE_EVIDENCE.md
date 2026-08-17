@@ -67,6 +67,15 @@ bundle:
 - complete or skip all three onboarding steps and verify the next launch enters
   the main workspace without repeating onboarding.
 
+The one-click CLI install sub-check is additionally exercised continuously by
+the multi-OS CI matrix (`.github/workflows/desktop-app.yml`, step
+“Clean-machine one-click CLI install smoke”): on every windows-latest and
+macos-latest run, `npm run cli:install:smoke` performs the real Claude
+official-script install and the Codex npm portable install, then asserts the
+launcher exists and `--version` responds. CI success covers the online
+clean-runner variant of that sub-check; the packaged-app scenarios in the
+table above remain the authoritative release gate.
+
 Local automated evidence for these flows is covered by the installer, IPC,
 provider, Skills, Settings and Onboarding unit tests. It is not a substitute
 for the target-host run; do not mark the matrix `complete` from this Linux

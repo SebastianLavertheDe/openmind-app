@@ -24,6 +24,12 @@ unsigned, as required by the current scope.
 - `visual:snapshot` launches the current renderer scenarios in Electron and
   verifies the screenshot/layout contracts, including the responsive settings
   and companion layouts.
+- `cli:install:smoke` (Windows/macOS matrix jobs only) performs the real
+  one-click CLI install through `CliInstallerService` — the Claude official
+  install script and the Codex npm portable path — then asserts the launcher
+  exists and `--version` responds. This is the continuous clean-runner variant
+  of the one-click install sub-check; packaged-app clean-machine scenarios in
+  `docs/CLEAN_MACHINE_EVIDENCE.md` remain the release gate.
 
 The Ubuntu job installs Xvfb because the Electron E2E and visual snapshot
 checks launch a compiled desktop binary without a physical display. Windows and
@@ -35,7 +41,9 @@ still a separate manual release operation in the current scope.
 The workflow does not claim the remaining external acceptance gates:
 
 - Provider-backed and real Chrome E2E;
-- Windows/macOS clean-machine matrix and non-admin GUI acceptance;
+- Windows/macOS packaged-app clean-machine matrix and non-admin GUI acceptance
+  (the CI `cli:install:smoke` covers only the online clean-runner variant of
+  the one-click CLI install sub-check);
 - packaged force-quit/recovery acceptance on real target machines;
 - signed Windows/macOS packaging and distributable-container acceptance;
 - independent Security Review and deployment/diagnostic-platform audit.
