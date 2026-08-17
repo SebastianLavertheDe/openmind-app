@@ -953,6 +953,10 @@
 .automation-history-list {
   display: grid;
   gap: 6px;
+  max-height: min(264px, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .automation-history-row {

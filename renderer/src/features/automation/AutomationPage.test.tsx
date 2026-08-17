@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AutomationRule, AutomationRunRecord, BrokerRunRecord, DesktopApi, SkillDefinition, SourceRun, WorkflowRunRecord } from "@shared/contracts";
+import type { BrokerRunEvent } from "@shared/execution-contracts";
 import { messages } from "@shared/messages";
 import { AutomationPage } from "./AutomationPage";
 
@@ -242,11 +243,67 @@ describe("AutomationPage", () => {
 
     render(<AutomationPage skills={skills} go={vi.fn()} />);
     expect(await screen.findByText(/Workflow Step fetch failed/)).toBeTruthy();
-    expect(screen.getByText(/Step fetch（rss-article-saver） 状态：failed/)).toBeTruthy();
+    expect(screen.getByText(/rss-article-saver · 运行失败/)).toBeTruthy();
     expect(onRunEvent).toBeTruthy();
 
     onRunEvent?.({ schemaVersion: 1, runId: "fetch-run", sequence: 2, timestamp: "2026-08-16T07:44:24.000Z", state: "failed", error: "内置 Python 资源完整性校验失败。" });
     expect(await screen.findByText(/内置 Python 资源完整性校验失败/)).toBeTruthy();
+  });
+
+  it("shows concise Skill runtime progress in the recent workflow log", async () => {
+    const workflowRule: AutomationRule = {
+      ...seedRules[2],
+      id: "rss-workflow-progress",
+      name: "RSS 抓取与每日总结",
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    };
+    const automationRun: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "automation-progress-run",
+      ruleId: workflowRule.id,
+      target: workflowRule.target,
+      state: "running",
+      attempt: 1,
+      retryAt: null,
+      childRunId: "workflow-progress-run",
+      triggerReason: "hourly",
+      scheduledFor: "2026-08-17T14:00:00.000Z",
+      createdAt: "2026-08-17T14:00:20.000Z",
+      completedAt: null,
+      error: null
+    };
+    const workflow: WorkflowRunRecord = {
+      schemaVersion: 1,
+      id: "workflow-progress-run",
+      workflowSkillId: "rss-to-summary-workflow",
+      workflowVersion: "1.0.0",
+      workflowFingerprint: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      state: "running",
+      rootGeneration: 1,
+      createdAt: "2026-08-17T14:00:20.000Z",
+      completedAt: null,
+      error: null,
+      stepRuns: [{ stepId: "fetch", skillId: "rss-article-saver", state: "running", attempt: 1, retryAt: null, runId: "fetch-progress-run", error: null, artifacts: [] }]
+    };
+    const fetchRun = { id: "fetch-progress-run", state: "running", error: null, completedAt: null, artifacts: [], request: { skillId: "rss-article-saver" } } as unknown as BrokerRunRecord;
+    const events: BrokerRunEvent[] = [
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 0, timestamp: "2026-08-17T14:00:20.000Z", state: "queued", reason: "run-created" },
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 1, timestamp: "2026-08-17T14:00:23.000Z", state: "running", reason: "process-started" },
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md" }
+    ];
+    window.cctools = makeApi({
+      listAutomationRules: async () => [workflowRule],
+      listAutomationRuns: async () => [automationRun],
+      getWorkflowRun: async () => workflow,
+      getSkillRun: async () => fetchRun,
+      getSkillRunEvents: async () => events
+    });
+
+    render(<AutomationPage skills={skills} go={vi.fn()} />);
+
+    expect(await screen.findByText(/rss-article-saver · Loaded 122 RSS feeds/)).toBeTruthy();
+    expect(screen.getByText(/rss-article-saver · Processing: Cursor is now a part of SpaceX/)).toBeTruthy();
+    expect(screen.getByText(/rss-article-saver · 运行中/)).toBeTruthy();
   });
 
   it("prefers an active workflow over newer skipped runs and keeps its live logs visible", async () => {
@@ -325,8 +382,8 @@ describe("AutomationPage", () => {
     expect(screen.queryByRole("button", { name: /授权/ })).toBeNull();
     expect(screen.queryByText(/等待授权/)).toBeNull();
     expect(container.querySelector(".rule-item .rule-copy small")?.textContent).toContain("运行中");
-    await waitFor(() => expect(screen.getByRole("log").textContent).toContain("子 Run 状态：运行中"));
-    expect(screen.getByRole("log").textContent).toContain("stdout: 开始抓取 RSS");
+    await waitFor(() => expect(screen.getByRole("log").textContent).toContain("rss-article-saver · 运行中"));
+    expect(screen.getByRole("log").textContent).toContain("rss-article-saver · 开始抓取 RSS");
     expect(container.querySelector(".automation-history-row")?.textContent).toContain("running");
   });
 
@@ -355,5 +412,43 @@ describe("AutomationPage", () => {
 
     expect(await screen.findAllByText(/上次尝试失败，等待重试/)).toHaveLength(2);
     expect(screen.queryByText(/Automation 失败/)).toBeNull();
+  });
+
+  it("hides run history older than three days and keeps recent records", async () => {
+    const recent: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "recent-run",
+      ruleId: seedRules[0].id,
+      target: seedRules[0].target,
+      state: "succeeded",
+      attempt: 1,
+      retryAt: null,
+      childRunId: "recent-child",
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+      completedAt: new Date().toISOString(),
+      error: null
+    };
+    const stale: AutomationRunRecord = {
+      ...recent,
+      id: "stale-run",
+      state: "failed",
+      childRunId: "stale-child",
+      createdAt: "2026-08-01T08:00:00.000Z",
+      error: "boom"
+    };
+    window.cctools = makeApi({
+      listAutomationRules: async () => [seedRules[0]],
+      listAutomationRuns: async () => [recent, stale]
+    });
+
+    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    await screen.findByText("触发与目标");
+
+    expect(container.querySelectorAll(".automation-history-row")).toHaveLength(1);
+    expect(screen.getByText("recent-child")).toBeTruthy();
+    expect(screen.queryByText("stale-child")).toBeNull();
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
   });
 });

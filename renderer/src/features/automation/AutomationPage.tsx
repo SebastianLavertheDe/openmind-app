@@ -330,10 +330,14 @@ function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRu
   );
 }
 
+const RECENT_RUN_DAYS = 3;
+
 function RunHistory({ runs, artifacts, onRetry }: { runs: AutomationRunRecord[]; artifacts: RunArtifact[]; onRetry: () => void }) {
   if (!runs.length) return <p className="automation-params-hint">尚无运行记录。运行会持久化状态、重试次数和子 Run ID。</p>;
+  const recentRuns = runs.filter((run) => isWithinRecentDays(run.createdAt, RECENT_RUN_DAYS));
+  if (!recentRuns.length) return <p className="automation-params-hint">最近 {RECENT_RUN_DAYS} 天暂无运行记录，更早的记录已隐藏。</p>;
   return <div className="automation-history-list">
-    {runs.slice(0, 8).map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.state === "queued" ? `上次尝试失败，等待重试：${run.error}` : run.error}</small> : null}{["failed", "blocked"].includes(run.state) ? <button type="button" data-motion="action" onClick={onRetry}>重试</button> : null}</div>)}
+    {recentRuns.map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.state === "queued" ? `上次尝试失败，等待重试：${run.error}` : run.error}</small> : null}{["failed", "blocked"].includes(run.state) ? <button type="button" data-motion="action" onClick={onRetry}>重试</button> : null}</div>)}
     {artifacts.length ? <div className="automation-artifacts"><strong>Artifacts</strong>{artifacts.map((artifact) => <div className="automation-artifact" key={artifact.id}><span className="automation-artifact-name"><span>{artifact.logicalPath || artifact.externalPathRef || artifact.id}</span></span><small>{artifact.type} · {artifact.size ?? 0} bytes · {artifact.declared ? "declared" : "undeclared"}</small></div>)}</div> : <small className="automation-artifacts-note">最近子 Run 尚未产生 Artifact。</small>}
   </div>;
 }
@@ -436,12 +440,69 @@ function mergeRunEvents(...groups: BrokerRunEvent[][]): BrokerRunEvent[] {
   for (const event of groups.flat()) merged.set(`${event.runId}:${event.sequence}`, event);
   return [...merged.values()].sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.sequence - right.sequence);
 }
-function eventLogLines(events: BrokerRunEvent[], prefix = ""): string {
-  return events.map((event) => {
-    const detail = event.text || event.error || event.reason || (event.code != null ? `退出码 ${event.code}` : event.signal ? `信号 ${event.signal}` : event.state);
-    return `\n[${formatLogTime(event.timestamp)}] ${prefix}${event.stream || event.state || "output"}: ${detail}`;
-  }).join("");
+const MAX_RUNTIME_LOG_LINES = 160;
+type RuntimeLogEntry = { timestamp: string; text: string };
+
+function runtimeStateText(state: string, reason?: string): string {
+  if (state === "queued") return "等待执行";
+  if (state === "inspecting") return "检查 Skill";
+  if (state === "waiting_execution_consent") return "等待运行许可";
+  if (state === "preparing_runtime") return "准备运行环境";
+  if (state === "running") return reason === "attempt-started" ? "开始执行" : "运行中";
+  if (state === "succeeded") return "运行完成";
+  if (state === "failed") return "运行失败";
+  if (state === "timed_out") return "运行超时";
+  if (state === "cancelling") return "正在停止";
+  if (state === "cancelled") return "已取消";
+  return state;
 }
+
+function isRuntimeProgressLine(line: string, stream?: BrokerRunEvent["stream"]): boolean {
+  if (stream === "stderr") return true;
+  return /^(Loaded config:|Loaded \d+ RSS feeds|RSS Article Monitor|Feed:|Entries:|New articles:|Processing:|Extracting content|Saved to:|缓存文件|Found existing files|📅 Date:|Scanning articles|Found |🤖 Summarizing|Summarizing \d+ articles|Successfully summarized:|✅ (Saved to|Final article count)|✅ Done!|⏰ Finished at:|Post filter:|X posts:|Primary client failed|Error:|Warning:|开始|正在|处理中|抓取|提取|总结|生成)/i.test(line)
+    || /(unknown url type|AI API request failed|No topic entries parsed|Workflow Step .* failed)/i.test(line);
+}
+
+function runtimeOutputEntries(label: string, event: BrokerRunEvent): RuntimeLogEntry[] {
+  const stream = event.stream;
+  const raw = event.text || event.error || "";
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && isRuntimeProgressLine(line, stream))
+    .map((line) => ({ timestamp: event.timestamp, text: `${label} · ${line}` }));
+}
+
+function compactRuntimeEntries(entries: RuntimeLogEntry[]): RuntimeLogEntry[] {
+  const deduped = entries.filter((entry, index) => index === 0 || entries[index - 1].text !== entry.text);
+  if (deduped.length <= MAX_RUNTIME_LOG_LINES) return deduped;
+  const headCount = 12;
+  const tailCount = MAX_RUNTIME_LOG_LINES - headCount - 1;
+  return [
+    ...deduped.slice(0, headCount),
+    { timestamp: deduped[headCount].timestamp, text: "…中间运行日志已省略…" },
+    ...deduped.slice(-tailCount)
+  ];
+}
+
+function runtimeEntriesFor(label: string, events: BrokerRunEvent[]): RuntimeLogEntry[] {
+  const seenStates = new Set<string>();
+  const entries = events.flatMap((event) => {
+    const stateEntries = seenStates.has(event.state)
+      ? []
+      : [{ timestamp: event.timestamp, text: `${label} · ${runtimeStateText(event.state, event.reason)}` }];
+    seenStates.add(event.state);
+    if (event.stream === "stdout" || event.stream === "stderr") return [...stateEntries, ...runtimeOutputEntries(label, event)];
+    const detail = event.error ? runtimeOutputEntries(label, { ...event, stream: "stderr", text: event.error }) : [];
+    return detail.length ? [...stateEntries, ...detail] : stateEntries;
+  });
+  return compactRuntimeEntries(entries);
+}
+
+function formatRuntimeEntries(entries: RuntimeLogEntry[]): string {
+  return entries.map((entry) => `\n[${formatLogTime(entry.timestamp)}] ${entry.text}`).join("");
+}
+
 function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, child: BrokerRunRecord | null, events: BrokerRunEvent[], workflow: WorkflowRunRecord | null, workflowSteps: WorkflowStepDetails[]): string {
   if (!run) return `[--:--:--] 等待触发：${rule.name}\n[--:--:--] 运行后 stdout、stderr、阶段和失败原因会显示在这里。`;
   const start = formatLogTime(run.createdAt);
@@ -449,24 +510,37 @@ function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, 
     ? `\n[${run.completedAt ? formatLogTime(run.completedAt) : start}] ${run.state === "queued" ? "上次尝试失败，等待重试" : "Automation 失败"}：${run.error}`
     : "";
   if (workflow) {
-    const workflowEnd = workflow.completedAt ? `\n[${formatLogTime(workflow.completedAt)}] Workflow 结束：${workflow.state}` : `\n[${start}] Workflow 状态：${workflow.state}`;
-    const workflowError = workflow.error ? `\n[${workflow.completedAt ? formatLogTime(workflow.completedAt) : start}] Workflow 失败：${workflow.error}` : "";
-    const steps = workflowSteps.map(({ step, child: stepChild, events: stepEvents }) => {
-      const label = `Step ${step.stepId}（${step.skillId}）`;
-      const childId = step.runId ? `\n[${start}] ${label} 子 Run：${step.runId}` : "";
-      const childState = stepChild ? `\n[${start}] ${label} 子 Run 状态：${automationStateLabel(stepChild.state, true)}` : "";
-      const stepError = step.error ? `\n[${start}] ${label} 失败：${step.error}` : "";
-      const childError = stepChild?.error && stepChild.error !== step.error ? `\n[${stepChild.completedAt ? formatLogTime(stepChild.completedAt) : start}] ${label} 子 Run 失败：${stepChild.error}` : "";
-      return `\n[${start}] ${label} 状态：${step.state}${childId}${childState}${stepError}${childError}${eventLogLines(stepEvents, `${label} · `)}`;
-    }).join("");
-    return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${workflowEnd}${workflowError}${steps}${automationError}`;
+    const progressEntries = compactRuntimeEntries(workflowSteps
+      .flatMap(({ step, events: stepEvents }) => {
+        const entries = runtimeEntriesFor(step.skillId, stepEvents);
+        return entries.length
+          ? entries
+          : [{ timestamp: workflow.completedAt || run.createdAt, text: `${step.skillId} · ${runtimeStateText(step.state)}` }];
+      })
+      .sort((left, right) => left.timestamp.localeCompare(right.timestamp)));
+    const workflowEnd = workflow.completedAt
+      ? `\n[${formatLogTime(workflow.completedAt)}] Workflow 结束：${workflow.state}`
+      : `\n[${start}] Workflow 状态：${workflow.state}`;
+    const workflowError = workflow.error
+      ? `\n[${workflow.completedAt ? formatLogTime(workflow.completedAt) : start}] Workflow 失败：${workflow.error}`
+      : "";
+    return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${formatRuntimeEntries(progressEntries)}${workflowEnd}${workflowError}${automationError}`;
   }
   const end = run.completedAt ? `\n[${formatLogTime(run.completedAt)}] 结束：${run.state}` : "";
   const childState = child ? `\n[${start}] 子 Run 状态：${automationStateLabel(child.state, true)}` : "";
   const childError = child?.error ? `\n[${child.completedAt ? formatLogTime(child.completedAt) : start}] 子 Run 失败：${child.error}` : "";
   const artifacts = child?.artifacts.length ? `\n产物：${child.artifacts.map((item) => item.logicalPath || item.externalPathRef || item.id).join(", ")}` : "";
-  return `[${start}] 触发：${rule.name}\n[${start}] 子 Run：${run.childRunId || "未提交"}${childState}${eventLogLines(events)}${childError}${automationError}${end}${artifacts}`;
+  const label = child?.request.skillId || rule.target.id;
+  return `[${start}] 触发：${rule.name}\n[${start}] 子 Run：${run.childRunId || "未提交"}${formatRuntimeEntries(runtimeEntriesFor(label, events))}${childState}${childError}${automationError}${end}${artifacts}`;
 }
 function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+/** 按自然日计算：包含今天在内往前 N 天。 */
+function isWithinRecentDays(isoTime: string, days: number): boolean {
+  const created = Date.parse(isoTime);
+  if (!Number.isFinite(created)) return false;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return created >= startOfToday.getTime() - (days - 1) * 86_400_000;
+}
 function formatLogTime(value: string): string { return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }
 function todayCompact(): string { return new Date().toISOString().slice(0, 10).replaceAll("-", ""); }
