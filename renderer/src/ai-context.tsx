@@ -274,6 +274,7 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => storageJson(PANEL_KEY, "collapsed"));
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastSeq = useRef(0);
+  const toastTimers = useRef(new Map<number, number>());
   const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
   const confirmResolver = useRef<((value: boolean) => void) | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -451,6 +452,13 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     void window.cctools.aiPrewarm?.(activeSessionId || undefined)?.catch(() => undefined);
   }, [activeSessionId, providerSignature]);
 
+  // Cancel pending toast dismiss timers on unmount so a late timer can never
+  // call setToasts after the environment is gone.
+  useEffect(() => () => {
+    for (const timer of toastTimers.current.values()) window.clearTimeout(timer);
+    toastTimers.current.clear();
+  }, []);
+
   useEffect(() => {
     if (activeSessionId && !snapshot.sessions.some((session) => session.id === activeSessionId)) {
       void setActiveSession(null);
@@ -585,9 +593,19 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     const recovery = tone === "error" ? recoveryHint(text) : null;
     recordFeedback({ timestamp: new Date().toISOString(), text, tone, recovery, sessionId: activeSessionRef.current });
     setToasts((current) => [...current, { id, text, tone, recovery, action: options.action }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), options.durationMs ?? 2800);
+    // Capture the timer handle so dismiss/unmount can cancel it; after jsdom
+    // teardown `window` is gone and a late setToasts would crash the runner.
+    const timer = window.setTimeout(() => {
+      toastTimers.current.delete(id);
+      setToasts((current) => current.filter((item) => item.id !== id));
+    }, options.durationMs ?? 2800);
+    toastTimers.current.set(id, timer);
   }, []);
-  const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((item) => item.id !== id)), []);
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimers.current.get(id);
+    if (timer !== undefined) { window.clearTimeout(timer); toastTimers.current.delete(id); }
+    setToasts((current) => current.filter((item) => item.id !== id));
+  }, []);
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
     confirmResolver.current = resolve;
     setConfirmState(options);
