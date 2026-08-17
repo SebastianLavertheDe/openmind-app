@@ -137,6 +137,64 @@ describe("CliInstallerService", () => {
     expect(commandRunner).toHaveBeenCalledTimes(2);
   });
 
+  it("checks Claude's latest channel instead of parsing the bootstrap script", async () => {
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    fs.mkdirSync(paths.toolBin, { recursive: true });
+    fs.writeFileSync(path.join(paths.toolBin, "claude.exe"), "launcher");
+    fs.writeFileSync(path.join(paths.toolBin, "claude-manifest.json"), JSON.stringify({
+      schemaVersion: 1,
+      cli: "claude",
+      version: "2.1.177",
+      digest: "a".repeat(64),
+      sourceUrl: "https://claude.ai/install.ps1",
+      method: "claude-native",
+      installedAt: new Date().toISOString()
+    }));
+    const transport: CliInstallerTransport = vi.fn(async (url) => {
+      expect(url).toBe("https://downloads.claude.ai/claude-code-releases/latest");
+      return { statusCode: 200, body: Buffer.from("2.1.233\n") };
+    });
+    const service = new CliInstallerService(paths, { platform: "win32", arch: "x64", transport });
+
+    await expect(service.checkForUpdate("claude")).resolves.toMatchObject({
+      currentVersion: "2.1.177",
+      latestVersion: "2.1.233",
+      updateAvailable: true,
+      canUpgrade: true,
+      source: "official"
+    });
+  });
+
+  it("probes the current version from a system PATH CLI", async () => {
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    const commandRunner = vi.fn(async () => ({ stdout: "2.1.177 (Claude Code)", stderr: "" }));
+    const transport: CliInstallerTransport = vi.fn(async (url) => {
+      expect(url).toBe("https://downloads.claude.ai/claude-code-releases/latest");
+      return { statusCode: 200, body: Buffer.from("2.1.233\n") };
+    });
+    const service = new CliInstallerService(paths, {
+      platform: "win32",
+      arch: "x64",
+      transport,
+      commandRunner,
+      systemPathResolver: () => "C:\\Users\\say\\.local\\bin\\claude.exe"
+    });
+
+    await expect(service.checkForUpdate("claude")).resolves.toMatchObject({
+      installed: true,
+      currentVersion: "2.1.177",
+      latestVersion: "2.1.233",
+      updateAvailable: true,
+      canUpgrade: false,
+      source: "official"
+    });
+    expect(commandRunner).toHaveBeenCalledWith(
+      "C:\\Users\\say\\.local\\bin\\claude.exe",
+      ["--version"],
+      expect.objectContaining({ cwd: process.cwd(), env: process.env })
+    );
+  });
+
   it("rejects a redirect from the official Claude host", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     const commandRunner = vi.fn();

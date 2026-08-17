@@ -184,10 +184,10 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                 </div> : null}
                 {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
                   <span className="settings-provider-version">v{provider.version}</span>
-                  {versionCheck?.updateAvailable ? <button type="button" className="settings-provider-upgrade" disabled={upgrading || versionCheckBusy !== null || !versionCheck.canUpgrade} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
+                  {versionCheck?.updateAvailable && versionCheck.canUpgrade ? <button type="button" className="settings-provider-upgrade" disabled={upgrading || versionCheckBusy !== null} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
                     {upgrading ? "更新中…" : "一键更新"}
-                  </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion ? "settings-provider-version-latest" : ""}`} role="status">
-                    {versionCheck.latestVersion ? "已是最新" : "暂无法确认最新版本"}
+                  </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
+                    {versionCheck.updateAvailable ? `发现新版本 ${versionCheck.latestVersion}，请手动更新` : versionCheck.latestVersion && versionCheck.currentVersion ? "已是最新" : "暂无法确认最新版本"}
                   </small> : <button type="button" className="settings-provider-recheck" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
                     {versionCheckBusy === provider.provider ? "检查中…" : "检查更新"}
                   </button>}

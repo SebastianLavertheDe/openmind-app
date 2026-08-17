@@ -128,6 +128,10 @@ const CLAUDE_INSTALL_SCRIPT = {
   darwin: "https://claude.ai/install.sh",
   win32: "https://claude.ai/install.ps1"
 } as const;
+// The installer script is a bootstrapper and does not contain the current
+// release number. Claude publishes the version for the latest channel as
+// plain text from this endpoint instead.
+const CLAUDE_VERSION_ENDPOINT = "https://downloads.claude.ai/claude-code-releases/latest";
 const CLAUDE_OFFICIAL_HOSTS = new Set(["claude.ai", "downloads.claude.ai"]);
 const CODEX_NPM_PACKAGE = "@openai/codex";
 const CODEX_NPM_REGISTRY = "https://registry.npmjs.org/@openai%2fcodex";
@@ -254,12 +258,14 @@ export class CliInstallerService {
 
   async checkForUpdate(cli: CliToolId): Promise<CliToolUpdate> {
     const current = this.status(cli);
+    const detected = current.installed ? { installed: true, executablePath: current.executablePath } : this.detect(cli);
+    const currentVersion = current.version || await this.probeExecutableVersion(detected.executablePath);
     const source = cli === "codex" ? "npm" : "official";
     let latestVersion: string | null = null;
     try {
       const url = cli === "codex"
         ? CODEX_NPM_REGISTRY
-        : this.platform === "win32" ? CLAUDE_INSTALL_SCRIPT.win32 : CLAUDE_INSTALL_SCRIPT.darwin;
+        : CLAUDE_VERSION_ENDPOINT;
       const response = await this.transport(url);
       if (response.statusCode !== 200) throw new Error(`HTTP ${response.statusCode}`);
       if (cli === "codex") {
@@ -270,10 +276,7 @@ export class CliInstallerService {
           ? (distTags as { latest: string }).latest
           : null;
       } else {
-        // The Claude bootstrap script does not promise a stable metadata API.
-        // When it embeds a concrete release version we can compare it; when
-        // it only points at the latest channel, upgrade remains available but
-        // the UI avoids claiming a false version number.
+        // The endpoint returns a plain-text version such as "2.1.233".
         latestVersion = parseVersion(response.body.toString("utf8"));
       }
     } catch {
@@ -281,17 +284,31 @@ export class CliInstallerService {
       // version and can use the official upgrade path when available.
       latestVersion = null;
     }
-    const comparison = current.version && latestVersion ? compareVersions(current.version, latestVersion) : null;
+    const comparison = currentVersion && latestVersion ? compareVersions(currentVersion, latestVersion) : null;
     return {
       cli,
-      installed: current.installed,
-      currentVersion: current.version,
+      installed: current.installed || detected.installed,
+      currentVersion,
       latestVersion,
       updateAvailable: comparison !== null ? comparison < 0 : false,
       canUpgrade: current.installed && Boolean(current.digest),
       checkedAt: new Date().toISOString(),
-      source: current.installed ? source : "unknown"
+      source: current.installed || detected.installed ? source : "unknown"
     };
+  }
+
+  private async probeExecutableVersion(executablePath: string | null): Promise<string | null> {
+    if (!executablePath) return null;
+    try {
+      const output = await this.commandRunner(executablePath, ["--version"], {
+        cwd: process.cwd(),
+        env: process.env,
+        signal: new AbortController().signal
+      });
+      return parseVersion(output.stdout) || parseVersion(output.stderr);
+    } catch {
+      return null;
+    }
   }
 
   private async installClaudeNative(
