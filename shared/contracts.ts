@@ -767,6 +767,8 @@ export interface SkillDefinition {
 export interface SkillPackageInspectionView {
   sourcePath: string;
   sourceKind: "directory" | "legacy-claude" | "zip" | "git";
+  /** Git 多包仓库内的包路径（"." 为仓库根包）；目录/ZIP 来源固定为 "."。 */
+  packageRef?: string;
   valid: boolean;
   digest: string;
   totalBytes: number;
@@ -776,6 +778,16 @@ export interface SkillPackageInspectionView {
   legacy: unknown | null;
   issues: Array<{ code: string; message: string; path?: string }>;
   warnings: string[];
+}
+
+/** 一次来源检查的结果；一个 Git 仓库可包含多个 Skill 包。 */
+export interface SkillSourceInspectionView {
+  source: {
+    type: "directory" | "zip" | "git";
+    locator: string;
+    ref?: string;
+  };
+  packages: SkillPackageInspectionView[];
 }
 
 export interface InstalledSkillView {
@@ -1396,11 +1408,11 @@ export interface DesktopApi {
   uninstallSkillPackage?(key: string, digest?: string): Promise<boolean>;
   /** 选择本地目录或 ZIP；Git 通过 inspectSkillSource 输入地址。 */
   selectSkillPackageSource?(): Promise<import("./skill-package-sources").SkillPackageSourceInput | null>;
-  /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。 */
-  inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, requestId?: string): Promise<SkillPackageInspectionView>;
+  /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。Git 仓库可含多个包。 */
+  inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, requestId?: string): Promise<SkillSourceInspectionView>;
   cancelSkillSourceInspection?(requestId: string): Promise<boolean>;
-  /** 将检查过的本地/Git 来源写入 quarantine；不执行包代码。 */
-  installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput): Promise<InstalledSkillView>;
+  /** 将检查过的来源写入 quarantine；Git 可传选中包路径列表（缺省安装全部）。 */
+  installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, selectedPackageRefs?: string[]): Promise<InstalledSkillView[]>;
   listSkillRuns(): Promise<BrokerRunRecord[]>;
   getSkillRun(runId: string): Promise<BrokerRunRecord>;
   getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;

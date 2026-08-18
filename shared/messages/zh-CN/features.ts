@@ -143,7 +143,6 @@ export const featureMessages = {
         "git-timeout": "Git 来源检查超时，请稍后重试。",
         "git-cancelled": "已取消 Git 来源检查。",
         "git-package-missing": "仓库中没有找到 Skill 包（缺少 cctools.skill.yaml）。",
-        "git-package-ambiguous": "仓库中存在多个 Skill 包，无法确定要安装哪一个。",
         invalid: "来源输入不合法：Git 地址必须是有效的 HTTPS URL。",
         unknown: "来源检查失败。"
       } as Record<string, string>

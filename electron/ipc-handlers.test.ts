@@ -590,15 +590,18 @@ describe("handler forwarding — Skill package lifecycle", () => {
       warnings: []
     };
     const sourceService = {
-      inspect: vi.fn(async () => sourceInspection),
-      install: vi.fn(async () => ({ key: "cctools/git-demo", digest: "digest-git" }))
+      inspect: vi.fn(async () => ({ source, packages: [{ ...sourceInspection, packageRef: "demo" }] })),
+      install: vi.fn(async () => [{ key: "cctools/git-demo", digest: "digest-git" }])
     };
     const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never });
 
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual(expect.objectContaining({ sourceKind: "git", sourcePath: source.locator }));
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillSource, source)).resolves.toEqual(expect.objectContaining({ digest: "digest-git" }));
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual({
+      source,
+      packages: [expect.objectContaining({ sourceKind: "git", sourcePath: source.locator, packageRef: "demo" })]
+    });
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillSource, source, ["demo"])).resolves.toEqual([expect.objectContaining({ digest: "digest-git" })]);
     expect(sourceService.inspect).toHaveBeenCalledWith(source, undefined);
-    expect(sourceService.install).toHaveBeenCalledWith(source);
+    expect(sourceService.install).toHaveBeenCalledWith(source, ["demo"]);
   });
 });
 
@@ -621,6 +624,8 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     const ai = makeAiSpy();
     const { product } = makeProductSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never, ensureProductService: () => product as never });
+    const settings = await import("./lib/settings");
+    vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; environment: { mode: string; platform: string } };
     expect(result.validRepo).toBeDefined();
     expect(result.environment.mode).toBe("desktop");

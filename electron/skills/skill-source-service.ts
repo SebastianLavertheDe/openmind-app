@@ -32,8 +32,7 @@ export type SkillSourceErrorCode =
   | "git-command-failed"
   | "git-timeout"
   | "git-cancelled"
-  | "git-package-missing"
-  | "git-package-ambiguous";
+  | "git-package-missing";
 
 export class SkillSourceError extends Error {
   constructor(readonly code: SkillSourceErrorCode, message: string) {
@@ -41,6 +40,20 @@ export class SkillSourceError extends Error {
     this.name = "SkillSourceError";
   }
 }
+
+export type SkillSourceKind = "directory" | "zip" | "git";
+
+export type SkillSourceReference = {
+  type: SkillSourceKind;
+  locator: string;
+  ref?: string;
+};
+
+/** 一次来源检查的结果：一个 Git 仓库可包含多个 Skill 包。 */
+export type SkillSourceInspection = {
+  source: SkillSourceReference;
+  packages: Array<SkillPackageInspection & { packageRef: string }>;
+};
 
 /**
  * Adapts user-facing source locators to the static SkillPackageService.
@@ -59,15 +72,32 @@ export class SkillSourceService {
     private readonly runGit: GitCommandRunner = runGitCommand
   ) {}
 
-  async inspect(input: SkillPackageSourceInput, requestId?: string): Promise<SkillPackageInspection> {
+  async inspect(input: SkillPackageSourceInput, requestId?: string): Promise<SkillSourceInspection> {
     const source = parseSkillPackageSourceInput(input);
     if (source.type !== "git") {
       const inspection = this.packages.inspect(source.locator);
-      return withSourceMetadata(inspection, source);
+      return {
+        source: { type: source.type, locator: source.locator },
+        packages: [{ ...withSourceMetadata(inspection, source), packageRef: "." }]
+      };
     }
-    return this.withGitCheckout(source, (packageRoot) => {
-      const inspection = this.packages.inspect(packageRoot);
-      return { ...inspection, sourcePath: source.locator, sourceKind: "git" as const };
+    return this.withGitCheckout(source, (checkoutRoot) => {
+      const candidates = resolveGitPackageCandidates(checkoutRoot);
+      if (candidates.length === 0) {
+        throw new SkillSourceError(
+          "git-package-missing",
+          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml 或 SKILL.md）。"
+        );
+      }
+      return {
+        source: { type: "git" as const, locator: source.locator, ...(source.ref ? { ref: source.ref } : {}) },
+        packages: candidates.map(({ ref, absPath }) => ({
+          ...this.packages.inspect(absPath),
+          sourcePath: source.locator,
+          sourceKind: "git" as const,
+          packageRef: ref
+        }))
+      };
     }, requestId);
   }
 
@@ -78,14 +108,27 @@ export class SkillSourceService {
     return true;
   }
 
-  async install(input: SkillPackageSourceInput): Promise<InstalledSkillRecord> {
+  async install(input: SkillPackageSourceInput, selectedRefs?: string[]): Promise<InstalledSkillRecord[]> {
     const source = parseSkillPackageSourceInput(input);
     if (source.type !== "git") {
-      return this.packages.install(source.locator, toInstallMetadata(source));
+      return [this.packages.install(source.locator, toInstallMetadata(source))];
     }
-    return this.withGitCheckout(source, (packageRoot) =>
-      this.packages.install(packageRoot, toInstallMetadata(source))
-    );
+    return this.withGitCheckout(source, (checkoutRoot) => {
+      const candidates = resolveGitPackageCandidates(checkoutRoot);
+      if (candidates.length === 0) {
+        throw new SkillSourceError(
+          "git-package-missing",
+          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml 或 SKILL.md）。"
+        );
+      }
+      const chosen = selectedRefs === undefined
+        ? candidates
+        : candidates.filter(({ ref }) => selectedRefs.includes(ref));
+      if (chosen.length === 0) {
+        throw new SkillSourceError("git-package-missing", "选中的 Skill 包在该 Git 仓库中不存在。");
+      }
+      return chosen.map(({ absPath }) => this.packages.install(absPath, toInstallMetadata(source)));
+    });
   }
 
   private async withGitCheckout<T>(
@@ -105,7 +148,7 @@ export class SkillSourceService {
         timeout: GIT_TIMEOUT_MS,
         signal: controller.signal
       });
-      return await callback(resolveGitPackageRoot(checkoutRoot));
+      return await callback(checkoutRoot);
     } catch (error) {
       if (error instanceof SkillSourceError || error instanceof SkillPackageError) throw error;
       const message = error instanceof Error ? error.message : String(error);
@@ -202,24 +245,42 @@ function runGitCommand(args: string[], options: GitCommandOptions): Promise<{ st
   });
 }
 
-function resolveGitPackageRoot(checkoutRoot: string): string {
-  if (hasSkillDescriptor(checkoutRoot)) return checkoutRoot;
-  const candidates = new Set<string>();
-  const addChildren = (parent: string): void => {
+export type GitPackageCandidate = {
+  /** 仓库内相对路径（根包为 "."，顶层子包为目录名，.claude/skills 下为带前缀路径）。 */
+  ref: string;
+  absPath: string;
+};
+
+/**
+ * 收集一个 Git checkout 内的全部 Skill 包候选：
+ * 仓库根本身、一级子目录、`.claude/skills/*` 子目录。
+ * 多包仓库（Skill 集合仓库）返回全部候选，由调用方选择。
+ */
+export function resolveGitPackageCandidates(checkoutRoot: string): GitPackageCandidate[] {
+  const seen = new Set<string>();
+  const out: GitPackageCandidate[] = [];
+  const add = (ref: string, absPath: string): void => {
+    let real: string;
+    try { real = fs.realpathSync(absPath); } catch { return; }
+    if (seen.has(real)) return;
+    seen.add(real);
+    out.push({ ref, absPath: real });
+  };
+
+  if (hasSkillDescriptor(checkoutRoot)) add(".", checkoutRoot);
+
+  const addChildren = (parent: string, refFor: (name: string) => string): void => {
     if (!isDirectory(parent)) return;
-    for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(parent, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
       if (!entry.isDirectory() || entry.name === ".git" || entry.name.startsWith(".")) continue;
       const candidate = path.join(parent, entry.name);
-      if (hasSkillDescriptor(candidate)) candidates.add(fs.realpathSync(candidate));
+      if (hasSkillDescriptor(candidate)) add(refFor(entry.name), candidate);
     }
   };
-  addChildren(checkoutRoot);
-  addChildren(path.join(checkoutRoot, ".claude", "skills"));
-  if (candidates.size === 1) return [...candidates][0];
-  if (candidates.size === 0) {
-    throw new SkillSourceError("git-package-missing", "Git 仓库根目录或唯一 Skill 子目录中没有 cctools.skill.yaml / SKILL.md。 ");
-  }
-  throw new SkillSourceError("git-package-ambiguous", "Git 仓库包含多个候选 Skill，请把每个 Skill 放在独立仓库或子目录。 ");
+  addChildren(checkoutRoot, (name) => name);
+  addChildren(path.join(checkoutRoot, ".claude", "skills"), (name) => `.claude/skills/${name}`);
+
+  return out;
 }
 
 function hasSkillDescriptor(root: string): boolean {

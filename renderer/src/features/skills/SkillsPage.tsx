@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Clock3, Download, FolderOpen, Package, Search, X } from "lucide-react";
-import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView } from "@shared/contracts";
+import { CheckCircle2, ChevronDown, Clock3, Download, FolderOpen, GitBranch, Package, Search, X } from "lucide-react";
+import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView } from "@shared/contracts";
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
+import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { StatusBadge } from "../../design-system/components";
 
 const m = messages.skillCenter;
@@ -21,6 +22,13 @@ type ManifestSummary = {
   kind: string;
 };
 
+type SkillCatalogGroup = {
+  key: string;
+  title: string;
+  locator?: string;
+  items: SkillItem[];
+};
+
 export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean }) {
   const [inspections, setInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
@@ -30,6 +38,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
   const catalogRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
 
@@ -92,6 +101,8 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       return !needle || text.includes(needle);
     });
   }, [items, query]);
+  const catalogGroups = useMemo(() => groupCatalogItems(filteredItems), [filteredItems]);
+  const filteredIndexById = useMemo(() => new Map(filteredItems.map((item, index) => [item.id, index])), [filteredItems]);
 
   useEffect(() => {
     if (filteredItems.some((item) => item.id === selectedId)) return;
@@ -155,13 +166,26 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
           </header>
           <div ref={catalogRef} className="skills-catalog-list" aria-label={m.listAria}>
             {!filteredItems.length ? <div className="skills-empty"><Package size={20} aria-hidden /><strong>{items.length ? m.noMatch : m.emptyTitle}</strong><span>{items.length ? m.noMatchDescription : m.emptyDescription}</span></div> : null}
-            {filteredItems.map((item, index) => <SkillListItem
-              key={item.id}
-              item={item}
-              index={index}
+            {catalogGroups.map((group) => group.key === "workspace" ? group.items.map((item) => {
+              const index = filteredIndexById.get(item.id) ?? 0;
+              return <SkillListItem
+                key={item.id}
+                item={item}
+                index={index}
+                total={filteredItems.length}
+                active={item.id === selectedId}
+                onSelect={() => selectItem(item.id, true)}
+                onNavigate={focusItem}
+              />;
+            }) : <SkillCatalogGroupView
+              key={group.key}
+              group={group}
+              open={groupOpen[group.key] ?? true}
+              onOpenChange={(next) => setGroupOpen((current) => ({ ...current, [group.key]: next }))}
+              selectedId={selectedId}
               total={filteredItems.length}
-              active={item.id === selectedId}
-              onSelect={() => selectItem(item.id, true)}
+              indexById={filteredIndexById}
+              onSelect={selectItem}
               onNavigate={focusItem}
             />)}
           </div>
@@ -192,7 +216,8 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const [gitUrl, setGitUrl] = useState("");
   const [gitRef, setGitRef] = useState("");
   const [candidate, setCandidate] = useState<SkillPackageSourceInput | null>(null);
-  const [inspection, setInspection] = useState<SkillPackageInspectionView | null>(null);
+  const [inspection, setInspection] = useState<SkillSourceInspectionView | null>(null);
+  const [selectedPackageRefs, setSelectedPackageRefs] = useState<string[]>([]);
   const [busy, setBusy] = useState<"inspect" | "install" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const inspectRequestId = useRef<string | null>(null);
@@ -202,14 +227,19 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     inspectRequestId.current = requestId;
     setFailure(null);
     setInspection(null);
+    setSelectedPackageRefs([]);
     setBusy("inspect");
     try {
       const result = await window.cctools.inspectSkillSource!(source, requestId);
-      if (inspectRequestId.current === requestId) setInspection(result);
+      if (inspectRequestId.current === requestId) {
+        setInspection(result);
+        setSelectedPackageRefs(result.packages.map(inspectionPackageRef));
+      }
     } catch (cause) {
       if (!isSourceCancelled(cause)) {
         setCandidate(null);
         setInspection(null);
+        setSelectedPackageRefs([]);
         setFailure(sourceErrorMessage(cause));
       }
     } finally {
@@ -221,6 +251,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const selectLocal = useCallback(async () => {
     setFailure(null);
     setInspection(null);
+    setSelectedPackageRefs([]);
     try {
       const source = await window.cctools.selectSkillPackageSource?.() ?? null;
       if (!source) return;
@@ -247,19 +278,23 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     inspectRequestId.current = null;
     setCandidate(null);
     setInspection(null);
+    setSelectedPackageRefs([]);
     setFailure(null);
     setBusy(null);
   }, []);
 
   const install = useCallback(async () => {
     if (!candidate) { setFailure(picker.noCandidate); return; }
-    if (!inspection || !inspection.valid) { setFailure(picker.notInspected); return; }
+    const selectedPackages = inspection?.packages.filter((item) => selectedPackageRefs.includes(inspectionPackageRef(item))) ?? [];
+    if (!inspection || !selectedPackages.length || selectedPackages.some((item) => !item.valid)) { setFailure(picker.notInspected); return; }
     setFailure(null);
     setBusy("install");
     try {
-      await window.cctools.installSkillSource!(candidate);
+      if (candidate.type === "git") await window.cctools.installSkillSource!(candidate, selectedPackageRefs);
+      else await window.cctools.installSkillSource!(candidate);
       setCandidate(null);
       setInspection(null);
+      setSelectedPackageRefs([]);
       setGitUrl("");
       setGitRef("");
       onInstalled();
@@ -268,7 +303,16 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     } finally {
       setBusy(null);
     }
-  }, [candidate, inspection, onInstalled]);
+  }, [candidate, inspection, onInstalled, picker.noCandidate, picker.notInspected, selectedPackageRefs]);
+
+  const togglePackage = useCallback((packageRef: string) => {
+    setSelectedPackageRefs((current) => current.includes(packageRef)
+      ? current.filter((item) => item !== packageRef)
+      : [...current, packageRef]);
+  }, []);
+
+  const selectedPackages = inspection?.packages.filter((item) => selectedPackageRefs.includes(inspectionPackageRef(item))) ?? [];
+  const installationReady = selectedPackages.length > 0 && selectedPackages.every((item) => item.valid);
 
   return <>
     <button type="button" className="skills-source-picker-toggle" aria-expanded={open} onClick={onToggle}>
@@ -297,14 +341,14 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
                   inputMode="url"
                   placeholder={picker.gitPlaceholder}
                   value={gitUrl}
-                  onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setFailure(null); }}
+                  onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
                   onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
                 />
                 <input
                   type="text"
                   placeholder={picker.refPlaceholder}
                   value={gitRef}
-                  onChange={(event) => setGitRef(event.target.value)}
+                  onChange={(event) => { setGitRef(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
                 />
                 <button type="button" disabled={busy !== null} onClick={() => void inspectGit()}>
                   {busy === "inspect" ? picker.inspecting : picker.inspect}
@@ -314,24 +358,37 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
             </div>
             {candidate ? <div className="skills-source-picker-candidate">
               <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
-              {inspection ? <StatusBadge tone={inspection.valid ? "success" : "danger"}>
-                {inspection.valid ? picker.valid : picker.invalid}
-              </StatusBadge> : null}
-              {inspection ? <dl>
-                <div><dt>{picker.name}</dt><dd>{inspectionName(inspection)}</dd></div>
-                <div><dt>{picker.publisher}</dt><dd>{inspectionPublisher(inspection)}</dd></div>
-                <div><dt>{picker.version}</dt><dd>{inspectionVersion(inspection)}</dd></div>
-                <div><dt>{picker.digest}</dt><dd title={inspection.digest}>{inspection.digest.slice(0, 16)}…</dd></div>
-                <div><dt>{picker.filesLabel}</dt><dd>{picker.files(inspection.files.length)}</dd></div>
-              </dl> : null}
-              {inspection?.warnings.length ? <ul className="skills-source-picker-warnings">
-                {inspection.warnings.slice(0, 5).map((warning, index) => <li key={index}>{warning}</li>)}
+              {inspection ? <div className="skills-source-package-summary">
+                <strong>{inspection.packages.length} 个 Skill 包</strong>
+                <span>已选择 {selectedPackageRefs.length} 个</span>
+              </div> : null}
+              {inspection ? <div className="skills-source-package-list">
+                {inspection.packages.map((item) => {
+                  const packageRef = inspectionPackageRef(item);
+                  return <label className={`skills-source-package${item.valid ? "" : " invalid"}`} key={packageRef}>
+                    {candidate.type === "git" ? <input
+                      type="checkbox"
+                      checked={selectedPackageRefs.includes(packageRef)}
+                      disabled={busy !== null}
+                      aria-label={`选择 ${inspectionName(item)}`}
+                      onChange={() => togglePackage(packageRef)}
+                    /> : null}
+                    <span className="skills-source-package-copy">
+                      <strong>{inspectionName(item)}</strong>
+                      <small>{inspectionPublisher(item)} · v{inspectionVersion(item)}{candidate.type === "git" ? ` · ${packageRef}` : ""}</small>
+                    </span>
+                    <StatusBadge tone={item.valid ? "success" : "danger"}>{item.valid ? picker.valid : picker.invalid}</StatusBadge>
+                  </label>;
+                })}
+              </div> : null}
+              {selectedPackages.flatMap((item) => item.warnings).length ? <ul className="skills-source-picker-warnings">
+                {selectedPackages.flatMap((item) => item.warnings).slice(0, 5).map((warning, index) => <li key={index}>{warning}</li>)}
               </ul> : null}
-              {inspection?.issues.length ? <ul className="skills-source-picker-issues">
-                {inspection.issues.slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
+              {selectedPackages.flatMap((item) => item.issues).length ? <ul className="skills-source-picker-issues">
+                {selectedPackages.flatMap((item) => item.issues).slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
               </ul> : null}
-              <button type="button" className="skills-source-picker-install" disabled={busy !== null || !inspection?.valid} onClick={() => void install()}>
-                {busy === "install" ? picker.importing : picker.import}
+              <button type="button" className="skills-source-picker-install" disabled={busy !== null || !installationReady} onClick={() => void install()}>
+                {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? `${picker.import} ${selectedPackageRefs.length} 个` : picker.import}
               </button>
             </div> : null}
             {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
@@ -366,6 +423,10 @@ function isSourceCancelled(cause: unknown): boolean {
   return Boolean(cause && typeof cause === "object" && (cause as { code?: unknown }).code === "git-cancelled");
 }
 
+function inspectionPackageRef(inspection: SkillPackageInspectionView): string {
+  return inspection.packageRef || ".";
+}
+
 function inspectionManifest(inspection: SkillPackageInspectionView): Record<string, unknown> {
   return inspection.manifest && typeof inspection.manifest === "object" ? inspection.manifest as Record<string, unknown> : {};
 }
@@ -387,6 +448,49 @@ function inspectionPublisher(inspection: SkillPackageInspectionView): string {
 function inspectionVersion(inspection: SkillPackageInspectionView): string {
   const value = inspectionManifest(inspection).version;
   return typeof value === "string" ? value : "未声明";
+}
+
+function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, indexById, onSelect, onNavigate }: {
+  group: SkillCatalogGroup;
+  open: boolean;
+  onOpenChange(next: boolean): void;
+  selectedId: string;
+  total: number;
+  indexById: Map<string, number>;
+  onSelect(id: string, revealDetail?: boolean): void;
+  onNavigate(index: number): void;
+}) {
+  const remote = Boolean(group.locator);
+  return <AnimatedDisclosure
+    open={open}
+    onOpenChange={onOpenChange}
+    className="skills-source-group"
+    triggerClassName="skills-source-group-trigger"
+    contentClassName="skills-source-group-content"
+    triggerAriaLabel={`${open ? "收起" : "展开"} ${group.title}`}
+    summary={<>
+      <span className="skills-source-group-icon" aria-hidden>{remote ? <GitBranch size={15} /> : <FolderOpen size={15} />}</span>
+      <span className="skills-source-group-copy">
+        <strong>{group.title}</strong>
+        <small title={group.locator}>{group.locator || "目录、ZIP 与历史安装"}</small>
+      </span>
+      <span className="skills-source-group-count">{group.items.length}</span>
+      <ChevronDown className="skills-source-group-chevron" size={15} aria-hidden />
+    </>}
+  >
+    {group.items.map((item) => {
+      const index = indexById.get(item.id) ?? 0;
+      return <SkillListItem
+        key={item.id}
+        item={item}
+        index={index}
+        total={total}
+        active={item.id === selectedId}
+        onSelect={() => onSelect(item.id, true)}
+        onNavigate={onNavigate}
+      />;
+    })}
+  </AnimatedDisclosure>;
 }
 
 function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { item: SkillItem; index: number; total: number; active: boolean; onSelect(): void; onNavigate(index: number): void }) {
@@ -475,6 +579,46 @@ function buildItems(inspections: SkillPackageInspectionView[], installed: Instal
     items.push({ kind: "workspace", id: `workspace:${inspection.sourcePath}:${inspection.digest}`, inspection });
   }
   return items.sort((left, right) => itemTitle(left).localeCompare(itemTitle(right), "zh-CN"));
+}
+
+function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
+  const groups = new Map<string, SkillCatalogGroup>();
+  const workspace: SkillItem[] = [];
+  for (const item of items) {
+    if (item.kind === "workspace") {
+      workspace.push(item);
+      continue;
+    }
+    const locator = item.record.sourceType === "git" ? item.record.sourceLocator || item.record.sourcePath : undefined;
+    const key = locator ? `git:${locator}` : "local";
+    const existing = groups.get(key);
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+    groups.set(key, {
+      key,
+      title: locator ? repositoryName(locator) : "本地来源",
+      ...(locator ? { locator } : {}),
+      items: [item]
+    });
+  }
+  const grouped = [...groups.values()].sort((left, right) => {
+    if (left.key === "local") return 1;
+    if (right.key === "local") return -1;
+    return left.title.localeCompare(right.title, "zh-CN");
+  });
+  if (workspace.length) grouped.push({ key: "workspace", title: "工作区", items: workspace });
+  return grouped;
+}
+
+function repositoryName(locator: string): string {
+  try {
+    const pathname = new URL(locator).pathname.replace(/\/+$/, "");
+    return decodeURIComponent(pathname.split("/").pop() || locator).replace(/\.git$/i, "") || locator;
+  } catch {
+    return locator.replace(/[\\/]+$/, "").split(/[\\/]/).pop()?.replace(/\.git$/i, "") || locator;
+  }
 }
 
 function installedInspectionKey(record: InstalledSkillView): string {

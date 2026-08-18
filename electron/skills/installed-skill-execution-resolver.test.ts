@@ -17,9 +17,18 @@ import { SkillPackageService } from "./skill-package-service";
 import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
 
 const roots: string[] = [];
+const EXTERNAL_SKILLS_ROOT = path.resolve(
+  process.env.CCTOOLS_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+);
+const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml"));
+const realSkillIt = HAS_EXTERNAL_SKILLS ? it : it.skip;
+const linuxRealSkillIt = it.skipIf(process.platform !== "linux" || !HAS_EXTERNAL_SKILLS);
+const ORIGINAL_WORKSPACE_ROOT = process.env.CCTOOLS_WORKSPACE_ROOT;
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+  if (ORIGINAL_WORKSPACE_ROOT === undefined) delete process.env.CCTOOLS_WORKSPACE_ROOT;
+  else process.env.CCTOOLS_WORKSPACE_ROOT = ORIGINAL_WORKSPACE_ROOT;
 });
 
 describe("InstalledSkillExecutionResolver", () => {
@@ -53,7 +62,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(fixture.resolver.listDefinitions()[0]?.command).not.toContain(process.execPath);
   });
 
-  it("bridges a ready Agent from the app-private SkillStore without falling back to workspace paths", () => {
+  realSkillIt("bridges a ready Agent from the app-private SkillStore without falling back to workspace paths", () => {
     const fixture = createBatchAFixture("creative-writing", {
       resolveProviderProfile: (profileId) => profileId === "profile-main" ? providerProfile() : null
     });
@@ -80,7 +89,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
   });
 
-  it("rejects Broker execution for Agent Skills", async () => {
+  realSkillIt("rejects Broker execution for Agent Skills", async () => {
     const fixture = createBatchAFixture("creative-writing");
     fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
     fixture.packages.activate(fixture.key, fixture.digest);
@@ -237,7 +246,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(broker.get(run.id).runtime).toMatchObject({ packId: "node-22", packDigest: fixture.runtimePack.digest });
   }, 15_000);
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch A skill-run-reporter package", async () => {
+  linuxRealSkillIt("executes the real Batch A skill-run-reporter package", async () => {
     const fixture = createBatchAFixture();
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
@@ -267,7 +276,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(broker.get(run.id).artifacts).toHaveLength(0);
   });
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch A asset-collector package and persists a declared Artifact", async () => {
+  linuxRealSkillIt("executes the real Batch A asset-collector package and persists a declared Artifact", async () => {
     const fixture = createBatchAFixture("asset-collector");
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
@@ -330,7 +339,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(!fs.existsSync(leasesPath) || fs.readdirSync(leasesPath).length === 0).toBe(true);
   });
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch A collect-interest-markers package", async () => {
+  linuxRealSkillIt("executes the real Batch A collect-interest-markers package", async () => {
     const fixture = createBatchAFixture("collect-interest-markers");
     const summaryPath = path.join(fixture.mymindRoot, "daily-summary", "20260805_daily_summary.md");
     fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
@@ -382,7 +391,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(broker.get(run.id).runtime?.packId).toBe("python-core");
   });
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch A daily-writing-orchestrator package", async () => {
+  linuxRealSkillIt("executes the real Batch A daily-writing-orchestrator package", async () => {
     const fixture = createBatchAFixture("daily-writing-orchestrator");
     const topicPath = path.join(
       fixture.mymindRoot,
@@ -455,7 +464,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(broker.get(run.id).runtime?.packId).toBe("python-core");
   });
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch B reddit-fetcher package against a local feed and persists the declared Artifact", async () => {
+  linuxRealSkillIt("executes the real Batch B reddit-fetcher package against a local feed and persists the declared Artifact", async () => {
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
 
@@ -487,7 +496,7 @@ describe("InstalledSkillExecutionResolver", () => {
       // rejects post-install content changes).
       const fixture = createBatchAFixture("reddit-fetcher");
       const sourceCopy = path.join(fixture.paths.staging, "reddit-source-overlay");
-      copyTree(path.resolve(__dirname, "../../../.claude/skills/reddit-fetcher"), sourceCopy);
+      copyTree(skillSourcePath("reddit-fetcher"), sourceCopy);
       fs.writeFileSync(
         path.join(sourceCopy, "config.yaml"),
         [
@@ -547,7 +556,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   });
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch B rss-article-saver package against a local RSS source", async () => {
+  linuxRealSkillIt("executes the real Batch B rss-article-saver package against a local RSS source", async () => {
     // The RSS package has native/content-extraction dependencies. Use its
     // checked-in development venv for this focused package-contract test;
     // clean-machine dependency installation remains a separate Runtime Pack
@@ -595,6 +604,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
+      bindEmptyProviderWorkspace(fixtureRoot);
       // RuntimeManager canonicalizes the executable path. Keep the venv
       // context through a managed wrapper so canonicalization does not turn
       // the venv's python symlink into the system interpreter.
@@ -612,7 +622,7 @@ describe("InstalledSkillExecutionResolver", () => {
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
 
       const sourceCopy = path.join(paths.staging, "rss-source-overlay");
-      copyTree(path.resolve(__dirname, "../../../.claude/skills/rss-article-saver"), sourceCopy);
+      copyTree(skillSourcePath("rss-article-saver"), sourceCopy);
       fs.writeFileSync(
         path.join(sourceCopy, "subscriptions.opml"),
         [
@@ -628,7 +638,7 @@ describe("InstalledSkillExecutionResolver", () => {
           "article_base_dir: \"\"",
           "opml_file: \"subscriptions.opml\"",
           "max_articles_per_feed: 1",
-          "max_article_age_days: 7",
+          "max_article_age_days: 3650",
           "content:",
           "  extractor: trafilatura",
           "  include_images: false",
@@ -655,7 +665,7 @@ describe("InstalledSkillExecutionResolver", () => {
         skillId: "rss-article-saver",
         version: "1.0.0",
         digest: installed.digest,
-        inputs: {},
+        inputs: { date: "20260805" },
         providerBindings: { default: "profile-main" },
         trigger: { type: "manual" },
         externalExportBindingIds: [],
@@ -670,6 +680,7 @@ describe("InstalledSkillExecutionResolver", () => {
       if (completed.state !== "succeeded") {
         throw new Error([
           `rss-article-saver ended in ${completed.state}`,
+          `error: ${completed.error || ""}`,
           ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
         ].join("\n"));
       }
@@ -687,7 +698,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  it.skipIf(process.platform !== "linux")("executes the real Batch B knowledge-wiki-compiler package under the bound root", async () => {
+  linuxRealSkillIt("executes the real Batch B knowledge-wiki-compiler package under the bound root", async () => {
     // Production uses the app-wide shared interpreter; this resolver contract
     // test must not require the Skill source to own a private .venv.
     const python = resolveSkillPython("knowledge-wiki-compiler") || resolvePythonExecutable();
@@ -723,6 +734,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       const articleDir = path.join(mymindRoot, "article", "20260805");
+      bindTestProvider(fixtureRoot, port, "wiki-test-credential");
       fs.mkdirSync(articleDir, { recursive: true });
       fs.writeFileSync(
         path.join(articleDir, "wiki-test.md"),
@@ -752,7 +764,7 @@ describe("InstalledSkillExecutionResolver", () => {
         prepareEnvironment: async () => undefined
       });
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
-      const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/knowledge-wiki-compiler"));
+      const installed = packages.install(skillSourcePath("knowledge-wiki-compiler"));
       packages.markReadiness(installed.key, installed.digest, "ready");
       packages.activate(installed.key, installed.digest);
 
@@ -798,7 +810,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  it.skipIf(process.platform !== "linux")("executes the real x-following-fetcher package with managed JSON credentials", async () => {
+  linuxRealSkillIt("executes the real x-following-fetcher package with managed JSON credentials", async () => {
     const python = resolveSkillPython("x-following-fetcher");
     expect(python).toBeTruthy();
 
@@ -874,6 +886,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
+      bindEmptyProviderWorkspace(fixtureRoot);
       const pythonWrapper = path.join(paths.staging, "x-python-wrapper");
       fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
       fs.chmodSync(pythonWrapper, 0o755);
@@ -895,7 +908,17 @@ describe("InstalledSkillExecutionResolver", () => {
         }]
       });
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
-      const installed = packages.install(path.resolve(__dirname, "../../../.claude/skills/x-following-fetcher"));
+      const sourceCopy = path.join(paths.staging, "x-source-overlay");
+      copyTree(skillSourcePath("x-following-fetcher"), sourceCopy);
+      const sourceManifest = path.join(sourceCopy, "cctools.skill.yaml");
+      fs.writeFileSync(
+        sourceManifest,
+        fs.readFileSync(sourceManifest, "utf8").replace(
+          'X_FETCHER_CREDENTIAL_JSON: "{{ secrets.session }}"',
+          `X_FETCHER_CREDENTIAL_JSON: '${credential}'`
+        )
+      );
+      const installed = packages.install(sourceCopy);
       packages.markReadiness(installed.key, installed.digest, "ready");
       packages.activate(installed.key, installed.digest);
 
@@ -943,7 +966,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  it.skipIf(process.platform !== "linux")("chains reddit-fetcher → daily-article-summarizer → daily-topic-selector under one shared root snapshot", async () => {
+  linuxRealSkillIt("chains reddit-fetcher → daily-article-summarizer → daily-topic-selector under one shared root snapshot", async () => {
     // This is the first multi-Skill link of the RSS → Summary → Topic chain
     // (plan §17.7): the summarizer reads the fetcher's reddit/** output and
     // produces the daily-summary Artifact under the SAME mymind root snapshot.
@@ -1008,6 +1031,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
+      bindTestProvider(fixtureRoot, port, "mock-credential-for-credential-token");
       // Seed an article so the summarizer has content to process and reaches
       // the _write_full_summary_file path. Without AI keys the per-article
       // summarization no-ops (returns None), but the summary file is still
@@ -1034,7 +1058,7 @@ describe("InstalledSkillExecutionResolver", () => {
 
       // Install reddit-fetcher with the localhost config overlay.
       const redditSourceCopy = path.join(paths.staging, "reddit-source-overlay");
-      copyTree(path.resolve(__dirname, "../../../.claude/skills/reddit-fetcher"), redditSourceCopy);
+      copyTree(skillSourcePath("reddit-fetcher"), redditSourceCopy);
       fs.writeFileSync(
         path.join(redditSourceCopy, "config.yaml"),
         [
@@ -1058,13 +1082,13 @@ describe("InstalledSkillExecutionResolver", () => {
 
       // Install daily-article-summarizer (no overlay; uses bundled config).
       const summarizerSource = path.join(paths.staging, "summarizer-source");
-      copyTree(path.resolve(__dirname, "../../../.claude/skills/daily-article-summarizer"), summarizerSource);
+      copyTree(skillSourcePath("daily-article-summarizer"), summarizerSource);
       const summarizerInstalled = packages.install(summarizerSource);
       packages.markReadiness(summarizerInstalled.key, summarizerInstalled.digest, "ready");
       packages.activate(summarizerInstalled.key, summarizerInstalled.digest);
 
       // Install the third link against the exact same root and Runtime Pack.
-      const topicSource = path.resolve(__dirname, "../../../.claude/skills/daily-topic-selector");
+      const topicSource = skillSourcePath("daily-topic-selector");
       const topicInstalled = packages.install(topicSource);
       packages.markReadiness(topicInstalled.key, topicInstalled.digest, "ready");
       packages.activate(topicInstalled.key, topicInstalled.digest);
@@ -1250,7 +1274,7 @@ function createBatchAFixture(packageName = "skill-run-reporter") {
   const mymindRoot = path.join(root, "mymind");
   fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
   fs.writeFileSync(path.join(mymindRoot, "article", "20260805", "one.md"), "article\n");
-  const source = path.resolve(__dirname, `../../../.claude/skills/${packageName}`);
+  const source = skillSourcePath(packageName);
   const packages = new SkillPackageService(paths);
   const installed = packages.install(source);
   const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
@@ -1317,12 +1341,44 @@ function resolvePythonExecutable(): string | undefined {
 }
 
 function resolveSkillPython(skillId: string): string | undefined {
-  const candidate = path.resolve(__dirname, `../../../.claude/skills/${skillId}/.venv/bin/python`);
+  const candidate = path.join(skillSourcePath(skillId), ".venv", "bin", "python");
   try {
     return fs.statSync(candidate).isFile() ? candidate : undefined;
   } catch {
     return undefined;
   }
+}
+
+function skillSourcePath(skillId: string): string {
+  return path.join(EXTERNAL_SKILLS_ROOT, skillId);
+}
+
+function bindEmptyProviderWorkspace(workspaceRoot: string): void {
+  process.env.CCTOOLS_WORKSPACE_ROOT = workspaceRoot;
+}
+
+function bindTestProvider(workspaceRoot: string, port: number, apiKey: string): void {
+  const configRoot = path.join(workspaceRoot, "config");
+  fs.mkdirSync(configRoot, { recursive: true });
+  fs.writeFileSync(path.join(configRoot, "providers.yaml"), JSON.stringify({
+    schemaVersion: 1,
+    default: "local-test",
+    cli: { claude: null, codex: null },
+    providers: [{
+      id: "local-test",
+      name: "Local test provider",
+      enabled: true,
+      protocol: "openai-chat",
+      authMode: "bearer",
+      apiKey,
+      baseUrl: `http://127.0.0.1:${port}`,
+      model: "local-test-model",
+      proxyUrl: "",
+      proxyPolicy: "disabled",
+      tlsPolicy: "verify"
+    }]
+  }, null, 2));
+  process.env.CCTOOLS_WORKSPACE_ROOT = workspaceRoot;
 }
 
 /** Recursively copy a directory tree (used to overlay test config before install).

@@ -9,6 +9,11 @@ import {
   SkillPackageService
 } from "./skill-package-service";
 
+const EXTERNAL_SKILLS_ROOT = path.resolve(
+  process.env.CCTOOLS_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+);
+const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml")) ? it : it.skip;
+
 const MANIFEST = `apiVersion: cctools.dev/skill/v1
 id: example-skill
 version: 1.0.0
@@ -160,8 +165,8 @@ describe("SkillPackageService", () => {
     expect(service.listInstalled()).toHaveLength(1);
   });
 
-  it("recognizes the formal Batch A, Batch B and Workflow workspace packages", () => {
-    const skillsRoot = path.resolve(__dirname, "../../../.claude/skills");
+  realSkillIt("recognizes the formal packages from the independent Skills repository", () => {
+    const skillsRoot = EXTERNAL_SKILLS_ROOT;
     const expected = [
       "asset-collector",
       "collect-interest-markers",
@@ -242,15 +247,16 @@ describe("SkillPackageService", () => {
     expect(workflow?.files.map((file) => file.path)).toContain("cctools.skill.yaml");
   });
 
-  it("migrates only formal Batch A, Batch B and Workflow packages from the real workspace", () => {
-    const workspace = path.resolve(__dirname, "../../../");
-    const report = service.migrateClaudeSkills(workspace);
+  realSkillIt("installs all formal packages from the independent Skills repository", () => {
+    const packageDirectories = fs.readdirSync(EXTERNAL_SKILLS_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "cctools.skill.yaml")))
+      .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
+    const installed = packageDirectories.map((source) => service.install(source));
 
     // All 16 skills now have formal cctools.skill.yaml manifests
-    // (12 process / 1 workflow / 3 agent — refactor plan §17.1 acceptance).
-    // `_shared` has no SKILL.md and is not a runnable skill, so it is not
-    // registered as skipped either.
-    expect(report.installed.map((record) => record.id).sort()).toEqual([
+    // (12 process / 1 workflow / 3 agent). `_shared` has no manifest and is
+    // therefore not an install candidate.
+    expect(installed.map((record) => record.id).sort()).toEqual([
       "agent-browser",
       "ai-media-topic-selector",
       "asset-collector",
@@ -268,16 +274,15 @@ describe("SkillPackageService", () => {
       "video-download",
       "x-following-fetcher"
     ]);
-    expect(report.installed.length).toBe(16);
-    expect(report.installed.every((record) => record.status === "quarantined" && record.readiness === "installed-not-ready")).toBe(true);
+    expect(installed.length).toBe(16);
+    expect(installed.every((record) => record.status === "quarantined" && record.readiness === "installed-not-ready")).toBe(true);
 
-    const sharedRoot = path.join(workspace, ".claude", "skills", "_shared");
+    const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");
     const sharedProject = fs.readFileSync(path.join(sharedRoot, "pyproject.toml"), "utf8");
     expect(sharedProject).toContain('name = "cctools-skill-shared"');
     expect(sharedProject).toContain('version = "1.0.0"');
     expect(fs.existsSync(path.join(sharedRoot, "cctools.skill.yaml"))).toBe(false);
-    expect(report.installed.some((record) => record.id === "_shared")).toBe(false);
-    expect(report.skipped.some((record) => record.sourcePath.endsWith(`${path.sep}_shared`))).toBe(false);
+    expect(installed.some((record) => record.id === "_shared")).toBe(false);
   });
 
   it("rejects writes to an unknown mymind top-level", () => {

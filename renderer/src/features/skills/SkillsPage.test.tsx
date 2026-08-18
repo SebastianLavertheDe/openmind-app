@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView } from "@shared/contracts";
+import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/execution-contracts";
 import { SkillsPage } from "./SkillsPage";
 
@@ -127,10 +127,11 @@ describe("SkillsPage", () => {
   });
 
   it("imports a Git source through inspect → confirm → install", async () => {
-    const gitInspection: SkillPackageInspectionView = { ...inspection, sourcePath: "https://github.com/example/skill.git", sourceKind: "git" };
-    const installSkillSource = vi.fn().mockResolvedValue(active);
+    const source = { type: "git" as const, locator: "https://github.com/example/skill.git" };
+    const gitInspection: SkillPackageInspectionView = { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "." };
+    const installSkillSource = vi.fn().mockResolvedValue([active]);
     renderPage({
-      inspectSkillSource: vi.fn().mockResolvedValue(gitInspection),
+      inspectSkillSource: vi.fn().mockResolvedValue({ source, packages: [gitInspection] }),
       installSkillSource
     });
     await screen.findByRole("heading", { name: "Demo Skill" });
@@ -141,10 +142,7 @@ describe("SkillsPage", () => {
     expect(await screen.findByText("静态检查通过")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "安装" }));
-    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith({
-      type: "git",
-      locator: "https://github.com/example/skill.git"
-    }));
+    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source, ["."]));
   });
 
   it("opens the import entry when reached from onboarding", async () => {
@@ -156,8 +154,9 @@ describe("SkillsPage", () => {
 
   it("inspects a local directory or ZIP before enabling install", async () => {
     const source = { type: "zip" as const, locator: "/tmp/demo.zip" };
-    const inspectSkillSource = vi.fn().mockResolvedValue({ ...inspection, sourcePath: source.locator, sourceKind: "zip" as const, warnings: ["包含可选文件"] });
-    const installSkillSource = vi.fn().mockResolvedValue(active);
+    const zipInspection = { ...inspection, sourcePath: source.locator, sourceKind: "zip" as const, packageRef: ".", warnings: ["包含可选文件"] };
+    const inspectSkillSource = vi.fn().mockResolvedValue({ source, packages: [zipInspection] });
+    const installSkillSource = vi.fn().mockResolvedValue([active]);
     renderPage({ selectSkillPackageSource: vi.fn().mockResolvedValue(source), inspectSkillSource, installSkillSource });
     await screen.findByRole("heading", { name: "Demo Skill" });
     fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
@@ -180,8 +179,8 @@ describe("SkillsPage", () => {
   });
 
   it("cancels an in-flight Git inspection", async () => {
-    let release!: (value: SkillPackageInspectionView) => void;
-    const inspectSkillSource = vi.fn().mockReturnValue(new Promise<SkillPackageInspectionView>((resolve) => { release = resolve; }));
+    let release!: (value: SkillSourceInspectionView) => void;
+    const inspectSkillSource = vi.fn().mockReturnValue(new Promise<SkillSourceInspectionView>((resolve) => { release = resolve; }));
     const cancelSkillSourceInspection = vi.fn().mockResolvedValue(true);
     renderPage({ inspectSkillSource, cancelSkillSourceInspection, installSkillSource: vi.fn() });
     await screen.findByRole("heading", { name: "Demo Skill" });
@@ -191,7 +190,49 @@ describe("SkillsPage", () => {
     expect(await screen.findByRole("button", { name: "取消检查" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "取消检查" }));
     await waitFor(() => expect(cancelSkillSourceInspection).toHaveBeenCalledWith(expect.any(String)));
-    release(inspection);
+    release({ source: { type: "git", locator: "https://github.com/example/skill.git" }, packages: [{ ...inspection, packageRef: "." }] });
+  });
+
+  it("selects all packages from a Git repository by default and installs only checked packages", async () => {
+    const source = { type: "git" as const, locator: "https://github.com/example/cctools-skills.git" };
+    const packages: SkillPackageInspectionView[] = [
+      { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "one", manifest: { ...manifest, id: "one", display: { ...manifest.display, name: "Skill One" } } },
+      { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "two", digest: "b".repeat(64), manifest: { ...manifest, id: "two", display: { ...manifest.display, name: "Skill Two" } } }
+    ];
+    const installSkillSource = vi.fn().mockResolvedValue([active]);
+    renderPage({ inspectSkillSource: vi.fn().mockResolvedValue({ source, packages }), installSkillSource });
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/skill.git"), { target: { value: source.locator } });
+    fireEvent.click(screen.getByRole("button", { name: "检查 Git 来源" }));
+
+    const first = await screen.findByRole("checkbox", { name: "选择 Skill One" }) as HTMLInputElement;
+    const second = screen.getByRole("checkbox", { name: "选择 Skill Two" }) as HTMLInputElement;
+    expect(first.checked).toBe(true);
+    expect(second.checked).toBe(true);
+    fireEvent.click(second);
+    fireEvent.click(screen.getByRole("button", { name: "安装" }));
+    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source, ["one"]));
+  });
+
+  it("groups installed Git Skills by repository and keeps workspace-only Skills ungrouped", async () => {
+    const locator = "https://github.com/example/cctools-skills.git";
+    const gitOne: InstalledSkillView = { ...active, sourceType: "git", sourceLocator: locator, sourcePath: locator };
+    const gitTwo: InstalledSkillView = { ...active, key: "local/other", id: "other", digest: "b".repeat(64), sourceType: "git", sourceLocator: locator, sourcePath: locator };
+    const workspaceOnly: SkillPackageInspectionView = {
+      ...inspection,
+      sourcePath: "/workspace/.claude/skills/workspace-only",
+      digest: "c".repeat(64),
+      manifest: { ...manifest, id: "workspace-only", display: { ...manifest.display, name: "Workspace Only" } }
+    };
+    renderPage({ inspectSkillWorkspace: async () => [workspaceOnly], listInstalledSkills: async () => [gitOne, gitTwo] });
+
+    const repository = await screen.findByRole("button", { name: "收起 cctools-skills" });
+    expect(repository.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByText(locator).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: /Workspace Only/ })).toBeTruthy();
+    fireEvent.click(repository);
+    expect(repository.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("hides the source picker when the environment has no import API", async () => {

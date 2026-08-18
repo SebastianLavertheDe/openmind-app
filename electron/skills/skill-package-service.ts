@@ -135,6 +135,8 @@ export type LegacySkillSuggestion = {
 export type SkillPackageInspection = {
   sourcePath: string;
   sourceKind: "directory" | "legacy-claude" | "zip" | "git";
+  /** Git 多包仓库内的包路径（"." 为仓库根包）。 */
+  packageRef?: string;
   valid: boolean;
   digest: string;
   totalBytes: number;
@@ -156,6 +158,7 @@ export function toSkillPackageInspectionView(inspection: SkillPackageInspection)
   return {
     sourcePath: inspection.sourcePath,
     sourceKind: inspection.sourceKind,
+    ...(inspection.packageRef ? { packageRef: inspection.packageRef } : {}),
     valid: inspection.valid,
     digest: inspection.digest,
     totalBytes: inspection.totalBytes,
@@ -298,7 +301,22 @@ export class SkillPackageService {
       key,
       inspection.digest
     );
-    if (existing) return existing;
+    if (existing) {
+      // Reinstalling an identical package from Git is also how a workspace
+      // installation is migrated to its durable repository source. Preserve
+      // lifecycle state while refreshing only the source provenance.
+      if (sourceMetadata) {
+        const { sourceRef: _previousSourceRef, ...existingWithoutSourceRef } = existing;
+        return this.repository.upsert({
+          ...existingWithoutSourceRef,
+          sourcePath: sourceMetadata.sourceLocator,
+          sourceType: sourceMetadata.sourceType,
+          sourceLocator: sourceMetadata.sourceLocator,
+          ...(sourceMetadata.sourceRef ? { sourceRef: sourceMetadata.sourceRef } : {})
+        });
+      }
+      return existing;
+    }
 
     fs.mkdirSync(this.paths.staging, { recursive: true });
     fs.mkdirSync(this.paths.skills, { recursive: true });

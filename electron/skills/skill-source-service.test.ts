@@ -75,12 +75,17 @@ describe("SkillSourceService", () => {
     const source = { type: "git" as const, locator: "https://github.com/example/git-demo.git", ref: "main" };
 
     const inspection = await service.inspect(source);
-    expect(inspection.valid).toBe(true);
-    expect(inspection.sourceKind).toBe("git");
-    expect(inspection.sourcePath).toBe(source.locator);
+    expect(inspection.source).toEqual(source);
+    expect(inspection.packages).toHaveLength(1);
+    expect(inspection.packages[0]).toEqual(expect.objectContaining({
+      valid: true,
+      sourceKind: "git",
+      sourcePath: source.locator,
+      packageRef: "."
+    }));
     expect(checkoutPaths.every((candidate) => !fs.existsSync(candidate))).toBe(true);
 
-    const installed = await service.install(source);
+    const [installed] = await service.install(source);
     expect(installed.sourceType).toBe("git");
     expect(installed.sourceLocator).toBe(source.locator);
     expect(installed.sourceRef).toBe("main");
@@ -89,7 +94,7 @@ describe("SkillSourceService", () => {
     expect(checkoutPaths.every((candidate) => !fs.existsSync(candidate))).toBe(true);
   });
 
-  it("rejects credentials, non-HTTPS locators, and ambiguous repositories", async () => {
+  it("rejects unsafe locators and supports selecting packages from a multi-Skill repository", async () => {
     const packages = new SkillPackageService(paths);
     const invalid = new SkillSourceService(packages, paths, async () => ({ stdout: "", stderr: "" }));
     await expect(invalid.inspect({ type: "git", locator: "https://user:secret@example.com/skill.git" })).rejects.toThrow();
@@ -101,12 +106,19 @@ describe("SkillSourceService", () => {
         const candidate = path.join(checkout, name);
         fs.mkdirSync(candidate, { recursive: true });
         fs.writeFileSync(path.join(candidate, "cctools.skill.yaml"), MANIFEST.replace("git-demo", name));
+        fs.writeFileSync(path.join(candidate, "run.sh"), "echo ok\n");
+        fs.writeFileSync(path.join(candidate, "pyproject.toml"), `[project]\nname='${name}'\n`);
       }
       return { stdout: "", stderr: "" };
     };
-    const ambiguous = new SkillSourceService(packages, paths, runGit);
-    await expect(ambiguous.inspect({ type: "git", locator: "https://github.com/example/many-skills.git" }))
-      .rejects.toMatchObject<SkillSourceError>({ code: "git-package-ambiguous" });
+    const multi = new SkillSourceService(packages, paths, runGit);
+    const source = { type: "git" as const, locator: "https://github.com/example/many-skills.git" };
+    const inspection = await multi.inspect(source);
+    expect(inspection.packages.map((item) => item.packageRef)).toEqual(["one", "two"]);
+    const installed = await multi.install(source, ["two"]);
+    expect(installed).toHaveLength(1);
+    expect(installed[0]).toEqual(expect.objectContaining({ id: "two", sourceLocator: source.locator }));
+    await expect(multi.install(source, [])).rejects.toMatchObject<SkillSourceError>({ code: "git-package-missing" });
   });
 
   it("cancels an in-flight Git inspection and removes its staging checkout", async () => {

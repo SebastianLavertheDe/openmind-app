@@ -1,13 +1,14 @@
-// Validate every cctools.skill.yaml under .claude/skills against the frozen
-// SkillManifestSchema. Run with: node --experimental-strip-types scripts/validate-all-skill-manifests.mjs
-// (or via tsx). Exits non-zero on any invalid manifest.
+// Validate every top-level cctools.skill.yaml in the independent Skills
+// repository against the frozen SkillManifestSchema. Override the sibling
+// checkout with CCTOOLS_SKILLS_REPO_ROOT. A desktop-app-only checkout has no
+// Skills source tree, so linting is skipped there.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(moduleDir, "..", "..");
-const skillsDir = path.join(root, ".claude", "skills");
+const skillsDir = path.resolve(process.env.CCTOOLS_SKILLS_REPO_ROOT || path.join(root, "..", "cctools-skills"));
 
 // Minimal YAML→JS: the manifests are a flat-enough subset, but to be correct
 // we use the same parser the app uses. Load the compiled schema via tsx-style
@@ -32,8 +33,13 @@ try {
 const schemaUrl = pathToFileURL(path.join(moduleDir, "..", "shared", "skill-manifest-schema.ts")).href;
 const { validateManifest } = await import(schemaUrl);
 
+if (!fs.existsSync(skillsDir)) {
+  console.log(`⊘ Skill manifest lint skipped: independent repository not found at ${skillsDir}`);
+  process.exit(0);
+}
+
 const entries = fs.readdirSync(skillsDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && d.name !== "_shared")
+  .filter((d) => d.isDirectory() && !d.name.startsWith(".") && d.name !== "_shared")
   .map((d) => d.name)
   .sort();
 

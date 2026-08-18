@@ -856,7 +856,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (input, requestId) => skillSources().inspect(
         SkillPackageSourceInputSchema.parse(input),
         requestId == null ? undefined : RequestIdSchema.parse(requestId)
-      ).then(toSkillPackageInspectionView)
+      ).then((result) => ({
+        source: result.source,
+        packages: result.packages.map(toSkillPackageInspectionView)
+      }))
     },
     {
       channel: C.cancelSkillSourceInspection,
@@ -864,7 +867,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     {
       channel: C.installSkillSource,
-      handler: async (input) => makeInstalledSkillUsable(skillPackages(), await skillSources().install(SkillPackageSourceInputSchema.parse(input)))
+      handler: async (input, selected) => {
+        const refs = Array.isArray(selected)
+          ? selected.filter((ref): ref is string => typeof ref === "string" && ref.length > 0)
+          : undefined;
+        const records = await skillSources().install(SkillPackageSourceInputSchema.parse(input), refs);
+        return records.map((record) => makeInstalledSkillUsable(skillPackages(), record));
+      }
     },
     { channel: C.rollbackSkillPackage, handler: (key) => skillPackages().rollback(parseString(key)) },
     {
