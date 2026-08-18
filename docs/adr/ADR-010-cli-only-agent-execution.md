@@ -28,7 +28,7 @@ CLI host:
   SDK.
 
 Both bridges receive only an active, ready, exact-digest package from the
-app-private SkillStore. Codex receives the
+SkillStore under the bound mymind root. Codex receives the
 boundary-checked `SKILL.md` path as native Skill input. Claude receives
 bounded `SKILL.md` and reference text as transient system context. Neither
 bridge permanently copies the installed package into the workspace.

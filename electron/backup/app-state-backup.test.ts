@@ -13,7 +13,9 @@ function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-state-backup-"));
   roots.push(root);
   const userData = path.join(root, "user-data");
-  const paths = buildAppPaths(userData);
+  // The skill store follows the mymind root; keep it outside userData so the
+  // test can assert restore never touches it.
+  const paths = buildAppPaths(userData, path.join(root, "mymind", ".agent", "skills"));
   ensureAppPaths(paths);
   return { root, paths, service: new AppStateBackupService(paths) };
 }
@@ -92,19 +94,6 @@ describe("AppStateBackupService", () => {
     }));
     expect(() => service.importFromFile(tampered)).toThrow(/未声明条目/);
     expect(fs.readFileSync(target, "utf8")).toBe("original");
-  });
-
-  it("rolls back a committed transaction left by an interrupted process", () => {
-    const { root, paths } = fixture();
-    const target = paths.settingsFile;
-    write(target, "partially-applied");
-    const transaction = path.join(paths.staging, "state-backup-restore-interrupted");
-    write(path.join(transaction, "previous", "settings", "settings.json"), "before-crash");
-    write(path.join(transaction, "marker.json"), JSON.stringify({ kind: "cctools-app-state-backup", schemaVersion: 1, phase: "committing" }));
-    new AppStateBackupService(paths);
-    expect(fs.readFileSync(target, "utf8")).toBe("before-crash");
-    expect(fs.existsSync(transaction)).toBe(false);
-    expect(fs.existsSync(root)).toBe(true);
   });
 
   it("rejects a state symlink instead of following it during export", () => {

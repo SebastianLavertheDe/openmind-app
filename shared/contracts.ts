@@ -1196,6 +1196,8 @@ export type AppBootstrap = {
   /** ADR-001: optional AI/code workspace, independent of mymind. */
   workspaceRoot: string;
   validRepo: boolean;
+  /** True when the official cctools-skills repository is installed (first-start gate, mandatory). */
+  skillsInstalled: boolean;
   /** False only while the first-start checklist still needs attention. */
   onboardingCompleted?: boolean;
   runtime: string;

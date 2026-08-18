@@ -1,4 +1,4 @@
-import { lazy, type ReactNode } from "react";
+import { lazy, useEffect, type ReactNode } from "react";
 import {
   CalendarDays,
   Command,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import type { AiSnapshot, AppBootstrap } from "@shared/contracts";
 import { navLabel } from "@shared/display-labels";
-import { messages } from "@shared/messages";
 import type { AppPage, AppRoute, Navigate } from "./routes";
 
 const OnboardingPage = lazy(() => import("../features/onboarding").then((module) => ({ default: module.OnboardingPage })));
@@ -87,15 +86,16 @@ export const NAV_ITEMS: readonly NavItem[] = ROUTE_DEFINITIONS.flatMap((route) =
 export function renderActiveRoute(props: RouteRenderProps): ReactNode {
   const entry = ROUTE_DEFINITIONS.find((route) => route.page === props.route.page);
   if (!entry) return null;
-  if (entry.needsRepo && props.bootstrap.validRepo === false) {
-    const { navigate } = props;
-    return (
-      <div className="repo-required">
-        <strong>{messages.repoRequired.title}</strong>
-        <p>{messages.repoRequired.body}</p>
-        <button className="primary-button" onClick={() => navigate("settings")}>{messages.repoRequired.action}</button>
-      </div>
-    );
+  if (entry.needsRepo && (!props.bootstrap.validRepo || !props.bootstrap.skillsInstalled)) {
+    // An unbound mymind root (or missing official skill repo) routes the user
+    // back to onboarding instead of rendering a dead-end panel.
+    return <RouteToOnboarding navigate={props.navigate} />;
   }
   return entry.render(props);
+}
+
+/** Render-phase redirect: navigation happens in an effect, never during render. */
+function RouteToOnboarding({ navigate }: { navigate: Navigate }): ReactNode {
+  useEffect(() => { navigate("onboarding"); }, [navigate]);
+  return <div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>;
 }

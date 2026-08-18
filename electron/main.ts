@@ -25,9 +25,8 @@ import {
 import { buildMcpServerCatalog } from "./ai/mcp-catalog";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
-import { ensureAppPaths, getAppPaths } from "./paths/app-paths-service";
+import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
 import { migrateLegacyState } from "./paths/legacy-state-migration";
-import { recoverPendingMymindRelocations } from "./paths/mymind-relocation-service";
 import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
@@ -301,15 +300,27 @@ function ensureMymindFileSearch(): MymindFileSearch {
   return mymindFileSearch;
 }
 
+/**
+ * AppPaths for the current binding: the skill store follows the bound mymind
+ * root (`.agent/skills`); everything else stays userData-derived. Rebuilt per
+ * call — callers construct services lazily and are invalidated together with
+ * the mymind root (see restartAiWorker).
+ */
+function buildCurrentAppPaths(): AppPaths {
+  return buildAppPaths(undefined, resolveSkillStoreRoot(settings.resolveMymindRoot() || null));
+}
+
 function ensureSkillPackageService(): SkillPackageService {
-  ensureAppPaths(getAppPaths());
-  if (!skillPackageService) skillPackageService = new SkillPackageService(getAppPaths());
+  const paths = buildCurrentAppPaths();
+  ensureAppPaths(paths);
+  if (!skillPackageService) skillPackageService = new SkillPackageService(paths);
   return skillPackageService;
 }
 
 function ensureSkillSourceService(): SkillSourceService {
-  ensureAppPaths(getAppPaths());
-  if (!skillSourceService) skillSourceService = new SkillSourceService(ensureSkillPackageService(), getAppPaths());
+  const paths = buildCurrentAppPaths();
+  ensureAppPaths(paths);
+  if (!skillSourceService) skillSourceService = new SkillSourceService(ensureSkillPackageService(), paths);
   return skillSourceService;
 }
 
@@ -354,6 +365,11 @@ function restartAiWorker(): void {
   productServiceRoot = "";
   mymindFileSearch = null;
   mymindFileSearchRoot = "";
+  // The skill store lives under the mymind root; drop the singletons bound to
+  // the previous root so the next ensure* rebuilds against the new one.
+  skillPackageService = null;
+  skillSourceService = null;
+  sharedPythonRuntimeService = null;
   const workspaceRoot = settings.resolveWorkspaceRoot();
   if (workspaceRoot) aiWorker = new AiWorkerClient(workspaceRoot, resolveAiStateRoot());
 }
@@ -613,17 +629,6 @@ app.whenReady().then(() => {
   // ADR-001: ensure all app-private directories under userData exist before
   // any service reads or writes them. Idempotent.
   ensureAppPaths(getAppPaths());
-  // Recover a state-restore transaction before exposing the renderer. This
-  // keeps an interrupted restore from waiting until the next backup action.
-  ensureAppStateBackupService();
-  // Complete or safely restore an interrupted copy-only mymind relocation
-  // before exposing root actions. Inconsistent user-visible content is kept
-  // for diagnosis instead of being merged or overwritten automatically.
-  try {
-    recoverPendingMymindRelocations(getAppPaths());
-  } catch (error) {
-    console.error("mymind relocation recovery requires attention", error);
-  }
   Menu.setApplicationMenu(null);
   registerIpc();
   createWindow();

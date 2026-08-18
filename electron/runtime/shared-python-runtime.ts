@@ -418,7 +418,10 @@ function readProjectName(projectFile: string): string {
 function projectFingerprint(assetDigest: string, projects: SharedPythonProject[]): string {
   return crypto.createHash("sha256").update(JSON.stringify({
     assetDigest,
-    projects: projects.map(({ id, version, digest }) => ({ id, version, digest }))
+    // packageRoot is part of the fingerprint: generations bake absolute
+    // file:// URLs into their uv.lock, so a moved skill store must regenerate
+    // instead of reusing a generation that points at the old location.
+    projects: projects.map(({ id, version, digest, packageRoot }) => ({ id, version, digest, packageRoot }))
   })).digest("hex");
 }
 

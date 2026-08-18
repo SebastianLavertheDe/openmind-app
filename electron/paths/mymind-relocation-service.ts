@@ -212,69 +212,6 @@ export function relocateMymind(input: MymindRelocationInput): MymindRelocationRe
   }
 }
 
-/** Recover sibling-swap transactions left by a crash before the next UI. */
-export function recoverPendingMymindRelocations(paths: AppPaths): MymindRelocationReport[] {
-  const directory = path.join(paths.migrations, TRANSACTION_DIRECTORY);
-  if (!isDirectory(directory)) return [];
-  const reports: MymindRelocationReport[] = [];
-  for (const name of fs.readdirSync(directory).filter((entry) => entry.endsWith(".pending.json")).sort()) {
-    const marker = path.join(directory, name);
-    const pending = readPending(marker);
-    if (!pending) throw new Error(`无法读取 mymind 搬迁事务：${name}`);
-    validatePendingPaths(pending);
-
-    const targetState = inspectTargetState(pending.targetDirectory);
-    const targetSummary = targetState === "non-empty" || targetState === "empty"
-      ? snapshotTree(pending.targetDirectory)
-      : null;
-    const targetMatches = targetSummary ? sameTreeDigest(targetSummary, pending.tree) : false;
-    const stageExists = isDirectory(pending.stagingDirectory);
-    const backupState = inspectTargetState(pending.backupDirectory);
-
-    if (targetMatches) {
-      // The new target is installed. The backup was the pre-confirmed empty
-      // directory; remove it only if it is still empty.
-      if (backupState === "empty") safeRemove(pending.backupDirectory);
-      else if (backupState !== "absent") throw new Error("mymind 搬迁恢复发现非空 backup，拒绝删除。");
-      if (stageExists) {
-        const stage = snapshotTree(pending.stagingDirectory);
-        assertSameTree(pending.tree.digest, stage, "mymind 搬迁 staging 与事务不一致。");
-        safeRemove(pending.stagingDirectory);
-      }
-      reports.push(finalizePendingRelocation(pending, marker));
-      continue;
-    }
-
-    if (targetState === "absent" && stageExists && backupState === "empty") {
-      fs.renameSync(pending.stagingDirectory, pending.targetDirectory);
-      reports.push(finalizePendingRelocation(pending, marker));
-      continue;
-    }
-
-    if (targetState === "empty" && stageExists && backupState === "empty") {
-      // A user or filesystem recreated the target after the first rename. It
-      // is still empty, so the original transaction can be resumed safely.
-      fs.rmSync(pending.targetDirectory, { recursive: true, force: false });
-      fs.renameSync(pending.stagingDirectory, pending.targetDirectory);
-      reports.push(finalizePendingRelocation(pending, marker));
-      continue;
-    }
-
-    if (targetState === "absent" && !stageExists && backupState === "empty") {
-      // The prepared copy was lost before installation. Restore the original
-      // empty target and remove only this transaction's marker.
-      fs.renameSync(pending.backupDirectory, pending.targetDirectory);
-      safeRemove(marker);
-      continue;
-    }
-
-    // A non-empty target that does not match the recorded tree may contain
-    // user changes. Never merge, overwrite, or delete it automatically.
-    throw new Error("mymind 搬迁恢复发现与事务不一致的目录，已保留现场并拒绝自动处理。");
-  }
-  return reports;
-}
-
 function finalizePendingRelocation(pending: PendingRelocation, marker: string): MymindRelocationReport {
   const source = snapshotTree(pending.sourceDirectory);
   assertSameTree(pending.tree.digest, source, "mymind 源目录已变化，不能确认无损搬迁。");
@@ -437,18 +374,6 @@ function readPending(filePath: string): PendingRelocation | null {
     return parsed as PendingRelocation;
   } catch {
     return null;
-  }
-}
-
-function validatePendingPaths(pending: PendingRelocation): void {
-  const base = safeName(path.basename(pending.targetDirectory) || "mymind");
-  const prefix = `${TRANSACTION_PREFIX}${base}-${pending.id}-`;
-  const parent = path.dirname(pending.targetDirectory);
-  if (pending.stagingDirectory !== path.join(parent, `${prefix}staging`)
-    || pending.backupDirectory !== path.join(parent, `${prefix}backup`)
-    || !path.isAbsolute(pending.targetDirectory)
-    || !path.isAbsolute(pending.sourceDirectory)) {
-    throw new Error("mymind 搬迁事务路径校验失败，拒绝自动恢复。");
   }
 }
 

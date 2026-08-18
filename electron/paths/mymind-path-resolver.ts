@@ -26,9 +26,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  MYMIND_ALLOWED_TOP_LEVEL_DIRS,
+  MYMIND_LAYOUT_VERSION,
+  MYMIND_WRITABLE_TOP_LEVEL_DIRS,
   topLevelOf
-} from "../../shared/mymind-layout-v1";
+} from "../../shared/mymind-layout-v2";
 
 export interface MymindRootSnapshot {
   /** Canonical real path of the mymind root. */
@@ -152,10 +153,10 @@ export class MymindPathResolver {
   private assertWriteAllowed(normalisedLogical: string): void {
     const top = topLevelOf(normalisedLogical);
     if (top === null) return; // writing to the root itself is not a new top-level
-    if (!MYMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)) {
+    if (!MYMIND_WRITABLE_TOP_LEVEL_DIRS.has(top)) {
       throw new MymindPathError(
         "unknown-top-level-write",
-        `refusing to write to unknown top-level '${top}'; mymind-layout-v1 forbids new top-level directories`,
+        `refusing to write to non-writable top-level '${top}'; ${MYMIND_LAYOUT_VERSION} only allows content-contract top-level directories`,
         normalisedLogical
       );
     }

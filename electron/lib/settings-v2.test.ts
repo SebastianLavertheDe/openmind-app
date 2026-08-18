@@ -289,7 +289,7 @@ describe("ADR-001 arbitrary mymind roots", () => {
       setMymindRoot(root);
       expect(resolveMymindPath("mymind/daily-summary/20260805_daily_summary.md")).toBe(file);
       expect(relativeToMymind(file)).toBe("mymind/daily-summary/20260805_daily_summary.md");
-      expect(() => resolveMymindPath("mymind/.app-private/state.json", "write")).toThrow("unknown top-level");
+      expect(() => resolveMymindPath("mymind/.app-private/state.json", "write")).toThrow("non-writable top-level");
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });

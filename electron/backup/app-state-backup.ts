@@ -51,7 +51,6 @@ export class AppStateBackupService {
       { name: "runs", root: paths.runs }
     ];
     fs.mkdirSync(paths.staging, { recursive: true });
-    this.recoverPendingRestoreTransactions();
   }
 
   exportToFile(destinationPath: string): AppStateBackupReport {
@@ -320,32 +319,6 @@ export class AppStateBackupService {
       schemaVersion: APP_STATE_BACKUP_SCHEMA_VERSION,
       ...patch
     } satisfies RestoreMarker);
-  }
-
-  private recoverPendingRestoreTransactions(): void {
-    if (!fs.existsSync(this.paths.staging)) return;
-    for (const entry of fs.readdirSync(this.paths.staging, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !entry.name.startsWith(TRANSACTION_PREFIX)) continue;
-      const transaction = path.join(this.paths.staging, entry.name);
-      const markerPath = path.join(transaction, "marker.json");
-      if (!fs.existsSync(markerPath)) {
-        fs.rmSync(transaction, { recursive: true, force: true });
-        continue;
-      }
-      let marker: RestoreMarker;
-      try {
-        marker = JSON.parse(fs.readFileSync(markerPath, "utf8")) as RestoreMarker;
-      } catch (error) {
-        throw new Error(`发现无法读取的状态恢复事务：${formatError(error)}`);
-      }
-      if (marker.kind !== APP_STATE_BACKUP_KIND || marker.schemaVersion !== APP_STATE_BACKUP_SCHEMA_VERSION) {
-        throw new Error("发现未知的状态恢复事务，拒绝覆盖现有状态。 ");
-      }
-      if (marker.phase === "committing") {
-        this.restoreSnapshot(path.join(transaction, "previous"));
-      }
-      fs.rmSync(transaction, { recursive: true, force: true });
-    }
   }
 
   private assertDirectory(filePath: string, label: string): void {

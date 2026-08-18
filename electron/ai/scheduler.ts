@@ -37,7 +37,7 @@ import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { type BrowserAutomationConfig } from "./browser-evidence";
 import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
-import { buildAppPaths } from "../paths/app-paths-service";
+import { buildAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
 import { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
 import { RuntimeManager } from "../runtime/runtime-manager";
@@ -85,7 +85,9 @@ export class RunScheduler {
     this.store = new SessionStore(projectRoot, stateRoot);
     this.registry = new ProviderRegistry(projectRoot);
     this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
-    const appPaths = mymindRoot ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR) : null;
+    const appPaths = mymindRoot
+      ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR, resolveSkillStoreRoot(mymindRoot))
+      : null;
     const packageService = appPaths && mymindRoot ? new SkillPackageService(appPaths) : null;
     const installedResolver = appPaths && mymindRoot
       ? new InstalledSkillExecutionResolver(

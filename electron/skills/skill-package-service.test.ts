@@ -53,7 +53,7 @@ describe("SkillPackageService", () => {
 
   beforeEach(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-package-"));
-    paths = buildAppPaths(path.join(tempRoot, "user-data"));
+    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "mymind", ".agent", "skills"));
     ensureAppPaths(paths);
     service = new SkillPackageService(paths);
   });
@@ -433,6 +433,31 @@ describe("SkillPackageService", () => {
     expect(service.listInstalled()).toEqual([expect.objectContaining({ digest: active.digest, status: "active" })]);
     expect(fs.readdirSync(paths.staging).filter((entry) => entry.startsWith("skill-package-") || entry.startsWith("skill-archive-install-"))).toEqual([]);
     expect(fs.readdirSync(path.join(paths.skills, "cctools", "example-skill"))).toHaveLength(1);
+  });
+
+  it("installs into the mymind-rooted .agent/skills store, not userData", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "#!/bin/sh\necho ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+
+    const record = service.install(source);
+
+    expect(record.packagePath.startsWith(path.join(tempRoot, "mymind", ".agent", "skills") + path.sep)).toBe(true);
+    expect(fs.existsSync(path.join(tempRoot, "mymind", ".agent", "skills", "cctools", "example-skill"))).toBe(true);
+    expect(fs.existsSync(path.join(paths.userData, "skills"))).toBe(false);
+  });
+
+  it("fails closed without a mymind root: install throws and reads stay empty", () => {
+    const unbound = new SkillPackageService(buildAppPaths(path.join(tempRoot, "unbound-user-data")));
+    expect(unbound.listInstalled()).toEqual([]);
+
+    const source = createPackage(tempRoot, "unbound-skill");
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("id: example-skill", "id: unbound-skill"));
+    fs.writeFileSync(path.join(source, "run.sh"), "#!/bin/sh\necho ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    expect(() => unbound.install(source)).toThrow(/尚未绑定 mymind 根目录/);
+    expect(fs.existsSync(path.join(tempRoot, "unbound-user-data", "skills"))).toBe(false);
   });
 });
 

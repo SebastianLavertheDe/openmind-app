@@ -14,11 +14,11 @@
  *  - process/workflow require entrypoint or workflow; agent forbids entrypoint.
  *  - No secret values; secrets are referenced by name only.
  *  - No absolute paths; all package paths are relative + forward-slash.
- *  - `capabilities.mymind.write` top-level dirs ⊆ mymind-layout-v1
+ *  - `capabilities.mymind.write` top-level dirs ⊆ mymind-layout-v2
  *    {@link MYMIND_ALLOWED_TOP_LEVEL_DIRS} (cross-checked at install).
  *
  * NOTE: the mymind-layout subset check is performed by the installer/resolver
- * (which imports from `./mymind-layout-v1`), not inside this pure schema, so
+ * (which imports from `./mymind-layout-v2`), not inside this pure schema, so
  * this module stays free of fs/platform concerns and remains unit-testable in
  * isolation.
  */

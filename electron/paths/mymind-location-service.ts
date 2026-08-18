@@ -2,10 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { detectPathConflicts, type AppPaths } from "./app-paths-service";
 import {
+  MYMIND_APP_MANAGED_TOP_LEVEL,
   MYMIND_CREATE_IF_NEEDED_TOP_LEVEL,
   MYMIND_LAYOUT_VERSION,
   MYMIND_OPTIONAL_TOP_LEVEL
-} from "../../shared/mymind-layout-v1";
+} from "../../shared/mymind-layout-v2";
 import { computeRootId, type MymindRootSnapshot } from "./mymind-path-resolver";
 
 export type RootBinding = {
@@ -68,7 +69,7 @@ export class MymindLocationService {
     const writable = canAccess(root, fs.constants.W_OK);
     const observed = safeDirectoryEntries(root);
     const optionalObservedEntries = MYMIND_OPTIONAL_TOP_LEVEL.filter((name) => observed.has(name));
-    const known = new Set([...MYMIND_CREATE_IF_NEEDED_TOP_LEVEL, ...MYMIND_OPTIONAL_TOP_LEVEL]);
+    const known = new Set([...MYMIND_CREATE_IF_NEEDED_TOP_LEVEL, ...MYMIND_OPTIONAL_TOP_LEVEL, ...MYMIND_APP_MANAGED_TOP_LEVEL]);
     const unknownPreservedEntries = [...observed].filter((name) => !known.has(name)).sort();
     const missingCreateIfNeededEntries = MYMIND_CREATE_IF_NEEDED_TOP_LEVEL.filter((name) => !observed.has(name));
     const conflicts = detectPathConflicts(this.options.paths, root);

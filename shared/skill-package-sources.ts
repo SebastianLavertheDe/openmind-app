@@ -56,3 +56,13 @@ export function parseSkillPackageSourceInput(value: unknown): SkillPackageSource
   return SkillPackageSourceInputSchema.parse(value);
 }
 
+/** Official first-start skill repository; installing it is part of the onboarding gate. */
+export const CCTOOLS_SKILLS_REPO_URL = "https://github.com/SebastianLavertheDe/cctools-skills";
+
+/** Matches a git source locator against {@link CCTOOLS_SKILLS_REPO_URL} (ignores trailing slash / .git). */
+export function isCctoolsSkillsSourceLocator(locator: string | null | undefined): boolean {
+  if (!locator) return false;
+  const normalized = locator.trim().replace(/\/+$/, "").replace(/\.git$/, "").toLowerCase();
+  return normalized === CCTOOLS_SKILLS_REPO_URL.toLowerCase();
+}
+

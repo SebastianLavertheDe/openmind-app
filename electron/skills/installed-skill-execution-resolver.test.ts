@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { zipSync } from "fflate";
 import { SkillRunRequestSchema } from "../../shared/execution-contracts";
 import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
-import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
+import { buildAppPaths, ensureAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
 import { ExecutionBroker } from "../execution/execution-broker";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
@@ -600,7 +600,7 @@ describe("InstalledSkillExecutionResolver", () => {
     try {
       const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-rss-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
@@ -692,7 +692,7 @@ describe("InstalledSkillExecutionResolver", () => {
         (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/article/")
       )).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
-      expect(fs.existsSync(path.join(paths.userData, "skills"))).toBe(true);
+      expect(fs.existsSync(path.join(mymindRoot, ".agent", "skills"))).toBe(true);
     } finally {
       server.close();
     }
@@ -730,7 +730,7 @@ describe("InstalledSkillExecutionResolver", () => {
     try {
       const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-wiki-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       const articleDir = path.join(mymindRoot, "article", "20260805");
@@ -882,7 +882,7 @@ describe("InstalledSkillExecutionResolver", () => {
     try {
       const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-x-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
@@ -1027,7 +1027,7 @@ describe("InstalledSkillExecutionResolver", () => {
       // skills share the same mymindRoot + rootGeneration (same snapshot).
       const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-chain-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
       ensureAppPaths(paths);
       const mymindRoot = path.join(fixtureRoot, "mymind");
       fs.mkdirSync(mymindRoot, { recursive: true });
@@ -1200,7 +1200,7 @@ function createFixture(
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-installed-resolver-"));
   roots.push(root);
-  const paths = buildAppPaths(path.join(root, "user-data"));
+  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "mymind")));
   ensureAppPaths(paths);
   const source = path.join(root, "source");
   const mymindRoot = path.join(root, "mymind");
@@ -1269,7 +1269,7 @@ function createFixture(
 function createBatchAFixture(packageName = "skill-run-reporter") {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-batch-a-installed-"));
   roots.push(root);
-  const paths = buildAppPaths(path.join(root, "user-data"));
+  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "mymind")));
   ensureAppPaths(paths);
   const mymindRoot = path.join(root, "mymind");
   fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });

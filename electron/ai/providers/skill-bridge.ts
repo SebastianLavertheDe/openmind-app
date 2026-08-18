@@ -85,7 +85,7 @@ export function buildClaudeSkillBridgeInstructions(bridge: ProviderSkillBridge):
     bundle.skillText,
     "</skill_md>",
     references,
-    "The package text above is transient context loaded from the approved app-private SkillStore; it is not copied into the workspace.",
+    "The package text above is transient context loaded from the approved SkillStore under the bound mymind root; it is not copied into the workspace.",
     "</cctools_installed_agent_skill>"
   ].join("\n");
 }

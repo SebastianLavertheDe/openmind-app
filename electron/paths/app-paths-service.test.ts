@@ -7,6 +7,7 @@ import {
   buildAppPaths,
   detectPathConflicts,
   ensureAppPaths,
+  resolveSkillStoreRoot,
   resolveUserDataDir,
   type AppPaths
 } from "./app-paths-service";
@@ -32,7 +33,6 @@ describe("buildAppPaths", () => {
     const p = buildAppPaths("/tmp/cctools-test-ud");
     expect(p.userData).toBe(path.resolve("/tmp/cctools-test-ud"));
     expect(p.settingsFile).toBe(path.join(p.userData, "settings", "settings.json"));
-    expect(p.skillRegistryFile).toBe(path.join(p.userData, "skills", "registry.json"));
     expect(p.runtimePacks).toBe(path.join(p.userData, "runtimes", "packs"));
     expect(p.runtimeEnvironments).toBe(path.join(p.userData, "runtimes", "environments"));
     expect(p.credentials).toBe(path.join(p.userData, "credentials"));
@@ -40,9 +40,31 @@ describe("buildAppPaths", () => {
     expect(p.logs).toBe(path.join(p.userData, "logs"));
   });
 
+  it("derives the skill store under the bound mymind root (.agent/skills)", () => {
+    expect(resolveSkillStoreRoot("/srv/mymind")).toBe(path.join(path.resolve("/srv/mymind"), ".agent", "skills"));
+    expect(resolveSkillStoreRoot(null)).toBeNull();
+    expect(resolveSkillStoreRoot("")).toBeNull();
+
+    const p = buildAppPaths("/tmp/cctools-test-ud", "/srv/mymind/.agent/skills");
+    expect(p.skills).toBe(path.resolve("/srv/mymind/.agent/skills"));
+    expect(p.skillRegistryFile).toBe(path.join(p.skills, "registry.json"));
+  });
+
+  it("yields a null skill store when no mymind root is bound (no fallback)", () => {
+    const p = buildAppPaths("/tmp/cctools-test-ud");
+    expect(p.skills).toBeNull();
+    expect(p.skillRegistryFile).toBeNull();
+
+    ensureAppPaths(p);
+    expect(fs.existsSync(path.join(p.userData, "skills"))).toBe(false);
+
+    const withRoot = buildAppPaths("/tmp/cctools-test-ud", null);
+    expect(withRoot.skills).toBeNull();
+  });
+
   it("ensures every directory exists after ensureAppPaths", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-app-paths-"));
-    const p = buildAppPaths(dir);
+    const p = buildAppPaths(dir, path.join(dir, "external-mymind", ".agent", "skills"));
     ensureAppPaths(p);
     for (const d of [
       p.settings,

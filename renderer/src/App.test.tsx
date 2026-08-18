@@ -26,7 +26,7 @@ const preferences: UserPreferences = {
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
   window.cctools = {
-    getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
+    getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
     getPreferences: async () => preferences,
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
@@ -140,6 +140,7 @@ describe("App bootstrap", () => {
         mymindRoot: "/project/mymind",
         workspaceRoot: "/project",
         validRepo: false,
+        skillsInstalled: false,
         onboardingCompleted: false,
         runtime: "test",
         environment: { mode: "desktop", platform: "linux" },
@@ -260,7 +261,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -363,7 +364,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -449,7 +450,7 @@ describe("App bootstrap", () => {
       }]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot
     });
 

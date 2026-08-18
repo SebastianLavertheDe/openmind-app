@@ -4,9 +4,9 @@ import path from "node:path";
 import type { SkillManifest } from "../../shared/skill-manifest-schema";
 import { validateManifest } from "../../shared/skill-manifest-schema";
 import {
-  MYMIND_LAYOUT_V1,
+  MYMIND_LAYOUT_V2,
   type MymindEntryCategory
-} from "../../shared/mymind-layout-v1";
+} from "../../shared/mymind-layout-v2";
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
@@ -95,7 +95,8 @@ export type SkillPackageErrorCode =
   | "archive-entry-forbidden"
   | "active-version-protected"
   | "installed-digest-required"
-  | "installed-path-invalid";
+  | "installed-path-invalid"
+  | "skill-store-unavailable";
 
 export class SkillPackageError extends Error {
   constructor(
@@ -318,6 +319,10 @@ export class SkillPackageService {
       return existing;
     }
 
+    if (!this.paths.skills) {
+      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 mymind 根目录（内部不变量）。");
+    }
+
     fs.mkdirSync(this.paths.staging, { recursive: true });
     fs.mkdirSync(this.paths.skills, { recursive: true });
     const stagingRoot = fs.mkdtempSync(path.join(this.paths.staging, "skill-package-"));
@@ -518,6 +523,9 @@ export class SkillPackageService {
   }
 
   private assertManagedPackagePath(packagePath: string): void {
+    if (!this.paths.skills) {
+      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 mymind 根目录（内部不变量）。");
+    }
     const root = path.resolve(this.paths.skills);
     const candidate = path.resolve(packagePath);
     if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) {
@@ -661,7 +669,7 @@ function validateManifestPackagePaths(manifest: SkillManifest): SkillPackageIssu
   }
   for (const pattern of manifest.capabilities.mymind.write) {
     const topLevel = pattern.split("/")[0];
-    const entry = MYMIND_LAYOUT_V1.find((item) => item.logicalPath === topLevel);
+    const entry = MYMIND_LAYOUT_V2.find((item) => item.logicalPath === topLevel);
     if (!entry || !isWritableLayoutCategory(entry.category)) {
       issues.push({ code: "mymind-write-forbidden", message: `mymind.write 不允许写入 '${topLevel}'。`, path: "capabilities.mymind.write" });
     }

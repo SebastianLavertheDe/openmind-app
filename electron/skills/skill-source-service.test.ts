@@ -45,7 +45,7 @@ describe("SkillSourceService", () => {
 
   beforeEach(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-source-"));
-    paths = buildAppPaths(path.join(tempRoot, "user-data"));
+    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "mymind", ".agent", "skills"));
     ensureAppPaths(paths);
     checkoutPaths = [];
   });

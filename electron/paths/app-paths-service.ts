@@ -2,10 +2,14 @@
  * AppPathsService — derives and validates all app-private path roots from
  * `app.getPath("userData")`.
  *
- * Frozen by ADR-001. The user never types these paths; they are not
- * configurable per-feature. All app-owned state (settings, state, skills,
+ * Frozen by ADR-001, with one superseding decision: the Installed Skill store
+ * no longer lives under `userData`. It lives under the bound mymind root at
+ * `.agent/skills` (mymind-layout-v2, app-managed), so packages travel with
+ * user content. With no mymind root bound there is no store: `skills` and
+ * `skillRegistryFile` are `null` and skill writes fail fast while reads
+ * report an empty store. All other app-owned state (settings, state,
  * runtimes, credentials, runs, automation, catalog, updates, staging, cache,
- * logs) lives under `userData` and is partitioned by concern.
+ * logs) stays under `userData` and is partitioned by concern.
  *
  * This module is pure path computation + a single disjointness check. It
  * does not perform IO except `mkdir -p` on `ensure()` (idempotent). It is
@@ -23,8 +27,10 @@ export interface AppPaths {
   readonly settingsFile: string;
   readonly migrations: string;
   readonly state: string;
-  readonly skills: string;
-  readonly skillRegistryFile: string;
+  /** Installed Skill store root; null when no mymind root is bound. */
+  readonly skills: string | null;
+  /** Installed Skill registry; null when no mymind root is bound. */
+  readonly skillRegistryFile: string | null;
   readonly runtimes: string;
   readonly runtimePacks: string;
   readonly runtimeEnvironments: string;
@@ -65,17 +71,24 @@ export function resolveUserDataDir(explicit?: string): string {
 
 /**
  * Build the full AppPaths for a given userData dir. Pure computation; no IO.
+ *
+ * `skillStoreRoot` locates the Installed Skill store (mymind-layout-v2
+ * `.agent/skills` under the bound mymind root). Omitted/null means no store:
+ * reads report empty, writes fail fast — the renderer keeps unbound users on
+ * the onboarding page, so a null store is an internal invariant, not a
+ * user-facing fallback.
  */
-export function buildAppPaths(userDataDir?: string): AppPaths {
+export function buildAppPaths(userDataDir?: string, skillStoreRoot?: string | null): AppPaths {
   const userData = resolveUserDataDir(userDataDir);
+  const skills = skillStoreRoot ? path.resolve(skillStoreRoot) : null;
   return {
     userData,
     settings: path.join(userData, "settings"),
     settingsFile: path.join(userData, "settings", "settings.json"),
     migrations: path.join(userData, "settings", "migrations"),
     state: path.join(userData, "state"),
-    skills: path.join(userData, "skills"),
-    skillRegistryFile: path.join(userData, "skills", "registry.json"),
+    skills,
+    skillRegistryFile: skills ? path.join(skills, "registry.json") : null,
     runtimes: path.join(userData, "runtimes"),
     runtimePacks: path.join(userData, "runtimes", "packs"),
     runtimeEnvironments: path.join(userData, "runtimes", "environments"),
@@ -91,6 +104,16 @@ export function buildAppPaths(userDataDir?: string): AppPaths {
     cache: path.join(userData, "cache"),
     logs: path.join(userData, "logs")
   };
+}
+
+/**
+ * Resolve the Installed Skill store root from the bound mymind root:
+ * `<mymindRoot>/.agent/skills` (mymind-layout-v2, app-managed). Returns null
+ * when no root is bound. Pure computation; no IO.
+ */
+export function resolveSkillStoreRoot(mymindRoot: string | null | undefined): string | null {
+  if (!mymindRoot) return null;
+  return path.join(path.resolve(mymindRoot), ".agent", "skills");
 }
 
 /** Cached singleton; mirrors the old settings.ts pattern but for app paths. */
@@ -119,7 +142,9 @@ export function __setAppPathsForTest(paths: AppPaths): void {
 }
 
 /**
- * Ensure every directory in AppPaths exists. Idempotent.
+ * Ensure every directory in AppPaths exists. Idempotent. Null entries (skill
+ * store without a bound mymind root) are skipped — the store is created by
+ * the SkillStore itself once a root is bound.
  */
 export function ensureAppPaths(paths: AppPaths): void {
   const dirs = [
@@ -143,7 +168,7 @@ export function ensureAppPaths(paths: AppPaths): void {
     paths.cache,
     paths.logs
   ];
-  for (const dir of dirs) fs.mkdirSync(dir, { recursive: true });
+  for (const dir of dirs) if (dir) fs.mkdirSync(dir, { recursive: true });
 }
 
 /**

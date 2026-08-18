@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, Check, Download, FolderCog, Settings, ShieldCheck } from "lucide-react";
-import type { AppBootstrap, MymindRootStatus, OnboardingState } from "@shared/contracts";
+import type { AppBootstrap, InstalledSkillView, MymindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
+import { CCTOOLS_SKILLS_REPO_URL, isCctoolsSkillsSourceLocator } from "@shared/skill-package-sources";
 import type { Navigate } from "../../app/routes";
 import { StatusBadge } from "../../design-system/components";
 import { useAi } from "../../ai-context";
@@ -20,10 +21,10 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const ai = useAi();
   const [root, setRoot] = useState<MymindRootStatus | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState>(DEFAULT_ONBOARDING);
-  const [installedSkillCount, setInstalledSkillCount] = useState(0);
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
   const [configuredProvider, setConfiguredProvider] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"root" | "state" | null>(null);
+  const [busy, setBusy] = useState<"root" | "state" | "skills" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -36,7 +37,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       ]);
       setRoot(nextRoot);
       setOnboarding(nextState);
-      setInstalledSkillCount(installed.length);
+      setInstalledSkills(installed);
       setConfiguredProvider(Boolean(providers?.providers.some((provider) => provider.enabled && provider.apiKeySet)));
       setError(null);
     } catch (cause) {
@@ -82,12 +83,27 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
     }
   };
 
+  const installSkillsRepo = async () => {
+    setBusy("skills");
+    setError(null);
+    try {
+      if (!window.cctools.installSkillSource) throw new Error("当前构建不支持在线安装 Skill 仓库，请通过导入入口手动安装。");
+      await window.cctools.installSkillSource({ type: "git", locator: CCTOOLS_SKILLS_REPO_URL });
+      await refresh();
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "cctools-skills 仓库安装失败，请检查网络后重试。");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const rootReady = Boolean(root?.health.configured && root.health.accessible && root.health.readable && root.health.writable);
   const providerReady = Boolean(configuredProvider || ai.snapshot.providers.some((provider) => provider.available));
-  const skillReady = installedSkillCount > 0;
-  const skillStatus = skillReady ? "complete" : onboarding.skill;
+  const skillsRepoReady = installedSkills.some((skill) => isCctoolsSkillsSourceLocator(skill.sourceLocator));
+  const skillStatus = skillsRepoReady ? "complete" : "pending";
   const providerStatus = providerReady ? "complete" : onboarding.provider;
-  const canFinish = rootReady && skillStatus !== "pending" && providerStatus !== "pending";
+  const canFinish = rootReady && skillsRepoReady && providerStatus !== "pending";
 
   const statusLabel = (status: "pending" | "complete" | "skipped") => status === "complete" ? m.completed : status === "skipped" ? "已跳过" : m.pending;
 
@@ -121,8 +137,13 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
         <section className="workspace-card onboarding-card">
           <header className="onboarding-card-header"><div><span className="eyebrow">SKILL CENTER</span><h2>{m.skillTitle}</h2></div><StepMark status={skillStatus} number="2" /></header>
           <p>{m.skillBody}</p>
-          <div className="onboarding-path">{skillStatus === "complete" ? m.skillReady : skillStatus === "skipped" ? m.skillSkipped : m.pending}</div>
-          <div className="onboarding-card-actions"><button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => go("skills", { openSkillImport: true })}><Download size={14} />{m.importSkill}<ArrowRight size={14} /></button>{skillStatus === "pending" ? <button type="button" className="onboarding-text-action" disabled={busy !== null} onClick={() => void updateStep({ skill: "skipped" })}>{m.skipSkill}</button> : null}</div>
+          <div className="onboarding-path">{loading ? "正在检查已安装 Skill…" : skillsRepoReady ? m.skillReady : m.skillMissing}</div>
+          <div className="onboarding-card-actions">
+            {skillsRepoReady
+              ? <span className="onboarding-inline-status"><Check size={13} />{m.skillReady}</span>
+              : <button type="button" className="primary-button" data-motion="action" disabled={busy !== null || !rootReady} title={rootReady ? undefined : "请先完成第 1 步：选择 mymind 根目录"} onClick={() => void installSkillsRepo()}><Download size={14} />{busy === "skills" ? m.installingSkillsRepo : m.installSkillsRepo}</button>}
+            <button type="button" className="onboarding-text-action" disabled={busy !== null} onClick={() => go("skills", { openSkillImport: true })}>{m.importSkill}<ArrowRight size={14} /></button>
+          </div>
         </section>
 
         <section className="workspace-card onboarding-card">
@@ -136,7 +157,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       <section className="workspace-card onboarding-next-card onboarding-finish-card">
         <header className="onboarding-card-header"><div><span className="eyebrow">READY</span><h2>{m.finishTitle}</h2></div><ShieldCheck size={20} aria-hidden /></header>
         <p>{m.finishBody}</p>
-        {!rootReady ? <p className="onboarding-finish-hint">请先完成第 1 步；Skill 和 Provider 可以跳过。</p> : null}
+        {!canFinish ? <p className="onboarding-finish-hint">请先完成第 1 步并安装 cctools-skills 仓库；Provider 可以跳过。</p> : null}
         <div className="onboarding-next-actions"><button type="button" className="primary-button" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>{busy === "state" ? "正在保存…" : m.finish}<ArrowRight size={14} /></button></div>
       </section>
     </div>

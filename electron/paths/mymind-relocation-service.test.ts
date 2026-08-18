@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,11 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildAppPaths, ensureAppPaths } from "./app-paths-service";
 import {
   previewMymindRelocation,
-  recoverPendingMymindRelocations,
   relocateMymind,
   type MymindRelocationInput
 } from "./mymind-relocation-service";
-import { copyDirectoryRecursively } from "../lib/fs-utils";
 
 const cleanupRoots: string[] = [];
 
@@ -86,69 +83,4 @@ describe("mymind relocation", () => {
     expect(previewMymindRelocation({ ...testCase.input, activeRunCount: 1 }).blockingReasons.join(" ")).toContain("运行中的任务");
     expect(previewMymindRelocation({ ...testCase.input, targetDirectory: testCase.userData }).blockingReasons.join(" ")).toContain("userData");
   });
-
-  it("recovers an interrupted sibling swap only when the target matches the transaction", () => {
-    const testCase = makeCase();
-    fs.mkdirSync(path.join(testCase.source, "article"));
-    fs.writeFileSync(path.join(testCase.source, "article", "one.md"), "one");
-    const preview = previewMymindRelocation(testCase.input);
-    expect(preview.canCommit).toBe(true);
-
-    const transactionId = "recovery-fixture";
-    const base = path.basename(testCase.target);
-    const prefix = `.cctools-mymind-relocation-${base}-${transactionId}-`;
-    const staging = path.join(path.dirname(testCase.target), `${prefix}staging`);
-    const backup = path.join(path.dirname(testCase.target), `${prefix}backup`);
-    copyDirectoryRecursively(testCase.source, staging);
-    fs.renameSync(testCase.target, backup);
-    const tree = inspectTreeForFixture(staging);
-    const markerDirectory = path.join(testCase.input.paths.migrations, "mymind-relocation");
-    const marker = path.join(markerDirectory, `${transactionId}.pending.json`);
-    fs.mkdirSync(markerDirectory, { recursive: true });
-    fs.writeFileSync(marker, JSON.stringify({
-      schemaVersion: 1,
-      status: "pending",
-      id: transactionId,
-      sourceDirectory: fs.realpathSync(testCase.source),
-      targetDirectory: path.resolve(testCase.target),
-      stagingDirectory: staging,
-      backupDirectory: backup,
-      tree,
-      phase: "target-moved",
-      preparedAt: new Date().toISOString()
-    }));
-
-    const reports = recoverPendingMymindRelocations(testCase.input.paths);
-    expect(reports).toHaveLength(1);
-    expect(fs.readFileSync(path.join(testCase.target, "article", "one.md"), "utf8")).toBe("one");
-    expect(fs.existsSync(marker)).toBe(false);
-    expect(fs.existsSync(backup)).toBe(false);
-  });
 });
-
-function inspectTreeForFixture(root: string) {
-  const entries: Array<{ relativePath: string; kind: "file" | "directory"; size?: number; sha256?: string }> = [];
-  const walk = (current: string) => {
-    for (const name of fs.readdirSync(current).sort()) {
-      const absolute = path.join(current, name);
-      const relativePath = path.relative(root, absolute).split(path.sep).join("/");
-      const stat = fs.lstatSync(absolute);
-      if (stat.isDirectory()) {
-        entries.push({ relativePath, kind: "directory" });
-        walk(absolute);
-      } else {
-        const body = fs.readFileSync(absolute);
-        entries.push({ relativePath, kind: "file", size: stat.size, sha256: crypto.createHash("sha256").update(body).digest("hex") });
-      }
-    }
-  };
-  walk(root);
-  entries.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
-  return {
-    entries,
-    fileCount: entries.filter((entry) => entry.kind === "file").length,
-    directoryCount: entries.filter((entry) => entry.kind === "directory").length,
-    bytes: entries.reduce((total, entry) => total + (entry.size || 0), 0),
-    digest: crypto.createHash("sha256").update(JSON.stringify(entries)).digest("hex")
-  };
-}

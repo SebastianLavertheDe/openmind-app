@@ -69,6 +69,15 @@ into three concern areas. No two roots may alias or contain one another.
 
 ### 3. App private roots — all under `userData`
 
+> **Superseding note (2026-08, skill store relocation).** The `skills/` root
+> below no longer lives under `userData`. The Installed Skill store now lives
+> under the bound mymind root at `.agent/skills` (mymind-layout-v2,
+> `app-managed`), so packages travel with user content and relocation. With
+> no mymind root bound there is no store (`AppPaths.skills` is `null`): reads
+> report empty, writes fail fast, and the renderer keeps unbound users on the
+> onboarding page. Everything else in this section is unchanged. Skills are
+> excluded from app-state backup by scope, as before.
+
 All app-owned state lives under `app.getPath("userData")`. The logical
 layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
 
@@ -76,7 +85,6 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
 <userData>/
 ├── settings/        settings.json + migrations/
 ├── state/           <mymind-root-id>/{indexes,sources,content-state}/
-├── skills/          registry.json + <skill-id>/<version>/ + active.json + data/
 ├── runtimes/        packs/ environments/ downloads/
 ├── credentials/     OS-protected secret storage
 ├── runs/            <run-id>/
@@ -88,9 +96,11 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
 └── logs/
 ```
 
-- `skillStoreRoot`, `runtimeRoot`, `stateRoot`, `runRoot`, `credentialRoot`,
-  `automationRoot`, `catalogRoot`, `updateRoot`, `stagingRoot`, `cacheRoot`,
-  `logRoot` are **all derived from `userData`** by `AppPathsService`.
+- `runtimeRoot`, `stateRoot`, `runRoot`, `credentialRoot`, `automationRoot`,
+  `catalogRoot`, `updateRoot`, `stagingRoot`, `cacheRoot`, `logRoot` are
+  **all derived from `userData`** by `AppPathsService`. `skillStoreRoot` is
+  the exception recorded in the superseding note above: derived from the
+  bound `mymindRoot`, `null` when unbound.
 - These are not user-configurable. The user never types them. There is no
   setting to relocate them (if relocation is ever added, it is a single
   well-formed setting, not per-feature).

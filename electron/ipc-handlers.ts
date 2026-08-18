@@ -34,7 +34,7 @@ import {
   SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
-import { SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
+import { SkillPackageSourceInputSchema, isCctoolsSkillsSourceLocator } from "../shared/skill-package-sources";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import type { ProductService } from "./product/product-service";
 import type { MymindFileSearch } from "./mymind-file-search";
@@ -211,9 +211,15 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const validRepo = Boolean(mymindRoot && settings.isValidMymindRoot(mymindRoot));
         const aiWorkspace = workspaceRoot || (settings.looksLikeRepo(repoRoot) ? repoRoot : "");
         const hasAiWorkspace = Boolean(aiWorkspace);
+        // No mymind root bound → no skill store; skip the service entirely so
+        // bootstrap never constructs a null-root store on a fresh machine.
+        const skillsInstalled = validRepo
+          ? listInstalledSkillsUsable(skillPackages()).some((record) => isCctoolsSkillsSourceLocator(record.sourceLocator))
+          : false;
         return {
           repoRoot,
           validRepo,
+          skillsInstalled,
           onboardingCompleted: settings.getOnboardingState().completed,
           mymindRoot,
           workspaceRoot,

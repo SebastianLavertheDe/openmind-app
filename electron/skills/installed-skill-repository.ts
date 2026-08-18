@@ -42,7 +42,13 @@ export type InstalledSkillRegistryFile = {
  * reads or executes an original source directory.
  */
 export class InstalledSkillRepository {
-  constructor(private readonly registryFile: string) {}
+  /**
+   * @param registryFile null when no mymind root is bound: reads report an
+   * empty store (the onboarding page renders pre-binding), writes fail fast
+   * as an internal invariant — the renderer keeps unbound users on the
+   * onboarding page, so writes never legitimately reach a null store.
+   */
+  constructor(private readonly registryFile: string | null) {}
 
   list(): InstalledSkillRecord[] {
     return this.read().records.slice().sort((left, right) =>
@@ -191,6 +197,9 @@ export class InstalledSkillRepository {
 
   private read(): InstalledSkillRegistryFile {
     try {
+      if (this.registryFile === null) {
+        return { schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [] };
+      }
       if (!fs.existsSync(this.registryFile)) {
         return { schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [] };
       }
@@ -210,6 +219,9 @@ export class InstalledSkillRepository {
   }
 
   private write(registry: InstalledSkillRegistryFile): void {
+    if (this.registryFile === null) {
+      throw new Error("Skill store 不可用：尚未绑定 mymind 根目录（内部不变量，正常流程不应到达）。");
+    }
     validateRegistry(registry);
     writeJsonAtomic(this.registryFile, registry);
   }
