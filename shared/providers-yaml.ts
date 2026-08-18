@@ -6,8 +6,6 @@ import { z } from "zod";
  * it can be imported from both the Electron main process (which adds the
  * file/repository layer in `electron/config/providers-yaml.ts`) and the
  * Renderer (via `shared/contracts.ts`) and the IPC contract surface.
- *
- * See `docs/providers-yaml-migration.md`.
  */
 
 export const PROVIDERS_YAML_SCHEMA_VERSION = 1 as const;

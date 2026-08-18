@@ -25,8 +25,7 @@ import {
  * `CCTOOLS_PROVIDER_*` env resolution consumed by the Execution Broker.
  *
  * Both execution paths — desktop Broker (here) and crontab Python (reads the
- * same YAML directly) — resolve to the same provider. See
- * `docs/providers-yaml-migration.md`.
+ * same YAML directly) — resolve to the same provider.
  */
 
 // js-yaml is an Electron-side dependency; load it lazily so the module stays
