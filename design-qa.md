@@ -219,11 +219,11 @@ final result: passed
 ## Codex-style jump-to-bottom control QA — 2026-07-22
 
 - Source visual truth:
-  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a622f50e-e9a6-4363-80e8-fb7fdb782262.png` (reported CC Tools control with unread count)
+  - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a622f50e-e9a6-4363-80e8-fb7fdb782262.png` (reported OpenMind control with unread count)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a96672b1-fea0-425d-87f2-7c91dc39e1e1.png` (authoritative Codex control)
 - Implementation screenshot: `desktop-app/design-qa/scroll-to-bottom-codex-match-2026-07-22.jpg`
 - Focused comparison evidence: `desktop-app/design-qa/scroll-to-bottom-codex-comparison-2026-07-22.png`
-- Viewport: 1550 × 1015 CSS pixels, matching the reported CC Tools capture at its 1.5 display scale; light theme; browser-preview data with a long-conversation scroll state.
+- Viewport: 1550 × 1015 CSS pixels, matching the reported OpenMind capture at its 1.5 display scale; light theme; browser-preview data with a long-conversation scroll state.
 
 ### Full-view comparison evidence
 
@@ -234,7 +234,7 @@ final result: passed
 ### Focused comparison evidence
 
 - The Codex source crop and implementation crop were normalized to the same visual scale and opened together in `scroll-to-bottom-codex-comparison-2026-07-22.png`.
-- Circle diameter, arrow scale, stroke weight, neutral surface, and border contrast align with the reference. CC Tools retains its existing design tokens instead of introducing a one-off color or handcrafted icon.
+- Circle diameter, arrow scale, stroke weight, neutral surface, and border contrast align with the reference. OpenMind retains its existing design tokens instead of introducing a one-off color or handcrafted icon.
 
 ### Findings and iteration
 
@@ -346,7 +346,7 @@ final result: passed
 
 ### Required fidelity surfaces
 
-- Fonts and typography: existing CC Tools font stack, weights, line heights, truncation, and AI hierarchy are unchanged. At 840px, header geometry remains within the viewport: title 488px, selector 190px, and actions 122px with the right edge at 828px.
+- Fonts and typography: existing OpenMind font stack, weights, line heights, truncation, and AI hierarchy are unchanged. At 840px, header geometry remains within the viewport: title 488px, selector 190px, and actions 122px with the right edge at 828px.
 - Spacing and layout rhythm: the compact companion reuses the same workspace inset and border treatment as the center stage at wide widths, then becomes flush when navigation is a drawer. It no longer has unique modal elevation.
 - Colors and visual tokens: no new colors were introduced; the former dim scrim and overlay shadow are absent.
 - Image quality and asset fidelity: no raster assets, generated imagery, handcrafted SVGs, placeholders, or CSS illustrations were added.
@@ -389,7 +389,7 @@ final result: passed
 
 ### Full-view comparison evidence
 
-- At 1356px, CC Tools keeps its persistent product navigation and full work canvas, matching Codex's stable wide-window hierarchy without replacing CC Tools typography, colors, or content model.
+- At 1356px, OpenMind keeps its persistent product navigation and full work canvas, matching Codex's stable wide-window hierarchy without replacing OpenMind typography, colors, or content model.
 - At 834px and 720px, the persistent navigation moves fully off-canvas and the active content expands to the full viewport. The only persistent shell control is the top-left navigation trigger, matching Codex's compact focus mode.
 - Compact AI headers preserve the task title and provider context on one line; secondary provider detail is progressively removed at 720px instead of wrapping into a second header row.
 
@@ -404,7 +404,7 @@ final result: passed
 
 ### Required fidelity surfaces
 
-- Fonts, typography, colors, radii, and Lucide icons continue to use the existing CC Tools design system.
+- Fonts, typography, colors, radii, and Lucide icons continue to use the existing OpenMind design system.
 - Compact spacing follows the Codex reference's single-canvas hierarchy: 58px left header clearance, full-width stage, fixed drawer, and no squeezed split columns.
 - No raster UI assets, handcrafted SVGs, placeholder boxes, or CSS illustrations were introduced.
 - The compact layout has no horizontal overflow at 834px or 720px in AI, Creative list/detail, AI companion, and file-preview states.
@@ -423,7 +423,7 @@ final result: passed
 ### Findings
 
 - No actionable P0, P1, or P2 responsive-layout or interaction differences remain for the requested Codex behavior.
-- P3: CC Tools intentionally keeps its own product chrome and content density; the Codex reference governs responsive interaction and pane behavior, not visual rebranding.
+- P3: OpenMind intentionally keeps its own product chrome and content density; the Codex reference governs responsive interaction and pane behavior, not visual rebranding.
 
 final result: passed
 
@@ -435,8 +435,8 @@ final result: passed
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-da0be624-12b0-48a9-90e4-7c9909447156.png`
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-3dda3ca2-df8c-44d3-b827-0cc74c9b4c60.png`
 - Implementation screenshots:
-  - `C:/Users/say/AppData/Local/Temp/cctools-design-qa-ai.png`
-  - `C:/Users/say/AppData/Local/Temp/cctools-design-qa-creative.png`
+  - `C:/Users/say/AppData/Local/Temp/openmind-design-qa-ai.png`
+  - `C:/Users/say/AppData/Local/Temp/openmind-design-qa-creative.png`
 - Viewport: 1920 × 1080, light theme, browser-preview data.
 - States: new AI task; daily brief list with selected preview; creative workflow with a selected daily topic file.
 
@@ -495,7 +495,7 @@ final result: passed
 
 - The implementation preserves the source's narrow developer-tool rail, top conversation header, centered engineering-task examples, and single composer.
 - The task content now occupies a tighter vertical band: the project, value proposition, examples, shortcut hint, and composer read as one start-to-submit flow instead of four loosely separated regions.
-- The larger value heading, explicit `当前项目 · cctools` context, and localized `尚未创建` state are intentional audit-driven changes rather than fidelity drift.
+- The larger value heading, explicit `当前项目 · openmind` context, and localized `尚未创建` state are intentional audit-driven changes rather than fidelity drift.
 - The implementation still fits fully above the fold at 1280 × 720 with no clipped cards, composer controls, or navigation actions.
 
 ## Focused state comparison evidence
@@ -603,7 +603,7 @@ final result: passed
 
 - Pixel measurements showed normal menu glyphs were already approximately the same height; the mismatch was concentrated in ink density and special-case overrides.
 - The installed WorkBuddy 5.2.5 renderer CSS uses 13px navigation text, 400 normal weight, 600 active weight, 30px rows, 22px line-height, 16px icons, a 12px/700 brand title, and a 10px version label.
-- CC Tools was using 480/650 navigation weights, a 13px brand title, and a separate 14px/500 Settings rule. The recent-task toggle also computed to 13px because the generic navigation selector overrode its intended 11px group-label token.
+- OpenMind was using 480/650 navigation weights, a 13px brand title, and a separate 14px/500 Settings rule. The recent-task toggle also computed to 13px because the generic navigation selector overrode its intended 11px group-label token.
 
 ## Implemented match
 
@@ -616,7 +616,7 @@ final result: passed
 ## Verification
 
 - Live computed values confirmed: active 13px/600/22px, normal 13px/400, Settings 13px/400, brand 12px/700/18px, recent heading 11px/400/18px.
-- Normalized visual comparison confirms CC Tools no longer has a larger or heavier optical footprint than WorkBuddy.
+- Normalized visual comparison confirms OpenMind no longer has a larger or heavier optical footprint than WorkBuddy.
 - TypeScript checks passed.
 - Focused AppShell assertions passed: 5/5.
 - Renderer production build passed; existing CSS syntax and bundle-size warnings remain unrelated to this typography change.
@@ -633,17 +633,17 @@ final result: passed
 # WorkBuddy shell-size correction QA — 2026-07-12
 
 - Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-aaaac66d-7c11-4f89-b0f0-8ae4596c7666.png`
-- AI implementation screenshot: `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/05-cctools-shell-density-1280x720.png`
-- Daily Brief implementation screenshot: `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/07-cctools-daily-sidebar-1280x720.png`
+- AI implementation screenshot: `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/05-openmind-shell-density-1280x720.png`
+- Daily Brief implementation screenshot: `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/07-openmind-daily-sidebar-1280x720.png`
 - Focused shell comparisons:
-  - `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/06-workbuddy-shell-comparison.png`
-  - `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/08-workbuddy-daily-sidebar-comparison.png`
+  - `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/06-workbuddy-shell-comparison.png`
+  - `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/08-workbuddy-daily-sidebar-comparison.png`
 - Viewport: 1280 × 720 implementation; source sidebars normalized from the supplied 425 × 1458 comparison capture to the same 260px CSS width.
-- State: expanded WorkBuddy navigation compared with CC Tools AI and Daily Brief navigation, including the recent-task section shown by the user.
+- State: expanded WorkBuddy navigation compared with OpenMind AI and Daily Brief navigation, including the recent-task section shown by the user.
 
 ## Full-view and focused comparison evidence
 
-- The remaining mismatch was in the application shell rather than only the chat body. The corrected CC Tools shell now measures 260px wide with 13px navigation copy, 30px rows, and 15px icons.
+- The remaining mismatch was in the application shell rather than only the chat body. The corrected OpenMind shell now measures 260px wide with 13px navigation copy, 30px rows, and 15px icons.
 - The normalized side-by-side comparisons show the primary navigation copy, active-row height, brand scale, and recent-task rhythm at substantially the same visual size as WorkBuddy.
 - Daily Brief was opened specifically to reproduce the user's active-route plus recent-task state. The recent-task title measures 12px, metadata 10px, and the row 30px high.
 
@@ -671,7 +671,7 @@ final result: passed
 ## Findings
 
 - No actionable P0, P1, or P2 visual differences remain for the requested shell density.
-- P3: CC Tools intentionally shows fewer navigation groups and different product labels, so vertical content distribution differs even though component size now aligns.
+- P3: OpenMind intentionally shows fewer navigation groups and different product labels, so vertical content distribution differs even though component size now aligns.
 
 final result: passed
 
@@ -680,22 +680,22 @@ final result: passed
 # WorkBuddy-style conversation density QA — 2026-07-12
 
 - Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-c27b5c1b-4798-41ec-bb23-bee6f1ea51bd.png`
-- Implementation screenshot: `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/02-cctools-workbuddy-density-1280x720.png`
-- Full comparison evidence: `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/03-workbuddy-implementation-full.png`
-- Focused comparison evidence: `C:/Users/say/AppData/Local/Temp/cctools-ui-audit/04-workbuddy-implementation-sidebar.png`
+- Implementation screenshot: `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/02-openmind-workbuddy-density-1280x720.png`
+- Full comparison evidence: `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/03-workbuddy-implementation-full.png`
+- Focused comparison evidence: `C:/Users/say/AppData/Local/Temp/openmind-ui-audit/04-workbuddy-implementation-sidebar.png`
 - Viewport: 1280 × 720, light theme, browser-preview conversation state.
-- State: WorkBuddy landing screen compared with the CC Tools AI conversation. Because the product states differ, the full comparison is used for shell density and hierarchy only; the focused comparison normalizes the two sidebars to the same width.
+- State: WorkBuddy landing screen compared with the OpenMind AI conversation. Because the product states differ, the full comparison is used for shell density and hierarchy only; the focused comparison normalizes the two sidebars to the same width.
 
 ## Full-view comparison evidence
 
-- CC Tools now uses a compact 14px conversation body with a measured 22.68px line height, matching the quiet desktop density of the WorkBuddy shell instead of the previous 16px reading-mode treatment.
-- The conversation column is 800px wide, leaving a calmer right margin and avoiding the visually oversized long lines in the source CC Tools capture.
+- OpenMind now uses a compact 14px conversation body with a measured 22.68px line height, matching the quiet desktop density of the WorkBuddy shell instead of the previous 16px reading-mode treatment.
+- The conversation column is 800px wide, leaving a calmer right margin and avoiding the visually oversized long lines in the source OpenMind capture.
 - The title remains visually distinct while the conversation body, metadata, navigation, and composer controls form a restrained supporting layer.
 
 ## Focused region comparison evidence
 
 - The normalized sidebar comparison shows closely aligned navigation type size, row height, icon scale, active-row weight, muted metadata, and whitespace rhythm.
-- CC Tools intentionally keeps its product-specific routes and provider metadata; no fake WorkBuddy rows or labels were introduced.
+- OpenMind intentionally keeps its product-specific routes and provider metadata; no fake WorkBuddy rows or labels were introduced.
 - A separate focused chat crop was not needed because the WorkBuddy reference does not show a chat state. Browser-computed typography values and the full implementation capture provide the relevant evidence for the requested conversation-density change.
 
 ## Required fidelity surfaces
@@ -704,7 +704,7 @@ final result: passed
 - Spacing and layout rhythm: assistant-message gap reduced to 14px and the centered flow column reduced from 880px to 800px.
 - Colors and visual tokens: existing WorkBuddy monochrome tokens are unchanged.
 - Image quality and asset fidelity: no image assets were required or introduced; existing icon components remain unchanged.
-- Copy and content: existing CC Tools labels and realistic preview conversation content are unchanged.
+- Copy and content: existing OpenMind labels and realistic preview conversation content are unchanged.
 
 ## Interaction and runtime checks
 
@@ -732,8 +732,8 @@ final result: passed
 
 - Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-1f53b3ad-7f51-4036-bd4e-bab641816afd.png`
 - Normalized source crop: `C:/Users/say/AppData/Local/Temp/workbuddy-sidebar-normalized.png`
-- Implementation full screenshot: `C:/Users/say/AppData/Local/Temp/cctools-full-pass3.png`
-- Implementation focused crop: `C:/Users/say/AppData/Local/Temp/cctools-sidebar-fullcrop-pass3.png`
+- Implementation full screenshot: `C:/Users/say/AppData/Local/Temp/openmind-full-pass3.png`
+- Implementation focused crop: `C:/Users/say/AppData/Local/Temp/openmind-sidebar-fullcrop-pass3.png`
 - Viewport: 1280 × 720, light theme, default system scale; focused comparison normalized to 264 × 516.
 - State: expanded AI-page navigation with one active session.
 
@@ -745,9 +745,9 @@ final result: passed
 
 ## Focused region comparison evidence
 
-- The normalized WorkBuddy source and the final CC Tools crop were opened together in one comparison input.
+- The normalized WorkBuddy source and the final OpenMind crop were opened together in one comparison input.
 - Primary button height, left alignment, item spacing, icon scale, sidebar width, muted brand treatment, section-label hierarchy, and task-row density align with the reference.
-- CC Tools intentionally has four product destinations instead of WorkBuddy's five and retains Provider metadata under session titles.
+- OpenMind intentionally has four product destinations instead of WorkBuddy's five and retains Provider metadata under session titles.
 
 ## Required fidelity surfaces
 
@@ -755,7 +755,7 @@ final result: passed
 - Spacing and layout rhythm: 264px expanded width, 32px primary rows, 17px icons, 9px icon gap, 42px session rows, and an 8px active-button radius.
 - Colors and visual tokens: quiet monochrome background, subtle active fill, muted brand/metadata, and existing dark-theme token mapping retained.
 - Image quality and asset fidelity: no raster imagery is required for this sidebar; all visible icons use the existing Lucide family rather than custom SVG or CSS drawings.
-- Copy and content: CC Tools labels remain product-specific; “每日简报” is unchanged, while “创作” and “资料库” remain the concise sidebar labels.
+- Copy and content: OpenMind labels remain product-specific; “每日简报” is unchanged, while “创作” and “资料库” remain the concise sidebar labels.
 - Responsiveness and accessibility: semantic buttons and labels are preserved, focus-visible styling remains active, the collapsed rail still works, and the full app uses system DPI rather than forcing a custom zoom factor.
 
 ## Interaction and runtime checks
@@ -775,7 +775,7 @@ final result: passed
 ## Findings
 
 - No actionable P0, P1, or P2 visual differences remain for the requested WorkBuddy-style sidebar density.
-- P3: WorkBuddy's screenshot contains more navigation/task types than CC Tools; adding fake rows solely for vertical alignment would damage the product information architecture, so the shorter content stack is intentional.
+- P3: WorkBuddy's screenshot contains more navigation/task types than OpenMind; adding fake rows solely for vertical alignment would damage the product information architecture, so the shorter content stack is intentional.
 
 final result: passed
 
@@ -862,13 +862,13 @@ The focused comparisons place the Codex card and the implementation card in one 
 ## Findings
 
 - No actionable P0, P1, or P2 mismatch remains.
-- Fonts and typography: existing CC Tools font stack is preserved; title and path hierarchy match the reference at current application density.
+- Fonts and typography: existing OpenMind font stack is preserved; title and path hierarchy match the reference at current application density.
 - Spacing and layout rhythm: the card is capped at the same 720 px conversation width, with a 52 px header and 34 px file rows; the left preview/right conversation split remains resizable. Its visible divider is 1 px in idle, hover, focus, and active resize states while the 4 px track plus the existing extended hit area remain draggable.
 - Colors and visual tokens: existing panel, border, hover, focus, and muted-text tokens are reused without introducing a separate visual language.
 - Image quality and asset fidelity: no raster assets are required; the existing Lucide icon system is retained.
 - Copy and content: the title now uses `已编辑 N 个文件`; additions, deletions, undo, and review copy are absent from the durable edited-files card.
 - Accessibility: each file is a real button, the extra-files control exposes `aria-expanded`, the separator exposes value semantics, and reduced-motion users skip the split transitions.
-- P3 follow-up: the exact document glyph differs slightly from the Codex source because CC Tools keeps its existing icon family. This is intentional and non-blocking.
+- P3 follow-up: the exact document glyph differs slightly from the Codex source because OpenMind keeps its existing icon family. This is intentional and non-blocking.
 
 ## Comparison history
 
@@ -981,5 +981,125 @@ The Codex reference and browser-rendered desktop-app capture were opened in the 
 - Browser console warnings/errors: none.
 - Full Vitest suite: 92 files, 1164 tests passed.
 - TypeScript checks, renderer build, Electron build, and desktop integration smoke passed; the final CSS-only scrollbar alignment pass was followed by a successful renderer production build.
+
+final result: passed
+
+---
+
+# Setup 向导设计 QA
+
+## 对照基准
+
+- 视觉基准：`C:\Users\say\AppData\Local\Temp\codex-clipboard-3276d47f-480d-4699-be32-99d3b860a6be.png`
+- 基准尺寸：2774 × 1996 px，对应 1387 × 998 CSS px（2× 截图）。
+- 实现视口：1387 × 998 CSS px；以下桌面截图均为 1387 × 998 px，因此按相同 CSS 尺寸比较。
+- 对照状态：首次启动、尚未选择 openmind 根目录的第 1 步。
+
+## 实现截图
+
+- 第 1 步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-step-1.png`
+- 第 2 步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-step-2.png`
+- 第 3 步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-step-3.png`
+- 第 4 步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-step-4.png`
+- 窄屏 720 × 900：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-step-1-narrow.png`
+
+## 检查结果
+
+| 项目 | 结果 | 证据 |
+| --- | --- | --- |
+| 整页构图 | 通过 | 在同一视觉检查输入中并排查看原始截图与第 1 步实现；保留浅色渐变背景、白色主画布、标题区、安全提示区和卡片语言。按需求将三列卡片改为居中的单卡向导。 |
+| 字体与层级 | 通过 | 标题、眉题、正文、卡片标题和状态标签沿用现有设计系统；四步截图中层级一致且无截断。 |
+| 间距与对齐 | 通过 | 进度条、卡片及操作区在桌面与 720 px 窄屏均对齐；窄屏隐藏进度文字、保留编号/完成态，未出现横向溢出。 |
+| 色彩与图标 | 通过 | 沿用现有中性色、绿色成功态和 Lucide 图标，不引入新的光栅素材或替代图标体系。 |
+| 文案 | 通过 | 第 1 至第 4 步编号、说明、必选/可跳过动作与用户需求一致；第 1、2 步没有跳过入口，第 3 步保留“稍后配置”。 |
+| 动效 | 通过 | 每次推进使用设计 token 驱动的向左滑动；轨道在第 2/3/4 步的矩阵位移分别为 -1004、-2008、-3012 px；同时提供 `prefers-reduced-motion` 回退。 |
+| 可访问性 | 通过 | 非活动面板设置 `inert` 与 `aria-hidden`；每个状态仅有一个可访问标题和一个活动面板。进度条提供中文 aria-label。 |
+| 完整流程 | 通过 | 实机浏览器依次完成：选择并确认根目录 → 安装官方 Skill → 跳过 Provider → 进入工作台。控制台 error 日志为空。 |
+
+## 迭代记录
+
+1. 代码审查阶段发现进度连接线可能穿过标签、且 Skill 安装触发 Provider 重挂载时可能丢失滑动感；在首轮浏览器截图前调整连接线层级，并为活动卡片增加同方向入场动画。
+2. 桌面 1387 × 998 首轮视觉对照：未发现 P0、P1 或 P2 偏差。
+3. 窄屏 720 × 900 检查：未发现溢出、遮挡或不可读内容；无需继续修正。
+
+## 最终结论
+
+passed
+
+---
+
+# 极简 Setup 向导设计 QA
+
+## 对照基准
+
+- 最终视觉目标：`C:\Users\say\.codex\generated_images\01a01f50-b13c-7261-a5a0-b0598cfa3a43\exec-a27aa6f1-0a12-4d6a-b200-7da484c1815e.png`
+- 实现截图：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-minimal-step-1-v2.png`
+- 对照视口：1487 × 1058 CSS px；目标图与实现图均为 1487 × 1058 px，device scale 为 1，无需做像素密度归一化。
+- 对照状态：浅色主题、首次启动、尚未选择 openmind 根目录的第 1 步。
+
+## 完整视图对照证据
+
+最终视觉目标和浏览器实现截图在同一个比较输入中并排检查。两张图均为完整视图且表单区域清晰可读，因此不需要额外裁剪；关键几何位置同时用浏览器 DOM 测量确认。
+
+## 检查结果
+
+- 未发现可执行的 P0、P1 或 P2 偏差。
+- 字体与层级：沿用应用现有 display/system 字体；主标题为 42 px、粗体，正文 16 px，顶部步骤与安全说明使用较弱层级。超大步骤号是实时文字，不是位图素材。
+- 间距与构图：内容舞台宽 1040 px；实现中的步骤区域为 `x=223.67, y=338.34, w=1040`，标题为 `x=621.67, y=368.34, w=620, h=48.72`，路径框为 `x=621.67, y=545.46, w=630, h=66`，首段进度线为 `x=585.67, y=979, w=70, h=4`，与目标图的视觉坐标一致。
+- 色彩与设计 token：页面使用 `--app-chrome-bg`，标题/按钮使用 `--text` 与 `--accent`，正文与辅助信息使用 `--text-dim`、`--muted`，路径框使用现有 control/border token；整体即方案 1 与主 UI 一致的冷白、浅薄荷配色。
+- 图标与素材：只使用项目现有 Lucide 图标，不含新增光栅内容资产，也没有用近似图标替代既有体系。
+- 文案：保留简洁的应用语气；第 1、2 步为硬门禁，第 3 步明确可稍后配置，第 4 步是非阻塞的完成/进入页，不伪装成第四个配置项。
+- 交互与动效：四个面板一次只暴露一个；第 2/3/4 步轨道位移依次为 -1487.33、-2974.67、-4462 px；transform 使用 240 ms emphasized easing，并提供 reduced-motion 回退。切步后标题获得焦点，非活动面板设为 `inert` 与 `aria-hidden`。
+- 流程门禁：浏览器完整走通“选择并确认根目录 → 安装官方 Skill → 跳过 Provider → 进入工作台”；在显式进入前主工作台和全局快捷键均不可绕过。浏览器控制台 error 日志为空。
+- 响应式：720 × 900 窄屏截图为 `C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-minimal-narrow.png`，无横向溢出；1024 × 650 矮窗截图为 `C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-minimal-short.png`，面板可滚动且底部安全说明未被裁切。
+
+## 迭代记录
+
+1. 首轮浏览器截图 `setup-minimal-step-1.png` 暴露 P2：超大 `01` 偏低且偏窄、正文与路径区域约高 30 px、底部进度线约低 45 px、主按钮偏宽。
+2. 调整步骤号缩放与位置、表单纵向节奏、路径/操作间距和底部进度位置，并缩短主按钮文案。
+3. 修正后将目标图与 `setup-minimal-step-1-v2.png` 再次并排对照；关键坐标已对齐，未留下 P0、P1 或 P2。步骤号受系统字体影响比目标窄约 32 px，属于非交互装饰的 P3 可接受差异。
+
+## 验证
+
+- TypeScript 检查通过。
+- Onboarding、App 与浏览器预览相关单元测试共 36 项通过。
+- renderer production build 通过。
+- `git diff --check` 通过。
+
+final result: passed
+
+---
+
+# Setup RSS 文案与连续滑动设计 QA
+
+## 对照基准
+
+- 用户反馈截图：`C:\Users\say\AppData\Local\Temp\codex-clipboard-aa8017a2-64ff-472f-8df6-15523ff0d8c7.png`
+- 更新后的第二步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-rss-step-2-2143x1949-v2.jpg`
+- 更新后的第一步：`C:\Users\say\.codex\visualizations\2026\08\20\01a01f50-b13c-7261-a5a0-b0598cfa3a43\setup-openmind-step-1-final.jpg`
+- 用户截图为 2143 × 2006 px，其中顶部 57 px 是 Electron 窗口边框；实现截图使用相同宽度和 2143 × 1949 CSS px 的 app-owned 区域，device scale 为 1。视觉判断忽略窗口边框，只比较应用内容。
+- 状态：浅色主题，必填数据目录已完成、RSS 安装尚未完成的第 2 步。
+
+## 对照证据
+
+用户截图与更新后的第 2 步在同一个比较输入中打开。完整视图已经清楚显示标题、说明、来源框、主按钮、安全提示和底部进度，不需要额外裁剪；浏览器 DOM 测量同时确认第二步标题位于 `y=827.60`，内容舞台宽 1040 px，未发生布局漂移。
+
+## Findings
+
+- 未发现可执行的 P0、P1 或 P2 问题。
+- 字体与排版：保持原有 display/system 字体、42 px 主标题、16 px 说明和既有字重；“安装 RSS 源”与“选择 OpenMind 数据目录”均未截断或破坏层级。
+- 间距与布局节奏：继续沿用参考图的 300 px 装饰数字 + 630 px 表单两列结构；移除次要导入动作后，主按钮独占操作行，留白更干净，没有改变路径框、说明或底部进度位置。
+- 色彩与 token：仍使用 `--app-chrome-bg`、`--text`、`--muted`、`--border-subtle` 和现有主按钮 token；未引入新色值。
+- 图像与图标：没有新增光栅内容资产；继续使用项目现有图标库，装饰数字仍是实时文字。
+- 文案与内容：第一步改为“选择 OpenMind 数据目录”；第二步标题和按钮改为“安装 RSS 源”，正文明确说明实际安装的是 RSS 采集所需官方组件，避免把 Git 仓库误称为单个 feed；未完成时不再呈现“打开导入入口”。
+- 动效与状态：Setup 期间 `WorkspaceHost` 与 `AiProvider` 保持稳定，同一个 `.onboarding-step-track` 节点从第 1 步推进到第 2、3 步；计算样式为 `transform 0.24s cubic-bezier(0.3, 0, 0, 1)`，轨道因此真实向左滑动，不再靠重挂后的入场假动画。离开 Setup 后才按最终 root scope 重挂 AI 状态。
+- 可访问性：每个状态仍只有一个可访问标题；非活动面板保留 `inert` 与 `aria-hidden`，推进后标题获得焦点。
+
+## 验证与比较历史
+
+1. 用户截图暴露三个明确问题：第 1→2 步因外层 key 重挂而没有真实轨道滑动；第二步仍使用 Skill 仓库技术文案；未安装时显示了“打开导入入口”。
+2. 将 Setup 路由和临时 AI Provider 稳定在同一棵组件树中，并用回归测试确认第 1→2→3 步的 track DOM identity 不变；同时更新 OpenMind/RSS 文案并移除 onboarding 导入入口。
+3. 浏览器重新完成“选择文件夹 → 确认绑定 → 安装 RSS 源 → Provider”流程：第 2 步和第 3 步标题均正确获得焦点，“打开导入入口”按钮计数始终为 0，控制台 error 日志为空。
+4. TypeScript 检查通过；Onboarding、App 与浏览器预览相关测试共 37 项通过；生产构建在本轮最终代码上通过。
 
 final result: passed

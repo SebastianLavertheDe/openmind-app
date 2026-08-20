@@ -3,23 +3,23 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  MymindPathError,
-  MymindPathResolver,
+  OpenmindPathError,
+  OpenmindPathResolver,
   computeRootId,
-  type MymindRootSnapshot
-} from "./mymind-path-resolver";
+  type OpenmindRootSnapshot
+} from "./openmind-path-resolver";
 
 let tmpRoot: string;
 
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-resolver-"));
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-resolver-"));
 });
 
 afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-function snapshot(dir = tmpRoot): MymindRootSnapshot {
+function snapshot(dir = tmpRoot): OpenmindRootSnapshot {
   return {
     rootPath: path.resolve(dir),
     rootId: computeRootId(path.resolve(dir)),
@@ -27,24 +27,24 @@ function snapshot(dir = tmpRoot): MymindRootSnapshot {
   };
 }
 
-function resolver(dir = tmpRoot, caseSensitive?: boolean): MymindPathResolver {
-  return new MymindPathResolver(snapshot(dir), caseSensitive === undefined ? {} : { caseSensitive });
+function resolver(dir = tmpRoot, caseSensitive?: boolean): OpenmindPathResolver {
+  return new OpenmindPathResolver(snapshot(dir), caseSensitive === undefined ? {} : { caseSensitive });
 }
 
-describe("MymindPathResolver — normalisation", () => {
-  it("accepts a logical path without the mymind/ prefix", () => {
+describe("OpenmindPathResolver — normalisation", () => {
+  it("accepts a logical path without the openmind/ prefix", () => {
     const r = resolver().resolve("article/20260805/x.md");
     expect(r.physicalPath).toBe(path.join(tmpRoot, "article", "20260805", "x.md"));
     expect(r.logicalPath).toBe("article/20260805/x.md");
   });
 
-  it("accepts a logical path with a single mymind/ prefix and strips it", () => {
-    const r = resolver().resolve("mymind/article/20260805/x.md");
+  it("accepts a logical path with a single openmind/ prefix and strips it", () => {
+    const r = resolver().resolve("openmind/article/20260805/x.md");
     expect(r.logicalPath).toBe("article/20260805/x.md");
   });
 
-  it("accepts just 'mymind' as the root", () => {
-    const r = resolver().resolve("mymind");
+  it("accepts just 'openmind' as the root", () => {
+    const r = resolver().resolve("openmind");
     expect(r.physicalPath).toBe(path.resolve(tmpRoot));
     expect(r.logicalPath).toBe("");
   });
@@ -60,7 +60,7 @@ describe("MymindPathResolver — normalisation", () => {
   });
 });
 
-describe("MymindPathResolver — rejection", () => {
+describe("OpenmindPathResolver — rejection", () => {
   const cases: Array<[string, string]> = [
     ["/etc/passwd", "absolute-path-forbidden"],
     ["/article/x.md", "absolute-path-forbidden"],
@@ -78,18 +78,18 @@ describe("MymindPathResolver — rejection", () => {
         resolver().resolve(input);
         throw new Error(`expected ${input} to be rejected`);
       } catch (e) {
-        expect(e).toBeInstanceOf(MymindPathError);
-        expect((e as MymindPathError).code).toBe(code);
+        expect(e).toBeInstanceOf(OpenmindPathError);
+        expect((e as OpenmindPathError).code).toBe(code);
       }
     });
   }
 
   it("rejects an empty path", () => {
-    expect(() => resolver().resolve("")).toThrow(MymindPathError);
+    expect(() => resolver().resolve("")).toThrow(OpenmindPathError);
   });
 });
 
-describe("MymindPathResolver — write mode", () => {
+describe("OpenmindPathResolver — write mode", () => {
   it("allows writing to a known content top-level", () => {
     const r = resolver().resolve("daily-summary/20260805_daily_summary.md", "write");
     expect(r.logicalPath).toBe("daily-summary/20260805_daily_summary.md");
@@ -108,8 +108,8 @@ describe("MymindPathResolver — write mode", () => {
       resolver().resolve("new-invented-toplevel/x.md", "write");
       throw new Error("expected unknown top-level write to be refused");
     } catch (e) {
-      expect(e).toBeInstanceOf(MymindPathError);
-      expect((e as MymindPathError).code).toBe("unknown-top-level-write");
+      expect(e).toBeInstanceOf(OpenmindPathError);
+      expect((e as OpenmindPathError).code).toBe("unknown-top-level-write");
     }
   });
 
@@ -121,7 +121,7 @@ describe("MymindPathResolver — write mode", () => {
   });
 });
 
-describe("MymindPathResolver — symlink safety", () => {
+describe("OpenmindPathResolver — symlink safety", () => {
   it("allows a symlink that stays inside the root", () => {
     fs.mkdirSync(path.join(tmpRoot, "article"), { recursive: true });
     fs.mkdirSync(path.join(tmpRoot, "article", "real"), { recursive: true });
@@ -136,7 +136,7 @@ describe("MymindPathResolver — symlink safety", () => {
   });
 
   it("rejects a symlink that escapes the root", () => {
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-outside-"));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-outside-"));
     try {
       fs.mkdirSync(path.join(tmpRoot, "article"), { recursive: true });
       fs.symlinkSync(
@@ -148,8 +148,8 @@ describe("MymindPathResolver — symlink safety", () => {
         resolver().resolve("article/escape/leaked.md");
         throw new Error("expected escaping symlink to be rejected");
       } catch (e) {
-        expect(e).toBeInstanceOf(MymindPathError);
-        expect((e as MymindPathError).code).toBe("symlink-escapes-root");
+        expect(e).toBeInstanceOf(OpenmindPathError);
+        expect((e as OpenmindPathError).code).toBe("symlink-escapes-root");
       }
     } finally {
       fs.rmSync(outside, { recursive: true, force: true });
@@ -163,21 +163,21 @@ describe("MymindPathResolver — symlink safety", () => {
   });
 });
 
-describe("MymindPathResolver — snapshot pinning", () => {
+describe("OpenmindPathResolver — snapshot pinning", () => {
   it("returns the pinned snapshot", () => {
     const snap = snapshot();
-    const r = new MymindPathResolver(snap);
+    const r = new OpenmindPathResolver(snap);
     expect(r.getRoot()).toBe(snap);
   });
 
   it("computeRootId is deterministic for the same path", () => {
-    const a = computeRootId("/srv/mymind");
-    const b = computeRootId("/srv/mymind");
+    const a = computeRootId("/srv/openmind");
+    const b = computeRootId("/srv/openmind");
     expect(a).toBe(b);
     expect(a.startsWith("root-")).toBe(true);
   });
 
   it("computeRootId differs for different paths", () => {
-    expect(computeRootId("/srv/mymind")).not.toBe(computeRootId("/srv/other"));
+    expect(computeRootId("/srv/openmind")).not.toBe(computeRootId("/srv/other"));
   });
 });

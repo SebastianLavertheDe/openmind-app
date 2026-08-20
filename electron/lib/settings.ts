@@ -2,11 +2,11 @@ import { app } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type MymindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
-import { computeRootId, MymindPathResolver } from "../paths/mymind-path-resolver";
-import { MymindLocationService, type MymindRootHealth } from "../paths/mymind-location-service";
+import { computeRootId, OpenmindPathResolver } from "../paths/openmind-path-resolver";
+import { OpenmindLocationService, type OpenmindRootHealth } from "../paths/openmind-location-service";
 
 const electronApp = app;
 
@@ -18,7 +18,7 @@ type RawSettings = Record<string, unknown>;
 /**
  * Settings schema version.
  *
- * v2: ADR-001 — `mymindRoot` (the actual mymind dir) plus an optional
+ * v2: ADR-001 — `openmindRoot` (the actual openmind dir) plus an optional
  *     `workspaceRoot`. The pre-release v1 `repoRoot` field was removed along
  *     with its migration shims; unknown keys in settings.json are ignored.
  */
@@ -33,7 +33,7 @@ export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
 /**
  * Cached AppPaths (singleton from AppPathsService). Computed once and reused
  * so settings.json resolution matches the rest of the app. Resolved lazily so
- * unit tests that set CCTOOLS_USER_DATA_DIR before importing this module
+ * unit tests that set OPENMIND_USER_DATA_DIR before importing this module
  * still get the right path.
  */
 let cachedAppPaths: AppPaths | null = null;
@@ -44,13 +44,13 @@ function appPaths(): AppPaths {
 
 // 进程内缓存的 root，按指纹（settings.json mtime + 显式 root env）失效，
 // 避免每个 IPC、甚至每个文件都重新读 settings.json + 多次 existsSync。
-let cachedMymindRoot: string | null = null;
+let cachedOpenmindRoot: string | null = null;
 let cachedFingerprint: string | null = null;
 
 function repoCacheFingerprint(): string {
   let mtime = 0;
   try { mtime = fs.statSync(settingsFile()).mtimeMs; } catch { /* settings.json 尚不存在 */ }
-  return `${process.env.CCTOOLS_MYMIND_ROOT || ""}\0${mtime}`;
+  return `${process.env.OPENMIND_ROOT || ""}\0${mtime}`;
 }
 
 function settingsFile(): string {
@@ -63,7 +63,7 @@ function settingsFile(): string {
 function legacySettingsFile(): string {
   const userData = electronApp?.getPath
     ? electronApp.getPath("userData")
-    : process.env.CCTOOLS_USER_DATA_DIR || path.join(os.tmpdir(), "cctools-desktop");
+    : process.env.OPENMIND_USER_DATA_DIR || path.join(os.tmpdir(), "openmind-desktop");
   return path.join(userData, "settings.json");
 }
 
@@ -105,14 +105,14 @@ function saveSettings(next: RawSettings): RawSettings {
 }
 
 /**
- * Whether a directory is a valid mymind root per ADR-001/002.
+ * Whether a directory is a valid openmind root per ADR-001/002.
  *
- * A valid mymind root is a readable, writable directory. It does NOT require
+ * A valid openmind root is a readable, writable directory. It does NOT require
  * `.claude/skills` (that was the legacy repo-coupling this refactor removes).
  * Existing content-contract subdirs (article/, creative/, ...) may be absent
  * — they are create-if-needed (ADR-002), not bind prerequisites.
  */
-function isValidMymindRoot(candidate: unknown): boolean {
+function isValidOpenmindRoot(candidate: unknown): boolean {
   if (!candidate || typeof candidate !== "string") return false;
   try {
     const resolved = path.resolve(String(candidate));
@@ -126,7 +126,7 @@ function isValidMymindRoot(candidate: unknown): boolean {
 }
 
 function canonicalDirectory(candidate: unknown): string | null {
-  if (!isValidMymindRoot(candidate)) return null;
+  if (!isValidOpenmindRoot(candidate)) return null;
   try { return fs.realpathSync(path.resolve(String(candidate))); }
   catch { return null; }
 }
@@ -134,7 +134,7 @@ function canonicalDirectory(candidate: unknown): string | null {
 function assertRootDoesNotConflict(root: string, workspaceRoot?: string): void {
   const conflicts = detectPathConflicts(appPaths(), root, workspaceRoot);
   if (conflicts.length) {
-    throw new Error("mymind 或工作区不能位于应用私有数据目录内。");
+    throw new Error("openmind 或工作区不能位于应用私有数据目录内。");
   }
 }
 
@@ -160,68 +160,68 @@ function parseWslRepoPath(repoRoot: unknown): WslRepoPath | null {
 }
 
 /**
- * Resolve the actual `mymind` directory.
+ * Resolve the actual `openmind` directory.
  *
  * Resolution order:
- *   1. explicit `mymindRoot` setting
- *   2. `CCTOOLS_MYMIND_ROOT` env
+ *   1. explicit `openmindRoot` setting
+ *   2. `OPENMIND_ROOT` env
  *
  * Checkout-relative discovery is intentionally excluded here: merely running
- * the app beside a `mymind` directory must not bypass the first-start gate.
+ * the app beside a `openmind` directory must not bypass the first-start gate.
  * Returns the empty string when no explicit binding resolves.
  */
-function resolveMymindRoot(): string {
+function resolveOpenmindRoot(): string {
   const fingerprint = repoCacheFingerprint();
-  if (cachedMymindRoot !== null && cachedFingerprint === fingerprint) return cachedMymindRoot;
+  if (cachedOpenmindRoot !== null && cachedFingerprint === fingerprint) return cachedOpenmindRoot;
   const settings = loadSettings();
   const candidates: unknown[] = [
-    settings.mymindRoot,
-    process.env.CCTOOLS_MYMIND_ROOT
+    settings.openmindRoot,
+    process.env.OPENMIND_ROOT
   ];
   for (const candidate of candidates) {
     const canonical = canonicalDirectory(candidate);
     if (canonical) {
-      cachedMymindRoot = canonical;
+      cachedOpenmindRoot = canonical;
       cachedFingerprint = fingerprint;
-      return cachedMymindRoot;
+      return cachedOpenmindRoot;
     }
   }
-  cachedMymindRoot = "";
+  cachedOpenmindRoot = "";
   cachedFingerprint = fingerprint;
-  return cachedMymindRoot;
+  return cachedOpenmindRoot;
 }
 
 /**
- * Set the mymind root. Persists `mymindRoot`; a stale v1 `repoRoot` key, if
+ * Set the openmind root. Persists `openmindRoot`; a stale v1 `repoRoot` key, if
  * present, is dropped so future reads are unambiguous.
  */
-function setMymindRoot(candidate: string): string {
+function setOpenmindRoot(candidate: string): string {
   const canonical = canonicalDirectory(normalizeRepoRoot(candidate));
   if (!canonical) {
     throw new Error(messages.errors.repo.invalidDirectory);
   }
   assertRootDoesNotConflict(canonical, resolveWorkspaceRoot());
   const { repoRoot: _staleRepoRoot, ...current } = loadSettings();
-  const previous = typeof current.mymindRoot === "string" ? canonicalDirectory(current.mymindRoot) : null;
-  const generation = Number.isInteger(current.mymindRootGeneration) && Number(current.mymindRootGeneration) > 0
-    ? Number(current.mymindRootGeneration) + (previous === canonical ? 0 : 1)
+  const previous = typeof current.openmindRoot === "string" ? canonicalDirectory(current.openmindRoot) : null;
+  const generation = Number.isInteger(current.openmindRootGeneration) && Number(current.openmindRootGeneration) > 0
+    ? Number(current.openmindRootGeneration) + (previous === canonical ? 0 : 1)
     : 1;
-  saveSettings({ ...current, mymindRoot: canonical, mymindRootGeneration: generation });
+  saveSettings({ ...current, openmindRoot: canonical, openmindRootGeneration: generation });
   invalidateRootCache();
   return canonical;
 }
 
-/** Canonicalize a mymind root candidate (bare directory, readable + writable). */
-function resolveMymindCandidate(candidate: unknown): string | null {
+/** Canonicalize a openmind root candidate (bare directory, readable + writable). */
+function resolveOpenmindCandidate(candidate: unknown): string | null {
   return canonicalDirectory(normalizeRepoRoot(candidate));
 }
 
-/** Optional ADR-001 workspace root (AI/code workspace), independent of mymind. */
-function resolveWorkspaceRoot(): string {
+/** Explicitly bound workspace root only (setting/env); "" when unbound. */
+function resolveExplicitWorkspaceRoot(): string {
   const settings = loadSettings();
   const candidates: unknown[] = [
     settings.workspaceRoot,
-    process.env.CCTOOLS_WORKSPACE_ROOT
+    process.env.OPENMIND_WORKSPACE_ROOT
   ];
   for (const candidate of candidates) {
     if (candidate && typeof candidate === "string" && fs.existsSync(path.resolve(candidate))) {
@@ -231,13 +231,24 @@ function resolveWorkspaceRoot(): string {
   return "";
 }
 
+/**
+ * AI session workspace root. Unbound workspaces fall back to the bound
+ * openmind content root, so AI sessions work inside the user's content by
+ * default; an explicit binding still takes precedence. Provider-config
+ * discovery must NOT use this — it follows the code workspace (ADR-001),
+ * shared with the Linux crontab, via {@link resolveExplicitWorkspaceRoot}.
+ */
+function resolveWorkspaceRoot(): string {
+  return resolveExplicitWorkspaceRoot() || resolveOpenmindRoot();
+}
+
 function setWorkspaceRoot(candidate: string): string {
   const normalised = normalizeRepoRoot(candidate);
   const canonical = canonicalDirectory(normalised) || (fs.existsSync(normalised) ? fs.realpathSync(normalised) : null);
   if (!canonical) {
     throw new Error(messages.errors.repo.invalidDirectory);
   }
-  assertRootDoesNotConflict(resolveMymindRoot() || path.join(os.tmpdir(), "cctools-no-mymind"), canonical);
+  assertRootDoesNotConflict(resolveOpenmindRoot() || path.join(os.tmpdir(), "openmind-no-openmind"), canonical);
   const current = loadSettings();
   saveSettings({ ...current, workspaceRoot: canonical });
   invalidateRootCache();
@@ -245,28 +256,28 @@ function setWorkspaceRoot(candidate: string): string {
 }
 
 function invalidateRootCache(): void {
-  cachedMymindRoot = null;
+  cachedOpenmindRoot = null;
   cachedFingerprint = null;
 }
 
-function getMymindRootHealth(): MymindRootHealth {
-  return new MymindLocationService({ paths: appPaths() }).inspect(resolveMymindRoot());
+function getOpenmindRootHealth(): OpenmindRootHealth {
+  return new OpenmindLocationService({ paths: appPaths() }).inspect(resolveOpenmindRoot());
 }
 
 /**
  * Read-only root binding dry-run. It intentionally shares the same inspection
  * and conflict rules as bind/set, but does not write settings or content.
  */
-function previewMymindRoot(candidate: string, activeRunCount = 0): MymindRootPreview {
+function previewOpenmindRoot(candidate: string, activeRunCount = 0): OpenmindRootPreview {
   const normalized = normalizeRepoRoot(candidate);
-  const canonicalRoot = resolveMymindCandidate(normalized);
-  const inspected = new MymindLocationService({ paths: appPaths(), activeRunCount: () => activeRunCount })
+  const canonicalRoot = resolveOpenmindCandidate(normalized);
+  const inspected = new OpenmindLocationService({ paths: appPaths(), activeRunCount: () => activeRunCount })
     .inspect(canonicalRoot || normalized);
   const blockingReasons = [...inspected.warnings];
   if (!canonicalRoot) blockingReasons.unshift("候选路径不存在、不可访问或不是目录。");
-  if (!inspected.readable && !blockingReasons.includes("mymind 根目录不可读。")) blockingReasons.push("mymind 根目录不可读。");
-  if (!inspected.writable && !blockingReasons.includes("mymind 根目录不可写。")) blockingReasons.push("mymind 根目录不可写。");
-  if (activeRunCount > 0) blockingReasons.push("有运行中的任务，暂时不能切换 mymind 根目录。");
+  if (!inspected.readable && !blockingReasons.includes("openmind 根目录不可读。")) blockingReasons.push("openmind 根目录不可读。");
+  if (!inspected.writable && !blockingReasons.includes("openmind 根目录不可写。")) blockingReasons.push("openmind 根目录不可写。");
+  if (activeRunCount > 0) blockingReasons.push("有运行中的任务，暂时不能切换 openmind 根目录。");
   return {
     candidate: normalized,
     canonicalRoot,
@@ -276,48 +287,48 @@ function previewMymindRoot(candidate: string, activeRunCount = 0): MymindRootPre
   };
 }
 
-function getMymindRootSnapshot(): { rootPath: string; rootId: string; rootGeneration: number } | null {
-  const root = resolveMymindRoot();
+function getOpenmindRootSnapshot(): { rootPath: string; rootId: string; rootGeneration: number } | null {
+  const root = resolveOpenmindRoot();
   if (!root) return null;
   return {
     rootPath: root,
     rootId: computeRootId(root),
-    rootGeneration: Number(loadSettings().mymindRootGeneration) || 1
+    rootGeneration: Number(loadSettings().openmindRootGeneration) || 1
   };
 }
 
 /** Resolve an app-private state file scoped to the active root binding. */
 function appPrivateStatePath(name: string): string {
-  const root = resolveMymindRoot();
+  const root = resolveOpenmindRoot();
   const raw = loadSettings();
-  const configuredRoot = typeof raw.mymindRoot === "string" ? canonicalDirectory(raw.mymindRoot) : null;
+  const configuredRoot = typeof raw.openmindRoot === "string" ? canonicalDirectory(raw.openmindRoot) : null;
   const hasV2Binding = Boolean(root && configuredRoot && configuredRoot === root);
-  // Before a valid mymind binding exists, use an app-private workspace bucket
+  // Before a valid openmind binding exists, use an app-private workspace bucket
   // rather than a repo-coupled location.
   const stateScope = hasV2Binding
     ? computeRootId(root!)
     : computeRootId(resolveWorkspaceRoot() || "workspace");
-  return path.join(appPaths().state, stateScope, ".cctools", name);
+  return path.join(appPaths().state, stateScope, ".openmind", name);
 }
 
 /**
- * Return a directory `R` such that `path.join(R, "mymind", ...)` lands inside
- * the current mymind root — i.e. the mymind dir's parent. With no mymind root
+ * Return a directory `R` such that `path.join(R, "openmind", ...)` lands inside
+ * the current openmind root — i.e. the openmind dir's parent. With no openmind root
  * bound this falls back to the dev checkout parent. Display/UI compatibility
- * only; content paths must resolve against {@link resolveMymindRoot}.
+ * only; content paths must resolve against {@link resolveOpenmindRoot}.
  */
 function findRepoRoot(): string {
-  const mymind = resolveMymindRoot();
-  if (mymind) return normalizeRepoRoot(path.dirname(mymind));
+  const openmind = resolveOpenmindRoot();
+  if (openmind) return normalizeRepoRoot(path.dirname(openmind));
   return normalizeRepoRoot(path.resolve(APP_ROOT, ".."));
 }
 
 function ensureInsideRepo(relativeOrAbsolute: string): string {
   const raw = String(relativeOrAbsolute || "");
   const logical = raw.replaceAll("\\", "/");
-  const mymind = resolveMymindRoot();
-  const isMymindPath = logical === "mymind" || logical.startsWith("mymind/");
-  if (isMymindPath && mymind) return resolveMymindPath(logical);
+  const openmind = resolveOpenmindRoot();
+  const isOpenmindPath = logical === "openmind" || logical.startsWith("openmind/");
+  if (isOpenmindPath && openmind) return resolveOpenmindPath(logical);
   const base = resolveWorkspaceRoot() || findRepoRoot();
   const candidate = raw;
   const resolved = path.resolve(base, candidate);
@@ -328,33 +339,33 @@ function ensureInsideRepo(relativeOrAbsolute: string): string {
   return resolved;
 }
 
-/** Resolve a logical mymind path without exposing the physical root to callers. */
-function resolveMymindPath(logicalPath: string, mode: "read" | "write" = "read"): string {
-  const mymind = resolveMymindRoot();
-  if (!mymind) throw new Error(messages.errors.repo.selectValidFirst);
+/** Resolve a logical openmind path without exposing the physical root to callers. */
+function resolveOpenmindPath(logicalPath: string, mode: "read" | "write" = "read"): string {
+  const openmind = resolveOpenmindRoot();
+  if (!openmind) throw new Error(messages.errors.repo.selectValidFirst);
   const snapshot = {
-    rootPath: mymind,
-    rootId: computeRootId(mymind),
+    rootPath: openmind,
+    rootId: computeRootId(openmind),
     rootGeneration: 1
   } as const;
-  return new MymindPathResolver(snapshot).resolve(logicalPath, mode).physicalPath;
+  return new OpenmindPathResolver(snapshot).resolve(logicalPath, mode).physicalPath;
 }
 
-/** Convert a physical path inside the active mymind root to a logical path. */
-function relativeToMymind(absolutePath: string): string {
-  const mymind = resolveMymindRoot();
-  if (!mymind) throw new Error(messages.errors.repo.selectValidFirst);
+/** Convert a physical path inside the active openmind root to a logical path. */
+function relativeToOpenmind(absolutePath: string): string {
+  const openmind = resolveOpenmindRoot();
+  if (!openmind) throw new Error(messages.errors.repo.selectValidFirst);
   const resolved = path.resolve(absolutePath);
-  const relative = path.relative(mymind, resolved);
+  const relative = path.relative(openmind, resolved);
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(messages.errors.repo.pathOutsideProject);
   }
-  return `mymind/${relative.split(path.sep).join("/")}`;
+  return `openmind/${relative.split(path.sep).join("/")}`;
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
-  mymindRoot: "",
+  openmindRoot: "",
   workspaceRoot: "",
   themeMode: "light",
   accentColor: "#2563eb",
@@ -370,7 +381,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
   defaultWorkDir: "",
-  notesDir: "mymind",
+  notesDir: "openmind",
   browserAutomationEnabled: false,
   browserReuseExistingTabs: true,
   browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
@@ -409,10 +420,10 @@ function updatePreferences(patch: Partial<UserPreferences>): UserPreferences {
   const current = loadSettings();
   const preferences = getPreferences();
   // Preserve root settings across a partial update: a preference patch must
-  // not wipe mymindRoot/workspaceRoot. Explicit root changes go through
-  // setMymindRoot/setWorkspaceRoot, not updatePreferences.
+  // not wipe openmindRoot/workspaceRoot. Explicit root changes go through
+  // setOpenmindRoot/setWorkspaceRoot, not updatePreferences.
   const preserveRoots = {
-    mymindRoot: patch?.mymindRoot ?? current.mymindRoot ?? preferences.mymindRoot ?? "",
+    openmindRoot: patch?.openmindRoot ?? current.openmindRoot ?? preferences.openmindRoot ?? "",
     workspaceRoot: patch?.workspaceRoot ?? current.workspaceRoot ?? preferences.workspaceRoot ?? ""
   };
   const next = normalizePreferences({ ...preferences, ...patch, ...preserveRoots }, true);
@@ -424,9 +435,9 @@ function resetPreferences(section?: string): UserPreferences {
   const current = loadSettings();
   if (!section) {
     // Full reset preserves only the root bindings (ADR-001: never lose the
-    // user's mymind selection on a settings reset).
+    // user's openmind selection on a settings reset).
     saveSettings({
-      mymindRoot: current.mymindRoot || "",
+      openmindRoot: current.openmindRoot || "",
       workspaceRoot: current.workspaceRoot || ""
     });
     return getPreferences();
@@ -438,7 +449,7 @@ function resetPreferences(section?: string): UserPreferences {
   saveSettings({
     ...current,
     ...defaults,
-    mymindRoot: current.mymindRoot || "",
+    openmindRoot: current.openmindRoot || "",
     workspaceRoot: current.workspaceRoot || ""
   });
   return getPreferences();
@@ -447,16 +458,16 @@ function resetPreferences(section?: string): UserPreferences {
 function importPreferences(filePath: string): { imported: true; preferences: UserPreferences } {
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as RawSettings;
   const current = loadSettings();
-  // Imported mymindRoot must be a real directory, else keep the current one.
-  const importedMymind = typeof raw.mymindRoot === "string" && (!raw.mymindRoot || isValidMymindRoot(raw.mymindRoot))
-    ? raw.mymindRoot
-    : current.mymindRoot || "";
+  // Imported openmindRoot must be a real directory, else keep the current one.
+  const importedOpenmind = typeof raw.openmindRoot === "string" && (!raw.openmindRoot || isValidOpenmindRoot(raw.openmindRoot))
+    ? raw.openmindRoot
+    : current.openmindRoot || "";
   const importedWorkspace = typeof raw.workspaceRoot === "string" && (!raw.workspaceRoot || fs.existsSync(raw.workspaceRoot))
     ? raw.workspaceRoot
     : current.workspaceRoot || "";
   const next = normalizePreferences({
     ...raw,
-    mymindRoot: importedMymind,
+    openmindRoot: importedOpenmind,
     workspaceRoot: importedWorkspace
   }, true);
   saveSettings({ ...current, ...next });
@@ -468,7 +479,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
   const source = raw && typeof raw === "object" ? raw as RawSettings : {};
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
-    mymindRoot: stringPref(source.mymindRoot, DEFAULT_PREFERENCES.mymindRoot, strict, "mymindRoot", 4096),
+    openmindRoot: stringPref(source.openmindRoot, DEFAULT_PREFERENCES.openmindRoot, strict, "openmindRoot", 4096),
     workspaceRoot: stringPref(source.workspaceRoot, DEFAULT_PREFERENCES.workspaceRoot, strict, "workspaceRoot", 4096),
     themeMode: enumPref(source.themeMode, ["dark", "light"], DEFAULT_PREFERENCES.themeMode, strict, "themeMode"),
     accentColor: colorPref(source.accentColor, DEFAULT_PREFERENCES.accentColor, strict),
@@ -487,10 +498,10 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
     browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),
-    // Migrate the old implicit `.cctools` default to an explicit user-owned
+    // Migrate the old implicit `.openmind` default to an explicit user-owned
     // workspace output. A deliberately customized path remains untouched.
     browserEvidenceDir: safeRelativePathPref(
-      source.browserEvidenceDir === ".cctools/browser-evidence" ? DEFAULT_BROWSER_EVIDENCE_DIR : source.browserEvidenceDir,
+      source.browserEvidenceDir === ".openmind/browser-evidence" ? DEFAULT_BROWSER_EVIDENCE_DIR : source.browserEvidenceDir,
       DEFAULT_PREFERENCES.browserEvidenceDir,
       strict,
       "browserEvidenceDir"
@@ -599,21 +610,22 @@ export {
   settingsFile,
   loadSettings,
   saveSettings,
-  isValidMymindRoot,
+  isValidOpenmindRoot,
   normalizeRepoRoot,
   parseWslRepoPath,
-  setMymindRoot,
-  previewMymindRoot,
+  setOpenmindRoot,
+  previewOpenmindRoot,
   setWorkspaceRoot,
   findRepoRoot,
-  resolveMymindRoot,
+  resolveOpenmindRoot,
   resolveWorkspaceRoot,
-  getMymindRootHealth,
-  getMymindRootSnapshot,
+  resolveExplicitWorkspaceRoot,
+  getOpenmindRootHealth,
+  getOpenmindRootSnapshot,
   appPrivateStatePath,
   ensureInsideRepo,
-  resolveMymindPath,
-  relativeToMymind,
+  resolveOpenmindPath,
+  relativeToOpenmind,
   getPreferences,
   updatePreferences,
   resetPreferences,

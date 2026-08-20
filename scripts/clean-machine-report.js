@@ -4,10 +4,10 @@ const path = require("path");
 
 const appRoot = path.resolve(__dirname, "..");
 const buildRoot = path.join(appRoot, ".build");
-const matrixModulePath = path.resolve(process.env.CCTOOLS_CLEAN_MACHINE_MATRIX_FILE || path.join(buildRoot, "electron", "electron", "paths", "clean-machine-smoke.js"));
-const evidencePath = path.resolve(process.env.CCTOOLS_CLEAN_MACHINE_EVIDENCE_FILE || path.join(appRoot, "docs", "CLEAN_MACHINE_EVIDENCE.md"));
-const reportOutput = path.resolve(process.env.CCTOOLS_CLEAN_MACHINE_OUTPUT || path.join(buildRoot, "clean-machine-report.json"));
-const strict = process.env.CCTOOLS_CLEAN_MACHINE_STRICT === "1";
+const matrixModulePath = path.resolve(process.env.OPENMIND_CLEAN_MACHINE_MATRIX_FILE || path.join(buildRoot, "electron", "electron", "paths", "clean-machine-smoke.js"));
+const evidencePath = path.resolve(process.env.OPENMIND_CLEAN_MACHINE_EVIDENCE_FILE || path.join(appRoot, "docs", "CLEAN_MACHINE_EVIDENCE.md"));
+const reportOutput = path.resolve(process.env.OPENMIND_CLEAN_MACHINE_OUTPUT || path.join(buildRoot, "clean-machine-report.json"));
+const strict = process.env.OPENMIND_CLEAN_MACHINE_STRICT === "1";
 const REQUIRED_EVIDENCE_FIELDS = ["date", "os", "build", "package", "sha256", "preconditions", "outcome", "evidence"];
 const VALID_STATUS = new Set(["pending", "blocked", "passed"]);
 
@@ -50,7 +50,7 @@ const complete = declaredStatus === "complete" && missing.length === 0;
 const report = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
-  kind: "cctools-clean-machine-evidence",
+  kind: "openmind-clean-machine-evidence",
   strict,
   status: complete ? "complete" : "manual-required",
   declaredStatus,
@@ -73,7 +73,7 @@ if (strict && !complete) {
 console.log(`Clean-machine report written: ${report.status} (${passedCount}/${scenarios.length} scenarios passed).`);
 
 function readMarker() {
-  const match = evidence.match(/<!--\s*cctools-clean-machine-status:\s*([^>]*)-->/i);
+  const match = evidence.match(/<!--\s*openmind-clean-machine-status:\s*([^>]*)-->/i);
   return match ? match[1].trim().toLowerCase() : "";
 }
 

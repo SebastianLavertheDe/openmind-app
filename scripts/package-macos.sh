@@ -6,7 +6,7 @@ source_root="$(cd "$script_dir/.." && pwd -P)"
 source_dist="$source_root/dist"
 temp_root="${TMPDIR:-/tmp}"
 temp_root="${temp_root%/}"
-stage_root="${1:-$temp_root/cctools-desktop-macos-package}"
+stage_root="${1:-$temp_root/openmind-desktop-macos-package}"
 keep_stage="${KEEP_STAGE:-0}"
 
 case "$stage_root" in
@@ -34,8 +34,8 @@ rsync -a \
   --exclude 'node_modules' \
   --exclude 'dist' \
   --exclude '.build' \
-  --exclude 'mymind' \
-  --exclude '.cctools-userdata' \
+  --exclude 'openmind' \
+  --exclude '.openmind-userdata' \
   --exclude '*.log' \
   "$source_root/" "$stage_root/"
 
@@ -58,7 +58,7 @@ ELECTRON_OVERRIDE_DIST_PATH="$stage_root/electron-runtime-placeholder" npm run r
 node node_modules/electron-builder/cli.js --mac --publish never
 npm run package:safety
 
-packaged_app="$(find "$stage_root/dist" -type f -path '*/Contents/MacOS/CC Tools' -print -quit)"
+packaged_app="$(find "$stage_root/dist" -type f -path '*/Contents/MacOS/OpenMind' -print -quit)"
 if [[ -z "$packaged_app" ]]; then
   echo "Packaged macOS app executable is missing" >&2
   exit 1

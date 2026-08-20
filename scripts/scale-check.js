@@ -12,10 +12,10 @@ if (!fs.existsSync(sessionStorePath)) {
 }
 
 const { SessionStore } = require(sessionStorePath);
-const sessionCount = Number(process.env.CCTOOLS_SCALE_SESSIONS || 1000);
-const eventCount = Number(process.env.CCTOOLS_SCALE_EVENTS || 10000);
-const largeOutputBytes = Number(process.env.CCTOOLS_SCALE_OUTPUT_BYTES || 1024 * 1024);
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-scale-"));
+const sessionCount = Number(process.env.OPENMIND_SCALE_SESSIONS || 1000);
+const eventCount = Number(process.env.OPENMIND_SCALE_EVENTS || 10000);
+const largeOutputBytes = Number(process.env.OPENMIND_SCALE_OUTPUT_BYTES || 1024 * 1024);
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-scale-"));
 
 const timings = {};
 

@@ -3,10 +3,10 @@ const path = require("path");
 
 const appRoot = path.resolve(__dirname, "..");
 const buildRoot = path.join(appRoot, ".build");
-const checklistPath = path.resolve(process.env.CCTOOLS_PROVIDER_E2E_CHECKLIST_FILE || path.join(appRoot, "docs", "PROVIDER_E2E_CHECKLIST.md"));
-const reportOutput = path.resolve(process.env.CCTOOLS_PROVIDER_E2E_OUTPUT || path.join(buildRoot, "provider-e2e-report.json"));
+const checklistPath = path.resolve(process.env.OPENMIND_PROVIDER_E2E_CHECKLIST_FILE || path.join(appRoot, "docs", "PROVIDER_E2E_CHECKLIST.md"));
+const reportOutput = path.resolve(process.env.OPENMIND_PROVIDER_E2E_OUTPUT || path.join(buildRoot, "provider-e2e-report.json"));
 const checklist = fs.readFileSync(checklistPath, "utf8");
-const strict = process.env.CCTOOLS_PROVIDER_E2E_STRICT === "1";
+const strict = process.env.OPENMIND_PROVIDER_E2E_STRICT === "1";
 const parsed = parseChecklist(checklist);
 const incompleteCount = parsed.cells.filter((cell) => cell.status !== "passed" || !cell.evidenceComplete).length;
 const pendingCount = parsed.cells.filter((cell) => cell.status === "pending").length;

@@ -27,7 +27,7 @@ export type CreativeReviewDimension = "structure" | "accuracy" | "readability" |
 export type CreativeTopicSectionId = "recommendation" | "xiaohongshu" | "wechat" | "pool";
 
 /** 文稿库根目录（相对 repoRoot）。 */
-export const CREATIVE_WORKSPACE_SEGMENTS = ["mymind", "creative", "01-内容生产", "文稿库"] as const;
+export const CREATIVE_WORKSPACE_SEGMENTS = ["openmind", "creative", "01-内容生产", "文稿库"] as const;
 
 /** 磁盘 stage 目录名 ↔ stage id（扫描/移动/路径解析共用，勿 i18n）。 */
 export const CREATIVE_STAGE_SCAN_FOLDERS: ReadonlyArray<{ diskFolder: string; stage: CreativeStageId }> = [

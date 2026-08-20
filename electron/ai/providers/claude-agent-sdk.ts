@@ -417,7 +417,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       systemPrompt: { type: "preset", preset: "claude_code", ...(systemAppend ? { append: systemAppend } : {}) },
       ...(browserServer ? {
         mcpServers: {
-          cctools_browser: {
+          openmind_browser: {
             type: "stdio",
             command: browserServer.command,
             args: browserServer.args,

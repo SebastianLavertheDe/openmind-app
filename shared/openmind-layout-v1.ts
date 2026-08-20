@@ -1,9 +1,9 @@
 /**
- * mymind layout contract v1 — machine-readable source of truth.
+ * openmind layout contract v1 — machine-readable source of truth.
  *
  * Frozen by ADR-002. Do NOT rename, reorder, or reclassify entries without
- * bumping to mymind-layout-v2 and writing a migration. This object is the
- * authoritative input to {@link MymindPathResolver} and `RootHealth`.
+ * bumping to openmind-layout-v2 and writing a migration. This object is the
+ * authoritative input to {@link OpenmindPathResolver} and `RootHealth`.
  *
  * Categories:
  * - initializeRequired: created when the user explicitly "initialises a new
@@ -14,23 +14,23 @@
  *   `.obsidian`). Never created, never required, never deleted.
  *
  * `contentContract` = initializeRequired ∪ createIfNeeded. Manifest
- * `mymind.write` patterns must be a subset of `contentContract` top-level
+ * `openmind.write` patterns must be a subset of `contentContract` top-level
  * names; the resolver rejects writes that would create a new top-level
  * directory not in this list.
  */
 
-export const MYMIND_LAYOUT_VERSION = "mymind-layout-v1" as const;
+export const OPENMIND_LAYOUT_VERSION = "openmind-layout-v1" as const;
 
-/** Top-level mymind entries that are part of the content contract. */
-export type MymindEntryCategory =
+/** Top-level openmind entries that are part of the content contract. */
+export type OpenmindEntryCategory =
   | "initialize-required"
   | "create-if-needed"
   | "optional-preserve-only";
 
-export interface MymindLayoutEntry {
-  /** Logical relative path from mymindRoot, using forward slashes. */
+export interface OpenmindLayoutEntry {
+  /** Logical relative path from openmindRoot, using forward slashes. */
   readonly logicalPath: string;
-  readonly category: MymindEntryCategory;
+  readonly category: OpenmindEntryCategory;
   /** Owning skill / producer; informational. */
   readonly owner: string;
   /** Human-readable note; safe to show in UI. */
@@ -41,7 +41,7 @@ export interface MymindLayoutEntry {
  * The frozen v1 entry table. Derived from the on-disk layout audited on
  * 2026-08-05 and from the 16 skills' documented relative-path conventions.
  */
-export const MYMIND_LAYOUT_V1: readonly MymindLayoutEntry[] = [
+export const OPENMIND_LAYOUT_V1: readonly OpenmindLayoutEntry[] = [
   // --- content contract: create-if-needed ---
   { logicalPath: "article", category: "create-if-needed", owner: "rss-article-saver", note: "RSS/article output, organised by YYYYMMDD/" },
   { logicalPath: "creative", category: "create-if-needed", owner: "creative-writing", note: "Creative workspace root" },
@@ -52,7 +52,7 @@ export const MYMIND_LAYOUT_V1: readonly MymindLayoutEntry[] = [
   { logicalPath: "post", category: "create-if-needed", owner: "x-following-fetcher", note: "X/post output, organised by YYYYMMDD/" },
   { logicalPath: "reddit", category: "create-if-needed", owner: "reddit-fetcher", note: "Reddit output, organised by YYYYMMDD/" },
   { logicalPath: "wiki", category: "create-if-needed", owner: "knowledge-wiki-compiler", note: "Compiled wiki" },
-  { logicalPath: "video", category: "create-if-needed", owner: "video-burnin-subtitles", note: "Existing video contract; mymind/video/<job>/" },
+  { logicalPath: "video", category: "create-if-needed", owner: "video-burnin-subtitles", note: "Existing video contract; openmind/video/<job>/" },
 
   // --- optional / tool-private ---
   { logicalPath: ".claude", category: "optional-preserve-only", owner: "(tool)", note: "May exist; never created by app" },
@@ -61,26 +61,26 @@ export const MYMIND_LAYOUT_V1: readonly MymindLayoutEntry[] = [
 ] as const;
 
 /** All logical paths in the contract (normalised forward-slash form). */
-export const MYMIND_LAYOUT_PATHS: readonly string[] = MYMIND_LAYOUT_V1.map((e) => e.logicalPath);
+export const OPENMIND_LAYOUT_PATHS: readonly string[] = OPENMIND_LAYOUT_V1.map((e) => e.logicalPath);
 
 /** Top-level directory names that the contract allows to be created. */
-export const MYMIND_ALLOWED_TOP_LEVEL_DIRS: ReadonlySet<string> = new Set(
-  MYMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0])
+export const OPENMIND_ALLOWED_TOP_LEVEL_DIRS: ReadonlySet<string> = new Set(
+  OPENMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0])
 );
 
 /** Top-level dirs that bind() health classifies as "missing create-if-needed". */
-export const MYMIND_CREATE_IF_NEEDED_TOP_LEVEL: readonly string[] = MYMIND_LAYOUT_V1
+export const OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V1
   .filter((e) => e.category === "create-if-needed" && !e.logicalPath.includes("/"))
   .map((e) => e.logicalPath);
 
 /** Top-level dirs that bind() classifies as "optional observed". */
-export const MYMIND_OPTIONAL_TOP_LEVEL: readonly string[] = MYMIND_LAYOUT_V1
+export const OPENMIND_OPTIONAL_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V1
   .filter((e) => e.category === "optional-preserve-only" && !e.logicalPath.includes("/"))
   .map((e) => e.logicalPath);
 
 /** Look up an entry by logical path (exact match). */
-export function findLayoutEntry(logicalPath: string): MymindLayoutEntry | undefined {
-  return MYMIND_LAYOUT_V1.find((e) => e.logicalPath === logicalPath);
+export function findLayoutEntry(logicalPath: string): OpenmindLayoutEntry | undefined {
+  return OPENMIND_LAYOUT_V1.find((e) => e.logicalPath === logicalPath);
 }
 
 /**

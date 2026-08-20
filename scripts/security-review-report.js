@@ -3,10 +3,10 @@ const path = require("path");
 
 const appRoot = path.resolve(__dirname, "..");
 const buildRoot = path.join(appRoot, ".build");
-const reviewPath = path.resolve(process.env.CCTOOLS_SECURITY_REVIEW_FILE || path.join(appRoot, "docs", "SECURITY_REVIEW.md"));
-const reportOutput = path.resolve(process.env.CCTOOLS_SECURITY_REVIEW_OUTPUT || path.join(buildRoot, "security-review-report.json"));
+const reviewPath = path.resolve(process.env.OPENMIND_SECURITY_REVIEW_FILE || path.join(appRoot, "docs", "SECURITY_REVIEW.md"));
+const reportOutput = path.resolve(process.env.OPENMIND_SECURITY_REVIEW_OUTPUT || path.join(buildRoot, "security-review-report.json"));
 const review = fs.readFileSync(reviewPath, "utf8");
-const strict = process.env.CCTOOLS_SECURITY_REVIEW_STRICT === "1";
+const strict = process.env.OPENMIND_SECURITY_REVIEW_STRICT === "1";
 const REQUIRED_FINDING_PRIORITIES = new Map([
   ["SEC-001", "P1"],
   ["SEC-002", "P1"],
@@ -97,12 +97,12 @@ console.log(`Security Review report written: ${report.status}${openP0P1.length ?
 
 function readMarker(name) {
   const markerNames = {
-    status: "cctools-security-review-status",
-    reviewer: "cctools-security-reviewer",
-    "reviewed-at": "cctools-security-reviewed-at",
-    independence: "cctools-security-review-independence"
+    status: "openmind-security-review-status",
+    reviewer: "openmind-security-reviewer",
+    "reviewed-at": "openmind-security-reviewed-at",
+    independence: "openmind-security-review-independence"
   };
-  const markerName = markerNames[name] || `cctools-security-review-${name}`;
+  const markerName = markerNames[name] || `openmind-security-review-${name}`;
   const match = review.match(new RegExp(`<!--\\s*${markerName}:\\s*([^>]*)-->`, "i"));
   return match ? match[1].trim() : "";
 }

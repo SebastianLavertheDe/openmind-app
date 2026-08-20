@@ -74,7 +74,7 @@ function makeSnapshot(approvals: ApprovalRequest[], sessionId?: string): AiSnaps
 
 describe("ApprovalBanner", () => {
   it("renders nothing when no pending approvals", () => {
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -87,7 +87,7 @@ describe("ApprovalBanner", () => {
   });
 
   it("renders banner with approval command", async () => {
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([makeApproval()]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -111,7 +111,7 @@ describe("ApprovalBanner", () => {
       detail: "{\"action\":\"navigate\",\"url\":\"https://example.com\"}",
       command: undefined
     };
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -125,10 +125,10 @@ describe("ApprovalBanner", () => {
   });
 
   it("keeps single-approval actions usable with a very long WSL command", async () => {
-    const command = String.raw`wsl.exe -d Ubuntu -- bash -lc "cd /home/say/work/github/cctools && python .claude/skills/daily-topic-selector/scripts/generate_daily_topics.py --summary \\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\daily-summary\20260715_daily_summary.md --posts \\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\post\20260715\posts.json"`;
+    const command = String.raw`wsl.exe -d Ubuntu -- bash -lc "cd /home/say/work/github/cctools && python .claude/skills/daily-topic-selector/scripts/generate_daily_topics.py --summary \\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260715_daily_summary.md --posts \\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\post\20260715\posts.json"`;
     const approval = makeApproval("long-command", command);
     const resolveApproval = vi.fn().mockResolvedValue(true);
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -153,7 +153,7 @@ describe("ApprovalBanner", () => {
   it("allows declining a single approval", async () => {
     const approval = makeApproval("decline-one", "npm run unsafe-task");
     const resolveApproval = vi.fn().mockResolvedValue(true);
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -175,7 +175,7 @@ describe("ApprovalBanner", () => {
 
   it("shows batch bar when multiple approvals", async () => {
     const approvals = [makeApproval("a1", "npm test"), makeApproval("a2", "npm build")];
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot(approvals),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -190,7 +190,7 @@ describe("ApprovalBanner", () => {
   });
 
   it("does not show batch bar for single approval", async () => {
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([makeApproval()]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -207,7 +207,7 @@ describe("ApprovalBanner", () => {
   it("filters approvals by active session", async () => {
     const otherApproval = makeApproval("other", "rm -rf");
     otherApproval.sessionId = "other-session";
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([otherApproval], "active-session"),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -227,7 +227,7 @@ describe("ApprovalBanner", () => {
   it("resolves all approvals on 全部允许", async () => {
     const approvals = [makeApproval("a1", "cmd1"), makeApproval("a2", "cmd2")];
     const resolveApproval = vi.fn().mockResolvedValue(true);
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -247,7 +247,7 @@ describe("ApprovalBanner", () => {
   it("resolves all approvals on 全部拒绝", async () => {
     const approvals = [makeApproval("a1"), makeApproval("a2")];
     const resolveApproval = vi.fn().mockResolvedValue(true);
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -269,7 +269,7 @@ describe("ApprovalBanner", () => {
   });
 
   it("has polite aria-live region", async () => {
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot([makeApproval()]),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,
@@ -284,7 +284,7 @@ describe("ApprovalBanner", () => {
 
   it("shows both approval cards when 2 pending", async () => {
     const approvals = [makeApproval("a1", "first cmd"), makeApproval("a2", "second cmd")];
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => makeSnapshot(approvals),
       aiGetEvents: async () => [],
       aiPrewarm: async () => undefined,

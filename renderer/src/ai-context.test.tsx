@@ -127,15 +127,15 @@ beforeEach(() => {
   refreshVisibleSkills = null;
   openBlankDraft = null;
   vi.useFakeTimers();
-  window.cctools = {
+  window.openmind = {
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
     aiCancelRun: async () => true,
     aiResolveApproval: async () => true,
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     openPath: vi.fn(async (p: string) => p),
     revealPath: async () => true,
     onAiEvent: (callback: Parameters<DesktopApi["onAiEvent"]>[0]) => {
@@ -167,14 +167,14 @@ function flushTimers(): void {
 }
 
 describe("AiProvider streaming store via event pump", () => {
-  it("isolates blank drafts and file contexts by mymind/workspace scope", () => {
+  it("isolates blank drafts and file contexts by openmind/workspace scope", () => {
     const draftKey = "__new-session__";
-    window.localStorage.setItem("cctools.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "draft from A" }));
-    window.localStorage.setItem("cctools.ai.contexts.v1:scope-a", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "draft from A" }));
+    window.localStorage.setItem("openmind.ai.contexts.v1:scope-a", JSON.stringify({
       [draftKey]: [{ id: "a-file", kind: "file", label: "A", path: "workspace-a/file.md" }]
     }));
-    window.localStorage.setItem("cctools.ai.drafts.v1:scope-b", JSON.stringify({ [draftKey]: "draft from B" }));
-    window.localStorage.setItem("cctools.ai.contexts.v1:scope-b", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.drafts.v1:scope-b", JSON.stringify({ [draftKey]: "draft from B" }));
+    window.localStorage.setItem("openmind.ai.contexts.v1:scope-b", JSON.stringify({
       [draftKey]: [{ id: "b-file", kind: "file", label: "B", path: "workspace-b/file.md" }]
     }));
 
@@ -194,8 +194,8 @@ describe("AiProvider streaming store via event pump", () => {
 
   it("moves the legacy global draft into only the first active scope", () => {
     const draftKey = "__new-session__";
-    window.localStorage.setItem("cctools.ai.drafts.v1", JSON.stringify({ [draftKey]: "legacy draft" }));
-    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.drafts.v1", JSON.stringify({ [draftKey]: "legacy draft" }));
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({
       [draftKey]: [{ id: "legacy-file", kind: "file", label: "Legacy", path: "legacy/file.md" }]
     }));
 
@@ -204,9 +204,9 @@ describe("AiProvider streaming store via event pump", () => {
       draft: "legacy draft",
       contexts: ["legacy/file.md"]
     }));
-    expect(window.localStorage.getItem("cctools.ai.drafts.v1")).toBeNull();
-    expect(window.localStorage.getItem("cctools.ai.contexts.v1")).toBeNull();
-    expect(window.localStorage.getItem("cctools.ai.drafts.v1:scope-a")).toContain("legacy draft");
+    expect(window.localStorage.getItem("openmind.ai.drafts.v1")).toBeNull();
+    expect(window.localStorage.getItem("openmind.ai.contexts.v1")).toBeNull();
+    expect(window.localStorage.getItem("openmind.ai.drafts.v1:scope-a")).toContain("legacy draft");
     first.unmount();
 
     render(<AiProvider initial={snapshot} storageScope="scope-b"><DraftContextState /></AiProvider>);
@@ -215,12 +215,12 @@ describe("AiProvider streaming store via event pump", () => {
 
   it("cleans a legacy slot left behind after a scoped migration crash", () => {
     const draftKey = "__new-session__";
-    window.localStorage.setItem("cctools.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "safe A" }));
-    window.localStorage.setItem("cctools.ai.contexts.v1:scope-a", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "safe A" }));
+    window.localStorage.setItem("openmind.ai.contexts.v1:scope-a", JSON.stringify({
       [draftKey]: [{ id: "safe-a-file", kind: "file", label: "Safe A", path: "safe-a/file.md" }]
     }));
-    window.localStorage.setItem("cctools.ai.drafts.v1", JSON.stringify({ [draftKey]: "stale global" }));
-    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.drafts.v1", JSON.stringify({ [draftKey]: "stale global" }));
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({
       [draftKey]: [{ id: "stale-file", kind: "file", label: "Stale", path: "stale/file.md" }]
     }));
 
@@ -229,8 +229,8 @@ describe("AiProvider streaming store via event pump", () => {
       draft: "safe A",
       contexts: ["safe-a/file.md"]
     }));
-    expect(window.localStorage.getItem("cctools.ai.drafts.v1")).toBeNull();
-    expect(window.localStorage.getItem("cctools.ai.contexts.v1")).toBeNull();
+    expect(window.localStorage.getItem("openmind.ai.drafts.v1")).toBeNull();
+    expect(window.localStorage.getItem("openmind.ai.contexts.v1")).toBeNull();
     first.unmount();
 
     render(<AiProvider initial={snapshot} storageScope="scope-b"><DraftContextState /></AiProvider>);
@@ -262,8 +262,8 @@ describe("AiProvider streaming store via event pump", () => {
         }]
       }))
     };
-    window.cctools = {
-      ...window.cctools,
+    window.openmind = {
+      ...window.openmind,
       aiRefreshSkills: async () => [currentDefault]
     } as unknown as DesktopApi;
 
@@ -387,8 +387,8 @@ describe("AiProvider streaming store via event pump", () => {
 
   it("replaces snapshot when a snapshot message arrives", async () => {
     let refreshed = false;
-    window.cctools = {
-      ...window.cctools,
+    window.openmind = {
+      ...window.openmind,
       aiRefresh: async () => { refreshed = true; return snapshot; }
     } as unknown as DesktopApi;
 

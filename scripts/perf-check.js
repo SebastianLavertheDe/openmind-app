@@ -4,7 +4,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const rendererRoot = path.join(root, ".build", "renderer");
 const assetsRoot = path.join(rendererRoot, "assets");
-const maxChunkBytes = Number(process.env.CCTOOLS_MAX_RENDERER_CHUNK_KB || 500) * 1024;
+const maxChunkBytes = Number(process.env.OPENMIND_MAX_RENDERER_CHUNK_KB || 500) * 1024;
 
 if (!fs.existsSync(assetsRoot)) {
   throw new Error("Renderer assets are missing. Run npm run build before npm run perf:check.");

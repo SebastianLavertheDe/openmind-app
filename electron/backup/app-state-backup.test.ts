@@ -10,12 +10,12 @@ import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 const roots: string[] = [];
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-state-backup-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-state-backup-"));
   roots.push(root);
   const userData = path.join(root, "user-data");
-  // The skill store follows the mymind root; keep it outside userData so the
+  // The skill store follows the openmind root; keep it outside userData so the
   // test can assert restore never touches it.
-  const paths = buildAppPaths(userData, path.join(root, "mymind", ".agent", "skills"));
+  const paths = buildAppPaths(userData, path.join(root, "openmind", ".agent", "skills"));
   ensureAppPaths(paths);
   return { root, paths, service: new AppStateBackupService(paths) };
 }
@@ -32,9 +32,9 @@ afterEach(() => {
 describe("AppStateBackupService", () => {
   it("round-trips portable state while excluding secrets, packages, runtimes and work files", () => {
     const { root, paths, service } = fixture();
-    write(paths.settingsFile, JSON.stringify({ schemaVersion: 2, mymindRoot: "/external/mymind" }));
+    write(paths.settingsFile, JSON.stringify({ schemaVersion: 2, openmindRoot: "/external/openmind" }));
     write(path.join(paths.settings, "provider-profiles.json"), JSON.stringify({ schemaVersion: 1, profiles: [] }));
-    write(path.join(paths.state, "root-id", ".cctools", "ai", "sessions", "session.json"), "session-v1");
+    write(path.join(paths.state, "root-id", ".openmind", "ai", "sessions", "session.json"), "session-v1");
     write(path.join(paths.state, "root-id", ".runtime", "worktrees", "secret.txt"), "must-stay-out");
     write(path.join(paths.state, "root-id", "tmp-images", "image.png"), "must-stay-out");
     write(path.join(paths.automation, "registry.json"), "automation-v1");
@@ -46,8 +46,8 @@ describe("AppStateBackupService", () => {
     write(path.join(paths.skills, "publisher", "skill", "package.js"), "package-bytes");
     write(path.join(paths.runtimePacks, "python-core.zip"), "runtime-bytes");
     write(path.join(paths.userData, "browser-extension-token.bin"), "browser-secret");
-    const mymind = path.join(root, "mymind");
-    write(path.join(mymind, "article", "keep.md"), "user-content");
+    const openmind = path.join(root, "openmind");
+    write(path.join(openmind, "article", "keep.md"), "user-content");
 
     const archivePath = path.join(root, "backup.zip");
     const exported = service.exportToFile(archivePath);
@@ -56,7 +56,7 @@ describe("AppStateBackupService", () => {
     expect(fs.existsSync(archivePath)).toBe(true);
 
     write(paths.settingsFile, "changed-settings");
-    write(path.join(paths.state, "root-id", ".cctools", "ai", "sessions", "session.json"), "changed-session");
+    write(path.join(paths.state, "root-id", ".openmind", "ai", "sessions", "session.json"), "changed-session");
     write(path.join(paths.automation, "registry.json"), "changed-automation");
     write(path.join(paths.runs, "run-1", "run.json"), "changed-run");
     write(path.join(paths.runs, "run-1", "events.jsonl"), "changed-event");
@@ -64,8 +64,8 @@ describe("AppStateBackupService", () => {
 
     const imported = service.importFromFile(archivePath);
     expect(imported.operation).toBe("import");
-    expect(fs.readFileSync(paths.settingsFile, "utf8")).toContain("/external/mymind");
-    expect(fs.readFileSync(path.join(paths.state, "root-id", ".cctools", "ai", "sessions", "session.json"), "utf8")).toBe("session-v1");
+    expect(fs.readFileSync(paths.settingsFile, "utf8")).toContain("/external/openmind");
+    expect(fs.readFileSync(path.join(paths.state, "root-id", ".openmind", "ai", "sessions", "session.json"), "utf8")).toBe("session-v1");
     expect(fs.readFileSync(path.join(paths.automation, "registry.json"), "utf8")).toBe("automation-v1");
     expect(fs.readFileSync(path.join(paths.runs, "run-1", "run.json"), "utf8")).toBe("run-v1");
     expect(fs.readFileSync(path.join(paths.runs, "run-1", "work", "credentials", "token"), "utf8")).toBe("still-secret-work-file");
@@ -73,7 +73,7 @@ describe("AppStateBackupService", () => {
     expect(fs.readFileSync(path.join(paths.skills, "publisher", "skill", "package.js"), "utf8")).toBe("package-bytes");
     expect(fs.readFileSync(path.join(paths.runtimePacks, "python-core.zip"), "utf8")).toBe("runtime-bytes");
     expect(fs.readFileSync(path.join(paths.userData, "browser-extension-token.bin"), "utf8")).toBe("browser-secret");
-    expect(fs.readFileSync(path.join(mymind, "article", "keep.md"), "utf8")).toBe("user-content");
+    expect(fs.readFileSync(path.join(openmind, "article", "keep.md"), "utf8")).toBe("user-content");
   });
 
   it("rejects tampered manifests and extra payload entries before changing state", () => {
@@ -82,7 +82,7 @@ describe("AppStateBackupService", () => {
     write(target, "original");
     const manifest = {
       schemaVersion: 1,
-      kind: "cctools-app-state-backup",
+      kind: "openmind-app-state-backup",
       createdAt: new Date().toISOString(),
       files: [{ path: "settings/settings.json", bytes: 7, sha256: crypto.createHash("sha256").update("changed").digest("hex") }]
     };
@@ -98,7 +98,7 @@ describe("AppStateBackupService", () => {
 
   it("rejects a state symlink instead of following it during export", () => {
     const { paths, service } = fixture();
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-state-outside-"));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-state-outside-"));
     roots.push(outside);
     write(path.join(outside, "secret.json"), "secret");
     fs.symlinkSync(outside, path.join(paths.state, "linked"), "junction");

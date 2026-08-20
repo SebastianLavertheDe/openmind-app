@@ -1,8 +1,8 @@
 {
-  "name": "cctools-desktop",
+  "name": "openmind-desktop",
   "version": "1.0.24",
-  "description": "A cross-platform desktop control center for cctools.",
-  "author": "CC Tools",
+  "description": "A cross-platform desktop control center for openmind.",
+  "author": "OpenMind",
   "private": true,
   "engines": {
     "node": ">=22.12.0"
@@ -74,8 +74,8 @@
     "vitest": "^3.2.7"
   },
   "build": {
-    "appId": "com.cctools.desktop",
-    "productName": "CC Tools",
+    "appId": "com.openmind.desktop",
+    "productName": "OpenMind",
     "icon": "build/icon.svg",
     "afterPack": "scripts/finalize-bundled-python-runtime.cjs",
     "afterSign": "scripts/finalize-bundled-python-runtime.cjs",
@@ -108,12 +108,12 @@
       ]
     },
     "nsis": {
-      "artifactName": "CC-Tools-Setup-${version}-${arch}.${ext}",
+      "artifactName": "OpenMind-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
     "portable": {
-      "artifactName": "CC-Tools-Portable-${version}-${arch}.${ext}"
+      "artifactName": "OpenMind-Portable-${version}-${arch}.${ext}"
     }
   },
   "dependencies": {

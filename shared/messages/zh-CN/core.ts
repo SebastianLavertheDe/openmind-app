@@ -22,7 +22,7 @@ export const coreMessages = {
   },
 
   repoRequired: {
-    title: "先连接 cctools 项目",
+    title: "先连接 OpenMind 项目",
     body: "项目尚未识别。进入设置选择项目目录后，资料、skills 和 AI 工作台才会启用。",
     action: "打开设置"
   },

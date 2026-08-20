@@ -40,7 +40,7 @@ describe("RuntimeManager", () => {
     });
     const resolved = manager.resolve(manifest(), packageRoot, digest);
     expect(resolved.executable).toBe(fs.realpathSync(process.execPath));
-    expect(resolved.env.CCTOOLS_RUNTIME_PACK_DIGEST).toBe(pack.digest);
+    expect(resolved.env.OPENMIND_RUNTIME_PACK_DIGEST).toBe(pack.digest);
     expect(resolved.fingerprint).toMatch(/^[a-f0-9]{64}$/);
     resolved.acquire("run-runtime");
     expect(new RuntimePackUsageRegistry(paths).isInUse(pack.packId, pack.target, pack.digest)).toBe(true);
@@ -51,7 +51,7 @@ describe("RuntimeManager", () => {
 
   it("rejects an active Pack whose canonical path escapes runtimePacks", () => {
     const { paths, packageRoot } = fixture();
-    const outside = path.join(os.tmpdir(), `cctools-runtime-outside-${Date.now()}`);
+    const outside = path.join(os.tmpdir(), `openmind-runtime-outside-${Date.now()}`);
     fs.writeFileSync(outside, "not-a-pack");
     roots.push(outside);
     const manager = new RuntimeManager(paths, {
@@ -92,7 +92,7 @@ describe("RuntimeManager", () => {
     const resolved = manager.resolve(manifest(), packageRoot, digest);
     expect(resolved.executable).toContain(path.join(".packs", "python-core", "linux-x64", zipPack.digest, "bin", "python"));
     await resolved.prepare();
-    expect(resolved.executable).toContain(path.join("runtimes", "environments", "cctools", "runtime-fixture"));
+    expect(resolved.executable).toContain(path.join("runtimes", "environments", "openmind", "runtime-fixture"));
     expect(resolved.env.VIRTUAL_ENV).toContain(resolved.fingerprint);
     expect(commands.map((args) => args[0])).toEqual(["venv", "sync"]);
     const managedUv = path.join(paths.runtimeEnvironments, ".packs", "python-core", "linux-x64", zipPack.digest, "bin", "uv");
@@ -131,7 +131,7 @@ describe("RuntimeManager", () => {
     try {
       const resolved = manager.resolve(manifest(), packageRoot, digest);
       await resolved.prepare();
-      expect(resolved.executable).toContain(path.join("runtimes", "environments", "cctools", "runtime-fixture"));
+      expect(resolved.executable).toContain(path.join("runtimes", "environments", "openmind", "runtime-fixture"));
       expect(fs.existsSync(resolved.executable)).toBe(true);
       const invocationLog = path.join(
         paths.runtimeEnvironments,
@@ -185,14 +185,14 @@ describe("RuntimeManager", () => {
 
     expect(resolved.env.VIRTUAL_ENV).toContain(path.join("runtimes", "environments"));
     expect(resolved.executable).toContain(path.join("runtimes", "environments", ".packs", "python-core", "linux-x64", pack.digest, "bin", "python"));
-    expect(fs.existsSync(path.join(resolved.env.VIRTUAL_ENV, "cctools-runtime-environment.json"))).toBe(true);
+    expect(fs.existsSync(path.join(resolved.env.VIRTUAL_ENV, "openmind-runtime-environment.json"))).toBe(true);
     expect(fs.existsSync(resolved.executable)).toBe(true);
     expect(fs.existsSync(path.join(paths.runtimeEnvironments, ".packs", "python-core", "linux-x64", pack.digest, "bin", "uv"))).toBe(true);
   }, 30_000);
 });
 
 function fixture(): { paths: ReturnType<typeof buildAppPaths>; packageRoot: string; pack: RuntimePackRecord } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-manager-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-manager-"));
   roots.push(root);
   const paths = buildAppPaths(path.join(root, "user-data"));
   ensureAppPaths(paths);
@@ -222,15 +222,15 @@ function packRecord(packagePath: string): RuntimePackRecord {
 
 function manifest(): ProcessManifest {
   return SkillManifestSchema.parse({
-    apiVersion: "cctools.dev/skill/v1",
+    apiVersion: "openmind.dev/skill/v1",
     id: "runtime-fixture",
     version: "1.0.0",
-    publisher: { id: "cctools", displayName: "cctools" },
+    publisher: { id: "openmind", displayName: "openmind" },
     kind: "process",
     display: { name: "Runtime Fixture", description: "" },
     entrypoint: { runtime: "python", script: "main.py", args: [] },
     runtime: { version: ">=3.11,<3.13", dependencyFile: "pyproject.toml", packs: ["python-core"] },
-    capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] } },
+    capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] } },
     artifacts: [],
     execution: { concurrency: { maxInstances: 1, mutexes: [] }, timeoutSeconds: 60, gracefulStopSeconds: 1, retry: { maxAttempts: 0 } },
     platforms: ["linux-x64"],

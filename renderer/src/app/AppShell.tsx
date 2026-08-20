@@ -134,7 +134,7 @@ export function AppShell({
       shortLabel: projectName,
       icon: Boxes,
       priority: "primary",
-      onSelect: () => void window.cctools.openPath(".")
+      onSelect: () => void window.openmind.openPath(".")
     },
     {
       id: "notifications",
@@ -153,7 +153,7 @@ export function AppShell({
       labelBehavior: "icon",
       icon: CircleHelp,
       priority: "secondary",
-      onSelect: () => void window.cctools.openPath("README.md")
+      onSelect: () => void window.openmind.openPath("README.md")
     }
   ];
   return (
@@ -182,7 +182,7 @@ export function AppShell({
       >
         <div className="app-brand">
           <div className="brand-mark">CC</div>
-          <div className="brand-copy"><strong>CC Tools</strong><span>v{packageJson.version}</span></div>
+          <div className="brand-copy"><strong>OpenMind</strong><span>v{packageJson.version}</span></div>
           {!railShell ? (
             <Tooltip content={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse} side="bottom">
               <button

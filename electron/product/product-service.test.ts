@@ -16,23 +16,23 @@ describe("ProductService", () => {
   let contentReads = 0;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-product-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-product-"));
     fs.mkdirSync(path.join(root, ".claude", "skills", "rss-article-saver"), { recursive: true });
-    fs.mkdirSync(path.join(root, "mymind", "daily-summary"), { recursive: true });
+    fs.mkdirSync(path.join(root, "openmind", "daily-summary"), { recursive: true });
     fs.writeFileSync(
       path.join(root, ".claude", "skills", "rss-article-saver", "subscriptions.opml"),
       `<?xml version="1.0"?><opml version="2.0"><body><outline text="Example" type="rss" xmlUrl="https://example.com/feed.xml"/></body></opml>`
     );
-    fs.writeFileSync(path.join(root, "mymind", "daily-summary", "20260615_daily_summary.md"), "# 每日总结\n\n## 核心信号\n\n本地 AI 工作台正在成熟。");
+    fs.writeFileSync(path.join(root, "openmind", "daily-summary", "20260615_daily_summary.md"), "# 每日总结\n\n## 核心信号\n\n本地 AI 工作台正在成熟。");
     entries = [{
-      path: "mymind/article/20260615/example.md",
+      path: "openmind/article/20260615/example.md",
       name: "example.md",
       kind: "articles",
       size: 512,
       modifiedAt: "2026-06-15T10:00:00.000Z"
     }];
     records = {
-      "mymind/article/20260615/example.md": "# Example Article\n\n- 链接: https://example.com/post\n- 作者: Say\n- 来源: Example\n\n这是正文摘要。"
+      "openmind/article/20260615/example.md": "# Example Article\n\n- 链接: https://example.com/post\n- 作者: Say\n- 来源: Example\n\n这是正文摘要。"
     };
     reads = 0;
     topicReads = 0;
@@ -46,11 +46,11 @@ describe("ProductService", () => {
   });
 
   function createService() {
-    // ADR-001: ProductService takes the mymind content dir (root/mymind), not
+    // ADR-001: ProductService takes the openmind content dir (root/openmind), not
     // the repo. The skill-source root (where .claude/skills lives) is passed
     // via opts so SourceRegistry can still find subscriptions.opml.
     return new ProductService(
-      path.join(root, "mymind"),
+      path.join(root, "openmind"),
       {
         getContent: (kind) => { contentReads += 1; return kind === "all" || kind === "articles" ? entries as never : []; },
         readContent: (relativePath) => {
@@ -69,7 +69,7 @@ describe("ProductService", () => {
         listCreativeProjects: () => [{ dir: "creative/demo", topic: "Demo", stage: "drafting", completion: 50, date: "20260615" }]
       } as CreativeServiceApi,
       // ADR-001: keep app-private state under the legacy repo root for these
-      // tests (so .cctools lands at root/.cctools as the fixtures expect);
+      // tests (so .openmind lands at root/.openmind as the fixtures expect);
       // production wires this to userData/state/<root-id>/ via main.ts.
       { skillSourcesRoot: root, stateRoot: root }
     );
@@ -83,7 +83,7 @@ describe("ProductService", () => {
 
     const updated = service.updateContentState(page.items[0].id, page.items[0].path, { read: true, starred: true, tags: ["AI", "AI"] });
     expect(updated.state).toMatchObject({ read: true, starred: true, tags: ["AI"] });
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".cctools", "content-state.json"), "utf8"))[page.items[0].id].read).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "content-state.json"), "utf8"))[page.items[0].id].read).toBe(true);
   });
 
   it("keeps content state when a URL-backed file moves to a new path", () => {
@@ -91,7 +91,7 @@ describe("ProductService", () => {
     const page = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
     service.updateContentState(page.items[0].id, page.items[0].path, { read: true, starred: true, tags: ["moved"] });
 
-    const movedPath = "mymind/article/20260615/moved-example.md";
+    const movedPath = "openmind/article/20260615/moved-example.md";
     records[movedPath] = records[entries[0].path as string];
     delete records[entries[0].path as string];
     entries[0] = { ...entries[0], path: movedPath, name: "moved-example.md", modifiedAt: "2026-06-15T11:00:00.000Z" };
@@ -99,28 +99,28 @@ describe("ProductService", () => {
     const moved = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
     expect(moved.items[0].id).toBe(page.items[0].id);
     expect(moved.items[0].state).toMatchObject({ read: true, starred: true, tags: ["moved"] });
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".cctools", "content-state.json"), "utf8"))[page.items[0].path]).toBeUndefined();
+    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "content-state.json"), "utf8"))[page.items[0].path]).toBeUndefined();
   });
 
   it("builds source, brief and dashboard data from local facts", () => {
     entries.push(
       {
-        path: "mymind/post/20260615/x-demo.md",
+        path: "openmind/post/20260615/x-demo.md",
         name: "x-demo.md",
         kind: "posts",
         size: 256,
         modifiedAt: "2026-06-15T10:30:00.000Z"
       },
       {
-        path: "mymind/reddit/20260615/reddit-demo.md",
+        path: "openmind/reddit/20260615/reddit-demo.md",
         name: "reddit-demo.md",
         kind: "reddit",
         size: 256,
         modifiedAt: "2026-06-15T10:45:00.000Z"
       }
     );
-    records["mymind/post/20260615/x-demo.md"] = "# Example X\n\n- 来源: X\n\n一条 X 动态。";
-    records["mymind/reddit/20260615/reddit-demo.md"] = "# Example Reddit\n\n- 来源: Reddit\n\n一条 Reddit 动态。";
+    records["openmind/post/20260615/x-demo.md"] = "# Example X\n\n- 来源: X\n\n一条 X 动态。";
+    records["openmind/reddit/20260615/reddit-demo.md"] = "# Example Reddit\n\n- 来源: Reddit\n\n一条 Reddit 动态。";
 
     const service = createService();
     const sources = service.listSources();
@@ -174,24 +174,24 @@ describe("ProductService", () => {
   });
 
   it("quarantines a corrupt index and rebuilds it", () => {
-    fs.mkdirSync(path.join(root, ".cctools"), { recursive: true });
-    fs.writeFileSync(path.join(root, ".cctools", "content-index.json"), "{not-json", "utf8");
+    fs.mkdirSync(path.join(root, ".openmind"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".openmind", "content-index.json"), "{not-json", "utf8");
     const page = createService().listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
     expect(page.total).toBe(1);
-    expect(fs.readdirSync(path.join(root, ".cctools")).some((name) => name.startsWith("content-index.json.corrupt-"))).toBe(true);
+    expect(fs.readdirSync(path.join(root, ".openmind")).some((name) => name.startsWith("content-index.json.corrupt-"))).toBe(true);
   });
 
   it("rebuilds the content index on demand", () => {
     const report = createService().rebuildContentIndex();
     expect(report.indexedDates).toContain("20260615");
     expect(report.itemCount).toBeGreaterThan(0);
-    expect(report.indexPath).toBe(".cctools/content-index.json");
+    expect(report.indexPath).toBe(".openmind/content-index.json");
   });
 
   it("paginates by cursor instead of a hard 500 cap and rejects invalid queries", () => {
     const service = createService();
     const multi = Array.from({ length: 3 }, (_, index) => ({
-      path: `mymind/article/20260615/item-${index}.md`,
+      path: `openmind/article/20260615/item-${index}.md`,
       name: `item-${index}.md`,
       kind: "articles",
       size: 256,
@@ -216,12 +216,12 @@ describe("ProductService", () => {
   it("filters by minimum score and sorts by source", () => {
     const service = createService();
     const extra = [
-      { path: "mymind/article/20260615/beta.md", name: "beta.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T09:00:00.000Z" },
-      { path: "mymind/article/20260615/gamma.md", name: "gamma.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T12:00:00.000Z" }
+      { path: "openmind/article/20260615/beta.md", name: "beta.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T09:00:00.000Z" },
+      { path: "openmind/article/20260615/gamma.md", name: "gamma.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T12:00:00.000Z" }
     ];
     entries.push(...extra);
-    records["mymind/article/20260615/beta.md"] = "# Beta\n\n- 来源: Beta\n\n正文。";
-    records["mymind/article/20260615/gamma.md"] = "# Gamma\n\n- 来源: Gamma\n\n正文。";
+    records["openmind/article/20260615/beta.md"] = "# Beta\n\n- 来源: Beta\n\n正文。";
+    records["openmind/article/20260615/gamma.md"] = "# Gamma\n\n- 来源: Gamma\n\n正文。";
     const seed = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
     const find = (title: string) => seed.items.find((item) => item.title === title)!;
     service.updateContentState(find("Example Article").id, find("Example Article").path, { score: 100 });
@@ -271,7 +271,7 @@ describe("ProductService", () => {
 
     const disabled = service.updateSource(added.id, { enabled: false, frequency: "每 6 小时" });
     expect(disabled).toMatchObject({ enabled: false, frequency: "每 6 小时", status: "disabled" });
-    const settings = JSON.parse(fs.readFileSync(path.join(root, ".cctools", "source-settings.json"), "utf8"));
+    const settings = JSON.parse(fs.readFileSync(path.join(root, ".openmind", "source-settings.json"), "utf8"));
     expect(settings.disabledUrls).toContain("https://second.example/feed.xml");
 
     const importedPath = path.join(root, "import.opml");
@@ -279,21 +279,21 @@ describe("ProductService", () => {
     expect(service.importOpml(importedPath)).toBe(1);
     expect(service.importOpml(importedPath)).toBe(0);
 
-    const folder = service.addRssSource({ name: "Local Notes", kind: "web", url: "~/cctools/notes", frequency: "每天", tags: ["notes"] });
-    expect(folder).toMatchObject({ name: "Local Notes", kind: "web", url: "~/cctools/notes", skillId: null, tags: ["notes"] });
+    const folder = service.addRssSource({ name: "Local Notes", kind: "web", url: "~/openmind/notes", frequency: "每天", tags: ["notes"] });
+    expect(folder).toMatchObject({ name: "Local Notes", kind: "web", url: "~/openmind/notes", skillId: null, tags: ["notes"] });
 
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "status", state: "running", timestamp: "2026-06-15T10:00:00.000Z" });
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "output", stream: "stdout", text: "Fetched one item\n", timestamp: "2026-06-15T10:00:01.000Z" });
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "status", state: "success", code: 0, durationMs: 1200, timestamp: "2026-06-15T10:00:02.000Z" });
     expect(service.listSourceRuns(added.id)[0]).toMatchObject({ id: "run-1", status: "success", code: 0, durationMs: 1200 });
     expect(service.listSourceRuns(added.id)[0].logs[0].text).toContain("Fetched one item");
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".cctools", "source-runs.json"), "utf8"))[0].status).toBe("success");
+    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "source-runs.json"), "utf8"))[0].status).toBe("success");
   });
 
   it("batches frequent skill output writes while exposing live logs from memory", () => {
     vi.useFakeTimers();
     const service = createService();
-    const runsPath = path.join(root, ".cctools", "source-runs.json");
+    const runsPath = path.join(root, ".openmind", "source-runs.json");
     service.recordSkillEvent({ skillId: "reddit-fetcher", invocationId: "run-batch", type: "status", state: "running", timestamp: "2026-06-15T10:00:00.000Z" });
     for (let index = 0; index < 20; index++) {
       service.recordSkillEvent({
@@ -327,7 +327,7 @@ describe("ProductService", () => {
     service.listContent("articles", "20260616");
     expect(contentReads).toBe(2);
 
-    service.writeContent("mymind/article/20260615/example.md", "new content");
+    service.writeContent("openmind/article/20260615/example.md", "new content");
     service.getOverview("20260615");
     expect(overviewReads).toBe(2);
   });
@@ -358,7 +358,7 @@ describe("ProductService", () => {
 describe("ProductService 创作委托方法", () => {
   let root = "";
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-product-creative-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-product-creative-"));
   });
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -395,7 +395,7 @@ describe("ProductService 创作委托方法", () => {
       writeContent: () => ({ path: "x", name: "x", content: "", truncated: false })
     };
     const service = new ProductService(
-      path.join(root, "mymind"),
+      path.join(root, "openmind"),
       content as ContentServiceApi,
       creative as unknown as CreativeServiceApi,
       // ADR-001: opts (4th param) — keep skill-source + state under the legacy
@@ -512,12 +512,12 @@ describe("ProductService 创作委托方法", () => {
   it("writeContent 带日期时刷新当天索引", () => {
     const { service } = createServiceWithCreativeSpy();
     // writeContent 委托 + 提取 date 刷新;不抛错即通过
-    expect(() => service.writeContent("mymind/article/20260708/x.md", "content")).not.toThrow();
+    expect(() => service.writeContent("openmind/article/20260708/x.md", "content")).not.toThrow();
   });
 
   it("readContent 委托", () => {
     const { service } = createServiceWithCreativeSpy();
-    const result = service.readContent("mymind/article/x.md");
+    const result = service.readContent("openmind/article/x.md");
     expect(result).toBeDefined();
   });
 

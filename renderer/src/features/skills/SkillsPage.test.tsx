@@ -8,14 +8,14 @@ import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-eve
 const digest = "a".repeat(64);
 const sourcePath = "/workspace/.claude/skills/demo-skill";
 const manifest = {
-  apiVersion: "cctools.dev/skill/v1",
+  apiVersion: "openmind.dev/skill/v1",
   id: "demo-skill",
   version: "1.2.0",
   kind: "process",
   publisher: { id: "local", displayName: "本地团队" },
   display: { name: "Demo Skill", description: "用于验证 Skill Center 的示例包。", group: "测试" },
   config: { date: { type: "string", required: true } },
-  capabilities: { mymind: { read: ["article/**"], write: ["daily-summary/**"] }, network: { required: false, hosts: [] }, browser: false, subprocess: { allowed: false } }
+  capabilities: { openmind: { read: ["article/**"], write: ["daily-summary/**"] }, network: { required: false, hosts: [] }, browser: false, subprocess: { allowed: false } }
 };
 
 const inspection: SkillPackageInspectionView = {
@@ -24,7 +24,7 @@ const inspection: SkillPackageInspectionView = {
   valid: true,
   digest,
   totalBytes: 2048,
-  files: [{ path: "cctools.skill.yaml", type: "file", size: 1024, digest: "manifest" }],
+  files: [{ path: "openmind.skill.yaml", type: "file", size: 1024, digest: "manifest" }],
   excludedPaths: [],
   manifest,
   legacy: null,
@@ -80,12 +80,12 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 function renderPage(overrides: Partial<DesktopApi> = {}, initialSkillId?: string, initialSourcePickerOpen = false, onInstallationChange?: () => void | Promise<void>, onAvailabilityChange?: () => void | Promise<void>) {
-  window.cctools = makeApi(overrides);
+  window.openmind = makeApi(overrides);
   render(<SkillsPage skills={skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSourcePickerOpen} onInstallationChange={onInstallationChange} onAvailabilityChange={onAvailabilityChange} />);
 }
 
 beforeEach(() => {
-  window.cctools = makeApi();
+  window.openmind = makeApi();
 });
 
 afterEach(() => cleanup());

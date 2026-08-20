@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("BrowserExtensionTokenStore", () => {
   it("persists only encrypted token bytes and can clear the exact secret file", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-browser-token-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-browser-token-"));
     roots.push(root);
     const file = path.join(root, "token.bin");
     const store = new BrowserExtensionTokenStore(file, codec);
@@ -36,7 +36,7 @@ describe("BrowserExtensionTokenStore", () => {
   });
 
   it("reports whether the feature can launch and whether an extension token exists", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-browser-status-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-browser-status-"));
     roots.push(root);
     const store = new BrowserExtensionTokenStore(path.join(root, "token.bin"), codec);
     store.write("token");

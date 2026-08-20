@@ -1,7 +1,7 @@
 /** App 壳层、全局搜索、工作台问候等。 */
 export const appMessages = {
   app: {
-    fatalTitle: "CC Tools 无法启动",
+    fatalTitle: "OpenMind 无法启动",
     preloadMissing: "Electron preload 未加载，正式桌面版不能回退到浏览器预览数据。请从打包应用重新启动，或检查 preload.js 是否存在。",
     splashStarting: "正在启动工程工作台...",
     routeLoading: "正在打开页面..."

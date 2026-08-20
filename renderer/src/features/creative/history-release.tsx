@@ -29,13 +29,13 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   const [rightContent, setRightContent] = useState("");
   useEffect(() => {
     setLeftId(""); setRightId(""); setLeftContent(""); setRightContent("");
-    if (detail && activeFile) void window.cctools.listCreativeVersions(detail.dir, activeFile).then(onVersionsChange).catch(() => {});
+    if (detail && activeFile) void window.openmind.listCreativeVersions(detail.dir, activeFile).then(onVersionsChange).catch(() => {});
   }, [activeFile, selectedProject?.dir, detail?.dir, onVersionsChange]);
   const loadVersion = async (id: string, setter: (value: string) => void) => {
     if (!id) { setter(""); return; }
     const version = versions.find((item) => item.id === id);
     if (!version) return;
-    try { setter((await window.cctools.readCreativeVersion(version.path)).content); }
+    try { setter((await window.openmind.readCreativeVersion(version.path)).content); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const diff = useMemo(() => {
@@ -47,9 +47,9 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   const restore = async (version: CreativeVersion) => {
     if (!detail || !await ai.confirm({ title: m.creativeUi.history.restoreTitle, body: m.creativeUi.history.restoreBody(version.note), confirmText: m.creativeUi.history.restoreConfirm, danger: true })) return;
     try {
-      const next = await window.cctools.restoreCreativeVersion(detail.dir, activeFile, version.path);
+      const next = await window.openmind.restoreCreativeVersion(detail.dir, activeFile, version.path);
       onRestored(next);
-      onVersionsChange(await window.cctools.listCreativeVersions(detail.dir, activeFile));
+      onVersionsChange(await window.openmind.listCreativeVersions(detail.dir, activeFile));
       ai.notify(m.creativeUi.history.restored, "success");
     } catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
@@ -86,7 +86,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
               <div key={version.id} className="version-row">
                 <FileClock size={14} />
                 <div><strong>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")} · {Math.round(version.size / 1024)} KB</small></div>
-                <button data-motion="icon" onClick={() => window.cctools.openPath(version.path)}>{m.common.open}</button>
+                <button data-motion="icon" onClick={() => window.openmind.openPath(version.path)}>{m.common.open}</button>
                 <button className="primary-button" onClick={() => void restore(version)}>{m.creativeUi.history.restoreAsNew}</button>
               </div>
             )) : <p className="review-empty">{m.creativeUi.history.empty}</p>}
@@ -100,7 +100,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
 export function ReleaseLogView({ detail, selectedProject }: { detail: CreativeProjectDetail | null; selectedProject: CreativeProjectSummary | null }) {
   const [events, setEvents] = useState<CreativeReleaseEvent[]>([]);
   const [filter, setFilter] = useState("");
-  useEffect(() => { if (detail) void window.cctools.getCreativeReleaseLog(detail.dir).then(setEvents).catch(() => setEvents([])); else setEvents([]); }, [detail?.dir]);
+  useEffect(() => { if (detail) void window.openmind.getCreativeReleaseLog(detail.dir).then(setEvents).catch(() => setEvents([])); else setEvents([]); }, [detail?.dir]);
   if (!detail || !selectedProject) return <EmptyState title={m.creativeUi.history.pickProject} description={m.creativeUi.release.pickProjectDesc} icon={<FileClock size={28} />} />;
   const filtered = filter ? events.filter((event) => `${event.action} ${event.platform || ""} ${event.status || ""} ${event.detail || ""}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase())) : events;
   return (

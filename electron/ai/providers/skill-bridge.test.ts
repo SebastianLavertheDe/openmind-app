@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 function createBridge(): ProviderSkillBridge {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-skill-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-skill-"));
   roots.push(root);
   fs.mkdirSync(path.join(root, "references"), { recursive: true });
   fs.writeFileSync(path.join(root, "SKILL.md"), "# Installed Agent\n\nFollow the package instructions.\n");
@@ -23,9 +23,9 @@ function createBridge(): ProviderSkillBridge {
     packageRoot: root,
     skillPath: path.join(root, "SKILL.md"),
     referencePaths: ["references/rules.md"],
-    mymindRoot: path.join(root, "mymind"),
+    openmindRoot: path.join(root, "openmind"),
     capabilities: {
-      mymind: { read: ["article/**"], write: ["creative/**"] },
+      openmind: { read: ["article/**"], write: ["creative/**"] },
       network: { required: false, hosts: [] },
       subprocess: { allowed: false },
       browser: false
@@ -40,7 +40,7 @@ describe("Provider Skill bridge", () => {
       skillText: expect.stringContaining("Installed Agent"),
       references: [{ path: "references/rules.md", text: "- Keep outputs bounded.\n" }]
     });
-    expect(buildProviderSkillContext(bridge)).toContain("mymind_write: creative/**");
+    expect(buildProviderSkillContext(bridge)).toContain("openmind_write: creative/**");
     expect(buildClaudeSkillBridgeInstructions(bridge)).toContain("<skill_md>");
     expect(buildClaudeSkillBridgeInstructions(bridge)).toContain("references/rules.md");
   });

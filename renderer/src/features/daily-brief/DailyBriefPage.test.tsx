@@ -6,7 +6,7 @@ import { ChatComposer } from "../ai-console/composer";
 import { DailyBriefPage } from "./DailyBriefPage";
 
 const snapshot = { projectRoot: "/repo", providers: [], sessions: [], runs: [], pendingApprovals: [] };
-const path = "mymind/daily-summary/20260630_daily_summary.md";
+const path = "openmind/daily-summary/20260630_daily_summary.md";
 
 function makeApi(writeContent = vi.fn(async (_path: string, content: string) => ({ path, name: "20260630_daily_summary.md", content, truncated: false }))): DesktopApi {
   return {
@@ -20,7 +20,7 @@ function makeApi(writeContent = vi.fn(async (_path: string, content: string) => 
   } as unknown as DesktopApi;
 }
 
-beforeEach(() => { window.cctools = makeApi(); });
+beforeEach(() => { window.openmind = makeApi(); });
 afterEach(() => cleanup());
 
 describe("DailyBriefPage", () => {
@@ -28,7 +28,7 @@ describe("DailyBriefPage", () => {
     const writeContent = vi.fn(async (_path: string, content: string) => ({ path, name: "20260630_daily_summary.md", content, truncated: false }));
     const api = makeApi(writeContent);
     const listContent = vi.fn(api.listContent);
-    window.cctools = { ...api, listContent };
+    window.openmind = { ...api, listContent };
     const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage go={vi.fn()} initialDate="20260630" /></AiProvider>);
 
     await waitFor(() => expect(listContent).toHaveBeenCalledWith("summaries", ""));

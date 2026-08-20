@@ -11,7 +11,7 @@ describe("EnvFileAnalyzer", () => {
   });
 
   it("returns names and classifications without returning values", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-env-analysis-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-env-analysis-"));
     roots.push(root);
     const file = path.join(root, ".env");
     fs.writeFileSync(file, "# comment\nexport NVIDIA_API_KEY=nvapi-secret\nPASSWORD=top-secret\nPLAIN=value\nBROKEN\n");
@@ -30,7 +30,7 @@ describe("EnvFileAnalyzer", () => {
   });
 
   it("rejects symlinks and oversized files", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-env-analysis-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-env-analysis-"));
     roots.push(root);
     const target = path.join(root, "real.env");
     const link = path.join(root, ".env");

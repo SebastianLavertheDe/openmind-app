@@ -4,7 +4,7 @@ This record is for packaged Windows/macOS acceptance. It is deliberately
 separate from the declarative matrix in
 `electron/paths/clean-machine-smoke.ts` and from local unit tests.
 
-<!-- cctools-clean-machine-status: pending -->
+<!-- openmind-clean-machine-status: pending -->
 
 Status values are `pending`, `blocked` or `passed`. A `passed` row must use the
 machine-readable `key=value; key=value` format below and include the date, OS,
@@ -15,7 +15,7 @@ scenario outcome and a screenshot/log path or URL. Change the marker to
 Required evidence format:
 
 ```text
-date=2026-08-06; os=Windows 11 24H2 x64; build=1.0.24+<commit>; package=CC-Tools-Portable-1.0.24-x64.exe; sha256=<64 hex>; preconditions=no-python-uv-node-git-ffmpeg,online; outcome=passed; evidence=artifacts/win11-x64-online-no-runtime/screenshots-and-log.zip
+date=2026-08-06; os=Windows 11 24H2 x64; build=1.0.24+<commit>; package=OpenMind-Portable-1.0.24-x64.exe; sha256=<64 hex>; preconditions=no-python-uv-node-git-ffmpeg,online; outcome=passed; evidence=artifacts/win11-x64-online-no-runtime/screenshots-and-log.zip
 ```
 
 The `no-python-uv-node-git-ffmpeg` token is mandatory for the two baseline
@@ -86,7 +86,7 @@ development host.
 
 ```bash
 npm run clean-machine:report
-CCTOOLS_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
+OPENMIND_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
 ```
 
 The report writes `.build/clean-machine-report.json`. The default command is

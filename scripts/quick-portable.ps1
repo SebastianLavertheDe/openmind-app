@@ -1,5 +1,5 @@
 param(
-  [string]$StageRoot = (Join-Path $env:TEMP "cctools-quick-portable"),
+  [string]$StageRoot = (Join-Path $env:TEMP "openmind-quick-portable"),
   [string]$OutDir = [Environment]::GetFolderPath('Desktop')
 )
 
@@ -36,7 +36,7 @@ $global:LASTEXITCODE = 0
 # (the repo root), so stage the skill manifests to keep the staged tree valid.
 $sourceSkills = Join-Path $repoRoot ".claude\skills"
 if (Test-Path -LiteralPath $sourceSkills) {
-  & robocopy.exe $sourceSkills (Join-Path $StageRoot ".claude\skills") /E /IF cctools.skill.yaml | Out-Null
+  & robocopy.exe $sourceSkills (Join-Path $StageRoot ".claude\skills") /E /IF openmind.skill.yaml | Out-Null
   if ($LASTEXITCODE -gt 7) { throw "Staging skill manifests failed (robocopy $LASTEXITCODE)." }
   $global:LASTEXITCODE = 0
 }
@@ -65,7 +65,7 @@ try {
     New-Item -ItemType Directory -Path $OutDir | Out-Null
   }
   $copied = 0
-  Get-ChildItem -Path (Join-Path $StageRoot "desktop-app\dist") -Filter "CC-Tools-Portable-*.exe" -File | ForEach-Object {
+  Get-ChildItem -Path (Join-Path $StageRoot "desktop-app\dist") -Filter "OpenMind-Portable-*.exe" -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $OutDir -Force
     Write-Host ("Copied: " + $_.Name)
     $copied++

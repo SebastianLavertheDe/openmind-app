@@ -26,13 +26,13 @@ const releaseSbom = readJsonIfExists(path.join(buildRoot, "release-evidence", "s
 const releaseLicenses = readJsonIfExists(path.join(buildRoot, "release-evidence", "licenses.json"));
 const releaseProvenance = readJsonIfExists(path.join(buildRoot, "release-evidence", "provenance.json"));
 check("SBOM, license and provenance evidence is generated", Boolean(
-  releaseEvidence?.kind === "cctools-release-evidence-index"
+  releaseEvidence?.kind === "openmind-release-evidence-index"
   && releaseSbom?.bomFormat === "CycloneDX"
   && Number(releaseSbom?.components?.length) > 0
-  && releaseLicenses?.kind === "cctools-license-report"
+  && releaseLicenses?.kind === "openmind-license-report"
   && Number(releaseLicenses?.componentCount) === Number(releaseSbom?.components?.length)
   && Number(releaseLicenses?.unknownLicenseCount) === 0
-  && releaseProvenance?.kind === "cctools-build-provenance"
+  && releaseProvenance?.kind === "openmind-build-provenance"
   && /^[a-f0-9]{64}$/.test(String(releaseProvenance?.artifact?.treeSha256 || ""))
 ), {
   sbomComponents: releaseSbom?.components?.length || 0,

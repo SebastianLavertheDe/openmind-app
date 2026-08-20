@@ -1,7 +1,7 @@
 /**
  * 模型目录与 1M 检测。
  *
- * 设计原则：cctools 把上下文管理委托给 provider（codex app-server / Claude Code SDK），
+ * 设计原则：openmind 把上下文管理委托给 provider（codex app-server / Claude Code SDK），
  * provider 实际用的模型由各自的配置决定（codex ~/.codex/config.toml、Claude 的
  * ANTHROPIC_DEFAULT_*_MODEL / settings.json）。因此「用的哪种模型、是不是 1M」以
  * 探测到的真实模型为准，这里只提供目录参考、上下文窗口查询和 1M 判定。

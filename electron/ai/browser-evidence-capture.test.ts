@@ -20,7 +20,7 @@ describe("browser evidence semantic capture", () => {
 
     const author = document.querySelector("#author")!;
     const marked = markCaptureTarget(author, { marker: "comment-target", scope: "comment" });
-    const target = document.querySelector('[data-cctools-evidence-target="comment-target"]');
+    const target = document.querySelector('[data-openmind-evidence-target="comment-target"]');
 
     expect(target).toBe(document.querySelector("details"));
     expect(marked).toMatchObject({ isComment: true, kind: "comment", promoted: true, tag: "details" });
@@ -36,7 +36,7 @@ describe("browser evidence semantic capture", () => {
     const body = document.querySelector("#body-copy")!;
     const marked = markCaptureTarget(body, { marker: "auto-target", scope: "auto" });
 
-    expect(document.querySelector('[data-cctools-evidence-target="auto-target"]')).toBe(document.querySelector("details"));
+    expect(document.querySelector('[data-openmind-evidence-target="auto-target"]')).toBe(document.querySelector("details"));
     expect(marked.promoted).toBe(true);
   });
 
@@ -70,8 +70,8 @@ describe("browser evidence semantic capture", () => {
 
     expect(details.open).toBe(false);
     expect(replies.style.display).toBe("grid");
-    expect(details.hasAttribute("data-cctools-evidence-target")).toBe(false);
-    expect(replies.hasAttribute("data-cctools-evidence-hidden")).toBe(false);
+    expect(details.hasAttribute("data-openmind-evidence-target")).toBe(false);
+    expect(replies.hasAttribute("data-openmind-evidence-hidden")).toBe(false);
   });
 
   it("keeps exact and paragraph scopes distinct", () => {
@@ -79,11 +79,11 @@ describe("browser evidence semantic capture", () => {
     const quote = document.querySelector("#quote")!;
 
     const exact = markCaptureTarget(quote, { marker: "exact", scope: "exact" });
-    expect(document.querySelector('[data-cctools-evidence-target="exact"]')).toBe(quote);
+    expect(document.querySelector('[data-openmind-evidence-target="exact"]')).toBe(quote);
     restoreCaptureTarget(quote, { marker: "exact", preparation: null, previousTargetMarker: exact.previousTargetMarker });
 
     const paragraph = markCaptureTarget(quote, { marker: "paragraph", scope: "paragraph" });
-    expect(document.querySelector('[data-cctools-evidence-target="paragraph"]')).toBe(document.querySelector("p"));
+    expect(document.querySelector('[data-openmind-evidence-target="paragraph"]')).toBe(document.querySelector("p"));
     expect(paragraph.kind).toBe("paragraph");
   });
 

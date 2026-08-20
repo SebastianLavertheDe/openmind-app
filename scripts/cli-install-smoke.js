@@ -17,7 +17,7 @@ const Module = require("module");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
-process.env.CCTOOLS_REPO_ROOT = repoRoot;
+process.env.OPENMIND_REPO_ROOT = repoRoot;
 
 const userData = path.join(repoRoot, ".desktop-app-test");
 const originalLoad = Module._load;

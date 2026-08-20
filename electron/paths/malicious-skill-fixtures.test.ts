@@ -33,7 +33,7 @@ describe("malicious-skill-fixtures", () => {
         expect(fs.existsSync(p.dir)).toBe(true);
         // Every attack ships a manifest (even if mutated) so the installer can
         // parse + then reject on the specific violation.
-        expect(fs.existsSync(path.join(p.dir, "cctools.skill.yaml"))).toBe(true);
+        expect(fs.existsSync(path.join(p.dir, "openmind.skill.yaml"))).toBe(true);
       } finally {
         disposeMaliciousPackage(p);
       }
@@ -57,7 +57,7 @@ describe("malicious-skill-fixtures", () => {
   it("dangerous-env fixture declares LD_PRELOAD and PATH binding", () => {
     const p = buildMaliciousPackage("dangerous-env");
     try {
-      const yaml = fs.readFileSync(path.join(p.dir, "cctools.skill.yaml"), "utf8");
+      const yaml = fs.readFileSync(path.join(p.dir, "openmind.skill.yaml"), "utf8");
       expect(yaml).toContain("LD_PRELOAD");
       expect(yaml).toContain("PATH");
     } finally {
@@ -68,7 +68,7 @@ describe("malicious-skill-fixtures", () => {
   it("publisher-change fixture changes the publisher id to evilcorp", () => {
     const p = buildMaliciousPackage("publisher-change");
     try {
-      const yaml = fs.readFileSync(path.join(p.dir, "cctools.skill.yaml"), "utf8");
+      const yaml = fs.readFileSync(path.join(p.dir, "openmind.skill.yaml"), "utf8");
       expect(yaml).toContain("evilcorp");
     } finally {
       disposeMaliciousPackage(p);
@@ -78,7 +78,7 @@ describe("malicious-skill-fixtures", () => {
   it("catalog-replay fixture downgrades the version to 0.9.0", () => {
     const p = buildMaliciousPackage("catalog-replay");
     try {
-      const yaml = fs.readFileSync(path.join(p.dir, "cctools.skill.yaml"), "utf8");
+      const yaml = fs.readFileSync(path.join(p.dir, "openmind.skill.yaml"), "utf8");
       expect(yaml).toContain("version: 0.9.0");
     } finally {
       disposeMaliciousPackage(p);

@@ -3,17 +3,17 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
-import { CCTOOLS_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
+import { OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
 import { buildAppPaths, ensureAppPaths, type AppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "./skill-package-service";
 import { SkillSourceError, SkillSourceService, type GitCommandRunner } from "./skill-source-service";
 
-const MANIFEST = `apiVersion: cctools.dev/skill/v1
+const MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: git-demo
 version: 1.0.0
 publisher:
-  id: cctools
-  displayName: cctools
+  id: openmind
+  displayName: openmind
 kind: process
 display:
   name: Git Demo
@@ -27,7 +27,7 @@ runtime:
   version: ">=3.11"
   dependencyFile: pyproject.toml
 capabilities:
-  mymind:
+  openmind:
     read: [article/**]
     write: [daily-summary/**]
   network:
@@ -47,8 +47,8 @@ describe("SkillSourceService", () => {
   let checkoutPaths: string[];
 
   beforeEach(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-source-"));
-    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "mymind", ".agent", "skills"));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-skill-source-"));
+    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "openmind", ".agent", "skills"));
     ensureAppPaths(paths);
     checkoutPaths = [];
   });
@@ -66,7 +66,7 @@ describe("SkillSourceService", () => {
       const checkout = args.at(-1)!;
       checkoutPaths.push(checkout);
       fs.mkdirSync(checkout, { recursive: true });
-      fs.writeFileSync(path.join(checkout, "cctools.skill.yaml"), MANIFEST);
+      fs.writeFileSync(path.join(checkout, "openmind.skill.yaml"), MANIFEST);
       fs.writeFileSync(path.join(checkout, "run.sh"), "echo ok\n");
       fs.writeFileSync(path.join(checkout, "pyproject.toml"), "[project]\nname='git-demo'\n");
       expect(args).toEqual(expect.arrayContaining([
@@ -108,10 +108,10 @@ describe("SkillSourceService", () => {
   it("accepts only a complete intact pre-receipt official installation as legacy compatibility", () => {
     const records = ALL_SKILL_IDS.map((id) => ({
       id,
-      key: `cctools/${id}`,
-      publisherId: "cctools",
+      key: `openmind/${id}`,
+      publisherId: "openmind",
       sourceType: "git" as const,
-      sourceLocator: CCTOOLS_SKILLS_REPO_URL
+      sourceLocator: OPENMIND_SKILLS_REPO_URL
     }));
     const packageAdapter = {
       listInstalled: vi.fn(() => records),
@@ -119,21 +119,21 @@ describe("SkillSourceService", () => {
     } as unknown as SkillPackageService;
     const service = new SkillSourceService(packageAdapter, paths, async () => ({ stdout: "", stderr: "" }));
 
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(true);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
     records.pop();
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(false);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
     records.push({
       id: ALL_SKILL_IDS.at(-1)!,
-      key: `cctools/${ALL_SKILL_IDS.at(-1)!}`,
-      publisherId: "cctools",
+      key: `openmind/${ALL_SKILL_IDS.at(-1)!}`,
+      publisherId: "openmind",
       sourceType: "git",
-      sourceLocator: CCTOOLS_SKILLS_REPO_URL,
+      sourceLocator: OPENMIND_SKILLS_REPO_URL,
       sourcePackageRef: "new-partial-install"
     } as never);
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(false);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
 
     fs.writeFileSync(path.join(paths.skills!, "source-installations.json"), "{corrupt", "utf8");
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(false);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
   });
 
   it("does not let a complete but undersized official ref bypass app-required Skills", async () => {
@@ -143,10 +143,10 @@ describe("SkillSourceService", () => {
       multiPackageGitRunner(["one"])
     );
 
-    await service.install({ type: "git", locator: CCTOOLS_SKILLS_REPO_URL, ref: "undersized-fixture" });
+    await service.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL, ref: "undersized-fixture" });
 
     expect(fs.existsSync(path.join(paths.skills!, "source-installations.json"))).toBe(true);
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(false);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
   });
 
   it("accepts a complete official snapshot and verifies it offline on later startup checks", async () => {
@@ -158,11 +158,11 @@ describe("SkillSourceService", () => {
     };
     const service = new SkillSourceService(new SkillPackageService(paths), paths, runGit);
 
-    const installed = await service.install({ type: "git", locator: CCTOOLS_SKILLS_REPO_URL });
+    const installed = await service.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
 
     expect(installed).toHaveLength(ALL_SKILL_IDS.length);
     expect(gitCalls).toBe(2); // clone + rev-parse
-    expect(service.hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)).toBe(true);
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
     expect(gitCalls).toBe(2);
   });
 
@@ -178,7 +178,7 @@ describe("SkillSourceService", () => {
       for (const name of ["one", "two"]) {
         const candidate = path.join(checkout, name);
         fs.mkdirSync(candidate, { recursive: true });
-        fs.writeFileSync(path.join(candidate, "cctools.skill.yaml"), MANIFEST.replace("git-demo", name));
+        fs.writeFileSync(path.join(candidate, "openmind.skill.yaml"), MANIFEST.replace("git-demo", name));
         fs.writeFileSync(path.join(candidate, "run.sh"), "echo ok\n");
         fs.writeFileSync(path.join(candidate, "pyproject.toml"), `[project]\nname='${name}'\n`);
       }
@@ -256,7 +256,7 @@ describe("SkillSourceService", () => {
       const checkout = args.at(-1)!;
       writePackage(checkout, "one");
       writePackage(checkout, "two");
-      fs.writeFileSync(path.join(checkout, "two", "cctools.skill.yaml"), MANIFEST.replaceAll("git-demo", "one"));
+      fs.writeFileSync(path.join(checkout, "two", "openmind.skill.yaml"), MANIFEST.replaceAll("git-demo", "one"));
       return { stdout: "", stderr: "" };
     };
     const packages = new SkillPackageService(paths);
@@ -347,7 +347,7 @@ function multiPackageGitRunner(names: string[]): GitCommandRunner {
 function writePackage(checkout: string, name: string): void {
   const candidate = path.join(checkout, name);
   fs.mkdirSync(candidate, { recursive: true });
-  fs.writeFileSync(path.join(candidate, "cctools.skill.yaml"), MANIFEST.replaceAll("git-demo", name));
+  fs.writeFileSync(path.join(candidate, "openmind.skill.yaml"), MANIFEST.replaceAll("git-demo", name));
   fs.writeFileSync(path.join(candidate, "run.sh"), "echo ok\n");
   fs.writeFileSync(path.join(candidate, "pyproject.toml"), `[project]\nname='${name}'\n`);
 }

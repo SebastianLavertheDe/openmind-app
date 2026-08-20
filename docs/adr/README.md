@@ -7,9 +7,9 @@ and release work that follows.
 
 | ADR | Topic | Status |
 |---|---|---|
-| [ADR-001](./ADR-001-path-boundaries.md) | Path boundaries — mymindRoot / workspace / userData | Accepted |
-| [ADR-002](./ADR-002-mymind-layout-contract.md) | mymind layout contract v1 (`mymind-layout-v1`) | Accepted |
-| [ADR-003](./ADR-003-skill-manifest-v1.md) | Skill Manifest v1 (`cctools.skill.yaml`) | Accepted |
+| [ADR-001](./ADR-001-path-boundaries.md) | Path boundaries — openmindRoot / workspace / userData | Accepted |
+| [ADR-002](./ADR-002-openmind-layout-contract.md) | openmind layout contract v1 (`openmind-layout-v1`) | Accepted |
+| [ADR-003](./ADR-003-skill-manifest-v1.md) | Skill Manifest v1 (`openmind.skill.yaml`) | Accepted |
 | [ADR-004](./ADR-004-skill-trust-model.md) | Skill trust model — independent trust dimensions | Accepted |
 | [ADR-005](./ADR-005-runtime-targets.md) | Runtime targets — platform / arch / WSL | Accepted |
 | [ADR-006](./ADR-006-managed-runtime-provenance.md) | Managed runtime provenance & verification | Accepted |
@@ -25,12 +25,12 @@ and release work that follows.
 
 ## Machine-readable contracts (code)
 
-- [`../../shared/mymind-layout-v1.ts`](../../shared/mymind-layout-v1.ts) — frozen layout manifest.
+- [`../../shared/openmind-layout-v1.ts`](../../shared/openmind-layout-v1.ts) — frozen layout manifest.
 - [`../../shared/skill-manifest-schema.ts`](../../shared/skill-manifest-schema.ts) — Zod manifest schema (ADR-003).
 - [`../../shared/skill-compatibility-matrix.ts`](../../shared/skill-compatibility-matrix.ts) — audited 16-skill classification.
 - [`../../electron/paths/app-paths-service.ts`](../../electron/paths/app-paths-service.ts) — AppPathsService (ADR-001).
-- [`../../electron/paths/mymind-path-resolver.ts`](../../electron/paths/mymind-path-resolver.ts) — MymindPathResolver (ADR-001/002).
-- [`../../electron/paths/mymind-fixture.ts`](../../electron/paths/mymind-fixture.ts) — anonymous mymind fixture.
+- [`../../electron/paths/openmind-path-resolver.ts`](../../electron/paths/openmind-path-resolver.ts) — OpenmindPathResolver (ADR-001/002).
+- [`../../electron/paths/openmind-fixture.ts`](../../electron/paths/openmind-fixture.ts) — anonymous openmind fixture.
 - [`../../electron/paths/malicious-skill-fixtures.ts`](../../electron/paths/malicious-skill-fixtures.ts) — malicious package fixtures.
 - [`../../electron/paths/clean-machine-smoke.ts`](../../electron/paths/clean-machine-smoke.ts) — clean-machine smoke matrix.
 

@@ -10,7 +10,7 @@ import { Tooltip } from "../design-system/components";
  * 数据源是 useAi().snapshot.sessions（现成、已在 bootstrap 注入），不新建接口。
  * 折叠态由父组件整块隐藏（侧边栏太窄无意义）；本组件内部只管展开/收起记忆。 */
 
-const COLLAPSED_KEY = "cctools.nav.recentCollapsed.v2";
+const COLLAPSED_KEY = "openmind.nav.recentCollapsed.v2";
 
 function relativeTime(value: string): string {
   const then = new Date(value).getTime();

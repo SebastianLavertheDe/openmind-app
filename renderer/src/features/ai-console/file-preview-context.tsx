@@ -35,7 +35,7 @@ export function localFileReference(value: string | undefined): string | null {
 function knownContentPath(value: string): string {
   const normalized = value.replaceAll("\\", "/");
   if (normalized.includes("/")) return value;
-  if (/^\d{8}_daily_summary\.md$/i.test(normalized)) return `mymind/daily-summary/${normalized}`;
-  if (/^\d{8}_daily_topic\.md$/i.test(normalized)) return `mymind/daily-topic/${normalized}`;
+  if (/^\d{8}_daily_summary\.md$/i.test(normalized)) return `openmind/daily-summary/${normalized}`;
+  if (/^\d{8}_daily_topic\.md$/i.test(normalized)) return `openmind/daily-topic/${normalized}`;
   return value;
 }

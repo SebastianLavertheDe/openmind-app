@@ -3,10 +3,10 @@
 This is the formal-review hand-off record for the desktop app. Local tests and
 `audit:evidence` are supporting evidence only; they do not close this review.
 
-<!-- cctools-security-review-status: pending -->
-<!-- cctools-security-reviewer: -->
-<!-- cctools-security-reviewed-at: -->
-<!-- cctools-security-review-independence: pending -->
+<!-- openmind-security-review-status: pending -->
+<!-- openmind-security-reviewer: -->
+<!-- openmind-security-reviewed-at: -->
+<!-- openmind-security-review-independence: pending -->
 
 ## Review scope
 
@@ -68,7 +68,7 @@ These commands do not change the formal-review status.
 
 ```bash
 npm run security:review
-CCTOOLS_SECURITY_REVIEW_STRICT=1 npm run security:review
+OPENMIND_SECURITY_REVIEW_STRICT=1 npm run security:review
 ```
 
 The first command writes `.build/security-review-report.json` and remains

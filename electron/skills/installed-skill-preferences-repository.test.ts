@@ -12,7 +12,7 @@ describe("InstalledSkillPreferencesRepository", () => {
   let repository: InstalledSkillPreferencesRepository;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-preferences-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-skill-preferences-"));
     repository = new InstalledSkillPreferencesRepository(root);
   });
 
@@ -22,45 +22,45 @@ describe("InstalledSkillPreferencesRepository", () => {
   });
 
   it("defaults missing preferences to enabled without creating a file", () => {
-    expect(repository.isEnabled("cctools/example-skill")).toBe(true);
+    expect(repository.isEnabled("openmind/example-skill")).toBe(true);
     expect(repository.listDisabledKeys()).toEqual([]);
     expect(fs.existsSync(repository.filePath!)).toBe(false);
   });
 
   it("persists sorted disabled keys and enabling removes only that override", () => {
-    repository.setEnabled("cctools/z-skill", false);
-    repository.setEnabled("cctools/a-skill", false);
+    repository.setEnabled("openmind/z-skill", false);
+    repository.setEnabled("openmind/a-skill", false);
 
     expect(readPreferences(repository.filePath!)).toEqual({
       schemaVersion: INSTALLED_SKILL_PREFERENCES_SCHEMA_VERSION,
-      disabledKeys: ["cctools/a-skill", "cctools/z-skill"]
+      disabledKeys: ["openmind/a-skill", "openmind/z-skill"]
     });
-    expect(new InstalledSkillPreferencesRepository(root).isEnabled("cctools/a-skill")).toBe(false);
+    expect(new InstalledSkillPreferencesRepository(root).isEnabled("openmind/a-skill")).toBe(false);
 
-    repository.setEnabled("cctools/a-skill", true);
+    repository.setEnabled("openmind/a-skill", true);
 
-    expect(repository.isEnabled("cctools/a-skill")).toBe(true);
-    expect(repository.isEnabled("cctools/z-skill")).toBe(false);
-    expect(readPreferences(repository.filePath!).disabledKeys).toEqual(["cctools/z-skill"]);
+    expect(repository.isEnabled("openmind/a-skill")).toBe(true);
+    expect(repository.isEnabled("openmind/z-skill")).toBe(false);
+    expect(readPreferences(repository.filePath!).disabledKeys).toEqual(["openmind/z-skill"]);
   });
 
   it("does not rewrite an idempotent preference", () => {
-    repository.setEnabled("cctools/example-skill", false);
+    repository.setEnabled("openmind/example-skill", false);
     const write = vi.spyOn(fs, "writeFileSync");
 
-    repository.setEnabled("cctools/example-skill", false);
+    repository.setEnabled("openmind/example-skill", false);
 
     expect(write).not.toHaveBeenCalled();
   });
 
   it("keeps the previous file intact when atomic replacement fails", () => {
-    repository.setEnabled("cctools/first-skill", false);
+    repository.setEnabled("openmind/first-skill", false);
     const before = fs.readFileSync(repository.filePath!, "utf8");
     vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
       throw Object.assign(new Error("replace failed"), { code: "EIO" });
     });
 
-    expect(() => repository.setEnabled("cctools/second-skill", false)).toThrow("replace failed");
+    expect(() => repository.setEnabled("openmind/second-skill", false)).toThrow("replace failed");
     expect(fs.readFileSync(repository.filePath!, "utf8")).toBe(before);
     expect(fs.readdirSync(root).filter((entry) => entry.includes(".tmp-"))).toEqual([]);
   });
@@ -69,15 +69,15 @@ describe("InstalledSkillPreferencesRepository", () => {
     fs.writeFileSync(repository.filePath!, "{corrupt", "utf8");
     const before = fs.readFileSync(repository.filePath!, "utf8");
 
-    expect(() => repository.isEnabled("cctools/example-skill")).toThrow("拒绝覆盖现有配置");
-    expect(() => repository.setEnabled("cctools/example-skill", false)).toThrow("拒绝覆盖现有配置");
+    expect(() => repository.isEnabled("openmind/example-skill")).toThrow("拒绝覆盖现有配置");
+    expect(() => repository.setEnabled("openmind/example-skill", false)).toThrow("拒绝覆盖现有配置");
     expect(fs.readFileSync(repository.filePath!, "utf8")).toBe(before);
   });
 
   it("rejects duplicate, invalid and unsupported preference records", () => {
     for (const value of [
       { schemaVersion: 2, disabledKeys: [] },
-      { schemaVersion: 1, disabledKeys: ["cctools/same", "cctools/same"] },
+      { schemaVersion: 1, disabledKeys: ["openmind/same", "openmind/same"] },
       { schemaVersion: 1, disabledKeys: ["../escape"] }
     ]) {
       fs.writeFileSync(repository.filePath!, JSON.stringify(value), "utf8");
@@ -88,8 +88,8 @@ describe("InstalledSkillPreferencesRepository", () => {
   it("allows unbound reads but rejects writes", () => {
     const unbound = new InstalledSkillPreferencesRepository(null);
 
-    expect(unbound.isEnabled("cctools/example-skill")).toBe(true);
-    expect(() => unbound.setEnabled("cctools/example-skill", false)).toThrow("尚未绑定 mymind");
+    expect(unbound.isEnabled("openmind/example-skill")).toBe(true);
+    expect(() => unbound.setEnabled("openmind/example-skill", false)).toThrow("尚未绑定 openmind");
   });
 });
 

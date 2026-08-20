@@ -1,9 +1,9 @@
 /** Electron 主进程 / product 层用户可见错误、对话框、诊断文案。 */
 export const electronMessages = {
   errors: {
-    unregisteredSkill: (skillId: string) => `未注册的 cctools skill：${skillId}`,
+    unregisteredSkill: (skillId: string) => `未注册的 OpenMind skill：${skillId}`,
     repo: {
-      selectValidFirst: "请先在设置中选择有效的 mymind 保存目录。",
+      selectValidFirst: "请先在设置中选择有效的 openmind 保存目录。",
       invalidDirectory: "该目录不存在，或不是可读写的目录。",
       pathOutsideProject: "请求路径超出项目目录。"
     },
@@ -80,7 +80,7 @@ export const electronMessages = {
   dialogs: {
     importOpml: "导入 OPML",
     selectProjectFile: "选择项目内文件",
-    selectMymindFile: "选择 mymind 内文件",
+    selectOpenmindFile: "选择 openmind 内文件",
     exportMarkdown: "导出 Markdown"
   },
 

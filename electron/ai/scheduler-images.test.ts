@@ -14,7 +14,7 @@ import {
 const roots: string[] = [];
 
 function createRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-images-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-images-"));
   roots.push(root);
   return root;
 }
@@ -40,9 +40,9 @@ describe("materializeImages", () => {
     const stateRoot = createRoot();
     const result = materializeImages(root, "run-private", [imageContext()], stateRoot);
 
-    expect(result[0].path).toBe(path.join(stateRoot, ".cctools", "ai", "tmp-images", "run-private-img1.png"));
+    expect(result[0].path).toBe(path.join(stateRoot, ".openmind", "ai", "tmp-images", "run-private-img1.png"));
     expect(fs.existsSync(result[0].path!)).toBe(true);
-    expect(fs.existsSync(path.join(root, ".cctools"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".openmind"))).toBe(false);
   });
 
   it("解码 dataURL 写盘并回填 path/mediaType/byteSize,清空 content", () => {
@@ -51,7 +51,7 @@ describe("materializeImages", () => {
 
     const ctx = result[0];
     expect(ctx.content).toBeUndefined();
-    expect(ctx.path).toBe(path.join(".cctools", "ai", "tmp-images", "run-1-img1.png"));
+    expect(ctx.path).toBe(path.join(".openmind", "ai", "tmp-images", "run-1-img1.png"));
     expect(ctx.mediaType).toBe("image/png");
     expect(typeof ctx.byteSize).toBe("number");
     expect(ctx.byteSize).toBeGreaterThan(0);
@@ -111,7 +111,7 @@ describe("cleanupImages", () => {
     const root = createRoot();
     materializeImages(root, "run-A", [imageContext({ id: "a1" })]);
     materializeImages(root, "run-B", [imageContext({ id: "b1" })]);
-    const dir = path.join(root, ".cctools", "ai", "tmp-images");
+    const dir = path.join(root, ".openmind", "ai", "tmp-images");
     expect(fs.readdirSync(dir)).toHaveLength(2);
 
     cleanupImages(root, "run-A");
@@ -141,7 +141,7 @@ describe("cleanupStaleImages", () => {
     const root = createRoot();
     materializeImages(root, "run-old", [imageContext({ id: "old" })]);
     materializeImages(root, "run-new", [imageContext({ id: "new" })]);
-    const dir = path.join(root, ".cctools", "ai", "tmp-images");
+    const dir = path.join(root, ".openmind", "ai", "tmp-images");
 
     // 把 old 文件的 mtime 改成 8 天前
     const oldFile = path.join(dir, "run-old-old.png");
@@ -186,12 +186,12 @@ describe("extractImageContexts", () => {
   it("相对路径基于 projectRoot 解析为绝对路径", () => {
     const root = createRoot();
     const result = extractImageContexts(root, [
-      imageContext({ content: undefined, path: ".cctools/ai/tmp-images/img.png", mediaType: "image/png" })
+      imageContext({ content: undefined, path: ".openmind/ai/tmp-images/img.png", mediaType: "image/png" })
     ]);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       id: "img1",
-      path: path.resolve(root, ".cctools/ai/tmp-images/img.png"),
+      path: path.resolve(root, ".openmind/ai/tmp-images/img.png"),
       mediaType: "image/png"
     });
   });

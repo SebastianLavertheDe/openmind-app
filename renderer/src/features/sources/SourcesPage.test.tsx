@@ -56,7 +56,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 beforeEach(() => {
-  window.cctools = makeApi();
+  window.openmind = makeApi();
 });
 
 afterEach(() => {
@@ -66,7 +66,7 @@ afterEach(() => {
 describe("SourcesPage", () => {
   it("在 Skill 设置上下文中只展示关联来源并保留主操作", async () => {
     const runSource = vi.fn(async () => true);
-    window.cctools = makeApi({ runSource });
+    window.openmind = makeApi({ runSource });
 
     render(
       <AiProvider initial={snapshot}>
@@ -104,7 +104,7 @@ describe("SourcesPage", () => {
   });
 
   it("加载失败显示错误状态", async () => {
-    window.cctools = makeApi({ listSources: async () => { throw new Error("网络断开"); } });
+    window.openmind = makeApi({ listSources: async () => { throw new Error("网络断开"); } });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("网络断开")).toBeTruthy());
   });
@@ -130,7 +130,7 @@ describe("SourcesPage", () => {
 
   it("点击启停按钮触发 toggle(updateSource)", async () => {
     const updateSource = vi.fn(async () => makeSource({ enabled: false }));
-    window.cctools = makeApi({ updateSource });
+    window.openmind = makeApi({ updateSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     const disableBtn = screen.getByLabelText(`停用 AI Newsletter`);
@@ -141,7 +141,7 @@ describe("SourcesPage", () => {
   it("点击抓取按钮触发 runSource", async () => {
     const runSource = vi.fn(async () => true);
     // 只用一个源避免多个"抓取"按钮
-    window.cctools = makeApi({ listSources: async () => [makeSource()], runSource });
+    window.openmind = makeApi({ listSources: async () => [makeSource()], runSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     const fetchBtn = screen.getByText(messages.sources.actions.fetch);
@@ -152,7 +152,7 @@ describe("SourcesPage", () => {
   it("运行中的源显示停止按钮,点击触发 stopSource", async () => {
     const stopSource = vi.fn(async () => true);
     const runningSources = [makeSource({ status: "running" })];
-    window.cctools = makeApi({ listSources: async () => runningSources, stopSource });
+    window.openmind = makeApi({ listSources: async () => runningSources, stopSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     const stopBtn = screen.getByText(messages.sources.actions.stop);
@@ -164,7 +164,7 @@ describe("SourcesPage", () => {
     // 全部 disabled 的源 → 无可运行
     const disabled = [makeSource({ enabled: false })];
     const runSource = vi.fn(async () => true);
-    window.cctools = makeApi({ listSources: async () => disabled, runSource });
+    window.openmind = makeApi({ listSources: async () => disabled, runSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     const runAllBtn = screen.getByText(messages.sources.actions.runAll);
@@ -176,7 +176,7 @@ describe("SourcesPage", () => {
 
   it("添加源表单提交触发 addRssSource", async () => {
     const addRssSource = vi.fn(async () => makeSource({ id: "new-1", name: "New Feed" }));
-    window.cctools = makeApi({ addRssSource });
+    window.openmind = makeApi({ addRssSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     // 打开添加表单
@@ -191,7 +191,7 @@ describe("SourcesPage", () => {
 
   it("添加源表单 name/url 为空时不提交", async () => {
     const addRssSource = vi.fn(async () => makeSource());
-    window.cctools = makeApi({ addRssSource });
+    window.openmind = makeApi({ addRssSource });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     fireEvent.click(screen.getByText(messages.sources.actions.add));
@@ -202,7 +202,7 @@ describe("SourcesPage", () => {
 
   it("在与主界面一致的模态弹窗中编辑并保存数据源", async () => {
     const updateSource = vi.fn(async (_id: string, input: Partial<SourceDefinition>) => makeSource({ ...input }));
-    window.cctools = makeApi({ listSources: async () => [makeSource({ tags: undefined })], updateSource });
+    window.openmind = makeApi({ listSources: async () => [makeSource({ tags: undefined })], updateSource });
     const { container } = render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
 
@@ -247,7 +247,7 @@ describe("SourcesPage", () => {
 
   it("导入 OPML 按钮触发 importOpml", async () => {
     const importOpml = vi.fn(async () => 3);
-    window.cctools = makeApi({ importOpml });
+    window.openmind = makeApi({ importOpml });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("AI Newsletter")).toBeTruthy());
     fireEvent.click(screen.getByText(messages.sources.add.importOpml));
@@ -256,7 +256,7 @@ describe("SourcesPage", () => {
 
   it("onSkillEvent 收到 success 状态时重新加载", async () => {
     let eventCb: ((e: { sourceId?: string; skillId?: string; state?: string; type?: string }) => void) | null = null;
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       onSkillEvent: (cb) => { eventCb = cb; return () => undefined; }
     });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
@@ -269,14 +269,14 @@ describe("SourcesPage", () => {
   });
 
   it("空源列表显示 EmptyState", async () => {
-    window.cctools = makeApi({ listSources: async () => [] });
+    window.openmind = makeApi({ listSources: async () => [] });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText(messages.sources.empty.title)).toBeTruthy());
   });
 
   it("分组卡片:源数较多时全部展示(无分页)", async () => {
     const many = Array.from({ length: 65 }, (_, i) => makeSource({ id: `s${i}`, name: `Source ${i}` }));
-    window.cctools = makeApi({ listSources: async () => many });
+    window.openmind = makeApi({ listSources: async () => many });
     render(<AiProvider initial={snapshot}><SourcesPage /></AiProvider>);
     await waitFor(() => expect(screen.getByText("Source 0")).toBeTruthy());
     // 所有源都渲染(无分页截断)

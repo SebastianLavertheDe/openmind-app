@@ -52,7 +52,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 beforeEach(() => {
-  window.cctools = makeApi();
+  window.openmind = makeApi();
   vi.stubGlobal("confirm", vi.fn(() => true));
 });
 
@@ -61,7 +61,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("RunsPage", () => {
   it("shows unified Skill and Workflow history and retries a failed Skill Run", async () => {
     const retrySkillRun = vi.fn(async () => skillRun);
-    window.cctools = makeApi({ retrySkillRun });
+    window.openmind = makeApi({ retrySkillRun });
     render(<RunsPage />);
 
     expect((await screen.findAllByText("daily-summary")).length).toBeGreaterThan(0);
@@ -74,7 +74,7 @@ describe("RunsPage", () => {
   it("exposes failed Workflow Step retry and history deletion", async () => {
     const retryWorkflowStep = vi.fn(async () => workflowRun);
     const deleteRunHistory = vi.fn(async () => true);
-    window.cctools = makeApi({ retryWorkflowStep, deleteRunHistory });
+    window.openmind = makeApi({ retryWorkflowStep, deleteRunHistory });
     render(<RunsPage initialRunId="workflow-run-1" />);
 
     expect(await screen.findByText("summarize")).toBeTruthy();
@@ -87,11 +87,11 @@ describe("RunsPage", () => {
   it("opens and reveals logical Artifacts without exposing external paths", async () => {
     const openPath = vi.fn(async () => "");
     const revealPath = vi.fn(async () => true);
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listSkillRuns: async () => [skillRun],
       listWorkflowRuns: async () => [],
       listRunArtifacts: async () => [
-        { id: "logical", runId: skillRun.id, skillId: skillRun.request.skillId, logicalPath: "mymind/daily-summary/out.md", type: "markdown", declared: true, createdAt: "2026-08-05T08:00:01.000Z" },
+        { id: "logical", runId: skillRun.id, skillId: skillRun.request.skillId, logicalPath: "openmind/daily-summary/out.md", type: "markdown", declared: true, createdAt: "2026-08-05T08:00:01.000Z" },
         { id: "external", runId: skillRun.id, skillId: skillRun.request.skillId, externalPathRef: "export-1", type: "video", declared: true, createdAt: "2026-08-05T08:00:01.000Z" }
       ],
       openPath,
@@ -99,12 +99,12 @@ describe("RunsPage", () => {
     });
     render(<RunsPage initialRunId={skillRun.id} />);
 
-    expect(await screen.findByRole("button", { name: "打开 mymind/daily-summary/out.md" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "打开 mymind/daily-summary/out.md" }));
-    fireEvent.click(screen.getByRole("button", { name: "定位 mymind/daily-summary/out.md" }));
+    expect(await screen.findByRole("button", { name: "打开 openmind/daily-summary/out.md" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "打开 openmind/daily-summary/out.md" }));
+    fireEvent.click(screen.getByRole("button", { name: "定位 openmind/daily-summary/out.md" }));
     await waitFor(() => {
-      expect(openPath).toHaveBeenCalledWith("mymind/daily-summary/out.md");
-      expect(revealPath).toHaveBeenCalledWith("mymind/daily-summary/out.md");
+      expect(openPath).toHaveBeenCalledWith("openmind/daily-summary/out.md");
+      expect(revealPath).toHaveBeenCalledWith("openmind/daily-summary/out.md");
     });
     expect(screen.getByText("外部导出绑定：export-1")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "打开 export-1" })).toBeNull();
@@ -112,7 +112,7 @@ describe("RunsPage", () => {
 
   it("shows a possible orphan process after restart without offering an automatic kill", async () => {
     const orphanRun = BrokerRunRecordSchema.parse({ ...skillRun, orphanPid: 45678, error: "Run 在应用重启时中断：application-restarted；发现可能残留进程 PID 45678，需要人工诊断。" });
-    window.cctools = makeApi({ listSkillRuns: async () => [orphanRun], listWorkflowRuns: async () => [] });
+    window.openmind = makeApi({ listSkillRuns: async () => [orphanRun], listWorkflowRuns: async () => [] });
     render(<RunsPage initialRunId={orphanRun.id} />);
 
     expect((await screen.findByRole("alert")).textContent).toContain("PID 45678");

@@ -154,8 +154,8 @@ describe("provider contracts", () => {
   });
 
   it("maps Electron asar binaries to their executable unpacked path", () => {
-    expect(toAsarUnpackedPath("C:\\CC Tools\\resources\\app.asar\\node_modules\\claude.exe"))
-      .toBe("C:\\CC Tools\\resources\\app.asar.unpacked\\node_modules\\claude.exe");
+    expect(toAsarUnpackedPath("C:\\OpenMind\\resources\\app.asar\\node_modules\\claude.exe"))
+      .toBe("C:\\OpenMind\\resources\\app.asar.unpacked\\node_modules\\claude.exe");
   });
 
   it("allows safe direct-project edits but never auto-approves destructive actions", () => {

@@ -130,7 +130,7 @@ export function AiWorkbench({
     setDirty(false);
     setSaveError(null);
     setSaveNotice(null);
-    void window.cctools.readContent(path).then((content) => {
+    void window.openmind.readContent(path).then((content) => {
       if (request !== previewRequest.current) return;
       setPreview({ path, content, loading: false, error: null });
       setDraft(content.content || "");
@@ -208,7 +208,7 @@ export function AiWorkbench({
     setSaveError(null);
     setSaveNotice(null);
     try {
-      const content = await window.cctools.writeContent(preview.path, draft);
+      const content = await window.openmind.writeContent(preview.path, draft);
       setPreview((current) => current?.path === preview.path ? { ...current, content, loading: false, error: null } : current);
       setDraft(content.content || draft);
       setDirty(false);

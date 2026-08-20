@@ -24,7 +24,7 @@ export type SmokeEnvironment =
   | "http-tls-proxy"
   | "cjk-username"
   | "space-long-path"
-  | "readonly-mymind"
+  | "readonly-openmind"
   | "unwritable-export"
   | "keychain-unavailable-locked"
   | "low-disk"
@@ -37,7 +37,7 @@ export type SmokeEnvironment =
 
 export type SmokeAssertionCode =
   | "app-starts-without-repo"
-  | "binds-existing-mymind"
+  | "binds-existing-openmind"
   | "imports-claude-skills"
   | "installs-skill"
   | "configures-provider"
@@ -51,9 +51,9 @@ export type SmokeAssertionCode =
   | "skill-update-active-ready-only"
   | "runtime-update-atomic"
   | "rollback-restores-previous"
-  | "uninstall-preserves-mymind"
+  | "uninstall-preserves-openmind"
   | "external-export-relink-revoke"
-  | "mymind-tree-unchanged"
+  | "openmind-tree-unchanged"
   | "no-secret-in-logs";
 
 export interface SmokeScenario {
@@ -76,10 +76,10 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     platform: "windows-11-x64",
     environment: "no-python-uv-node-git-ffmpeg",
     assertions: [
-      "app-starts-without-repo", "binds-existing-mymind", "imports-claude-skills",
+      "app-starts-without-repo", "binds-existing-openmind", "imports-claude-skills",
       "installs-skill", "configures-provider", "installs-python-core-runtime",
       "runs-process-skill", "stops-run-cleanly", "opens-artifact",
-      "mymind-tree-unchanged", "no-secret-in-logs"
+      "openmind-tree-unchanged", "no-secret-in-logs"
     ],
     gate: "v1-baseline"
   },
@@ -88,8 +88,8 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     platform: "windows-11-x64",
     environment: "offline",
     assertions: [
-      "app-starts-without-repo", "binds-existing-mymind",
-      "installs-python-core-runtime", "runs-process-skill", "mymind-tree-unchanged"
+      "app-starts-without-repo", "binds-existing-openmind",
+      "installs-python-core-runtime", "runs-process-skill", "openmind-tree-unchanged"
     ],
     gate: "v1-baseline"
   },
@@ -104,14 +104,14 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     id: "win11-x64-force-quit-install",
     platform: "windows-11-x64",
     environment: "force-quit-during-install",
-    assertions: ["installs-python-core-runtime", "mymind-tree-unchanged"],
+    assertions: ["installs-python-core-runtime", "openmind-tree-unchanged"],
     gate: "v1-full"
   },
   {
     id: "win11-x64-update-rollback",
     platform: "windows-11-x64",
     environment: "new-version-rollback",
-    assertions: ["rollback-restores-previous", "mymind-tree-unchanged"],
+    assertions: ["rollback-restores-previous", "openmind-tree-unchanged"],
     gate: "v1-full"
   },
 
@@ -121,10 +121,10 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     platform: "macos-applesilicon-current",
     environment: "no-python-uv-node-git-ffmpeg",
     assertions: [
-      "app-starts-without-repo", "binds-existing-mymind", "imports-claude-skills",
+      "app-starts-without-repo", "binds-existing-openmind", "imports-claude-skills",
       "installs-skill", "configures-provider", "installs-python-core-runtime",
       "runs-process-skill", "runs-agent-skill-external-bridge",
-      "stops-run-cleanly", "opens-artifact", "mymind-tree-unchanged", "no-secret-in-logs"
+      "stops-run-cleanly", "opens-artifact", "openmind-tree-unchanged", "no-secret-in-logs"
     ],
     gate: "v1-baseline"
   },
@@ -132,7 +132,7 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     id: "macos-as-offline",
     platform: "macos-applesilicon-current",
     environment: "offline",
-    assertions: ["app-starts-without-repo", "runs-process-skill", "mymind-tree-unchanged"],
+    assertions: ["app-starts-without-repo", "runs-process-skill", "openmind-tree-unchanged"],
     gate: "v1-baseline"
   },
   {
@@ -148,7 +148,7 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     id: "win11-x64-cjk-username",
     platform: "windows-11-x64",
     environment: "cjk-username",
-    assertions: ["app-starts-without-repo", "runs-process-skill", "mymind-tree-unchanged"],
+    assertions: ["app-starts-without-repo", "runs-process-skill", "openmind-tree-unchanged"],
     gate: "v1-full"
   },
   {
@@ -169,7 +169,7 @@ export const CLEAN_MACHINE_MATRIX: readonly SmokeScenario[] = [
     id: "any-app-crash-recovery",
     platform: "windows-11-x64",
     environment: "app-crash",
-    assertions: ["stops-run-cleanly", "mymind-tree-unchanged"],
+    assertions: ["stops-run-cleanly", "openmind-tree-unchanged"],
     gate: "ga"
   }
 ] as const;

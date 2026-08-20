@@ -35,7 +35,7 @@ function interpretAction(raw: string): PaletteAction | null {
       badge: action.badge,
       title: action.title,
       why: action.why(date),
-      prompt: `阅读今天（${date}）mymind/article 与 inbox 里的资料，挑出最相关的几篇，输出中文要点清单，每条带出处文件名。${base}`,
+      prompt: `阅读今天（${date}）openmind/article 与 inbox 里的资料，挑出最相关的几篇，输出中文要点清单，每条带出处文件名。${base}`,
       permissionProfile: "read-only"
     };
   }
@@ -46,7 +46,7 @@ function interpretAction(raw: string): PaletteAction | null {
       badge: action.badge,
       title: action.title,
       why: action.why,
-      prompt: `${text}。请遵守 cctools 的“Kill the AI Tone”中文写作规范：直接陈述、用具体场景与例子、避免“不是…而是…”式转折。输出 Markdown。${base}`,
+      prompt: `${text}。请遵守 openmind 的“Kill the AI Tone”中文写作规范：直接陈述、用具体场景与例子、避免“不是…而是…”式转折。输出 Markdown。${base}`,
       permissionProfile: "edit"
     };
   }
@@ -100,7 +100,7 @@ export function GlobalSearch({
     let active = true;
     setLoading(true);
     const timer = window.setTimeout(() => {
-      void window.cctools.searchWorkspace(query).then((next) => {
+      void window.openmind.searchWorkspace(query).then((next) => {
         if (!active) return;
         setResults(next);
       }).finally(() => {

@@ -348,7 +348,7 @@ function ReadFileSummary({ path, failed, failureText }: { path: string; failed: 
         title={previewPath}
         onClick={() => {
           if (openPreview) openPreview(previewPath);
-          else void window.cctools.openPath(previewPath);
+          else void window.openmind.openPath(previewPath);
         }}
       >
         <FileText size={14} />

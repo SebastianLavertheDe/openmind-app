@@ -39,4 +39,4 @@ const api: DesktopApi = {
   }
 };
 
-contextBridge.exposeInMainWorld("cctools", api);
+contextBridge.exposeInMainWorld("openmind", api);

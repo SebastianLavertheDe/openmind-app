@@ -148,7 +148,7 @@ export function ChatComposer() {
     const requestId = ++searchRequest.current;
     setFileLoading(true);
     const timer = window.setTimeout(() => {
-      void window.cctools.searchMymindFiles(trigger.query, 50).then((result) => {
+      void window.openmind.searchOpenmindFiles(trigger.query, 50).then((result) => {
         if (searchRequest.current !== requestId) return;
         setFileResults(result.items);
         setFileSearchMeta({ indexedCount: result.indexedCount, truncated: result.truncated });
@@ -254,7 +254,7 @@ export function ChatComposer() {
   };
 
   const browseFiles = async () => {
-    const files = await window.cctools.selectMymindFiles();
+    const files = await window.openmind.selectOpenmindFiles();
     for (const file of files) {
       ai.addContext({
         id: `file:${file}`,
@@ -401,7 +401,7 @@ export function ChatComposer() {
               className="composer-workspace"
               aria-label={m.ai.composer.openWorkspace}
               title={ai.snapshot.projectRoot}
-              onClick={() => void window.cctools.openPath(".")}
+              onClick={() => void window.openmind.openPath(".")}
             >
               <FolderOpen size={16} />
               <span>{m.ai.chat.currentProject}</span>

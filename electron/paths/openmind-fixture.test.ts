@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { buildAnonymousMymindFixture, disposeFixture, type BuiltFixture } from "./mymind-fixture";
+import { buildAnonymousOpenmindFixture, disposeFixture, type BuiltFixture } from "./openmind-fixture";
 
 let fixture: BuiltFixture | null = null;
 beforeEach(() => {
-  fixture = buildAnonymousMymindFixture();
+  fixture = buildAnonymousOpenmindFixture();
 });
 afterEach(() => {
   if (fixture) {
@@ -14,7 +14,7 @@ afterEach(() => {
   }
 });
 
-describe("buildAnonymousMymindFixture", () => {
+describe("buildAnonymousOpenmindFixture", () => {
   it("creates all current content top-level dirs", () => {
     for (const d of ["article", "creative", "daily-summary", "daily-topic", "post", "reddit", "wiki"]) {
       expect(fs.existsSync(path.join(fixture!.root, d))).toBe(true);
@@ -75,7 +75,7 @@ describe("buildAnonymousMymindFixture", () => {
   });
 
   it("disposeFixture removes the root and outside dirs", () => {
-    const f = buildAnonymousMymindFixture();
+    const f = buildAnonymousOpenmindFixture();
     const root = f.root;
     const outside = f.outside;
     expect(fs.existsSync(root)).toBe(true);

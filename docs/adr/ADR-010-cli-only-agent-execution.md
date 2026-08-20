@@ -29,7 +29,7 @@ CLI host:
 
 Both bridges receive only an installed package whose managed path, Manifest
 identity and exact digest have just been verified from the
-SkillStore under the bound mymind root. Codex receives the
+SkillStore under the bound openmind root. Codex receives the
 boundary-checked `SKILL.md` path as native Skill input. Claude receives
 bounded `SKILL.md` and reference text as transient system context. Neither
 bridge permanently copies the installed package into the workspace.
@@ -71,7 +71,7 @@ Agent provider connection.
 Claude Code, Codex and their tools run with the launching user's OS
 privileges. Manifest capabilities, package trust, CLI approvals and Artifact
 descriptions are instruction, gating and audit controls; they are not an OS
-sandbox and cannot technically restrict an external CLI to declared mymind
+sandbox and cannot technically restrict an external CLI to declared openmind
 paths.
 
 Package and reference path validation remains Main-owned. Provider-native

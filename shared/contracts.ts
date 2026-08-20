@@ -1117,13 +1117,13 @@ export type SharedPythonRuntimeStatus = z.infer<typeof SharedPythonRuntimeStatus
 export const UserPreferencesSchema = z.object({
   schemaVersion: z.number().default(2),
   /**
-   * ADR-001: the actual mymind directory (not the cctools repo, not a
+   * ADR-001: the actual openmind directory (not the openmind repo, not a
    * subdirectory). The single active content root.
    */
-  mymindRoot: z.string().default(""),
+  openmindRoot: z.string().default(""),
   /**
-   * ADR-001: optional AI/code workspace root, independent of mymindRoot.
-   * May be empty. Never inferred from mymindRoot.
+   * ADR-001: optional AI/code workspace root, independent of openmindRoot.
+   * May be empty. Never inferred from openmindRoot.
    */
   workspaceRoot: z.string().default(""),
   themeMode: z.enum(["dark", "light"]).default("light"),
@@ -1147,7 +1147,7 @@ export const UserPreferencesSchema = z.object({
   }).default({ codex: "auto", claude: "auto" }),
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("edit"),
   defaultWorkDir: z.string().default(""),
-  notesDir: z.string().default("mymind"),
+  notesDir: z.string().default("openmind"),
   /** AI 写作时允许通过 Playwright MCP 从已登录的 Chrome 获取原文证据截图。 */
   browserAutomationEnabled: z.boolean().default(false),
   /** URL 已在扩展授权的 Chrome 标签页中打开时，优先复用并在完成后恢复原标签。 */
@@ -1235,9 +1235,9 @@ export type AppEnvironment = z.infer<typeof AppEnvironmentSchema>;
 
 export type AppBootstrap = {
   repoRoot: string;
-  /** ADR-001: the actual mymind directory (may differ from repoRoot). */
-  mymindRoot: string;
-  /** ADR-001: optional AI/code workspace, independent of mymind. */
+  /** ADR-001: the actual openmind directory (may differ from repoRoot). */
+  openmindRoot: string;
+  /** ADR-001: optional AI/code workspace, independent of openmind. */
   workspaceRoot: string;
   validRepo: boolean;
   /** True when the official cctools-skills repository is installed (first-start gate, mandatory). */
@@ -1251,8 +1251,8 @@ export type AppBootstrap = {
   ai: AiSnapshot;
 };
 
-export type MymindRootStatus = {
-  mymindRoot: string;
+export type OpenmindRootStatus = {
+  openmindRoot: string;
   workspaceRoot: string;
   health: {
     configured: boolean;
@@ -1273,17 +1273,17 @@ export type MymindRootStatus = {
 };
 
 /** Read-only root selection preview. A preview never persists settings or
- * creates/moves content; the caller must explicitly commit via setMymindRoot. */
-export type MymindRootPreview = {
+ * creates/moves content; the caller must explicitly commit via setOpenmindRoot. */
+export type OpenmindRootPreview = {
   candidate: string;
   canonicalRoot: string | null;
-  health: MymindRootStatus["health"];
+  health: OpenmindRootStatus["health"];
   canBind: boolean;
   blockingReasons: string[];
 };
 
-/** Read-only preview for explicit user-initiated mymind content relocation. */
-export type MymindRelocationPreview = {
+/** Read-only preview for explicit user-initiated openmind content relocation. */
+export type OpenmindRelocationPreview = {
   schemaVersion: number;
   sourceDirectory: string;
   targetDirectory: string;
@@ -1302,7 +1302,7 @@ export type MymindRelocationPreview = {
 };
 
 /** Result of a verified copy-only relocation. The source is never removed. */
-export type MymindRelocationReport = {
+export type OpenmindRelocationReport = {
   schemaVersion: number;
   status: "committed";
   sourceDirectory: string;
@@ -1361,21 +1361,21 @@ export interface DesktopApi {
   getCreativeAnalytics(): Promise<CreativeAnalytics>;
   bindCreativeSession(path: string, sessionId: string): Promise<CreativeProjectDetail>;
   selectFiles(): Promise<string[]>;
-  selectMymindFiles(): Promise<string[]>;
-  searchMymindFiles(query: string, limit?: number): Promise<ProjectFileSearchResult>;
+  selectOpenmindFiles(): Promise<string[]>;
+  searchOpenmindFiles(query: string, limit?: number): Promise<ProjectFileSearchResult>;
   openPath(path: string): Promise<string>;
   revealPath(path: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   exportText(defaultName: string, content: string): Promise<string | null>;
-  /** ADR-001: select/set the actual mymind directory (not the repo). */
-  setMymindRoot(path: string): Promise<string>;
-  selectMymindRoot(): Promise<string | null>;
-  previewMymindRoot(path: string): Promise<MymindRootPreview>;
-  selectMymindRelocationTarget(): Promise<string | null>;
-  previewMymindRelocation(targetPath: string): Promise<MymindRelocationPreview>;
-  relocateMymind(targetPath: string): Promise<MymindRelocationReport>;
-  getMymindRoot(): Promise<MymindRootStatus>;
-  /** ADR-001: optional AI/code workspace, independent of mymind. */
+  /** ADR-001: select/set the actual openmind directory (not the repo). */
+  setOpenmindRoot(path: string): Promise<string>;
+  selectOpenmindRoot(): Promise<string | null>;
+  previewOpenmindRoot(path: string): Promise<OpenmindRootPreview>;
+  selectOpenmindRelocationTarget(): Promise<string | null>;
+  previewOpenmindRelocation(targetPath: string): Promise<OpenmindRelocationPreview>;
+  relocateOpenmind(targetPath: string): Promise<OpenmindRelocationReport>;
+  getOpenmindRoot(): Promise<OpenmindRootStatus>;
+  /** ADR-001: optional AI/code workspace, independent of openmind. */
   setWorkspaceRoot(path: string): Promise<string>;
   selectWorkspaceRoot(): Promise<string | null>;
   getPreferences(): Promise<UserPreferences>;

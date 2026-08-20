@@ -209,7 +209,7 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
         systemPrompt: { append?: string };
       };
     };
-    const server = startup.options.mcpServers.cctools_browser;
+    const server = startup.options.mcpServers.openmind_browser;
     expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
     expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
     expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
@@ -902,7 +902,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
   });
 
   it("从 SkillStore 注入 Agent instructions，并禁用 project-local skill discovery", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-claude-bridge-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-bridge-"));
     fs.mkdirSync(`${tmpDir}/references`, { recursive: true });
     fs.writeFileSync(`${tmpDir}/SKILL.md`, "# Installed Agent\n执行受控任务。\n");
     fs.writeFileSync(`${tmpDir}/references/rules.md`, "只写入声明的 Artifact。\n");
@@ -918,9 +918,9 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
           packageRoot: tmpDir,
           skillPath: `${tmpDir}/SKILL.md`,
           referencePaths: ["references/rules.md"],
-          mymindRoot: `${tmpDir}/mymind`,
+          openmindRoot: `${tmpDir}/openmind`,
           capabilities: {
-            mymind: { read: ["article/**"], write: ["creative/**"] },
+            openmind: { read: ["article/**"], write: ["creative/**"] },
             network: { required: false, hosts: [] },
             subprocess: { allowed: false },
             browser: false

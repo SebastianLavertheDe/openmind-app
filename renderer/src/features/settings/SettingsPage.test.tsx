@@ -20,7 +20,7 @@ const skills: SkillDefinition[] = [
     envFile: ".env",
     group: "内容获取",
     permission: "auto",
-    outputArtifacts: ["mymind/article/**/*.md"],
+    outputArtifacts: ["openmind/article/**/*.md"],
     timeoutMs: 120_000
   },
   {
@@ -35,7 +35,7 @@ const skills: SkillDefinition[] = [
 ];
 
 const mcpServers: McpServerDefinition[] = [{
-  id: "cctools_browser",
+  id: "openmind_browser",
   title: "写作证据截图",
   description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
   backend: "Microsoft Playwright MCP",
@@ -57,12 +57,12 @@ const mcpServers: McpServerDefinition[] = [{
 }];
 
 const defaultPrefs: UserPreferences = {
-  schemaVersion: 1, mymindRoot: "/repo/mymind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
+  schemaVersion: 1, openmindRoot: "/repo/openmind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
-  defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false,
+  defaultWorkDir: "", notesDir: "openmind", browserAutomationEnabled: false,
   browserReuseExistingTabs: true, browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
   defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
@@ -109,9 +109,9 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     getMcpServers: async () => mcpServers,
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled: boolean) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "linux-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 2 : 0, ready: enabled, lastError: null }),
-    setMymindRoot: async (root: string) => root,
-    selectMymindRoot: async () => "/repo/mymind-next",
-    previewMymindRoot: async (candidate: string) => ({ candidate, canonicalRoot: candidate, health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, canBind: true, blockingReasons: [] }),
+    setOpenmindRoot: async (root: string) => root,
+    selectOpenmindRoot: async () => "/repo/openmind-next",
+    previewOpenmindRoot: async (candidate: string) => ({ candidate, canonicalRoot: candidate, health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, canBind: true, blockingReasons: [] }),
     openPath: async () => "",
     onAiEvent: () => () => undefined,
     aiRefresh: async () => snapshot,
@@ -130,7 +130,7 @@ function openCategory(name: string) {
 }
 
 beforeEach(() => {
-  window.cctools = makeApi();
+  window.openmind = makeApi();
 });
 
 afterEach(() => cleanup());
@@ -195,7 +195,7 @@ describe("SettingsPage", () => {
     }];
     const installCliTool = vi.fn().mockResolvedValue({ cli: "claude", installed: true, version: "v1.2.3", digest: "d".repeat(64), sourceUrl: "https://github.com", installedAt: "2026-08-14T00:00:00Z", executablePath: "/tools/bin/claude" });
     const aiRefreshProviders = vi.fn().mockResolvedValue(undefined);
-    window.cctools = makeApi({ installCliTool, aiRefreshProviders });
+    window.openmind = makeApi({ installCliTool, aiRefreshProviders });
     render(
       <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
         <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
@@ -222,7 +222,7 @@ describe("SettingsPage", () => {
     let progressListener: ((progress: { cli: "codex"; phase: "downloading"; receivedBytes: number; totalBytes: number; message: string }) => void) | undefined;
     const installCliTool = vi.fn(() => new Promise<never>(() => undefined));
     const cancelCliToolInstall = vi.fn().mockResolvedValue(true);
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       installCliTool,
       cancelCliToolInstall,
       onCliInstallProgress: (callback) => { progressListener = callback as typeof progressListener; return () => undefined; }
@@ -254,7 +254,7 @@ describe("SettingsPage", () => {
     const installCliTool = vi.fn()
       .mockRejectedValueOnce(new Error("网络失败"))
       .mockResolvedValueOnce({ cli: "claude", installed: true, version: "2.1.0", digest: "d".repeat(64), sourceUrl: "https://claude.ai/install.sh", installedAt: "2026-08-14T00:00:00Z", executablePath: "/tools/bin/claude" });
-    window.cctools = makeApi({ installCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
+    window.openmind = makeApi({ installCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
     render(
       <AiProvider initial={{ ...snapshot, providers: unavailable }} skills={[]}>
         <SettingsPage repoRoot="/repo" providers={unavailable} onRepo={vi.fn()} onBack={vi.fn()} onOpenSession={vi.fn()} />
@@ -274,7 +274,7 @@ describe("SettingsPage", () => {
       .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-08-15T00:00:00Z", source: "npm" })
       .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.1.0", latestVersion: "1.1.0", updateAvailable: false, canUpgrade: true, checkedAt: "2026-08-15T00:01:00Z", source: "npm" });
     const upgradeCliTool = vi.fn().mockResolvedValue({ cli: "codex", installed: true, version: "1.1.0", digest: "d".repeat(64), sourceUrl: "https://registry.npmjs.org/@openai%2fcodex", installedAt: "2026-08-15T00:01:00Z", executablePath: "/tools/bin/codex" });
-    window.cctools = makeApi({ checkCliToolUpdate, upgradeCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
+    window.openmind = makeApi({ checkCliToolUpdate, upgradeCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -320,7 +320,7 @@ describe("SettingsPage", () => {
     };
     const getProviders = vi.fn().mockResolvedValue(providerView);
     const saveProviders = vi.fn().mockResolvedValue(providerView);
-    window.cctools = makeApi({ getProviders, saveProviders });
+    window.openmind = makeApi({ getProviders, saveProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -371,12 +371,12 @@ describe("SettingsPage", () => {
         proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
       }]
     };
-    window.cctools = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    await waitFor(() => expect(window.cctools.getProviders).toHaveBeenCalled());
+    await waitFor(() => expect(window.openmind.getProviders).toHaveBeenCalled());
     expect(screen.queryByRole("combobox", { name: "Claude Code 服务商" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Codex CLI 服务商" })).toBeNull();
     expect(screen.queryByText("使用 Claude Code 自身配置")).toBeNull();
@@ -402,7 +402,7 @@ describe("SettingsPage", () => {
     const getProviders = vi.fn().mockResolvedValue(providerView);
     const saveProviders = vi.fn().mockResolvedValue(providerView);
     const deleteProvider = vi.fn().mockResolvedValue(providerView);
-    window.cctools = makeApi({ getProviders, saveProviders, deleteProvider });
+    window.openmind = makeApi({ getProviders, saveProviders, deleteProvider });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -442,7 +442,7 @@ describe("SettingsPage", () => {
         }
       ]
     };
-    window.cctools = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -458,7 +458,7 @@ describe("SettingsPage", () => {
     const getPreferences = vi.fn()
       .mockRejectedValueOnce(new Error("preferences unavailable"))
       .mockResolvedValue(defaultPrefs);
-    window.cctools = makeApi({ getPreferences });
+    window.openmind = makeApi({ getPreferences });
     renderSettings();
 
     expect((await screen.findByRole("alert")).textContent).toContain("设置加载失败");
@@ -470,7 +470,7 @@ describe("SettingsPage", () => {
 
   it("saves theme, density, and body font size preferences", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
+    window.openmind = makeApi({ updatePreferences });
     renderSettings();
     await waitFor(() => expect(screen.getByRole("button", { name: "深色" })).toBeTruthy());
 
@@ -485,7 +485,7 @@ describe("SettingsPage", () => {
 
   it("switches the default provider without changing the screen structure", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
+    window.openmind = makeApi({ updatePreferences });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -500,7 +500,7 @@ describe("SettingsPage", () => {
   it("installs and exposes one shared uv-managed Python runtime", async () => {
     const ready = { enabled: true, phase: "ready" as const, target: "linux-x64" as const, pythonVersion: "3.12.10", uvVersion: "0.5.27", managedSkills: 2, ready: true, lastError: null };
     const setSharedPythonRuntimeEnabled = vi.fn().mockResolvedValue(ready);
-    window.cctools = makeApi({ setSharedPythonRuntimeEnabled });
+    window.openmind = makeApi({ setSharedPythonRuntimeEnabled });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("内置运行时");
@@ -516,13 +516,13 @@ describe("SettingsPage", () => {
   });
 
   it("keeps MCP searchable without exposing permission profiles", async () => {
-    window.cctools = makeApi();
+    window.openmind = makeApi();
     renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
     await screen.findByRole("heading", { name: "常规" });
 
     openCategory("MCP 服务");
     expect(screen.getByText("写作证据截图")).toBeTruthy();
-    expect(screen.getByText("cctools_browser")).toBeTruthy();
+    expect(screen.getByText("openmind_browser")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /写作证据截图/ }));
     expect(screen.getByText("Microsoft Playwright MCP")).toBeTruthy();
     expect(screen.getByText("capture_source_evidence")).toBeTruthy();
@@ -545,7 +545,7 @@ describe("SettingsPage", () => {
       valid: true,
       digest: "abcdef1234567890abcdef1234567890",
       totalBytes: 2048,
-      files: [{ path: "cctools.skill.yaml", type: "file", size: 512, digest: "manifest" }],
+      files: [{ path: "openmind.skill.yaml", type: "file", size: 512, digest: "manifest" }],
       excludedPaths: [],
       manifest: { id: "packaged", publisher: { id: "local" } },
       legacy: null,
@@ -555,7 +555,7 @@ describe("SettingsPage", () => {
     const inspectSkillWorkspace = vi.fn().mockResolvedValue([inspection]);
     const listInstalledSkills = vi.fn().mockResolvedValue([]);
     const listSkillRuns = vi.fn().mockResolvedValue([]);
-    window.cctools = makeApi({ inspectSkillWorkspace, listInstalledSkills, listSkillRuns });
+    window.openmind = makeApi({ inspectSkillWorkspace, listInstalledSkills, listSkillRuns });
     renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
     await screen.findByRole("heading", { name: "常规" });
     openCategory("Skills");
@@ -581,7 +581,7 @@ describe("SettingsPage", () => {
       secureStorageAvailable: true, packageAvailable: true, ready: true,
       diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
     });
-    window.cctools = makeApi({ updatePreferences, getBrowserAutomationStatus, saveBrowserExtensionToken });
+    window.openmind = makeApi({ updatePreferences, getBrowserAutomationStatus, saveBrowserExtensionToken });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
 
@@ -602,7 +602,7 @@ describe("SettingsPage", () => {
 
   it("saves permission defaults and approval toggles", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
+    window.openmind = makeApi({ updatePreferences });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("权限与安全");
@@ -619,7 +619,7 @@ describe("SettingsPage", () => {
     const onRepo = vi.fn();
     const selectWorkspaceRoot = vi.fn().mockResolvedValue("/repo-next");
     const openPath = vi.fn().mockResolvedValue("");
-    window.cctools = makeApi({ selectWorkspaceRoot, openPath });
+    window.openmind = makeApi({ selectWorkspaceRoot, openPath });
     renderSettings(onRepo);
     await waitFor(() => expect(screen.getByText("工作目录")).toBeTruthy());
 
@@ -629,7 +629,7 @@ describe("SettingsPage", () => {
     expect(onRepo).toHaveBeenCalledWith("/repo-next");
 
     fireEvent.click(browseButtons[1]);
-    await waitFor(() => expect(openPath).toHaveBeenCalledWith("mymind"));
+    await waitFor(() => expect(openPath).toHaveBeenCalledWith("openmind"));
   });
 
   it("shows the model read from each CLI config without credential or profile forms", async () => {
@@ -652,7 +652,7 @@ describe("SettingsPage", () => {
 
   it("previews and persists workflow rules", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
+    window.openmind = makeApi({ updatePreferences });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("内容工作流");
@@ -667,7 +667,7 @@ describe("SettingsPage", () => {
 
   it("labels retention values as non-destructive local preferences", async () => {
     const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.cctools = makeApi({ updatePreferences });
+    window.openmind = makeApi({ updatePreferences });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("数据与存储");
@@ -678,7 +678,7 @@ describe("SettingsPage", () => {
 
   it("resets only the workflow preference group after confirmation", async () => {
     const resetPreferences = vi.fn(async () => defaultPrefs);
-    window.cctools = makeApi({ resetPreferences });
+    window.openmind = makeApi({ resetPreferences });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("内容工作流");
@@ -691,7 +691,7 @@ describe("SettingsPage", () => {
   it("lists archived sessions and restores them to recent sessions", async () => {
     const restored = { ...archivedSession, archived: false };
     const aiUpdateSession = vi.fn().mockResolvedValue(restored);
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       aiUpdateSession,
       aiRefresh: async () => ({ ...snapshot, sessions: [restored] })
     });
@@ -711,7 +711,7 @@ describe("SettingsPage", () => {
 
   it("opens an archived session from settings", async () => {
     const onOpenSession = vi.fn();
-    window.cctools = makeApi();
+    window.openmind = makeApi();
     renderSettings(vi.fn(), archivedSnapshot, onOpenSession);
     await screen.findByRole("heading", { name: "常规" });
     openCategory("会话归档");

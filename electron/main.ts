@@ -9,7 +9,7 @@ import {
 } from "../shared/contracts";
 import { ProductService } from "./product/product-service";
 import { globalSearch } from "./product/global-search";
-import { MymindFileSearch } from "./mymind-file-search";
+import { OpenmindFileSearch } from "./openmind-file-search";
 import { registerIpcHandlers } from "./ipc-handlers";
 import * as settings from "./lib/settings";
 import * as content from "./lib/content";
@@ -41,14 +41,14 @@ import { detectRuntimeTarget } from "../shared/runtime-targets";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
-import { CCTOOLS_SKILLS_REPO_URL } from "../shared/skill-package-sources";
+import { OPENMIND_SKILLS_REPO_URL } from "../shared/skill-package-sources";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
 const DESKTOP_E2E_TEST = process.argv.includes("--e2e-test");
 if (DESKTOP_E2E_TEST) {
   // Keep E2E state isolated from a developer's normal Electron profile.
-  const e2eUserData = process.env.CCTOOLS_E2E_USER_DATA_DIR?.trim();
+  const e2eUserData = process.env.OPENMIND_E2E_USER_DATA_DIR?.trim();
   if (e2eUserData) app.setPath("userData", path.resolve(e2eUserData));
   app.commandLine.appendSwitch("no-sandbox");
   app.commandLine.appendSwitch("disable-gpu");
@@ -60,8 +60,8 @@ let mainWindow: BrowserWindow | null = null;
 let aiWorker: AiWorkerClient | null = null;
 let productService: ProductService | null = null;
 let productServiceRoot = "";
-let mymindFileSearch: MymindFileSearch | null = null;
-let mymindFileSearchRoot = "";
+let openmindFileSearch: OpenmindFileSearch | null = null;
+let openmindFileSearchRoot = "";
 let skillPackageService: SkillPackageService | null = null;
 let skillSourceService: SkillSourceService | null = null;
 let browserTokenStore: BrowserExtensionTokenStore | null = null;
@@ -193,18 +193,18 @@ class AiWorkerClient {
     const extensionToken = resolveBrowserExtensionToken(ensureBrowserTokenStore());
     this.worker = utilityProcess.fork(path.join(__dirname, "ai", "worker.js"), [], {
       env: buildAiWorkerEnvironment(process.env, {
-        CCTOOLS_REPO_ROOT: projectRoot,
-        CCTOOLS_USER_DATA_DIR: app.getPath("userData"),
-        ...(stateRoot ? { CCTOOLS_STATE_ROOT: stateRoot } : {}),
-        ...(settings.resolveMymindRoot() ? { CCTOOLS_MYMIND_ROOT: settings.resolveMymindRoot() } : {}),
-        CCTOOLS_ROOT_GENERATION: String(settings.getMymindRootSnapshot()?.rootGeneration || 1),
-        CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
-        CCTOOLS_BROWSER_AUTOMATION_ENABLED: String(browserPreferences.browserAutomationEnabled),
-        CCTOOLS_BROWSER_REUSE_EXISTING_TABS: String(browserPreferences.browserReuseExistingTabs),
-        CCTOOLS_BROWSER_EVIDENCE_DIR: browserPreferences.browserEvidenceDir,
+        OPENMIND_REPO_ROOT: projectRoot,
+        OPENMIND_USER_DATA_DIR: app.getPath("userData"),
+        ...(stateRoot ? { OPENMIND_STATE_ROOT: stateRoot } : {}),
+        ...(settings.resolveOpenmindRoot() ? { OPENMIND_ROOT: settings.resolveOpenmindRoot() } : {}),
+        OPENMIND_ROOT_GENERATION: String(settings.getOpenmindRootSnapshot()?.rootGeneration || 1),
+        OPENMIND_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
+        OPENMIND_BROWSER_AUTOMATION_ENABLED: String(browserPreferences.browserAutomationEnabled),
+        OPENMIND_BROWSER_REUSE_EXISTING_TABS: String(browserPreferences.browserReuseExistingTabs),
+        OPENMIND_BROWSER_EVIDENCE_DIR: browserPreferences.browserEvidenceDir,
         ...(extensionToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: extensionToken } : {})
       }),
-      serviceName: "CC Tools AI Scheduler"
+      serviceName: "OpenMind AI Scheduler"
     });
     this.worker.on("message", (message: unknown) => this.onMessage(message));
     this.worker.on("exit", (code) => {
@@ -268,27 +268,29 @@ class AiWorkerClient {
 function ensureAiWorker(): AiWorkerClient {
   if (aiWorker) return aiWorker;
   if (!hasRequiredStartupConfiguration()) {
-    throw new Error("请先配置 mymind 保存目录并完整安装官方 cctools-skills 仓库。");
+    throw new Error("请先配置 openmind 保存目录并完整安装官方 cctools-skills 仓库。");
   }
+  // Workspace defaults to the bound content root (settings.resolveWorkspaceRoot),
+  // so reaching here without a project root means no content root is bound.
   const projectRoot = settings.resolveWorkspaceRoot();
-  if (!projectRoot) throw new Error("请先选择 AI/代码工作区。");
+  if (!projectRoot) throw new Error("请先绑定内容目录后再使用 AI 会话。");
   aiWorker = new AiWorkerClient(projectRoot, resolveAiStateRoot());
   return aiWorker;
 }
 
 function ensureProductService(): ProductService {
-  // ADR-001: resolve the actual mymind content dir + app-private state root.
-  const mymindRoot = settings.resolveMymindRoot();
-  if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
+  // ADR-001: resolve the actual openmind content dir + app-private state root.
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
   const workspaceRoot = settings.resolveWorkspaceRoot();
-  const stateRoot = path.join(getAppPaths().state, rootStateId(mymindRoot));
+  const stateRoot = path.join(getAppPaths().state, rootStateId(openmindRoot));
   ensureDir(stateRoot);
-  const cacheKey = `${workspaceRoot}\0${mymindRoot}`;
+  const cacheKey = `${workspaceRoot}\0${openmindRoot}`;
   if (!productService || productServiceRoot !== cacheKey) {
     // ProductService wires SourceRegistry/BriefService internally with the
     // optional workspace as the skill-source root and the userData state
-    // root, so app-private state no longer lands inside mymind (ADR-001 §1.3).
-    productService = new ProductService(mymindRoot, content, creative, {
+    // root, so app-private state no longer lands inside openmind (ADR-001 §1.3).
+    productService = new ProductService(openmindRoot, content, creative, {
       skillSourcesRoot: workspaceRoot || undefined,
       stateRoot
     });
@@ -297,24 +299,24 @@ function ensureProductService(): ProductService {
   return productService;
 }
 
-function ensureMymindFileSearch(): MymindFileSearch {
-  const mymindRoot = settings.resolveMymindRoot();
-  if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
-  if (!mymindFileSearch || mymindFileSearchRoot !== mymindRoot) {
-    mymindFileSearch = new MymindFileSearch(mymindRoot, { rootKind: "mymind" });
-    mymindFileSearchRoot = mymindRoot;
+function ensureOpenmindFileSearch(): OpenmindFileSearch {
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
+  if (!openmindFileSearch || openmindFileSearchRoot !== openmindRoot) {
+    openmindFileSearch = new OpenmindFileSearch(openmindRoot, { rootKind: "openmind" });
+    openmindFileSearchRoot = openmindRoot;
   }
-  return mymindFileSearch;
+  return openmindFileSearch;
 }
 
 /**
- * AppPaths for the current binding: the skill store follows the bound mymind
+ * AppPaths for the current binding: the skill store follows the bound openmind
  * root (`.agent/skills`); everything else stays userData-derived. Rebuilt per
  * call — callers construct services lazily and are invalidated together with
- * the mymind root (see restartAiWorker).
+ * the openmind root (see restartAiWorker).
  */
 function buildCurrentAppPaths(): AppPaths {
-  return buildAppPaths(undefined, resolveSkillStoreRoot(settings.resolveMymindRoot() || null));
+  return buildAppPaths(undefined, resolveSkillStoreRoot(settings.resolveOpenmindRoot() || null));
 }
 
 function ensureSkillPackageService(): SkillPackageService {
@@ -334,10 +336,10 @@ function ensureSkillSourceService(): SkillSourceService {
 /** Startup/runtime gate. This is offline and fails closed on registry, receipt,
  * manifest, path, or digest errors; it never reaches the remote Git source. */
 function hasRequiredStartupConfiguration(): boolean {
-  const mymindRoot = settings.resolveMymindRoot();
-  if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) return false;
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) return false;
   try {
-    return ensureSkillSourceService().hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL);
+    return ensureSkillSourceService().hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL);
   } catch {
     return false;
   }
@@ -347,7 +349,7 @@ function ensureExportLocationService(): ExportLocationService {
   ensureAppPaths(getAppPaths());
   exportLocationService ||= new ExportLocationService(
     path.join(getAppPaths().settings, "export-bindings.json"),
-    () => [getAppPaths().userData, ...(settings.resolveMymindRoot() ? [settings.resolveMymindRoot()!] : [])]
+    () => [getAppPaths().userData, ...(settings.resolveOpenmindRoot() ? [settings.resolveOpenmindRoot()!] : [])]
   );
   return exportLocationService;
 }
@@ -358,11 +360,11 @@ function ensureDir(dir: string): void {
 }
 
 /** Stable per-root state dir id (ADR-001 §5.1: userData/state/<root-id>/). */
-function rootStateId(mymindRoot: string): string {
+function rootStateId(openmindRoot: string): string {
   // Cheap deterministic id; matches the resolver's computeRootId shape.
   let h = 0x811c9dc5;
-  for (let i = 0; i < mymindRoot.length; i++) {
-    h ^= mymindRoot.charCodeAt(i);
+  for (let i = 0; i < openmindRoot.length; i++) {
+    h ^= openmindRoot.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
   }
   return `root-${(h >>> 0).toString(16).padStart(8, "0")}`;
@@ -370,8 +372,8 @@ function rootStateId(mymindRoot: string): string {
 
 /** AI/session state is app-private and scoped to the selected content root. */
 function resolveAiStateRoot(): string {
-  const mymindRoot = settings.resolveMymindRoot();
-  const rootId = mymindRoot && settings.isValidMymindRoot(mymindRoot) ? rootStateId(mymindRoot) : "workspace";
+  const openmindRoot = settings.resolveOpenmindRoot();
+  const rootId = openmindRoot && settings.isValidOpenmindRoot(openmindRoot) ? rootStateId(openmindRoot) : "workspace";
   const stateRoot = path.join(getAppPaths().state, rootId);
   ensureDir(stateRoot);
   return stateRoot;
@@ -382,9 +384,9 @@ function restartAiWorker(): void {
   aiWorker = null;
   productService = null;
   productServiceRoot = "";
-  mymindFileSearch = null;
-  mymindFileSearchRoot = "";
-  // The skill store lives under the mymind root; drop the singletons bound to
+  openmindFileSearch = null;
+  openmindFileSearchRoot = "";
+  // The skill store lives under the openmind root; drop the singletons bound to
   // the previous root so the next ensure* rebuilds against the new one.
   skillPackageService = null;
   skillSourceService = null;
@@ -445,7 +447,7 @@ function registerIpc(): void {
       getMainWindow: () => mainWindow,
       ensureProductService,
       ensureAiWorker,
-      ensureMymindFileSearch,
+      ensureOpenmindFileSearch,
       ensureCliInstallerService,
       ensureSkillPackageService,
       ensureSkillSourceService,
@@ -567,7 +569,7 @@ function createWindow(): void {
     window.webContents.once("did-finish-load", async () => {
       try {
         const bridgeReady = await window.webContents.executeJavaScript(
-          "Boolean(window.cctools && typeof window.cctools.getBootstrap === 'function')"
+          "Boolean(window.openmind && typeof window.openmind.getBootstrap === 'function')"
         );
         clearTimeout(timeout);
         if (!bridgeReady) {
@@ -607,7 +609,7 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
   try {
     const date = localDate();
     const result = await window.webContents.executeJavaScript(`(async () => {
-      const api = window.cctools;
+      const api = window.openmind;
       if (!api || typeof api.getBootstrap !== "function") throw new Error("preload bridge is unavailable");
       const bootstrap = await api.getBootstrap();
       const preferences = await api.getPreferences();
@@ -618,7 +620,7 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
         documentReady: document.readyState,
         rootMounted: Boolean(document.querySelector("#root")),
         validRepo: bootstrap.validRepo,
-        mymindRoot: bootstrap.mymindRoot,
+        openmindRoot: bootstrap.openmindRoot,
         articleCount: Array.isArray(articles) ? articles.length : 0,
         indexPath: index.indexPath,
         themeMode: preferences.themeMode,
@@ -628,13 +630,13 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       documentReady?: string;
       rootMounted?: boolean;
       validRepo?: boolean;
-      mymindRoot?: string;
+      openmindRoot?: string;
       articleCount?: number;
       indexPath?: string;
     };
     if (result.documentReady !== "complete" || !result.rootMounted) throw new Error("renderer did not mount");
-    if (!result.validRepo || !result.mymindRoot) throw new Error("bootstrap did not resolve the E2E mymind root");
-    if (!result.articleCount || result.indexPath !== ".cctools/content-index.json") {
+    if (!result.validRepo || !result.openmindRoot) throw new Error("bootstrap did not resolve the E2E openmind root");
+    if (!result.articleCount || result.indexPath !== ".openmind/content-index.json") {
       throw new Error(`IPC content contract failed: ${JSON.stringify(result)}`);
     }
     clearTimeout(timeout);

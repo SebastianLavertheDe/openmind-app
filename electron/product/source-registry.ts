@@ -41,40 +41,40 @@ export class SourceRegistry {
   private skillSourcesCache: SkillSourceBinding[] | null = null;
 
   /**
-   * @param repoRoot legacy: the cctools repo root (parent of mymind), kept for
+   * @param repoRoot legacy: the openmind repo root (parent of openmind), kept for
    *   back-compat. Used for `.claude/skills/...` skill-source discovery and as
    *   the fallback for content/state paths.
    * @param content content API.
-   * @param mymindRoot ADR-001: the actual mymind content dir. When supplied,
-   *   content paths (`mymind/article/<date>`) join onto this directly instead
-   *   of `repoRoot/mymind`.
+   * @param openmindRoot ADR-001: the actual openmind content dir. When supplied,
+   *   content paths (`openmind/article/<date>`) join onto this directly instead
+   *   of `repoRoot/openmind`.
    * @param skillSourcesRoot ADR-001: where to discover skills (`.claude/skills`
    *   under the workspace, or `userData/skills` in future). Defaults to
    *   `repoRoot` for back-compat.
    * @param stateRoot ADR-001 §1.3: app-private state dir under userData. When
-   *   supplied, `.cctools` state lives there instead of inside repoRoot.
+   *   supplied, `.openmind` state lives there instead of inside repoRoot.
    */
   constructor(
     private readonly repoRoot: string,
     private readonly content: ContentApi,
-    private readonly mymindRoot?: string,
+    private readonly openmindRoot?: string,
     private readonly skillSourcesRoot?: string,
     stateRoot?: string
   ) {
-    // stateRoot is the *parent* of `.cctools` (e.g. userData/state/<root-id>
-    // or, for back-compat, the repo root). The `.cctools` segment is always
+    // stateRoot is the *parent* of `.openmind` (e.g. userData/state/<root-id>
+    // or, for back-compat, the repo root). The `.openmind` segment is always
     // appended so on-disk layout matches existing fixtures and migration.
     const stateDirectory = path.join(stateRoot ?? repoRoot, STATE_DIRECTORY);
     this.sourceSettingsPath = path.join(stateDirectory, "source-settings.json");
     this.sourceRunsPath = path.join(stateDirectory, "source-runs.json");
   }
 
-  /** Resolve a content-relative path against mymindRoot (ADR-001) or repoRoot/mymind (legacy). */
+  /** Resolve a content-relative path against openmindRoot (ADR-001) or repoRoot/openmind (legacy). */
   private contentPath(...segments: string[]): string {
-    return this.mymindRoot
-      ? path.join(this.mymindRoot, ...segments)
-      // audit-no-reporoot: legacy back-compat branch (mymindRoot unset in old tests)
-      : path.join(this.repoRoot, "mymind", ...segments);
+    return this.openmindRoot
+      ? path.join(this.openmindRoot, ...segments)
+      // audit-no-reporoot: legacy back-compat branch (openmindRoot unset in old tests)
+      : path.join(this.repoRoot, "openmind", ...segments);
   }
 
   /** Resolve a skill-source path (.claude/skills/...) against skillSourcesRoot or repoRoot. */
@@ -368,7 +368,7 @@ export class SourceRegistry {
     const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
-    const parsed = parser.parse(readText(opmlPath) || "<opml version=\"2.0\"><head><title>CC Tools</title></head><body></body></opml>") as {
+    const parsed = parser.parse(readText(opmlPath) || "<opml version=\"2.0\"><head><title>OpenMind</title></head><body></body></opml>") as {
       opml?: { body?: { outline?: unknown } };
     };
     parsed.opml ||= {};
@@ -435,11 +435,11 @@ export class SourceRegistry {
     date: string,
     artifactRoot: string
   ): SourceDefinition {
-    // artifactRoot is a logical path like "mymind/post" or "mymind/reddit".
-    // When mymindRoot is supplied (ADR-001), strip the leading "mymind/" and
-    // join onto mymindRoot directly; otherwise fall back to repoRoot joining.
-    const artifactPath = this.mymindRoot
-      ? path.join(this.mymindRoot, artifactRoot.replace(/^mymind\/+/, ""), date)
+    // artifactRoot is a logical path like "openmind/post" or "openmind/reddit".
+    // When openmindRoot is supplied (ADR-001), strip the leading "openmind/" and
+    // join onto openmindRoot directly; otherwise fall back to repoRoot joining.
+    const artifactPath = this.openmindRoot
+      ? path.join(this.openmindRoot, artifactRoot.replace(/^openmind\/+/, ""), date)
       : path.join(this.repoRoot, artifactRoot, date);
     const lastRunAt = newestMtime([artifactPath]);
     const itemCount = this.content.getContent(kind === "x" ? "posts" : "reddit", date).length;

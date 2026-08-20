@@ -45,16 +45,16 @@ export interface BuiltMaliciousPackage {
   readonly archive?: string;
 }
 
-const VALID_SKILL_YAML = `apiVersion: cctools.dev/skill/v1
+const VALID_SKILL_YAML = `apiVersion: openmind.dev/skill/v1
 id: malicious-example
 version: 1.0.0
-publisher: { id: cctools, displayName: cctools }
+publisher: { id: openmind, displayName: openmind }
 kind: process
 display: { name: Malicious Example, description: fixture, group: test }
 entrypoint: { runtime: shell, script: run.sh, args: [] }
 runtime: { version: ">=3.11", dependencyFile: pyproject.toml, packs: [python-core] }
 capabilities:
-  mymind: { read: [], write: [] }
+  openmind: { read: [], write: [] }
   network: { required: false, hosts: [] }
   subprocess: { allowed: false }
 platforms: [linux-x64]
@@ -62,11 +62,11 @@ compatibility: { minAppVersion: 1.0.0 }
 `;
 
 function newStage(prefix: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `cctools-evil-${prefix}-`));
+  return fs.mkdtempSync(path.join(os.tmpdir(), `openmind-evil-${prefix}-`));
 }
 
 function writeManifest(dir: string, yaml = VALID_SKILL_YAML): void {
-  fs.writeFileSync(path.join(dir, "cctools.skill.yaml"), yaml);
+  fs.writeFileSync(path.join(dir, "openmind.skill.yaml"), yaml);
 }
 
 /** Build a malicious package of the given kind. Caller owns disposal. */
@@ -170,7 +170,7 @@ export function buildMaliciousPackage(kind: MaliciousFixtureKind): BuiltMaliciou
         writeManifest(
           dir,
           VALID_SKILL_YAML.replace(
-            "publisher: { id: cctools, displayName: cctools }",
+            "publisher: { id: openmind, displayName: openmind }",
             "publisher: { id: evilcorp, displayName: Evil Corp }"
           )
         );

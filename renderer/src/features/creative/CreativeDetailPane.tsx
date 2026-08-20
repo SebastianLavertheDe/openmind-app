@@ -245,7 +245,7 @@ function CreativeDocumentEditor({
       <header className="creative-document-header">
         <div><div className="document-status"><StatusBadge tone={published ? "success" : "info"}>{stageLabel(stage)}</StatusBadge><span>{dirty ? "编辑中…" : autoSaveStatus === "saving" ? "自动保存中…" : autoSaveStatus === "failed" ? "自动保存失败，可重试保存" : autoSaveStatus === "saved" ? "已自动保存" : "已保存"}</span></div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
         <div>
-          <button data-motion="action" onClick={() => window.cctools.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</button>
+          <button data-motion="action" onClick={() => window.openmind.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</button>
           <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? "保存中" : "保存版本"}</button>
           {published ? <button data-motion="action" onClick={() => void copyProject()}><Copy size={14} />复制</button> : null}
           {published || stage === "ready" ? <button data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />归档</button> : null}
@@ -256,8 +256,8 @@ function CreativeDocumentEditor({
       {published ? (
         <section className="published-summary">
           <header><StatusBadge tone="success">{m.creativeUi.editor.publishedSummary}</StatusBadge>{publish?.publishedAt ? <span>{new Date(String(publish.publishedAt)).toLocaleString("zh-CN")}</span> : null}{publish?.platform ? <em>{platformLabel(String(publish.platform))}</em> : null}</header>
-          <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <button data-motion="icon" onClick={() => void window.cctools.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</button> : null}</p>
-          <div className="publish-actions"><button data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</button><button data-motion="action" onClick={() => void window.cctools.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</button></div>
+          <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <button data-motion="icon" onClick={() => void window.openmind.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</button> : null}</p>
+          <div className="publish-actions"><button data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</button><button data-motion="action" onClick={() => void window.openmind.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</button></div>
           <small>{m.creativeUi.editor.publishMetricsNote}</small>
         </section>
       ) : null}

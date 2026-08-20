@@ -8,9 +8,9 @@ import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-eve
 
 const skillCatalog: InstalledRunnableSkillView[] = [
   {
-    key: "cctools/rss-article-saver",
+    key: "openmind/rss-article-saver",
     id: "rss-article-saver",
-    publisherId: "cctools",
+    publisherId: "openmind",
     version: "1.0.0",
     digest: "a".repeat(64),
     kind: "process",
@@ -20,9 +20,9 @@ const skillCatalog: InstalledRunnableSkillView[] = [
     enabled: true
   },
   {
-    key: "cctools/daily-article-summarizer",
+    key: "openmind/daily-article-summarizer",
     id: "daily-article-summarizer",
-    publisherId: "cctools",
+    publisherId: "openmind",
     version: "1.0.0",
     digest: "b".repeat(64),
     kind: "process",
@@ -32,9 +32,9 @@ const skillCatalog: InstalledRunnableSkillView[] = [
     enabled: true
   },
   {
-    key: "cctools/daily-topic-selector",
+    key: "openmind/daily-topic-selector",
     id: "daily-topic-selector",
-    publisherId: "cctools",
+    publisherId: "openmind",
     version: "1.0.0",
     digest: "c".repeat(64),
     kind: "process",
@@ -44,9 +44,9 @@ const skillCatalog: InstalledRunnableSkillView[] = [
     enabled: true
   },
   {
-    key: "cctools/rss-to-summary-workflow",
+    key: "openmind/rss-to-summary-workflow",
     id: "rss-to-summary-workflow",
-    publisherId: "cctools",
+    publisherId: "openmind",
     version: "1.0.0",
     digest: "d".repeat(64),
     kind: "workflow",
@@ -104,7 +104,7 @@ async function changeTriggerAndWaitForField(value: "weekly" | "interval", fieldL
 }
 
 beforeEach(() => {
-  window.cctools = makeApi();
+  window.openmind = makeApi();
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 
@@ -113,7 +113,7 @@ afterEach(() => cleanup());
 describe("AutomationPage", () => {
   it("loads the installed runnable catalog and shows formal Process metadata", async () => {
     const listInstalledRunnableSkills = vi.fn(async () => skillCatalog);
-    window.cctools = makeApi({ listInstalledRunnableSkills });
+    window.openmind = makeApi({ listInstalledRunnableSkills });
 
     render(<AutomationPage go={vi.fn()} />);
 
@@ -129,7 +129,7 @@ describe("AutomationPage", () => {
       name: "RSS 工作流",
       target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
     };
-    window.cctools = makeApi({ listAutomationRules: async () => [workflowRule] });
+    window.openmind = makeApi({ listAutomationRules: async () => [workflowRule] });
 
     render(<AutomationPage go={vi.fn()} />);
 
@@ -142,7 +142,7 @@ describe("AutomationPage", () => {
     const disabledCatalog = skillCatalog.map((skill) => skill.id === "daily-article-summarizer"
       ? { ...skill, enabled: false }
       : skill);
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listInstalledRunnableSkills: async () => disabledCatalog,
       runAutomationNow
     });
@@ -158,7 +158,7 @@ describe("AutomationPage", () => {
 
   it("refreshes its preserved catalog after Skill Center changes availability", async () => {
     let currentCatalog = skillCatalog;
-    window.cctools = makeApi({ listInstalledRunnableSkills: async () => currentCatalog });
+    window.openmind = makeApi({ listInstalledRunnableSkills: async () => currentCatalog });
     render(<AutomationPage go={vi.fn()} />);
 
     expect(await screen.findByText("已启用")).toBeTruthy();
@@ -177,7 +177,7 @@ describe("AutomationPage", () => {
       ...seedRules[0],
       target: { ...seedRules[0].target, versionPolicy: "^2.0.0" }
     };
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [incompatibleRule],
       runAutomationNow
     });
@@ -216,7 +216,7 @@ describe("AutomationPage", () => {
 
   it("runs the selected automation rule through the Automation API", async () => {
     const runAutomationNow = vi.fn().mockResolvedValue({});
-    window.cctools = makeApi({ runAutomationNow });
+    window.openmind = makeApi({ runAutomationNow });
     render(<AutomationPage go={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
@@ -264,7 +264,7 @@ describe("AutomationPage", () => {
       createdAt: "2026-06-15T08:00:00.000Z",
       updatedAt: "2026-06-15T08:00:00.000Z"
     }));
-    window.cctools = makeApi({ saveAutomationRule });
+    window.openmind = makeApi({ saveAutomationRule });
     render(<AutomationPage go={vi.fn()} />);
     await screen.findByText("触发与目标");
 
@@ -280,7 +280,7 @@ describe("AutomationPage", () => {
   });
 
   it("copies the console output for the active rule", async () => {
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       onSkillEvent: (cb) => {
         cb({ skillId: "daily-article-summarizer", text: "生成完成", state: "running" });
         return () => undefined;
@@ -329,7 +329,7 @@ describe("AutomationPage", () => {
     };
     const fetchRun = { id: "fetch-run", state: "failed", error: null, completedAt: "2026-08-16T07:44:24.000Z", artifacts: [] } as unknown as BrokerRunRecord;
     let onRunEvent: Parameters<DesktopApi["onSkillRunEvent"]>[0] | undefined;
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [workflowRule],
       listAutomationRuns: async () => [automationRun],
       getWorkflowRun: async () => workflow,
@@ -388,7 +388,7 @@ describe("AutomationPage", () => {
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 1, timestamp: "2026-08-17T14:00:23.000Z", state: "running", reason: "process-started" },
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md" }
     ];
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [workflowRule],
       listAutomationRuns: async () => [automationRun],
       getWorkflowRun: async () => workflow,
@@ -459,7 +459,7 @@ describe("AutomationPage", () => {
       artifacts: []
     } as unknown as BrokerRunRecord;
     const cancelWorkflowRun = vi.fn(async () => true);
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [workflowRule],
       listInstalledRunnableSkills: async () => skillCatalog.map((skill) => skill.id === "rss-to-summary-workflow"
         ? { ...skill, enabled: false }
@@ -512,7 +512,7 @@ describe("AutomationPage", () => {
       completedAt: null,
       error: "Workflow Step fetch failed."
     };
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [seedRules[0]],
       listAutomationRuns: async () => [queuedRetry]
     });
@@ -547,7 +547,7 @@ describe("AutomationPage", () => {
       createdAt: "2026-08-01T08:00:00.000Z",
       error: "boom"
     };
-    window.cctools = makeApi({
+    window.openmind = makeApi({
       listAutomationRules: async () => [seedRules[0]],
       listAutomationRuns: async () => [recent, stale]
     });

@@ -11,19 +11,19 @@ describe("ExecutionBroker", () => {
   let root = "";
   let paths: AppPaths;
   let packageRoot = "";
-  let mymindRoot = "";
+  let openmindRoot = "";
   let broker: ExecutionBroker;
   const digest = "a".repeat(64);
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-execution-broker-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-execution-broker-"));
     paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     packageRoot = path.join(root, "installed-skill");
-    mymindRoot = path.join(root, "mymind");
+    openmindRoot = path.join(root, "openmind");
     fs.mkdirSync(packageRoot, { recursive: true });
-    fs.mkdirSync(mymindRoot, { recursive: true });
-    broker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId)), undefined, { maxConcurrentRuns: 1 });
+    fs.mkdirSync(openmindRoot, { recursive: true });
+    broker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId)), undefined, { maxConcurrentRuns: 1 });
   });
 
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -44,7 +44,7 @@ describe("ExecutionBroker", () => {
     const completed = broker.get(run.id);
     expect(completed.terminalState).toBe("succeeded");
     expect(completed.artifacts).toHaveLength(1);
-    expect(completed.artifacts[0].logicalPath).toBe("mymind/daily-summary/out.md");
+    expect(completed.artifacts[0].logicalPath).toBe("openmind/daily-summary/out.md");
     expect(broker.events(run.id).map((event) => event.state)).not.toContain("waiting_execution_consent");
     expect(broker.events(run.id).find((event) => event.text?.includes("sk-secret"))).toBeUndefined();
     expect(fs.readFileSync(path.join(paths.runs, run.id, "run.json"), "utf8")).not.toContain("20260805");
@@ -59,7 +59,7 @@ describe("ExecutionBroker", () => {
   it("does not fail a successful process when optional Artifact registration exceeds its limit", async () => {
     const limitedBroker = new ExecutionBroker(
       paths,
-      (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId)),
+      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId)),
       undefined,
       { maxConcurrentRuns: 1, artifactCollector: new ArtifactCollector(1) }
     );
@@ -75,7 +75,7 @@ describe("ExecutionBroker", () => {
     let invocation = 0;
     broker = new ExecutionBroker(paths, (_request, runId) => {
       invocation += 1;
-      return Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, { script: "setTimeout(() => {}, 30_000)", mutexes: ["mymind:write"], timeoutMs: 30_000 }));
+      return Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, { script: "setTimeout(() => {}, 30_000)", mutexes: ["openmind:write"], timeoutMs: 30_000 }));
     }, undefined, { maxConcurrentRuns: 1 });
     const first = broker.submit(request());
     const second = broker.submit(request());
@@ -88,7 +88,7 @@ describe("ExecutionBroker", () => {
   });
 
   it("makes timeout a terminal state and rejects secret-like direct inputs", async () => {
-    const timeoutBroker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, { script: "setTimeout(() => {}, 30_000)", timeoutMs: 30 })), undefined, { maxConcurrentRuns: 1 });
+    const timeoutBroker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, { script: "setTimeout(() => {}, 30_000)", timeoutMs: 30 })), undefined, { maxConcurrentRuns: 1 });
     const run = timeoutBroker.submit(request());
     await waitFor(() => timeoutBroker.get(run.id).state === "timed_out");
     expect(timeoutBroker.get(run.id).terminalState).toBe("timed_out");
@@ -100,7 +100,7 @@ describe("ExecutionBroker", () => {
     const script = `const fs=require('fs');const marker=${JSON.stringify(marker)};if(!fs.existsSync(marker)){fs.writeFileSync(marker,'failed-once');process.exit(1)};process.exit(0)`;
     const retryBroker = new ExecutionBroker(
       paths,
-      (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, { script, retry: { maxAttempts: 1 } })),
+      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, { script, retry: { maxAttempts: 1 } })),
       undefined,
       { maxConcurrentRuns: 1 }
     );
@@ -139,7 +139,7 @@ describe("ExecutionBroker", () => {
   it("cancels active Runs and blocks later starts when a Credential is revoked", async () => {
     const credentialBroker = new ExecutionBroker(
       paths,
-      (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, {
+      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, {
         script: "setTimeout(() => {}, 30_000)",
         credentialIds: ["credential-token"]
       })),
@@ -163,7 +163,7 @@ describe("ExecutionBroker", () => {
     let released = 0;
     const leaseBroker = new ExecutionBroker(
       paths,
-      (_request, runId) => Promise.resolve(plan(packageRoot, mymindRoot, digest, runId, {
+      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, {
         acquireRuntime: () => { acquired += 1; },
         releaseRuntime: () => { released += 1; }
       })),
@@ -190,12 +190,12 @@ function request() {
 
 function plan(
   packageRoot: string,
-  mymindRoot: string,
+  openmindRoot: string,
   digest: string,
   runId: string,
   overrides: (Partial<ExecutionPlan["process"]> & Pick<Partial<ExecutionPlan>, "mutexes" | "retry" | "credentialIds" | "acquireRuntime" | "releaseRuntime"> & { script?: string }) = {}
 ): ExecutionPlan {
-  const output = path.join(mymindRoot, "daily-summary", "out.md");
+  const output = path.join(openmindRoot, "daily-summary", "out.md");
   const { script: overrideScript, acquireRuntime, releaseRuntime, ...processOverrides } = overrides;
   const script = overrideScript || (processOverrides.args ? String(processOverrides.args[1]) : `require('fs').mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});require('fs').writeFileSync(${JSON.stringify(output)},'done');console.log('api-key=sk-secret')`);
   return {
@@ -204,8 +204,8 @@ function plan(
     digest,
     rootGeneration: 1,
     skillHome: packageRoot,
-    mymindRoot,
-    capabilities: { mymind: { write: ["daily-summary/**"] } },
+    openmindRoot,
+    capabilities: { openmind: { write: ["daily-summary/**"] } },
     ...(acquireRuntime ? { acquireRuntime } : {}),
     ...(releaseRuntime ? { releaseRuntime } : {}),
     process: {
@@ -217,7 +217,7 @@ function plan(
       gracefulStopMs: 0,
       ...processOverrides
     },
-    mutexes: overrides.mutexes || ["mymind:write"],
+    mutexes: overrides.mutexes || ["openmind:write"],
     retry: overrides.retry,
     credentialIds: overrides.credentialIds,
     artifacts: [{ id: "summary", type: "markdown", logicalPath: "daily-summary/out.md" }]

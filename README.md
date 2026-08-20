@@ -1,6 +1,6 @@
-# CC Tools Desktop
+# OpenMind Desktop
 
-CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端使用 React、TypeScript、Vite 和 Electron；Claude Code、Codex CLI 与 skills 全部在本机运行。
+OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端使用 React、TypeScript、Vite 和 Electron；Claude Code、Codex CLI 与 skills 全部在本机运行。
 
 ## 产品能力
 
@@ -8,7 +8,7 @@ CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端�
 - 三档权限：只读、编辑、自动执行。删除、提权、项目外访问等操作始终需要审批。
 - Provider：Codex 使用正式 app-server 协议；Claude 使用 Claude Agent SDK。会话创建后锁定 Provider。
 - 直接目录运行：AI 在设置中选择的项目目录读取、写入文件和执行命令，不创建临时 worktree。
-- 项目会话：完整语义事件保存在 `.cctools/ai/`，除 `.runtime/` 外默认可进入 Git。
+- 项目会话：完整语义事件保存在 `.openmind/ai/`，除 `.runtime/` 外默认可进入 Git。
 - 轻量 AI 侧栏：资料库和创作中心可以携带当前内容进入同一个 AI 会话。
 - 统一 Skill 引擎：技能中心与 AI 工具调用共享进程管理、取消、日志、权限和超时机制。
 - 内容工作台：资料库、Markdown/HTML 预览、Markdown TOC、创作项目与技能中心。
@@ -38,7 +38,7 @@ CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端�
 1. `desktop-app/dist/` 下的 Windows 安装包 / Portable 或 macOS dmg；
 2. 一个包含 skill 的公开 HTTPS Git 仓库地址（或 zip 包）。
 
-对方流程：安装 App → 首启引导选择 mymind 根目录 → 技能中心「添加其他来源」
+对方流程：安装 App → 首启引导选择 openmind 根目录 → 技能中心「添加其他来源」
 粘贴 Git 地址 → 检查 → 安装（安装即生效，可直接运行）→ 需要会话/AI 能力时再
 在设置里一键安装 CLI 或配置自己的 provider key。
 
@@ -49,7 +49,7 @@ CC Tools Desktop 是 cctools 的本地内容与 AI 工程工作台。桌面端�
 Windows 安装包可连接 Windows 本地项目，也可直接连接：
 
 ```text
-\\wsl.localhost\Ubuntu\home\say\work\github\cctools
+\\wsl.localhost\Ubuntu\home\say\work\github\openmind
 ```
 
 应用会分别诊断 Windows 与 WSL 中的 Provider。WSL 仅作为 Windows 连接的开发/Provider 场景，
@@ -79,7 +79,7 @@ npm run dev -- --host 0.0.0.0 --port 4173
 ## 数据与安全
 
 ```text
-.cctools/ai/
+.openmind/ai/
 ├── schema.json
 ├── settings.json
 ├── sessions/<session-id>/
@@ -96,7 +96,7 @@ npm run dev -- --host 0.0.0.0 --port 4173
     └── provider-state/
 ```
 
-`rollout.jsonl` 是会话的唯一权威历史，采用 Codex CLI 的 append-only item 流：`session_meta`、`event_msg`、`response_item`、`turn_context`、`world_state` 和 `compacted`。页面通过完整 turn 的 cursor 分页读取；逐 Token delta 不落盘。旧版每个 run 的 `events.jsonl` 会一次性迁移到 rollout，但不会被修改或删除。风险扫描只提醒，不脱敏、不修改、不阻止保存。`.cctools/ai/.runtime/` 已加入 `.gitignore`。
+`rollout.jsonl` 是会话的唯一权威历史，采用 Codex CLI 的 append-only item 流：`session_meta`、`event_msg`、`response_item`、`turn_context`、`world_state` 和 `compacted`。页面通过完整 turn 的 cursor 分页读取；逐 Token delta 不落盘。旧版每个 run 的 `events.jsonl` 会一次性迁移到 rollout，但不会被修改或删除。风险扫描只提醒，不脱敏、不修改、不阻止保存。`.openmind/ai/.runtime/` 已加入 `.gitignore`。
 
 旧版 `ai-sessions.json` 不迁移、不展示，也不会自动删除。
 
@@ -147,7 +147,7 @@ AI Utility Process
 
 ### Provider
 
-- Codex 走 `codex app-server` 的 JSONL JSON-RPC,只为已注册的 cctools 工具开启实验能力,消费 thread/turn/item/approval/usage/diff 事件,绝不解析终端正文。
+- Codex 走 `codex app-server` 的 JSONL JSON-RPC,只为已注册的 openmind 工具开启实验能力,消费 thread/turn/item/approval/usage/diff 事件,绝不解析终端正文。
 - Claude 走 `@anthropic-ai/claude-agent-sdk`,权限决策通过 `canUseTool` 汇入同一个 ApprovalBroker,开启 sandbox,永不开启 bypass-permissions。
 - Provider 事件在落盘或渲染前归一为版本化的 `AiEvent`。
 
@@ -163,11 +163,11 @@ AI Utility Process
 | 编辑 | 允许 | 自动 | 自动 | 审批 | 审批 |
 | 自动 | 允许 | 自动 | 自动 | 自动 | 审批 |
 
-注册的 cctools skill 自带权限要求、超时和产物 pattern;AI 调用 skill 一律作为正式 tool 事件可见。
+注册的 openmind skill 自带权限要求、超时和产物 pattern;AI 调用 skill 一律作为正式 tool 事件可见。
 
 ### 持久化
 
-`.cctools/ai/` 是唯一权威源。`session.json`、`run.json`、`search-index.json` 是物化索引;会话的对话历史只有一条 append-only 的 `rollout.jsonl`(Codex 形态:item 流,首条 `session_meta`,后续 `event_msg`/`response_item`/`turn_context`/`world_state`/`compacted`)。JSON 索引用临时文件替换写入;rollout 追加串行化;replay 时畸形记录计数后跳过,不重写历史;大的语义载荷分块再拼回。provider 私有的 token/状态 delta 不落盘、不渲染。旧版每 run 的 `events.jsonl` 一次性迁移到 rollout 后原样保留为恢复件。搜索基于项目文件,每个 session 维护 `search-index.json`,不引入 SQLite 或云端索引。
+`.openmind/ai/` 是唯一权威源。`session.json`、`run.json`、`search-index.json` 是物化索引;会话的对话历史只有一条 append-only 的 `rollout.jsonl`(Codex 形态:item 流,首条 `session_meta`,后续 `event_msg`/`response_item`/`turn_context`/`world_state`/`compacted`)。JSON 索引用临时文件替换写入;rollout 追加串行化;replay 时畸形记录计数后跳过,不重写历史;大的语义载荷分块再拼回。provider 私有的 token/状态 delta 不落盘、不渲染。旧版每 run 的 `events.jsonl` 一次性迁移到 rollout 后原样保留为恢复件。搜索基于项目文件,每个 session 维护 `search-index.json`,不引入 SQLite 或云端索引。
 
 ### 安全
 
@@ -209,7 +209,7 @@ RiskScanner 识别疑似 token、凭据、cookie、私钥和绝对路径,结果�
 2. `shared/contracts.ts`:在 `DesktopApi` 接口加方法签名,用 Zod 定义输入输出。
 3. `shared/ipc-registry.ts`:在 `IPC_INVOKE_REGISTRY` 加 `{ method: "newFeature", channel: IPC.APP_NEW_FEATURE }`。
 4. `electron/ipc-handlers.ts`:在 `createIpcHandlerEntries` 加 handler,入口用 Zod `parse` 校验参数后再进业务。
-5. preload 经 `createDesktopInvokeBridge` 自动暴露类型安全方法,渲染层调用 `window.cctools.newFeature(...)`。
+5. preload 经 `createDesktopInvokeBridge` 自动暴露类型安全方法,渲染层调用 `window.openmind.newFeature(...)`。
 
 `RegistryCoversDesktopApi` 在编译期强制 registry 与 `DesktopApi` 一一对应,`registerIpcHandlers` 再校验 handler 表与 registry 完全匹配。漏注册任一处都会编译失败,运行时不存在裸字符串通道。
 
@@ -239,13 +239,13 @@ RiskScanner 识别疑似 token、凭据、cookie、私钥和绝对路径,结果�
 
 ### 状态与数据
 
-不引入 redux/zustand 等状态库,全局状态用 React Context + 自定义 hook(如 `useAi()` 暴露 `AiController`/`AiStreamingStore`)。跨进程数据一律走 `window.cctools.*` 异步 API,范式:
+不引入 redux/zustand 等状态库,全局状态用 React Context + 自定义 hook(如 `useAi()` 暴露 `AiController`/`AiStreamingStore`)。跨进程数据一律走 `window.openmind.*` 异步 API,范式:
 
 ```ts
 const [data, setData] = useState<Result>(initial);
 const [error, setError] = useState("");
 const load = useCallback(async () => {
-  try { setData(await window.cctools.getDashboard(today())); }
+  try { setData(await window.openmind.getDashboard(today())); }
   catch (cause) { setError(String(cause)); }
 }, []);
 useEffect(() => { void load(); }, [load]);
@@ -267,4 +267,4 @@ useEffect(() => { void load(); }, [load]);
 
 ### 测试
 
-Vitest + Testing Library。测试文件与源文件同目录,命名 `*.test.ts(x)`。渲染层测试 mock 掉 `window.cctools`,覆盖用户交互、状态变化、IPC 调用与可访问性;shared 层覆盖边界与错误分支(如 `model-catalog.test.ts`、`skill-sources.test.ts`)。`npm test` 先 build,再 `vitest run`,最后跑集成烟雾。
+Vitest + Testing Library。测试文件与源文件同目录,命名 `*.test.ts(x)`。渲染层测试 mock 掉 `window.openmind`,覆盖用户交互、状态变化、IPC 调用与可访问性;shared 层覆盖边界与错误分支(如 `model-catalog.test.ts`、`skill-sources.test.ts`)。`npm test` 先 build,再 `vitest run`,最后跑集成烟雾。

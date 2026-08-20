@@ -33,11 +33,11 @@ import { getPreferences } from "../lib/settings";
 
 export class ProductService {
   /**
-   * The actual mymind root (ADR-001). Renamed from `repoRoot` to make the
-   * contract explicit: this is the content directory, not a cctools checkout.
-   * Paths are joined directly onto it (no `mymind/` segment).
+   * The actual openmind root (ADR-001). Renamed from `repoRoot` to make the
+   * contract explicit: this is the content directory, not a openmind checkout.
+   * Paths are joined directly onto it (no `openmind/` segment).
    */
-  private readonly mymindRoot: string;
+  private readonly openmindRoot: string;
   private readonly content: ContentServiceApi;
   private readonly creative: CreativeServiceApi;
   private readonly contentIndex: ContentIndexStore;
@@ -50,26 +50,26 @@ export class ProductService {
   private readonly dateCache = new Map<string, { fingerprint: string; overview: unknown; contentLists: Map<string, unknown> }>();
 
   constructor(
-    mymindRoot: string,
+    openmindRoot: string,
     content: ContentServiceApi,
     creative: CreativeServiceApi,
     /**
      * Optional ADR-001 wiring. `skillSourcesRoot` is where `.claude/skills`
-     * lives (the workspace/repo, not mymind). `stateRoot` is the app-private
+     * lives (the workspace/repo, not openmind). `stateRoot` is the app-private
      * state dir under userData; when omitted, services fall back to the legacy
-     * `<mymindRoot>/.cctools` location for back-compat.
+     * `<openmindRoot>/.openmind` location for back-compat.
      */
     opts: { skillSourcesRoot?: string; stateRoot?: string } = {},
     private readonly preferences: () => UserPreferences = getPreferences
   ) {
-    this.mymindRoot = mymindRoot;
+    this.openmindRoot = openmindRoot;
     this.content = content;
     this.creative = creative;
-    this.contentIndex = new ContentIndexStore(mymindRoot, content, opts.stateRoot);
-    // SourceRegistry keeps a legacy `repoRoot` for back-compat; pass mymindRoot
+    this.contentIndex = new ContentIndexStore(openmindRoot, content, opts.stateRoot);
+    // SourceRegistry keeps a legacy `repoRoot` for back-compat; pass openmindRoot
     // as the content root and skillSourcesRoot for `.claude/skills` discovery.
-    this.sources = new SourceRegistry(opts.skillSourcesRoot ?? mymindRoot, content, mymindRoot, opts.skillSourcesRoot, opts.stateRoot);
-    this.briefs = new BriefService(mymindRoot, this.contentIndex, creative, opts.stateRoot);
+    this.sources = new SourceRegistry(opts.skillSourcesRoot ?? openmindRoot, content, openmindRoot, opts.skillSourcesRoot, opts.stateRoot);
+    this.briefs = new BriefService(openmindRoot, this.contentIndex, creative, opts.stateRoot);
     this.dashboard = new DashboardService(creative, this.briefs, this.sources);
   }
 
@@ -99,16 +99,16 @@ export class ProductService {
     // 日期/扁平目录：原地覆盖单文件不改目录 mtime，readdir + 取文件 mtime 最大值才能
     // 捕捉原地更新（reddit md / posts.json / daily_summary 被外部 skill 重写）。
     for (const p of [
-      path.join(this.mymindRoot, "article", date),
-      path.join(this.mymindRoot, "reddit", date),
-      path.join(this.mymindRoot, "post", date),
-      path.join(this.mymindRoot, "daily-summary"),
-      path.join(this.mymindRoot, "daily-topic")
+      path.join(this.openmindRoot, "article", date),
+      path.join(this.openmindRoot, "reddit", date),
+      path.join(this.openmindRoot, "post", date),
+      path.join(this.openmindRoot, "daily-summary"),
+      path.join(this.openmindRoot, "daily-topic")
     ]) {
       parts.push(this.newestFileMtime(p));
     }
     // creative 走 walk depth 4（体积大），用目录 mtime（增删捕捉；manifest 单文件覆盖罕见）。
-    try { parts.push(fs.statSync(path.join(this.mymindRoot, "creative")).mtimeMs); } catch { parts.push(0); }
+    try { parts.push(fs.statSync(path.join(this.openmindRoot, "creative")).mtimeMs); } catch { parts.push(0); }
     return parts.join(",");
   }
 

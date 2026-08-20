@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
@@ -14,39 +14,67 @@ import { WorkspaceFilePreview } from "./components/WorkspaceFilePreview";
 import { FilePreviewProvider } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
 
-const NAV_COLLAPSED_KEY = "cctools.nav.collapsed.v1";
+const NAV_COLLAPSED_KEY = "openmind.nav.collapsed.v1";
 type Bootstrap = RouteBootstrap;
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!window.cctools) {
+    if (!window.openmind) {
       setError(m.app.preloadMissing);
       return;
     }
-    void window.cctools.getBootstrap().then(setBootstrap).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    void window.openmind.getBootstrap().then(setBootstrap).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, []);
   if (error) return <div className="fatal"><strong>{m.app.fatalTitle}</strong><pre>{error}</pre></div>;
   if (!bootstrap) return <div className="splash"><div className="brand-mark">CC</div><span>{m.app.splashStarting}</span></div>;
-  // Main restarts the worker when either root changes. Remount the matching
-  // Renderer state as one unit so sessions and blank-draft Skill defaults can
-  // never leak across roots. Crossing the setup gate also needs one remount:
-  // the setup bootstrap intentionally carries an empty AI snapshot, while the
-  // first ready bootstrap carries the newly-started worker state. Ordinary
-  // same-root refreshes inside the ready state keep all conversation caches.
-  const aiStorageScope = `${bootstrap.mymindRoot}\u0000${bootstrap.workspaceRoot}`;
-  const aiReady = bootstrap.validRepo && bootstrap.skillsInstalled && Boolean(bootstrap.workspaceRoot);
-  const aiProviderKey = `${aiStorageScope}\u0000${aiReady ? "ready" : "setup"}`;
-  return <ResponsiveLayoutProvider><AiProvider key={aiProviderKey} storageScope={aiStorageScope} initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} /></AiProvider></ResponsiveLayoutProvider>;
+  const aiStorageScope = `${bootstrap.openmindRoot}\u0000${bootstrap.workspaceRoot}`;
+  return <ResponsiveLayoutProvider><WorkspaceHost bootstrap={bootstrap} setBootstrap={setBootstrap} aiStorageScope={aiStorageScope} /></ResponsiveLayoutProvider>;
 }
 
-function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
-  // A valid mymind root plus the official cctools-skills repository installed
-  // are the actual first-start gate. The checklist remains available during
-  // setup, but a stale app-private onboarding flag must not stop an already
-  // configured workspace on every launch.
+function WorkspaceHost({ bootstrap, setBootstrap, aiStorageScope }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void; aiStorageScope: string }) {
+  // Route state lives above the keyed AI provider so setup can survive the
+  // final AI hydration remount; ordinary scope switches are reset explicitly
+  // below instead of relying on an outer component remount.
   const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo && bootstrap.skillsInstalled ? "ai" : "onboarding", state: {}, nonce: 0 }));
+  // Keep the whole setup tree mounted while bootstrap advances through its
+  // root and Skill gates. Otherwise changing either key remounts OnboardingPage
+  // and the horizontal track jumps directly to the next panel instead of
+  // animating there. Setup cannot expose drafts or sessions, so it can safely
+  // use one transient provider; leaving setup remounts the provider from the
+  // final scoped bootstrap before the workbench becomes visible.
+  const aiReady = bootstrap.validRepo && bootstrap.skillsInstalled && Boolean(bootstrap.workspaceRoot);
+  const previousAiStorageScope = useRef(aiStorageScope);
+  useEffect(() => {
+    const scopeChanged = previousAiStorageScope.current !== aiStorageScope;
+    previousAiStorageScope.current = aiStorageScope;
+    if (!scopeChanged) return;
+    setRoute((current) => current.page === "onboarding"
+      ? current
+      : { page: aiReady ? "ai" : "onboarding", state: {}, nonce: 0 });
+  }, [aiReady, aiStorageScope]);
+  const aiProviderKey = route.page === "onboarding"
+    ? "onboarding-setup"
+    : `${aiStorageScope}\u0000${aiReady ? "ready" : "setup"}`;
+  return <AiProvider key={aiProviderKey} storageScope={aiStorageScope} initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} route={route} setRoute={setRoute} /></AiProvider>;
+}
+
+function Workspace({
+  bootstrap,
+  setBootstrap,
+  route,
+  setRoute
+}: {
+  bootstrap: Bootstrap;
+  setBootstrap(value: Bootstrap): void;
+  route: AppRoute;
+  setRoute: Dispatch<SetStateAction<AppRoute>>;
+}) {
+  // A valid openmind root plus the official cctools-skills repository installed
+  // are the actual first-start gate. The checklist remains available during
+  // setup, while an already configured workspace still opens directly on a
+  // later launch even if an old app-private onboarding flag is stale.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsRouteState, setSettingsRouteState] = useState<AppRouteState>({});
   const [searchOpen, setSearchOpen] = useState(false);
@@ -57,7 +85,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
-    const next = await window.cctools.getBootstrap();
+    const next = await window.openmind.getBootstrap();
     setBootstrap(next);
     return next;
   }, [setBootstrap]);
@@ -90,7 +118,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const openWorkspaceFile = useCallback((path: string) => setWorkspaceFilePath(path), []);
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
-  useEffect(() => { void window.cctools.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
+  useEffect(() => { void window.openmind.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
     if (typeof performance === "undefined") return;
     performance.mark("app-mounted");
@@ -101,13 +129,16 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
     const onKey = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       if (!mod) return;
+      // First start is a dedicated configuration surface. Global workbench
+      // shortcuts must not provide a hidden route around its explicit flow.
+      if (route.page === "onboarding") return;
       const key = event.key.toLowerCase();
       if (key === "k") { event.preventDefault(); openSearch(); }
       else if (key === "n") { event.preventDefault(); void ai.setActiveSession(null); navigate("ai"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ai.setActiveSession, navigate, openSearch]);
+  }, [ai.setActiveSession, navigate, openSearch, route.page]);
   useEffect(() => {
     const enteredPage = previousRoutePage.current !== route.page;
     previousRoutePage.current = route.page;
@@ -121,12 +152,12 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   // 窗口重新获焦时异步重探 provider：登录在后、换模型、新装 CLI 都能被捡起。
   // 探测在 worker 进程用 spawn 跑、非阻塞，完成后自动推送 snapshot，绝不卡 send。
   useEffect(() => {
-    const onFocus = () => { void window.cctools.aiRefreshProviders?.().catch(() => undefined); };
+    const onFocus = () => { void window.openmind.aiRefreshProviders?.().catch(() => undefined); };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
   useEffect(() => {
-    if (settingsOpen) void window.cctools.aiRefreshProviders?.().catch(() => undefined);
+    if (settingsOpen) void window.openmind.aiRefreshProviders?.().catch(() => undefined);
   }, [settingsOpen]);
   useEffect(() => setWorkspaceFilePath(null), [route.page, route.nonce, settingsOpen]);
   const routeRenderProps = {

@@ -1,6 +1,6 @@
-// Validate every top-level cctools.skill.yaml in the independent Skills
+// Validate every top-level openmind.skill.yaml in the independent Skills
 // repository against the frozen SkillManifestSchema. Override the sibling
-// checkout with CCTOOLS_SKILLS_REPO_ROOT. A desktop-app-only checkout has no
+// checkout with OPENMIND_SKILLS_REPO_ROOT. A desktop-app-only checkout has no
 // Skills source tree, so linting is skipped there.
 import fs from "node:fs";
 import path from "node:path";
@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(moduleDir, "..", "..");
-const skillsDir = path.resolve(process.env.CCTOOLS_SKILLS_REPO_ROOT || path.join(root, "..", "cctools-skills"));
+const skillsDir = path.resolve(process.env.OPENMIND_SKILLS_REPO_ROOT || path.join(root, "..", "cctools-skills"));
 
 // Minimal YAML→JS: the manifests are a flat-enough subset, but to be correct
 // we use the same parser the app uses. Load the compiled schema via tsx-style
@@ -48,10 +48,10 @@ let legacy = 0;
 const failures = [];
 
 for (const name of entries) {
-  const manifestPath = path.join(skillsDir, name, "cctools.skill.yaml");
+  const manifestPath = path.join(skillsDir, name, "openmind.skill.yaml");
   if (!fs.existsSync(manifestPath)) {
     legacy += 1;
-    console.log(`  • ${name}: LEGACY (no cctools.skill.yaml)`);
+    console.log(`  • ${name}: LEGACY (no openmind.skill.yaml)`);
     continue;
   }
   const raw = fs.readFileSync(manifestPath, "utf8");

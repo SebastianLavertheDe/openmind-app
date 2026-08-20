@@ -46,7 +46,7 @@ function ConfirmHarness() {
 }
 
 beforeEach(() => {
-  window.cctools = {
+  window.openmind = {
     onAiEvent: () => () => undefined
   } as unknown as DesktopApi;
 });
@@ -103,7 +103,7 @@ describe("FeedbackHost confirmation dialog", () => {
 
     expect(await screen.findByText("Skill 执行失败")).toBeTruthy();
     expect(await screen.findByText("可在自动化或数据源运行日志中查看详情，并使用重试/重新运行。")).toBeTruthy();
-    const log = JSON.parse(window.localStorage.getItem("cctools.feedback.log.v1") || "[]");
+    const log = JSON.parse(window.localStorage.getItem("openmind.feedback.log.v1") || "[]");
     expect(log.at(-1)).toMatchObject({ text: "Skill 执行失败", tone: "error" });
   });
 });

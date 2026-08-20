@@ -1,4 +1,4 @@
-# CC Tools Desktop — UI/UX Pro Max Skill 审查报告
+# OpenMind Desktop — UI/UX Pro Max Skill 审查报告
 
 > 审查工具：`ui-ux-pro-max` skill (BM25 设计智能引擎,已安装于 `desktop-app/.claude/skills/`)
 > 审查日期：2026-07-09
@@ -171,7 +171,7 @@ uipro init --ai claude
 
 # 设计系统推荐(对照基线)
 python3 scripts/search.py "developer desktop app control center dashboard dark mode productivity tool" \
-  --design-system -p "CC Tools Desktop"
+  --design-system -p "OpenMind Desktop"
 
 # 各维度深挖
 python3 scripts/search.py "contrast keyboard focus dark mode icon button loading z-index truncation" --domain ux -n 10

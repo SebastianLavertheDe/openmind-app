@@ -50,7 +50,7 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
     if (value === "decline") {
       declineTimerRef.current = window.setTimeout(() => {
         declineTimerRef.current = null;
-        void Promise.all(approvals.map((approval) => window.cctools.aiResolveApproval(approval.id, "decline")))
+        void Promise.all(approvals.map((approval) => window.openmind.aiResolveApproval(approval.id, "decline")))
           .then(() => ai.refresh())
           .catch(() => undefined)
           .finally(() => { if (mountedRef.current) setBusy(false); });
@@ -73,7 +73,7 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
       return;
     }
     try {
-      await Promise.all(approvals.map((approval) => window.cctools.aiResolveApproval(approval.id, value)));
+      await Promise.all(approvals.map((approval) => window.openmind.aiResolveApproval(approval.id, value)));
       await ai.refresh();
     } catch {
       // 单个失败由卡片自身展示错误。

@@ -69,7 +69,7 @@ describe("composePrompt", () => {
       contexts: [ctx({
         kind: "selection",
         label: "引用 · 2026-07-24 每日简报 · 3 行",
-        path: "mymind/daily-summary/20260724_daily_summary.md",
+        path: "openmind/daily-summary/20260724_daily_summary.md",
         content: selectedText
       })]
     }));

@@ -14,7 +14,7 @@ function git(root: string, args: string[]): string {
 }
 
 function createRepo(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-ai-direct-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ai-direct-"));
   roots.push(root);
   git(root, ["init"]);
   git(root, ["config", "user.email", "test@example.com"]);
@@ -64,7 +64,7 @@ describe("direct-directory execution", () => {
     const root = createRepo();
     const manager = new LegacyChangeManager(root);
     expect("create" in manager).toBe(false);
-    expect(fs.existsSync(path.join(root, ".cctools", "ai", ".runtime", "worktrees"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".openmind", "ai", ".runtime", "worktrees"))).toBe(false);
   });
 
   it("keeps legacy patch apply and revert support for historical runs", async () => {
@@ -221,7 +221,7 @@ describe("LegacyChangeManager.discard", () => {
   it("workspacePath 存在时移除并返回 true(非 worktree 时静默)", async () => {
     const root = createRepo();
     // 创建一个假 workspacePath 目录(非真实 worktree,git worktree remove 会失败但被 catch)
-    const fakeWs = path.join(root, ".cctools", "ai", ".runtime", "fake-ws");
+    const fakeWs = path.join(root, ".openmind", "ai", ".runtime", "fake-ws");
     fs.mkdirSync(fakeWs, { recursive: true });
     const manager = new LegacyChangeManager(root);
     // 非 worktree 目录,remove 失败被 catch,目录仍存在 → 返回 false

@@ -53,8 +53,8 @@ vi.mock(import("./scheduler"), () => ({
 const ee = new EventEmitter();
 (ee as unknown as { postMessage: (m: unknown) => void }).postMessage = (m: unknown) => { hoisted.posted.push(m); };
 hoisted.parentPort = ee;
-vi.stubEnv("CCTOOLS_REPO_ROOT", "/test-repo");
-vi.stubEnv("CCTOOLS_STATE_ROOT", "/test-state");
+vi.stubEnv("OPENMIND_REPO_ROOT", "/test-repo");
+vi.stubEnv("OPENMIND_STATE_ROOT", "/test-state");
 Object.defineProperty(process, "parentPort", {
   value: ee,
   configurable: true,

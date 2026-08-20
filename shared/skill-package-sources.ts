@@ -57,7 +57,7 @@ export function parseSkillPackageSourceInput(value: unknown): SkillPackageSource
 }
 
 /** Official first-start skill repository; installing it is part of the onboarding gate. */
-export const CCTOOLS_SKILLS_REPO_URL = "https://github.com/SebastianLavertheDe/cctools-skills";
+export const OPENMIND_SKILLS_REPO_URL = "https://github.com/SebastianLavertheDe/cctools-skills";
 
 /** Canonical form used for local source provenance and receipt comparison. */
 export function normalizeGitSourceLocator(locator: string | null | undefined): string | null {
@@ -78,8 +78,8 @@ export function normalizeGitSourceLocator(locator: string | null | undefined): s
   return url.toString().replace(/\/$/, "");
 }
 
-/** Matches a git source locator against {@link CCTOOLS_SKILLS_REPO_URL} (ignores trailing slash / .git). */
+/** Matches a git source locator against {@link OPENMIND_SKILLS_REPO_URL} (ignores trailing slash / .git). */
 export function isCctoolsSkillsSourceLocator(locator: string | null | undefined): boolean {
   const normalized = normalizeGitSourceLocator(locator);
-  return normalized?.toLowerCase() === normalizeGitSourceLocator(CCTOOLS_SKILLS_REPO_URL)?.toLowerCase();
+  return normalized?.toLowerCase() === normalizeGitSourceLocator(OPENMIND_SKILLS_REPO_URL)?.toLowerCase();
 }

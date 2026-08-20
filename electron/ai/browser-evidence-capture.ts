@@ -90,8 +90,8 @@ export function markCaptureTarget(element: Element, input: MarkCaptureTargetInpu
     target = find(isStrongComment) || find(isCollapsedDetails) || element;
   }
 
-  const previousTargetMarker = target.getAttribute("data-cctools-evidence-target");
-  target.setAttribute("data-cctools-evidence-target", input.marker);
+  const previousTargetMarker = target.getAttribute("data-openmind-evidence-target");
+  target.setAttribute("data-openmind-evidence-target", input.marker);
   const targetIsComment = input.scope === "comment" || isStrongComment(target);
   const targetTag = tag(target);
   const inferredKind: CaptureScope = targetIsComment
@@ -167,9 +167,9 @@ export function prepareCaptureTarget(
       hidden.push({
         display: candidate.style.display,
         marker: hiddenMarker,
-        previousMarker: candidate.getAttribute("data-cctools-evidence-hidden")
+        previousMarker: candidate.getAttribute("data-openmind-evidence-hidden")
       });
-      candidate.setAttribute("data-cctools-evidence-hidden", hiddenMarker);
+      candidate.setAttribute("data-openmind-evidence-hidden", hiddenMarker);
       candidate.style.display = "none";
     });
   }
@@ -206,18 +206,18 @@ export function restoreCaptureTarget(
   };
 
   for (const state of input.preparation?.hidden || []) {
-    const hidden = target.querySelector(`[data-cctools-evidence-hidden="${state.marker}"]`);
+    const hidden = target.querySelector(`[data-openmind-evidence-hidden="${state.marker}"]`);
     if (!(hidden instanceof HTMLElement)) continue;
     hidden.style.display = state.display;
-    if (state.previousMarker === null) hidden.removeAttribute("data-cctools-evidence-hidden");
-    else hidden.setAttribute("data-cctools-evidence-hidden", state.previousMarker);
+    if (state.previousMarker === null) hidden.removeAttribute("data-openmind-evidence-hidden");
+    else hidden.setAttribute("data-openmind-evidence-hidden", state.previousMarker);
   }
   const details = findDetails();
   if (details && input.preparation?.originalOpen !== null && input.preparation?.originalOpen !== undefined) {
     details.open = input.preparation.originalOpen;
   }
-  if (input.previousTargetMarker === null) target.removeAttribute("data-cctools-evidence-target");
-  else target.setAttribute("data-cctools-evidence-target", input.previousTargetMarker);
+  if (input.previousTargetMarker === null) target.removeAttribute("data-openmind-evidence-target");
+  else target.setAttribute("data-openmind-evidence-target", input.previousTargetMarker);
 }
 
 export function buildControlledCaptureCode(input: {
@@ -233,7 +233,7 @@ export function buildControlledCaptureCode(input: {
     const restoreCaptureTarget = ${restoreCaptureTarget.toString()};
     const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
     const needle = normalize(input.quote);
-    const marker = 'cctools-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    const marker = 'openmind-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
     await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => undefined);
     const originalScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
     let target = null;
@@ -269,7 +269,7 @@ export function buildControlledCaptureCode(input: {
       if (!best) throw new Error('SOURCE_QUOTE_NOT_FOUND');
 
       marked = await best.evaluate(markCaptureTarget, { marker, scope: input.scope });
-      target = page.locator('[data-cctools-evidence-target="' + marker + '"]');
+      target = page.locator('[data-openmind-evidence-target="' + marker + '"]');
       if (await target.count() !== 1) throw new Error('SOURCE_TARGET_AMBIGUOUS');
       preparation = await target.evaluate(prepareCaptureTarget, { isComment: marked.isComment, marker });
       await target.scrollIntoViewIfNeeded({ timeout: 10000 });

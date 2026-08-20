@@ -45,7 +45,7 @@ remains pending.
 Current unpacked executable digest:
 
 ```text
-CC Tools.exe  sha256=f380ba705043a67fb11c941715c2f9a17052ea45c66891391231c83b56a460f3
+OpenMind.exe  sha256=f380ba705043a67fb11c941715c2f9a17052ea45c66891391231c83b56a460f3
 ```
 
 An unsigned Windows arm64 ZIP was also produced from that unpacked tree and
@@ -53,10 +53,10 @@ passed `unzip -t`. The Portable and NSIS artifacts were separately produced
 with the host's native ARM64 NSIS tool and passed archive-structure checks:
 
 ```text
-CC Tools-1.0.24-arm64-win.zip  sha256=3cfab99388eae5e4aff02415dac7a10d5c136d7862a939455b541fed9d07b3a3
-CC-Tools-Portable-1.0.24-arm64.exe  sha256=bf2960d25d1cdf5d32873e9750a170c50776dcfacb0da0d7d095e4e2d3c47563
-CC-Tools-Setup-1.0.24-arm64.exe  sha256=a1bffa28cd74bd6861efb4437061d0d1f4e7010bdec1730321aa7fc63cb7b5a7
-CC-Tools-Setup-1.0.24-arm64.exe.blockmap  sha256=6f45ce7691cb6b9569304b13ceaa1b5aee18cee2a2288a8aeb6640cb559c27b0
+OpenMind-1.0.24-arm64-win.zip  sha256=3cfab99388eae5e4aff02415dac7a10d5c136d7862a939455b541fed9d07b3a3
+OpenMind-Portable-1.0.24-arm64.exe  sha256=bf2960d25d1cdf5d32873e9750a170c50776dcfacb0da0d7d095e4e2d3c47563
+OpenMind-Setup-1.0.24-arm64.exe  sha256=a1bffa28cd74bd6861efb4437061d0d1f4e7010bdec1730321aa7fc63cb7b5a7
+OpenMind-Setup-1.0.24-arm64.exe.blockmap  sha256=6f45ce7691cb6b9569304b13ceaa1b5aee18cee2a2288a8aeb6640cb559c27b0
 ```
 
 The ZIP, Portable EXE and NSIS Setup remain artifact-level evidence only; none
@@ -78,7 +78,7 @@ The current Linux host also produced an unsigned macOS arm64 ZIP from the
 cross-platform electron-builder path. The `.app` scan covered 591 files with
 no findings, and the real ZIP container scan covered 1,073 files with
 `app.asar` present and no findings. The ZIP is
-`CC Tools-1.0.24-arm64-mac.zip` with
+`OpenMind-1.0.24-arm64-mac.zip` with
 `sha256=87654e1db511a5381131a98a2c1d5d2ff74e8b5e8b30a5c90d829b35a7640122`.
 `.build/package-evidence-mac-local.json` records the ZIP as validated
 artifact-level evidence but `targetValidation=manual-required` because the

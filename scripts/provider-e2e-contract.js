@@ -12,7 +12,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const appRoot = path.resolve(__dirname, "..");
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-e2e-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-e2e-"));
 const today = new Date().toISOString().slice(0, 10);
 
 try {
@@ -61,7 +61,7 @@ function buildFixture(source) {
     const slug = columns[0].toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     columns[1] = "passed";
     columns[2] = "passed";
-    columns[3] = `date=${today}; package=CC-Tools-Portable-1.0.24-win-x64.exe; project=C:\\Users\\qa\\cctools-provider-fixture; evidence=https://evidence.example.test/provider/${slug}.zip`;
+    columns[3] = `date=${today}; package=OpenMind-Portable-1.0.24-win-x64.exe; project=C:\\Users\\qa\\openmind-provider-fixture; evidence=https://evidence.example.test/provider/${slug}.zip`;
     return `| ${columns.join(" | ")} |`;
   }).join("\n");
 }
@@ -85,9 +85,9 @@ function run(checklistPath, outputPath, strict) {
     cwd: appRoot,
     env: {
       ...process.env,
-      CCTOOLS_PROVIDER_E2E_CHECKLIST_FILE: checklistPath,
-      CCTOOLS_PROVIDER_E2E_OUTPUT: outputPath,
-      CCTOOLS_PROVIDER_E2E_STRICT: strict ? "1" : "0"
+      OPENMIND_PROVIDER_E2E_CHECKLIST_FILE: checklistPath,
+      OPENMIND_PROVIDER_E2E_OUTPUT: outputPath,
+      OPENMIND_PROVIDER_E2E_STRICT: strict ? "1" : "0"
     },
     encoding: "utf8",
     maxBuffer: 4 * 1024 * 1024

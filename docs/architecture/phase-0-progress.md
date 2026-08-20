@@ -14,7 +14,7 @@ phases; this file records concrete evidence of completion per phase.
   static-manifest changes.
 - Batch A/B Python overlay tests (`scripts/test_batch_a_skill_overlays.py`,
   `scripts/test_batch_b_skill_overlays.py`) — **green** (6 + 6 tests).
-- No `mymind`/user content is modified by the refactor or its tests.
+- No `openmind`/user content is modified by the refactor or its tests.
 
 ## Phase 0 — Architecture & boundary freeze — ✅ COMPLETE
 
@@ -35,7 +35,7 @@ Plan §26 "首批工程交付物" (first engineering deliverables), all landed:
 | # | Deliverable | Path | Status |
 |---|---|---|---|
 | 1 | ADR-001 path boundaries | `docs/adr/ADR-001-path-boundaries.md` | ✅ |
-| 2 | ADR-002 mymind layout contract | `docs/adr/ADR-002-mymind-layout-contract.md` | ✅ |
+| 2 | ADR-002 openmind layout contract | `docs/adr/ADR-002-openmind-layout-contract.md` | ✅ |
 | 3 | ADR-003 skill manifest v1 | `docs/adr/ADR-003-skill-manifest-v1.md` | ✅ |
 | 4 | ADR-004 skill trust model | `docs/adr/ADR-004-skill-trust-model.md` | ✅ |
 | 5 | ADR-005 runtime targets | `docs/adr/ADR-005-runtime-targets.md` | ✅ |
@@ -43,46 +43,46 @@ Plan §26 "首批工程交付物" (first engineering deliverables), all landed:
 | 7 | data migration spec | `docs/architecture/data-migration.md` | ✅ |
 | 8 | skill-manifest-schema.ts | `shared/skill-manifest-schema.ts` | ✅ |
 | 9 | app-paths-service.ts | `electron/paths/app-paths-service.ts` | ✅ |
-| 10 | mymind-path-resolver.ts | `electron/paths/mymind-path-resolver.ts` | ✅ |
-| 11 | anonymous mymind fixture | `electron/paths/mymind-fixture.ts` | ✅ |
+| 10 | openmind-path-resolver.ts | `electron/paths/openmind-path-resolver.ts` | ✅ |
+| 11 | anonymous openmind fixture | `electron/paths/openmind-fixture.ts` | ✅ |
 | 12 | 16-skill compatibility matrix | `shared/skill-compatibility-matrix.ts` | ✅ |
 | 13 | malicious skill package fixtures | `electron/paths/malicious-skill-fixtures.ts` | ✅ |
 | 14 | clean-machine smoke fixture | `electron/paths/clean-machine-smoke.ts` | ✅ |
 | 15 | unit/contract tests | 6 new `*.test.ts` files, **95 new tests** | ✅ |
 
 Additional supporting files:
-- `shared/mymind-layout-v1.ts` — machine-readable frozen layout.
+- `shared/openmind-layout-v1.ts` — machine-readable frozen layout.
 - `docs/adr/README.md` — ADR index.
 - `docs/fixtures/skill-manifest.example.yaml` — manifest example.
 
 Phase 0 gates (plan §22 Phase 0 Gate) — **met**:
-- ✅ Single `mymindRoot` + immutable structure reviewed (ADR-001, ADR-002).
+- ✅ Single `openmindRoot` + immutable structure reviewed (ADR-001, ADR-002).
 - ✅ No open "do UI first, decide paths/security later" item (ADR-003…009 freeze
   manifest, trust, runtime, secrets, provider, release).
 
-## Phase 1 — AppPaths, Mymind & state decoupling — 🟡 IN PROGRESS
+## Phase 1 — AppPaths, Openmind & state decoupling — 🟡 IN PROGRESS
 
 Landed in the current implementation:
 
 - `AppPathsService` is used for app-private directory creation and settings
   now writes to `userData/settings/settings.json`; the old flat settings path
   is read-only compatibility input.
-- Settings v2 resolves/canonicalises an actual `mymindRoot`, keeps an optional
+- Settings v2 resolves/canonicalises an actual `openmindRoot`, keeps an optional
   independent `workspaceRoot`, performs userData path-conflict checks, and
   ignores the pre-release legacy `repoRoot` field instead of deriving a save
   root from it.
 - `ProductService`, `ContentIndexStore`, `SourceRegistry`, content helpers and
   creative path reporting use the selected content root; app-managed state for
   Product services is keyed below `userData/state/<root-id>`.
-- `MymindPathResolver` is now used by the content write path and rejects
+- `OpenmindPathResolver` is now used by the content write path and rejects
   traversal, escaping symlinks and unknown top-level writes.
-- `MymindFileSearch` supports a direct-root mode; the old repo-shaped
+- `OpenmindFileSearch` supports a direct-root mode; the old repo-shaped
   constructor remains only as a compatibility path.
-- `MymindLocationService` provides root health, preserved/unknown entry
+- `OpenmindLocationService` provides root health, preserved/unknown entry
   observations, conflict checks and generation-pinned snapshots; root IPC
   exposes health and snapshot data.
 - The pre-release `legacy-state-migration.ts` startup path was removed. Startup
-  does not inspect or copy `<repoRoot>/.cctools`; root binding is explicit and
+  does not inspect or copy `<repoRoot>/.openmind`; root binding is explicit and
   app-private state begins under `userData/state/<root-id>`.
 - AI session, runtime-worktree, temporary-image and Skill source-setting state
   now accepts a root-scoped app-private state parent; Main passes
@@ -91,11 +91,11 @@ Landed in the current implementation:
   target the migrated app-private file once the v2 binding is active.
 - Creative private-state writes before the first valid root binding now use an
   app-private `userData/state/<workspace-root-id>` bucket (or a neutral
-  `workspace` bucket when no workspace exists); legacy `<repo>/.cctools` is
+  `workspace` bucket when no workspace exists); legacy `<repo>/.openmind` is
   never recreated by a new write and is read only during migration fallback.
 - Legacy browser evidence now defaults to the explicit, user-owned workspace
   output `assets/browser-evidence`; the old implicit
-  `.cctools/browser-evidence` setting is migrated once. CLI-hosted Agent Skills
+  `.openmind/browser-evidence` setting is migrated once. CLI-hosted Agent Skills
   do not receive a Broker Export Location Binding or an Artifact collection
   guarantee; any browser evidence location must be explicit in the selected
   Claude Code/Codex session and must never fall back to the installed package
@@ -103,13 +103,13 @@ Landed in the current implementation:
 - Root switching is guarded at the Main IPC boundary by a worker-reported
   active-task count covering queued/provider/manual-Skill work.
 - Main/Bootstrap no longer requires `.claude/skills` for content readiness;
-  workspace/AI readiness is separate. Settings exposes independent mymind and
+  workspace/AI readiness is separate. Settings exposes independent openmind and
   workspace actions.
-- `getMymindRoot` now reports a path-free legacy-state migration status;
+- `getOpenmindRoot` now reports a path-free legacy-state migration status;
   `skipped` markers are idempotent, while pending/invalid markers are visible
   in Diagnostics with a retry-safe explanation.
 - Root directory selection is now a read-only Main dry-run: the picker returns
-  a candidate, `previewMymindRoot` checks canonicalisation, path conflicts,
+  a candidate, `previewOpenmindRoot` checks canonicalisation, path conflicts,
   access and active-run state without writing settings/content, and the UI
   commits only after explicit confirmation. IPC, settings, Onboarding,
   Diagnostics and Settings tests cover the preview/commit boundary.
@@ -117,14 +117,14 @@ Landed in the current implementation:
 - `AppStateBackupService` now exports/imports a versioned, SHA-256-checked ZIP
   for `settings/`, `state/`, `automation/` and Run metadata. It excludes
   credentials/browser tokens, Skill and Runtime bytes, caches/logs, temporary
-  AI/work directories and `mymind`; restore stages through `userData/staging`,
+  AI/work directories and `openmind`; restore stages through `userData/staging`,
   uses a marker plus rollback snapshot, and recovers an interrupted commit at
   the next app startup before the renderer is exposed.
 - Diagnostics exposes the Main-dialog backup/restore actions. IPC refuses the
   operation while a Run is active and restarts the AI Worker after restore.
   `electron/backup/app-state-backup.test.ts` covers round-trip exclusion,
   tamper rejection, symlink rejection and interrupted-commit recovery.
-- User-initiated mymind relocation is now a separate Diagnostics action from
+- User-initiated openmind relocation is now a separate Diagnostics action from
   root binding and legacy settings migration. Its read-only preview reports
   canonical source/target, counts, bytes and a tree digest; commit requires a
   strictly empty target, preserves the source, verifies the copied tree, and
@@ -133,7 +133,7 @@ Landed in the current implementation:
   relocation service, IPC boundary and Diagnostics confirmation flow are
   covered by 4 service, 1 IPC and 1 Renderer regression tests.
 - Non-Electron AppPaths callers now fall back to a system temporary
-  `cctools-desktop-userdata` directory instead of creating `.cctools-userdata`
+  `openmind-desktop-userdata` directory instead of creating `.openmind-userdata`
   inside the source checkout; packaged Electron continues to use its native
   `app.getPath("userData")` location.
 
@@ -150,16 +150,16 @@ Remaining Phase 1 work:
 The first static package boundary is now implemented in
 `electron/skills/skill-package-service.ts`:
 
-- local directory Inspect with strict `cctools.skill.yaml` parsing;
+- local directory Inspect with strict `openmind.skill.yaml` parsing;
 - safe ZIP Inspect/Install with central-directory validation, path traversal,
   duplicate-entry, encrypted/special-file, size and compression-ratio guards;
 - Legacy `SKILL.md` classification as inspection-only, without defaulting to
   `uv`;
 - package path, symlink, hardlink and special-file checks;
 - exclusion of `.env`, virtualenv, cache, logs, browser state, credentials,
-  `.cctools` and generated `mymind` content;
+  `.openmind` and generated `openmind` content;
 - stable package digest and live installed-copy integrity checks;
-- clean copy into `<mymind>/.agent/skills/<publisher>/<id>`, with a
+- clean copy into `<openmind>/.agent/skills/<publisher>/<id>`, with a
   staging-to-rename replacement and rollback of the previous directory if the
   registry commit fails;
 - `InstalledSkillRepository` schema v3 owns one atomic metadata record per
@@ -406,7 +406,7 @@ The first single-process execution chain is now implemented and exercised:
   not a substitute for packaged Windows/macOS E2E or a clean-machine Python
   dependency-install test.
 - The same gate now runs the real Batch A `skill-run-reporter` package from
-  `.claude/skills`, with its installed Python entrypoint, bound mymind/run
+  `.claude/skills`, with its installed Python entrypoint, bound openmind/run
   roots and report output. The test uses a signed managed-pack fixture plus
   an injected interpreter path; it is a package/IPC execution gate, not yet a
   clean-machine packaged Python Runtime verification.
@@ -451,7 +451,7 @@ The first single-process execution chain is now implemented and exercised:
 - Renderer no longer exposes the generic manual `startSkillRun` boundary.
   Internal source, Automation and Workflow submissions remain behind
   installed-copy package checks; no Broker legacy opt-in remains.
-- `CCTOOLS_MYMIND_ROOT` and `CCTOOLS_ROOT_GENERATION` are pinned into the AI
+- `OPENMIND_ROOT` and `OPENMIND_ROOT_GENERATION` are pinned into the AI
   worker bootstrap so root switching restarts the Broker with a new snapshot.
 - Automation now has a versioned shared Rule/Run/Schedule contract, an
   app-private atomic registry with one-time default seeding, durable
@@ -491,7 +491,7 @@ Remaining Phase 5 work:
 ## Phase 6 — 16 skill migration — 🟡 STATIC MANIFESTS COMPLETE, EXECUTION GATED
 
 **§17.1 acceptance gate MET (static):** all 16 skills now have formal
-`cctools.skill.yaml` manifests validating against the frozen
+`openmind.skill.yaml` manifests validating against the frozen
 `SkillManifestSchema`. The classification is exactly **12 process / 1 workflow /
 3 agent** (verified by `npm run lint:manifests` →
 `scripts/validate-all-skill-manifests.mjs`, wired into the `build` chain). The
@@ -499,7 +499,7 @@ real-workspace migration test (`SkillPackageService > migrates only formal ...`)
 installs all 16 as one record per Skill key; `_shared` (not a runnable skill)
 is not registered.
 
-Batch A now has formal `cctools.skill.yaml` manifests and locked Python
+Batch A now has formal `openmind.skill.yaml` manifests and locked Python
 project metadata for:
 
 - `asset-collector`;
@@ -513,12 +513,12 @@ A/B/C packages as formal packages. This is a static package migration gate;
 Runtime Pack readiness and live execution are still intentionally not claimed.
 
 Batch A's process entrypoints now use the final path overlay contract:
-`CCTOOLS_MYMIND_ROOT`/`MYMIND_ROOT` is the only content-root binding,
-`CCTOOLS_SKILL_DATA_DIR` is reserved for Skill-owned cache/state, and
-`CCTOOLS_RUN_DIR` is available for app-private Run integration. The Batch A
-scripts no longer walk `__file__` ancestors or search for a cctools repository;
+`OPENMIND_ROOT` is the only content-root binding,
+`OPENMIND_SKILL_DATA_DIR` is reserved for Skill-owned cache/state, and
+`OPENMIND_RUN_DIR` is available for app-private Run integration. The Batch A
+scripts no longer walk `__file__` ancestors or search for a openmind repository;
 relative content paths are checked below the bound root, writing-package
-metadata stays root-relative, and Reddit cache is separated from mymind
+metadata stays root-relative, and Reddit cache is separated from openmind
 output. `desktop-app/scripts/test_batch_a_skill_overlays.py` runs six
 cross-entry temporary-root tests from an unrelated working directory.
 
@@ -530,8 +530,8 @@ Batch B now has formal manifests and lockfiles for:
 - `rss-article-saver`;
 - `x-following-fetcher`.
 
-Their content paths resolve only below the Broker-bound mymind root. Summary,
-Wiki, RSS and X caches/state resolve below `CCTOOLS_SKILL_DATA_DIR`; Wiki no
+Their content paths resolve only below the Broker-bound openmind root. Summary,
+Wiki, RSS and X caches/state resolve below `OPENMIND_SKILL_DATA_DIR`; Wiki no
 longer reads the daily summarizer's `.env`; the daily summarizer no longer
 imports the sibling topic selector. The four AI packages vendor their client
 adapter inside the Skill package instead of importing workspace `_shared`. X's
@@ -553,11 +553,11 @@ Agent Provider Profile/Credential bindings, while their logical read/write
 scopes remain instruction and audit metadata. The two media process skills
 declare `media-core` (+ optional
 `speech-whisper`/`cjk-subtitle-fonts`) packs, `video-burnin-subtitles` writes to
-the existing `mymind/video/**` contract, and `video-download` uses an external
+the existing `openmind/video/**` contract, and `video-download` uses an external
 Export Location Binding (`videoExportDir`). The media entries now use a
 cross-platform Python Process entrypoint: `video-burnin-subtitles` binds its
-output to the Broker-provided `CCTOOLS_MYMIND_ROOT`, receives Provider Profile
-configuration through the neutral `CCTOOLS_PROVIDER_*` namespace, and no
+output to the Broker-provided `OPENMIND_ROOT`, receives Provider Profile
+configuration through the neutral `OPENMIND_PROVIDER_*` namespace, and no
 longer reads workspace `.env` or `_shared` by ancestor walk. `VideoDownload`
 receives the canonical export path through the declared `exports.videoExportDir`
 template and no longer derives output from `cwd` or the repository tree. The
@@ -570,7 +570,7 @@ Provider credentials are available on this machine.
 The Workflow package is now manifest-only: its former Python launcher and
 `workflows.yaml` command table were removed, so the desktop Workflow Engine is
 the only scheduler and the child Skill IDs/versions are declared once in
-`cctools.skill.yaml`. `_shared` now has versioned `cctools-skill-shared` package
+`openmind.skill.yaml`. `_shared` now has versioned `openmind-skill-shared` package
 metadata plus a lockfile, remains without a Skill manifest, and is excluded
 from the runnable Skill migration list. Production packages continue to carry
 their own adapter rather than importing `_shared` through a workspace-relative
@@ -636,7 +636,7 @@ The local UI scope now also includes:
 - a dynamic per-Process-Skill Run form driven by the Manifest input/config/artifact
   schema, Provider Profile and Export Location selectors, fixed root snapshot,
   Main-only validation boundary and no Secret/executable fields in Renderer;
-- a diagnostics route with mymind health, environment, Skill Registry,
+- a diagnostics route with openmind health, environment, Skill Registry,
   Runtime Pack, recent Broker Run state, index rebuild, root selection and
   path-free migration status/diagnostic copy, plus portable app-state
   backup/restore with explicit secret/resource exclusions;
@@ -724,7 +724,7 @@ Claude Code/Codex, Browser and packaged platform soak remain external.
 
 `npm run recovery:drill` now runs as part of `verify` against the compiled
 `.build` Main-process services. It covers legacy-state migration and pending
-marker recovery, mymind relocation, portable app-state restore after a partial
+marker recovery, openmind relocation, portable app-state restore after a partial
 commit, interrupted Run/orphan recovery, verified Runtime rollback, and a
 child-process forced-termination/restart recovery against the compiled RunStore
 (`SIGKILL` on POSIX and Node's forced process termination semantics on Windows);
@@ -763,7 +763,7 @@ evidence.
 The Windows/macOS staged packaging scripts now run the recursive real-container
 scan before writing package evidence and pass
 `--require-artifact-safety=true` to the evidence binder. The scanner reuses the
-explicit `CCTOOLS_7ZZ` tool, an installed 7-Zip, the Windows installer vendor
+explicit `OPENMIND_7ZZ` tool, an installed 7-Zip, the Windows installer vendor
 tool or electron-builder's cached extractor; missing container inspection is
 therefore a staged-package failure rather than an unrecorded manual step.
 Its `--allow-missing-targets=true` diagnostic mode returns success only for a

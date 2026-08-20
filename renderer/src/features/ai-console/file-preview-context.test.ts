@@ -8,8 +8,8 @@ describe("localFileReference", () => {
   });
 
   it("accepts real local file references", () => {
-    expect(localFileReference("mymind/article/example.md:42")).toBe("mymind/article/example.md");
+    expect(localFileReference("openmind/article/example.md:42")).toBe("openmind/article/example.md");
     expect(localFileReference("C:\\work\\notes\\report.md:12")).toBe("C:\\work\\notes\\report.md");
-    expect(localFileReference("20260728_daily_summary.md")).toBe("mymind/daily-summary/20260728_daily_summary.md");
+    expect(localFileReference("20260728_daily_summary.md")).toBe("openmind/daily-summary/20260728_daily_summary.md");
   });
 });

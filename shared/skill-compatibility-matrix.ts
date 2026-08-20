@@ -10,7 +10,7 @@
  *   - `_shared` is NOT a runnable skill; it becomes a versioned shared package.
  *
  * Audited 2026-08-05 against `.claude/skills/`. Each row records the facts
- * that drive the migration: kind, runtime packs needed, mymind read/write
+ * that drive the migration: kind, runtime packs needed, openmind read/write
  * patterns, external-export binding, the legacy `.env`/ancestor-walk issues
  * to fix, and the migration batch (A/B/C, §17.6).
  */
@@ -27,10 +27,10 @@ export interface SkillCompatibilityEntry {
   readonly targetKind: SkillKind;
   readonly runtimePacks: readonly string[];
   readonly externalExport: boolean;
-  /** Logical mymind read patterns (top-level only, audited). */
-  readonly mymindRead: readonly string[];
-  /** Logical mymind write patterns (top-level only, audited). */
-  readonly mymindWrite: readonly string[];
+  /** Logical openmind read patterns (top-level only, audited). */
+  readonly openmindRead: readonly string[];
+  /** Logical openmind write patterns (top-level only, audited). */
+  readonly openmindWrite: readonly string[];
   /** Legacy issues to fix in Phase 6. */
   readonly legacyIssues: readonly SkillLegacyIssue[];
   readonly batch: MigrationBatch;
@@ -60,12 +60,12 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["creative/**"],
-    mymindWrite: ["creative/**"],
+    openmindRead: ["creative/**"],
+    openmindWrite: ["creative/**"],
     legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
     batch: "A",
     primaryArtifact: "creative/01-内容生产/文稿库/02-制作中/<pkg>/assets/",
-    notes: "Input schema; artifact JSON; no custom mymind sub-root."
+    notes: "Input schema; artifact JSON; no custom openmind sub-root."
   },
   {
     id: "collect-interest-markers",
@@ -73,8 +73,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["daily-summary/**"],
-    mymindWrite: ["creative/**"],
+    openmindRead: ["daily-summary/**"],
+    openmindWrite: ["creative/**"],
     legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
     batch: "A",
     primaryArtifact: "creative/01-内容生产/选题管理/00-兴趣收集箱.md",
@@ -86,8 +86,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["daily-topic/**", "creative/**"],
-    mymindWrite: ["creative/**"],
+    openmindRead: ["daily-topic/**", "creative/**"],
+    openmindWrite: ["creative/**"],
     legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
     batch: "A",
     primaryArtifact: "creative/01-内容生产/文稿库/02-制作中/<pkg>/",
@@ -99,8 +99,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: [],
+    openmindRead: [],
+    openmindWrite: [],
     legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
     batch: "A",
     primaryArtifact: "structured report (run artifact)",
@@ -112,8 +112,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: ["reddit/**"],
+    openmindRead: [],
+    openmindWrite: ["reddit/**"],
     legacyIssues: [],
     batch: "A",
     primaryArtifact: "reddit/<YYYYMMDD>/",
@@ -127,8 +127,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["article/**", "reddit/**"],
-    mymindWrite: ["daily-summary/**"],
+    openmindRead: ["article/**", "reddit/**"],
+    openmindWrite: ["daily-summary/**"],
     legacyIssues: ["env-file-direct-read", "shared-ai-client-relative"],
     batch: "B",
     primaryArtifact: "daily-summary/YYYYMMDD_daily_summary.md",
@@ -140,8 +140,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["daily-summary/**"],
-    mymindWrite: ["daily-topic/**"],
+    openmindRead: ["daily-summary/**"],
+    openmindWrite: ["daily-topic/**"],
     legacyIssues: ["shared-ai-client-relative", "no-pyproject"],
     batch: "B",
     primaryArtifact: "daily-topic/YYYYMMDD_daily_topic.md",
@@ -153,8 +153,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core"],
     externalExport: false,
-    mymindRead: ["article/**", "post/**"],
-    mymindWrite: ["wiki/**"],
+    openmindRead: ["article/**", "post/**"],
+    openmindWrite: ["wiki/**"],
     legacyIssues: ["ancestor-repo-walk", "shared-ai-client-relative"],
     batch: "B",
     primaryArtifact: "wiki/",
@@ -166,8 +166,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core", "browser-playwright"],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: ["article/**"],
+    openmindRead: [],
+    openmindWrite: ["article/**"],
     legacyIssues: ["env-file-direct-read", "shared-ai-client-relative"],
     batch: "B",
     primaryArtifact: "article/<YYYYMMDD>/",
@@ -179,8 +179,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core", "media-core"],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: ["post/**", "article/**"],
+    openmindRead: [],
+    openmindWrite: ["post/**", "article/**"],
     legacyIssues: ["shared-ai-client-relative"],
     batch: "B",
     primaryArtifact: "post/<YYYYMMDD>/ and article/.../x_*.md",
@@ -194,8 +194,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core", "media-core"],
     externalExport: true,
-    mymindRead: [],
-    mymindWrite: [],
+    openmindRead: [],
+    openmindWrite: [],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "external export (video file)",
@@ -207,12 +207,12 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "process",
     runtimePacks: ["python-core", "media-core", "speech-whisper", "cjk-subtitle-fonts"],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: ["video/**"],
+    openmindRead: [],
+    openmindWrite: ["video/**"],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "video/<job>/ (existing contract)",
-    notes: "Windows native entry; subtitle steps; large packs on demand. MUST keep mymind/video contract."
+    notes: "Windows native entry; subtitle steps; large packs on demand. MUST keep openmind/video contract."
   },
   {
     id: "agent-browser",
@@ -220,8 +220,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "agent",
     runtimePacks: ["browser-agent"],
     externalExport: true,
-    mymindRead: [],
-    mymindWrite: [],
+    openmindRead: [],
+    openmindWrite: [],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "run artifact or external-authorised screenshot/evidence",
@@ -233,12 +233,12 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "agent",
     runtimePacks: [],
     externalExport: false,
-    mymindRead: ["article/**", "post/**", "daily-summary/**"],
-    mymindWrite: ["creative/**"],
+    openmindRead: ["article/**", "post/**", "daily-summary/**"],
+    openmindWrite: ["creative/**"],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "creative/01-内容生产/选题管理/ai_topic_YYYY-MM-DD.md",
-    notes: "Install references; unified mymindRoot; declare network + write."
+    notes: "Install references; unified openmindRoot; declare network + write."
   },
   {
     id: "creative-writing",
@@ -246,8 +246,8 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "agent",
     runtimePacks: [],
     externalExport: false,
-    mymindRead: ["creative/**", "article/**", "wiki/**"],
-    mymindWrite: ["creative/**"],
+    openmindRead: ["creative/**", "article/**", "wiki/**"],
+    openmindWrite: ["creative/**"],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "creative/01-内容生产/文稿库/...",
@@ -259,12 +259,12 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     targetKind: "workflow",
     runtimePacks: [],
     externalExport: false,
-    mymindRead: [],
-    mymindWrite: [],
+    openmindRead: [],
+    openmindWrite: [],
     legacyIssues: [],
     batch: "C",
     primaryArtifact: "child skills' existing artifacts",
-    notes: "Desktop Workflow Engine via cctools.skill.yaml; local/cron launcher via scripts/run_workflow.py + workflows.yaml; reference Skill IDs; step retry/history; single shared root snapshot."
+    notes: "Desktop Workflow Engine via openmind.skill.yaml; local/cron launcher via scripts/run_workflow.py + workflows.yaml; reference Skill IDs; step retry/history; single shared root snapshot."
   }
 ] as const;
 

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "./useListDetailLayout";
 
 const DEFAULTS = { listWidth: 210, listCollapsed: false };
-const STORAGE_KEY = "cctools.list-detail.creative.v1";
-const LEGACY_KEY = "cctools.three-pane.creative.v2";
+const STORAGE_KEY = "openmind.list-detail.creative.v1";
+const LEGACY_KEY = "openmind.three-pane.creative.v2";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => window.localStorage.clear());

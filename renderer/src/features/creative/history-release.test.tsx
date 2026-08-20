@@ -20,14 +20,14 @@ const snapshot: AiSnapshot = {
   sessions: [], runs: [], pendingApprovals: []
 };
 
-const detail: CreativeProjectDetail = { dir: "mymind/creative/proj", stage: "drafting", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# draft" } };
-const selectedProject: CreativeProjectSummary = { dir: "mymind/creative/proj", topic: "AI 工作台", stage: "drafting", completion: 72 };
+const detail: CreativeProjectDetail = { dir: "openmind/creative/proj", stage: "drafting", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# draft" } };
+const selectedProject: CreativeProjectSummary = { dir: "openmind/creative/proj", topic: "AI 工作台", stage: "drafting", completion: 72 };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
-  window.cctools = {
+  window.openmind = {
     listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "versions/draft/v1.md", createdAt: "2026-07-07T00:00:00.000Z", note: "自动保存", size: 1024 }] as CreativeVersion[],
     readCreativeVersion: async () => ({ path: "p", content: "# v1\n\nold content" }),
-    restoreCreativeVersion: async () => ({ dir: "mymind/creative/proj", stage: "drafting", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# restored" } }),
+    restoreCreativeVersion: async () => ({ dir: "openmind/creative/proj", stage: "drafting", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# restored" } }),
     getCreativeReleaseLog: async () => [
       { id: "e1", createdAt: "2026-07-07T00:00:00.000Z", action: "content_exported", stage: "ready", status: "exported", detail: "导出 Markdown" }
     ] as CreativeReleaseEvent[],
@@ -38,8 +38,8 @@ function installApi(overrides: Partial<DesktopApi> = {}) {
     aiResolveApproval: async () => true,
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     revealPath: async () => true,
     onAiEvent: () => () => {},
     ...overrides
@@ -66,7 +66,7 @@ describe("HistoryView", () => {
     // file tabs
     expect(screen.getByText("draft.md")).toBeTruthy();
     expect(screen.getByText("topic-brief.md")).toBeTruthy();
-    // versions loaded via cctools.listCreativeVersions
+    // versions loaded via openmind.listCreativeVersions
     await waitFor(() => expect(onVersionsChange).toHaveBeenCalled());
   });
 

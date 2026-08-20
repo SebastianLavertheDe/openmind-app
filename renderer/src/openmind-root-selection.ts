@@ -1,6 +1,6 @@
-import type { MymindRootPreview } from "@shared/contracts";
+import type { OpenmindRootPreview } from "@shared/contracts";
 
-export function mymindRootPreviewBody(preview: MymindRootPreview): string {
+export function openmindRootPreviewBody(preview: OpenmindRootPreview): string {
   const root = preview.canonicalRoot || preview.candidate || "未解析";
   const missing = preview.health.missingCreateIfNeededEntries.length;
   const unknown = preview.health.unknownPreservedEntries.length;
@@ -14,6 +14,6 @@ export function mymindRootPreviewBody(preview: MymindRootPreview): string {
   return notes.join("\n");
 }
 
-export function mymindRootPreviewError(preview: MymindRootPreview): string {
-  return preview.blockingReasons.join("；") || "候选 mymind 根目录无法绑定。";
+export function openmindRootPreviewError(preview: OpenmindRootPreview): string {
+  return preview.blockingReasons.join("；") || "候选 openmind 根目录无法绑定。";
 }

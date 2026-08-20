@@ -16,7 +16,7 @@ import {
 let root = "";
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-cli-installer-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-cli-installer-"));
 });
 
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -26,7 +26,7 @@ export function buildWslLoginCommand(command: string, args: string[]): { command
     args: [
       "-lc",
       'resolved="$(command -v "$1")" || exit 127; shift; exec "$resolved" "$@"',
-      "cctools-wsl-login",
+      "openmind-wsl-login",
       command,
       ...args
     ]
@@ -48,8 +48,8 @@ export function resolveWslLoginExecutable(cwd: string, command: string): WslLogi
     "-d", wsl.distro,
     "--cd", wsl.linuxPath,
     "--exec", "/bin/sh", "-lc",
-    'resolved="$(command -v "$1")" || exit 127; printf \'__CCTOOLS_EXEC__%s\\n__CCTOOLS_PATH__%s\\n\' "$resolved" "$PATH"',
-    "cctools-wsl-resolve",
+    'resolved="$(command -v "$1")" || exit 127; printf \'__OPENMIND_EXEC__%s\\n__OPENMIND_PATH__%s\\n\' "$resolved" "$PATH"',
+    "openmind-wsl-resolve",
     command
   ], {
     windowsHide: true,
@@ -58,8 +58,8 @@ export function resolveWslLoginExecutable(cwd: string, command: string): WslLogi
     stdio: ["ignore", "pipe", "ignore"]
   }));
   const lines = output.replaceAll("\r", "").split("\n");
-  const executable = lines.find((line) => line.startsWith("__CCTOOLS_EXEC__"))?.slice("__CCTOOLS_EXEC__".length) || "";
-  const loginPath = lines.find((line) => line.startsWith("__CCTOOLS_PATH__"))?.slice("__CCTOOLS_PATH__".length) || "";
+  const executable = lines.find((line) => line.startsWith("__OPENMIND_EXEC__"))?.slice("__OPENMIND_EXEC__".length) || "";
+  const loginPath = lines.find((line) => line.startsWith("__OPENMIND_PATH__"))?.slice("__OPENMIND_PATH__".length) || "";
   if (!executable.startsWith("/")) throw new Error(`WSL 中未找到可执行文件：${command}`);
   if (!loginPath) throw new Error("无法读取 WSL 登录 PATH。");
   return { executable, loginPath };

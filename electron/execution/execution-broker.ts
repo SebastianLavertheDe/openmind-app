@@ -20,7 +20,7 @@ export type ExecutionPlan = {
   digest: string;
   rootGeneration: number;
   skillHome: string;
-  mymindRoot: string;
+  openmindRoot: string;
   capabilities: unknown;
   process: ProcessSpec;
   /** Number of retries after the first process attempt. */
@@ -334,7 +334,7 @@ export class ExecutionBroker {
       const collection = this.artifacts.collect({
         runId: entry.runId,
         skillId: entry.plan.skillId,
-        mymindRoot: entry.plan.mymindRoot,
+        openmindRoot: entry.plan.openmindRoot,
         declarations: entry.plan.artifacts || [],
         externalBindings: entry.plan.externalBindings
       });
@@ -392,7 +392,7 @@ function validateExecutionPlan(request: SkillRunRequest, plan: ExecutionPlan): v
   if (plan.retry && (!Number.isInteger(plan.retry.maxAttempts) || plan.retry.maxAttempts < 0 || plan.retry.maxAttempts > 10)) {
     throw new Error("Runtime plan retry.maxAttempts 无效。");
   }
-  if (!path.isAbsolute(plan.skillHome) || !path.isAbsolute(plan.mymindRoot)) throw new Error("Runtime plan 路径必须是绝对路径。");
+  if (!path.isAbsolute(plan.skillHome) || !path.isAbsolute(plan.openmindRoot)) throw new Error("Runtime plan 路径必须是绝对路径。");
   if (path.resolve(plan.process.cwd) !== path.resolve(plan.skillHome)) throw new Error("Process cwd 必须绑定到已安装 Skill 目录。");
   validateProcessSpec(plan.process);
 }
@@ -403,19 +403,18 @@ function requireProcessPlan(plan: ExecutionPlan): ProcessSpec {
 
 function buildMinimalEnvironment(paths: AppPaths, runId: string, plan: ExecutionPlan, runDir: string, skillDataDir: string): Record<string, string> {
   const standard: Record<string, string> = {
-    CCTOOLS_RUN_ID: runId,
-    CCTOOLS_SKILL_ID: plan.skillId,
-    CCTOOLS_SKILL_VERSION: plan.version,
-    CCTOOLS_SKILL_HOME: plan.skillHome,
-    CCTOOLS_SKILL_DATA_DIR: skillDataDir,
-    CCTOOLS_RUN_DIR: runDir,
-    CCTOOLS_MYMIND_ROOT: plan.mymindRoot,
-    MYMIND_ROOT: plan.mymindRoot,
-    CCTOOLS_ROOT_GENERATION: String(plan.rootGeneration),
-    CCTOOLS_ARTIFACT_MANIFEST: JSON.stringify(plan.artifacts || []),
-    CCTOOLS_MANAGED_RUN: "1"
+    OPENMIND_RUN_ID: runId,
+    OPENMIND_SKILL_ID: plan.skillId,
+    OPENMIND_SKILL_VERSION: plan.version,
+    OPENMIND_SKILL_HOME: plan.skillHome,
+    OPENMIND_SKILL_DATA_DIR: skillDataDir,
+    OPENMIND_RUN_DIR: runDir,
+    OPENMIND_ROOT: plan.openmindRoot,
+    OPENMIND_ROOT_GENERATION: String(plan.rootGeneration),
+    OPENMIND_ARTIFACT_MANIFEST: JSON.stringify(plan.artifacts || []),
+    OPENMIND_MANAGED_RUN: "1"
   };
-  return { ...plan.process.env, ...standard, CCTOOLS_APP_USER_DATA: paths.userData };
+  return { ...plan.process.env, ...standard, OPENMIND_APP_USER_DATA: paths.userData };
 }
 
 function rejectSecretLikeInputKeys(inputs: Record<string, unknown>): void {

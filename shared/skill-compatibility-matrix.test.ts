@@ -36,13 +36,13 @@ describe("skill-compatibility-matrix", () => {
     expect(c.length).toBe(6);
   });
 
-  it("content-writing skills declare mymind write patterns only to known content tops", () => {
+  it("content-writing skills declare openmind write patterns only to known content tops", () => {
     // sanity: every declared write top-level must be a known content-contract dir
     const known = new Set([
       "article", "creative", "daily-summary", "daily-topic", "post", "reddit", "wiki", "video"
     ]);
     for (const e of SKILL_COMPATIBILITY_MATRIX) {
-      for (const w of e.mymindWrite) {
+      for (const w of e.openmindWrite) {
         const top = w.split("/")[0].replace("*", "");
         if (top === "") continue;
         expect(known.has(top)).toBe(true);
@@ -50,10 +50,10 @@ describe("skill-compatibility-matrix", () => {
     }
   });
 
-  it("video-burnin-subtitles keeps the mymind/video contract (§17.7)", () => {
+  it("video-burnin-subtitles keeps the openmind/video contract (§17.7)", () => {
     const v = findSkillEntry("video-burnin-subtitles");
     expect(v).toBeDefined();
-    expect(v!.mymindWrite).toContain("video/**");
+    expect(v!.openmindWrite).toContain("video/**");
   });
 
   it("VideoDownload is the only external-export process skill (Export Location Binding)", () => {
@@ -63,7 +63,7 @@ describe("skill-compatibility-matrix", () => {
     );
     const vd = findSkillEntry("video-download")!;
     expect(vd.targetKind).toBe("process");
-    expect(vd.mymindWrite.length).toBe(0);
+    expect(vd.openmindWrite.length).toBe(0);
   });
 
   it("the workflow skill is rss-to-summary-workflow and references child skills", () => {

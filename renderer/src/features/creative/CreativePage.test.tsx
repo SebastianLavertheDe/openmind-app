@@ -61,7 +61,7 @@ const analytics: CreativeAnalytics = {
 
 function project(stage: CreativeStage, topic = `${stage} 稿件`): CreativeProjectSummary {
   return {
-    dir: `mymind/creative/${stage}`,
+    dir: `openmind/creative/${stage}`,
     topic,
     stage,
     completion: stage === "drafting" ? 20 : stage === "review" ? 50 : 80,
@@ -130,7 +130,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 function renderCreative(api: DesktopApi, props: Partial<Parameters<typeof CreativeWorkspacePage>[0]> = {}) {
-  window.cctools = api;
+  window.openmind = api;
   return render(
     <AiProvider initial={snapshot}>
       <CreativeWorkspacePage initialDate="20260616" {...props} />
@@ -251,7 +251,7 @@ describe("CreativeWorkspacePage", () => {
 
     try {
       const api = makeApi();
-      window.cctools = api;
+      window.openmind = api;
       const { container } = render(
         <ResponsiveLayoutProvider>
           <AiProvider initial={snapshot}>
@@ -301,7 +301,7 @@ describe("CreativeWorkspacePage", () => {
     fireEvent.change(screen.getByLabelText(/摘要/), { target: { value: "一段发布摘要" } });
     fireEvent.change(screen.getByLabelText(/标签/), { target: { value: "AI, 工程" } });
     fireEvent.change(screen.getByLabelText(/封面/), { target: { value: "assets/cover.png" } });
-    await waitFor(() => expect(api.updateCreativeManifest).toHaveBeenCalledWith("mymind/creative/ready", { publish: { platform: "wechat" } }));
+    await waitFor(() => expect(api.updateCreativeManifest).toHaveBeenCalledWith("openmind/creative/ready", { publish: { platform: "wechat" } }));
     await waitFor(() => expect((screen.getByRole("button", { name: /立即导出/ }) as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(screen.getByRole("button", { name: /立即导出/ }));
@@ -483,7 +483,7 @@ describe("CreativeWorkspacePage", () => {
     const api = makeApi({
       getCreativeProjects: async () => [summary],
       getCreativeProject: async () => detail,
-      selectFiles: vi.fn(async () => ["mymind/article/photo.jpg"])
+      selectFiles: vi.fn(async () => ["openmind/article/photo.jpg"])
     });
     renderCreative(api);
     fireEvent.click(await screen.findByRole("button", { name: /本地文件稿件/ }));
@@ -565,7 +565,7 @@ describe("CreativeWorkspacePage", () => {
   });
 
   it("renders one topic file per day and opens it in the detail pane", async () => {
-    const topicPath = "mymind/daily-topic/20260616_daily_topic.md";
+    const topicPath = "openmind/daily-topic/20260616_daily_topic.md";
     const readContent = vi.fn(async () => ({
       path: topicPath,
       name: "20260616_daily_topic.md",

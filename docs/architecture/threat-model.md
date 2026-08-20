@@ -1,4 +1,4 @@
-# Threat Model — cctools desktop-app (host-direct execution)
+# Threat Model — openmind desktop-app (host-direct execution)
 
 - **Status:** Phase 0 baseline
 - **Date:** 2026-08-05
@@ -10,7 +10,7 @@
 | Asset | Why it matters |
 |---|---|
 | AI / API / OAuth secrets | direct cost, account takeover |
-| `mymind` user content | months/years of accumulated work |
+| `openmind` user content | months/years of accumulated work |
 | Other system files the user can access | could be exfiltrated or encrypted |
 | Browser login state / cookies | account takeover across the web |
 | App update keys & catalog root keys | supply-channel compromise |
@@ -29,7 +29,7 @@ Skill can:
 - read any file the user can read,
 - open any network connection the user can open,
 - spawn any process,
-- modify any mymind path (not just declared ones).
+- modify any openmind path (not just declared ones).
 
 Therefore the strongest controls are **static inspection before installation,
 exact-digest checks and Runtime readiness**;
@@ -56,7 +56,7 @@ none of them turn a Skill into an OS sandbox.
 | Agent provider secret confusion | Agent bridge never resolves a Provider Profile, injects its Credential, or loads a Skill `.env`; CLI authentication stays in the selected CLI | a CLI may use credentials from its own user configuration, outside the App CredentialVault boundary |
 | Malicious update | three independent signed chains; trust chain (ADR-009) is a gate, not optional | — |
 | Crash mid-install/migration leaves half-state | per-package staging + atomic directory/registry writes; a complete-source receipt is committed only after the whole selected source succeeds | a failed multi-package install may leave already-committed packages, but cannot satisfy the complete-source startup gate |
-| mymind modified by a third-party Skill or external CLI | capability declarations are reviewed before install; App/App-native Workflow paths use the Resolver; declared output paths are indexed for Run history | host processes can modify other paths; the App neither prevents nor claims to detect undeclared writes |
+| openmind modified by a third-party Skill or external CLI | capability declarations are reviewed before install; App/App-native Workflow paths use the Resolver; declared output paths are indexed for Run history | host processes can modify other paths; the App neither prevents nor claims to detect undeclared writes |
 
 ## 4. Security acceptance (must pass before GA)
 

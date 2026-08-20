@@ -59,8 +59,8 @@ let aiListener: ((event: unknown) => void) | null;
 let openPath: ReturnType<typeof vi.fn>;
 let revealPath: ReturnType<typeof vi.fn>;
 let resolveApproval: ReturnType<typeof vi.fn>;
-let searchMymindFiles: ReturnType<typeof vi.fn>;
-let selectMymindFiles: ReturnType<typeof vi.fn>;
+let searchOpenmindFiles: ReturnType<typeof vi.fn>;
+let selectOpenmindFiles: ReturnType<typeof vi.fn>;
 
 function disclosureFor(node: Element | null): HTMLElement {
   const disclosure = node?.closest<HTMLElement>(".ui-disclosure");
@@ -125,9 +125,9 @@ beforeEach(() => {
   openPath = vi.fn(async (path: string) => path);
   revealPath = vi.fn(async () => true);
   resolveApproval = vi.fn(async () => true);
-  searchMymindFiles = vi.fn(async () => ({ items: [], indexedCount: 0, truncated: false }));
-  selectMymindFiles = vi.fn(async () => []);
-  window.cctools = {
+  searchOpenmindFiles = vi.fn(async () => ({ items: [], indexedCount: 0, truncated: false }));
+  selectOpenmindFiles = vi.fn(async () => []);
+  window.openmind = {
     aiStartRun: startRun,
     aiRefresh: async () => snapshot,
     aiRefreshSkills: async () => skills,
@@ -136,8 +136,8 @@ beforeEach(() => {
     aiResolveApproval: resolveApproval,
     runSkill,
     selectFiles: async () => [],
-    selectMymindFiles,
-    searchMymindFiles,
+    selectOpenmindFiles,
+    searchOpenmindFiles,
     openPath,
     revealPath,
     onAiEvent: (callback: Parameters<DesktopApi["onAiEvent"]>[0]) => {
@@ -308,12 +308,12 @@ describe("Chat composer", () => {
     expect(startRun).not.toHaveBeenCalled();
   });
 
-  it("searches mymind files from @ and adds the chosen file as real context", async () => {
-    searchMymindFiles.mockResolvedValue({
+  it("searches openmind files from @ and adds the chosen file as real context", async () => {
+    searchOpenmindFiles.mockResolvedValue({
       items: [{
-        path: "mymind/wiki/concepts/composer.md",
+        path: "openmind/wiki/concepts/composer.md",
         name: "composer.md",
-        directory: "mymind/wiki/concepts",
+        directory: "openmind/wiki/concepts",
         extension: "md"
       }],
       indexedCount: 128,
@@ -325,7 +325,7 @@ describe("Chat composer", () => {
 
     await user.type(editor, "请分析 @composer");
     const option = await screen.findByRole("option", { name: /composer\.md/ });
-    expect(searchMymindFiles).toHaveBeenLastCalledWith("composer", 50);
+    expect(searchOpenmindFiles).toHaveBeenLastCalledWith("composer", 50);
     await user.click(option);
 
     expect(editor.value).toBe("请分析");
@@ -333,21 +333,21 @@ describe("Chat composer", () => {
     expect(screen.getByText("1 项上下文")).toBeTruthy();
   });
 
-  it("uses the mymind-only file picker from the @ menu", async () => {
-    selectMymindFiles.mockResolvedValue(["mymind/daily-summary/20260625_daily_summary.md"]);
+  it("uses the openmind-only file picker from the @ menu", async () => {
+    selectOpenmindFiles.mockResolvedValue(["openmind/daily-summary/20260625_daily_summary.md"]);
     const user = userEvent.setup();
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
     const editor = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
 
     await user.type(editor, "@");
-    await user.click(screen.getByRole("button", { name: /浏览 mymind/ }));
+    await user.click(screen.getByRole("button", { name: /浏览 openmind/ }));
 
-    expect(selectMymindFiles).toHaveBeenCalledTimes(1);
+    expect(selectOpenmindFiles).toHaveBeenCalledTimes(1);
     expect(editor.value).toBe("");
     expect(screen.getByText("20260625_daily_summary.md")).toBeTruthy();
     // Browsing and choosing files snaps the menu shut immediately (no exit fade),
     // so the just-chosen file isn't shown twice (menu snapshot + context chip).
-    expect(screen.queryByRole("button", { name: /浏览 mymind/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /浏览 openmind/ })).toBeNull();
   });
 
   it("sends the original slash text so the scheduler can expand it server-side", async () => {
@@ -400,7 +400,7 @@ describe("chat timeline", () => {
 
   it("shows only the final assistant message for a completed run", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "question" }, 1),
       makeEvent("answer-1", "assistant-message", { text: "first" }, 2),
       makeEvent("answer-2", "assistant-message", { text: "second" }, 3),
@@ -418,7 +418,7 @@ describe("chat timeline", () => {
 
   it("does not present a completed run without a final reply as successfully processed", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "question" }, 1),
       makeEvent("reasoning", "reasoning-summary", { text: "checked the repository" }, 2),
       makeEvent("done", "status", { state: "completed" }, 3)
@@ -434,7 +434,7 @@ describe("chat timeline", () => {
 
   it("exposes final replies through a labelled live log with accessible author and time", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "question" }, 1),
       makeEvent("answer", "assistant-message", { text: "accessible answer", phase: "final" }, 2)
     ];
@@ -559,7 +559,7 @@ describe("chat timeline", () => {
   });
 
   it("shows only the read file name in the tool title", () => {
-    const path = "\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\cctools\\mymind\\daily-summary\\20260707_daily_summary.md";
+    const path = "\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\openmind\\openmind\\daily-summary\\20260707_daily_summary.md";
     const start = makeEvent("read-start", "tool-start", { itemId: "read-1", tool: "Read", input: { file_path: path } });
     const complete = makeEvent("read-complete", "tool-complete", { itemId: "read-1", output: "daily summary body" });
     render(<ToolCallCard events={[start, complete]} />);
@@ -708,7 +708,7 @@ describe("chat timeline", () => {
       }],
       runs: [run]
     };
-    window.cctools.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "hello" })];
+    window.openmind.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "hello" })];
     const onControllerRender = vi.fn();
     const { container } = render(
       <AiProvider initial={runningSnapshot}>
@@ -745,7 +745,7 @@ describe("chat timeline", () => {
 
   it("does not flash a buffered delta when completion arrives before the final event", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }),
       makeEvent("reasoning", "reasoning-summary", { text: "inspect first" }, 2)
     ];
@@ -805,7 +805,7 @@ describe("chat timeline", () => {
       }],
       runs: [run]
     };
-    window.cctools.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "hello" })];
+    window.openmind.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "hello" })];
     render(<AiProvider initial={runningSnapshot}><Chat /></AiProvider>);
     await screen.findByText("hello");
     expect(screen.queryByText("正在启动 Codex")).toBeNull();
@@ -829,7 +829,7 @@ describe("chat timeline", () => {
 
   it("renders standalone reasoning summaries inline and expands them in place", async () => {
     const orphanedSnapshot = { ...snapshotForRun(makeRun(), "idle"), runs: [] };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("reasoning", "reasoning-summary", { text: "standalone thought" })
     ];
     render(<AiProvider initial={orphanedSnapshot}><Chat /></AiProvider>);
@@ -929,7 +929,7 @@ describe("chat timeline", () => {
 
   it("renders provider plan details only when the event carries a real plan", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }, 1),
       makeEvent("reasoning", "reasoning-summary", {
         text: "planning",
@@ -954,7 +954,7 @@ describe("chat timeline", () => {
 
   it("does not invent a plan for plain reasoning summaries", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }, 1),
       makeEvent("reasoning", "reasoning-summary", { text: "plain reasoning" }, 2),
       makeEvent("answer", "assistant-message", { text: "done" }, 3)
@@ -974,8 +974,8 @@ describe("chat timeline", () => {
       risks: [{ id: "risk-1", kind: "absolute-path" as const, severity: "warning" as const, summary: "命令会访问项目目录外路径。", eventId: "approval" }]
     };
     const waitingSnapshot = { ...snapshotForRun(run, "waiting-approval"), pendingApprovals: [approval] };
-    window.cctools.aiRefresh = async () => ({ ...waitingSnapshot, pendingApprovals: [] });
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiRefresh = async () => ({ ...waitingSnapshot, pendingApprovals: [] });
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "run command" }, 1),
       approvalEvent
     ];
@@ -1017,7 +1017,7 @@ describe("chat timeline", () => {
 
   it("renders approval decisions as compact action summaries", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "run command" }, 1),
       makeEvent("approval-decision", "approval-decision", { decision: "decline", approval: makeApproval() }, 2)
     ];
@@ -1030,7 +1030,7 @@ describe("chat timeline", () => {
 
   it("keeps the resolved approval decision in the process trace", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "run command" }, 1),
       makeEvent("approval-decision", "approval-decision", { decision: "accept", approval: makeApproval() }, 2),
       makeEvent("tool-start", "tool-start", { itemId: "tool-1", tool: "Bash", input: { command: "npm test" } }, 3),
@@ -1066,8 +1066,8 @@ describe("chat timeline", () => {
       "```"
     ].join("\n");
     startRun.mockResolvedValue({ session: completedSnapshot.sessions[0], run: { ...makeRun(), id: "rerun" } });
-    window.cctools.aiRefresh = async () => completedSnapshot;
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiRefresh = async () => completedSnapshot;
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }, 1),
       makeEvent("answer", "assistant-message", { text: answer }, 2)
     ];
@@ -1076,7 +1076,7 @@ describe("chat timeline", () => {
     const assistant = (await screen.findByText("quoted result")).closest("article")!;
     expect(within(assistant).getByRole("link", { name: "source" }).getAttribute("target")).toBe("_blank");
     await user.click(within(assistant).getByRole("link", { name: "20260707_daily_summary.md" }));
-    expect(openPath).toHaveBeenCalledWith("mymind/daily-summary/20260707_daily_summary.md");
+    expect(openPath).toHaveBeenCalledWith("openmind/daily-summary/20260707_daily_summary.md");
     expect(within(assistant).getByRole("table")).toBeTruthy();
     expect(assistant.querySelector("pre")?.textContent).toContain("const value = 1;");
 
@@ -1095,7 +1095,7 @@ describe("chat timeline", () => {
     const openPreview = vi.fn();
     const changeSet = makeChangeSet();
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z", changeSet };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "patch app" }, 1),
       makeEvent("changes", "changes", { changeSet: { id: changeSet.id, files: changeSet.files } }, 2),
       makeEvent("answer", "assistant-message", { text: "done" }, 3)
@@ -1130,7 +1130,7 @@ describe("chat timeline", () => {
       status: "completed" as const,
       completedAt: "2026-01-01T00:00:10.000Z"
     };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       { ...makeEvent("user", "user-message", { text: "edit app" }, 1), provider: "claude" },
       { ...makeEvent("write-start", "tool-start", { itemId: "write-1", tool: "Write", input: { file_path: "src/app.ts" } }, 2), provider: "claude" },
       { ...makeEvent("write-done", "tool-complete", { itemId: "write-1", tool: "Write", output: "ok" }, 3), provider: "claude" },
@@ -1212,8 +1212,8 @@ describe("chat timeline", () => {
         ? { data: [makeTurn(oldRun, [oldEvent])], nextCursor: null, total: 2, parseErrors: 0 }
         : { data: [makeTurn(newRun, [newEvent])], nextCursor: "older", total: 2, parseErrors: 0 };
     });
-    window.cctools.aiListTurns = listTurns;
-    window.cctools.aiGetEvents = async () => { throw new Error("legacy event loading should not run"); };
+    window.openmind.aiListTurns = listTurns;
+    window.openmind.aiGetEvents = async () => { throw new Error("legacy event loading should not run"); };
 
     render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [newRun, oldRun] }}>
@@ -1258,7 +1258,7 @@ describe("chat timeline", () => {
       { ...makeEvent("new-user", "user-message", { text: "总结下今天的内容" }, 1), runId: newRun.id, timestamp: "2026-01-01T01:00:00.000Z" },
       { ...makeEvent("new-answer", "assistant-message", { text: "这是今天的总结" }, 2), runId: newRun.id, timestamp: "2026-01-01T01:00:01.000Z" }
     ];
-    window.cctools.aiGetEvents = async () => [...oldEvents, ...newEvents];
+    window.openmind.aiGetEvents = async () => [...oldEvents, ...newEvents];
 
     render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [newRun, oldRun] }}>
@@ -1274,7 +1274,7 @@ describe("chat timeline", () => {
 
   it("renders one completed process before only the final assistant message in the run", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "organize posts" }, 1),
       makeEvent("reasoning-one", "reasoning-summary", { text: "inspect today's posts" }, 2),
       makeEvent("progress-one", "assistant-message", { text: "I will scan the titles first." }, 3),
@@ -1301,7 +1301,7 @@ describe("chat timeline", () => {
 
   it("keeps work state inside process detail before the final reply", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "make a plan" }, 1),
       makeEvent("reasoning", "reasoning-summary", { text: "organize the work" }, 2),
       makeEvent("plan", "plan", { text: "1. collect posts\n2. write digest" }, 3),
@@ -1320,7 +1320,7 @@ describe("chat timeline", () => {
 
   it("shows the active run's latest Todo snapshot above the composer and clears an empty snapshot", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "implement the UI" }, 1),
       makeEvent("todo-old", "todo", {
         sourceEvent: "turn/plan/updated",
@@ -1352,7 +1352,7 @@ describe("chat timeline", () => {
 
   it("removes the active Todo float when its run reaches a terminal state", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "verify the UI" }, 1),
       makeEvent("todo", "todo", {
         sourceEvent: "turn/plan/updated",
@@ -1375,7 +1375,7 @@ describe("chat timeline", () => {
       startedAt: "2026-01-01T00:00:00.000Z",
       completedAt: "2026-01-01T00:00:10.000Z"
     };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("progress-one", "assistant-message", { text: "I will scan the titles first." }, 1),
       makeEvent("reasoning-one", "reasoning-summary", { text: "inspect today's posts" }, 2),
       makeEvent("tool-start", "tool-start", { itemId: "tool-1", tool: "Write" }, 3),
@@ -1395,7 +1395,7 @@ describe("chat timeline", () => {
 
   it("groups completed commands and collapses open tool details with the group", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "check project" }, 1),
       makeEvent("pwd-start", "tool-start", { itemId: "pwd", tool: "Bash", input: { command: "pwd" } }, 2),
       makeEvent("pwd-done", "tool-complete", { itemId: "pwd", output: "/project" }, 3),
@@ -1441,7 +1441,7 @@ describe("chat timeline", () => {
 
   it("keeps a running command group open with command details collapsed", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "build app" }, 1),
       makeEvent("first-start", "tool-start", { itemId: "first", tool: "Bash", input: { command: "npm run build" } }, 2),
       makeEvent("first-done", "tool-complete", { itemId: "first", output: "built" }, 3),
@@ -1458,11 +1458,11 @@ describe("chat timeline", () => {
 
   it("groups consecutive mixed tools with useful operation summaries", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "inspect content" }, 1),
-      makeEvent("glob-start", "tool-start", { itemId: "glob", tool: "Glob", input: { pattern: "**/*.md", path: "mymind" } }, 2),
-      makeEvent("glob-done", "tool-complete", { itemId: "glob", output: "mymind/today.md" }, 3),
-      makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "mymind/today.md" } }, 4),
+      makeEvent("glob-start", "tool-start", { itemId: "glob", tool: "Glob", input: { pattern: "**/*.md", path: "openmind" } }, 2),
+      makeEvent("glob-done", "tool-complete", { itemId: "glob", output: "openmind/today.md" }, 3),
+      makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "openmind/today.md" } }, 4),
       makeEvent("read-done", "tool-complete", { itemId: "read", output: "today" }, 5),
       makeEvent("bash-start", "tool-start", { itemId: "bash", tool: "Bash", input: { command: "git status" } }, 6),
       makeEvent("bash-done", "tool-complete", { itemId: "bash", output: "clean" }, 7),
@@ -1475,14 +1475,14 @@ describe("chat timeline", () => {
     expectDisclosureOpen(group, true);
     expect(group.classList.contains("tools")).toBe(true);
     expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
-    expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*mymind/ })).toBeTruthy();
-    expect(within(group).getByRole("button", { name: /Read.*mymind\/today\.md/ })).toBeTruthy();
+    expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*openmind/ })).toBeTruthy();
+    expect(within(group).getByRole("button", { name: /Read.*openmind\/today\.md/ })).toBeTruthy();
     expect(within(group).getByRole("button", { name: /git status/ })).toBeTruthy();
   });
 
   it("preserves an open tool while its stream grows from one call into a group", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "inspect project" }, 1),
       makeEvent("first-start", "tool-start", { itemId: "first", tool: "Glob", input: { pattern: "**/*.tsx", path: "renderer/src" } }, 2)
     ];
@@ -1515,7 +1515,7 @@ describe("chat timeline", () => {
 
   it("propagates a cancelled run status to an unfinished tool in the Chat trace", async () => {
     const run = { ...makeRun(), status: "cancelled" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "run tests" }, 1),
       makeEvent("test-start", "tool-start", { itemId: "test", tool: "Bash", input: { command: "npm test" } }, 2)
     ];
@@ -1530,7 +1530,7 @@ describe("chat timeline", () => {
 
   it("propagates a cancelled run status to an unfinished subtask in the Chat trace", async () => {
     const run = { ...makeRun(), status: "cancelled" as const, completedAt: "2026-01-01T00:00:10.000Z" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "打开b站，截图首页" }, 1),
       makeEvent("task-started", "system", {
         semanticType: "subtask",
@@ -1550,7 +1550,7 @@ describe("chat timeline", () => {
 
   it("keeps completed process cycles visible alongside the running cycle", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "inspect and build" }, 1),
       makeEvent("reasoning-1", "reasoning-summary", { text: "inspect the project" }, 2),
       makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "src/app.ts" } }, 3),
@@ -1587,7 +1587,7 @@ describe("chat timeline", () => {
 
   it("renders live process commentary as Markdown without hiding completed steps", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }, 1),
       makeEvent("reasoning", "reasoning-summary", { text: "inspect the project" }, 2),
       makeEvent("read-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "src/app.ts" } }, 3),
@@ -1689,7 +1689,7 @@ describe("chat timeline", () => {
       }],
       runs: [run]
     };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }),
       makeEvent("reasoning", "reasoning-summary", { text: "inspect context" }),
       makeEvent("tool-start", "tool-start", { itemId: "tool-1", tool: "Read", input: { file_path: "src/app.ts" } }),
@@ -1719,7 +1719,7 @@ describe("chat timeline", () => {
 
   it("shows processing immediately while the first provider event is still pending", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [];
+    window.openmind.aiGetEvents = async () => [];
     const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
 
     const process = disclosureFor(await screen.findByText("正在处理"));
@@ -1731,7 +1731,7 @@ describe("chat timeline", () => {
 
   it("keeps live processing visible and open until the run actually completes", async () => {
     const run = makeRun();
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "hello" }, 1),
       makeEvent("tool-start", "tool-start", { itemId: "tool-1", tool: "Bash", input: { command: "npm test" } }, 2)
     ];
@@ -1766,7 +1766,7 @@ describe("chat timeline", () => {
 
     cleanup();
     const failed = { ...run, status: "failed" as const, completedAt: "2026-01-01T00:00:10.000Z", error: "command failed" };
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("user-failed", "user-message", { text: "hello" }, 1),
       makeEvent("error", "error", { text: "command failed" }, 2)
     ];
@@ -1786,7 +1786,7 @@ describe("run waiting and queue", () => {
   });
 
   it("reports the scheduler worker exiting and clears in-flight streaming (AI-T05)", async () => {
-    window.cctools.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
+    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
     await screen.findByText("hello");
     aiListener?.({ kind: "worker-exit", code: 1 });
@@ -1796,11 +1796,11 @@ describe("run waiting and queue", () => {
 
   it("queues a follow-up message behind the active run and can stop it (AI-T07)", async () => {
     const cancelSpy = vi.fn(async () => true);
-    window.cctools.aiCancelRun = cancelSpy;
+    window.openmind.aiCancelRun = cancelSpy;
     const active = { ...makeRun(), id: "run-active", status: "running" as const, startedAt: "2026-01-02T00:00:00.000Z", prompt: "first" };
     const queued = { ...makeRun(), id: "run-queued", status: "queued" as const, startedAt: "2026-01-01T00:00:00.000Z", prompt: "second" };
     const twoRunSnapshot = { ...snapshotForRun(active, "running"), runs: [active, queued] };
-    window.cctools.aiGetEvents = async () => [makeEvent("user-active", "user-message", { text: "first" }, 1)];
+    window.openmind.aiGetEvents = async () => [makeEvent("user-active", "user-message", { text: "first" }, 1)];
     render(<AiProvider initial={twoRunSnapshot}><Chat /></AiProvider>);
     await screen.findByText("first");
     expect(screen.getByText(/1 条消息正在排队/)).toBeTruthy();
@@ -1809,7 +1809,7 @@ describe("run waiting and queue", () => {
   });
 
   it("keeps following AI output while the user has not scrolled upward", async () => {
-    window.cctools.aiGetEvents = async () => [
+    window.openmind.aiGetEvents = async () => [
       makeEvent("u", "user-message", { text: "hello" }, 1),
       makeEvent("tool-start", "tool-start", { itemId: "inspect", tool: "Read", input: { file_path: "README.md" } }, 2)
     ];
@@ -1846,7 +1846,7 @@ describe("run waiting and queue", () => {
       disconnect() { this.targets.clear(); }
     }
     vi.stubGlobal("ResizeObserver", MockResizeObserver);
-    window.cctools.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
+    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     const { container } = render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
     await screen.findByText("hello");
     const scroller = container.querySelector(".chat-scroll") as HTMLElement;
@@ -1873,7 +1873,7 @@ describe("run waiting and queue", () => {
   });
 
   it("holds position while reading and surfaces a return-to-bottom control (AI-T06)", async () => {
-    window.cctools.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
+    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     const { container } = render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
     await screen.findByText("hello");
     const scroller = container.querySelector(".chat-scroll") as HTMLElement;

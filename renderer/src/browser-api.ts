@@ -16,11 +16,14 @@ import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
 import type { AutomationRule } from "@shared/contracts";
 
 export function installBrowserPreviewApi(): boolean {
-  if (window.cctools) return true;
+  if (window.openmind) return true;
   if (isElectronRenderer()) return false;
+  const onboardingPreview = new URLSearchParams(window.location.search).get("preview") === "onboarding";
+  let previewRootReady = !onboardingPreview;
+  let previewSkillsReady = !onboardingPreview;
   let snapshot: AiSnapshot = {
     projectRoot: "/home/say/work/github/cctools",
-    providers: [
+    providers: onboardingPreview ? [] : [
       { id: "codex-preview", provider: "codex", label: "Codex · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
       { id: "claude-preview", provider: "claude", label: "Claude Code · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, installable: false, oneMillion: true }
     ],
@@ -114,13 +117,13 @@ export function installBrowserPreviewApi(): boolean {
     runId: "preview-run",
     provider: "claude",
     kind: "assistant-message",
-    payload: { text: "文稿已经生成并保存。\n\n文件：`mymind/article/demo.md`\n\n点击文件路径可在左侧直接预览内容。" },
+    payload: { text: "文稿已经生成并保存。\n\n文件：`openmind/article/demo.md`\n\n点击文件路径可在左侧直接预览内容。" },
     risks: []
   }];
   const listeners = new Set<(event: never) => void>();
   let preferences: UserPreferences = {
     schemaVersion: 1,
-    mymindRoot: `${snapshot.projectRoot}/mymind`,
+    openmindRoot: `${snapshot.projectRoot}/openmind`,
     workspaceRoot: snapshot.projectRoot,
     themeMode: "light" as const,
     accentColor: "#2563eb",
@@ -136,7 +139,7 @@ export function installBrowserPreviewApi(): boolean {
     providerModels: { codex: "auto", claude: "auto" },
     defaultPermissionProfile: "edit" as const,
     defaultWorkDir: "",
-    notesDir: "mymind",
+    notesDir: "openmind",
     browserAutomationEnabled: false,
     browserReuseExistingTabs: true,
     browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
@@ -160,11 +163,13 @@ export function installBrowserPreviewApi(): boolean {
     workflowAutoArchiveEnabled: false,
     workflowAutoBriefOnSourceComplete: false
   };
-  let onboardingState: OnboardingState = { completed: true, skill: "complete", provider: "complete" };
+  let onboardingState: OnboardingState = onboardingPreview
+    ? { completed: false, skill: "pending", provider: "pending" }
+    : { completed: true, skill: "complete", provider: "complete" };
   const skills: SkillDefinition[] = [
-    { id: "rss-article-saver", title: "RSS 文章抓取", description: "拉取订阅、提取正文并保存到文章库。", cwd: ".claude/skills/rss-article-saver", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/"], timeoutMs: 7200000 },
-    { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["mymind/daily-summary/${date}_daily_summary.md"], timeoutMs: 3600000 },
-    { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/x_*.md", "mymind/post/${date}/"], timeoutMs: 7200000 }
+    { id: "rss-article-saver", title: "RSS 文章抓取", description: "拉取订阅、提取正文并保存到文章库。", cwd: ".claude/skills/rss-article-saver", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "采集", permission: "edit", outputArtifacts: ["openmind/article/${date}/"], timeoutMs: 7200000 },
+    { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "--env-file", ".env", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["openmind/daily-summary/${date}_daily_summary.md"], timeoutMs: 3600000 },
+    { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["openmind/article/${date}/x_*.md", "openmind/post/${date}/"], timeoutMs: 7200000 }
   ];
   const previewAutomationRules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.map((input, index) => ({
     schemaVersion: 1,
@@ -177,23 +182,23 @@ export function installBrowserPreviewApi(): boolean {
   const api: DesktopApi = {
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
-      mymindRoot: `${snapshot.projectRoot}/mymind`,
+      openmindRoot: previewRootReady ? `${snapshot.projectRoot}/openmind` : "",
       workspaceRoot: snapshot.projectRoot,
-      validRepo: true,
-      skillsInstalled: true,
-      onboardingCompleted: true,
+      validRepo: previewRootReady,
+      skillsInstalled: previewSkillsReady,
+      onboardingCompleted: onboardingState.completed,
       runtime: "浏览器预览 · Preview 数据",
       environment: { mode: "preview", platform: "web" },
       overview: { repoRoot: snapshot.projectRoot, metrics: { articles: 28, posts: 14, summaries: 1, topics: 9, reddit: 5 }, recent: [] },
-      skills,
+      skills: previewSkillsReady ? skills : [],
       ai: snapshot
     }),
     listContent: async (kind) => kind === "summaries" ? [
-      { path: "mymind/daily-summary/20260617_daily_summary.md", name: "20260617_daily_summary.md", kind, size: 8632, modifiedAt: "2026-06-17T22:10:00.000Z" },
-      { path: "mymind/daily-summary/20260616_daily_summary.md", name: "20260616_daily_summary.md", kind, size: 7540, modifiedAt: "2026-06-16T22:08:00.000Z" }
+      { path: "openmind/daily-summary/20260617_daily_summary.md", name: "20260617_daily_summary.md", kind, size: 8632, modifiedAt: "2026-06-17T22:10:00.000Z" },
+      { path: "openmind/daily-summary/20260616_daily_summary.md", name: "20260616_daily_summary.md", kind, size: 7540, modifiedAt: "2026-06-16T22:08:00.000Z" }
     ] : [
-      { path: "mymind/article/demo.md", name: "工程级 AI 工作台设计.md", kind: "articles" },
-      { path: "mymind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
+      { path: "openmind/article/demo.md", name: "工程级 AI 工作台设计.md", kind: "articles" },
+      { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
     readContent: async (path) => ({
       path,
@@ -212,12 +217,12 @@ export function installBrowserPreviewApi(): boolean {
         {
           schemaVersion: 1,
           id: "preview-content-1",
-          path: "mymind/article/demo.md",
+          path: "openmind/article/demo.md",
           name: "工程级 AI 工作台设计.md",
           title: "工程级 AI 工作台设计",
           kind: "article",
           source: "Anthropic",
-          author: "CC Tools",
+          author: "OpenMind",
           originalUrl: "https://example.com/article",
           publishedAt: query.date,
           capturedAt: new Date().toISOString(),
@@ -239,7 +244,7 @@ export function installBrowserPreviewApi(): boolean {
       title: "工程级 AI 工作台设计",
       kind: "article",
       source: "Anthropic",
-      author: "CC Tools",
+      author: "OpenMind",
       originalUrl: "https://example.com/article",
       publishedAt: new Date().toISOString(),
       capturedAt: new Date().toISOString(),
@@ -279,7 +284,7 @@ export function installBrowserPreviewApi(): boolean {
       schemaVersion: 1,
       date: date.replaceAll("-", ""),
       generatedAt: new Date().toISOString(),
-      sourcePath: "mymind/daily-summary/demo.md",
+      sourcePath: "openmind/daily-summary/demo.md",
       counts: { content: 42, unread: 12, articles: 30, posts: 6, reddit: 6, important: 4, topics: 3 },
       topics: [{ id: "topic-1", title: "本地 AI 工程工作台", summary: "围绕本地 Provider、上下文和可审核执行建立内容工作流。", score: 92, sourceCount: 6, contentIds: [] }],
       signals: ["本地 AI 工具正在从对话界面转向完整工程工作台"],
@@ -303,8 +308,8 @@ export function installBrowserPreviewApi(): boolean {
     searchWorkspace: async (query) => {
       const normalized = query.toLocaleLowerCase();
       return [
-        { id: "content:preview-content-1", kind: "content" as const, title: "工程级 AI 工作台设计", subtitle: "Anthropic · 文章", path: "mymind/article/demo.md", date: "20260615", status: null, targetId: "preview-content-1" },
-        { id: "project:mymind/creative/demo", kind: "project" as const, title: "本地 AI 工程工作台", subtitle: "20260615 · 制作中", path: "mymind/creative/demo", date: "20260615", status: "drafting", targetId: "mymind/creative/demo" },
+        { id: "content:preview-content-1", kind: "content" as const, title: "工程级 AI 工作台设计", subtitle: "Anthropic · 文章", path: "openmind/article/demo.md", date: "20260615", status: null, targetId: "preview-content-1" },
+        { id: "project:openmind/creative/demo", kind: "project" as const, title: "本地 AI 工程工作台", subtitle: "20260615 · 制作中", path: "openmind/creative/demo", date: "20260615", status: "drafting", targetId: "openmind/creative/demo" },
         { id: "skill:rss-article-saver", kind: "skill" as const, title: "RSS 文章抓取", subtitle: "拉取订阅并保存完整文章。", path: ".claude/skills/rss-article-saver", date: null, status: null, targetId: "rss-article-saver" }
       ].filter((item) => `${item.title} ${item.subtitle}`.toLocaleLowerCase().includes(normalized));
     },
@@ -313,9 +318,9 @@ export function installBrowserPreviewApi(): boolean {
       { date: "20260617", label: "2026-06-17", topics: [{ id: "topic-preview", title: "全量创作选题", platform: "公众号", section: "today_pick", score: 9, body: "# 全量创作选题\n\n不再只展示当天。", starred: false, ignored: false, projectDir: null }] }
     ],
     addCreativeTopic: async (input) => ({ date: input.date.replaceAll("-", ""), topics: [{ id: `manual-${input.title}`, title: input.title, platform: input.platform || "未指定", section: "manual", score: input.score ?? 0, body: input.body, starred: false, ignored: false, projectDir: null }] }),
-    getCreativeProjects: async () => [{ dir: "mymind/creative/demo", topic: "本地 AI 工程工作台", stage: "drafting", completion: 72 }],
+    getCreativeProjects: async () => [{ dir: "openmind/creative/demo", topic: "本地 AI 工程工作台", stage: "drafting", completion: 72 }],
     getCreativeProject: async (dir) => ({ dir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台" }, files: { "topic-brief.md": "# Topic Brief\n\n工程级本地 AI 对话与任务执行。" } }),
-    createCreativeProject: async (input) => ({ dir: `mymind/creative/${input.date}-${input.topic.title}`, stage: "drafting", manifest: { topic: input.topic.title }, files: { "topic-brief.md": input.topic.body || "", "draft.md": `# ${input.topic.title}\n\n` } }),
+    createCreativeProject: async (input) => ({ dir: `openmind/creative/${input.date}-${input.topic.title}`, stage: "drafting", manifest: { topic: input.topic.title }, files: { "topic-brief.md": input.topic.body || "", "draft.md": `# ${input.topic.title}\n\n` } }),
     saveCreativeFile: async (input) => ({ dir: input.projectDir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台" }, files: { [input.file]: input.content } }),
     advanceCreativeProject: async (dir, stage) => ({ dir, stage, manifest: { topic: "本地 AI 工程工作台", stage: stage as CreativeStage }, files: { "draft.md": "# 本地 AI 工程工作台\n\n草稿内容。" } }),
     updateCreativeManifest: async (dir, patch) => ({ dir, stage: "ready", manifest: { topic: "本地 AI 工作台", ...patch } as Partial<CreativeProjectManifest>, files: { "draft.md": "# 本地 AI 工程工作台\n\n草稿内容。" } }),
@@ -331,14 +336,14 @@ export function installBrowserPreviewApi(): boolean {
     restoreCreativeProject: async (dir) => ({ dir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台", stage: "drafting" }, files: { "draft.md": "# 已恢复" } }),
     deleteCreativeProject: async () => true,
     getCreativeAnalytics: async () => ({ total: 1, stages: [{ stage: "drafting", count: 1 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 72 }),
-    bindCreativeSession: async () => ({ dir: "mymind/creative/demo", stage: "drafting", manifest: { topic: "测试项目", aiSessionIds: ["session-1"] }, files: {} }),
+    bindCreativeSession: async () => ({ dir: "openmind/creative/demo", stage: "drafting", manifest: { topic: "测试项目", aiSessionIds: ["session-1"] }, files: {} }),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async (query, limit = 40) => {
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async (query, limit = 40) => {
       const files = [
-        "mymind/daily-summary/20260625_daily_summary.md",
-        "mymind/post/20260624/posts.json",
-        "mymind/wiki/index.md"
+        "openmind/daily-summary/20260625_daily_summary.md",
+        "openmind/post/20260624/posts.json",
+        "openmind/wiki/index.md"
       ];
       const normalized = query.toLocaleLowerCase();
       return {
@@ -359,9 +364,9 @@ export function installBrowserPreviewApi(): boolean {
     revealPath: async () => true,
     openExternal: async () => true,
     exportText: async (defaultName) => defaultName,
-    setMymindRoot: async (p) => p,
-    selectMymindRoot: async () => `${snapshot.projectRoot}/mymind`,
-    previewMymindRoot: async (candidate) => ({
+    setOpenmindRoot: async (p) => { previewRootReady = true; return p; },
+    selectOpenmindRoot: async () => `${snapshot.projectRoot}/openmind`,
+    previewOpenmindRoot: async (candidate) => ({
       candidate,
       canonicalRoot: candidate,
       health: {
@@ -370,7 +375,7 @@ export function installBrowserPreviewApi(): boolean {
         accessible: true,
         readable: true,
         writable: true,
-        expectedStructureVersion: "mymind-layout-v2",
+        expectedStructureVersion: "openmind-layout-v2",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],
@@ -382,10 +387,10 @@ export function installBrowserPreviewApi(): boolean {
       canBind: true,
       blockingReasons: []
     }),
-    selectMymindRelocationTarget: async () => `${snapshot.projectRoot}/mymind-next`,
-    previewMymindRelocation: async (targetDirectory) => ({
+    selectOpenmindRelocationTarget: async () => `${snapshot.projectRoot}/openmind-next`,
+    previewOpenmindRelocation: async (targetDirectory) => ({
       schemaVersion: 1,
-      sourceDirectory: `${snapshot.projectRoot}/mymind`,
+      sourceDirectory: `${snapshot.projectRoot}/openmind`,
       targetDirectory,
       sourceRootId: "preview-root",
       sourceFileCount: 2,
@@ -400,10 +405,10 @@ export function installBrowserPreviewApi(): boolean {
       canCommit: true,
       blockingReasons: []
     }),
-    relocateMymind: async (targetDirectory) => ({
+    relocateOpenmind: async (targetDirectory) => ({
       schemaVersion: 1,
       status: "committed" as const,
-      sourceDirectory: `${snapshot.projectRoot}/mymind`,
+      sourceDirectory: `${snapshot.projectRoot}/openmind`,
       targetDirectory,
       sourceRootId: "preview-root",
       targetRootId: "preview-target",
@@ -415,16 +420,16 @@ export function installBrowserPreviewApi(): boolean {
       verified: true as const,
       completedAt: new Date().toISOString()
     }),
-    getMymindRoot: async () => ({
-      mymindRoot: `${snapshot.projectRoot}/mymind`,
+    getOpenmindRoot: async () => ({
+      openmindRoot: previewRootReady ? `${snapshot.projectRoot}/openmind` : "",
       workspaceRoot: snapshot.projectRoot,
       health: {
-        configured: true,
-        rootId: "preview-root",
-        accessible: true,
-        readable: true,
-        writable: true,
-        expectedStructureVersion: "mymind-layout-v2",
+        configured: previewRootReady,
+        rootId: previewRootReady ? "preview-root" : undefined,
+        accessible: previewRootReady,
+        readable: previewRootReady,
+        writable: previewRootReady,
+        expectedStructureVersion: "openmind-layout-v2",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],
@@ -433,7 +438,7 @@ export function installBrowserPreviewApi(): boolean {
         activeRunCount: 0,
         warnings: []
       },
-      snapshot: { rootPath: `${snapshot.projectRoot}/mymind`, rootId: "preview-root", rootGeneration: 1 }
+      snapshot: previewRootReady ? { rootPath: `${snapshot.projectRoot}/openmind`, rootId: "preview-root", rootGeneration: 1 } : null
     }),
     setWorkspaceRoot: async (p) => p,
     selectWorkspaceRoot: async () => snapshot.projectRoot,
@@ -457,7 +462,7 @@ export function installBrowserPreviewApi(): boolean {
       diagnostic: preferences.browserAutomationEnabled ? "浏览器取证已启用（预览）。" : "AI 写作取证已关闭。"
     }),
     getMcpServers: async () => [{
-      id: "cctools_browser",
+      id: "openmind_browser",
       title: "写作证据截图",
       description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
       backend: "Microsoft Playwright MCP",
@@ -509,7 +514,7 @@ export function installBrowserPreviewApi(): boolean {
     pauseRuntimePackDownload: async () => { throw new Error("浏览器预览不管理 Runtime Pack 下载。 "); },
     resumeRuntimePackDownload: async () => { throw new Error("浏览器预览不管理 Runtime Pack 下载。 "); },
     removeRuntimePackDownload: async () => false,
-    rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: ["20260610"], itemCount: 1, indexPath: ".cctools/content-index.json", statePath: ".cctools/content-state.json", rebuiltAt: new Date().toISOString() }),
+    rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: ["20260610"], itemCount: 1, indexPath: ".openmind/content-index.json", statePath: ".openmind/content-state.json", rebuiltAt: new Date().toISOString() }),
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
     installCliTool: async () => { throw new Error("浏览器预览不支持一键安装 CLI。 "); },
@@ -523,6 +528,7 @@ export function installBrowserPreviewApi(): boolean {
     inspectInstalledSkill: async () => null,
     migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
     listInstalledSkills: async () => [],
+    installSkillSource: async () => { previewSkillsReady = true; return []; },
     listInstalledRunnableSkills: async () => [],
     setInstalledSkillEnabled: async () => { throw new Error("浏览器预览不管理 Skill 启用状态。 "); },
     listSkillRuns: async () => [],
@@ -568,7 +574,7 @@ export function installBrowserPreviewApi(): boolean {
     onRuntimePackDownloadEvent: () => () => {},
     onCliInstallProgress: () => () => {}
   };
-  window.cctools = api;
+  window.openmind = api;
   return true;
 }
 

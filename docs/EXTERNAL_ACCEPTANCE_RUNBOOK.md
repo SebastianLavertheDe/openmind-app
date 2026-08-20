@@ -12,7 +12,7 @@ are intentionally excluded from every step below.
 
 Use one clean checkout and record the exact source commit, App version, target
 OS/architecture, package filename and SHA-256. Keep the source checkout and
-the packaged test user data separate from the user's real `mymind`.
+the packaged test user data separate from the user's real `openmind`.
 
 From `desktop-app/` on the target release host:
 
@@ -51,7 +51,7 @@ distributable containers exist. If running the report manually, use a
 target-host 7-Zip executable:
 
 ```bash
-CCTOOLS_7ZZ=/path/to/7zz npm run package:artifact:safety
+OPENMIND_7ZZ=/path/to/7zz npm run package:artifact:safety
 node scripts/package-artifact-report.js --platform win --require-safety=true \
   --require-artifact-safety=true --require-packaged-recovery=true \
   --packaged-smoke=passed --recovery-drill=passed \
@@ -86,14 +86,14 @@ host Node installation to the preconditions.
 
 For each row in `docs/CLEAN_MACHINE_EVIDENCE.md`:
 
-1. Start without the cctools checkout, `.claude` repository, existing App
+1. Start without the openmind checkout, `.claude` repository, existing App
    `userData`, Provider state, browser profile or pre-created Runtime Pack.
-2. Bind an existing external `mymind` root and record its before/after tree
+2. Bind an existing external `openmind` root and record its before/after tree
    digest. Do not put it under App `userData`.
 3. Execute every assertion listed by the scenario, including offline/network,
    non-admin, CJK username, long path, Keychain and unwritable export setup.
 4. Capture a redacted screenshot and a log bundle. Never include `.env`, API
-   keys, cookies, browser profiles, Credential Vault files or full mymind
+   keys, cookies, browser profiles, Credential Vault files or full openmind
    content.
 5. Add one `key=value; key=value` row with the exact package SHA-256 and an
    evidence path. Use a new dated evidence directory for every build.
@@ -102,7 +102,7 @@ Run the report after editing the rows:
 
 ```bash
 npm run clean-machine:report
-CCTOOLS_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
+OPENMIND_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
 ```
 
 The strict command must report all 12 scenarios passed before the Clean-machine
@@ -119,7 +119,7 @@ the package evidence record contains `packagedRecovery=passed` plus
 `packagedRecoveryEvidence.validated=true` bound to that report. This smoke is
 supporting packaged evidence; it does not replace the cases below.
 
-On the target OS, preserve the staged package and a disposable `mymind` tree.
+On the target OS, preserve the staged package and a disposable `openmind` tree.
 Perform and record:
 
 - force quit during Runtime Pack install;
@@ -130,7 +130,7 @@ Perform and record:
 - verified Runtime rollback to the previous version;
 - external Export Location relink/revoke after the target becomes unavailable.
 
-For every case, compare the source/target mymind tree digest, active/previous
+For every case, compare the source/target openmind tree digest, active/previous
 Runtime record, Run history and generated Artifact list. A successful local
 `npm run recovery:drill` or packaged recovery smoke is supporting evidence; it
 does not replace Runtime Pack install/update force-quit and target-OS disaster
@@ -161,7 +161,7 @@ Run both commands from the reviewed checkout:
 
 ```bash
 npm run security:review
-CCTOOLS_SECURITY_REVIEW_STRICT=1 npm run security:review
+OPENMIND_SECURITY_REVIEW_STRICT=1 npm run security:review
 ```
 
 The strict command is expected to fail until all P0/P1 rows are closed. Do not
@@ -177,10 +177,10 @@ and strictly validate the external reports, then run the aggregate report from
 the same reviewed checkout:
 
 ```bash
-CCTOOLS_PROVIDER_E2E_STRICT=1 npm run provider:e2e:report
-CCTOOLS_SECURITY_REVIEW_STRICT=1 npm run security:review
-CCTOOLS_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
-CCTOOLS_RELEASE_READINESS_STRICT=1 npm run release:readiness
+OPENMIND_PROVIDER_E2E_STRICT=1 npm run provider:e2e:report
+OPENMIND_SECURITY_REVIEW_STRICT=1 npm run security:review
+OPENMIND_CLEAN_MACHINE_STRICT=1 npm run clean-machine:report
+OPENMIND_RELEASE_READINESS_STRICT=1 npm run release:readiness
 ```
 
 Each strict source command must pass. The readiness command is the final

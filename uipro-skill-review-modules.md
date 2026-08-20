@@ -1,4 +1,4 @@
-# CC Tools Desktop — UI/UX Pro Max Skill 模块化审查报告
+# OpenMind Desktop — UI/UX Pro Max Skill 模块化审查报告
 
 > 审查工具:`ui-ux-pro-max` skill(已安装于 `desktop-app/.claude/skills/`)
 > 审查日期:2026-07-09

@@ -23,7 +23,7 @@ export function useTopicFileEditor() {
     if (!path) return false;
     if (topicFileDirty && !await ai.confirm({ title: "切换选题文件", body: "当前选题文件有未保存的修改，确定放弃并切换吗？", confirmText: "放弃并切换", danger: true })) return false;
     try {
-      const next = await window.cctools.readContent(path);
+      const next = await window.openmind.readContent(path);
       setSelectedTopicFilePath(path);
       setSelectedTopicFile(next);
       setTopicFileDraft(next.content || "");
@@ -40,7 +40,7 @@ export function useTopicFileEditor() {
     if (!selectedTopicFile || !topicFileDirty || topicFileSaving || selectedTopicFile.truncated) return;
     setTopicFileSaving(true);
     try {
-      const next = await window.cctools.writeContent(selectedTopicFile.path, topicFileDraft);
+      const next = await window.openmind.writeContent(selectedTopicFile.path, topicFileDraft);
       setSelectedTopicFile(next);
       setTopicFileDraft(next.content || topicFileDraft);
       setTopicFileDirty(false);

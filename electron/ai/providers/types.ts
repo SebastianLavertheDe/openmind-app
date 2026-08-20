@@ -37,7 +37,7 @@ export interface ProviderRunContext {
   providerModel: string;
   /** Main-only bridge for an approved Agent package in the app-private SkillStore. */
   skillBridge?: ProviderSkillBridge | null;
-  /** CC Tools 托管的写作证据截图能力。 */
+  /** OpenMind 托管的写作证据截图能力。 */
   browserAutomation: BrowserAutomationConfig;
   /** 粘贴图片等附件（已 materialize 到临时文件）：provider 转 image content block 传 SDK。 */
   images: Array<{ id: string; path: string; mediaType: string }>;

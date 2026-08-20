@@ -18,20 +18,20 @@ afterEach(() => {
 
 describe("buildAppPaths", () => {
   it("keeps the non-Electron fallback outside the source checkout", () => {
-    const previous = process.env.CCTOOLS_USER_DATA_DIR;
-    delete process.env.CCTOOLS_USER_DATA_DIR;
+    const previous = process.env.OPENMIND_USER_DATA_DIR;
+    delete process.env.OPENMIND_USER_DATA_DIR;
     try {
-      expect(resolveUserDataDir()).not.toBe(path.resolve(process.cwd(), ".cctools-userdata"));
-      expect(resolveUserDataDir()).toBe(path.join(os.tmpdir(), "cctools-desktop-userdata"));
+      expect(resolveUserDataDir()).not.toBe(path.resolve(process.cwd(), ".openmind-userdata"));
+      expect(resolveUserDataDir()).toBe(path.join(os.tmpdir(), "openmind-desktop-userdata"));
     } finally {
-      if (previous === undefined) delete process.env.CCTOOLS_USER_DATA_DIR;
-      else process.env.CCTOOLS_USER_DATA_DIR = previous;
+      if (previous === undefined) delete process.env.OPENMIND_USER_DATA_DIR;
+      else process.env.OPENMIND_USER_DATA_DIR = previous;
     }
   });
 
   it("derives all expected subdirectories under userData", () => {
-    const p = buildAppPaths("/tmp/cctools-test-ud");
-    expect(p.userData).toBe(path.resolve("/tmp/cctools-test-ud"));
+    const p = buildAppPaths("/tmp/openmind-test-ud");
+    expect(p.userData).toBe(path.resolve("/tmp/openmind-test-ud"));
     expect(p.settingsFile).toBe(path.join(p.userData, "settings", "settings.json"));
     expect(p.runtimePacks).toBe(path.join(p.userData, "runtimes", "packs"));
     expect(p.runtimeEnvironments).toBe(path.join(p.userData, "runtimes", "environments"));
@@ -40,31 +40,31 @@ describe("buildAppPaths", () => {
     expect(p.logs).toBe(path.join(p.userData, "logs"));
   });
 
-  it("derives the skill store under the bound mymind root (.agent/skills)", () => {
-    expect(resolveSkillStoreRoot("/srv/mymind")).toBe(path.join(path.resolve("/srv/mymind"), ".agent", "skills"));
+  it("derives the skill store under the bound openmind root (.agent/skills)", () => {
+    expect(resolveSkillStoreRoot("/srv/openmind")).toBe(path.join(path.resolve("/srv/openmind"), ".agent", "skills"));
     expect(resolveSkillStoreRoot(null)).toBeNull();
     expect(resolveSkillStoreRoot("")).toBeNull();
 
-    const p = buildAppPaths("/tmp/cctools-test-ud", "/srv/mymind/.agent/skills");
-    expect(p.skills).toBe(path.resolve("/srv/mymind/.agent/skills"));
+    const p = buildAppPaths("/tmp/openmind-test-ud", "/srv/openmind/.agent/skills");
+    expect(p.skills).toBe(path.resolve("/srv/openmind/.agent/skills"));
     expect(p.skillRegistryFile).toBe(path.join(p.skills, "registry.json"));
   });
 
-  it("yields a null skill store when no mymind root is bound (no fallback)", () => {
-    const p = buildAppPaths("/tmp/cctools-test-ud");
+  it("yields a null skill store when no openmind root is bound (no fallback)", () => {
+    const p = buildAppPaths("/tmp/openmind-test-ud");
     expect(p.skills).toBeNull();
     expect(p.skillRegistryFile).toBeNull();
 
     ensureAppPaths(p);
     expect(fs.existsSync(path.join(p.userData, "skills"))).toBe(false);
 
-    const withRoot = buildAppPaths("/tmp/cctools-test-ud", null);
+    const withRoot = buildAppPaths("/tmp/openmind-test-ud", null);
     expect(withRoot.skills).toBeNull();
   });
 
   it("ensures every directory exists after ensureAppPaths", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-app-paths-"));
-    const p = buildAppPaths(dir, path.join(dir, "external-mymind", ".agent", "skills"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-app-paths-"));
+    const p = buildAppPaths(dir, path.join(dir, "external-openmind", ".agent", "skills"));
     ensureAppPaths(p);
     for (const d of [
       p.settings,
@@ -88,7 +88,7 @@ describe("buildAppPaths", () => {
   });
 
   it("ensureAppPaths is idempotent", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-app-paths-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-app-paths-"));
     const p = buildAppPaths(dir);
     ensureAppPaths(p);
     expect(() => ensureAppPaths(p)).not.toThrow();
@@ -96,40 +96,40 @@ describe("buildAppPaths", () => {
 });
 
 describe("detectPathConflicts", () => {
-  const basePaths: AppPaths = buildAppPaths("/tmp/cctools-conflict-ud");
+  const basePaths: AppPaths = buildAppPaths("/tmp/openmind-conflict-ud");
 
-  it("flags mymindRoot equal to userData", () => {
+  it("flags openmindRoot equal to userData", () => {
     const conflicts = detectPathConflicts(basePaths, basePaths.userData);
-    expect(conflicts.some((c) => c.kind === "mymind-equals-userData")).toBe(true);
+    expect(conflicts.some((c) => c.kind === "openmind-equals-userData")).toBe(true);
   });
 
-  it("flags mymindRoot nested under userData", () => {
+  it("flags openmindRoot nested under userData", () => {
     const nested = path.join(basePaths.userData, "child");
     const conflicts = detectPathConflicts(basePaths, nested);
-    expect(conflicts.some((c) => c.kind === "mymind-under-userData")).toBe(true);
+    expect(conflicts.some((c) => c.kind === "openmind-under-userData")).toBe(true);
   });
 
-  it("flags userData nested under mymindRoot", () => {
+  it("flags userData nested under openmindRoot", () => {
     const parent = path.dirname(basePaths.userData);
-    // Construct a mymind root that contains userData.
-    const mymindRoot = parent;
+    // Construct a openmind root that contains userData.
+    const openmindRoot = parent;
     const conflicts = detectPathConflicts(
       basePaths,
-      path.join(mymindRoot, path.basename(basePaths.userData))
+      path.join(openmindRoot, path.basename(basePaths.userData))
     );
-    // resolve: mymindRoot === <parent>/<ud-basename>; userData === <parent>/<ud-basename>
-    // They'd be equal → mymind-equals-userData.
+    // resolve: openmindRoot === <parent>/<ud-basename>; userData === <parent>/<ud-basename>
+    // They'd be equal → openmind-equals-userData.
     expect(conflicts.length).toBeGreaterThan(0);
   });
 
   it("flags workspace nested under userData", () => {
     const ws = path.join(basePaths.userData, "ws");
-    const conflicts = detectPathConflicts(basePaths, "/somewhere/mymind", ws);
+    const conflicts = detectPathConflicts(basePaths, "/somewhere/openmind", ws);
     expect(conflicts.some((c) => c.kind === "workspace-under-userData")).toBe(true);
   });
 
   it("returns no conflicts for fully disjoint paths", () => {
-    const conflicts = detectPathConflicts(basePaths, "/srv/mymind", "/home/me/workspace");
+    const conflicts = detectPathConflicts(basePaths, "/srv/openmind", "/home/me/workspace");
     expect(conflicts).toEqual([]);
   });
 });

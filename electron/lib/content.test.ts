@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-content-ud-"));
-process.env.CCTOOLS_USER_DATA_DIR = userDataDir;
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-content-ud-"));
+process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 vi.mock("electron", () => ({ app: { getPath: () => userDataDir } }));
 
 import {
@@ -25,14 +25,14 @@ const roots: string[] = [];
 let repo = "";
 
 beforeEach(() => {
-  repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-content-repo-"));
+  repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-content-repo-"));
   roots.push(repo);
-  fs.mkdirSync(path.join(repo, "mymind"), { recursive: true });
-  process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
+  fs.mkdirSync(path.join(repo, "openmind"), { recursive: true });
+  process.env.OPENMIND_ROOT = path.join(repo, "openmind");
 });
 
 afterEach(() => {
-  delete process.env.CCTOOLS_MYMIND_ROOT;
+  delete process.env.OPENMIND_ROOT;
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
@@ -79,9 +79,9 @@ describe("isXPostMarkdown", () => {
 
 describe("listFiles", () => {
   it("列出目录内文件,按 modifiedAt 降序", () => {
-    writeFile(`mymind/article/${DATE}/a.md`, "a");
-    writeFile(`mymind/article/${DATE}/b.md`, "bb");
-    const entries = listFiles(path.join(repo, "mymind", "article", DATE));
+    writeFile(`openmind/article/${DATE}/a.md`, "a");
+    writeFile(`openmind/article/${DATE}/b.md`, "bb");
+    const entries = listFiles(path.join(repo, "openmind", "article", DATE));
     expect(entries).toHaveLength(2);
     expect(entries.every((e) => e.name.endsWith(".md"))).toBe(true);
     // path 是相对 repoRoot
@@ -91,9 +91,9 @@ describe("listFiles", () => {
   });
 
   it("支持 filter 参数", () => {
-    writeFile(`mymind/article/${DATE}/a.md`);
-    writeFile(`mymind/article/${DATE}/b.txt`);
-    const mdOnly = listFiles(path.join(repo, "mymind", "article", DATE), (n) => n.endsWith(".md"));
+    writeFile(`openmind/article/${DATE}/a.md`);
+    writeFile(`openmind/article/${DATE}/b.txt`);
+    const mdOnly = listFiles(path.join(repo, "openmind", "article", DATE), (n) => n.endsWith(".md"));
     expect(mdOnly).toHaveLength(1);
     expect(mdOnly[0].name).toBe("a.md");
   });
@@ -105,9 +105,9 @@ describe("listFiles", () => {
 
 describe("listArticleFiles / listXPostFiles", () => {
   beforeEach(() => {
-    writeFile(`mymind/article/${DATE}/文章.md`);
-    writeFile(`mymind/article/${DATE}/x_123.md`);
-    writeFile(`mymind/article/${DATE}/notes.txt`);
+    writeFile(`openmind/article/${DATE}/文章.md`);
+    writeFile(`openmind/article/${DATE}/x_123.md`);
+    writeFile(`openmind/article/${DATE}/notes.txt`);
   });
 
   it("listArticleFiles 只返回非 x_ 的 .md", () => {
@@ -123,10 +123,10 @@ describe("listArticleFiles / listXPostFiles", () => {
 
 describe("listDatedFiles", () => {
   it("按 date_ 前缀 + suffix 过滤", () => {
-    writeFile(`mymind/daily-summary/${DATE}_daily_summary.md`);
-    writeFile(`mymind/daily-summary/20260707_daily_summary.md`);
-    writeFile(`mymind/daily-summary/${DATE}_notes.txt`);
-    const files = listDatedFiles(path.join("mymind", "daily-summary"), DATE, ".md");
+    writeFile(`openmind/daily-summary/${DATE}_daily_summary.md`);
+    writeFile(`openmind/daily-summary/20260707_daily_summary.md`);
+    writeFile(`openmind/daily-summary/${DATE}_notes.txt`);
+    const files = listDatedFiles(path.join("openmind", "daily-summary"), DATE, ".md");
     expect(files).toHaveLength(1);
     expect(files[0].name).toBe(`${DATE}_daily_summary.md`);
   });
@@ -134,12 +134,12 @@ describe("listDatedFiles", () => {
 
 describe("countPosts", () => {
   it("数组形式 posts.json", () => {
-    writeFile(`mymind/post/${DATE}/posts.json`, JSON.stringify([{ id: 1 }, { id: 2 }]));
+    writeFile(`openmind/post/${DATE}/posts.json`, JSON.stringify([{ id: 1 }, { id: 2 }]));
     expect(countPosts(DATE)).toBe(2);
   });
 
   it("{ posts: [...] } 形式", () => {
-    writeFile(`mymind/post/${DATE}/posts.json`, JSON.stringify({ posts: [{ id: 1 }] }));
+    writeFile(`openmind/post/${DATE}/posts.json`, JSON.stringify({ posts: [{ id: 1 }] }));
     expect(countPosts(DATE)).toBe(1);
   });
 
@@ -148,19 +148,19 @@ describe("countPosts", () => {
   });
 
   it("非数组非对象时返回 0", () => {
-    writeFile(`mymind/post/${DATE}/posts.json`, '"string"');
+    writeFile(`openmind/post/${DATE}/posts.json`, '"string"');
     expect(countPosts(DATE)).toBe(0);
   });
 });
 
 describe("getOverview", () => {
   it("汇总各内容类型的 metrics", () => {
-    writeFile(`mymind/article/${DATE}/a.md`);
-    writeFile(`mymind/article/${DATE}/x_1.md`);
-    writeFile(`mymind/reddit/${DATE}/r.md`);
-    writeFile(`mymind/daily-summary/${DATE}_daily_summary.md`);
-    writeFile(`mymind/daily-topic/${DATE}_daily_topic.md`);
-    writeFile(`mymind/post/${DATE}/posts.json`, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]));
+    writeFile(`openmind/article/${DATE}/a.md`);
+    writeFile(`openmind/article/${DATE}/x_1.md`);
+    writeFile(`openmind/reddit/${DATE}/r.md`);
+    writeFile(`openmind/daily-summary/${DATE}_daily_summary.md`);
+    writeFile(`openmind/daily-topic/${DATE}_daily_topic.md`);
+    writeFile(`openmind/post/${DATE}/posts.json`, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]));
 
     const overview = getOverview(DATE);
     expect(overview.date).toBe(DATE);
@@ -183,7 +183,7 @@ describe("getOverview", () => {
   });
 
   it("recent 截断到 7 条", () => {
-    for (let i = 0; i < 10; i++) writeFile(`mymind/article/${DATE}/a${i}.md`);
+    for (let i = 0; i < 10; i++) writeFile(`openmind/article/${DATE}/a${i}.md`);
     const overview = getOverview(DATE);
     expect(overview.recent.length).toBeLessThanOrEqual(7);
   });
@@ -191,29 +191,29 @@ describe("getOverview", () => {
 
 describe("getContent", () => {
   it("kind=articles 返回文章列表", () => {
-    writeFile(`mymind/article/${DATE}/a.md`);
-    writeFile(`mymind/article/${DATE}/x_1.md`);
+    writeFile(`openmind/article/${DATE}/a.md`);
+    writeFile(`openmind/article/${DATE}/x_1.md`);
     const files = getContent("articles", DATE);
     expect(files.every((f) => f.kind === "articles")).toBe(true);
     expect(files.some((f) => f.name === "a.md")).toBe(true);
   });
 
   it("kind=reddit 返回 reddit markdown", () => {
-    writeFile(`mymind/reddit/${DATE}/sub.md`);
+    writeFile(`openmind/reddit/${DATE}/sub.md`);
     const files = getContent("reddit", DATE);
     expect(files.some((f) => f.kind === "reddit")).toBe(true);
   });
 
   it("kind=summaries 返回 daily-summary 日期文件", () => {
-    writeFile(`mymind/daily-summary/${DATE}_daily_summary.md`);
+    writeFile(`openmind/daily-summary/${DATE}_daily_summary.md`);
     const files = getContent("summaries", DATE);
     expect(files.some((f) => f.kind === "summaries")).toBe(true);
   });
 
   it("kind=all 汇总多种类型", () => {
-    writeFile(`mymind/article/${DATE}/a.md`);
-    writeFile(`mymind/reddit/${DATE}/r.md`);
-    writeFile(`mymind/daily-summary/${DATE}_daily_summary.md`);
+    writeFile(`openmind/article/${DATE}/a.md`);
+    writeFile(`openmind/reddit/${DATE}/r.md`);
+    writeFile(`openmind/daily-summary/${DATE}_daily_summary.md`);
     const files = getContent("all", DATE);
     const kinds = new Set(files.map((f) => f.kind));
     expect(kinds.has("articles")).toBe(true);
@@ -224,9 +224,9 @@ describe("getContent", () => {
 
 describe("readContent", () => {
   it("读取文件内容,返回 path/name/content", () => {
-    writeFile("mymind/note.md", "正文内容");
-    const result = readContent("mymind/note.md");
-    expect(result.path).toBe("mymind/note.md");
+    writeFile("openmind/note.md", "正文内容");
+    const result = readContent("openmind/note.md");
+    expect(result.path).toBe("openmind/note.md");
     expect(result.name).toBe("note.md");
     expect(result.content).toBe("正文内容");
     expect(result.truncated).toBe(false);
@@ -234,7 +234,8 @@ describe("readContent", () => {
 
   it("大文件标记 truncated=true", () => {
     const big = "x".repeat(1024 * 1024 + 100);
-    writeFile("big.md", big);
+    // 裸相对路径按默认工作区（=内容根）解析，与 openmind/ 前缀路径同一棵树。
+    writeFile("openmind/big.md", big);
     const result = readContent("big.md");
     expect(result.truncated).toBe(true);
     expect(result.content.length).toBe(1024 * 1024);
@@ -248,10 +249,10 @@ describe("readContent", () => {
 
 describe("writeContent", () => {
   it("写入新内容并返回 readContent 结果", () => {
-    writeFile("editable.md", "old");
+    writeFile("openmind/editable.md", "old");
     const result = writeContent("editable.md", "new content");
     expect(result.content).toBe("new content");
-    expect(fs.readFileSync(path.join(repo, "editable.md"), "utf8")).toBe("new content");
+    expect(fs.readFileSync(path.join(repo, "openmind", "editable.md"), "utf8")).toBe("new content");
   });
 
   it("路径是目录时抛 notAFile", () => {

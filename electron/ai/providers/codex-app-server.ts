@@ -59,7 +59,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     rpc.onServerRequest = async (message) => this.handleServerRequest(context, message);
     try {
       await rpc.request("initialize", {
-        clientInfo: { name: "cctools-desktop", title: "CC Tools", version: "1.0.0" },
+        clientInfo: { name: "openmind-desktop", title: "OpenMind", version: "1.0.0" },
         capabilities: { experimentalApi: true }
       });
       rpc.notify("initialized", {});
@@ -85,7 +85,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           approvalPolicy: "on-request",
           approvalsReviewer: "user",
           sandbox,
-          serviceName: "cctools-desktop",
+          serviceName: "openmind-desktop",
           ...threadBrowserOptions
         });
       const thread = threadResult.thread as { id?: string } | undefined;
@@ -567,8 +567,8 @@ export function buildCodexCollaborationMode(
 
 // Intentionally collision-resistant: Codex recursively merges config tables,
 // so a common id could retain user-defined sibling headers/auth fields.
-export const CODEX_MANAGED_PROVIDER_ID = "cctools_managed_6f1b38d4b0e94c6a";
-export const CODEX_MANAGED_API_KEY_ENV = "CCTOOLS_CODEX_API_KEY";
+export const CODEX_MANAGED_PROVIDER_ID = "openmind_managed_6f1b38d4b0e94c6a";
+export const CODEX_MANAGED_API_KEY_ENV = "OPENMIND_CODEX_API_KEY";
 
 /** 构造 `codex app-server` 启动参数，并把选中的 Responses Provider 映射为临时 config 覆盖。 */
 export function buildCodexAppServerArgs(

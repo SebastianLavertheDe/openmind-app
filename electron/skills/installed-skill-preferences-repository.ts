@@ -40,7 +40,7 @@ export class InstalledSkillPreferencesRepository {
   setEnabled(key: string, enabled: boolean): void {
     const canonicalKey = validateSkillKey(key);
     if (typeof enabled !== "boolean") throw new Error("Skill enabled 必须是 boolean。");
-    if (!this.filePath) throw new Error("Skill 偏好不可用：尚未绑定 mymind 根目录。");
+    if (!this.filePath) throw new Error("Skill 偏好不可用：尚未绑定 openmind 根目录。");
 
     const current = this.read();
     const disabled = new Set(current.disabledKeys);

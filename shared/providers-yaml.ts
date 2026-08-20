@@ -142,19 +142,19 @@ export function supportsCliProvider(
 }
 
 /**
- * The 7-var `CCTOOLS_PROVIDER_*` output contract, shared by the desktop
+ * The 7-var `OPENMIND_PROVIDER_*` output contract, shared by the desktop
  * Broker path and the Python `_resolve_bound_provider()` reader. Kept stable
  * so the two execution paths stay identical.
  */
 export function processProviderEnvironment(entry: ProviderYamlEntry): Record<string, string> {
   return {
-    CCTOOLS_PROVIDER_API_KEY: entry.apiKey,
-    CCTOOLS_PROVIDER_BASE_URL: providerEndpoint(entry.baseUrl, entry.protocol),
-    CCTOOLS_PROVIDER_MODEL: entry.model,
-    CCTOOLS_PROVIDER_PROTOCOL: entry.protocol,
-    CCTOOLS_PROVIDER_PROXY_URL: entry.proxyUrl || "",
-    CCTOOLS_PROVIDER_PROXY_POLICY: entry.proxyPolicy,
-    CCTOOLS_PROVIDER_TLS_POLICY: entry.tlsPolicy
+    OPENMIND_PROVIDER_API_KEY: entry.apiKey,
+    OPENMIND_PROVIDER_BASE_URL: providerEndpoint(entry.baseUrl, entry.protocol),
+    OPENMIND_PROVIDER_MODEL: entry.model,
+    OPENMIND_PROVIDER_PROTOCOL: entry.protocol,
+    OPENMIND_PROVIDER_PROXY_URL: entry.proxyUrl || "",
+    OPENMIND_PROVIDER_PROXY_POLICY: entry.proxyPolicy,
+    OPENMIND_PROVIDER_TLS_POLICY: entry.tlsPolicy
   };
 }
 

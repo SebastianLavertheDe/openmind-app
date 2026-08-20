@@ -10,16 +10,16 @@ import {
 } from "./skill-package-service";
 
 const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.CCTOOLS_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
 );
-const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml")) ? it : it.skip;
+const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "openmind.skill.yaml")) ? it : it.skip;
 
-const MANIFEST = `apiVersion: cctools.dev/skill/v1
+const MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: example-skill
 version: 1.0.0
 publisher:
-  id: cctools
-  displayName: cctools
+  id: openmind
+  displayName: openmind
 kind: process
 display:
   name: Example Skill
@@ -33,7 +33,7 @@ runtime:
   version: ">=3.11"
   dependencyFile: pyproject.toml
 capabilities:
-  mymind:
+  openmind:
     read: [article/**]
     write: [daily-summary/**]
   network:
@@ -46,19 +46,19 @@ compatibility:
   minAppVersion: 1.0.0
 `;
 
-const AGENT_MANIFEST = `apiVersion: cctools.dev/skill/v1
+const AGENT_MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: catalog-agent
 version: 1.0.0
 publisher:
-  id: cctools
-  displayName: cctools
+  id: openmind
+  displayName: openmind
 kind: agent
 display:
   name: Catalog Agent
   description: Conversation-only fixture
   group: assistant
 capabilities:
-  mymind:
+  openmind:
     read: []
     write: []
   network:
@@ -72,19 +72,19 @@ compatibility:
   minAppVersion: 1.0.0
 `;
 
-const WORKFLOW_MANIFEST = `apiVersion: cctools.dev/skill/v1
+const WORKFLOW_MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: catalog-workflow
 version: 2.0.0
 publisher:
-  id: cctools
-  displayName: cctools
+  id: openmind
+  displayName: openmind
 kind: workflow
 display:
   name: Catalog Workflow
   description: Automation workflow fixture
   group: workflow
 capabilities:
-  mymind:
+  openmind:
     read: []
     write: []
   network:
@@ -108,8 +108,8 @@ describe("SkillPackageService", () => {
   let service: SkillPackageService;
 
   beforeEach(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-package-"));
-    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "mymind", ".agent", "skills"));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-skill-package-"));
+    paths = buildAppPaths(path.join(tempRoot, "user-data"), path.join(tempRoot, "openmind", ".agent", "skills"));
     ensureAppPaths(paths);
     service = new SkillPackageService(paths);
   });
@@ -120,28 +120,28 @@ describe("SkillPackageService", () => {
 
   it("inspects a directory, excludes user data, and produces a stable digest", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "#!/bin/sh\necho ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     fs.writeFileSync(path.join(source, ".env"), "NVIDIA_API_KEY=nvapi-secret\n");
     fs.mkdirSync(path.join(source, "venv"));
     fs.writeFileSync(path.join(source, "venv", "python"), "not-package-content");
-    fs.mkdirSync(path.join(source, "mymind", "article"), { recursive: true });
-    fs.writeFileSync(path.join(source, "mymind", "article", "user.md"), "must stay out");
+    fs.mkdirSync(path.join(source, "openmind", "article"), { recursive: true });
+    fs.writeFileSync(path.join(source, "openmind", "article", "user.md"), "must stay out");
 
     const first = service.inspect(source);
     const second = service.inspect(source);
 
     expect(first.valid).toBe(true);
     expect(first.digest).toBe(second.digest);
-    expect(first.excludedPaths).toEqual(expect.arrayContaining([".env", "venv/", "mymind/", "mymind/article/", "mymind/article/user.md"]));
+    expect(first.excludedPaths).toEqual(expect.arrayContaining([".env", "venv/", "openmind/", "openmind/article/", "openmind/article/user.md"]));
     expect(first.files.map((file) => file.path)).not.toContain(".env");
-    expect(first.files.map((file) => file.path)).not.toContain("mymind/article/user.md");
+    expect(first.files.map((file) => file.path)).not.toContain("openmind/article/user.md");
   });
 
   it("installs only a clean managed copy", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     fs.writeFileSync(path.join(source, ".env.local"), "API_KEY=secret\n");
@@ -154,13 +154,13 @@ describe("SkillPackageService", () => {
     expect(service.listInstalled()).toHaveLength(1);
     expect(fs.existsSync(path.join(installed.packagePath, "run.sh"))).toBe(true);
     expect(fs.existsSync(path.join(installed.packagePath, ".env.local"))).toBe(false);
-    expect(fs.existsSync(path.join(installed.packagePath, "mymind"))).toBe(false);
+    expect(fs.existsSync(path.join(installed.packagePath, "openmind"))).toBe(false);
   });
 
   it("inspects and installs a safe ZIP source without executing archive content", () => {
     const archivePath = path.join(tempRoot, "example-skill.zip");
     fs.writeFileSync(archivePath, zipSync({
-      "cctools.skill.yaml": strToU8(MANIFEST),
+      "openmind.skill.yaml": strToU8(MANIFEST),
       "run.sh": strToU8("echo archive\n"),
       "pyproject.toml": strToU8("[project]\nname='archive'\n"),
       ".env": strToU8("SECRET=do-not-copy\n")
@@ -207,7 +207,7 @@ describe("SkillPackageService", () => {
     fs.mkdirSync(legacy, { recursive: true });
     fs.mkdirSync(formal, { recursive: true });
     fs.writeFileSync(path.join(legacy, "SKILL.md"), "---\nid: legacy-skill\ntitle: Legacy\n---\n# Legacy\n");
-    fs.writeFileSync(path.join(formal, "cctools.skill.yaml"), MANIFEST.replace("id: example-skill", "id: formal-skill"));
+    fs.writeFileSync(path.join(formal, "openmind.skill.yaml"), MANIFEST.replace("id: example-skill", "id: formal-skill"));
     fs.writeFileSync(path.join(formal, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(formal, "pyproject.toml"), "[project]\nname='formal'\n");
 
@@ -268,13 +268,13 @@ describe("SkillPackageService", () => {
       "--output-name", "{{ inputs.outputName }}"
     ]);
     // Provider config moved to config/providers.yaml; the manifest no longer
-    // carries the CCTOOLS_PROVIDER_* env templates.
+    // carries the OPENMIND_PROVIDER_* env templates.
     expect(video?.manifest?.entrypoint.env).toBeFalsy();
     expect(video?.manifest?.runtime.lockFile).toBe("uv.lock");
     expect(video?.manifest?.artifacts[0]).toMatchObject({ path: "video/**" });
     const videoScript = fs.readFileSync(path.join(skillsRoot, "video-burnin-subtitles", "scripts", "burnin_subtitles.py"), "utf8");
-    expect(videoScript).toContain('os.environ.get("CCTOOLS_MYMIND_ROOT")');
-    expect(videoScript).toContain('os.environ.get("MYMIND_ROOT")');
+    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
+    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
     expect(videoScript).not.toContain("load_dotenv");
     expect(videoScript).not.toContain("--env-file");
 
@@ -298,19 +298,19 @@ describe("SkillPackageService", () => {
       ["select-topic", "daily-topic-selector", "^1.0.0"]
     ]);
     // Local/cron launcher coexists with the desktop Workflow Engine manifest.
-    // Desktop scheduling still comes only from cctools.skill.yaml above.
+    // Desktop scheduling still comes only from openmind.skill.yaml above.
     expect(workflow?.files.map((file) => file.path)).toContain("scripts/run_workflow.py");
     expect(workflow?.files.map((file) => file.path)).toContain("workflows.yaml");
-    expect(workflow?.files.map((file) => file.path)).toContain("cctools.skill.yaml");
+    expect(workflow?.files.map((file) => file.path)).toContain("openmind.skill.yaml");
   });
 
   realSkillIt("installs all formal packages from the independent Skills repository", () => {
     const packageDirectories = fs.readdirSync(EXTERNAL_SKILLS_ROOT, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "cctools.skill.yaml")))
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "openmind.skill.yaml")))
       .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // All 16 skills now have formal cctools.skill.yaml manifests
+    // All 16 skills now have formal openmind.skill.yaml manifests
     // (12 process / 1 workflow / 3 agent). `_shared` has no manifest and is
     // therefore not an install candidate.
     expect(installed.map((record) => record.id).sort()).toEqual([
@@ -336,22 +336,22 @@ describe("SkillPackageService", () => {
 
     const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");
     const sharedProject = fs.readFileSync(path.join(sharedRoot, "pyproject.toml"), "utf8");
-    expect(sharedProject).toContain('name = "cctools-skill-shared"');
+    expect(sharedProject).toContain('name = "openmind-skill-shared"');
     expect(sharedProject).toContain('version = "1.0.0"');
-    expect(fs.existsSync(path.join(sharedRoot, "cctools.skill.yaml"))).toBe(false);
+    expect(fs.existsSync(path.join(sharedRoot, "openmind.skill.yaml"))).toBe(false);
     expect(installed.some((record) => record.id === "_shared")).toBe(false);
   });
 
-  it("rejects writes to an unknown mymind top-level", () => {
+  it("rejects writes to an unknown openmind top-level", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("write: [daily-summary/**]", "write: [private-data/**]"));
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("write: [daily-summary/**]", "write: [private-data/**]"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
 
     const inspection = service.inspect(source);
 
     expect(inspection.valid).toBe(false);
-    expect(inspection.issues.some((issue) => issue.code === "mymind-write-forbidden")).toBe(true);
+    expect(inspection.issues.some((issue) => issue.code === "openmind-write-forbidden")).toBe(true);
   });
 
   it("rejects Secret values embedded in the manifest", () => {
@@ -360,7 +360,7 @@ describe("SkillPackageService", () => {
       "args: []",
       "args: []\n  env:\n    API_KEY: nvapi-12345678901234567890"
     );
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), manifest);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), manifest);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
 
@@ -375,7 +375,7 @@ describe("SkillPackageService", () => {
     const outside = path.join(tempRoot, "outside");
     fs.mkdirSync(outside, { recursive: true });
     fs.writeFileSync(path.join(outside, "private.txt"), "private\n");
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     // Directory junctions exercise the same escape boundary on Windows
@@ -390,7 +390,7 @@ describe("SkillPackageService", () => {
 
   it("uninstalls the skill's only installed copy", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
@@ -401,12 +401,12 @@ describe("SkillPackageService", () => {
 
   it("replaces the single directory when different content is installed", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const first = service.install(source);
-    expect(first.packagePath).toBe(path.join(paths.skills!, "cctools", "example-skill"));
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
+    expect(first.packagePath).toBe(path.join(paths.skills!, "openmind", "example-skill"));
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
     const second = service.install(source);
 
@@ -422,7 +422,7 @@ describe("SkillPackageService", () => {
 
   it("re-refreshes source provenance when identical content is reinstalled", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const first = service.install(source);
@@ -439,7 +439,7 @@ describe("SkillPackageService", () => {
 
   it("derives installed-copy usability from the current package digest", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
@@ -458,7 +458,7 @@ describe("SkillPackageService", () => {
 
   it("defaults installed Skills to enabled and persists an independent disable override", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
@@ -481,18 +481,18 @@ describe("SkillPackageService", () => {
 
   it("lists formal Process/Workflow metadata for Automation and excludes Agent packages", () => {
     const processSource = createPackage(tempRoot, "catalog-process-source");
-    fs.writeFileSync(path.join(processSource, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(processSource, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(processSource, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(processSource, "pyproject.toml"), "[project]\nname='example'\n");
     service.install(processSource);
 
     const agentSource = createPackage(tempRoot, "catalog-agent-source");
-    fs.writeFileSync(path.join(agentSource, "cctools.skill.yaml"), AGENT_MANIFEST);
+    fs.writeFileSync(path.join(agentSource, "openmind.skill.yaml"), AGENT_MANIFEST);
     fs.writeFileSync(path.join(agentSource, "SKILL.md"), "# Catalog Agent\n");
     service.install(agentSource);
 
     const workflowSource = createPackage(tempRoot, "catalog-workflow-source");
-    fs.writeFileSync(path.join(workflowSource, "cctools.skill.yaml"), WORKFLOW_MANIFEST);
+    fs.writeFileSync(path.join(workflowSource, "openmind.skill.yaml"), WORKFLOW_MANIFEST);
     const workflow = service.install(workflowSource);
     service.setEnabled(workflow.key, workflow.digest, false);
 
@@ -523,13 +523,13 @@ describe("SkillPackageService", () => {
 
   it("preserves a logical Skill disable override across package replacement", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const first = service.install(source);
     service.setEnabled(first.key, first.digest, false);
 
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
     const replacement = service.install(source);
 
@@ -539,13 +539,13 @@ describe("SkillPackageService", () => {
 
   it("rejects stale or unknown enablement targets without creating preferences", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
     const preferencesFile = path.join(paths.skills!, "skill-preferences.json");
 
-    expect(() => service.setEnabled("cctools/missing", installed.digest, false)).toThrow(/不存在或已被替换/);
+    expect(() => service.setEnabled("openmind/missing", installed.digest, false)).toThrow(/不存在或已被替换/);
     expect(() => service.setEnabled(installed.key, "0".repeat(64), false)).toThrow(/不存在或已被替换/);
     expect(fs.existsSync(preferencesFile)).toBe(false);
     expect(service.toInstalledView(installed).enabled).toBe(true);
@@ -553,7 +553,7 @@ describe("SkillPackageService", () => {
 
   it("fails closed when the independent enablement preferences are corrupt", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
@@ -567,7 +567,7 @@ describe("SkillPackageService", () => {
 
   it("uninstalls an installed package through a staging rename", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
@@ -579,12 +579,12 @@ describe("SkillPackageService", () => {
 
   it("restores the previous package directory when the swap is interrupted", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
 
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
     const originalRename = fs.renameSync;
     let renameCount = 0;
@@ -607,28 +607,28 @@ describe("SkillPackageService", () => {
     expect(fs.readdirSync(paths.staging).filter((entry) => entry.startsWith("skill-package-") || entry.startsWith("skill-replaced-") || entry.startsWith("skill-archive-install-"))).toEqual([]);
   });
 
-  it("installs into the mymind-rooted .agent/skills store, not userData", () => {
+  it("installs into the openmind-rooted .agent/skills store, not userData", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "#!/bin/sh\necho ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
 
     const record = service.install(source);
 
-    expect(record.packagePath.startsWith(path.join(tempRoot, "mymind", ".agent", "skills") + path.sep)).toBe(true);
-    expect(fs.existsSync(path.join(tempRoot, "mymind", ".agent", "skills", "cctools", "example-skill"))).toBe(true);
+    expect(record.packagePath.startsWith(path.join(tempRoot, "openmind", ".agent", "skills") + path.sep)).toBe(true);
+    expect(fs.existsSync(path.join(tempRoot, "openmind", ".agent", "skills", "openmind", "example-skill"))).toBe(true);
     expect(fs.existsSync(path.join(paths.userData, "skills"))).toBe(false);
   });
 
-  it("fails closed without a mymind root: install throws and reads stay empty", () => {
+  it("fails closed without a openmind root: install throws and reads stay empty", () => {
     const unbound = new SkillPackageService(buildAppPaths(path.join(tempRoot, "unbound-user-data")));
     expect(unbound.listInstalled()).toEqual([]);
 
     const source = createPackage(tempRoot, "unbound-skill");
-    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("id: example-skill", "id: unbound-skill"));
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("id: example-skill", "id: unbound-skill"));
     fs.writeFileSync(path.join(source, "run.sh"), "#!/bin/sh\necho ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
-    expect(() => unbound.install(source)).toThrow(/尚未绑定 mymind 根目录/);
+    expect(() => unbound.install(source)).toThrow(/尚未绑定 openmind 根目录/);
     expect(fs.existsSync(path.join(tempRoot, "unbound-user-data", "skills"))).toBe(false);
   });
 });

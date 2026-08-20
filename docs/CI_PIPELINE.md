@@ -19,7 +19,7 @@ unsigned, as required by the current scope.
   provider credentials; it checks the built app-server bridge and the
   repository's dangerous SDK/bypass invariants.
 - `test:e2e` launches the real Electron main process with the real preload and
-  renderer, then exercises the exposed IPC bridge against a temporary mymind
+  renderer, then exercises the exposed IPC bridge against a temporary openmind
   fixture. It is intentionally provider-independent.
 - `visual:snapshot` launches the current renderer scenarios in Electron and
   verifies the screenshot/layout contracts, including the responsive settings

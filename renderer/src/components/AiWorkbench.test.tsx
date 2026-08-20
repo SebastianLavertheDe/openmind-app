@@ -64,7 +64,7 @@ beforeEach(() => {
     removeEventListener: () => undefined,
     dispatchEvent: () => true
   })) as typeof window.matchMedia;
-  window.cctools = {
+  window.openmind = {
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
     onAiEvent: () => () => undefined
@@ -213,8 +213,8 @@ describe("AI workbench session list", () => {
       content,
       truncated: false
     }));
-    window.cctools = {
-      ...window.cctools,
+    window.openmind = {
+      ...window.openmind,
       aiRefresh: async () => previewSnapshot,
       aiGetEvents: async () => [
         {
@@ -240,7 +240,7 @@ describe("AI workbench session list", () => {
           runId: "run-1",
           provider: "claude",
           kind: "assistant-message",
-          payload: { text: "文件：`mymind/article/demo.md`" },
+          payload: { text: "文件：`openmind/article/demo.md`" },
           risks: []
         }
       ],
@@ -251,8 +251,8 @@ describe("AI workbench session list", () => {
 
     render(<AiProvider initial={previewSnapshot}><AiSessionNavigation /><AiWorkbench /></AiProvider>);
 
-    await user.click(await screen.findByTitle("预览 mymind/article/demo.md"));
-    await waitFor(() => expect(readContent).toHaveBeenCalledWith("mymind/article/demo.md"));
+    await user.click(await screen.findByTitle("预览 openmind/article/demo.md"));
+    await waitFor(() => expect(readContent).toHaveBeenCalledWith("openmind/article/demo.md"));
     const previewPane = await screen.findByRole("complementary", { name: "文件预览" });
     expect(screen.getByText("空闲")).toBeTruthy();
     expect(previewPane).toBeTruthy();
@@ -282,7 +282,7 @@ describe("AI workbench session list", () => {
     await user.clear(editor);
     await user.type(editor, "# 新标题\n\n编辑后的内容");
     await user.click(within(previewPane).getByRole("button", { name: /保存/ }));
-    await waitFor(() => expect(writeContent).toHaveBeenCalledWith("mymind/article/demo.md", expect.stringContaining("编辑后的内容")));
+    await waitFor(() => expect(writeContent).toHaveBeenCalledWith("openmind/article/demo.md", expect.stringContaining("编辑后的内容")));
     await user.click(within(modeToggle).getByRole("button", { name: "预览" }));
     expect(await screen.findByRole("heading", { name: "新标题" })).toBeTruthy();
 
@@ -330,8 +330,8 @@ describe("AI workbench session list", () => {
     const readContent = vi.fn(async () => {
       throw new Error("ENOENT: no such file or directory");
     });
-    window.cctools = {
-      ...window.cctools,
+    window.openmind = {
+      ...window.openmind,
       aiRefresh: async () => previewSnapshot,
       aiGetEvents: async () => [{
         schemaVersion: 1,
@@ -343,7 +343,7 @@ describe("AI workbench session list", () => {
         runId: "run-1",
         provider: "claude",
         kind: "assistant-message",
-        payload: { text: "文件：`mymind/article/missing.md`" },
+        payload: { text: "文件：`openmind/article/missing.md`" },
         risks: []
       }],
       readContent
@@ -351,8 +351,8 @@ describe("AI workbench session list", () => {
 
     render(<AiProvider initial={previewSnapshot}><AiSessionNavigation /><AiWorkbench /></AiProvider>);
 
-    await user.click(await screen.findByTitle("预览 mymind/article/missing.md"));
-    await waitFor(() => expect(readContent).toHaveBeenCalledWith("mymind/article/missing.md"));
+    await user.click(await screen.findByTitle("预览 openmind/article/missing.md"));
+    await waitFor(() => expect(readContent).toHaveBeenCalledWith("openmind/article/missing.md"));
     expect(await screen.findByText("文件不存在或者已经删除")).toBeTruthy();
   });
 });

@@ -10,7 +10,7 @@ import { SkillToolRegistry } from "./skill-tool-registry";
 const roots: string[] = [];
 
 function createRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-scheduler-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-scheduler-"));
   roots.push(root);
   return root;
 }
@@ -290,7 +290,7 @@ describe("RunScheduler 会话/运行管理", () => {
       title: "Legacy",
       permissionProfile: "edit"
     });
-    const sessionFile = path.join(root, ".cctools", "ai", "sessions", legacy.id, "session.json");
+    const sessionFile = path.join(root, ".openmind", "ai", "sessions", legacy.id, "session.json");
     const persisted = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
     delete persisted.skillSnapshot;
     fs.writeFileSync(sessionFile, JSON.stringify(persisted), "utf8");
@@ -778,11 +778,11 @@ function sessionSkillSnapshot(): AiSessionSkillSnapshotEntry[] {
       id: "creative-writing",
       title: "Creative Writing",
       description: "Write content",
-      cwd: "installed/cctools/creative-writing/1.0.0",
+      cwd: "installed/openmind/creative-writing/1.0.0",
       command: "managed-runtime"
     },
     installed: {
-      key: "cctools/creative-writing",
+      key: "openmind/creative-writing",
       version: "1.0.0",
       digest: "a".repeat(64)
     }

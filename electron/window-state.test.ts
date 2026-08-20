@@ -54,7 +54,7 @@ describe("window state", () => {
   });
 
   it("atomically persists and reloads normal bounds", () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-window-state-"));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-window-state-"));
     temporaryDirectories.push(directory);
     const filePath = path.join(directory, "window-state.json");
     const bounds = { x: 200, y: 100, width: 1280, height: 800 };
@@ -65,7 +65,7 @@ describe("window state", () => {
   });
 
   it("loads malformed JSON as a safe primary-display fallback", () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-window-state-"));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-window-state-"));
     temporaryDirectories.push(directory);
     const filePath = path.join(directory, "window-state.json");
     fs.writeFileSync(filePath, "{broken", "utf8");

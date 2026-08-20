@@ -142,7 +142,7 @@ export const featureMessages = {
         "git-command-failed": "Git 克隆或检查失败，请确认仓库地址可公开访问。",
         "git-timeout": "Git 来源检查超时，请稍后重试。",
         "git-cancelled": "已取消 Git 来源检查。",
-        "git-package-missing": "仓库中没有找到 Skill 包（缺少 cctools.skill.yaml）。",
+        "git-package-missing": "仓库中没有找到 Skill 包（缺少 openmind.skill.yaml）。",
         invalid: "来源输入不合法：Git 地址必须是有效的 HTTPS URL。",
         unknown: "来源检查失败。"
       } as Record<string, string>
@@ -209,33 +209,43 @@ export const featureMessages = {
   onboarding: {
     eyebrow: "FIRST START",
     title: "先准备本地工作台",
-    description: "选择一个实际的 mymind 内容根目录即可开始。App 只保存路径绑定，不会移动、重命名或清理现有内容。",
+    description: "按顺序完成 4 项首次设置即可开始。App 只保存路径绑定与设置状态，不会移动、重命名或清理现有内容。",
+    progress: (current: number, total: number) => `步骤 ${current} / ${total}`,
+    progressLabel: "首次启动设置进度",
     riskTitle: "本地代码执行边界",
     riskBody: "已安装 Skill 未来会以当前用户权限运行在宿主机；没有 OS 级沙箱。只有完成静态检查、Runtime 就绪和本次运行确认后才允许执行。",
-    rootTitle: "1. 选择 mymind 根目录",
-    rootBody: "选择包含 article、creative、daily-summary 等内容的实际目录，不要选择子目录。缺少约定目录只会进入健康提示。",
-    rootSelected: "当前根目录已可用",
-    rootMissing: "尚未选择可用的 mymind 根目录",
-    chooseRoot: "选择 mymind 根目录",
-    chooseAgain: "重新选择根目录",
-    skillTitle: "2. 安装官方 Skill 仓库",
-    skillBody: "必须安装 cctools-skills 官方仓库（GitHub 公开 HTTPS 仓库）才能进入工作台；其他来源可稍后在 Skill Center 导入。",
+    rootTitle: "选择 OpenMind 数据目录",
+    rootBody: "选择存放文章、笔记和素材的 OpenMind 数据目录。OpenMind 只会保存路径绑定，不会移动或清理现有内容。",
+    rootPathLabel: "OpenMind 数据目录路径",
+    rootSafety: "内容始终保留在本机",
+    rootSelected: "OpenMind 数据目录已可用",
+    rootMissing: "尚未选择文件夹",
+    chooseRoot: "选择文件夹",
+    chooseAgain: "重新选择数据目录",
+    skillTitle: "安装 RSS 源",
+    skillBody: "安装 RSS 采集所需的官方组件，让工作台可以订阅、抓取并整理内容。",
+    skillSourceLabel: "RSS 采集组件来源",
+    skillSafety: "仅从公开 HTTPS 官方仓库安装",
     importSkill: "打开导入入口",
     skipSkill: "跳过 Skill",
-    installSkillsRepo: "一键安装 cctools-skills",
-    installingSkillsRepo: "正在克隆并安装…",
-    skillReady: "cctools-skills 已安装",
-    skillMissing: "尚未安装 cctools-skills 仓库",
+    installSkillsRepo: "安装 RSS 源",
+    installingSkillsRepo: "正在安装 RSS 源…",
+    skillReady: "RSS 采集能力已安装",
+    skillMissing: "尚未安装 RSS 采集能力",
     skillSkipped: "已跳过 Skill 导入",
-    providerTitle: "3. AI Provider 就绪",
-    providerBody: "可在设置中一键安装 CLI、完成登录或配置 Provider key；这一步也可以稍后完成。",
+    providerTitle: "连接 AI Provider",
+    providerBody: "连接已安装的 Claude Code 或 Codex CLI，让 OpenMind 可以开始 AI 会话。",
+    providerStatusLabel: "AI Provider 状态",
+    providerSafety: "这一步可以跳过，稍后在设置中完成",
     installProvider: "打开 Provider 设置",
     skipProvider: "稍后配置",
     providerSkipped: "已跳过 Provider 配置",
     pending: "待处理",
     completed: "已完成",
     finishTitle: "准备完成",
-    finishBody: "完成或跳过可选步骤后进入工作台；这些状态会保存在应用私有 settings.json 中。",
+    finishBody: "本地工作台已经可以使用。进入主界面后，仍可随时调整所有可选设置。",
+    finishSummaryLabel: "首次设置摘要",
+    finishSafety: "配置只保存在应用私有设置中",
     finish: "进入工作台",
     providerReady: "AI Provider 已就绪",
     providerPending: "AI Provider 未就绪",
@@ -409,7 +419,7 @@ export const featureMessages = {
     loading: "正在加载偏好设置",
     loadError: "偏好设置加载失败，请重试。",
     retry: "重新加载",
-    page: { title: "设置", description: "管理 CC Tools 的外观、AI、权限、工作流和本地数据。" },
+    page: { title: "设置", description: "管理 OpenMind 的外观、AI、权限、工作流和本地数据。" },
     navigation: {
       label: "设置分类",
       back: "返回应用",
@@ -634,13 +644,13 @@ export const featureMessages = {
     },
     paths: {
       title: "项目路径",
-      mymindRoot: "mymind 内容根",
+      openmindRoot: "openmind 内容根",
       workspace: "工作目录",
       notes: "笔记目录",
       browse: "浏览",
       selectRoot: "选择",
       unset: "未设置",
-      note: "mymind 是唯一内容根；工作目录仅用于 AI/代码工作，两者和应用私有数据相互分离。"
+      note: "openmind 是唯一内容根；工作目录仅用于 AI/代码工作，两者和应用私有数据相互分离。"
     },
     archivedSessions: {
       title: "已归档会话",
@@ -706,7 +716,7 @@ export const featureMessages = {
           { title: "拉取资料", detail: "过去 24h 新增，按关注主题过滤" },
           { title: "主题聚类", detail: "按标签与内容相似度分组" },
           { title: "生成简报", detail: "调用 AI，遵守 Kill the AI Tone" },
-          { title: "写入资料库", detail: "mymind/daily-summary/${date}_daily_summary.md" }
+          { title: "写入资料库", detail: "openmind/daily-summary/${date}_daily_summary.md" }
         ]
       },
       classify: {
@@ -724,7 +734,7 @@ export const featureMessages = {
         steps: [
           { title: "读取订阅", detail: "解析 subscriptions.opml" },
           { title: "抓取正文", detail: "trafilatura 优先，必要时降级" },
-          { title: "去重与保存", detail: "写入 mymind/article/${date}/" }
+          { title: "去重与保存", detail: "写入 openmind/article/${date}/" }
         ]
       }
     },

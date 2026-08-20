@@ -50,13 +50,13 @@ export function ReviewPanel({ content, detail, onReviewed, onStatusChange, onLoc
   const score = Math.round(checks.filter((item) => item.passed).length / checks.length * 100);
   const runReview = async () => {
     setRunning(true);
-    try { onReviewed(await window.cctools.reviewCreativeProject(detail.dir)); ai.notify(m.creativeUi.review.notify.generated, "success"); }
+    try { onReviewed(await window.openmind.reviewCreativeProject(detail.dir)); ai.notify(m.creativeUi.review.notify.generated, "success"); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
     finally { setRunning(false); }
   };
   const setStatus = async (status: "pending" | "changes-requested" | "approved") => {
     try {
-      const next = await window.cctools.setCreativeReviewStatus(detail.dir, status);
+      const next = await window.openmind.setCreativeReviewStatus(detail.dir, status);
       onStatusChange(next);
       ai.notify(status === "approved" ? m.creativeUi.review.notify.approved : status === "changes-requested" ? m.creativeUi.review.notify.changesRequested : m.creativeUi.review.notify.reset, status === "approved" ? "success" : "info");
     } catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
@@ -159,7 +159,7 @@ export function MaterialsPanel({ detail }: { detail: CreativeProjectDetail }) {
   const publish = manifest.publish as Record<string, unknown> | undefined;
   return <>
     <div className="inspector-section"><h3>{m.creativeUi.materials.title}</h3><p>{assets.length ? m.creativeUi.materials.count(assets.length) : m.creativeUi.materials.empty}</p></div>
-    <div className="inspector-section"><h3>{m.creativeUi.files.title}</h3>{Object.keys(detail.files || {}).map((file) => <button className="inspector-file" key={file} onClick={() => window.cctools.openPath(`${detail.dir}/${file}`)}><FileText size={14} /><span>{file}</span></button>)}</div>
+    <div className="inspector-section"><h3>{m.creativeUi.files.title}</h3>{Object.keys(detail.files || {}).map((file) => <button className="inspector-file" key={file} onClick={() => window.openmind.openPath(`${detail.dir}/${file}`)}><FileText size={14} /><span>{file}</span></button>)}</div>
     {publish ? <div className="inspector-section"><h3>{m.creativeUi.publish.configTitle}</h3><p>{m.creativeUi.publish.platformPrefix}{platformLabel(String(publish.platform || "")) || m.common.notSet}</p><p>{m.creativeUi.publish.statusPrefix}{String(publish.status || "draft")}</p></div> : null}
   </>;
 }
@@ -184,7 +184,7 @@ export function NotesPanel({ detail, onSaved }: { detail: CreativeProjectDetail 
   const saveNotes = async () => {
     setSaving(true);
     try {
-      const next = await window.cctools.updateCreativeManifest(detail.dir, { notes });
+      const next = await window.openmind.updateCreativeManifest(detail.dir, { notes });
       onSaved(next);
       setSavedNotes(notes);
       ai.notify(m.creativeUi.notes.saved, "success");
@@ -217,5 +217,5 @@ export function NotesPanel({ detail, onSaved }: { detail: CreativeProjectDetail 
 
 export function VersionsPanel({ versions, activeFile, onRefresh }: { versions: CreativeVersion[]; activeFile: string; onRefresh(): void }) {
   if (!activeFile) return <EmptyState title={m.creativeUi.versions.noFileTitle} description={m.creativeUi.versions.noFileDescription} />;
-  return <div className="inspector-section"><h3>{m.creativeUi.versions.title(activeFile)}<button className="inspector-refresh" onClick={onRefresh}><RefreshCw size={13} /></button></h3>{versions.length ? versions.map((version) => <button className="version-row" key={version.id} onClick={() => window.cctools.openPath(version.path)}><FileClock size={14} /><div><strong>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")}</small></div></button>) : <p>{m.creativeUi.versions.empty}</p>}</div>;
+  return <div className="inspector-section"><h3>{m.creativeUi.versions.title(activeFile)}<button className="inspector-refresh" onClick={onRefresh}><RefreshCw size={13} /></button></h3>{versions.length ? versions.map((version) => <button className="version-row" key={version.id} onClick={() => window.openmind.openPath(version.path)}><FileClock size={14} /><div><strong>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")}</small></div></button>) : <p>{m.creativeUi.versions.empty}</p>}</div>;
 }

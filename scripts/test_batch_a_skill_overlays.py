@@ -19,8 +19,8 @@ OUTSIDE_CWD = Path(tempfile.gettempdir())
 
 class BatchARuntimeOverlayTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory(prefix="cctools-batch-a-")
-        self.root = Path(self.temp.name) / "mymind"
+        self.temp = tempfile.TemporaryDirectory(prefix="openmind-batch-a-")
+        self.root = Path(self.temp.name) / "openmind"
         self.data = Path(self.temp.name) / "skill-data"
         self.run_dir = Path(self.temp.name) / "run"
         self.root.mkdir()
@@ -28,10 +28,10 @@ class BatchARuntimeOverlayTests(unittest.TestCase):
         self.run_dir.mkdir()
         self.env = {
             **os.environ,
-            "CCTOOLS_MYMIND_ROOT": str(self.root),
-            "MYMIND_ROOT": str(self.root),
-            "CCTOOLS_SKILL_DATA_DIR": str(self.data),
-            "CCTOOLS_RUN_DIR": str(self.run_dir),
+            "OPENMIND_ROOT": str(self.root),
+            "OPENMIND_ROOT": str(self.root),
+            "OPENMIND_SKILL_DATA_DIR": str(self.data),
+            "OPENMIND_RUN_DIR": str(self.run_dir),
         }
 
     def tearDown(self) -> None:
@@ -104,7 +104,7 @@ class BatchARuntimeOverlayTests(unittest.TestCase):
         self.assertFalse(str(manifest["package_dir"]).startswith("/"))
         self.assertFalse(str(manifest["source_topic_file"]).startswith("/"))
 
-    def test_reporter_reads_mymind_and_run_store_without_skill_ancestors(self) -> None:
+    def test_reporter_reads_openmind_and_run_store_without_skill_ancestors(self) -> None:
         article_dir = self.root / "article/20260805"
         article_dir.mkdir(parents=True)
         (article_dir / "one.md").write_text("article", encoding="utf-8")
@@ -125,7 +125,7 @@ class BatchARuntimeOverlayTests(unittest.TestCase):
         self.assertIn("rss-article-saver", result.stdout)
         self.assertIn("runs: 1", result.stdout)
 
-    def test_reddit_config_separates_mymind_output_and_skill_cache(self) -> None:
+    def test_reddit_config_separates_openmind_output_and_skill_cache(self) -> None:
         config = Path(self.temp.name) / "config.yaml"
         config.write_text("fetch:\n  sources: []\nstorage:\n  output_dir: reddit-custom\n", encoding="utf-8")
 

@@ -64,14 +64,14 @@ Broker and UI treat them uniformly.
   silent failure.
 - Claude bridge reads + boundary-checks `SKILL.md` and references; injects
   the instructions as controlled context; never permanently copies them into
-  the workspace or `mymindRoot`.
+  the workspace or `openmindRoot`.
 
 ### 4. Internal Agent Runtime scope
 
 If the goal is "API key only", the Internal Runtime must implement:
 provider adapter registry (OpenAI Chat / Responses, Anthropic Messages,
 provider-native), model capability probe, streaming token/event, tool-call
-parser, tool loop, file search/read/write/edit, mymind logical-path tools,
+parser, tool loop, file search/read/write/edit, openmind logical-path tools,
 controlled shell/process tools, web fetch/search, browser tool, approval,
 tool-output limits, context-window management, reference loading,
 prompt-injection defence prompts, retry/backoff, cancel, token/cost/time
@@ -101,7 +101,7 @@ timestamp and a bounded diagnostic are persisted.
   accessing other user resources.
 - Reference files are constrained to the skill package boundary (host agent
   may still read other files on its own — not preventable, only audited).
-- Internal Agent's controlled file tools use `MymindPathResolver`; shell,
+- Internal Agent's controlled file tools use `OpenmindPathResolver`; shell,
   process, browser CLI, and external agents run with host privileges once
   approved.
 - Max iterations and max cost are enforced.

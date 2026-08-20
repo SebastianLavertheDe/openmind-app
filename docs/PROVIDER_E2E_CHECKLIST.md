@@ -11,7 +11,7 @@ npm run provider:e2e:report
 The command writes `.build/provider-e2e-report.json`. It is intentionally non-blocking by default because pending rows require real Windows/WSL Provider accounts and GUI execution. After filling this checklist with dated evidence, run strict mode:
 
 ```bash
-CCTOOLS_PROVIDER_E2E_STRICT=1 npm run provider:e2e:report
+OPENMIND_PROVIDER_E2E_STRICT=1 npm run provider:e2e:report
 ```
 
 The report counts only the two status cells in each checklist row (Windows
@@ -21,7 +21,7 @@ before strict mode can pass. Passed rows must use the following machine-readable
 fields; placeholder values such as `done` or `ok` are rejected:
 
 ```text
-date=2026-08-07; package=CC-Tools-Portable-1.0.24-win-x64.exe; project=C:\Users\qa\cctools-provider-fixture; evidence=https://evidence.example.test/provider/claude-simple-prompt.zip
+date=2026-08-07; package=OpenMind-Portable-1.0.24-win-x64.exe; project=C:\Users\qa\openmind-provider-fixture; evidence=https://evidence.example.test/provider/claude-simple-prompt.zip
 ```
 
 `date` must be a real calendar date, `package` must be a package filename,

@@ -20,7 +20,7 @@ describe("RuntimePackService", () => {
   let service: RuntimePackService;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-pack-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-pack-"));
     paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     service = new RuntimePackService(paths, { runtimeRoot: testPublicKey });

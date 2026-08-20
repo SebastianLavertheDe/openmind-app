@@ -35,7 +35,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
 
   const load = useCallback(async () => {
     try {
-      const items = await window.cctools.getCreativeProjects();
+      const items = await window.openmind.getCreativeProjects();
       setProjects(items);
       setSelected((current) => current && items.some((item) => item.dir === current.dir) ? items.find((item) => item.dir === current.dir) || null : items.find((item) => item.dir === initialProjectDir) || null);
     } catch (cause) {
@@ -48,7 +48,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!selected) { setDetail(null); return; }
-    void window.cctools.getCreativeProject(selected.dir).then(setDetail).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    void window.openmind.getCreativeProject(selected.dir).then(setDetail).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, [selected?.dir]);
 
   const visible = useMemo(() => projects.filter((project) => {
@@ -68,7 +68,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     if (!selected) return;
     setBusy("copy");
     try {
-      const copy = await window.cctools.copyCreativeProject(selected.dir);
+      const copy = await window.openmind.copyCreativeProject(selected.dir);
       await load();
       setSelected({ ...selected, dir: copy.dir, topic: `${selected.topic}${m.projects.create.copySuffix}` });
       ai.notify(m.projects.notify.copied, "success");
@@ -82,7 +82,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     if (!selected) return;
     setBusy("archive");
     try {
-      await window.cctools.archiveCreativeProject(selected.dir);
+      await window.openmind.archiveCreativeProject(selected.dir);
       await load();
       ai.notify(m.projects.notify.archived, "success");
     } catch (cause) {
@@ -95,7 +95,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     if (!selected) return;
     setBusy("restore");
     try {
-      await window.cctools.restoreCreativeProject(selected.dir);
+      await window.openmind.restoreCreativeProject(selected.dir);
       await load();
       ai.notify(m.projects.notify.restored, "success");
     } catch (cause) {
@@ -110,7 +110,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     if (!sessionId) { ai.notify(m.projects.notify.needSession, "info"); return; }
     try {
       setBusy("bind");
-      const updated = await window.cctools.bindCreativeSession(selected.dir, sessionId);
+      const updated = await window.openmind.bindCreativeSession(selected.dir, sessionId);
       setDetail(updated);
       ai.notify(m.projects.notify.sessionBound, "success");
     } catch (cause) {
@@ -124,7 +124,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     try {
       const datetime = new Date().toLocaleString("zh-CN");
       const title = template ? m.projects.create.templateTitle(datetime) : m.projects.create.emptyTitle(datetime);
-      const created = await window.cctools.createCreativeProject({
+      const created = await window.openmind.createCreativeProject({
         date: today(),
         topic: {
           title,
@@ -162,7 +162,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
     if (!confirmed) return;
     setBusy("delete");
     try {
-      await window.cctools.deleteCreativeProject(selected.dir);
+      await window.openmind.deleteCreativeProject(selected.dir);
       setSelected(null);
       setDetail(null);
       await load();
@@ -263,7 +263,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
                 <div><span className="eyebrow">Project Detail</span><h2>{selected.topic}</h2><p>{selected.dir}</p></div>
                 <div className="project-detail-actions">
                   {go ? <button data-motion="icon" onClick={() => go("creative", { projectDir: selected.dir, stage: selected.stage as "drafting" | "review" | "ready" | "published" })}><RotateCcw size={14} />{m.projects.actions.backToCreative}</button> : null}
-                  <button data-motion="icon" onClick={() => void window.cctools.openPath(selected.dir)}><ExternalLink size={14} />{m.projects.actions.openDir}</button>
+                  <button data-motion="icon" onClick={() => void window.openmind.openPath(selected.dir)}><ExternalLink size={14} />{m.projects.actions.openDir}</button>
                 </div>
               </header>
               <div className="project-status-row"><StatusBadge tone={selected.stage === "published" ? "success" : selected.stage === "archived" ? "neutral" : "info"}>{stageLabel(selected.stage)}</StatusBadge><span>{m.projects.detail.completion} {selected.completion}%{manifest.updated_at ? ` · ${formatRelative(manifest.updated_at)}` : ""}</span></div>
@@ -283,8 +283,8 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
                 <h3>{m.projects.sections.materials}</h3>
                 {materialFiles.length || assetCollection ? (
                   <div className="project-file-grid">
-                    {materialFiles.map((name) => <button key={name} data-motion="icon" onClick={() => void window.cctools.openPath(`${selected.dir}/${name}`)}><span>{name}</span><ExternalLink size={13} /></button>)}
-                    {assetCollection ? <button data-motion="icon" onClick={() => void window.cctools.openPath(assetCollection)}><span>{assetCollection}</span><ExternalLink size={13} /></button> : null}
+                    {materialFiles.map((name) => <button key={name} data-motion="icon" onClick={() => void window.openmind.openPath(`${selected.dir}/${name}`)}><span>{name}</span><ExternalLink size={13} /></button>)}
+                    {assetCollection ? <button data-motion="icon" onClick={() => void window.openmind.openPath(assetCollection)}><span>{assetCollection}</span><ExternalLink size={13} /></button> : null}
                   </div>
                 ) : <p className="project-section-empty">{m.projects.materials.empty}</p>}
                 {sourceList.length ? <div className="project-source-chips">{sourceList.map((source) => <span key={source} className="project-source-chip">{source}</span>)}</div> : null}
@@ -293,7 +293,7 @@ export function ProjectsPage({ initialProjectDir, go }: { initialProjectDir?: st
                 <h3>{m.projects.sections.draft}</h3>
                 {draftName ? (
                   <div className="project-draft-card">
-                    <div className="project-draft-head"><FileText size={14} /><strong>{draftName}</strong><button data-motion="icon" onClick={() => void window.cctools.openPath(`${selected.dir}/${draftName}`)}><ExternalLink size={13} />{m.common.open}</button></div>
+                    <div className="project-draft-head"><FileText size={14} /><strong>{draftName}</strong><button data-motion="icon" onClick={() => void window.openmind.openPath(`${selected.dir}/${draftName}`)}><ExternalLink size={13} />{m.common.open}</button></div>
                     {draftPreview ? <p className="project-draft-preview">{draftPreview}{draftPreview.length >= 220 ? "…" : ""}</p> : <p className="project-section-empty">{m.projects.draft.noBody}</p>}
                   </div>
                 ) : <p className="project-section-empty">{m.projects.draft.noFile}</p>}

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
-import { findRepoRoot, resolveWorkspaceRoot } from "../lib/settings";
+import { findRepoRoot, resolveExplicitWorkspaceRoot } from "../lib/settings";
 import { writeTextAtomic } from "../lib/fs-utils";
 import {
   PROVIDERS_YAML_SCHEMA_VERSION,
@@ -22,7 +22,7 @@ import {
  * `config/providers.yaml` provider source of truth. The pure schemas/types
  * live in `shared/providers-yaml.ts` (importable from the Renderer); this
  * module owns `fs` access, the repo-root path, atomic writes and the
- * `CCTOOLS_PROVIDER_*` env resolution consumed by the Execution Broker.
+ * `OPENMIND_PROVIDER_*` env resolution consumed by the Execution Broker.
  *
  * Both execution paths — desktop Broker (here) and crontab Python (reads the
  * same YAML directly) — resolve to the same provider.
@@ -35,9 +35,10 @@ const yaml = require("js-yaml") as YamlLoader;
 
 /** Absolute path to `config/providers.yaml` inside the active code workspace. */
 export function providersYamlPath(): string {
-  // Provider config belongs to the AI/code workspace, not the independently
-  // selectable mymind content root (ADR-001).
-  return path.join(resolveWorkspaceRoot() || findRepoRoot(), "config", "providers.yaml");
+  // Provider config belongs to the AI/code workspace, not the openmind
+  // content root (ADR-001); the crontab shares this file, so only an
+  // explicitly bound workspace may move it away from the repo root.
+  return path.join(resolveExplicitWorkspaceRoot() || findRepoRoot(), "config", "providers.yaml");
 }
 
 /**
@@ -68,7 +69,7 @@ export function readProvidersYaml(): ProvidersYaml | null {
 }
 
 /**
- * Resolve the active default provider into the 7 `CCTOOLS_PROVIDER_*` env vars
+ * Resolve the active default provider into the 7 `OPENMIND_PROVIDER_*` env vars
  * consumed by both the Broker-injected Python process and the legacy direct
  * spawn path. Returns empty env / empty apiKey when no file is configured so
  * that non-AI skills and tests still resolve. Throws when the configured

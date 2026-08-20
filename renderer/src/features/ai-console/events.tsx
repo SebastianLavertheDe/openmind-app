@@ -174,7 +174,7 @@ export function ErrorEvent({ event }: { event: AiEvent }) {
       <OverflowBox className="error-event-overflow" maxHeight={300} searchable lines={searchLines}>
         <pre>{text}</pre>
       </OverflowBox>
-      <footer><CopyButton text={text} /><button data-motion="action" onClick={() => void window.cctools.openPath(runRecordPath(ai.snapshot.projectRoot, event))}>{m.ai.events.openRunRecord}</button><button data-motion="action" disabled={busy} onClick={() => void retry()}><Redo2 size={13} />{m.ai.events.retry}</button></footer>
+      <footer><CopyButton text={text} /><button data-motion="action" onClick={() => void window.openmind.openPath(runRecordPath(ai.snapshot.projectRoot, event))}>{m.ai.events.openRunRecord}</button><button data-motion="action" disabled={busy} onClick={() => void retry()}><Redo2 size={13} />{m.ai.events.retry}</button></footer>
     </ConversationCell>
   );
 }
@@ -207,5 +207,5 @@ export function TechnicalEventGroup({ events }: { events: AiEvent[] }) {
 
 function runRecordPath(projectRoot: string, event: AiEvent): string {
   const separator = projectRoot.includes("\\") ? "\\" : "/";
-  return `${projectRoot.replace(/[\\/]$/, "")}${separator}.cctools${separator}ai${separator}sessions${separator}${event.sessionId}${separator}runs${separator}${event.runId}`;
+  return `${projectRoot.replace(/[\\/]$/, "")}${separator}.openmind${separator}ai${separator}sessions${separator}${event.sessionId}${separator}runs${separator}${event.runId}`;
 }

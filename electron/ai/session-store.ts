@@ -65,9 +65,9 @@ export class SessionStore {
   );
 
   constructor(readonly projectRoot: string, stateRoot?: string) {
-    // stateRoot is the parent of `.cctools` under userData. The optional
+    // stateRoot is the parent of `.openmind` under userData. The optional
     // argument preserves the legacy workspace layout for isolated callers.
-    this.root = path.join(stateRoot ?? projectRoot, ".cctools", "ai");
+    this.root = path.join(stateRoot ?? projectRoot, ".openmind", "ai");
     this.projectId = crypto.createHash("sha256").update(path.resolve(projectRoot)).digest("hex").slice(0, 16);
   }
 
@@ -77,7 +77,7 @@ export class SessionStore {
     writeJsonAtomic(path.join(this.root, "schema.json"), AiProjectSchema.parse({
       schemaVersion: SCHEMA_VERSION,
       id: this.projectId,
-      name: "cctools-ai-project",
+      name: "openmind-ai-project",
       root: this.projectRoot,
       createdAt: new Date().toISOString()
     }), { onlyIfMissing: true });

@@ -10,15 +10,15 @@ describe("AI Worker environment", () => {
       TZ: "Asia/Shanghai",
       OPENAI_API_KEY: "should-not-cross",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "should-not-cross",
-      CCTOOLS_STATE_ROOT: "/untrusted/parent-state",
+      OPENMIND_STATE_ROOT: "/untrusted/parent-state",
       NODE_OPTIONS: "--require=/tmp/injected.js",
       PYTHONPATH: "/tmp/injected-python",
       LD_PRELOAD: "/tmp/injected.so",
       CUSTOM_ENV: "should-not-cross"
     }, {
-      CCTOOLS_REPO_ROOT: "/workspace",
-      CCTOOLS_USER_DATA_DIR: "/app-user-data",
-      CCTOOLS_BROWSER_AUTOMATION_ENABLED: "true",
+      OPENMIND_REPO_ROOT: "/workspace",
+      OPENMIND_USER_DATA_DIR: "/app-user-data",
+      OPENMIND_BROWSER_AUTOMATION_ENABLED: "true",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "host-selected-token"
     });
 
@@ -27,13 +27,13 @@ describe("AI Worker environment", () => {
       HOME: "/home/test",
       USERPROFILE: "C:\\Users\\test",
       TZ: "Asia/Shanghai",
-      CCTOOLS_REPO_ROOT: "/workspace",
-      CCTOOLS_USER_DATA_DIR: "/app-user-data",
-      CCTOOLS_BROWSER_AUTOMATION_ENABLED: "true",
+      OPENMIND_REPO_ROOT: "/workspace",
+      OPENMIND_USER_DATA_DIR: "/app-user-data",
+      OPENMIND_BROWSER_AUTOMATION_ENABLED: "true",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "host-selected-token"
     });
     expect(environment).not.toHaveProperty("OPENAI_API_KEY");
-    expect(environment).not.toHaveProperty("CCTOOLS_STATE_ROOT");
+    expect(environment).not.toHaveProperty("OPENMIND_STATE_ROOT");
     expect(environment).not.toHaveProperty("CUSTOM_ENV");
     expect(environment).not.toHaveProperty("NODE_OPTIONS");
     expect(environment).not.toHaveProperty("PYTHONPATH");
@@ -47,7 +47,7 @@ describe("AI Worker environment", () => {
   });
 
   it("does not add undefined explicit values", () => {
-    expect(buildAiWorkerEnvironment({}, { CCTOOLS_STATE_ROOT: undefined })).toEqual({});
+    expect(buildAiWorkerEnvironment({}, { OPENMIND_STATE_ROOT: undefined })).toEqual({});
   });
 
   it("rejects explicit provider, loader and crash-diagnostic overrides", () => {

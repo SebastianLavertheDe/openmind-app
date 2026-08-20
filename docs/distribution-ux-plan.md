@@ -114,8 +114,8 @@
 ## W5 首次运行引导（Onboarding）
 
 ### 任务
-1. 新增首启检查页（bootstrap readiness 已以 mymindRoot 为基准，扩展为三步清单）：
-   - ① 选择 mymind 根目录（现有 `PathSettingsSection.onSelectMymind` 复用）
+1. 新增首启检查页（bootstrap readiness 已以 openmindRoot 为基准，扩展为三步清单）：
+   - ① 选择 openmind 根目录（现有 `PathSettingsSection.onSelectOpenmind` 复用）
    - ② 导入 Skill（跳转 W1 的导入入口，或跳过）
    - ③ AI Provider 就绪（跳过 / 一键安装 CLI / 填 providers.yaml key）
 2. 每步显示状态（完成 / 待办 / 可跳过），完成后进入主界面；设置里可随时回看

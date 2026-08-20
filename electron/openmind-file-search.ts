@@ -5,7 +5,7 @@ import type { ProjectFileMatch, ProjectFileSearchResult } from "../shared/contra
 const IGNORED_DIRECTORIES = new Set([
   ".build",
   ".cache",
-  ".cctools",
+  ".openmind",
   ".git",
   ".idea",
   ".mypy_cache",
@@ -36,28 +36,28 @@ type IndexedFile = {
   normalizedName: string;
 };
 
-type MymindFileSearchOptions = {
+type OpenmindFileSearchOptions = {
   /** New path-boundary mode: the constructor argument is the actual root. */
-  rootKind?: "mymind" | "legacy-project";
+  rootKind?: "openmind" | "legacy-project";
 };
 
-export class MymindFileSearch {
+export class OpenmindFileSearch {
   private cache: { files: IndexedFile[]; truncated: boolean; createdAt: number } | null = null;
   private pending: Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> | null = null;
   private readonly projectRoot: string;
-  private readonly mymindRoot: string;
+  private readonly openmindRoot: string;
   private readonly logicalPrefix: string;
 
-  constructor(root: string, options: MymindFileSearchOptions = {}) {
-    if (options.rootKind === "mymind") {
+  constructor(root: string, options: OpenmindFileSearchOptions = {}) {
+    if (options.rootKind === "openmind") {
       this.projectRoot = path.resolve(root);
-      this.mymindRoot = this.projectRoot;
-      this.logicalPrefix = "mymind";
+      this.openmindRoot = this.projectRoot;
+      this.logicalPrefix = "openmind";
     } else {
       // Compatibility for the old constructor used by existing callers/tests.
       this.projectRoot = path.resolve(root);
-      this.mymindRoot = path.join(this.projectRoot, "mymind");
-      this.logicalPrefix = "mymind";
+      this.openmindRoot = path.join(this.projectRoot, "openmind");
+      this.logicalPrefix = "openmind";
     }
   }
 
@@ -109,12 +109,12 @@ export class MymindFileSearch {
   private async buildIndex(): Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> {
     const files: IndexedFile[] = [];
     try {
-      const rootStat = await fs.promises.lstat(this.mymindRoot);
+      const rootStat = await fs.promises.lstat(this.openmindRoot);
       if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) return { files, truncated: false, createdAt: Date.now() };
     } catch {
       return { files, truncated: false, createdAt: Date.now() };
     }
-    const directories = [this.mymindRoot];
+    const directories = [this.openmindRoot];
     let truncated = false;
     while (directories.length && files.length < MAX_INDEXED_FILES) {
       const directory = directories.pop()!;
@@ -137,7 +137,7 @@ export class MymindFileSearch {
         }
         if (!entry.isFile()) continue;
         if (isSensitiveFile(entry.name)) continue;
-        const relative = path.relative(this.mymindRoot, absolute);
+        const relative = path.relative(this.openmindRoot, absolute);
         if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) continue;
         const portablePath = `${this.logicalPrefix}/${relative.split(path.sep).join("/")}`;
         const portableDirectory = path.posix.dirname(portablePath);
@@ -155,33 +155,33 @@ export class MymindFileSearch {
   }
 }
 
-export function normalizeMymindSelection(rootInput: string, candidate: string, options: MymindFileSearchOptions = {}): string {
+export function normalizeOpenmindSelection(rootInput: string, candidate: string, options: OpenmindFileSearchOptions = {}): string {
   const root = path.resolve(rootInput);
-  const mymindRoot = options.rootKind === "mymind" ? root : path.join(root, "mymind");
+  const openmindRoot = options.rootKind === "openmind" ? root : path.join(root, "openmind");
   const resolved = path.resolve(candidate);
-  let mymindStat: fs.Stats;
+  let openmindStat: fs.Stats;
   let candidateStat: fs.Stats;
   try {
-    mymindStat = fs.lstatSync(mymindRoot);
+    openmindStat = fs.lstatSync(openmindRoot);
     candidateStat = fs.lstatSync(resolved);
   } catch {
-    throw new Error("所选 mymind 文件不存在。");
+    throw new Error("所选 openmind 文件不存在。");
   }
-  if (!mymindStat.isDirectory() || mymindStat.isSymbolicLink() || !candidateStat.isFile() || candidateStat.isSymbolicLink()) {
-    throw new Error("只能通过 @ 引用 mymind 目录内的普通文件。");
+  if (!openmindStat.isDirectory() || openmindStat.isSymbolicLink() || !candidateStat.isFile() || candidateStat.isSymbolicLink()) {
+    throw new Error("只能通过 @ 引用 openmind 目录内的普通文件。");
   }
-  const relativeToMymind = path.relative(mymindRoot, resolved);
-  if (!relativeToMymind || relativeToMymind.startsWith("..") || path.isAbsolute(relativeToMymind)) {
-    throw new Error("只能通过 @ 引用 mymind 目录内的文件。");
+  const relativeToOpenmind = path.relative(openmindRoot, resolved);
+  if (!relativeToOpenmind || relativeToOpenmind.startsWith("..") || path.isAbsolute(relativeToOpenmind)) {
+    throw new Error("只能通过 @ 引用 openmind 目录内的文件。");
   }
-  const realMymindRoot = fs.realpathSync(mymindRoot);
+  const realOpenmindRoot = fs.realpathSync(openmindRoot);
   const realCandidate = fs.realpathSync(resolved);
-  const realRelative = path.relative(realMymindRoot, realCandidate);
+  const realRelative = path.relative(realOpenmindRoot, realCandidate);
   if (!realRelative || realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
-    throw new Error("只能通过 @ 引用 mymind 目录内的文件。");
+    throw new Error("只能通过 @ 引用 openmind 目录内的文件。");
   }
-  const logicalRelative = path.relative(mymindRoot, resolved);
-  return `mymind/${logicalRelative.split(path.sep).join("/")}`;
+  const logicalRelative = path.relative(openmindRoot, resolved);
+  return `openmind/${logicalRelative.split(path.sep).join("/")}`;
 }
 
 function normalize(value: string): string {

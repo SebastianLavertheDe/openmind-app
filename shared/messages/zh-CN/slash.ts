@@ -47,7 +47,7 @@ export const slashMessages = {
   },
   skill: {
     title: "调用 Skill",
-    description: "按名称运行项目中已注册的 cctools skill",
+    description: "按名称运行项目中已注册的 OpenMind skill",
     usage: "/skill <skill-id> [参数或目标]"
   },
   errors: {

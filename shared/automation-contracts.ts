@@ -10,7 +10,7 @@ const RelativeFilePathSchema = z.string().trim().min(1).max(240).refine((value) 
   if (value.includes("\\")) return false;
   const normalized = value.replace(/^\.\//, "");
   return normalized !== "" && normalized !== "." && !normalized.startsWith("/") && !normalized.split("/").includes("..") && !normalized.includes("\0");
-}, "File-change 路径必须是 mymindRoot 下的相对路径。 ");
+}, "File-change 路径必须是 openmindRoot 下的相对路径。 ");
 const WeekdaySchema = z.number().int().min(0).max(6);
 
 export const AutomationTargetSchema = z.object({

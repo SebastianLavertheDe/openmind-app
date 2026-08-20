@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
-  MYMIND_ALLOWED_TOP_LEVEL_DIRS,
-  MYMIND_CREATE_IF_NEEDED_TOP_LEVEL,
-  MYMIND_LAYOUT_V1,
-  MYMIND_LAYOUT_VERSION,
-  MYMIND_OPTIONAL_TOP_LEVEL,
+  OPENMIND_ALLOWED_TOP_LEVEL_DIRS,
+  OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL,
+  OPENMIND_LAYOUT_V1,
+  OPENMIND_LAYOUT_VERSION,
+  OPENMIND_OPTIONAL_TOP_LEVEL,
   findLayoutEntry,
   topLevelOf
-} from "./mymind-layout-v1";
+} from "./openmind-layout-v1";
 
-describe("mymind-layout-v1", () => {
-  it("version is frozen as mymind-layout-v1", () => {
-    expect(MYMIND_LAYOUT_VERSION).toBe("mymind-layout-v1");
+describe("openmind-layout-v1", () => {
+  it("version is frozen as openmind-layout-v1", () => {
+    expect(OPENMIND_LAYOUT_VERSION).toBe("openmind-layout-v1");
   });
 
   it("includes the audited on-disk top-level content dirs", () => {
-    const tops = new Set(MYMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0]));
+    const tops = new Set(OPENMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0]));
     for (const expected of [
       "article",
       "creative",
@@ -41,14 +41,14 @@ describe("mymind-layout-v1", () => {
   });
 
   it("create-if-needed entries are a subset of allowed top-level dirs", () => {
-    for (const top of MYMIND_CREATE_IF_NEEDED_TOP_LEVEL) {
-      expect(MYMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
+    for (const top of OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL) {
+      expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
     }
   });
 
   it("optional top-level entries are also in the allowed set (for read classification)", () => {
-    for (const top of MYMIND_OPTIONAL_TOP_LEVEL) {
-      expect(MYMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
+    for (const top of OPENMIND_OPTIONAL_TOP_LEVEL) {
+      expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
     }
   });
 
@@ -60,11 +60,11 @@ describe("mymind-layout-v1", () => {
   });
 
   it("does not allow an unknown top-level dir as a write target", () => {
-    expect(MYMIND_ALLOWED_TOP_LEVEL_DIRS.has("new-toplevel-not-in-contract")).toBe(false);
+    expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has("new-toplevel-not-in-contract")).toBe(false);
   });
 
   it("every entry has a non-empty owner and note (documentation hygiene)", () => {
-    for (const e of MYMIND_LAYOUT_V1) {
+    for (const e of OPENMIND_LAYOUT_V1) {
       expect(e.owner.length).toBeGreaterThan(0);
       expect(e.note.length).toBeGreaterThan(0);
     }

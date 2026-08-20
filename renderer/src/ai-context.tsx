@@ -110,10 +110,10 @@ interface AiStreamingStore {
 const Context = createContext<AiController | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
 const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "" });
-const DRAFTS_KEY = "cctools.ai.drafts.v1";
-const CONTEXTS_KEY = "cctools.ai.contexts.v1";
-const PANEL_KEY = "cctools.ai.panel-mode.v1";
-const FEEDBACK_LOG_KEY = "cctools.feedback.log.v1";
+const DRAFTS_KEY = "openmind.ai.drafts.v1";
+const CONTEXTS_KEY = "openmind.ai.contexts.v1";
+const PANEL_KEY = "openmind.ai.panel-mode.v1";
+const FEEDBACK_LOG_KEY = "openmind.feedback.log.v1";
 
 function scopedStorageKey(base: string, scope: string): string {
   return scope ? `${base}:${encodeURIComponent(scope)}` : base;
@@ -226,7 +226,7 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
     }
     if (activeStreams.size) scheduleStream();
   };
-  const unsubscribe = window.cctools.onAiEvent((message) => {
+  const unsubscribe = window.openmind.onAiEvent((message) => {
     const payload = message as unknown as { kind: string; snapshot?: AiSnapshot; event?: AiEvent; code?: number };
     if (payload.kind === "snapshot" && payload.snapshot) setSnapshot(payload.snapshot);
     if (payload.kind === "worker-exit") {
@@ -293,7 +293,7 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
 export function AiProvider({ initial, skills: initialSkills = [], storageScope = "", children }: { initial: AiSnapshot; skills?: SkillDefinition[]; storageScope?: string; children: ReactNode }) {
   const firstSession = initial.sessions.find((session) => !session.archived) || null;
   // App remounts AiProvider when this scope changes. Draft text and file
-  // contexts must follow that same mymind/workspace boundary; otherwise a
+  // contexts must follow that same openmind/workspace boundary; otherwise a
   // relative attachment selected in workspace A could be submitted in B.
   const draftsStorageKey = scopedStorageKey(DRAFTS_KEY, storageScope);
   const contextsStorageKey = scopedStorageKey(CONTEXTS_KEY, storageScope);
@@ -369,7 +369,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   }, []);
 
   const refresh = useCallback(async () => {
-    const next = await window.cctools.aiRefresh();
+    const next = await window.openmind.aiRefresh();
     commitSnapshot(next);
   }, [commitSnapshot]);
 
@@ -378,7 +378,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     if (!previous) throw new Error(m.ai.error.sessionNotFound);
     replaceSession({ ...previous, ...patch, updatedAt: new Date().toISOString() });
     try {
-      const updated = await window.cctools.aiUpdateSession(sessionId, patch);
+      const updated = await window.openmind.aiUpdateSession(sessionId, patch);
       replaceSession(updated);
       return updated;
     } catch (cause) {
@@ -410,8 +410,8 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const refreshSkills = useCallback(async () => {
     try {
-      if (typeof window.cctools.aiRefreshSkills !== "function") return null;
-      const next = await window.cctools.aiRefreshSkills();
+      if (typeof window.openmind.aiRefreshSkills !== "function") return null;
+      const next = await window.openmind.aiRefreshSkills();
       setDefaultSkills(next);
       return next;
     } catch {
@@ -423,11 +423,11 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const loadEvents = useCallback(async (sessionId: string, requestId: number) => {
     let loaded: AiEvent[];
     let page: AiTurnPage | null = null;
-    if (window.cctools.aiListTurns) {
-      page = await window.cctools.aiListTurns(sessionId, { limit: 20, sortDirection: "desc" });
+    if (window.openmind.aiListTurns) {
+      page = await window.openmind.aiListTurns(sessionId, { limit: 20, sortDirection: "desc" });
       loaded = page.data.slice().reverse().flatMap((turn) => turn.events);
     } else {
-      loaded = await window.cctools.aiGetEvents(sessionId);
+      loaded = await window.openmind.aiGetEvents(sessionId);
     }
     if (selectionRequest.current !== requestId || activeSessionRef.current !== sessionId) return;
     setEventsBySession((current) => ({ ...current, [sessionId]: mergeEvents(current[sessionId] || [], loaded) }));
@@ -436,12 +436,12 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
 
   const loadOlderTurns = useCallback(async () => {
     const sessionId = activeSessionRef.current;
-    if (!sessionId || !window.cctools.aiListTurns) return;
+    if (!sessionId || !window.openmind.aiListTurns) return;
     const cursor = turnCursorBySession[sessionId];
     if (!cursor || historyLoading) return;
     setHistoryLoading(true);
     try {
-      const page = await window.cctools.aiListTurns(sessionId, {
+      const page = await window.openmind.aiListTurns(sessionId, {
         cursor,
         limit: 20,
         sortDirection: "desc"
@@ -494,7 +494,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   }, []);
 
   useEffect(() => {
-    void window.cctools.aiPrewarm?.(activeSessionId || undefined)?.catch(() => undefined);
+    void window.openmind.aiPrewarm?.(activeSessionId || undefined)?.catch(() => undefined);
   }, [activeSessionId, providerSignature]);
 
   // Cancel pending toast dismiss timers on unmount so a late timer can never
@@ -541,7 +541,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     // 后端 startRun 里也会 refresh(),所以即使这次还没到也不影响解析。
     if (!targetSession) void refreshSkills();
     try {
-      const result = await window.cctools.aiStartRun({
+      const result = await window.openmind.aiStartRun({
         sessionId: targetSession?.id,
         providerId,
         permissionProfile: options.permissionProfile || targetSession?.permissionProfile || "edit",
@@ -620,9 +620,9 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const branchRun = useCallback(async (runId: string) => {
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
     if (!run) return;
-    if (window.cctools.aiForkSession) {
-      const fork = await window.cctools.aiForkSession(run.sessionId, run.id);
-      const next = await window.cctools.aiRefresh();
+    if (window.openmind.aiForkSession) {
+      const fork = await window.openmind.aiForkSession(run.sessionId, run.id);
+      const next = await window.openmind.aiRefresh();
       snapshotRef.current = next;
       setSnapshot(next);
       await setActiveSession(fork.id);
@@ -720,7 +720,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       setContextsByDraft((current) => ({ ...current, [key]: [] }));
     },
     addFiles: async () => {
-      const files = await window.cctools.selectFiles();
+      const files = await window.openmind.selectFiles();
       const key = activeSessionRef.current || NEW_SESSION_DRAFT;
       setContextsByDraft((current) => {
         const existing = current[key] || [];
@@ -747,7 +747,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     cancel: async (runId) => {
       setError(null);
       try {
-        await window.cctools.aiCancelRun(runId);
+        await window.openmind.aiCancelRun(runId);
         streamingStore.clearRun(runId);
         await refresh();
       } catch (cause) {

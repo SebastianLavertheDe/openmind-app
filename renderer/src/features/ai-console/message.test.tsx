@@ -28,8 +28,8 @@ describe("ChatMarkdown inline code", () => {
   });
 
   it("keeps real local paths clickable", () => {
-    const { container } = render(<ChatMarkdown text="`mymind/article/example.md`" />);
+    const { container } = render(<ChatMarkdown text="`openmind/article/example.md`" />);
 
-    expect(container.querySelector(".local-file-code")?.textContent).toBe("mymind/article/example.md");
+    expect(container.querySelector(".local-file-code")?.textContent).toBe("openmind/article/example.md");
   });
 });

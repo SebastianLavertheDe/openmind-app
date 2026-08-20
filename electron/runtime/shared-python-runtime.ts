@@ -95,7 +95,7 @@ export class SharedPythonRuntimeService {
     this.generationsRoot = path.join(this.root, "generations");
     this.stateFile = path.join(this.root, "state.json");
     this.lockFile = path.join(this.root, "prepare.lock");
-    this.bundledAssetRoot = path.resolve(options.bundledAssetRoot || process.env.CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT || path.join(process.resourcesPath || "", "python-runtime"));
+    this.bundledAssetRoot = path.resolve(options.bundledAssetRoot || process.env.OPENMIND_PYTHON_RUNTIME_ASSET_ROOT || path.join(process.resourcesPath || "", "python-runtime"));
     this.target = options.target || detectRuntimeTarget({ platform: process.platform, arch: process.arch });
     this.projects = options.projects || (() => []);
     this.runCommand = options.runCommand || defaultRunCommand;
@@ -319,7 +319,7 @@ export class SharedPythonRuntimeService {
       await this.runCommand(uv, ["sync", "--locked", "--project", staging, "--python", basePython, "--no-install-project", ...skipLocalProjects], staging, environment);
       const python = environmentPython(staging);
       if (!fs.existsSync(python)) throw new Error("uv 未生成共享 Python 环境。");
-      writeJsonAtomic(path.join(staging, "cctools-shared-python.json"), {
+      writeJsonAtomic(path.join(staging, "openmind-shared-python.json"), {
         schemaVersion: 1,
         fingerprint,
         assetDigest: asset.filesDigest,
@@ -389,7 +389,7 @@ function sharedProjectToml(projects: SharedPythonProject[], pythonVersion: strin
   if (!Number.isInteger(major) || !Number.isInteger(minor)) throw new Error(`内置 Python 版本无效：${pythonVersion}`);
   return [
     "[project]",
-    'name = "cctools-shared-python-runtime"',
+    'name = "openmind-shared-python-runtime"',
     'version = "0.0.0"',
     `requires-python = ">=${major}.${minor},<${major}.${minor + 1}"`,
     "dependencies = [",
@@ -489,9 +489,9 @@ function firstExisting(candidates: Array<string | undefined>): string | undefine
 
 function sharedEnvironment(runtimeRoot: string, fingerprint: string): Record<string, string> {
   return {
-    CCTOOLS_SHARED_PYTHON: "1",
-    CCTOOLS_SHARED_PYTHON_ROOT: runtimeRoot,
-    CCTOOLS_RUNTIME_FINGERPRINT: fingerprint,
+    OPENMIND_SHARED_PYTHON: "1",
+    OPENMIND_SHARED_PYTHON_ROOT: runtimeRoot,
+    OPENMIND_RUNTIME_FINGERPRINT: fingerprint,
     VIRTUAL_ENV: path.join(runtimeRoot, "generations", fingerprint, ".venv"),
     UV_PYTHON_DOWNLOADS: "never",
     PYTHONDONTWRITEBYTECODE: "1",
@@ -502,7 +502,7 @@ function sharedEnvironment(runtimeRoot: string, fingerprint: string): Record<str
 function commandEnvironment(paths: AppPaths, runtimeRoot: string): Record<string, string> {
   const environment: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string")),
-    CCTOOLS_SHARED_PYTHON_ROOT: runtimeRoot,
+    OPENMIND_SHARED_PYTHON_ROOT: runtimeRoot,
     UV_CACHE_DIR: path.join(paths.cache, "uv"),
     UV_PYTHON_DOWNLOADS: "never",
     PYTHONDONTWRITEBYTECODE: "1",

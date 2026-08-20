@@ -185,9 +185,9 @@ describe("CodexAppServerAdapter.run()", () => {
         packageRoot: "/user-data/skills/installed-agent",
         skillPath: "/user-data/skills/installed-agent/SKILL.md",
         referencePaths: ["references/rules.md"],
-        mymindRoot: "/workspace/mymind",
+        openmindRoot: "/workspace/openmind",
         capabilities: {
-          mymind: { read: ["article/**"], write: ["creative/**"] },
+          openmind: { read: ["article/**"], write: ["creative/**"] },
           network: { required: false, hosts: [] },
           subprocess: { allowed: false },
           browser: false
@@ -201,7 +201,7 @@ describe("CodexAppServerAdapter.run()", () => {
     });
     expect(input).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "skill", path: "/user-data/skills/installed-agent/SKILL.md" }),
-      expect.objectContaining({ type: "text", text: expect.stringContaining("mymind_root: /workspace/mymind") })
+      expect.objectContaining({ type: "text", text: expect.stringContaining("openmind_root: /workspace/openmind") })
     ]));
     const child = await driveSuccessfulRun(ctx);
     const messages = child.writtenLines.map((line) => JSON.parse(line));
@@ -453,7 +453,7 @@ describe("CodexAppServerAdapter.run()", () => {
     const request = child.writtenLines
       .map((line) => JSON.parse(line))
       .find((message) => message.method === "thread/start");
-    const server = request.params.config.mcp_servers.cctools_browser;
+    const server = request.params.config.mcp_servers.openmind_browser;
 
     expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
     expect(server.default_tools_approval_mode).toBe("approve");

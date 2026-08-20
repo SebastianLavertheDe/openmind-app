@@ -16,13 +16,13 @@ import {
 
 describe("stageFromProjectPath", () => {
   it("derives the stage from the disk folder segment on both slashes", () => {
-    expect(stageFromProjectPath("mymind/creative/01-内容生产/文稿库/02-制作中/proj")).toBe("drafting");
-    expect(stageFromProjectPath("mymind/creative\\03-待审核\\proj")).toBe("review");
-    expect(stageFromProjectPath("mymind/creative/05-已发布/proj")).toBe("published");
+    expect(stageFromProjectPath("openmind/creative/01-内容生产/文稿库/02-制作中/proj")).toBe("drafting");
+    expect(stageFromProjectPath("openmind/creative\\03-待审核\\proj")).toBe("review");
+    expect(stageFromProjectPath("openmind/creative/05-已发布/proj")).toBe("published");
   });
 
   it("defaults to drafting when no stage folder is found", () => {
-    expect(stageFromProjectPath("mymind/creative/文稿库/proj")).toBe("drafting");
+    expect(stageFromProjectPath("openmind/creative/文稿库/proj")).toBe("drafting");
     expect(stageFromProjectPath("anything")).toBe("drafting");
   });
 });

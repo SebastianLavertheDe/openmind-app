@@ -6,7 +6,7 @@ import { writeJsonAtomic } from "../lib/fs-utils";
 
 type Registry = { schemaVersion: typeof EXECUTION_SCHEMA_VERSION; records: ExportLocationBinding[] };
 
-/** Persists explicit user-selected export directories outside the mymind contract. */
+/** Persists explicit user-selected export directories outside the openmind contract. */
 export class ExportLocationService {
   constructor(
     private readonly registryFile: string,
@@ -104,7 +104,7 @@ export class ExportLocationService {
     for (const root of this.forbiddenRoots()) {
       const canonicalRoot = path.resolve(root);
       if (candidate === canonicalRoot || candidate.startsWith(`${canonicalRoot}${path.sep}`)) {
-        throw new Error("Export Location 不能位于 App 私有目录或当前 mymindRoot 内。 ");
+        throw new Error("Export Location 不能位于 App 私有目录或当前 openmindRoot 内。 ");
       }
     }
   }

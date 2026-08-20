@@ -10,10 +10,10 @@ import {
 /** A minimal-but-valid process manifest used as the base for many tests. */
 function baseProcessManifest(): Record<string, unknown> {
   return {
-    apiVersion: "cctools.dev/skill/v1",
+    apiVersion: "openmind.dev/skill/v1",
     id: "daily-article-summarizer",
     version: "1.0.0",
-    publisher: { id: "cctools", displayName: "cctools" },
+    publisher: { id: "openmind", displayName: "openmind" },
     kind: "process",
     display: { name: "每日文章总结", description: "汇总", group: "analysis" },
     entrypoint: {
@@ -33,7 +33,7 @@ function baseProcessManifest(): Record<string, unknown> {
       properties: { date: { type: "string", format: "compact-date" } }
     },
     capabilities: {
-      mymind: {
+      openmind: {
         read: ["article/**", "reddit/**"],
         write: ["daily-summary/**"]
       },
@@ -44,7 +44,7 @@ function baseProcessManifest(): Record<string, unknown> {
       { id: "daily-summary", type: "markdown", path: "daily-summary/{{ inputs.date }}_daily_summary.md" }
     ],
     execution: {
-      concurrency: { maxInstances: 1, mutexes: ["mymind:daily-summary"] },
+      concurrency: { maxInstances: 1, mutexes: ["openmind:daily-summary"] },
       timeoutSeconds: 1800,
       gracefulStopSeconds: 10,
       retry: { maxAttempts: 1 }
@@ -56,15 +56,15 @@ function baseProcessManifest(): Record<string, unknown> {
 
 describe("SkillManifestSchema", () => {
   it("computes a stable capability diff for a new manifest", () => {
-    const previous = { capabilities: { mymind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } };
-    const next = { capabilities: { mymind: { read: ["article/**"], write: ["daily-summary/**"] }, network: { required: true, hosts: ["api.example.com"] }, browser: true } };
+    const previous = { capabilities: { openmind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } };
+    const next = { capabilities: { openmind: { read: ["article/**"], write: ["daily-summary/**"] }, network: { required: true, hosts: ["api.example.com"] }, browser: true } };
 
     expect(diffSkillCapabilities(previous, next)).toEqual({
       added: [
         "capabilities.browser=true",
-        "capabilities.mymind.write[]=daily-summary/**",
         "capabilities.network.hosts[]=api.example.com",
-        "capabilities.network.required=true"
+        "capabilities.network.required=true",
+        "capabilities.openmind.write[]=daily-summary/**"
       ],
       removed: [
         "capabilities.browser=false",
@@ -72,7 +72,7 @@ describe("SkillManifestSchema", () => {
       ],
       changed: true
     });
-    expect(diffSkillCapabilities(previous, { capabilities: { mymind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } }).changed).toBe(false);
+    expect(diffSkillCapabilities(previous, { capabilities: { openmind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } }).changed).toBe(false);
   });
 
   it("matches exact, caret, tilde and comparator Skill version ranges", () => {
@@ -100,7 +100,7 @@ describe("SkillManifestSchema", () => {
       if (m.kind !== "process") return;
       expect(m.execution.timeoutSeconds).toBe(1800);
       expect(m.execution.concurrency.maxInstances).toBe(1);
-      expect(m.capabilities.mymind.write).toEqual(["daily-summary/**"]);
+      expect(m.capabilities.openmind.write).toEqual(["daily-summary/**"]);
     });
 
     it("accepts a CLI-hosted agent manifest without entrypoint, runtime, or direct API provider", () => {
@@ -152,7 +152,7 @@ describe("SkillManifestSchema", () => {
 
   describe("structural rejections", () => {
     it("rejects an unknown apiVersion", () => {
-      const m = { ...baseProcessManifest(), apiVersion: "cctools.dev/skill/v2" };
+      const m = { ...baseProcessManifest(), apiVersion: "openmind.dev/skill/v2" };
       expect(validateManifest(m).ok).toBe(false);
     });
 
@@ -196,10 +196,10 @@ describe("SkillManifestSchema", () => {
       expect(validateManifest(m).ok).toBe(false);
     });
 
-    it("rejects a mymind read pattern containing '..'", () => {
+    it("rejects a openmind read pattern containing '..'", () => {
       const m = baseProcessManifest();
       m.capabilities = {
-        mymind: { read: ["../secret/**"], write: [] },
+        openmind: { read: ["../secret/**"], write: [] },
         network: { required: false, hosts: [] },
         subprocess: { allowed: false }
       };
@@ -209,7 +209,7 @@ describe("SkillManifestSchema", () => {
     it("rejects a network host containing userinfo", () => {
       const m = baseProcessManifest();
       m.capabilities = {
-        mymind: { read: [], write: [] },
+        openmind: { read: [], write: [] },
         network: { required: true, hosts: ["user:pass@evil.com"] },
         subprocess: { allowed: false }
       };
@@ -255,6 +255,6 @@ describe("SkillManifestSchema", () => {
   });
 
   it("apiVersion constant matches schema literal", () => {
-    expect(SKILL_MANIFEST_API_VERSION).toBe("cctools.dev/skill/v1");
+    expect(SKILL_MANIFEST_API_VERSION).toBe("openmind.dev/skill/v1");
   });
 });

@@ -4,9 +4,9 @@ import path from "node:path";
 import type { SkillManifest } from "../../shared/skill-manifest-schema";
 import { validateManifest } from "../../shared/skill-manifest-schema";
 import {
-  MYMIND_LAYOUT_V2,
-  type MymindEntryCategory
-} from "../../shared/mymind-layout-v2";
+  OPENMIND_LAYOUT_V2,
+  type OpenmindEntryCategory
+} from "../../shared/openmind-layout-v2";
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
@@ -18,7 +18,7 @@ import {
 import { InstalledSkillPreferencesRepository } from "./installed-skill-preferences-repository";
 import { extractZipArchive, inspectZipArchive, SkillArchiveError } from "./zip-source";
 
-const MANIFEST_FILE = "cctools.skill.yaml";
+const MANIFEST_FILE = "openmind.skill.yaml";
 const LEGACY_FILE = "SKILL.md";
 const MAX_PACKAGE_BYTES = 250 * 1024 * 1024;
 const MAX_PACKAGE_FILES = 20_000;
@@ -35,7 +35,7 @@ const EXCLUDED_SEGMENTS = new Set([
   "log",
   "logs",
   ".git",
-  ".cctools",
+  ".openmind",
   "browser-state",
   "browser-data",
   "curl.txt",
@@ -50,7 +50,7 @@ const EXCLUDED_SEGMENTS = new Set([
   ".counter.json",
   "credentials",
   "credential",
-  "mymind",
+  "openmind",
   "article",
   "creative",
   "daily-summary",
@@ -87,7 +87,7 @@ export type SkillPackageErrorCode =
   | "manifest-yaml-invalid"
   | "manifest-invalid"
   | "manifest-path-invalid"
-  | "mymind-write-forbidden"
+  | "openmind-write-forbidden"
   | "secret-in-package"
   | "legacy-inspect-only"
   | "archive-invalid"
@@ -252,7 +252,7 @@ export class SkillPackageService {
       legacy = buildLegacySuggestion(canonicalSource, fs.readFileSync(legacyPath, "utf8"));
       issues.push({
         code: "legacy-inspect-only",
-        message: "该 Skill 只有 SKILL.md，只能检查；需迁移为正式 cctools.skill.yaml 后才可安装运行。",
+        message: "该 Skill 只有 SKILL.md，只能检查；需迁移为正式 openmind.skill.yaml 后才可安装运行。",
         path: LEGACY_FILE
       });
     } else {
@@ -334,7 +334,7 @@ export class SkillPackageService {
     }
 
     if (!this.paths.skills) {
-      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 mymind 根目录（内部不变量）。");
+      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 openmind 根目录（内部不变量）。");
     }
 
     fs.mkdirSync(this.paths.staging, { recursive: true });
@@ -560,7 +560,7 @@ export class SkillPackageService {
     }
   }
 
-  /** Remove the skill's single installed copy; never deletes mymind/output data. */
+  /** Remove the skill's single installed copy; never deletes openmind/output data. */
   uninstall(key: string, digest?: string): boolean {
     const target = this.repository.get(key, digest);
     if (!target) return false;
@@ -584,7 +584,7 @@ export class SkillPackageService {
 
   private assertManagedPackagePath(packagePath: string): void {
     if (!this.paths.skills) {
-      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 mymind 根目录（内部不变量）。");
+      throw new SkillPackageError("skill-store-unavailable", "Skill store 不可用：尚未绑定 openmind 根目录（内部不变量）。");
     }
     const root = path.resolve(this.paths.skills);
     const candidate = path.resolve(packagePath);
@@ -700,7 +700,7 @@ function walkPackage(root: string): WalkResult {
 
 function digestPackage(root: string, files: SkillPackageFile[]): string {
   const hash = crypto.createHash("sha256");
-  hash.update("cctools-skill-package-v1\n");
+  hash.update("openmind-skill-package-v1\n");
   for (const file of files.slice().sort((a, b) => a.path.localeCompare(b.path))) {
     hash.update(`${file.type}\0${file.path}\0${file.size}\0${file.digest}\n`);
     if (file.type === "file") hash.update(fs.readFileSync(path.join(root, ...file.path.split("/"))));
@@ -727,11 +727,11 @@ function validateManifestPackagePaths(manifest: SkillManifest): SkillPackageIssu
       issues.push({ code: "manifest-path-invalid", message: "artifact.path 必须是包内安全的逻辑路径。", path: `artifacts.${index}.path` });
     }
   }
-  for (const pattern of manifest.capabilities.mymind.write) {
+  for (const pattern of manifest.capabilities.openmind.write) {
     const topLevel = pattern.split("/")[0];
-    const entry = MYMIND_LAYOUT_V2.find((item) => item.logicalPath === topLevel);
+    const entry = OPENMIND_LAYOUT_V2.find((item) => item.logicalPath === topLevel);
     if (!entry || !isWritableLayoutCategory(entry.category)) {
-      issues.push({ code: "mymind-write-forbidden", message: `mymind.write 不允许写入 '${topLevel}'。`, path: "capabilities.mymind.write" });
+      issues.push({ code: "openmind-write-forbidden", message: `openmind.write 不允许写入 '${topLevel}'。`, path: "capabilities.openmind.write" });
     }
   }
   return issues;
@@ -762,7 +762,7 @@ function buildLegacySuggestion(sourceRoot: string, content: string): LegacySkill
   };
 }
 
-function isWritableLayoutCategory(category: MymindEntryCategory): boolean {
+function isWritableLayoutCategory(category: OpenmindEntryCategory): boolean {
   return category === "initialize-required" || category === "create-if-needed";
 }
 

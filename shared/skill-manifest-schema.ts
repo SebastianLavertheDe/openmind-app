@@ -1,31 +1,31 @@
 /**
  * Skill Manifest v1 — Zod schema source of truth.
  *
- * Frozen by ADR-003. A `cctools.skill.yaml` is validated strictly by
+ * Frozen by ADR-003. A `openmind.skill.yaml` is validated strictly by
  * {@link SkillManifestSchema}. A skill is NOT runnable without a valid
  * manifest. Legacy `SKILL.md`-only skills go through a separate legacy
  * adapter and remain available for inspection only.
  *
  * Invariants enforced here (and re-checked at install/run):
- *  - `apiVersion` is exactly `cctools.dev/skill/v1`.
+ *  - `apiVersion` is exactly `openmind.dev/skill/v1`.
  *  - `id` is lowercase, dotted/dashed, unique per publisher.
  *  - `version` is semver.
  *  - `kind` is process | workflow | agent.
  *  - process/workflow require entrypoint or workflow; agent forbids entrypoint.
  *  - No secret values; secrets are referenced by name only.
  *  - No absolute paths; all package paths are relative + forward-slash.
- *  - `capabilities.mymind.write` top-level dirs ⊆ mymind-layout-v2
- *    {@link MYMIND_ALLOWED_TOP_LEVEL_DIRS} (cross-checked at install).
+ *  - `capabilities.openmind.write` top-level dirs ⊆ openmind-layout-v2
+ *    {@link OPENMIND_ALLOWED_TOP_LEVEL_DIRS} (cross-checked at install).
  *
- * NOTE: the mymind-layout subset check is performed by the installer/resolver
- * (which imports from `./mymind-layout-v2`), not inside this pure schema, so
+ * NOTE: the openmind-layout subset check is performed by the installer/resolver
+ * (which imports from `./openmind-layout-v2`), not inside this pure schema, so
  * this module stays free of fs/platform concerns and remains unit-testable in
  * isolation.
  */
 
 import { z } from "zod";
 
-export const SKILL_MANIFEST_API_VERSION = "cctools.dev/skill/v1" as const;
+export const SKILL_MANIFEST_API_VERSION = "openmind.dev/skill/v1" as const;
 
 // --- primitives -------------------------------------------------------------
 
@@ -61,9 +61,9 @@ const RelativePackagePathSchema = z
   .refine((p) => !p.startsWith("\\\\"), "UNC paths are forbidden")
   .refine((p) => p.split("/").every((seg) => seg.length > 0 && seg !== "." && seg !== ".."), "empty / '.' / '..' segments forbidden");
 
-/** Logical mymind pattern: forward-slash, no leading '/', top-level must be a known content dir.
+/** Logical openmind pattern: forward-slash, no leading '/', top-level must be a known content dir.
  *  Allows a single trailing `/**` or `/*`. */
-const MymindPatternSchema = z
+const OpenmindPatternSchema = z
   .string()
   .min(1)
   .max(512)
@@ -158,7 +158,7 @@ export const ConfigFieldSchema = z.object({
   // skills no longer declare them — their provider comes from
   // config/providers.yaml — but the enum stays permissive so legacy/other
   // skills still validate.
-  type: z.enum(["string", "number", "boolean", "provider-profile", "secret-ref", "enum", "path-mymind", "path-export"]),
+  type: z.enum(["string", "number", "boolean", "provider-profile", "secret-ref", "enum", "path-openmind", "path-export"]),
   required: z.boolean().default(false),
   default: z.unknown().optional(),
   description: z.string().max(1000).optional(),
@@ -167,11 +167,11 @@ export const ConfigFieldSchema = z.object({
 }).passthrough();
 export type ConfigField = z.infer<typeof ConfigFieldSchema>;
 
-export const MymindCapabilitiesSchema = z.object({
-  read: z.array(MymindPatternSchema).default([]),
-  write: z.array(MymindPatternSchema).default([])
+export const OpenmindCapabilitiesSchema = z.object({
+  read: z.array(OpenmindPatternSchema).default([]),
+  write: z.array(OpenmindPatternSchema).default([])
 });
-export type MymindCapabilities = z.infer<typeof MymindCapabilitiesSchema>;
+export type OpenmindCapabilities = z.infer<typeof OpenmindCapabilitiesSchema>;
 
 export const NetworkCapabilitiesSchema = z.object({
   required: z.boolean().default(false),
@@ -180,7 +180,7 @@ export const NetworkCapabilitiesSchema = z.object({
 export type NetworkCapabilities = z.infer<typeof NetworkCapabilitiesSchema>;
 
 export const CapabilitiesSchema = z.object({
-  mymind: MymindCapabilitiesSchema.default({ read: [], write: [] }),
+  openmind: OpenmindCapabilitiesSchema.default({ read: [], write: [] }),
   network: NetworkCapabilitiesSchema.default({ required: false, hosts: [] }),
   browser: z.boolean().default(false),
   subprocess: z.object({ allowed: z.boolean().default(false) }).default({ allowed: false }),
@@ -241,7 +241,7 @@ function setsEqual(left: Set<string>, right: Set<string>): boolean {
 export const ArtifactSchema = z.object({
   id: z.string().min(1).max(120),
   type: ArtifactTypeSchema,
-  /** Logical mymind path (with templates) OR an external-export artifact id. */
+  /** Logical openmind path (with templates) OR an external-export artifact id. */
   path: z.string().min(1).max(1024).optional(),
   externalExportId: z.string().min(1).max(120).optional()
 });

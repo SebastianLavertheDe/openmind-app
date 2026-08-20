@@ -368,7 +368,7 @@ function event(runId: string, state: BrokerRunEvent["state"]): BrokerRunEvent {
 }
 
 function makeRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-automation-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-automation-"));
   roots.push(root);
   return root;
 }

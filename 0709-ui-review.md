@@ -1,4 +1,4 @@
-# CC Tools Desktop — UI 全面审查 (0709)
+# OpenMind Desktop — UI 全面审查 (0709)
 
 > 审查范围：`desktop-app/renderer/` 全部页面、组件、样式系统
 > 审查日期：2026-07-09

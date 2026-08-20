@@ -12,7 +12,7 @@ import type { SkillTool } from "./skill-tool-registry";
 export function composeSkillCatalog(skills: SkillTool[]): string {
   if (!skills.length) return "";
   const lines = [
-    "## 可用的 cctools skills（通过 Bash 运行）",
+    "## 可用的 openmind skills（通过 Bash 运行）",
     "需要时用 Bash 执行下列命令调用对应 skill（把 ${date} 换成当天 YYYYMMDD，如 20260621）；跑完用 Read 读取「产物」再作答。",
     ""
   ];

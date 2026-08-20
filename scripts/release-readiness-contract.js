@@ -10,8 +10,8 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const appRoot = path.resolve(__dirname, "..");
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-release-readiness-"));
-const targetCheckoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-release-readiness-checkout-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-release-readiness-"));
+const targetCheckoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-release-readiness-checkout-"));
 const targetBuildRoot = path.join(targetCheckoutRoot, ".build");
 
 try {
@@ -91,15 +91,15 @@ function writeFixture(missingMac, tamperReleaseEvidence = false, fixtureRoot = t
   };
   write("audit-evidence.json", { checks: Array.from({ length: 26 }, (_, index) => ({ id: index + 1 })), failed: [] });
   write("release-evidence/sbom.cdx.json", { bomFormat: "CycloneDX", components: [{ name: "fixture" }] });
-  write("release-evidence/licenses.json", { kind: "cctools-license-report", componentCount: 1, unknownLicenseCount: 0 });
-  write("release-evidence/provenance.json", { kind: "cctools-build-provenance", artifact: { treeSha256: "d".repeat(64) } });
+  write("release-evidence/licenses.json", { kind: "openmind-license-report", componentCount: 1, unknownLicenseCount: 0 });
+  write("release-evidence/provenance.json", { kind: "openmind-build-provenance", artifact: { treeSha256: "d".repeat(64) } });
   const artifactFiles = ["sbom.cdx.json", "licenses.json", "provenance.json"].map((name) => {
     const filePath = path.join(fixtureRoot, "release-evidence", name);
     const content = fs.readFileSync(filePath);
     return { path: `release-evidence/${name}`, bytes: content.length, sha256: crypto.createHash("sha256").update(content).digest("hex") };
   });
   write("release-evidence/index.json", {
-    kind: "cctools-release-evidence-index",
+    kind: "openmind-release-evidence-index",
     artifacts: artifactFiles,
     sbom: { format: "CycloneDX", path: "release-evidence/sbom.cdx.json", componentCount: 1 },
     licenses: { path: "release-evidence/licenses.json", componentCount: 1, unknownLicenseCount: 0 },
@@ -111,7 +111,7 @@ function writeFixture(missingMac, tamperReleaseEvidence = false, fixtureRoot = t
   write("package-safety-report.json", { status: "passed" });
   write("package-artifact-safety-report.json", { platform: "win", status: "passed", failedArtifacts: [], missingKinds: [] });
   write("package-artifact-safety-mac-local.json", { platform: "mac", status: missingMac ? "manual-required" : "passed", failedArtifacts: [], missingKinds: missingMac ? ["dmg"] : [] });
-  const packagedRecoveryEvidence = { status: "passed", kind: "cctools-packaged-recovery-smoke", validated: true, scenarioCount: 2, forcedTerminationCount: 2, restoredPreviousState: true, transactionRemoved: true };
+  const packagedRecoveryEvidence = { status: "passed", kind: "openmind-packaged-recovery-smoke", validated: true, scenarioCount: 2, forcedTerminationCount: 2, restoredPreviousState: true, transactionRemoved: true };
   write("package-evidence-win-local.json", { platform: "win", targetValidation: "passed", artifactSafety: { validated: true }, packagedSmoke: "passed", recoveryDrill: "passed", packagedRecovery: "passed", packagedRecoveryEvidence });
   write("package-evidence-mac-local.json", { platform: "mac", targetValidation: missingMac ? "manual-required" : "passed", artifactSafety: { validated: true }, packagedSmoke: "passed", recoveryDrill: "passed", packagedRecovery: "passed", packagedRecoveryEvidence });
   write("provider-e2e-report.json", {
@@ -135,9 +135,9 @@ function run(outputPath, strict, buildRoot = tempRoot) {
     cwd: appRoot,
     env: {
       ...process.env,
-      CCTOOLS_RELEASE_READINESS_BUILD_ROOT: buildRoot,
-      CCTOOLS_RELEASE_READINESS_OUTPUT: outputPath,
-      CCTOOLS_RELEASE_READINESS_STRICT: strict ? "1" : "0"
+      OPENMIND_RELEASE_READINESS_BUILD_ROOT: buildRoot,
+      OPENMIND_RELEASE_READINESS_OUTPUT: outputPath,
+      OPENMIND_RELEASE_READINESS_STRICT: strict ? "1" : "0"
     },
     encoding: "utf8",
     maxBuffer: 4 * 1024 * 1024

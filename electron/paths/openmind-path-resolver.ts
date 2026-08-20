@@ -1,22 +1,22 @@
 /**
- * MymindPathResolver — maps logical mymind paths to a single physical
- * `mymindRoot`, with traversal/symlink protection.
+ * OpenmindPathResolver — maps logical openmind paths to a single physical
+ * `openmindRoot`, with traversal/symlink protection.
  *
  * Frozen by ADR-001 (§5.2) + ADR-002 (layout contract). App, CLI Agent hosts,
  * and App-native Workflow file operations MUST go through this resolver.
  *
  * Resolution rules (ADR-001 §5.2):
- *   1. accept logical path with or without a single leading `mymind/`;
+ *   1. accept logical path with or without a single leading `openmind/`;
  *   2. normalise separators to `/`;
  *   3. reject absolute paths, UNC, drive-prefixed;
  *   4. reject empty segments, `.`, `..`, encoded traversal;
- *   5. join onto the pinned `mymindRootSnapshot`;
+ *   5. join onto the pinned `openmindRootSnapshot`;
  *   6. realpath-check existing parents;
  *   7. reject symlinks/junctions that leave the root;
  *   8. Windows: case-insensitive compare;
  *   9. WSL/UNC: separate normalisation (handled at bind time);
  *  10. return both physical path and a logical path for UI/logs;
- *  11. write patterns re-checked against {@link MYMIND_ALLOWED_TOP_LEVEL_DIRS}.
+ *  11. write patterns re-checked against {@link OPENMIND_ALLOWED_TOP_LEVEL_DIRS}.
  *
  * IMPORTANT: this enforces the layout for app-controlled code only.
  * Process/External Agent skills run with the user's OS privileges and CAN
@@ -26,13 +26,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  MYMIND_LAYOUT_VERSION,
-  MYMIND_WRITABLE_TOP_LEVEL_DIRS,
+  OPENMIND_LAYOUT_VERSION,
+  OPENMIND_WRITABLE_TOP_LEVEL_DIRS,
   topLevelOf
-} from "../../shared/mymind-layout-v2";
+} from "../../shared/openmind-layout-v2";
 
-export interface MymindRootSnapshot {
-  /** Canonical real path of the mymind root. */
+export interface OpenmindRootSnapshot {
+  /** Canonical real path of the openmind root. */
   readonly rootPath: string;
   /** Stable root id. */
   readonly rootId: string;
@@ -40,27 +40,27 @@ export interface MymindRootSnapshot {
   readonly rootGeneration: number;
 }
 
-export interface ResolvedMymindPath {
+export interface ResolvedOpenmindPath {
   /** Canonical physical path inside the root. */
   readonly physicalPath: string;
-  /** Logical path (forward-slash, no leading `mymind/`) for UI/logs. */
+  /** Logical path (forward-slash, no leading `openmind/`) for UI/logs. */
   readonly logicalPath: string;
   /** The snapshot this was resolved against. */
-  readonly snapshot: MymindRootSnapshot;
+  readonly snapshot: OpenmindRootSnapshot;
 }
 
-export class MymindPathError extends Error {
+export class OpenmindPathError extends Error {
   constructor(
-    public readonly code: MymindPathErrorCode,
+    public readonly code: OpenmindPathErrorCode,
     message: string,
     public readonly logicalPath?: string
   ) {
     super(message);
-    this.name = "MymindPathError";
+    this.name = "OpenmindPathError";
   }
 }
 
-export type MymindPathErrorCode =
+export type OpenmindPathErrorCode =
   | "absolute-path-forbidden"
   | "unc-path-forbidden"
   | "drive-path-forbidden"
@@ -80,11 +80,11 @@ export interface ResolverOptions {
   readonly caseSensitive?: boolean;
 }
 
-export class MymindPathResolver {
+export class OpenmindPathResolver {
   private readonly caseSensitive: boolean;
 
   constructor(
-    private readonly snapshot: MymindRootSnapshot,
+    private readonly snapshot: OpenmindRootSnapshot,
     opts: ResolverOptions = {}
   ) {
     this.caseSensitive =
@@ -93,12 +93,12 @@ export class MymindPathResolver {
   }
 
   /** The pinned snapshot this resolver resolves against. */
-  getRoot(): MymindRootSnapshot {
+  getRoot(): OpenmindRootSnapshot {
     return this.snapshot;
   }
 
   /**
-   * Resolve a logical mymind path to a physical path. Validates syntax and,
+   * Resolve a logical openmind path to a physical path. Validates syntax and,
    * for paths whose parent exists, validates that the resolved real path
    * remains inside the root.
    *
@@ -106,7 +106,7 @@ export class MymindPathResolver {
    *             "write" additionally requires the top-level dir to be a
    *             known content-contract entry (ADR-002).
    */
-  resolve(logicalInput: string, mode: "read" | "write" = "read"): ResolvedMymindPath {
+  resolve(logicalInput: string, mode: "read" | "write" = "read"): ResolvedOpenmindPath {
     const normalised = this.normaliseLogical(logicalInput);
     if (mode === "write") this.assertWriteAllowed(normalised);
     const physical = path.join(this.snapshot.rootPath, normalised);
@@ -121,30 +121,30 @@ export class MymindPathResolver {
 
   // --- internal -------------------------------------------------------------
 
-  /** Strip a single leading `mymind/`, normalise separators, reject bad input. */
+  /** Strip a single leading `openmind/`, normalise separators, reject bad input. */
   private normaliseLogical(input: string): string {
     if (typeof input !== "string" || input.length === 0) {
-      throw new MymindPathError("empty-segment", "empty logical path", input);
+      throw new OpenmindPathError("empty-segment", "empty logical path", input);
     }
     let p = input.trim();
     // Backslash → forward slash (Windows user input).
     p = p.replaceAll("\\", "/");
     // Reject absolute forms before any normalisation that might mask them.
-    if (p.startsWith("//")) throw new MymindPathError("unc-path-forbidden", "UNC paths are forbidden", input);
-    if (p.startsWith("/")) throw new MymindPathError("absolute-path-forbidden", "absolute paths are forbidden", input);
-    if (/^[a-zA-Z]:\//.test(p)) throw new MymindPathError("drive-path-forbidden", "drive-prefixed paths are forbidden", input);
-    // Strip a single leading `mymind/` only.
-    if (p === "mymind" || p === "mymind/") return "";
-    if (p.startsWith("mymind/")) p = p.slice("mymind/".length);
+    if (p.startsWith("//")) throw new OpenmindPathError("unc-path-forbidden", "UNC paths are forbidden", input);
+    if (p.startsWith("/")) throw new OpenmindPathError("absolute-path-forbidden", "absolute paths are forbidden", input);
+    if (/^[a-zA-Z]:\//.test(p)) throw new OpenmindPathError("drive-path-forbidden", "drive-prefixed paths are forbidden", input);
+    // Strip a single leading `openmind/` only.
+    if (p === "openmind" || p === "openmind/") return "";
+    if (p.startsWith("openmind/")) p = p.slice("openmind/".length);
     // Collapse `./` and repeated slashes; reject `..`, `.`, empty segments.
     const segments = p.split("/").filter((seg) => seg.length > 0);
     for (const seg of segments) {
-      if (seg === ".") throw new MymindPathError("dot-segment-forbidden", "'.' segments are forbidden", input);
-      if (seg === "..") throw new MymindPathError("parent-segment-forbidden", "'..' segments are forbidden", input);
+      if (seg === ".") throw new OpenmindPathError("dot-segment-forbidden", "'.' segments are forbidden", input);
+      if (seg === "..") throw new OpenmindPathError("parent-segment-forbidden", "'..' segments are forbidden", input);
       // Reject percent-encoded traversal like %2e%2e or %2f.
       const decoded = tryDecodeSegment(seg);
       if (decoded.includes("..") || decoded.includes("/") || decoded.includes("\\")) {
-        throw new MymindPathError("traversal-detected", "encoded traversal detected", input);
+        throw new OpenmindPathError("traversal-detected", "encoded traversal detected", input);
       }
     }
     return segments.join("/");
@@ -153,10 +153,10 @@ export class MymindPathResolver {
   private assertWriteAllowed(normalisedLogical: string): void {
     const top = topLevelOf(normalisedLogical);
     if (top === null) return; // writing to the root itself is not a new top-level
-    if (!MYMIND_WRITABLE_TOP_LEVEL_DIRS.has(top)) {
-      throw new MymindPathError(
+    if (!OPENMIND_WRITABLE_TOP_LEVEL_DIRS.has(top)) {
+      throw new OpenmindPathError(
         "unknown-top-level-write",
-        `refusing to write to non-writable top-level '${top}'; ${MYMIND_LAYOUT_VERSION} only allows content-contract top-level directories`,
+        `refusing to write to non-writable top-level '${top}'; ${OPENMIND_LAYOUT_VERSION} only allows content-contract top-level directories`,
         normalisedLogical
       );
     }
@@ -165,14 +165,14 @@ export class MymindPathResolver {
   private assertInsideRoot(physical: string): void {
     const rel = path.relative(this.snapshot.rootPath, physical);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
-      throw new MymindPathError("not-inside-root", "resolved path is outside mymind root", physical);
+      throw new OpenmindPathError("not-inside-root", "resolved path is outside openmind root", physical);
     }
     if (!this.caseSensitive) {
       // Case-insensitive prefix check (Windows/macOS default).
       const rootLower = this.snapshot.rootPath.toLowerCase();
       const physLower = physical.toLowerCase();
       if (!physLower.startsWith(rootLower)) {
-        throw new MymindPathError("not-inside-root", "resolved path is outside mymind root (case mismatch)", physical);
+        throw new OpenmindPathError("not-inside-root", "resolved path is outside openmind root (case mismatch)", physical);
       }
     }
   }
@@ -189,7 +189,7 @@ export class MymindPathResolver {
     const rel = path.relative(this.snapshot.rootPath, physical);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       // already covered by assertInsideRoot; defensive double-check.
-      throw new MymindPathError("not-inside-root", "path outside root", physical);
+      throw new OpenmindPathError("not-inside-root", "path outside root", physical);
     }
     const segments = rel.split(path.sep).filter((s) => s.length > 0);
     let current = this.snapshot.rootPath;
@@ -203,15 +203,15 @@ export class MymindPathResolver {
             real = fs.realpathSync(current);
           } catch {
             // Broken symlink; treat as escape (cannot resolve safely).
-            throw new MymindPathError("symlink-escapes-root", "broken symlink in path", current);
+            throw new OpenmindPathError("symlink-escapes-root", "broken symlink in path", current);
           }
           const relReal = path.relative(this.snapshot.rootPath, real);
           if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
-            throw new MymindPathError("symlink-escapes-root", "symlink points outside mymind root", current);
+            throw new OpenmindPathError("symlink-escapes-root", "symlink points outside openmind root", current);
           }
         }
       } catch (e) {
-        if (e instanceof MymindPathError) throw e;
+        if (e instanceof OpenmindPathError) throw e;
         // ENOENT is fine: the leaf or an intermediate dir does not exist yet.
         // Any other error (EACCES, EIO) propagates.
         const code = (e as NodeJS.ErrnoException)?.code;

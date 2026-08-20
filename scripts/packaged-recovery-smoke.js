@@ -34,7 +34,7 @@ const stagingDir = path.join(userDataDir, "staging");
 const transactionDir = path.join(stagingDir, "state-backup-restore-recovery");
 const report = {
   schemaVersion: 1,
-  kind: "cctools-packaged-recovery-smoke",
+  kind: "openmind-packaged-recovery-smoke",
   generatedAt: new Date().toISOString(),
   status: "failed",
   host: { platform: process.platform, arch: process.arch, node: process.version, os: os.release() },
@@ -165,7 +165,7 @@ function writeInterruptedRestoreTransaction() {
   fs.writeFileSync(settingsFile, "partially-applied\n", "utf8");
   fs.writeFileSync(path.join(transactionDir, "previous", "settings", "settings.json"), "before-crash\n", "utf8");
   fs.writeFileSync(path.join(transactionDir, "marker.json"), `${JSON.stringify({
-    kind: "cctools-app-state-backup",
+    kind: "openmind-app-state-backup",
     schemaVersion: 1,
     phase: "committing"
   })}\n`, "utf8");
@@ -174,10 +174,10 @@ function writeInterruptedRestoreTransaction() {
 function sanitizedEnvironment() {
   const environment = { ...process.env };
   for (const key of [
-    "CCTOOLS_REPO_ROOT",
-    "CCTOOLS_USER_DATA_DIR",
-    "CCTOOLS_STATE_ROOT",
-    "CCTOOLS_MYMIND_ROOT",
+    "OPENMIND_REPO_ROOT",
+    "OPENMIND_USER_DATA_DIR",
+    "OPENMIND_STATE_ROOT",
+    "OPENMIND_ROOT",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",

@@ -3,9 +3,9 @@
  * `app.getPath("userData")`.
  *
  * Frozen by ADR-001, with one superseding decision: the Installed Skill store
- * no longer lives under `userData`. It lives under the bound mymind root at
- * `.agent/skills` (mymind-layout-v2, app-managed), so packages travel with
- * user content. With no mymind root bound there is no store: `skills` and
+ * no longer lives under `userData`. It lives under the bound openmind root at
+ * `.agent/skills` (openmind-layout-v2, app-managed), so packages travel with
+ * user content. With no openmind root bound there is no store: `skills` and
  * `skillRegistryFile` are `null` and skill writes fail fast while reads
  * report an empty store. All other app-owned state (settings, state,
  * runtimes, credentials, runs, automation, catalog, updates, staging, cache,
@@ -27,9 +27,9 @@ export interface AppPaths {
   readonly settingsFile: string;
   readonly migrations: string;
   readonly state: string;
-  /** Installed Skill store root; null when no mymind root is bound. */
+  /** Installed Skill store root; null when no openmind root is bound. */
   readonly skills: string | null;
-  /** Installed Skill registry; null when no mymind root is bound. */
+  /** Installed Skill registry; null when no openmind root is bound. */
   readonly skillRegistryFile: string | null;
   readonly runtimes: string;
   readonly runtimePacks: string;
@@ -60,20 +60,20 @@ export function resolveUserDataDir(explicit?: string): string {
     : undefined;
   const fromElectron = electronApp?.getPath?.("userData");
   if (fromElectron) return fromElectron;
-  const fromEnv = process.env.CCTOOLS_USER_DATA_DIR;
+  const fromEnv = process.env.OPENMIND_USER_DATA_DIR;
   if (fromEnv) return path.resolve(fromEnv);
   // Non-Electron callers (tests and small maintenance tools) must not create
   // an app-state directory inside the source checkout. Packaged Electron
   // always uses app.getPath("userData") above; this fallback is deliberately
   // outside the workspace.
-  return path.join(os.tmpdir(), "cctools-desktop-userdata");
+  return path.join(os.tmpdir(), "openmind-desktop-userdata");
 }
 
 /**
  * Build the full AppPaths for a given userData dir. Pure computation; no IO.
  *
- * `skillStoreRoot` locates the Installed Skill store (mymind-layout-v2
- * `.agent/skills` under the bound mymind root). Omitted/null means no store:
+ * `skillStoreRoot` locates the Installed Skill store (openmind-layout-v2
+ * `.agent/skills` under the bound openmind root). Omitted/null means no store:
  * reads report empty, writes fail fast — the renderer keeps unbound users on
  * the onboarding page, so a null store is an internal invariant, not a
  * user-facing fallback.
@@ -107,13 +107,13 @@ export function buildAppPaths(userDataDir?: string, skillStoreRoot?: string | nu
 }
 
 /**
- * Resolve the Installed Skill store root from the bound mymind root:
- * `<mymindRoot>/.agent/skills` (mymind-layout-v2, app-managed). Returns null
+ * Resolve the Installed Skill store root from the bound openmind root:
+ * `<openmindRoot>/.agent/skills` (openmind-layout-v2, app-managed). Returns null
  * when no root is bound. Pure computation; no IO.
  */
-export function resolveSkillStoreRoot(mymindRoot: string | null | undefined): string | null {
-  if (!mymindRoot) return null;
-  return path.join(path.resolve(mymindRoot), ".agent", "skills");
+export function resolveSkillStoreRoot(openmindRoot: string | null | undefined): string | null {
+  if (!openmindRoot) return null;
+  return path.join(path.resolve(openmindRoot), ".agent", "skills");
 }
 
 /** Cached singleton; mirrors the old settings.ts pattern but for app paths. */
@@ -143,7 +143,7 @@ export function __setAppPathsForTest(paths: AppPaths): void {
 
 /**
  * Ensure every directory in AppPaths exists. Idempotent. Null entries (skill
- * store without a bound mymind root) are skipped — the store is created by
+ * store without a bound openmind root) are skipped — the store is created by
  * the SkillStore itself once a root is bound.
  */
 export function ensureAppPaths(paths: AppPaths): void {
@@ -172,25 +172,25 @@ export function ensureAppPaths(paths: AppPaths): void {
 }
 
 /**
- * Disjointness check: mymindRoot, workspaceRoot, and userData must not alias
+ * Disjointness check: openmindRoot, workspaceRoot, and userData must not alias
  * or contain one another. Returns the list of violations (empty = ok).
  *
  * This guards against pathological user choices like selecting userData as
- * the mymind root, which would let skill writes corrupt app state.
+ * the openmind root, which would let skill writes corrupt app state.
  */
 export function detectPathConflicts(
   paths: AppPaths,
-  mymindRoot: string,
+  openmindRoot: string,
   workspaceRoot?: string
 ): PathConflict[] {
   const conflicts: PathConflict[] = [];
-  const a = path.resolve(mymindRoot);
+  const a = path.resolve(openmindRoot);
   const u = path.resolve(paths.userData);
-  if (a === u) conflicts.push({ kind: "mymind-equals-userData", a, b: u });
+  if (a === u) conflicts.push({ kind: "openmind-equals-userData", a, b: u });
   else if (a.startsWith(u + path.sep))
-    conflicts.push({ kind: "mymind-under-userData", a, b: u });
+    conflicts.push({ kind: "openmind-under-userData", a, b: u });
   else if (u.startsWith(a + path.sep))
-    conflicts.push({ kind: "userData-under-mymind", a: u, b: a });
+    conflicts.push({ kind: "userData-under-openmind", a: u, b: a });
   if (workspaceRoot) {
     const w = path.resolve(workspaceRoot);
     if (w === u) conflicts.push({ kind: "workspace-equals-userData", a: w, b: u });
@@ -198,16 +198,16 @@ export function detectPathConflicts(
       conflicts.push({ kind: "workspace-under-userData", a: w, b: u });
     else if (u.startsWith(w + path.sep))
       conflicts.push({ kind: "userData-under-workspace", a: u, b: w });
-    // mymindRoot and workspaceRoot may legitimately overlap (same user dir);
+    // openmindRoot and workspaceRoot may legitimately overlap (same user dir);
     // not flagged here.
   }
   return conflicts;
 }
 
 export type PathConflictKind =
-  | "mymind-equals-userData"
-  | "mymind-under-userData"
-  | "userData-under-mymind"
+  | "openmind-equals-userData"
+  | "openmind-under-userData"
+  | "userData-under-openmind"
   | "workspace-equals-userData"
   | "workspace-under-userData"
   | "userData-under-workspace";

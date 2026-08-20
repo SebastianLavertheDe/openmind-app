@@ -96,7 +96,7 @@ describe("RuntimePackDownloadService", () => {
 });
 
 function createFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-download-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-download-"));
   roots.push(root);
   const paths = buildAppPaths(root);
   ensureAppPaths(paths);

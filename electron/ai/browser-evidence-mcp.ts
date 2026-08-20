@@ -45,8 +45,8 @@ const upstreamTransport = new StdioClientTransport({
   }),
   stderr: "inherit"
 });
-const upstream = new Client({ name: "cctools-browser-evidence-bridge", version: "1.0.0" });
-const server = new McpServer({ name: "cctools-browser-evidence", version: "1.0.0" });
+const upstream = new Client({ name: "openmind-browser-evidence-bridge", version: "1.0.0" });
+const server = new McpServer({ name: "openmind-browser-evidence", version: "1.0.0" });
 
 server.registerTool("capture_source_evidence", {
   title: "截取原文证据",
@@ -134,7 +134,7 @@ async function captureEvidence(input: {
             `- 来源：${metadata.sourceTitle}`,
             `- URL：${metadata.sourceUrl}`,
             `- 范围：${metadata.captureScope}（识别为 ${metadata.captureKind}，${metadata.capturedBounds.width}×${metadata.capturedBounds.height}px）`,
-            `- 标签页：${access === "reused" ? "复用已打开标签页" : "新建 CC Tools 受管标签页"}`,
+            `- 标签页：${access === "reused" ? "复用已打开标签页" : "新建 OpenMind 受管标签页"}`,
             `- 截图：${relativeImagePath}`,
             `- 元数据：${path.relative(workspace, metadataPath).split(path.sep).join("/")}`,
             `- 建议 Markdown：![${metadata.caption}](${relativeImagePath})`
@@ -290,6 +290,6 @@ process.once("SIGTERM", () => { void close().finally(() => process.exit(0)); });
 process.once("SIGINT", () => { void close().finally(() => process.exit(0)); });
 
 void main().catch((error) => {
-  process.stderr.write(`CC Tools browser evidence server failed: ${error instanceof Error ? error.stack || error.message : String(error)}\n`);
+  process.stderr.write(`OpenMind browser evidence server failed: ${error instanceof Error ? error.stack || error.message : String(error)}\n`);
   process.exit(1);
 });

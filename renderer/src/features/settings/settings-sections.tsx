@@ -68,7 +68,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   const [versionCheckBusy, setVersionCheckBusy] = useState<"claude" | "codex" | null>(null);
   const [upgradingCli, setUpgradingCli] = useState<"claude" | "codex" | null>(null);
 
-  useEffect(() => window.cctools.onCliInstallProgress?.((progress) => {
+  useEffect(() => window.openmind.onCliInstallProgress?.((progress) => {
     setInstallProgress(progress);
     if (progress.phase === "done" || progress.phase === "cancelled") setInstallingCli(null);
   }) || undefined, []);
@@ -78,8 +78,8 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
     setInstallProgress({ cli, phase: "resolving", message: "正在准备安装…" });
     setInstallingCli(cli);
     try {
-      await window.cctools.installCliTool(cli);
-      await window.cctools.aiRefreshProviders();
+      await window.openmind.installCliTool(cli);
+      await window.openmind.aiRefreshProviders();
     } catch (cause) {
       setInstallError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
@@ -88,7 +88,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   };
 
   const cancelInstall = async (cli: "claude" | "codex") => {
-    await window.cctools.cancelCliToolInstall(cli);
+    await window.openmind.cancelCliToolInstall(cli);
     setInstallingCli(null);
   };
 
@@ -97,7 +97,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
     setVersionError(null);
     setVersionCheckBusy(cli);
     try {
-      const result = await window.cctools.checkCliToolUpdate(cli);
+      const result = await window.openmind.checkCliToolUpdate(cli);
       setVersionChecks((current) => ({ ...current, [cli]: result }));
     } catch (cause) {
       setVersionError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
@@ -112,8 +112,8 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
     setInstallProgress({ cli, phase: "resolving", message: "正在准备升级…" });
     setUpgradingCli(cli);
     try {
-      await window.cctools.upgradeCliTool(cli);
-      await window.cctools.aiRefreshProviders();
+      await window.openmind.upgradeCliTool(cli);
+      await window.openmind.aiRefreshProviders();
       await checkVersion(cli, true);
     } catch (cause) {
       setInstallError({ cli, message: cause instanceof Error ? cause.message : String(cause) });
@@ -151,10 +151,10 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   </span>
                 </div>
                 {canLogin ? <div className="settings-provider-install">
-                  <button type="button" className="settings-provider-install-button" onClick={() => void window.cctools.openCliLogin(provider.provider as "claude" | "codex")}>
+                  <button type="button" className="settings-provider-install-button" onClick={() => void window.openmind.openCliLogin(provider.provider as "claude" | "codex")}>
                     {m.settings.provider.openLogin}
                   </button>
-                  <button type="button" className="settings-provider-recheck" onClick={() => void window.cctools.aiRefreshProviders()}>
+                  <button type="button" className="settings-provider-recheck" onClick={() => void window.openmind.aiRefreshProviders()}>
                     {m.settings.provider.recheck}
                   </button>
                   <small>{m.settings.provider.loginHint}</small>
@@ -230,7 +230,7 @@ export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }
         <span className="settings-resource-icon settings-shared-runtime-shield"><ShieldCheck size={18} aria-hidden /></span>
         <div className="settings-resource-copy">
           <strong>内置 Python</strong>
-          <p>由 CC Tools 安装和维护，供所有 Python Skill 与自动化任务共同使用，依赖由 uv 统一管理。</p>
+          <p>由 OpenMind 安装和维护，供所有 Python Skill 与自动化任务共同使用，依赖由 uv 统一管理。</p>
           <small>{status?.target || "当前平台"}{status?.uvVersion ? ` · uv ${status.uvVersion}` : ""}{status?.managedSkills ? ` · ${status.managedSkills} 个 Skill` : ""}</small>
         </div>
         <div className="settings-resource-actions">
@@ -804,13 +804,13 @@ export function BrowserSettingsSection({
   );
 }
 
-export function PathSettingsSection({ mymind, workspace, notes, onSelectMymind, onSelectWorkspace, onOpenNotes }: { mymind: string; workspace: string; notes: string; onSelectMymind(): void; onSelectWorkspace(): void; onOpenNotes(): void }) {
+export function PathSettingsSection({ openmind, workspace, notes, onSelectOpenmind, onSelectWorkspace, onOpenNotes }: { openmind: string; workspace: string; notes: string; onSelectOpenmind(): void; onSelectWorkspace(): void; onOpenNotes(): void }) {
   return (
     <SettingsPanel title={m.settings.paths.title} scope="本地项目">
       <div className="settings-path-list">
         <PathRow label={m.settings.paths.workspace} path={workspace} buttonLabel={m.settings.paths.browse} onClick={onSelectWorkspace} />
         <PathRow label={m.settings.paths.notes} path={notes} buttonLabel={m.settings.paths.browse} onClick={onOpenNotes} />
-        <PathRow label={m.settings.paths.mymindRoot} path={mymind} buttonLabel={m.settings.paths.selectRoot} onClick={onSelectMymind} />
+        <PathRow label={m.settings.paths.openmindRoot} path={openmind} buttonLabel={m.settings.paths.selectRoot} onClick={onSelectOpenmind} />
       </div>
       <p className="settings-note">{m.settings.paths.note}</p>
     </SettingsPanel>

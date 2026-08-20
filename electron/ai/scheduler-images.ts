@@ -6,7 +6,7 @@ const TMP_DIR_NAME = "tmp-images";
 const STALE_MAX_MS = 7 * 24 * 3600 * 1000;
 
 function tmpImagesDir(projectRoot: string, stateRoot?: string): string {
-  return path.join(stateRoot ?? projectRoot, ".cctools", "ai", TMP_DIR_NAME);
+  return path.join(stateRoot ?? projectRoot, ".openmind", "ai", TMP_DIR_NAME);
 }
 
 function extFromMediaType(mediaType: string): string {
@@ -23,7 +23,7 @@ function parseDataURL(content: string): { base64: string; mediaType: string } | 
 
 /**
  * 把 image context 的 dataURL content 解码写到 root-scoped app-private
- * state/.cctools/ai/tmp-images/（兼容调用未传 stateRoot 时仍使用
+ * state/.openmind/ai/tmp-images/（兼容调用未传 stateRoot 时仍使用
  * projectRoot），回填 path、清空 content、补 mediaType/byteSize。其余 context 不动。
  * 失败的图（bad dataURL / 写盘失败）跳过并 console.warn，不阻断 run。
  */

@@ -4,15 +4,15 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderProtocol, ProviderYamlInputEntry, ProvidersYamlInput } from "../../shared/providers-yaml";
 
-const originalWorkspaceRoot = process.env.CCTOOLS_WORKSPACE_ROOT;
-const originalMymindRoot = process.env.CCTOOLS_MYMIND_ROOT;
-const originalUserDataDir = process.env.CCTOOLS_USER_DATA_DIR;
-const repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-repo-"));
-const separateMymind = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-mymind-"));
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-user-data-"));
-process.env.CCTOOLS_WORKSPACE_ROOT = repo;
-process.env.CCTOOLS_MYMIND_ROOT = separateMymind;
-process.env.CCTOOLS_USER_DATA_DIR = userDataDir;
+const originalWorkspaceRoot = process.env.OPENMIND_WORKSPACE_ROOT;
+const originalOpenmindRoot = process.env.OPENMIND_ROOT;
+const originalUserDataDir = process.env.OPENMIND_USER_DATA_DIR;
+const repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-repo-"));
+const separateOpenmind = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-openmind-"));
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-user-data-"));
+process.env.OPENMIND_WORKSPACE_ROOT = repo;
+process.env.OPENMIND_ROOT = separateOpenmind;
+process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 
 vi.mock("electron", () => ({ app: { getPath: () => userDataDir } }));
 
@@ -27,14 +27,14 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  if (originalWorkspaceRoot === undefined) delete process.env.CCTOOLS_WORKSPACE_ROOT;
-  else process.env.CCTOOLS_WORKSPACE_ROOT = originalWorkspaceRoot;
-  if (originalMymindRoot === undefined) delete process.env.CCTOOLS_MYMIND_ROOT;
-  else process.env.CCTOOLS_MYMIND_ROOT = originalMymindRoot;
-  if (originalUserDataDir === undefined) delete process.env.CCTOOLS_USER_DATA_DIR;
-  else process.env.CCTOOLS_USER_DATA_DIR = originalUserDataDir;
+  if (originalWorkspaceRoot === undefined) delete process.env.OPENMIND_WORKSPACE_ROOT;
+  else process.env.OPENMIND_WORKSPACE_ROOT = originalWorkspaceRoot;
+  if (originalOpenmindRoot === undefined) delete process.env.OPENMIND_ROOT;
+  else process.env.OPENMIND_ROOT = originalOpenmindRoot;
+  if (originalUserDataDir === undefined) delete process.env.OPENMIND_USER_DATA_DIR;
+  else process.env.OPENMIND_USER_DATA_DIR = originalUserDataDir;
   fs.rmSync(repo, { recursive: true, force: true });
-  fs.rmSync(separateMymind, { recursive: true, force: true });
+  fs.rmSync(separateOpenmind, { recursive: true, force: true });
   fs.rmSync(userDataDir, { recursive: true, force: true });
 });
 

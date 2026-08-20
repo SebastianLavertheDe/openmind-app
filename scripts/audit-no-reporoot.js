@@ -4,7 +4,7 @@
  *
  * Fails the build if new code introduces forbidden `repoRoot` path-joining
  * patterns. The refactor splits the overloaded `repoRoot` into disjoint
- * `mymindRoot` / `workspaceRoot` / userData-derived roots; new code must not
+ * `openmindRoot` / `workspaceRoot` / userData-derived roots; new code must not
  * re-introduce the conflation.
  *
  * ALLOWED (back-compat shims that must keep working until removed):
@@ -16,9 +16,9 @@
  *                                     — record audited legacy facts
  *
  * FORBIDDEN elsewhere (electron/, shared/, renderer/src/):
- *   - path.join(repoRoot, "mymind", ...)   → use MymindPathResolver / mymindRoot
+ *   - path.join(repoRoot, "openmind", ...)   → use OpenmindPathResolver / openmindRoot
  *   - path.join(repoRoot, ".claude", ...)  → skills live under userData now
- *   - path.join(findRepoRoot(), "mymind")  → use resolveMymindRoot()
+ *   - path.join(findRepoRoot(), "openmind")  → use resolveOpenmindRoot()
  *   - new hardcoded WSL/Windows dev paths  (\\\\wsl.localhost\\..., D:\\work\\...)
  *
  * The script is deliberately conservative: it greps for suspicious patterns
@@ -46,14 +46,14 @@ const ALLOWED_SUBSTRINGS = [
 
 // Patterns that indicate a forbidden repoRoot path join.
 const FORBIDDEN_PATTERNS = [
-  // joining mymind/.claude onto a repoRoot-derived variable
-  /path\.join\([^)]*\brepoRoot\b[^)]*,\s*["']mymind["']/,
+  // joining openmind/.claude onto a repoRoot-derived variable
+  /path\.join\([^)]*\brepoRoot\b[^)]*,\s*["']openmind["']/,
   /path\.join\([^)]*\brepoRoot\b[^)]*,\s*["']\.claude["']/,
-  /path\.join\([^)]*findRepoRoot\(\)[^)]*,\s*["']mymind["']/,
+  /path\.join\([^)]*findRepoRoot\(\)[^)]*,\s*["']openmind["']/,
   // hardcoded dev-machine WSL / Windows paths (ADR-001 §16.1 removed these)
   /\\\\wsl\.localhost\\Ubuntu\\home\\say/i,
   /\\\\wsl\$\\Ubuntu\\home\\say/i,
-  /D:\\work\\cctools/i
+  /D:\\work\\openmind/i
 ];
 
 function isAllowed(filePath) {
@@ -107,8 +107,8 @@ if (violations.length > 0) {
     console.error(`  ${v.file}:${v.line}`);
     console.error(`    ${v.text}\n`);
   }
-  console.error("New code must not join paths onto repoRoot. Use MymindPathResolver");
-  console.error("(electron/paths/mymind-path-resolver.ts) or resolveMymindRoot()");
+  console.error("New code must not join paths onto repoRoot. Use OpenmindPathResolver");
+  console.error("(electron/paths/openmind-path-resolver.ts) or resolveOpenmindRoot()");
   console.error("(electron/lib/settings.ts) instead. See ADR-001 §16.7.\n");
   process.exit(1);
 }

@@ -80,7 +80,7 @@ function makeEvent(
 
 function buildReconstruction(runs: AiRun[], eventsPerRun: Map<AiRun, AiEvent[]>): RolloutReconstruction {
   const lines = [
-    makeRolloutLine({ type: "session_meta", payload: { sessionId: "session", threadId: "session", forkedFromId: null, timestamp: makeSession().createdAt, cwd: "/project", originator: "cctools-desktop", appVersion: "1.0.17", provider: "codex", providerId: "codex-native", baseInstructions: "", dynamicTools: [], selectedCapabilityRoots: ["/project"], historyMode: "save-all" } }, "2026-07-01T00:00:00.000Z")
+    makeRolloutLine({ type: "session_meta", payload: { sessionId: "session", threadId: "session", forkedFromId: null, timestamp: makeSession().createdAt, cwd: "/project", originator: "openmind-desktop", appVersion: "1.0.17", provider: "codex", providerId: "codex-native", baseInstructions: "", dynamicTools: [], selectedCapabilityRoots: ["/project"], historyMode: "save-all" } }, "2026-07-01T00:00:00.000Z")
   ];
   for (const run of runs) {
     lines.push(makeRolloutLine(turnStartedItem(run), run.startedAt));

@@ -1,7 +1,7 @@
 /**
  * SKILL.md frontmatter 解析器 —— 轻量、零依赖。
  *
- * 解析规则只覆盖 cctools skill 约定使用的字段子集：
+ * 解析规则只覆盖 openmind skill 约定使用的字段子集：
  * - 标量：name / description / title / id / cwd / runner / envFile / group / permission / allowed-tools
  * - 数字：timeoutMs
  * - 列表：args / outputArtifacts

@@ -57,7 +57,7 @@ npm run dist:win
 - `npm run security:review` writes `.build/security-review-report.json` and is
   intentionally `manual-required` until an independent reviewer closes every
   P0/P1 row, records a valid review date and marks the reviewer as external or
-  independent. Use `CCTOOLS_SECURITY_REVIEW_STRICT=1` as the release gate.
+  independent. Use `OPENMIND_SECURITY_REVIEW_STRICT=1` as the release gate.
 - `npm run clean-machine:report` writes `.build/clean-machine-report.json` and
   is intentionally `manual-required` until every Windows/macOS scenario has
   machine-readable dated package, clean-machine and screenshot/log evidence.
@@ -69,14 +69,14 @@ npm run dist:win
 - `npm run package:safety:contract` verifies that Chromium license prose is not
   treated as runtime behavior while app-owned `process.report` code fails the
   package safety scan.
-- Use `CCTOOLS_CLEAN_MACHINE_STRICT=1` as the Clean-machine release gate.
+- Use `OPENMIND_CLEAN_MACHINE_STRICT=1` as the Clean-machine release gate.
 - `.build/release-evidence/` contains a CycloneDX SBOM, a complete production
   dependency license report, and build provenance with input/artifact digests.
 - `npm run release:readiness` aggregates the local, package, Provider,
   Security Review and Clean-machine reports into
   `.build/release-readiness-report.json`. It is intentionally
   `manual-required` until every in-scope gate has evidence; strict mode is
-  `CCTOOLS_RELEASE_READINESS_STRICT=1`. It separately requires packaged smoke,
+  `OPENMIND_RELEASE_READINESS_STRICT=1`. It separately requires packaged smoke,
   force-quit and recovery fields in both Windows/macOS package evidence. It
   also compares the Release evidence index's bytes/SHA-256 values with the
   actual SBOM, License and Provenance files before passing that gate. Staged
@@ -94,7 +94,7 @@ npm run dist:win
   Linux cross-build diagnostic names under `.build/` remain supported.
 - `npm run release:readiness:contract` verifies that a complete aggregate
   fixture passes and a missing in-scope macOS gate fails closed.
-- `npm run recovery:drill` exercises migration, mymind relocation, app-state
+- `npm run recovery:drill` exercises migration, openmind relocation, app-state
   restore, interrupted Run/orphan recovery and Runtime rollback from the
   compiled `.build` Main-process services.
 - `npm run package:safety` scans `.build`, the `.build` payload inside
@@ -141,7 +141,7 @@ npm run dist:win
 
 - Test the single-file Portable EXE and ZIP build without installation.
 - Test the NSIS install/uninstall flow.
-- Confirm no `.env`, `.cctools/ai/.runtime/`, Provider state or project content is embedded in the package.
+- Confirm no `.env`, `.openmind/ai/.runtime/`, Provider state or project content is embedded in the package.
 - The package safety scan also rejects app-owned crashReporter/diagnostic-report,
   heap/core-dump flags and known third-party crash-upload credentials in
   compiled code/config text inside `.build`, ASAR and extracted packages. It
@@ -164,7 +164,7 @@ npm run dist:win
   built recovery-drill and packaged-recovery references; it persists the same staged
   safety/recovery reports plus `package-artifact-safety-mac.json` into `.build/`.
 - After the distributable containers exist, run
-  `CCTOOLS_7ZZ=/path/to/7zz npm run package:artifact:safety` to recursively
+  `OPENMIND_7ZZ=/path/to/7zz npm run package:artifact:safety` to recursively
   extract Windows ZIP/Portable/NSIS (or macOS ZIP/DMG where supported by the
   extractor) and scan the actual container contents. The report is
   `.build/package-artifact-safety-report.json`; this remains artifact-level

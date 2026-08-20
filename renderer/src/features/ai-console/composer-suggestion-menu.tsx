@@ -67,7 +67,7 @@ export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
             {props.query && !props.loading && !props.files.length ? (
               <SuggestionEmpty
                 icon={<Search size={18} />}
-                title={m.ai.suggestions.noMymindMatch}
+                title={m.ai.suggestions.noOpenmindMatch}
                 detail={m.ai.suggestions.tryAnotherKeyword}
               />
             ) : null}
@@ -87,7 +87,7 @@ export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
                 <span className="suggestion-icon">{fileIcon(file.extension)}</span>
                 <span className="suggestion-copy">
                   <strong>{file.name}</strong>
-                  <small>{file.directory || "mymind"}</small>
+                  <small>{file.directory || "openmind"}</small>
                 </span>
                 {file.extension ? <code>{file.extension}</code> : null}
               </button>
@@ -133,7 +133,7 @@ export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
         <span><kbd>Esc</kbd>{m.ai.suggestions.kbdClose}</span>
         {props.kind === "mention" ? (
           <button data-motion="icon" type="button" onMouseDown={(event) => event.preventDefault()} onClick={props.onBrowse}>
-            <FolderOpen size={12} />{m.ai.suggestions.browseMymind}
+            <FolderOpen size={12} />{m.ai.suggestions.browseOpenmind}
           </button>
         ) : null}
         {props.kind === "mention" && props.indexedCount ? (

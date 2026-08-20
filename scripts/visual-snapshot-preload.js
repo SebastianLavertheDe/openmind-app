@@ -3,8 +3,8 @@ const { contextBridge } = require("electron");
 const now = "2026-06-17T02:20:00.000Z";
 const date = "20260617";
 const repoRoot = "/home/say/work/github/cctools";
-const longPath = "mymind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
-const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /home/say/work/github/cctools/mymind/post/20260617/posts.json && ls -la /home/say/work/github/cctools/mymind/post/20260617/posts.json'"`;
+const longPath = "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
+const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /home/say/work/github/cctools/openmind/post/20260617/posts.json && ls -la /home/say/work/github/cctools/openmind/post/20260617/posts.json'"`;
 let visualMode = "normal";
 let approvalResolved = false;
 
@@ -23,7 +23,7 @@ const contentItems = [
     title: "一个用于视觉验收的超长标题：Agentic AI workflow, Provider unavailable diagnostics, Windows/WSL path boundaries 与中文混排不会挤压布局",
     kind: "article",
     source: "Local Visual Audit",
-    author: "CC Tools",
+    author: "OpenMind",
     originalUrl: "https://example.com/visual-audit",
     publishedAt: "2026-06-17",
     capturedAt: now,
@@ -35,7 +35,7 @@ const contentItems = [
   {
     schemaVersion: 1,
     id: "content-reddit",
-    path: "mymind/reddit/20260617/OpenAI.md",
+    path: "openmind/reddit/20260617/OpenAI.md",
     name: "OpenAI.md",
     title: "Reddit 讨论：长会话、工具输出和审批体验",
     kind: "reddit",
@@ -52,7 +52,7 @@ const contentItems = [
   {
     schemaVersion: 1,
     id: "content-summary",
-    path: "mymind/daily-summary/20260617_daily_summary.md",
+    path: "openmind/daily-summary/20260617_daily_summary.md",
     name: "20260617_daily_summary.md",
     title: "20260617 每日总结",
     kind: "summary",
@@ -103,11 +103,11 @@ const automationRuns = [
 
 const creativeTopics = [
   { id: "creative-topic-1", title: "如何完整验收本地 AI 桌面工作台", platform: "wechat", section: "AI 产品", score: 96, body: "推荐理由：Provider、视觉、性能和安全边界都需要从真实工作流闭环。\\n\\n预计大纲：背景、验收矩阵、风险清单、发布建议。", ignored: false, projectDir: null },
-  { id: "creative-topic-2", title: "Windows/WSL 桌面应用验收手册", platform: "xiaohongshu", section: "工程效率", score: 88, body: "覆盖 portable、NSIS、UNC 路径和 Provider 登录态。", ignored: false, projectDir: "mymind/creative/visual-audit-project" }
+  { id: "creative-topic-2", title: "Windows/WSL 桌面应用验收手册", platform: "xiaohongshu", section: "工程效率", score: 88, body: "覆盖 portable、NSIS、UNC 路径和 Provider 登录态。", ignored: false, projectDir: "openmind/creative/visual-audit-project" }
 ];
 
 const projectSummary = {
-  dir: "mymind/creative/visual-audit-project",
+  dir: "openmind/creative/visual-audit-project",
   topic: "Windows/WSL 桌面应用验收手册",
   stage: "ready",
   completion: 82,
@@ -122,7 +122,7 @@ const projectDetail = {
   ...projectSummary,
   files: {
     "draft.md": "# Windows/WSL 桌面应用验收手册\n\n## 核心结论\n\n这份稿件用于验证长标题、长路径、中英文混排和发布前检查清单。\n\n- Portable EXE\n- NSIS installer\n- Provider E2E\n- Visual matrix\n",
-    "materials.md": "关联资料：mymind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md"
+    "materials.md": "关联资料：openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md"
   },
   truncatedFiles: [],
   manifest: {
@@ -169,7 +169,7 @@ const runs = [
   { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: "总结规模验证报告", contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
-const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\home\say\work\github\cctools\mymind\daily-summary\20260617_daily_summary.md`, "/home/say/work/github/cctools/mymind/post/20260617/posts.json"], createdAt: now, status: "pending" };
+const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260617_daily_summary.md`, "/home/say/work/github/cctools/openmind/post/20260617/posts.json"], createdAt: now, status: "pending" };
 
 const aiSnapshot = { projectRoot: repoRoot, providers, sessions, runs, pendingApprovals: [approval] };
 
@@ -206,7 +206,7 @@ const aiEvents = [
   event("e13", 24, "session-2", "run-ai-2", "tool-start", { itemId: "visual", tool: "PowerShell", input: { command: "npm run visual:snapshot" } }),
   event("e14", 25, "session-2", "run-ai-2", "tool-complete", { itemId: "visual", output: "48 visual snapshots passed." }),
   event("e15", 26, "session-2", "run-ai-2", "tool-start", { itemId: "package", tool: "PowerShell", input: { command: "Get-ChildItem dist | Select-Object Name,Length" } }),
-  event("e16", 27, "session-2", "run-ai-2", "tool-complete", { itemId: "package", output: "CC-Tools-Portable-1.0.22-x64.exe 141388687" }),
+  event("e16", 27, "session-2", "run-ai-2", "tool-complete", { itemId: "package", output: "OpenMind-Portable-1.0.22-x64.exe 141388687" }),
   event("e16b", 28, "session-2", "run-ai-2", "reasoning-summary", { text: "视觉矩阵与 Windows 产物均正常，最后汇总规模验证结果，并保留命令明细供需要时展开核对。" }),
   event("e17", 29, "session-2", "run-ai-2", "assistant-message", { text: "规模验证通过：1000 sessions、10000 events、1 MiB 输出重组正常。" })
 ];
@@ -300,7 +300,7 @@ const api = {
   getCreativeTopics: async () => ({ date, topics: creativeTopics }),
   getAllCreativeTopics: async () => [{ date, label: "今日选题", topics: creativeTopics }],
   addCreativeTopic: async (input) => ({ date: input.date, topics: creativeTopics.concat({ id: "new-topic", title: input.title, body: input.body, score: input.score || 80 }) }),
-  getCreativeProjects: async () => [projectSummary, { ...projectSummary, dir: "mymind/creative/review-project", topic: "审核中的长标题项目 Review Stage", stage: "review", completion: 55 }],
+  getCreativeProjects: async () => [projectSummary, { ...projectSummary, dir: "openmind/creative/review-project", topic: "审核中的长标题项目 Review Stage", stage: "review", completion: 55 }],
   getCreativeProject: async () => projectDetail,
   createCreativeProject: async () => projectDetail,
   saveCreativeFile: async () => projectDetail,
@@ -309,7 +309,7 @@ const api = {
   updateCreativeTopicState: async () => ({ date, topics: creativeTopics }),
   reviewCreativeProject: async () => projectDetail,
   setCreativeReviewStatus: async () => projectDetail,
-  listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "mymind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: "视觉验收版本", size: 2048 }],
+  listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "openmind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: "视觉验收版本", size: 2048 }],
   readCreativeVersion: async () => ({ path: "versions/draft-v1.md", content: projectDetail.files["draft.md"] }),
   restoreCreativeVersion: async () => projectDetail,
   getCreativeReleaseLog: async () => projectDetail.releaseLog,
@@ -320,12 +320,12 @@ const api = {
   getCreativeAnalytics: async () => ({ total: 2, stages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 68, averageCycleHours: 18, stageDurations: [{ stage: "drafting", averageHours: 10 }, { stage: "review", averageHours: 4 }] }),
   bindCreativeSession: async () => projectDetail,
   selectFiles: async () => [longPath],
-  selectMymindFiles: async () => ["mymind/daily-summary/20260625_daily_summary.md"],
-  searchMymindFiles: async (query, limit = 40) => {
+  selectOpenmindFiles: async () => ["openmind/daily-summary/20260625_daily_summary.md"],
+  searchOpenmindFiles: async (query, limit = 40) => {
     const files = [
-      "mymind/daily-summary/20260625_daily_summary.md",
-      "mymind/creative/01-内容生产/文稿库/composer-workflow.md",
-      "mymind/wiki/concepts/composer.md"
+      "openmind/daily-summary/20260625_daily_summary.md",
+      "openmind/creative/01-内容生产/文稿库/composer-workflow.md",
+      "openmind/wiki/concepts/composer.md"
     ];
     const normalized = String(query || "").toLocaleLowerCase();
     return {
@@ -354,7 +354,7 @@ const api = {
   setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 16 : 0, ready: enabled, lastError: null }),
   getMcpServers: async () => [{
     schemaVersion: 1,
-    id: "cctools_browser",
+    id: "openmind_browser",
     title: "写作证据截图",
     description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
     backend: "Microsoft Playwright MCP",
@@ -370,7 +370,7 @@ const api = {
   listInstalledSkills: async () => [],
   listInstalledRunnableSkills: async () => [],
   listSkillRuns: async () => [],
-  rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: [date], itemCount: contentItems.length, indexPath: ".cctools/content-index.json", statePath: ".cctools/content-state.json", rebuiltAt: now }),
+  rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: [date], itemCount: contentItems.length, indexPath: ".openmind/content-index.json", statePath: ".openmind/content-state.json", rebuiltAt: now }),
   aiRefresh: async () => currentAiSnapshot(),
   aiPrewarm: async () => true,
   aiSearchSessions: async () => sessions,
@@ -395,7 +395,7 @@ const api = {
   __setVisualMode: (mode) => { visualMode = mode || "normal"; }
 };
 
-contextBridge.exposeInMainWorld("cctools", api);
+contextBridge.exposeInMainWorld("openmind", api);
 
 function currentAiSnapshot() {
   if (!approvalResolved) return aiSnapshot;
@@ -430,7 +430,7 @@ function dailyBrief() {
     schemaVersion: 1,
     date,
     generatedAt: now,
-    sourcePath: "mymind/daily-summary/20260617_daily_summary.md",
+    sourcePath: "openmind/daily-summary/20260617_daily_summary.md",
     counts: { content: 36, unread: 12, articles: 18, posts: 12, reddit: 6, important: 8, topics: 2 },
     topics: briefTopics,
     signals: ["Provider E2E 仍需真实账号验收", "视觉截图矩阵需要覆盖长标题和错误状态", "性能预算已进入 verify"],
@@ -443,9 +443,9 @@ function dailyBrief() {
 
 function skillDefinitions() {
   return [
-    { id: "rss-article-saver", title: "RSS 文章抓取", description: "拉取订阅、提取正文并保存到文章库。", cwd: ".claude/skills/rss-article-saver", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: ".env", group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}"], timeoutMs: 1800000 },
-    { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["mymind/daily-summary"], timeoutMs: 1800000 },
-    { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["mymind/article/${date}/x_*.md", "mymind/post/${date}/"], timeoutMs: 1800000 }
+    { id: "rss-article-saver", title: "RSS 文章抓取", description: "拉取订阅、提取正文并保存到文章库。", cwd: ".claude/skills/rss-article-saver", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: ".env", group: "采集", permission: "edit", outputArtifacts: ["openmind/article/${date}"], timeoutMs: 1800000 },
+    { id: "daily-article-summarizer", title: "每日文章总结", description: "总结当天文章并同步每日摘要。", cwd: ".claude/skills/daily-article-summarizer", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: ".env", group: "分析", permission: "edit", outputArtifacts: ["openmind/daily-summary"], timeoutMs: 1800000 },
+    { id: "x-following-fetcher", title: "X 动态抓取", description: "拉取关注列表动态并保存为结构化内容。", cwd: ".claude/skills/x-following-fetcher", command: "uv", runner: "uv", args: ["run", "python", "main.py"], envFile: null, group: "采集", permission: "edit", outputArtifacts: ["openmind/article/${date}/x_*.md", "openmind/post/${date}/"], timeoutMs: 1800000 }
   ];
 }
 

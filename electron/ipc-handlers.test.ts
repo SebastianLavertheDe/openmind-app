@@ -26,7 +26,7 @@ vi.mock(import("electron"), async (importOriginal) => {
     ...actual,
     app: {
       ...actual.app,
-      getPath: vi.fn(() => "/tmp/cctools-test-user-data")
+      getPath: vi.fn(() => "/tmp/openmind-test-user-data")
     },
     dialog: {
       showOpenDialog: vi.fn(async () => electronMock.dialogResult),
@@ -89,7 +89,7 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     getMainWindow: () => null,
     ensureProductService: () => product as never,
     ensureAiWorker: () => makeAiSpy() as never,
-    ensureMymindFileSearch: () => ({ search: async () => [] }) as never,
+    ensureOpenmindFileSearch: () => ({ search: async () => [] }) as never,
     ensureSkillPackageService: () => ({
       inspectClaudeSkills: () => [],
       migrateClaudeSkills: () => ({ inspected: [], installed: [], skipped: [] }),
@@ -192,8 +192,8 @@ describe("handler forwarding — 内容类", () => {
   it("readContent 转发 filePath", () => {
     const { product, spy } = makeProductSpy();
     const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.readContent, "mymind/article/x.md");
-    expect(spy).toHaveBeenCalledWith("readContent", "mymind/article/x.md");
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.readContent, "openmind/article/x.md");
+    expect(spy).toHaveBeenCalledWith("readContent", "openmind/article/x.md");
   });
 
   it("writeContent 校验内容大小(超 5MB 抛错)", () => {
@@ -478,24 +478,24 @@ describe("handler forwarding — dialog 类", () => {
     expect(result).toEqual([]);
   });
 
-  it("selectMymindFiles 取消时返回 []", async () => {
+  it("selectOpenmindFiles 取消时返回 []", async () => {
     electronMock.dialogResult = { canceled: true, filePaths: [] };
     const ctx = makeCtx();
-    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.selectMymindFiles);
+    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.selectOpenmindFiles);
     expect(result).toEqual([]);
   });
 
-  it("searchMymindFiles 转发 query + limit 到 mymind search", async () => {
+  it("searchOpenmindFiles 转发 query + limit 到 openmind search", async () => {
     const searchSpy = vi.fn(async () => ({ items: [], indexedCount: 0, truncated: false }));
-    const ctx = makeCtx({ ensureMymindFileSearch: () => ({ search: searchSpy }) as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.searchMymindFiles, "关键词", 20);
+    const ctx = makeCtx({ ensureOpenmindFileSearch: () => ({ search: searchSpy }) as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.searchOpenmindFiles, "关键词", 20);
     expect(searchSpy).toHaveBeenCalledWith("关键词", 20);
   });
 
-  it("searchMymindFiles 空 query 传空串", async () => {
+  it("searchOpenmindFiles 空 query 传空串", async () => {
     const searchSpy = vi.fn(async () => ({ items: [], indexedCount: 0, truncated: false }));
-    const ctx = makeCtx({ ensureMymindFileSearch: () => ({ search: searchSpy }) as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.searchMymindFiles, null, 40);
+    const ctx = makeCtx({ ensureOpenmindFileSearch: () => ({ search: searchSpy }) as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.searchOpenmindFiles, null, 40);
     expect(searchSpy).toHaveBeenCalledWith("", 40);
   });
 });
@@ -552,34 +552,34 @@ describe("handler forwarding — Skill package installation", () => {
     };
     const service = {
       inspectClaudeSkills: vi.fn(() => [inspection]),
-      getInstalled: vi.fn(() => ({ packagePath: "/userData/skills/cctools/installed/1.0.0" })),
+      getInstalled: vi.fn(() => ({ packagePath: "/userData/skills/openmind/installed/1.0.0" })),
       inspect: vi.fn(() => inspection),
       migrateClaudeSkills: vi.fn(() => ({ inspected: [inspection], installed: [], skipped: [{ sourcePath: inspection.sourcePath, issues: inspection.issues }] })),
       listInstalled: vi.fn(() => []),
       listInstalledViews: vi.fn(() => []),
       listInstalledRunnableViews: vi.fn(() => [{ id: "installed", kind: "process", title: "Installed", enabled: true }]),
       toInstalledView: vi.fn((record) => ({ ...record, usable: true })),
-      install: vi.fn(() => ({ key: "cctools/installed", digest: "digest-installed" })),
+      install: vi.fn(() => ({ key: "openmind/installed", digest: "digest-installed" })),
       uninstall: vi.fn(() => true)
     };
     const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
 
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillWorkspace)).toEqual([expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false })]);
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectInstalledSkill, "cctools/installed", "digest-installed")).toEqual(expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false }));
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectInstalledSkill, "openmind/installed", "digest-installed")).toEqual(expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.migrateSkillWorkspace)).toEqual(expect.objectContaining({ inspected: [expect.any(Object)], skipped: [expect.any(Object)] }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledSkills)).toEqual([]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledRunnableSkills)).toEqual([
       expect.objectContaining({ id: "installed", kind: "process", title: "Installed", enabled: true })
     ]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "cctools/installed", "digest-installed")).toBe(true);
+    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "openmind/installed", "digest-installed")).toBe(true);
     expect(service.inspectClaudeSkills).toHaveBeenCalledWith("/workspace");
-    expect(service.getInstalled).toHaveBeenCalledWith("cctools/installed", "digest-installed");
-    expect(service.inspect).toHaveBeenCalledWith("/userData/skills/cctools/installed/1.0.0");
+    expect(service.getInstalled).toHaveBeenCalledWith("openmind/installed", "digest-installed");
+    expect(service.inspect).toHaveBeenCalledWith("/userData/skills/openmind/installed/1.0.0");
     expect(service.migrateClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.install).toHaveBeenCalledWith("/tmp/skill");
-    expect(service.uninstall).toHaveBeenCalledWith("cctools/installed", "digest-installed");
+    expect(service.uninstall).toHaveBeenCalledWith("openmind/installed", "digest-installed");
     vi.restoreAllMocks();
   });
 
@@ -600,7 +600,7 @@ describe("handler forwarding — Skill package installation", () => {
     };
     const sourceService = {
       inspect: vi.fn(async () => ({ source, packages: [{ ...sourceInspection, packageRef: "demo" }] })),
-      install: vi.fn(async () => [{ key: "cctools/git-demo", digest: "digest-git" }])
+      install: vi.fn(async () => [{ key: "openmind/git-demo", digest: "digest-git" }])
     };
     const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never });
 
@@ -616,7 +616,7 @@ describe("handler forwarding — Skill package installation", () => {
   });
 
   it("updates exact Skill enablement without restarting or refreshing the AI worker", () => {
-    const record = { key: "cctools/installed", digest: "a".repeat(64), id: "installed" };
+    const record = { key: "openmind/installed", digest: "a".repeat(64), id: "installed" };
     const setEnabled = vi.fn(() => record);
     const toInstalledView = vi.fn((value) => ({ ...value, enabled: false, usable: true }));
     const restartAiWorker = vi.fn();
@@ -653,11 +653,11 @@ describe("handler forwarding — Skill package installation", () => {
     const digest = "b".repeat(64);
 
     expect(() => invokeHandler(ctx, channel, "", digest, false)).toThrow();
-    expect(() => invokeHandler(ctx, channel, "cctools/installed", "", false)).toThrow();
-    expect(() => invokeHandler(ctx, channel, "cctools/installed", digest, "false")).toThrow();
+    expect(() => invokeHandler(ctx, channel, "openmind/installed", "", false)).toThrow();
+    expect(() => invokeHandler(ctx, channel, "openmind/installed", digest, "false")).toThrow();
     expect(setEnabled).not.toHaveBeenCalled();
 
-    expect(() => invokeHandler(ctx, channel, "cctools/installed", digest, false)).toThrow(stale);
+    expect(() => invokeHandler(ctx, channel, "openmind/installed", digest, false)).toThrow(stale);
     expect(setEnabled).toHaveBeenCalledTimes(1);
     expect(toInstalledView).not.toHaveBeenCalled();
     expect(restartAiWorker).not.toHaveBeenCalled();
@@ -688,8 +688,8 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
       ensureSkillSourceService: () => ({ hasCompleteInstallation: () => true }) as never
     });
     const settings = await import("./lib/settings");
-    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("/workspace/mymind");
-    vi.spyOn(settings, "isValidMymindRoot").mockReturnValue(true);
+    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
+    vi.spyOn(settings, "isValidOpenmindRoot").mockReturnValue(true);
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; environment: { mode: string; platform: string } };
     expect(result.validRepo).toBeDefined();
@@ -699,14 +699,14 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(ai.call).toHaveBeenCalledWith("snapshot");
   });
 
-  it("未绑定 mymindRoot 时 skills 返回空数组,不调 ai", async () => {
+  it("未绑定 openmindRoot 时 skills 返回空数组,不调 ai", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never
     });
-    // New bootstrap readiness is based on mymindRoot, not .claude/skills.
+    // New bootstrap readiness is based on openmindRoot, not .claude/skills.
     const settings = await import("./lib/settings");
-    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("");
+    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("");
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("");
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { skills: unknown[]; ai: { providers: unknown[] } };
     // invalidRepo 时 ai 调用不应发生
@@ -715,15 +715,15 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(result.ai.providers).toEqual([]);
   });
 
-  it("已绑定 mymindRoot 但官方来源安装不完整时仍停在启动门禁且不调 ai", async () => {
+  it("已绑定 openmindRoot 但官方来源安装不完整时仍停在启动门禁且不调 ai", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never,
       ensureSkillSourceService: () => ({ hasCompleteInstallation: () => false }) as never
     });
     const settings = await import("./lib/settings");
-    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("/workspace/mymind");
-    vi.spyOn(settings, "isValidMymindRoot").mockReturnValue(true);
+    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
+    vi.spyOn(settings, "isValidOpenmindRoot").mockReturnValue(true);
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
 
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; skillsInstalled: boolean; skills: unknown[] };
@@ -774,7 +774,7 @@ describe("handler forwarding — exportText 复合逻辑", () => {
   it("选了路径时写文件并返回路径", async () => {
     const os = await import("node:os");
     const path = await import("node:path");
-    const tmpDir = await import("node:fs").then(fs => fs.mkdtempSync(path.join(os.tmpdir(), "cctools-export-")));
+    const tmpDir = await import("node:fs").then(fs => fs.mkdtempSync(path.join(os.tmpdir(), "openmind-export-")));
     const outFile = path.join(tmpDir, "out.md");
     electronMock.saveResult = { canceled: false, filePath: outFile };
     // mock ensureInsideRepo 返回原路径(避免路径校验)
@@ -798,7 +798,7 @@ describe("handler forwarding — app state backup", () => {
   it("uses Main dialogs and blocks backup/restore while a Run is active", async () => {
     const report = {
       schemaVersion: 1,
-      kind: "cctools-app-state-backup",
+      kind: "openmind-app-state-backup",
       operation: "export" as const,
       createdAt: "2026-08-06T00:00:00.000Z",
       fileCount: 2,
@@ -809,7 +809,7 @@ describe("handler forwarding — app state backup", () => {
       exportToFile: vi.fn(() => report),
       importFromFile: vi.fn(() => ({ ...report, operation: "import" as const }))
     };
-    const outFile = path.join(os.tmpdir(), "cctools-state-backup-ipc.zip");
+    const outFile = path.join(os.tmpdir(), "openmind-state-backup-ipc.zip");
     electronMock.saveResult = { canceled: false, filePath: outFile };
     const restartAiWorker = vi.fn();
     const ctx = makeCtx({ ensureAppStateBackupService: () => backup as never, restartAiWorker });
@@ -826,13 +826,13 @@ describe("handler forwarding — app state backup", () => {
   });
 });
 
-describe("handler forwarding — mymind root switching", () => {
+describe("handler forwarding — openmind root switching", () => {
   it("keeps directory selection read-only until preview and explicit commit", async () => {
     const settings = await import("./lib/settings");
-    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
-    const preview = vi.spyOn(settings, "previewMymindRoot").mockReturnValue({
-      candidate: "/new-mymind",
-      canonicalRoot: "/new-mymind",
+    const setOpenmindRoot = vi.spyOn(settings, "setOpenmindRoot").mockReturnValue("/new-openmind");
+    const preview = vi.spyOn(settings, "previewOpenmindRoot").mockReturnValue({
+      candidate: "/new-openmind",
+      canonicalRoot: "/new-openmind",
       health: {
         configured: true,
         accessible: true,
@@ -849,29 +849,29 @@ describe("handler forwarding — mymind root switching", () => {
       canBind: true,
       blockingReasons: []
     });
-    electronMock.dialogResult = { canceled: false, filePaths: ["/new-mymind"] };
+    electronMock.dialogResult = { canceled: false, filePaths: ["/new-openmind"] };
     const restartAiWorker = vi.fn();
     const ctx = makeCtx({ restartAiWorker });
 
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectMymindRoot)).resolves.toBe("/new-mymind");
-    expect(setMymindRoot).not.toHaveBeenCalled();
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectOpenmindRoot)).resolves.toBe("/new-openmind");
+    expect(setOpenmindRoot).not.toHaveBeenCalled();
     expect(restartAiWorker).not.toHaveBeenCalled();
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewMymindRoot, "/new-mymind")).resolves.toEqual(expect.objectContaining({ canBind: true }));
-    expect(preview).toHaveBeenCalledWith("/new-mymind", 0);
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.setMymindRoot, "/new-mymind");
-    expect(setMymindRoot).toHaveBeenCalledWith("/new-mymind");
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewOpenmindRoot, "/new-openmind")).resolves.toEqual(expect.objectContaining({ canBind: true }));
+    expect(preview).toHaveBeenCalledWith("/new-openmind", 0);
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.setOpenmindRoot, "/new-openmind");
+    expect(setOpenmindRoot).toHaveBeenCalledWith("/new-openmind");
     expect(restartAiWorker).toHaveBeenCalledTimes(1);
     vi.restoreAllMocks();
   });
 
   it("keeps content relocation behind preview and explicit commit", async () => {
     const settings = await import("./lib/settings");
-    const relocation = await import("./paths/mymind-relocation-service");
-    vi.spyOn(settings, "resolveMymindRoot").mockReturnValue("/old-mymind");
-    const preview = vi.spyOn(relocation, "previewMymindRelocation").mockReturnValue({
+    const relocation = await import("./paths/openmind-relocation-service");
+    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/old-openmind");
+    const preview = vi.spyOn(relocation, "previewOpenmindRelocation").mockReturnValue({
       schemaVersion: 1,
-      sourceDirectory: "/old-mymind",
-      targetDirectory: "/new-mymind",
+      sourceDirectory: "/old-openmind",
+      targetDirectory: "/new-openmind",
       sourceRootId: "source",
       sourceFileCount: 2,
       sourceDirectoryCount: 1,
@@ -885,11 +885,11 @@ describe("handler forwarding — mymind root switching", () => {
       canCommit: true,
       blockingReasons: []
     });
-    const relocate = vi.spyOn(relocation, "relocateMymind").mockReturnValue({
+    const relocate = vi.spyOn(relocation, "relocateOpenmind").mockReturnValue({
       schemaVersion: 1,
       status: "committed",
-      sourceDirectory: "/old-mymind",
-      targetDirectory: "/new-mymind",
+      sourceDirectory: "/old-openmind",
+      targetDirectory: "/new-openmind",
       sourceRootId: "source",
       targetRootId: "target",
       copiedFileCount: 2,
@@ -900,27 +900,27 @@ describe("handler forwarding — mymind root switching", () => {
       verified: true,
       completedAt: "2026-08-06T00:00:00.000Z"
     });
-    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
+    const setOpenmindRoot = vi.spyOn(settings, "setOpenmindRoot").mockReturnValue("/new-openmind");
     const restartAiWorker = vi.fn();
     const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 0 });
 
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewMymindRelocation, "/new-mymind")).resolves.toMatchObject({ canCommit: true });
-    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-mymind", targetDirectory: "/new-mymind" }));
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.relocateMymind, "/new-mymind")).resolves.toMatchObject({ status: "committed" });
-    expect(relocate).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-mymind", targetDirectory: "/new-mymind" }));
-    expect(setMymindRoot).toHaveBeenCalledWith("/new-mymind");
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewOpenmindRelocation, "/new-openmind")).resolves.toMatchObject({ canCommit: true });
+    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-openmind", targetDirectory: "/new-openmind" }));
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.relocateOpenmind, "/new-openmind")).resolves.toMatchObject({ status: "committed" });
+    expect(relocate).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-openmind", targetDirectory: "/new-openmind" }));
+    expect(setOpenmindRoot).toHaveBeenCalledWith("/new-openmind");
     expect(restartAiWorker).toHaveBeenCalledTimes(1);
     vi.restoreAllMocks();
   });
 
   it("blocks root switching while the AI worker reports active work", async () => {
     const settings = await import("./lib/settings");
-    const setMymindRoot = vi.spyOn(settings, "setMymindRoot").mockReturnValue("/new-mymind");
+    const setOpenmindRoot = vi.spyOn(settings, "setOpenmindRoot").mockReturnValue("/new-openmind");
     const restartAiWorker = vi.fn();
     const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 1 });
 
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setMymindRoot, "/new-mymind")).rejects.toThrow("不能切换 mymind");
-    expect(setMymindRoot).not.toHaveBeenCalled();
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setOpenmindRoot, "/new-openmind")).rejects.toThrow("不能切换 openmind");
+    expect(setOpenmindRoot).not.toHaveBeenCalled();
     expect(restartAiWorker).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });

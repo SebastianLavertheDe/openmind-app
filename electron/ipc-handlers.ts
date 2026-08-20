@@ -34,10 +34,10 @@ import {
   SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
-import { CCTOOLS_SKILLS_REPO_URL, SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
+import { OPENMIND_SKILLS_REPO_URL, SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import type { ProductService } from "./product/product-service";
-import type { MymindFileSearch } from "./mymind-file-search";
+import type { OpenmindFileSearch } from "./openmind-file-search";
 import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
 import type { SkillSourceService } from "./skills/skill-source-service";
@@ -47,9 +47,9 @@ import type { RuntimePackService } from "./runtime/runtime-pack-service";
 import type { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import type { AppStateBackupService } from "./backup/app-state-backup";
-import { normalizeMymindSelection } from "./mymind-file-search";
+import { normalizeOpenmindSelection } from "./openmind-file-search";
 import { getAppPaths } from "./paths/app-paths-service";
-import { previewMymindRelocation, relocateMymind } from "./paths/mymind-relocation-service";
+import { previewOpenmindRelocation, relocateOpenmind } from "./paths/openmind-relocation-service";
 import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
 import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
@@ -87,7 +87,7 @@ function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
 }
 
-async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 mymind 根目录。"): Promise<void> {
+async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 openmind 根目录。"): Promise<void> {
   const count = await ctx.getActiveRunCount();
   if (count > 0) throw new Error(message);
 }
@@ -100,7 +100,7 @@ export type IpcMainContext = {
   getMainWindow: () => BrowserWindow | null;
   ensureProductService: () => ProductService;
   ensureAiWorker: () => AiWorkerCaller;
-  ensureMymindFileSearch: () => MymindFileSearch;
+  ensureOpenmindFileSearch: () => OpenmindFileSearch;
   ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
@@ -173,20 +173,20 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async () => {
         const repoRoot = settings.findRepoRoot();
         const date = ctx.localDate();
-        // ADR-001: surface the resolved mymind/workspace roots so the renderer
+        // ADR-001: surface the resolved openmind/workspace roots so the renderer
         // can drive the new path settings UI without re-deriving them.
-        const mymindRoot = settings.resolveMymindRoot();
+        const openmindRoot = settings.resolveOpenmindRoot();
         const workspaceRoot = settings.resolveWorkspaceRoot();
         // `validRepo` is retained in the wire contract for one release. It
-        // means only that an explicit, usable mymind save root is bound; the
+        // means only that an explicit, usable openmind save root is bound; the
         // separate complete-source receipt controls the Skill startup gate.
-        const validRepo = Boolean(mymindRoot && settings.isValidMymindRoot(mymindRoot));
+        const validRepo = Boolean(openmindRoot && settings.isValidOpenmindRoot(openmindRoot));
         const aiWorkspace = workspaceRoot;
         const hasAiWorkspace = Boolean(aiWorkspace);
-        // No mymind root bound → no skill store; skip the service entirely so
+        // No openmind root bound → no skill store; skip the service entirely so
         // bootstrap never constructs a null-root store on a fresh machine.
         const skillsInstalled = validRepo
-          ? skillSources().hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)
+          ? skillSources().hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)
           : false;
         const appReady = validRepo && skillsInstalled && hasAiWorkspace;
         return {
@@ -194,14 +194,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           validRepo,
           skillsInstalled,
           onboardingCompleted: settings.getOnboardingState().completed,
-          mymindRoot,
+          openmindRoot,
           workspaceRoot,
           runtime: settings.parseWslRepoPath(repoRoot) ? "Windows → WSL" : process.platform,
           environment: { mode: "desktop", platform: process.platform },
           overview: appReady ? product().getOverview(date) : { repoRoot, metrics: {}, recent: [] },
           skills: appReady ? await ai().call("skills") : [],
           ai: appReady ? await ai().call("snapshot") : {
-            projectRoot: aiWorkspace || mymindRoot,
+            projectRoot: aiWorkspace || openmindRoot,
             providers: [],
             sessions: [],
             runs: [],
@@ -327,26 +327,26 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
-      channel: C.selectMymindFiles,
+      channel: C.selectOpenmindFiles,
       handler: async () => {
-        const mymindRoot = settings.resolveMymindRoot();
-        if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) return [];
+        const openmindRoot = settings.resolveOpenmindRoot();
+        if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) return [];
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: messages.dialogs.selectMymindFile,
-          defaultPath: mymindRoot,
+          title: messages.dialogs.selectOpenmindFile,
+          defaultPath: openmindRoot,
           properties: ["openFile", "multiSelections"]
         });
         return result.canceled
           ? []
-          : result.filePaths.map((filePath) => normalizeMymindSelection(mymindRoot, filePath, { rootKind: "mymind" }));
+          : result.filePaths.map((filePath) => normalizeOpenmindSelection(openmindRoot, filePath, { rootKind: "openmind" }));
       }
     },
     {
-      channel: C.searchMymindFiles,
+      channel: C.searchOpenmindFiles,
       handler: async (rawQuery, rawLimit) => {
         const query = z.string().max(240).parse(rawQuery || "").trim();
         const limit = z.number().int().min(1).max(100).default(40).parse(rawLimit);
-        return ProjectFileSearchResultSchema.parse(await ctx.ensureMymindFileSearch().search(query, limit));
+        return ProjectFileSearchResultSchema.parse(await ctx.ensureOpenmindFileSearch().search(query, limit));
       }
     },
     {
@@ -384,38 +384,38 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return outputPath;
       }
     },
-    // --- ADR-001 mymindRoot / workspaceRoot handlers ---
+    // --- ADR-001 openmindRoot / workspaceRoot handlers ---
     {
-      channel: C.setMymindRoot,
+      channel: C.setOpenmindRoot,
       handler: async (value) => {
         await assertNoActiveTasks(ctx);
-        const result = settings.setMymindRoot(parseString(value));
+        const result = settings.setOpenmindRoot(parseString(value));
         ctx.restartAiWorker();
         return result;
       }
     },
     {
-      channel: C.selectMymindRoot,
+      channel: C.selectOpenmindRoot,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 mymind 内容根目录",
+          title: "选择 openmind 内容根目录",
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
         // Selection is deliberately read-only. The renderer must preview the
-        // candidate and explicitly commit it through setMymindRoot.
+        // candidate and explicitly commit it through setOpenmindRoot.
         return result.filePaths[0];
       }
     },
     {
-      channel: C.previewMymindRoot,
-      handler: async (value) => settings.previewMymindRoot(parseString(value), await ctx.getActiveRunCount())
+      channel: C.previewOpenmindRoot,
+      handler: async (value) => settings.previewOpenmindRoot(parseString(value), await ctx.getActiveRunCount())
     },
     {
-      channel: C.selectMymindRelocationTarget,
+      channel: C.selectOpenmindRelocationTarget,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 mymind 搬迁目标（必须为空目录）",
+          title: "选择 openmind 搬迁目标（必须为空目录）",
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
@@ -423,11 +423,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
-      channel: C.previewMymindRelocation,
+      channel: C.previewOpenmindRelocation,
       handler: async (value) => {
-        const sourceDirectory = settings.resolveMymindRoot();
+        const sourceDirectory = settings.resolveOpenmindRoot();
         if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
-        return previewMymindRelocation({
+        return previewOpenmindRelocation({
           sourceDirectory,
           targetDirectory: parseString(value),
           paths: getAppPaths(),
@@ -436,12 +436,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
-      channel: C.relocateMymind,
+      channel: C.relocateOpenmind,
       handler: async (value) => {
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能搬迁 mymind 内容。");
-        const sourceDirectory = settings.resolveMymindRoot();
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能搬迁 openmind 内容。");
+        const sourceDirectory = settings.resolveOpenmindRoot();
         if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
-        const report = relocateMymind({
+        const report = relocateOpenmind({
           sourceDirectory,
           targetDirectory: parseString(value),
           paths: getAppPaths(),
@@ -450,18 +450,18 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         // Content copy and root binding are separate operations. Only after
         // the copy has passed its source/target tree verification do we bind
         // the new root and restart the worker snapshot.
-        settings.setMymindRoot(report.targetDirectory);
+        settings.setOpenmindRoot(report.targetDirectory);
         ctx.restartAiWorker();
         return report;
       }
     },
     {
-      channel: C.getMymindRoot,
+      channel: C.getOpenmindRoot,
       handler: () => ({
-        mymindRoot: settings.resolveMymindRoot(),
+        openmindRoot: settings.resolveOpenmindRoot(),
         workspaceRoot: settings.resolveWorkspaceRoot(),
-        health: settings.getMymindRootHealth(),
-        snapshot: settings.getMymindRootSnapshot()
+        health: settings.getOpenmindRootHealth(),
+        snapshot: settings.getOpenmindRootSnapshot()
       })
     },
     {
@@ -523,8 +523,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async () => {
         const result = await dialog.showSaveDialog(ctx.getMainWindow()!, {
           title: "备份应用状态",
-          defaultPath: "cctools-state-backup.zip",
-          filters: [{ name: "CC Tools 应用状态备份", extensions: ["zip"] }]
+          defaultPath: "openmind-state-backup.zip",
+          filters: [{ name: "OpenMind 应用状态备份", extensions: ["zip"] }]
         });
         if (result.canceled || !result.filePath) return null;
         await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能备份应用状态。 ");
@@ -537,7 +537,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
           title: "恢复应用状态",
           properties: ["openFile"],
-          filters: [{ name: "CC Tools 应用状态备份", extensions: ["zip"] }]
+          filters: [{ name: "OpenMind 应用状态备份", extensions: ["zip"] }]
         });
         if (result.canceled || !result.filePaths[0]) return null;
         await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能恢复应用状态。 ");

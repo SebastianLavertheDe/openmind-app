@@ -72,7 +72,7 @@ export const aiMessages = {
     finalMissing: "最终回复缺失",
     finalMissingDetail: "Provider 已结束运行，但没有返回最终回复。该运行未被视为成功。",
     completedRounds: (n: number) => `已完成 ${n} 轮`,
-    /* P1-CHAT-1: 与 CC Tools 核心内容工作流对应的快捷任务 */
+    /* P1-CHAT-1: 与 OpenMind 核心内容工作流对应的快捷任务 */
     emptyPrompts: [
       { title: "整理资料库", body: "归类新增资料，提炼要点并保留来源", prompt: "请查看资料库中今天新增的内容，按主题归类，提炼关键信息，并为每项保留来源链接。" },
       { title: "生成每日简报", body: "汇总今日重点、趋势与后续行动", prompt: "请基于今天新增的资料生成每日简报，按主题整理重点、趋势和下一步行动建议。" },
@@ -137,23 +137,23 @@ export const aiMessages = {
 
   suggestions: {
     mentionAria: "引用文件",
-    mentionTitle: "引用 mymind 文件",
+    mentionTitle: "引用 openmind 文件",
     searchQuery: (q: string) => `搜索"${q}"`,
     enterFilename: "输入文件名或路径",
     filterSkill: (q: string) => `筛选"/${q}"`,
     pickWorkflow: "选择要运行的真实工作流",
     searchingFiles: "正在搜索文件",
     startTyping: "输入文件名开始搜索",
-    mentionHelp: "支持文件名、目录和模糊匹配；仅搜索 mymind/，敏感凭据不会进入自动补全。",
-    noMymindMatch: "mymind 中没有匹配文件",
+    mentionHelp: "支持文件名、目录和模糊匹配；仅搜索 openmind/，敏感凭据不会进入自动补全。",
+    noOpenmindMatch: "openmind 中没有匹配文件",
     tryAnotherKeyword: "换一个关键词，或使用「浏览文件」手动选择。",
     noSkillMatch: "没有匹配的 Skill",
     skillRetryHint: "删除部分字符重试；输入 / 可以查看全部已注册 Skill。",
     kbdSelect: "选择",
     kbdConfirm: "或 Enter 确认",
     kbdClose: "关闭",
-    browseMymind: "浏览 mymind",
-    indexTruncatedTitle: "mymind 文件数量超过索引上限，结果可能不完整",
+    browseOpenmind: "浏览 openmind",
+    indexTruncatedTitle: "openmind 文件数量超过索引上限，结果可能不完整",
     indexedCount: (n: number, truncated: boolean) => `已索引 ${n} 个文件${truncated ? " · 已达上限" : ""}`
   },
 

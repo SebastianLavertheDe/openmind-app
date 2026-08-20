@@ -65,7 +65,7 @@ describe("WorkflowEngine", () => {
     const root = makeRoot();
     const submitted: Array<{ skillId: string; version?: string; inputs: Record<string, unknown> }> = [];
     const children = new Map<string, BrokerRunRecord>();
-    const output = artifact("run-1", "summary", "mymind/daily-summary/20260805.md");
+    const output = artifact("run-1", "summary", "openmind/daily-summary/20260805.md");
     const manifest = workflowWithArtifactHandoff();
     const engine = new WorkflowEngine(
       root,
@@ -84,7 +84,7 @@ describe("WorkflowEngine", () => {
 
     expect(submitted).toEqual([
       { skillId: "collector", version: "1.0.0", inputs: { date: "20260805" } },
-      { skillId: "summarizer", version: "1.0.0", inputs: { artifactPath: "mymind/daily-summary/20260805.md", checksum: output.sha256 } }
+      { skillId: "summarizer", version: "1.0.0", inputs: { artifactPath: "openmind/daily-summary/20260805.md", checksum: output.sha256 } }
     ]);
     expect(engine.get(run.id).stepRuns[0].artifacts).toEqual([output]);
     expect(JSON.parse(fs.readFileSync(path.join(root, `${run.id}.json`), "utf8")).stepRuns[0].artifacts).toEqual([output]);
@@ -227,13 +227,13 @@ describe("WorkflowEngine", () => {
 
 function workflow(options: { needs?: string[]; cycle?: boolean } = {}) {
   return SkillManifestSchema.parse({
-    apiVersion: "cctools.dev/skill/v1",
+    apiVersion: "openmind.dev/skill/v1",
     id: "daily-workflow",
     version: "1.0.0",
-    publisher: { id: "cctools", displayName: "cctools" },
+    publisher: { id: "openmind", displayName: "openmind" },
     kind: "workflow",
     display: { name: "Daily Workflow", description: "" },
-    capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] } },
+    capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] } },
     artifacts: [],
     execution: { concurrency: { maxInstances: 1, mutexes: [] }, timeoutSeconds: 60, gracefulStopSeconds: 1, retry: { maxAttempts: 0 } },
     platforms: ["linux-x64"],
@@ -330,7 +330,7 @@ function WorkflowRunRecordSchemaForTest(id: string) {
 }
 
 function makeRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-workflow-engine-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-workflow-engine-"));
   roots.push(root);
   return root;
 }

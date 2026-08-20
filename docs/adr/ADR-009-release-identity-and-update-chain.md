@@ -23,13 +23,13 @@ timestamp) with threshold, expiry, key rotation/revocation, and anti-replay —
 
 | Field | Value |
 |---|---|
-| productName | `CC Tools` |
-| appId | `com.cctools.desktop` |
-| macOS bundle id | `com.cctools.desktop` |
+| productName | `OpenMind` |
+| appId | `com.openmind.desktop` |
+| macOS bundle id | `com.openmind.desktop` |
 | Windows publisher subject | **[不做] OS 签名发布** |
 | Linux application id | **[不做] 正式 Linux 发布** |
 | Electron userData dir | default `app.getPath("userData")` (platform-managed) |
-| URL protocol | `cctools://` (reserved; not all launchers registered in v1) |
+| URL protocol | `openmind://` (reserved; not all launchers registered in v1) |
 | Update feed domain | **[不做] 联网自动更新 feed** |
 | channels | `stable`, `beta` |
 

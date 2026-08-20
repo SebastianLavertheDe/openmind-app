@@ -149,7 +149,7 @@ async function captureCreativeReaderLayout(win, report) {
   const creativePage = pages.find((page) => page.id === "creative");
   if (!creativePage) throw new Error("Creative page config is missing.");
 
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   win.webContents.setZoomFactor(1);
   win.setSize(2048, 1119);
   await settle();
@@ -239,7 +239,7 @@ async function captureCreativeReaderLayout(win, report) {
 }
 
 async function captureCompanionLayoutContracts(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   win.webContents.setZoomFactor(1);
   win.setSize(1600, 900);
   await settle();
@@ -393,7 +393,7 @@ async function captureCompanionLayoutContracts(win, report) {
 }
 
 async function captureGlobalSearchLayerContract(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   win.webContents.setZoomFactor(1);
   win.setSize(1280, 800);
   await settle();
@@ -1080,7 +1080,7 @@ async function inspectPage(win, label, options = {}) {
 }
 
 async function captureDarkDailyBrief(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'dark')");
   try {
     await clickNav(win, "每日简报");
@@ -1111,7 +1111,7 @@ async function captureDarkDailyBrief(win, report) {
 }
 
 async function captureComposerSuggestions(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   await clickNav(win, "新建任务");
   await waitForReady(win, "新建任务");
 
@@ -1396,7 +1396,7 @@ async function assertPendingApprovalGeometry(win) {
 }
 
 async function captureCompletedAiResponse(win, report) {
-  await win.webContents.executeJavaScript("window.cctools.__setVisualMode('normal')");
+  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   await clickNav(win, "新建任务");
   await waitForReady(win, "新建任务");
   await win.webContents.executeJavaScript("document.querySelector('button.history-toggle')?.click()");

@@ -8,7 +8,7 @@ import { ReviewPanel, TopicWorkspace } from "./panels";
 const snapshot: AiSnapshot = { projectRoot: "/r", providers: [], sessions: [], runs: [], pendingApprovals: [] };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
-  window.cctools = {
+  window.openmind = {
     reviewCreativeProject: vi.fn(async () => ({ dir: "d", manifest: { topic: "t" }, files: {} } as CreativeProjectDetail)),
     setCreativeReviewStatus: vi.fn(async () => ({ dir: "d", manifest: { topic: "t" }, files: {} } as CreativeProjectDetail)),
     aiRefresh: async () => snapshot,
@@ -17,8 +17,8 @@ function installApi(overrides: Partial<DesktopApi> = {}) {
     aiResolveApproval: async () => true,
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     openPath: vi.fn(async (p: string) => p),
     revealPath: async () => true,
     onAiEvent: () => () => {},
@@ -35,7 +35,7 @@ const topic: CreativeTopic = {
 } as CreativeTopic;
 
 const detail: CreativeProjectDetail = {
-  dir: "mymind/creative/proj", stage: "review", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# d" }
+  dir: "openmind/creative/proj", stage: "review", manifest: { topic: "AI 工作台" }, files: { "draft.md": "# d" }
 } as CreativeProjectDetail;
 
 describe("TopicWorkspace", () => {
@@ -56,7 +56,7 @@ describe("TopicWorkspace", () => {
   });
 
   it("shows an existing-draft notice when topic.projectDir is set", () => {
-    render(<AiProvider initial={snapshot}><TopicWorkspace topic={{ ...topic, projectDir: "mymind/creative/x" }} date="20260616" createProject={vi.fn()} addContext={vi.fn()} /></AiProvider>);
+    render(<AiProvider initial={snapshot}><TopicWorkspace topic={{ ...topic, projectDir: "openmind/creative/x" }} date="20260616" createProject={vi.fn()} addContext={vi.fn()} /></AiProvider>);
     expect(screen.getByText(/已有草稿|has draft/i)).toBeTruthy();
   });
 });
@@ -76,7 +76,7 @@ describe("ReviewPanel", () => {
     const onReviewed = vi.fn();
     render(<AiProvider initial={snapshot}><ReviewPanel content={`# t\n\n${"x".repeat(900)}`} detail={detail} onReviewed={onReviewed} onStatusChange={vi.fn()} onLocate={vi.fn()} /></AiProvider>);
     await user.click(screen.getByRole("button", { name: /运行|生成|重审|run/i }));
-    await waitFor(() => expect(reviewCreativeProject).toHaveBeenCalledWith("mymind/creative/proj"));
+    await waitFor(() => expect(reviewCreativeProject).toHaveBeenCalledWith("openmind/creative/proj"));
     await waitFor(() => expect(onReviewed).toHaveBeenCalled());
   });
 

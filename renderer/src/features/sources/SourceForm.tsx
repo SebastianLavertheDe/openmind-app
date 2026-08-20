@@ -71,7 +71,7 @@ export function SourceForm({
               { value: "api", label: m.sources.tabs.api }
             ]}
           /></label>
-          <label className="wide">{m.sources.add.url}<input value={url} onChange={(event) => setUrl(event.target.value)} placeholder={kind === "web" ? "~/cctools/notes" : "https://..."} /></label>
+          <label className="wide">{m.sources.add.url}<input value={url} onChange={(event) => setUrl(event.target.value)} placeholder={kind === "web" ? "~/openmind/notes" : "https://..."} /></label>
           <label className={editing ? "wide" : undefined}>{m.sources.add.tags}<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sources.add.placeholderTags} /></label>
           {!editing ? <label>{m.sources.add.frequency}<Select
             size="rect"

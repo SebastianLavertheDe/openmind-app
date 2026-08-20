@@ -177,10 +177,10 @@ export class RuntimeManager {
       packDigest: pack.digest,
       executable: canonicalExecutable,
       env: {
-        CCTOOLS_RUNTIME_TARGET: target,
-        CCTOOLS_RUNTIME_PACK_ID: packId,
-        CCTOOLS_RUNTIME_PACK_DIGEST: pack.digest,
-        CCTOOLS_RUNTIME_FINGERPRINT: fingerprint
+        OPENMIND_RUNTIME_TARGET: target,
+        OPENMIND_RUNTIME_PACK_ID: packId,
+        OPENMIND_RUNTIME_PACK_DIGEST: pack.digest,
+        OPENMIND_RUNTIME_FINGERPRINT: fingerprint
       },
       fingerprint,
       acquire: (runId) => this.usage.acquire({ runId, packId, target, digest: pack.digest }),
@@ -249,7 +249,7 @@ export class RuntimeManager {
     ensureExecutable(python);
     ensureExecutable(uv);
     const environmentRoot = this.environmentPath(input.manifest, input.pack, input.fingerprint);
-    const marker = path.join(environmentRoot, "cctools-runtime-environment.json");
+    const marker = path.join(environmentRoot, "openmind-runtime-environment.json");
     if (fs.existsSync(marker)) {
       try {
         const parsed = JSON.parse(fs.readFileSync(marker, "utf8")) as { fingerprint?: string };
@@ -267,7 +267,7 @@ export class RuntimeManager {
         UV_PROJECT_ENVIRONMENT: stagedEnvironment,
         UV_PYTHON_DOWNLOADS: "never"
       });
-      fs.writeFileSync(path.join(stagedEnvironment, "cctools-runtime-environment.json"), JSON.stringify({
+      fs.writeFileSync(path.join(stagedEnvironment, "openmind-runtime-environment.json"), JSON.stringify({
         schemaVersion: 1,
         fingerprint: input.fingerprint,
         packageDigest: input.packageDigest,
@@ -379,9 +379,9 @@ function environmentPython(root: string, target: RuntimeTarget): string {
 
 function minimalRuntimeEnvironment(packageRoot: string, target: RuntimeTarget, fingerprint: string, environmentRoot: string): Record<string, string> {
   return {
-    CCTOOLS_RUNTIME_TARGET: target,
-    CCTOOLS_RUNTIME_FINGERPRINT: fingerprint,
-    CCTOOLS_SKILL_HOME: packageRoot,
+    OPENMIND_RUNTIME_TARGET: target,
+    OPENMIND_RUNTIME_FINGERPRINT: fingerprint,
+    OPENMIND_SKILL_HOME: packageRoot,
     UV_PYTHON_DOWNLOADS: "never",
     PYTHONUNBUFFERED: "1",
     // Keep uv caches out of the user's real home without making the venv

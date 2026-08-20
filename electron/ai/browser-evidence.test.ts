@@ -35,7 +35,7 @@ describe("browser evidence MCP configuration", () => {
 
   it("exposes only capture_source_evidence to Codex", () => {
     const config = buildCodexBrowserConfig({ runtime: "native" }, path.resolve("workspace"), enabled);
-    const server = (config?.mcp_servers as Record<string, Record<string, unknown>>).cctools_browser;
+    const server = (config?.mcp_servers as Record<string, Record<string, unknown>>).openmind_browser;
     expect(server.enabled_tools).toEqual([BROWSER_EVIDENCE_TOOL]);
     expect(JSON.stringify(config)).not.toContain("browser_run_code_unsafe");
     expect(server.default_tools_approval_mode).toBe("approve");
@@ -53,9 +53,9 @@ describe("browser evidence MCP configuration", () => {
 
   it("reads browser preferences from the AI worker environment", () => {
     expect(browserAutomationConfigFromEnv({
-      CCTOOLS_BROWSER_AUTOMATION_ENABLED: "true",
-      CCTOOLS_BROWSER_REUSE_EXISTING_TABS: "false",
-      CCTOOLS_BROWSER_EVIDENCE_DIR: "assets/evidence",
+      OPENMIND_BROWSER_AUTOMATION_ENABLED: "true",
+      OPENMIND_BROWSER_REUSE_EXISTING_TABS: "false",
+      OPENMIND_BROWSER_EVIDENCE_DIR: "assets/evidence",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "token"
     })).toEqual({ enabled: true, reuseExistingTabs: false, evidenceDir: "assets/evidence", extensionToken: "token" });
   });

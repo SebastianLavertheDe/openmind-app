@@ -18,7 +18,7 @@ const snapshot: AiSnapshot = {
 };
 
 function installApi() {
-  window.cctools = {
+  window.openmind = {
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
     aiCancelRun: async () => true,
@@ -26,8 +26,8 @@ function installApi() {
     aiListTurns: async () => ({ data: [], nextCursor: null, total: 0, parseErrors: 0 }),
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     openPath: vi.fn(async (p: string) => p),
     revealPath: async () => true,
     onAiEvent: () => () => {},
@@ -38,7 +38,7 @@ function installApi() {
 beforeEach(() => {
   installApi();
   // expand the sidebar by default so the <aside> renders (panelMode reads this key on mount)
-  window.localStorage.setItem("cctools.ai.panel-mode.v1", JSON.stringify("default"));
+  window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("default"));
 });
 
 afterEach(() => {
@@ -140,43 +140,43 @@ describe("AiSidebar", () => {
 
   it("persists sidebar widths to localStorage on mount", () => {
     renderSidebar();
-    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-widths.v1") || "null")).toEqual({
       schemaVersion: 1,
       widths: { default: 420, wide: 760 }
     });
   });
 
   it("migrates legacy widths and clamps persisted values to the supported schema", () => {
-    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 2_000, wide: 100 }));
+    window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({ default: 2_000, wide: 100 }));
     renderSidebar();
 
-    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-widths.v1") || "null")).toEqual({
       schemaVersion: 1,
       widths: { default: 960, wide: 380 }
     });
   });
 
   it("rejects damaged or unknown width schemas", () => {
-    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({
       schemaVersion: 99,
       widths: { default: 640, wide: 800 }
     }));
     renderSidebar();
 
-    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-widths.v1") || "null")).toEqual({
       schemaVersion: 1,
       widths: { default: 420, wide: 760 }
     });
   });
 
   it("rejects damaged values inside the current width schema", () => {
-    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({
+    window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({
       schemaVersion: 1,
       widths: { default: "broken", wide: 800 }
     }));
     renderSidebar();
 
-    expect(JSON.parse(window.localStorage.getItem("cctools.ai.sidebar-widths.v1") || "null")).toEqual({
+    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-widths.v1") || "null")).toEqual({
       schemaVersion: 1,
       widths: { default: 420, wide: 760 }
     });
@@ -185,7 +185,7 @@ describe("AiSidebar", () => {
   it("resets both modes to their real defaults and exposes separator values", () => {
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
-    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 900 }));
+    window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 900 }));
     try {
       renderSidebar();
       let separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
@@ -213,7 +213,7 @@ describe("AiSidebar", () => {
   it("restores the actual drag-start width on Escape and disables shell transition while dragging", () => {
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
-    window.localStorage.setItem("cctools.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 760 }));
+    window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({ default: 600, wide: 760 }));
     try {
       const { container } = render(
         <div className="app-shell">

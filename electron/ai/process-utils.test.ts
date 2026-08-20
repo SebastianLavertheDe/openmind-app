@@ -25,14 +25,14 @@ afterEach(() => {
 });
 
 function createRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-process-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-process-"));
   roots.push(root);
   return root;
 }
 
 describe("streamed process output", () => {
   it("writes output larger than execFile maxBuffer without buffering it in memory", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-stream-output-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-stream-output-"));
     roots.push(root);
     const output = path.join(root, "large-output.bin");
     const size = 70 * 1024 * 1024;
@@ -52,7 +52,7 @@ describe("streamed process output", () => {
   });
 
   it("falls back safely when replacing an existing file returns EPERM", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-atomic-replace-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-atomic-replace-"));
     roots.push(root);
     const target = path.join(root, "session.json");
     const temporary = path.join(root, "session.json.tmp");
@@ -100,7 +100,7 @@ describe("buildWslLoginCommand", () => {
     expect(invocation.args).toEqual([
       "-lc",
       expect.stringContaining('resolved="$(command -v "$1")"'),
-      "cctools-wsl-login",
+      "openmind-wsl-login",
       "printf",
       "%s|%s",
       "a b",

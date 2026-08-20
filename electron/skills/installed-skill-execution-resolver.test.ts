@@ -18,17 +18,17 @@ import { InstalledSkillExecutionResolver } from "./installed-skill-execution-res
 
 const roots: string[] = [];
 const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.CCTOOLS_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
 );
-const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml"));
+const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "openmind.skill.yaml"));
 const realSkillIt = HAS_EXTERNAL_SKILLS ? it : it.skip;
 const linuxRealSkillIt = it.skipIf(process.platform !== "linux" || !HAS_EXTERNAL_SKILLS);
-const ORIGINAL_WORKSPACE_ROOT = process.env.CCTOOLS_WORKSPACE_ROOT;
+const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
-  if (ORIGINAL_WORKSPACE_ROOT === undefined) delete process.env.CCTOOLS_WORKSPACE_ROOT;
-  else process.env.CCTOOLS_WORKSPACE_ROOT = ORIGINAL_WORKSPACE_ROOT;
+  if (ORIGINAL_WORKSPACE_ROOT === undefined) delete process.env.OPENMIND_WORKSPACE_ROOT;
+  else process.env.OPENMIND_WORKSPACE_ROOT = ORIGINAL_WORKSPACE_ROOT;
 });
 
 describe("InstalledSkillExecutionResolver", () => {
@@ -48,7 +48,7 @@ describe("InstalledSkillExecutionResolver", () => {
         title: "Resolver Fixture",
         command: "managed-runtime",
         runner: "managed-runtime",
-        cwd: "installed/cctools/resolver-fixture/1.0.0",
+        cwd: "installed/openmind/resolver-fixture/1.0.0",
         envFile: null
       })
     ]);
@@ -99,7 +99,7 @@ describe("InstalledSkillExecutionResolver", () => {
       id: "creative-writing",
       version: "1.0.0",
       digest: fixture.digest,
-      mymindRoot: fixture.mymindRoot
+      openmindRoot: fixture.openmindRoot
     });
     expect(bridge?.packageRoot).not.toContain(".claude/skills");
     expect(bridge?.skillPath).toBe(path.join(bridge!.packageRoot, "SKILL.md"));
@@ -242,7 +242,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(plan.digest).toBe(fixture.digest);
     expect(plan.process.executable).toBe(fs.realpathSync(process.execPath));
     expect(plan.process.args.at(-1)).toBe("20260805");
-    expect(plan.process.cwd).toBe(path.join(fixture.paths.skills!, "cctools", "resolver-fixture"));
+    expect(plan.process.cwd).toBe(path.join(fixture.paths.skills!, "openmind", "resolver-fixture"));
     expect(plan.maxInstances).toBe(1);
     expect(plan.artifacts?.[0]).toMatchObject({ logicalPath: "daily-summary/20260805.md", type: "markdown" });
     await plan.prepareRuntime?.();
@@ -287,9 +287,9 @@ describe("InstalledSkillExecutionResolver", () => {
     }, "run-source-context");
 
     expect(plan.process.env).toMatchObject({
-      CCTOOLS_SOURCE_ID: "source-1",
-      CCTOOLS_SOURCE_URL: "https://example.com/feed",
-      CCTOOLS_SOURCE_NAME: "Example Feed"
+      OPENMIND_SOURCE_ID: "source-1",
+      OPENMIND_SOURCE_URL: "https://example.com/feed",
+      OPENMIND_SOURCE_NAME: "Example Feed"
     });
   });
 
@@ -324,9 +324,9 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(completed.terminalState).toBe("succeeded");
     expect(completed.runtime?.packId).toBe("node-22");
     expect(completed.artifacts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ logicalPath: "mymind/daily-summary/20260805.md", type: "markdown", declared: true })
+      expect.objectContaining({ logicalPath: "openmind/daily-summary/20260805.md", type: "markdown", declared: true })
     ]));
-    expect(fs.readFileSync(path.join(fixture.mymindRoot, "daily-summary", "20260805.md"), "utf8")).toContain("20260805");
+    expect(fs.readFileSync(path.join(fixture.openmindRoot, "daily-summary", "20260805.md"), "utf8")).toContain("20260805");
     const leasesPath = path.join(fixture.paths.runtimePacks, "leases");
     expect(!fs.existsSync(leasesPath) || fs.readdirSync(leasesPath).length === 0).toBe(true);
   });
@@ -343,7 +343,7 @@ describe("InstalledSkillExecutionResolver", () => {
     const run = broker.submit(runRequest(fixture.digest));
     await waitFor(() => broker.get(run.id).state === "succeeded");
 
-    const output = fs.readFileSync(path.join(fixture.mymindRoot, "daily-summary", "20260805.md"), "utf8");
+    const output = fs.readFileSync(path.join(fixture.openmindRoot, "daily-summary", "20260805.md"), "utf8");
     const managedExecutable = path.join(
       fixture.paths.runtimeEnvironments,
       ".packs",
@@ -393,7 +393,7 @@ describe("InstalledSkillExecutionResolver", () => {
 
     // asset-collector reads a writing-package draft and emits assets/manifest.json.
     // Seed a draft package under creative/ so the script has real input to process.
-    const draftDir = path.join(fixture.mymindRoot, "creative", "01-内容生产", "文稿库", "02-制作中", "demo-pkg");
+    const draftDir = path.join(fixture.openmindRoot, "creative", "01-内容生产", "文稿库", "02-制作中", "demo-pkg");
     fs.mkdirSync(draftDir, { recursive: true });
     fs.writeFileSync(
       path.join(draftDir, "topic-brief.md"),
@@ -419,7 +419,7 @@ describe("InstalledSkillExecutionResolver", () => {
       version: "1.0.0",
       digest: fixture.digest,
       inputs: {
-        // draftDir is a logical mymind path; the resolver/Broker binds MYMIND_ROOT.
+        // draftDir is a logical openmind path; the resolver/Broker binds OPENMIND_ROOT.
         draftDir: "creative/01-内容生产/文稿库/02-制作中/demo-pkg",
         date: "20260805"
       },
@@ -449,7 +449,7 @@ describe("InstalledSkillExecutionResolver", () => {
 
   linuxRealSkillIt("executes the real Batch A collect-interest-markers package", async () => {
     const fixture = createBatchAFixture("collect-interest-markers");
-    const summaryPath = path.join(fixture.mymindRoot, "daily-summary", "20260805_daily_summary.md");
+    const summaryPath = path.join(fixture.openmindRoot, "daily-summary", "20260805_daily_summary.md");
     fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
     fs.writeFileSync(
       summaryPath,
@@ -485,7 +485,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }));
     await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
-    const inboxPath = path.join(fixture.mymindRoot, "creative", "01-内容生产", "选题管理", "00-兴趣收集箱.md");
+    const inboxPath = path.join(fixture.openmindRoot, "creative", "01-内容生产", "选题管理", "00-兴趣收集箱.md");
     expect(fs.existsSync(inboxPath)).toBe(true);
     const inbox = fs.readFileSync(inboxPath, "utf8");
     expect(inbox).toContain("关注本地 Provider Profile");
@@ -500,7 +500,7 @@ describe("InstalledSkillExecutionResolver", () => {
   linuxRealSkillIt("executes the real Batch A daily-writing-orchestrator package", async () => {
     const fixture = createBatchAFixture("daily-writing-orchestrator");
     const topicPath = path.join(
-      fixture.mymindRoot,
+      fixture.openmindRoot,
       "creative",
       "01-内容生产",
       "选题管理",
@@ -551,7 +551,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }));
     await waitFor(() => broker.get(run.id).state === "succeeded", 30_000);
 
-    const packagesRoot = path.join(fixture.mymindRoot, "creative", "01-内容生产", "文稿库", "02-制作中");
+    const packagesRoot = path.join(fixture.openmindRoot, "creative", "01-内容生产", "文稿库", "02-制作中");
     const packageDirs = fs.readdirSync(packagesRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name.startsWith("20260805-"))
       .map((entry) => path.join(packagesRoot, entry.name));
@@ -606,7 +606,7 @@ describe("InstalledSkillExecutionResolver", () => {
         [
           "fetch:",
           "  timeout_seconds: 5",
-          "  user_agent: \"cctools-test/1.0\"",
+          "  user_agent: \"openmind-test/1.0\"",
           "  rss_only: true",
           "  listing_retry_count: 0",
           "  comment_retry_count: 0",
@@ -642,13 +642,13 @@ describe("InstalledSkillExecutionResolver", () => {
       const completed = broker.get(run.id);
       expect(completed.terminalState).toBe("succeeded");
       // The package writes reddit/<date>/<subreddit>.md per its contract.
-      const written = path.join(fixture.mymindRoot, "reddit", "20260805", "artificial.md");
+      const written = path.join(fixture.openmindRoot, "reddit", "20260805", "artificial.md");
       expect(fs.existsSync(written)).toBe(true);
       expect(fs.readFileSync(written, "utf8")).toContain("Local test post");
       // Declared directory Artifact (reddit/**) collected. The collector
-      // reports logical paths with the `mymind/` prefix per the mymind layout.
+      // reports logical paths with the `openmind/` prefix per the openmind layout.
       const redditArtifacts = completed.artifacts.filter(
-        (a) => a.declared && (a.logicalPath || "").startsWith("mymind/reddit/20260805")
+        (a) => a.declared && (a.logicalPath || "").startsWith("openmind/reddit/20260805")
       );
       expect(redditArtifacts.length).toBeGreaterThan(0);
       expect(redditArtifacts.some((a) => /\.md$/.test(a.logicalPath || ""))).toBe(true);
@@ -669,7 +669,7 @@ describe("InstalledSkillExecutionResolver", () => {
     const feed = [
       "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
       "<rss version=\"2.0\"><channel>",
-      "<title>Local cctools feed</title>",
+      "<title>Local openmind feed</title>",
       "<item>",
       "<title>Local RSS article</title>",
       "<link>http://127.0.0.1/article.html</link>",
@@ -681,7 +681,7 @@ describe("InstalledSkillExecutionResolver", () => {
     const articleHtml = [
       "<!doctype html><html><head><title>Local RSS article</title></head><body>",
       "<article><h1>Local RSS article</h1>",
-      "<p>This local article validates RSS discovery, content extraction, and the bound mymind output contract.</p>",
+      "<p>This local article validates RSS discovery, content extraction, and the bound openmind output contract.</p>",
       "<p>The installed Skill must write the article below the Broker-provided root and keep its cache in app-private Skill data.</p>",
       "</article></body></html>"
     ].join("");
@@ -700,12 +700,12 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(port).toBeGreaterThan(0);
 
     try {
-      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-rss-installed-"));
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-rss-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "openmind")));
       ensureAppPaths(paths);
-      const mymindRoot = path.join(fixtureRoot, "mymind");
-      fs.mkdirSync(mymindRoot, { recursive: true });
+      const openmindRoot = path.join(fixtureRoot, "openmind");
+      fs.mkdirSync(openmindRoot, { recursive: true });
       bindEmptyProviderWorkspace(fixtureRoot);
       // RuntimeManager canonicalizes the executable path. Keep the venv
       // context through a managed wrapper so canonicalization does not turn
@@ -721,7 +721,7 @@ describe("InstalledSkillExecutionResolver", () => {
         resolveExecutable: () => pythonWrapper,
         prepareEnvironment: async () => undefined
       });
-      const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
+      const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
 
       const sourceCopy = path.join(paths.staging, "rss-source-overlay");
       copyTree(skillSourcePath("rss-article-saver"), sourceCopy);
@@ -785,14 +785,14 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n"));
       }
       expect(completed.terminalState).toBe("succeeded");
-      const articleFiles = findMarkdownFiles(path.join(mymindRoot, "article"));
+      const articleFiles = findMarkdownFiles(path.join(openmindRoot, "article"));
       expect(articleFiles).toHaveLength(1);
       expect(fs.readFileSync(articleFiles[0], "utf8")).toContain("Local RSS article");
       expect(completed.artifacts.some(
-        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/article/")
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("openmind/article/")
       )).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
-      expect(fs.existsSync(path.join(mymindRoot, ".agent", "skills"))).toBe(true);
+      expect(fs.existsSync(path.join(openmindRoot, ".agent", "skills"))).toBe(true);
     } finally {
       server.close();
     }
@@ -828,12 +828,12 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(port).toBeGreaterThan(0);
 
     try {
-      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-wiki-installed-"));
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-wiki-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "openmind")));
       ensureAppPaths(paths);
-      const mymindRoot = path.join(fixtureRoot, "mymind");
-      const articleDir = path.join(mymindRoot, "article", "20260805");
+      const openmindRoot = path.join(fixtureRoot, "openmind");
+      const articleDir = path.join(openmindRoot, "article", "20260805");
       bindTestProvider(fixtureRoot, port, "wiki-test-credential");
       fs.mkdirSync(articleDir, { recursive: true });
       fs.writeFileSync(
@@ -863,7 +863,7 @@ describe("InstalledSkillExecutionResolver", () => {
         resolveExecutable: () => pythonWrapper,
         prepareEnvironment: async () => undefined
       });
-      const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
+      const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
       const installed = packages.install(skillSourcePath("knowledge-wiki-compiler"));
 
       const broker = new ExecutionBroker(
@@ -893,14 +893,14 @@ describe("InstalledSkillExecutionResolver", () => {
           ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
         ].join("\n"));
       }
-      expect(findMarkdownFiles(path.join(mymindRoot, "wiki")).length).toBeGreaterThan(0);
-      expect(fs.existsSync(path.join(mymindRoot, "wiki-state"))).toBe(false);
+      expect(findMarkdownFiles(path.join(openmindRoot, "wiki")).length).toBeGreaterThan(0);
+      expect(fs.existsSync(path.join(openmindRoot, "wiki-state"))).toBe(false);
       expect(fs.existsSync(path.join(paths.runs, run.id, "work", "skill-data", "wiki-state"))).toBe(true);
       // AI generation is optional in the current Skill config. If enabled,
       // every request must still receive the scoped credential.
       expect(providerRequests.every((request) => request.authorization === "Bearer wiki-test-credential")).toBe(true);
       expect(completed.artifacts.some(
-        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/wiki/")
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("openmind/wiki/")
       )).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
     } finally {
@@ -978,12 +978,12 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(port).toBeGreaterThan(0);
 
     try {
-      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-x-installed-"));
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-x-installed-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "openmind")));
       ensureAppPaths(paths);
-      const mymindRoot = path.join(fixtureRoot, "mymind");
-      fs.mkdirSync(mymindRoot, { recursive: true });
+      const openmindRoot = path.join(fixtureRoot, "openmind");
+      fs.mkdirSync(openmindRoot, { recursive: true });
       bindEmptyProviderWorkspace(fixtureRoot);
       const pythonWrapper = path.join(paths.staging, "x-python-wrapper");
       fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
@@ -1005,10 +1005,10 @@ describe("InstalledSkillExecutionResolver", () => {
           json: { variables: { count: 1 } }
         }]
       });
-      const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
+      const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
       const sourceCopy = path.join(paths.staging, "x-source-overlay");
       copyTree(skillSourcePath("x-following-fetcher"), sourceCopy);
-      const sourceManifest = path.join(sourceCopy, "cctools.skill.yaml");
+      const sourceManifest = path.join(sourceCopy, "openmind.skill.yaml");
       fs.writeFileSync(
         sourceManifest,
         fs.readFileSync(sourceManifest, "utf8").replace(
@@ -1047,14 +1047,14 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n"));
       }
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const postFile = path.join(mymindRoot, "post", today, "posts.json");
+      const postFile = path.join(openmindRoot, "post", today, "posts.json");
       expect(fs.existsSync(postFile)).toBe(true);
       expect(fs.readFileSync(postFile, "utf8")).toContain("Managed credential X post");
       expect(requests.length).toBe(1);
       expect(requests[0].authorization).toBe("Bearer managed-x-token");
       expect(JSON.parse(requests[0].body).variables.count).toBe(20);
       expect(completed.artifacts.some(
-        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("mymind/post/")
+        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("openmind/post/")
       )).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
     } finally {
@@ -1065,7 +1065,7 @@ describe("InstalledSkillExecutionResolver", () => {
   linuxRealSkillIt("chains reddit-fetcher → daily-article-summarizer → daily-topic-selector under one shared root snapshot", async () => {
     // This is the first multi-Skill link of the RSS → Summary → Topic chain
     // (plan §17.7): the summarizer reads the fetcher's reddit/** output and
-    // produces the daily-summary Artifact under the SAME mymind root snapshot.
+    // produces the daily-summary Artifact under the SAME openmind root snapshot.
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
 
@@ -1094,7 +1094,7 @@ describe("InstalledSkillExecutionResolver", () => {
           const response = {
             translated_title: "链路测试文章",
             summary: "本地 Provider 用固定 JSON 响应验证 RSS、总结和选题之间的运行时交接。",
-            key_points: ["三个 Skill 共享同一个 mymindRoot 和 rootGeneration"],
+            key_points: ["三个 Skill 共享同一个 openmindRoot 和 rootGeneration"],
             category: "AI",
             score: 90,
             wechat: [1],
@@ -1120,21 +1120,21 @@ describe("InstalledSkillExecutionResolver", () => {
 
     try {
       // Build ONE shared fixture and install all three packages into it. The
-      // skills share the same mymindRoot + rootGeneration (same snapshot).
-      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-chain-"));
+      // skills share the same openmindRoot + rootGeneration (same snapshot).
+      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-chain-"));
       roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "mymind")));
+      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "openmind")));
       ensureAppPaths(paths);
-      const mymindRoot = path.join(fixtureRoot, "mymind");
-      fs.mkdirSync(mymindRoot, { recursive: true });
+      const openmindRoot = path.join(fixtureRoot, "openmind");
+      fs.mkdirSync(openmindRoot, { recursive: true });
       bindTestProvider(fixtureRoot, port, "mock-credential-for-credential-token");
       // Seed an article so the summarizer has content to process and reaches
       // the _write_full_summary_file path. Without AI keys the per-article
       // summarization no-ops (returns None), but the summary file is still
       // written with whatever cached/reddit content exists.
-      fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
+      fs.mkdirSync(path.join(openmindRoot, "article", "20260805"), { recursive: true });
       fs.writeFileSync(
-        path.join(mymindRoot, "article", "20260805", "chained-article.md"),
+        path.join(openmindRoot, "article", "20260805", "chained-article.md"),
         "# Chained article\n\n- 来源: Test\n\n正文内容用于链路验证。\n"
       );
       const packages = new SkillPackageService(paths);
@@ -1150,7 +1150,7 @@ describe("InstalledSkillExecutionResolver", () => {
       // Point them at the same local OpenAI-compatible endpoint so the chain
       // verifies actual environment injection and JSON response handling
       // without contacting an external provider.
-      const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
+      const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
 
       // Install reddit-fetcher with the localhost config overlay.
       const redditSourceCopy = path.join(paths.staging, "reddit-source-overlay");
@@ -1160,7 +1160,7 @@ describe("InstalledSkillExecutionResolver", () => {
         [
           "fetch:",
           "  timeout_seconds: 5",
-          "  user_agent: \"cctools-test/1.0\"",
+          "  user_agent: \"openmind-test/1.0\"",
           "  rss_only: true",
           "  listing_retry_count: 0",
           "  comment_retry_count: 0",
@@ -1202,7 +1202,7 @@ describe("InstalledSkillExecutionResolver", () => {
         rootGeneration: 1
       }));
       await waitFor(() => broker.get(fetchRun.id).state === "succeeded", 30_000);
-      const redditFile = path.join(mymindRoot, "reddit", "20260805", "artificial.md");
+      const redditFile = path.join(openmindRoot, "reddit", "20260805", "artificial.md");
       expect(fs.existsSync(redditFile)).toBe(true);
       expect(fs.readFileSync(redditFile, "utf8")).toContain("Chained test post");
 
@@ -1222,7 +1222,7 @@ describe("InstalledSkillExecutionResolver", () => {
       const summaryCompleted = broker.get(summaryRun.id);
       expect(summaryCompleted.terminalState).toBe("succeeded");
       // Declared Artifact: daily-summary/20260805_daily_summary.md
-      const summaryFile = path.join(mymindRoot, "daily-summary", "20260805_daily_summary.md");
+      const summaryFile = path.join(openmindRoot, "daily-summary", "20260805_daily_summary.md");
       expect(fs.existsSync(summaryFile)).toBe(true);
       const summaryText = fs.readFileSync(summaryFile, "utf8");
       if (!summaryText.includes("链路测试文章")) {
@@ -1261,7 +1261,7 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n"));
       }
       expect(topicCompleted.terminalState).toBe("succeeded");
-      const topicFile = path.join(mymindRoot, "daily-topic", "20260805_daily_topic.md");
+      const topicFile = path.join(openmindRoot, "daily-topic", "20260805_daily_topic.md");
       expect(fs.existsSync(topicFile)).toBe(true);
       expect(fs.readFileSync(topicFile, "utf8")).toContain("链路测试文章");
       expect(topicCompleted.artifacts.some(
@@ -1273,7 +1273,7 @@ describe("InstalledSkillExecutionResolver", () => {
       expect(providerRequests.length).toBeGreaterThan(0);
       expect(providerRequests.every((request) => request.authorization === "Bearer mock-credential-for-credential-token")).toBe(true);
       expect(providerRequests.every((request) => request.body.includes("local-test-model"))).toBe(true);
-      // All three runs shared the same root snapshot (same mymindRoot + generation).
+      // All three runs shared the same root snapshot (same openmindRoot + generation).
       expect(broker.get(fetchRun.id).runtime?.packId).toBe("python-core");
       expect(summaryCompleted.runtime?.packId).toBe("python-core");
       expect(topicCompleted.runtime?.packId).toBe("python-core");
@@ -1288,15 +1288,15 @@ function createFixture(
   runtimeKind: "python" | "node" = "python",
   options: { managedRuntime?: boolean; credentialFile?: boolean; externalExport?: boolean; agent?: boolean } = {}
 ) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-installed-resolver-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-installed-resolver-"));
   roots.push(root);
-  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "mymind")));
+  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "openmind")));
   ensureAppPaths(paths);
   const source = path.join(root, "source");
-  const mymindRoot = path.join(root, "mymind");
+  const openmindRoot = path.join(root, "openmind");
   const externalRoot = path.join(root, "export");
   fs.mkdirSync(source, { recursive: true });
-  fs.mkdirSync(mymindRoot, { recursive: true });
+  fs.mkdirSync(openmindRoot, { recursive: true });
   if (options.externalExport) fs.mkdirSync(externalRoot, { recursive: true });
   if (runtimeKind === "node") {
     fs.writeFileSync(path.join(source, "main.js"), [
@@ -1304,7 +1304,7 @@ function createFixture(
       "const path = require('node:path');",
       "const dateIndex = process.argv.indexOf('--date');",
       "const date = dateIndex >= 0 ? process.argv[dateIndex + 1] : 'missing';",
-      "const output = path.join(process.env.MYMIND_ROOT, 'daily-summary', `${date}.md`);",
+      "const output = path.join(process.env.OPENMIND_ROOT, 'daily-summary', `${date}.md`);",
       "fs.mkdirSync(path.dirname(output), { recursive: true });",
       "fs.writeFileSync(output, `# ${date}\\nruntime=${process.execPath}\\nPATH=${process.env.PATH || '<unset>'}\\n`);",
       "console.log(`created ${date}`);",
@@ -1319,7 +1319,7 @@ function createFixture(
     fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: resolver-fixture\ndescription: Test Agent Skill\n---\n\n# Resolver Fixture\n");
   }
   fs.writeFileSync(
-    path.join(source, "cctools.skill.yaml"),
+    path.join(source, "openmind.skill.yaml"),
     options.agent ? agentManifestYaml() : manifestYaml(withProvider, runtimeKind, options.externalExport)
   );
   const packages = new SkillPackageService(paths);
@@ -1350,13 +1350,13 @@ function createFixture(
     resolver: new InstalledSkillExecutionResolver(
       packages,
       runtime,
-      mymindRoot,
+      openmindRoot,
       1,
       options.externalExport ? (bindingId) => bindingId === "exportDir" ? { bindingId, canonicalPath: externalRoot } : undefined : undefined
     ),
     key,
     digest,
-    mymindRoot,
+    openmindRoot,
     externalRoot,
     runtimePack
   };
@@ -1370,26 +1370,26 @@ function createWorkflowAdmissionFixture() {
   fs.writeFileSync(path.join(secondSource, "main.py"), "print('second')\n");
   fs.writeFileSync(path.join(secondSource, "pyproject.toml"), "[project]\nname='resolver-step-two'\nversion='1.0.0'\n");
   fs.writeFileSync(
-    path.join(secondSource, "cctools.skill.yaml"),
+    path.join(secondSource, "openmind.skill.yaml"),
     manifestYaml().replaceAll("resolver-fixture", "resolver-step-two").replace("Resolver Fixture", "Resolver Step Two")
   );
   const second = fixture.packages.install(secondSource);
 
   const workflowSource = path.join(fixture.paths.staging, "resolver-workflow-source");
   fs.mkdirSync(workflowSource, { recursive: true });
-  fs.writeFileSync(path.join(workflowSource, "cctools.skill.yaml"), workflowManifestYaml());
+  fs.writeFileSync(path.join(workflowSource, "openmind.skill.yaml"), workflowManifestYaml());
   const workflow = fixture.packages.install(workflowSource);
   return { ...fixture, first, second, workflow };
 }
 
 function createBatchAFixture(packageName = "skill-run-reporter") {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-batch-a-installed-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-batch-a-installed-"));
   roots.push(root);
-  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "mymind")));
+  const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "openmind")));
   ensureAppPaths(paths);
-  const mymindRoot = path.join(root, "mymind");
-  fs.mkdirSync(path.join(mymindRoot, "article", "20260805"), { recursive: true });
-  fs.writeFileSync(path.join(mymindRoot, "article", "20260805", "one.md"), "article\n");
+  const openmindRoot = path.join(root, "openmind");
+  fs.mkdirSync(path.join(openmindRoot, "article", "20260805"), { recursive: true });
+  fs.writeFileSync(path.join(openmindRoot, "article", "20260805", "one.md"), "article\n");
   const source = skillSourcePath(packageName);
   const packages = new SkillPackageService(paths);
   const installed = packages.install(source);
@@ -1403,10 +1403,10 @@ function createBatchAFixture(packageName = "skill-run-reporter") {
   return {
     paths,
     packages,
-    resolver: new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1),
+    resolver: new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1),
     key: installed.key,
     digest: installed.digest,
-    mymindRoot,
+    openmindRoot,
     source
   };
 }
@@ -1470,7 +1470,7 @@ function skillSourcePath(skillId: string): string {
 }
 
 function bindEmptyProviderWorkspace(workspaceRoot: string): void {
-  process.env.CCTOOLS_WORKSPACE_ROOT = workspaceRoot;
+  process.env.OPENMIND_WORKSPACE_ROOT = workspaceRoot;
 }
 
 function bindTestProvider(workspaceRoot: string, port: number, apiKey: string): void {
@@ -1494,7 +1494,7 @@ function bindTestProvider(workspaceRoot: string, port: number, apiKey: string): 
       tlsPolicy: "verify"
     }]
   }, null, 2));
-  process.env.CCTOOLS_WORKSPACE_ROOT = workspaceRoot;
+  process.env.OPENMIND_WORKSPACE_ROOT = workspaceRoot;
 }
 
 /** Recursively copy a directory tree (used to overlay test config before install).
@@ -1544,12 +1544,12 @@ function runRequest(digest: string, providerBindings: Record<string, string> = {
 function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "python", externalExport = false): string {
   const isNode = runtimeKind === "node";
   return [
-    "apiVersion: cctools.dev/skill/v1",
+    "apiVersion: openmind.dev/skill/v1",
     "id: resolver-fixture",
     "version: 1.0.0",
     "publisher:",
-    "  id: cctools",
-    "  displayName: cctools",
+    "  id: openmind",
+    "  displayName: openmind",
     "kind: process",
     "display:",
     "  name: Resolver Fixture",
@@ -1576,7 +1576,7 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
     "      type: string",
     "      default: fallback",
     "capabilities:",
-    "  mymind:",
+    "  openmind:",
     "    read: []",
     "    write:",
     "      - daily-summary/**",
@@ -1599,7 +1599,7 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
     "  concurrency:",
     "    maxInstances: 1",
     "    mutexes:",
-    "      - mymind:daily-summary",
+    "      - openmind:daily-summary",
     "  timeoutSeconds: 60",
     "  gracefulStopSeconds: 1",
     "platforms:",
@@ -1612,19 +1612,19 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
 
 function agentManifestYaml(): string {
   return [
-    "apiVersion: cctools.dev/skill/v1",
+    "apiVersion: openmind.dev/skill/v1",
     "id: resolver-fixture",
     "version: 1.0.0",
     "publisher:",
-    "  id: cctools",
-    "  displayName: cctools",
+    "  id: openmind",
+    "  displayName: openmind",
     "kind: agent",
     "display:",
     "  name: Resolver Fixture",
     "  description: test agent",
     "  group: test",
     "capabilities:",
-    "  mymind:",
+    "  openmind:",
     "    read: []",
     "    write: []",
     "  network:",
@@ -1651,18 +1651,18 @@ function agentManifestYaml(): string {
 
 function workflowManifestYaml(): string {
   return [
-    "apiVersion: cctools.dev/skill/v1",
+    "apiVersion: openmind.dev/skill/v1",
     "id: resolver-workflow",
     "version: 1.0.0",
     "publisher:",
-    "  id: cctools",
-    "  displayName: cctools",
+    "  id: openmind",
+    "  displayName: openmind",
     "kind: workflow",
     "display:",
     "  name: Resolver Workflow",
     "  description: workflow admission fixture",
     "capabilities:",
-    "  mymind:",
+    "  openmind:",
     "    read: []",
     "    write: []",
     "  network:",

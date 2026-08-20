@@ -3,7 +3,7 @@ import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, Package, Route, Search,
 import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
-import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
+import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
 import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
@@ -83,7 +83,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const loadMcpServers = useCallback(async (): Promise<McpServerDefinition[]> => {
     try {
-      const servers = await window.cctools.getMcpServers();
+      const servers = await window.openmind.getMcpServers();
       setMcpServers(servers);
       return servers;
     } catch {
@@ -96,10 +96,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setLoading(true);
     setLoadError(null);
     try {
-      const next = await window.cctools.getPreferences();
+      const next = await window.openmind.getPreferences();
       setPrefs(next);
       applyTheme(next);
-      try { setBrowserStatus(await window.cctools.getBrowserAutomationStatus()); }
+      try { setBrowserStatus(await window.openmind.getBrowserAutomationStatus()); }
       catch { setBrowserStatus(null); }
       await loadMcpServers();
     } catch {
@@ -115,8 +115,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const loadSkillPackages = useCallback(async () => {
     try {
       const [inspections, installed] = await Promise.all([
-        window.cctools.inspectSkillWorkspace(),
-        window.cctools.listInstalledSkills()
+        window.openmind.inspectSkillWorkspace(),
+        window.openmind.listInstalledSkills()
       ]);
       setSkillPackageInspections(inspections);
       setInstalledSkills(installed);
@@ -128,24 +128,24 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const loadRuntimePacks = useCallback(async () => {
     try {
-      setRuntimePacks(await window.cctools.listRuntimePacks());
+      setRuntimePacks(await window.openmind.listRuntimePacks());
     } catch {
       setRuntimePacks([]);
     }
     try {
-      if (window.cctools.listRuntimePackDownloads) setRuntimeDownloads(await window.cctools.listRuntimePackDownloads());
+      if (window.openmind.listRuntimePackDownloads) setRuntimeDownloads(await window.openmind.listRuntimePackDownloads());
     } catch {
       setRuntimeDownloads([]);
     }
   }, []);
 
   const loadSharedPythonRuntime = useCallback(async () => {
-    try { setSharedPythonRuntime(await window.cctools.getSharedPythonRuntimeStatus()); }
+    try { setSharedPythonRuntime(await window.openmind.getSharedPythonRuntimeStatus()); }
     catch { setSharedPythonRuntime(null); }
   }, []);
 
   const loadProvidersYaml = useCallback(async () => {
-    try { setProvidersYaml(await window.cctools.getProviders()); }
+    try { setProvidersYaml(await window.openmind.getProviders()); }
     catch (error) {
       setProvidersYaml({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] });
       ai.notify(error instanceof Error ? error.message : "config/providers.yaml 读取失败", "error");
@@ -160,7 +160,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (providersYamlBusy) return;
     setProvidersYamlBusy(true);
     try {
-      setProvidersYaml(await window.cctools.saveProviders(input));
+      setProvidersYaml(await window.openmind.saveProviders(input));
       ai.notify("AI Provider 配置已保存", "success");
     } catch (error) {
       ai.notify(error instanceof Error ? error.message : "AI Provider 配置保存失败", "error");
@@ -178,7 +178,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy(enabled ? "shared-python-enable" : "shared-python-disable");
     try {
-      setSharedPythonRuntime(await window.cctools.setSharedPythonRuntimeEnabled(enabled));
+      setSharedPythonRuntime(await window.openmind.setSharedPythonRuntimeEnabled(enabled));
       ai.notify(enabled ? "内置 Python 运行时已就绪" : "内置 Python 运行时已关闭", "success");
     } catch {
       await loadSharedPythonRuntime();
@@ -189,8 +189,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   }, [ai, loadSharedPythonRuntime, runtimeBusy]);
 
   useEffect(() => {
-    if (!window.cctools.onRuntimePackDownloadEvent) return;
-    return window.cctools.onRuntimePackDownloadEvent((job) => {
+    if (!window.openmind.onRuntimePackDownloadEvent) return;
+    return window.openmind.onRuntimePackDownloadEvent((job) => {
       setRuntimeDownloads((current) => {
         const next = current.filter((item) => item.id !== job.id);
         next.push(job);
@@ -204,11 +204,11 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     pendingSaves.current += 1;
     setSaving(true);
     const operation = saveQueue.current.then(async () => {
-      const next = await window.cctools.updatePreferences({ ...patch, accentColor: BLUE_ACCENT });
+      const next = await window.openmind.updatePreferences({ ...patch, accentColor: BLUE_ACCENT });
       setPrefs(next);
       applyTheme(next);
       if ("browserAutomationEnabled" in patch || "browserReuseExistingTabs" in patch || "browserEvidenceDir" in patch) {
-        try { setBrowserStatus(await window.cctools.getBrowserAutomationStatus()); }
+        try { setBrowserStatus(await window.openmind.getBrowserAutomationStatus()); }
         catch { setBrowserStatus(null); }
         await loadMcpServers();
       }
@@ -238,7 +238,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const selectWorkspace = async () => {
     try {
-      const root = await window.cctools.selectWorkspaceRoot();
+      const root = await window.openmind.selectWorkspaceRoot();
       if (!root) return;
       await onRepo(root);
       await loadPrefs();
@@ -248,19 +248,19 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   };
 
-  const selectMymindRoot = async () => {
+  const selectOpenmindRoot = async () => {
     try {
-      const root = await window.cctools.selectMymindRoot();
+      const root = await window.openmind.selectOpenmindRoot();
       if (!root) return;
-      const preview = await window.cctools.previewMymindRoot(root);
-      if (!preview.canBind) throw new Error(mymindRootPreviewError(preview));
-      if (!await ai.confirm({ title: "确认绑定 mymind 根目录", body: mymindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
-      await window.cctools.setMymindRoot(root);
+      const preview = await window.openmind.previewOpenmindRoot(root);
+      if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
+      if (!await ai.confirm({ title: "确认绑定 openmind 根目录", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      await window.openmind.setOpenmindRoot(root);
       await onRepo(root);
       await loadPrefs();
-      ai.notify("mymind 内容根已更新", "success");
+      ai.notify("openmind 内容根已更新", "success");
     } catch {
-      ai.notify("选择 mymind 内容根失败", "error");
+      ai.notify("选择 openmind 内容根失败", "error");
     }
   };
 
@@ -270,7 +270,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setSaving(true);
     try {
       await saveQueue.current;
-      const next = await window.cctools.resetPreferences("workflow");
+      const next = await window.openmind.resetPreferences("workflow");
       setPrefs(next);
       applyTheme(next);
       ai.notify(m.settings.notify.workflowReset, "success");
@@ -282,7 +282,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const openNotesDir = async () => {
-    try { await window.cctools.openPath(prefs?.notesDir || "mymind"); }
+    try { await window.openmind.openPath(prefs?.notesDir || "openmind"); }
     catch { ai.notify(m.settings.notify.notesOpenFailed, "error"); }
   };
 
@@ -315,7 +315,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (skillPackageBusy) return;
     setSkillPackageBusy("migrate");
     try {
-      const report = await window.cctools.migrateSkillWorkspace();
+      const report = await window.openmind.migrateSkillWorkspace();
       setSkillPackageInspections(report.inspected);
       setInstalledSkills(report.installed);
       if (report.installed.length) {
@@ -331,10 +331,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const uninstallSkillPackage = async (key: string, digest: string) => {
-    if (skillPackageBusy || !window.cctools.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
+    if (skillPackageBusy || !window.openmind.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
     setSkillPackageBusy("uninstall");
     try {
-      const removed = await window.cctools.uninstallSkillPackage(key, digest);
+      const removed = await window.openmind.uninstallSkillPackage(key, digest);
       await loadSkillPackages();
       if (removed) notifyInstalledSkillCatalogChanged();
       await onRepo();
@@ -360,7 +360,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy("import");
     try {
-      const imported = await window.cctools.importRuntimePack();
+      const imported = await window.openmind.importRuntimePack();
       if (!imported) return;
       await loadRuntimePacks();
       ai.notify("Runtime Pack 已导入为候选版本", "success");
@@ -372,10 +372,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const selectRuntimePackDownloadManifest = async () => {
-    if (runtimeBusy || !window.cctools.selectRuntimePackDownloadManifest) return;
+    if (runtimeBusy || !window.openmind.selectRuntimePackDownloadManifest) return;
     setRuntimeBusy("download-select");
     try {
-      const candidate = await window.cctools.selectRuntimePackDownloadManifest();
+      const candidate = await window.openmind.selectRuntimePackDownloadManifest();
       if (candidate) setRuntimeDownloadCandidate(candidate);
     } catch {
       ai.notify("Runtime Pack Manifest 无效，或未声明 HTTPS 下载地址", "error");
@@ -385,10 +385,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const startRuntimePackDownload = async () => {
-    if (runtimeBusy || !runtimeDownloadCandidate || !window.cctools.startRuntimePackDownload) return;
+    if (runtimeBusy || !runtimeDownloadCandidate || !window.openmind.startRuntimePackDownload) return;
     setRuntimeBusy("download-start");
     try {
-      await window.cctools.startRuntimePackDownload(runtimeDownloadCandidate.metadata);
+      await window.openmind.startRuntimePackDownload(runtimeDownloadCandidate.metadata);
       setRuntimeDownloadCandidate(null);
       await loadRuntimePacks();
       ai.notify("Runtime Pack 下载已开始，可在当前页面暂停或继续", "success");
@@ -400,10 +400,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const pauseRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.cctools.pauseRuntimePackDownload) return;
+    if (runtimeBusy || !window.openmind.pauseRuntimePackDownload) return;
     setRuntimeBusy(`download-pause:${job.id}`);
     try {
-      await window.cctools.pauseRuntimePackDownload(job.id);
+      await window.openmind.pauseRuntimePackDownload(job.id);
       await loadRuntimePacks();
     } catch {
       ai.notify("Runtime Pack 下载暂停失败", "error");
@@ -413,10 +413,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const resumeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.cctools.resumeRuntimePackDownload) return;
+    if (runtimeBusy || !window.openmind.resumeRuntimePackDownload) return;
     setRuntimeBusy(`download-resume:${job.id}`);
     try {
-      await window.cctools.resumeRuntimePackDownload(job.id);
+      await window.openmind.resumeRuntimePackDownload(job.id);
       await loadRuntimePacks();
     } catch {
       ai.notify("Runtime Pack 下载继续失败", "error");
@@ -426,10 +426,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const removeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.cctools.removeRuntimePackDownload || !window.confirm(`确认删除 ${job.metadata.packId} ${job.metadata.version} 的下载记录和未完成文件？`)) return;
+    if (runtimeBusy || !window.openmind.removeRuntimePackDownload || !window.confirm(`确认删除 ${job.metadata.packId} ${job.metadata.version} 的下载记录和未完成文件？`)) return;
     setRuntimeBusy(`download-remove:${job.id}`);
     try {
-      await window.cctools.removeRuntimePackDownload(job.id);
+      await window.openmind.removeRuntimePackDownload(job.id);
       await loadRuntimePacks();
     } catch {
       ai.notify("Runtime Pack 下载记录删除失败", "error");
@@ -442,7 +442,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy(`repair:${pack.digest}`);
     try {
-      const repaired = await window.cctools.repairRuntimePackFromFile(pack.packId, pack.target, pack.digest);
+      const repaired = await window.openmind.repairRuntimePackFromFile(pack.packId, pack.target, pack.digest);
       if (!repaired) return;
       await loadRuntimePacks();
       ai.notify("Runtime Pack 已修复，请重新检查 readiness", "success");
@@ -457,7 +457,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy(`activate:${pack.digest}`);
     try {
-      await window.cctools.activateRuntimePack(pack.packId, pack.target, pack.digest);
+      await window.openmind.activateRuntimePack(pack.packId, pack.target, pack.digest);
       await loadRuntimePacks();
       ai.notify("Runtime Pack 已激活", "success");
     } catch {
@@ -471,7 +471,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy(`rollback:${pack.packId}:${pack.target}`);
     try {
-      await window.cctools.rollbackRuntimePack(pack.packId, pack.target);
+      await window.openmind.rollbackRuntimePack(pack.packId, pack.target);
       await loadRuntimePacks();
       ai.notify("Runtime Pack 已回滚", "success");
     } catch {
@@ -485,7 +485,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy || !window.confirm(`确认移除 ${pack.packId} ${pack.version}？`)) return;
     setRuntimeBusy(`remove:${pack.digest}`);
     try {
-      await window.cctools.removeRuntimePack(pack.packId, pack.target, pack.digest);
+      await window.openmind.removeRuntimePack(pack.packId, pack.target, pack.digest);
       await loadRuntimePacks();
       ai.notify("Runtime Pack 已移除", "success");
     } catch {
@@ -499,7 +499,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (runtimeBusy) return;
     setRuntimeBusy("gc");
     try {
-      await window.cctools.garbageCollectRuntimePacks();
+      await window.openmind.garbageCollectRuntimePacks();
       await loadRuntimePacks();
       ai.notify("未激活且未使用的 Runtime Pack 已清理", "success");
     } catch {
@@ -519,7 +519,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const openSkillDirectory = async (path: string) => {
-    try { await window.cctools.openPath(path); }
+    try { await window.openmind.openPath(path); }
     catch { ai.notify(m.settings.skills.openFailed, "error"); }
   };
 
@@ -527,7 +527,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (savingBrowserToken) return;
     setSavingBrowserToken(true);
     try {
-      setBrowserStatus(await window.cctools.saveBrowserExtensionToken(token));
+      setBrowserStatus(await window.openmind.saveBrowserExtensionToken(token));
       await loadMcpServers();
       ai.notify(m.settings.browser.tokenSaved, "success");
     } catch {
@@ -542,7 +542,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (savingBrowserToken) return;
     setSavingBrowserToken(true);
     try {
-      setBrowserStatus(await window.cctools.clearBrowserExtensionToken());
+      setBrowserStatus(await window.openmind.clearBrowserExtensionToken());
       await loadMcpServers();
       ai.notify(m.settings.browser.tokenCleared, "success");
     } catch {
@@ -553,7 +553,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   const openBrowserExtensionDocs = async () => {
-    try { await window.cctools.openExternal("https://github.com/microsoft/playwright-mcp#browser-extension"); }
+    try { await window.openmind.openExternal("https://github.com/microsoft/playwright-mcp#browser-extension"); }
     catch { ai.notify(m.settings.browser.loadFailed, "error"); }
   };
 
@@ -613,7 +613,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "general" ? (
                 <>
                   <AppearanceSettingsSection prefs={prefs} save={save} />
-                  <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                  <PathSettingsSection openmind={prefs.openmindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}

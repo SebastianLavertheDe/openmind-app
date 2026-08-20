@@ -15,12 +15,12 @@ export function captureTurnContext(
 
 export function withTurnContext(prompt: string, context: AiTurnContext): string {
   return [
-    "<cctools_turn_context>",
+    "<openmind_turn_context>",
     `  <cwd>${escapeXml(context.cwd)}</cwd>`,
     `  <current_date>${context.currentDate}</current_date>`,
     `  <timezone>${escapeXml(context.timezone)}</timezone>`,
     "  <instruction>Resolve relative dates such as today, yesterday, and tomorrow from this current_date and timezone.</instruction>",
-    "</cctools_turn_context>",
+    "</openmind_turn_context>",
     "",
     prompt
   ].join("\n");
@@ -52,9 +52,9 @@ export function withRecoveredHistory(
     return `  <item ${attributes}>${escapeXml(item.content)}</item>`;
   });
   return [
-    '<cctools_recovered_history source="local_rollout">',
+    '<openmind_recovered_history source="local_rollout">',
     ...history,
-    "</cctools_recovered_history>",
+    "</openmind_recovered_history>",
     "",
     prompt
   ].join("\n");

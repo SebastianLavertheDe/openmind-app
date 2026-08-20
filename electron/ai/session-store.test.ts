@@ -8,7 +8,7 @@ import { scanRisks } from "./risk-scanner";
 const roots: string[] = [];
 
 function createRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-ai-store-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ai-store-"));
   roots.push(root);
   return root;
 }
@@ -26,9 +26,9 @@ describe("SessionStore", () => {
     store.initialize();
     const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: workspace, title: "隔离状态", permissionProfile: "edit" });
 
-    expect(store.root).toBe(path.join(stateRoot, ".cctools", "ai"));
+    expect(store.root).toBe(path.join(stateRoot, ".openmind", "ai"));
     expect(fs.existsSync(path.join(store.root, "sessions", session.id, "session.json"))).toBe(true);
-    expect(fs.existsSync(path.join(workspace, ".cctools"))).toBe(false);
+    expect(fs.existsSync(path.join(workspace, ".openmind"))).toBe(false);
   });
 
   it("isolates sessions and runs by project when workspaces share one stateRoot", () => {
@@ -473,11 +473,11 @@ function sessionSkillSnapshot() {
       id: "creative-writing",
       title: "Creative Writing",
       description: "Write content",
-      cwd: "installed/cctools/creative-writing/1.0.0",
+      cwd: "installed/openmind/creative-writing/1.0.0",
       command: "managed-runtime"
     },
     installed: {
-      key: "cctools/creative-writing",
+      key: "openmind/creative-writing",
       version: "1.0.0",
       digest: "a".repeat(64)
     }

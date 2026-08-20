@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAppPaths } from "./app-paths-service";
-import { MymindLocationService } from "./mymind-location-service";
+import { OpenmindLocationService } from "./openmind-location-service";
 
 const roots: string[] = [];
 
@@ -12,15 +12,15 @@ afterEach(() => {
 });
 
 function makeRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-location-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-location-"));
   roots.push(root);
   return root;
 }
 
-describe("MymindLocationService", () => {
+describe("OpenmindLocationService", () => {
   it("reports missing create-if-needed entries without rejecting a partial root", () => {
     const root = makeRoot();
-    const service = new MymindLocationService({ paths: buildAppPaths(makeRoot()) });
+    const service = new OpenmindLocationService({ paths: buildAppPaths(makeRoot()) });
     const health = service.inspect(root);
     expect(health.accessible).toBe(true);
     expect(health.readable).toBe(true);
@@ -33,7 +33,7 @@ describe("MymindLocationService", () => {
     const root = makeRoot();
     fs.mkdirSync(path.join(root, ".obsidian"));
     fs.mkdirSync(path.join(root, "private-notes"));
-    const service = new MymindLocationService({ paths: buildAppPaths(makeRoot()) });
+    const service = new OpenmindLocationService({ paths: buildAppPaths(makeRoot()) });
     const health = service.inspect(root);
     expect(health.optionalObservedEntries).toEqual([".obsidian"]);
     expect(health.unknownPreservedEntries).toEqual(["private-notes"]);
@@ -42,7 +42,7 @@ describe("MymindLocationService", () => {
   it("increments generation on a root switch and pins snapshots", () => {
     const first = makeRoot();
     const second = makeRoot();
-    const service = new MymindLocationService({ paths: buildAppPaths(makeRoot()) });
+    const service = new OpenmindLocationService({ paths: buildAppPaths(makeRoot()) });
     const binding = service.bind(first);
     const same = service.bind(first, binding);
     const switched = service.bind(second, same);
@@ -58,13 +58,13 @@ describe("MymindLocationService", () => {
 
   it("blocks switching while a run is active", () => {
     const root = makeRoot();
-    const service = new MymindLocationService({ paths: buildAppPaths(makeRoot()), activeRunCount: () => 1 });
+    const service = new OpenmindLocationService({ paths: buildAppPaths(makeRoot()), activeRunCount: () => 1 });
     expect(() => service.bind(root)).toThrow("运行中的任务");
   });
 
   it("flags an app-private path conflict", () => {
     const userData = makeRoot();
-    const service = new MymindLocationService({ paths: buildAppPaths(userData) });
+    const service = new OpenmindLocationService({ paths: buildAppPaths(userData) });
     expect(() => service.bind(userData)).toThrow("路径冲突");
   });
 });

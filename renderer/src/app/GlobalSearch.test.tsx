@@ -22,7 +22,7 @@ let searchWorkspace: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   searchWorkspace = vi.fn(async () => [] as GlobalSearchResult[]);
-  window.cctools = {
+  window.openmind = {
     searchWorkspace,
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
@@ -30,8 +30,8 @@ beforeEach(() => {
     aiResolveApproval: async () => true,
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     openPath: vi.fn(async (p: string) => p),
     revealPath: async () => true,
     onAiEvent: () => () => {}

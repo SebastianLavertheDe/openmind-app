@@ -50,7 +50,7 @@ function createRoot(): string {
     "envFile: .env",
     "permission: edit",
     "outputArtifacts:",
-    "  - mymind/article/${date}/",
+    "  - openmind/article/${date}/",
     "timeoutMs: 60000",
     "---",
     "",
@@ -129,10 +129,10 @@ describe("SkillToolRegistry", () => {
           id: "installed-skill",
           title: "Installed Skill",
           description: "formal manifest",
-          cwd: "installed/cctools/installed-skill/1.0.0",
+          cwd: "installed/openmind/installed-skill/1.0.0",
           command: "managed-runtime"
         },
-        installed: { key: "cctools/installed-skill", version: "1.0.0", digest: "a".repeat(64) }
+        installed: { key: "openmind/installed-skill", version: "1.0.0", digest: "a".repeat(64) }
       }];
       const captureSessionSnapshot = vi.fn(() => installedSnapshot);
       const providerSkillBridge = vi.fn(() => null);
@@ -141,7 +141,7 @@ describe("SkillToolRegistry", () => {
           id: "installed-skill",
           title: "Installed Skill",
           description: "formal manifest",
-          cwd: "installed/cctools/installed-skill/1.0.0",
+          cwd: "installed/openmind/installed-skill/1.0.0",
           command: "managed-runtime",
           runner: "managed-runtime",
           args: [],
@@ -158,7 +158,7 @@ describe("SkillToolRegistry", () => {
       } as unknown as InstalledSkillExecutionResolver;
       const registry = new SkillToolRegistry(root, root, {
         paths,
-        mymindRoot: root,
+        openmindRoot: root,
         rootGeneration: 1,
         installedResolver
       });
@@ -216,7 +216,7 @@ describe("SkillToolRegistry", () => {
       const installedResolver = { resolve: vi.fn() } as unknown as InstalledSkillExecutionResolver;
       const registry = new SkillToolRegistry(root, root, {
         paths,
-        mymindRoot: root,
+        openmindRoot: root,
         rootGeneration: 1,
         installedResolver
       });
@@ -299,7 +299,7 @@ describe("SkillToolRegistry", () => {
       childRef!.emitClose(0);
       await runPromise;
 
-      expect(spawnedEnv.CCTOOLS_SKILL_ID).toBe(skill.id);
+      expect(spawnedEnv.OPENMIND_SKILL_ID).toBe(skill.id);
       expect(spawnedEnv.PYTHONIOENCODING).toBe("utf-8");
       // The per-skill .env must NOT leak into the spawn environment anymore.
       expect(spawnedEnv.DOUBAO_API_KEY).toBeUndefined();
@@ -418,8 +418,8 @@ describe("SkillToolRegistry", () => {
 
   it("生产手动路径只通过 Installed Skill Resolver 进入 ExecutionBroker", async () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const skillDir = path.join(root, ".claude", "skills", "test-skill");
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
@@ -431,13 +431,13 @@ describe("SkillToolRegistry", () => {
       digest,
       rootGeneration: 1,
       skillHome: fs.realpathSync(skillDir),
-      mymindRoot: fs.realpathSync(mymindRoot),
-      capabilities: { mymind: { read: [], write: [] } },
+      openmindRoot: fs.realpathSync(openmindRoot),
+      capabilities: { openmind: { read: [], write: [] } },
       process: {
         executable: process.execPath,
-        args: ["-e", "console.log(process.env.CCTOOLS_SOURCE_URL || '<missing>')"],
+        args: ["-e", "console.log(process.env.OPENMIND_SOURCE_URL || '<missing>')"],
         cwd: fs.realpathSync(skillDir),
-        env: { CCTOOLS_SOURCE_URL: String(request.inputs.sourceUrl || "") },
+        env: { OPENMIND_SOURCE_URL: String(request.inputs.sourceUrl || "") },
         timeoutMs: 5_000,
         gracefulStopMs: 1_000
       },
@@ -450,7 +450,7 @@ describe("SkillToolRegistry", () => {
       assertBrokerRunnable,
       resolve: resolve as unknown as InstalledSkillExecutionResolver["resolve"]
     } as unknown as InstalledSkillExecutionResolver;
-    const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1, installedResolver });
+    const registry = new SkillToolRegistry(root, root, { paths, openmindRoot, rootGeneration: 1, maxConcurrentRuns: 1, installedResolver });
     const events: SkillExecutionEvent[] = [];
     const output = await registry.run("test-skill", { date: "2026-08-05", sourceId: "source-1", sourceUrl: "https://example.com/feed" }, root, {
       invocationId: "broker:test-skill",
@@ -472,8 +472,8 @@ describe("SkillToolRegistry", () => {
 
   it("Agent Skill 在创建 Broker Run 前被引导到 Claude Code/Codex CLI", () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const installedResolver = {
@@ -484,7 +484,7 @@ describe("SkillToolRegistry", () => {
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, {
       paths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration: 1,
       installedResolver
     });
@@ -506,11 +506,11 @@ describe("SkillToolRegistry", () => {
 
   it("通用 Skill Run 不再把 Legacy workspace Skill 当作可执行 Installed Skill", async () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
-    const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1 });
+    const registry = new SkillToolRegistry(root, root, { paths, openmindRoot, rootGeneration: 1, maxConcurrentRuns: 1 });
 
     const run = registry.submitRun({
       skillId: "test-skill",
@@ -526,8 +526,8 @@ describe("SkillToolRegistry", () => {
 
   it("pins a wildcard Process request to the exact admitted version and digest before queueing", async () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const digest = "c".repeat(64);
@@ -537,7 +537,7 @@ describe("SkillToolRegistry", () => {
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, {
       paths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration: 1,
       installedResolver
     });
@@ -557,8 +557,8 @@ describe("SkillToolRegistry", () => {
 
   it("Workflow 准入后使用固定 Step identity，运行中停用不会影响后续 Step", async () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const packageRoot = fs.realpathSync(path.join(root, ".claude", "skills", "test-skill"));
@@ -589,8 +589,8 @@ describe("SkillToolRegistry", () => {
         digest: request.digest!,
         rootGeneration: 1,
         skillHome: packageRoot,
-        mymindRoot: fs.realpathSync(mymindRoot),
-        capabilities: { mymind: { read: [], write: [] } },
+        openmindRoot: fs.realpathSync(openmindRoot),
+        capabilities: { openmind: { read: [], write: [] } },
         process: {
           executable: process.execPath,
           args: ["-e", "process.exit(0)"],
@@ -605,7 +605,7 @@ describe("SkillToolRegistry", () => {
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, {
       paths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration: 1,
       maxConcurrentRuns: 1,
       installedResolver,
@@ -629,8 +629,8 @@ describe("SkillToolRegistry", () => {
 
   it("Workflow Step 显式重试会重新执行整条 Workflow admission", async () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const packageRoot = fs.realpathSync(path.join(root, ".claude", "skills", "test-skill"));
@@ -656,8 +656,8 @@ describe("SkillToolRegistry", () => {
         digest: request.digest!,
         rootGeneration: 1,
         skillHome: packageRoot,
-        mymindRoot: fs.realpathSync(mymindRoot),
-        capabilities: { mymind: { read: [], write: [] } },
+        openmindRoot: fs.realpathSync(openmindRoot),
+        capabilities: { openmind: { read: [], write: [] } },
         process: {
           executable: process.execPath,
           args: ["-e", "process.exit(1)"],
@@ -672,7 +672,7 @@ describe("SkillToolRegistry", () => {
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, {
       paths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration: 1,
       installedResolver,
       workflowRoot: path.join(root, "workflow-runs")
@@ -693,8 +693,8 @@ describe("SkillToolRegistry", () => {
 
   it("Workflow 重启恢复会先重新执行整条 Workflow admission", () => {
     const root = createRoot();
-    const mymindRoot = path.join(root, "mymind");
-    fs.mkdirSync(mymindRoot, { recursive: true });
+    const openmindRoot = path.join(root, "openmind");
+    fs.mkdirSync(openmindRoot, { recursive: true });
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const workflowRoot = path.join(root, "workflow-runs");
@@ -726,7 +726,7 @@ describe("SkillToolRegistry", () => {
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, {
       paths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration: 1,
       installedResolver,
       workflowRoot
@@ -784,8 +784,8 @@ describe("SkillToolRegistry", () => {
       const registry = new SkillToolRegistry(root);
       const skill = registry.list()[0];
       fs.mkdirSync(path.join(root, skill.cwd), { recursive: true });
-      fs.mkdirSync(path.join(root, ".cctools"), { recursive: true });
-      fs.writeFileSync(path.join(root, ".cctools", "source-settings.json"), "not-json{");
+      fs.mkdirSync(path.join(root, ".openmind"), { recursive: true });
+      fs.writeFileSync(path.join(root, ".openmind", "source-settings.json"), "not-json{");
       // 不应抛解析错,应正常启动
       let childRef: ReturnType<typeof makeFakeChild> | null = null;
       hoisted.spawnImpl = () => { childRef = makeFakeChild(); return childRef; };
@@ -807,13 +807,13 @@ async function waitFor(condition: () => boolean): Promise<void> {
 
 function workflowManifest(): WorkflowManifest {
   return SkillManifestSchema.parse({
-    apiVersion: "cctools.dev/skill/v1",
+    apiVersion: "openmind.dev/skill/v1",
     id: "registry-workflow",
     version: "1.0.0",
-    publisher: { id: "cctools", displayName: "cctools" },
+    publisher: { id: "openmind", displayName: "openmind" },
     kind: "workflow",
     display: { name: "Registry Workflow", description: "" },
-    capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] } },
+    capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] } },
     artifacts: [],
     execution: { concurrency: { maxInstances: 1, mutexes: [] }, timeoutSeconds: 60, gracefulStopSeconds: 1, retry: { maxAttempts: 0 } },
     platforms: ["linux-x64"],

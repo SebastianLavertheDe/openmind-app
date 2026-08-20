@@ -29,13 +29,13 @@ describe("clean-machine-smoke matrix", () => {
     expect(baseline.some((s) => s.environment === "offline")).toBe(true);
   });
 
-  it("mymind-tree-unchanged is asserted in baseline no-runtime + offline scenarios", () => {
+  it("openmind-tree-unchanged is asserted in baseline no-runtime + offline scenarios", () => {
     // The strongest immutability guarantees belong in the foundational
     // scenarios; other scenarios may focus on their own concern.
     const baseline = scenariosForGate("v1-baseline");
     for (const s of baseline) {
       if (s.environment === "no-python-uv-node-git-ffmpeg" || s.environment === "offline") {
-        expect(s.assertions).toContain("mymind-tree-unchanged");
+        expect(s.assertions).toContain("openmind-tree-unchanged");
       }
     }
   });

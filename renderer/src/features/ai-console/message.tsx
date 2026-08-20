@@ -182,7 +182,7 @@ export function MarkdownLink({ href, onClick, ...props }: AnchorHTMLAttributes<H
         event.preventDefault();
         onClick?.(event);
         if (openPreview) openPreview(localPath);
-        else void window.cctools.openPath(localPath);
+        else void window.openmind.openPath(localPath);
       }}
     />
   );
@@ -202,7 +202,7 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
       title={m.ai.message.previewFile(localPath)}
       onClick={() => {
         if (openPreview) openPreview(localPath);
-        else void window.cctools.openPath(localPath);
+        else void window.openmind.openPath(localPath);
       }}
     >
       <code {...props}>{children}</code>

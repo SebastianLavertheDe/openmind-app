@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("createAutomationFileFingerprint", () => {
   it("changes when a bound file changes and never accepts an escaping path", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-automation-files-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-automation-files-"));
     roots.push(root);
     fs.writeFileSync(path.join(root, "article.md"), "one");
     const fingerprint = createAutomationFileFingerprint(root);
@@ -26,7 +26,7 @@ describe("createAutomationFileFingerprint", () => {
   });
 
   it("records missing paths without reading file contents", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-automation-missing-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-automation-missing-"));
     roots.push(root);
     const fingerprint = createAutomationFileFingerprint(root);
     expect(fingerprint(["missing.md"])).toMatch(/^[a-f0-9]{64}$/);

@@ -29,7 +29,7 @@ describe("bundled Python runtime packaging", () => {
   });
 
   it("keeps only native PE launchers in pip's vendored distlib directory", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-launchers-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-launchers-"));
     roots.push(root);
     const distlib = path.join(root, "distribution", "cpython", "Lib", "site-packages", "pip", "_vendor", "distlib");
     const unrelated = path.join(root, "distribution", "other", "distlib");
@@ -52,7 +52,7 @@ describe("bundled Python runtime packaging", () => {
   });
 
   it("finalizes a portable payload only after pruning incompatible launchers", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-finalize-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-finalize-"));
     roots.push(root);
     const resources = path.join(root, "resources");
     const runtime = path.join(resources, "python-runtime", "windows-x64");

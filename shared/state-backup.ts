@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const APP_STATE_BACKUP_KIND = "cctools-app-state-backup" as const;
+export const APP_STATE_BACKUP_KIND = "openmind-app-state-backup" as const;
 export const APP_STATE_BACKUP_SCHEMA_VERSION = 1 as const;
 
 export const AppStateBackupReportSchema = z.object({

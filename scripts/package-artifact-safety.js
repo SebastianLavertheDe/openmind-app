@@ -31,7 +31,7 @@ const requiredKinds = platform === "win" ? ["portable", "nsis", "zip"] : ["dmg",
 if (!["win", "mac"].includes(platform)) throw new Error("Use --platform win or --platform mac.");
 if (!fs.existsSync(distRoot) || !fs.statSync(distRoot).isDirectory()) throw new Error(`Artifact directory is missing: ${distRoot}`);
 
-const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-artifact-safety-"));
+const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-artifact-safety-"));
 let report;
 try {
   report = run();
@@ -52,7 +52,7 @@ try {
 } catch (error) {
   report = {
     schemaVersion: 1,
-    kind: "cctools-package-artifact-safety",
+    kind: "openmind-package-artifact-safety",
     generatedAt: new Date().toISOString(),
     platform,
     status: "manual-required",
@@ -93,7 +93,7 @@ function run() {
   const failedArtifacts = checked.filter((artifact) => artifact.status !== "passed");
   return {
     schemaVersion: 1,
-    kind: "cctools-package-artifact-safety",
+    kind: "openmind-package-artifact-safety",
     generatedAt: new Date().toISOString(),
     platform,
     host: { platform: process.platform, arch: process.arch, node: process.version, os: os.release() },
@@ -259,7 +259,7 @@ function expandNestedArchives(root, extractor) {
     const archive = queue[index];
     if (seen.has(archive)) continue;
     seen.add(archive);
-    const output = `${archive}.cctools-extracted`;
+    const output = `${archive}.openmind-extracted`;
     fs.mkdirSync(output, { recursive: true });
     const result = spawnSync(extractor.command, [...extractor.args, archive, `-o${output}`], {
       cwd: appRoot,
@@ -297,7 +297,7 @@ function containsFileNamed(directory, expectedName) {
 
 function findExtractor() {
   const candidates = [];
-  if (process.env.CCTOOLS_7ZZ) candidates.push(process.env.CCTOOLS_7ZZ);
+  if (process.env.OPENMIND_7ZZ) candidates.push(process.env.OPENMIND_7ZZ);
   candidates.push("7zz", "7z");
   candidates.push(path.join(appRoot, "node_modules", "electron-winstaller", "vendor", "7z.exe"));
   candidates.push(...cachedElectronBuilderExtractors());
@@ -305,7 +305,7 @@ function findExtractor() {
     const probe = spawnSync(candidate, ["i"], { stdio: "ignore" });
     if (!probe.error && probe.status === 0) return { command: candidate, args: ["x", "-y"] };
   }
-  throw new Error("7-Zip extractor is required. Set CCTOOLS_7ZZ to an executable 7zz path or run electron-builder first so its cached extractor is available.");
+  throw new Error("7-Zip extractor is required. Set OPENMIND_7ZZ to an executable 7zz path or run electron-builder first so its cached extractor is available.");
 }
 
 function cachedElectronBuilderExtractors() {

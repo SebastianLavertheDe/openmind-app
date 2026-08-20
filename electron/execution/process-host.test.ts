@@ -43,13 +43,13 @@ describe("ProcessHost", () => {
 });
 
 function spec(script: string, overrides: Partial<ProcessSpec> = {}): ProcessSpec {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-process-host-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-process-host-"));
   roots.push(cwd);
   return {
     executable: process.execPath,
     args: ["-e", script],
     cwd,
-    env: { CCTOOLS_RUN_ID: "run-test" },
+    env: { OPENMIND_RUN_ID: "run-test" },
     timeoutMs: 5_000,
     gracefulStopMs: 50,
     ...overrides

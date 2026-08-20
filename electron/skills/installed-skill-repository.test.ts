@@ -33,7 +33,7 @@ describe("InstalledSkillRepository", () => {
   let repository: InstalledSkillRepository;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-installed-skills-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-installed-skills-"));
     file = path.join(root, "skills", "registry.json");
     repository = new InstalledSkillRepository(file);
   });
@@ -130,28 +130,28 @@ describe("InstalledSkillRepository", () => {
 
   it("selects each v1 key independently and persists records in key order", () => {
     const keyBActive = legacyRecord(1, "1.0.0", "digest-b-active", "2026-08-05T10:00:00.000Z", "active", "ready", {
-      key: "cctools/skill-b",
+      key: "openmind/skill-b",
       id: "skill-b"
     });
     const keyBNewer = legacyRecord(1, "2.0.0", "digest-b-newer", "2026-08-05T11:00:00.000Z", "quarantined", "ready", {
-      key: "cctools/skill-b",
+      key: "openmind/skill-b",
       id: "skill-b"
     });
     const keyAOlder = legacyRecord(1, "1.0.0", "digest-a-older", "2026-08-05T09:00:00.000Z", "quarantined", "ready", {
-      key: "cctools/skill-a",
+      key: "openmind/skill-a",
       id: "skill-a"
     });
     const keyANewer = legacyRecord(1, "2.0.0", "digest-a-newer", "2026-08-05T12:00:00.000Z", "installed-not-ready", "stale", {
-      key: "cctools/skill-a",
+      key: "openmind/skill-a",
       id: "skill-a"
     });
     writeRegistry(file, 1, [keyBNewer, keyAOlder, keyBActive, keyANewer]);
 
     expect(repository.list().map((item) => [item.key, item.digest])).toEqual([
-      ["cctools/skill-a", "digest-a-newer"],
-      ["cctools/skill-b", "digest-b-active"]
+      ["openmind/skill-a", "digest-a-newer"],
+      ["openmind/skill-b", "digest-b-active"]
     ]);
-    expect(readDisk(file).records.map((item) => item.key)).toEqual(["cctools/skill-a", "cctools/skill-b"]);
+    expect(readDisk(file).records.map((item) => item.key)).toEqual(["openmind/skill-a", "openmind/skill-b"]);
   });
 
   it("uses digest and packagePath as stable v1 tie breakers", () => {
@@ -299,9 +299,9 @@ describe("InstalledSkillRepository", () => {
 function record(version: string, digest: string, installedAt = new Date().toISOString()): InstalledSkillRecord {
   return {
     schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
-    key: "cctools/example-skill",
+    key: "openmind/example-skill",
     id: "example-skill",
-    publisherId: "cctools",
+    publisherId: "openmind",
     version,
     digest,
     sourcePath: "/tmp/source",

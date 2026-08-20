@@ -25,7 +25,7 @@ describe("composeSkillCatalog", () => {
 
   it("renders header, command per skill, and outputArtifacts when present", () => {
     const out = composeSkillCatalog([skill({ outputArtifacts: ["out/a.md", "out/b.md"] })]);
-    expect(out).toContain("## 可用的 cctools skills");
+    expect(out).toContain("## 可用的 openmind skills");
     expect(out).toContain("- rss（RSS Saver）：Saves RSS articles");
     expect(out).toContain("命令：cd /skills/rss && uv run python main.py");
     expect(out).toContain("产物：out/a.md、out/b.md");

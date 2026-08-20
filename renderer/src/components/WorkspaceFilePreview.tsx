@@ -18,7 +18,7 @@ export function WorkspaceFilePreview({ path, onClose }: { path: string; onClose(
     setContent(null);
     setLoading(true);
     setError(null);
-    void window.cctools.readContent(path).then((record) => {
+    void window.openmind.readContent(path).then((record) => {
       if (!current) return;
       setContent(record);
       setLoading(false);
@@ -46,7 +46,7 @@ export function WorkspaceFilePreview({ path, onClose }: { path: string; onClose(
     label: m.ai.file.open,
     icon: ExternalLink,
     priority: "primary",
-    onSelect: () => void window.cctools.openPath(path)
+    onSelect: () => void window.openmind.openPath(path)
   }, {
     id: "close",
     label: m.ai.workbench.closeFilePreview,

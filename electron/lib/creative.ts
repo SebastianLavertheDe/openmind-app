@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import { appPrivateStatePath, findRepoRoot, ensureInsideRepo, relativeToMymind, resolveMymindRoot } from "./settings";
+import { appPrivateStatePath, findRepoRoot, ensureInsideRepo, relativeToOpenmind, resolveOpenmindRoot } from "./settings";
 import { readJson } from "./content";
 import { copyDirectoryRecursively, moveDirectoryWithFallback, writeJsonAtomic, writeTextAtomic } from "./fs-utils";
 import {
@@ -44,8 +44,8 @@ const DEFAULT_WORKFLOW_STAGE_POLICY: WorkflowStagePolicy = {
 const STAGE_FOLDERS = CREATIVE_STAGE_DISK_FOLDERS;
 
 function relativeContentPath(absolutePath: string): string {
-  return resolveMymindRoot()
-    ? relativeToMymind(absolutePath)
+  return resolveOpenmindRoot()
+    ? relativeToOpenmind(absolutePath)
     : path.relative(findRepoRoot(), absolutePath).split(path.sep).join("/");
 }
 
@@ -273,7 +273,7 @@ export function parseTopicMarkdown(markdown: string): ParsedTopic[] {
 export function getCreativeTopics(date: string): TopicsPayload {
   const day = String(date || "").replace(/\D/g, "").slice(0, 8);
   const formatted = `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`;
-  const topicDir = ensureInsideRepo(path.join("mymind", "creative", "01-内容生产", "选题管理"));
+  const topicDir = ensureInsideRepo(path.join("openmind", "creative", "01-内容生产", "选题管理"));
   const candidates: string[] = [];
   try {
     for (const entry of fs.readdirSync(topicDir)) {
@@ -306,7 +306,7 @@ interface AllCreativeTopicDay extends TopicsPayload {
 }
 
 export function getAllCreativeTopics(): AllCreativeTopicDay[] {
-  const topicDir = ensureInsideRepo(path.join("mymind", "creative", "01-内容生产", "选题管理"));
+  const topicDir = ensureInsideRepo(path.join("openmind", "creative", "01-内容生产", "选题管理"));
   const days: AllCreativeTopicDay[] = [];
   const seen = new Set<string>();
   let entries: string[];

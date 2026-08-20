@@ -10,7 +10,7 @@ export class LegacyChangeManager {
   readonly runtimeRoot: string;
 
   constructor(private projectRoot: string, stateRoot?: string) {
-    this.runtimeRoot = path.join(stateRoot ?? projectRoot, ".cctools", "ai", ".runtime", "worktrees");
+    this.runtimeRoot = path.join(stateRoot ?? projectRoot, ".openmind", "ai", ".runtime", "worktrees");
   }
 
   async collect(run: AiRun): Promise<ChangeSet> {

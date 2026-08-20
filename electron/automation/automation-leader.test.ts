@@ -67,7 +67,7 @@ describe("AutomationLeader", () => {
 });
 
 function makeDirectory(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-automation-leader-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-automation-leader-"));
   roots.push(root);
   return root;
 }

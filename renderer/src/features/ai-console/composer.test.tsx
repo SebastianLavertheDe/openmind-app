@@ -46,13 +46,13 @@ function selectionContext(id: string, label: string): ContextReference {
     id,
     kind: "selection",
     label,
-    path: `mymind/${id}.md`,
+    path: `openmind/${id}.md`,
     content: `${label}的完整内容`
   };
 }
 
 beforeEach(() => {
-  window.cctools = { onAiEvent: () => () => undefined } as unknown as DesktopApi;
+  window.openmind = { onAiEvent: () => () => undefined } as unknown as DesktopApi;
 });
 
 afterEach(() => {
@@ -75,7 +75,7 @@ describe("ContextTray selection references", () => {
   it("removes only the selected reference from its inline delete button", async () => {
     const first = selectionContext("first", "引用一");
     const second = selectionContext("second", "引用二");
-    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({ "__new-session__": [first, second] }));
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({ "__new-session__": [first, second] }));
     render(<AiProvider initial={snapshot}><ChatComposer /></AiProvider>);
 
     expect(screen.getByText("引用一")).toBeTruthy();

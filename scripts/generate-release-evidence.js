@@ -42,7 +42,7 @@ const inputDigests = {
 const sbom = buildCycloneDxSbom(productionPackages);
 const licenses = {
   schemaVersion: 1,
-  kind: "cctools-license-report",
+  kind: "openmind-license-report",
   generatedAt,
   source: "package-lock.json production dependency closure",
   componentCount: licenseComponents.length,
@@ -51,9 +51,9 @@ const licenses = {
 };
 const provenance = {
   schemaVersion: 1,
-  kind: "cctools-build-provenance",
+  kind: "openmind-build-provenance",
   generatedAt,
-  builder: "cctools-desktop",
+  builder: "openmind-desktop",
   app: { name: packageJson.name, version: packageJson.version },
   command: "npm run build",
   source: git,
@@ -79,7 +79,7 @@ const evidenceFiles = ["sbom.cdx.json", "licenses.json", "provenance.json"].map(
 });
 writeJson("index.json", {
   schemaVersion: 1,
-  kind: "cctools-release-evidence-index",
+  kind: "openmind-release-evidence-index",
   generatedAt,
   app: { name: packageJson.name, version: packageJson.version },
   artifacts: evidenceFiles,
@@ -202,7 +202,7 @@ function buildCycloneDxSbom(records) {
     version: 1,
     metadata: {
       timestamp: generatedAt,
-      tools: [{ vendor: "CC Tools", name: "generate-release-evidence", version: packageJson.version }],
+      tools: [{ vendor: "OpenMind", name: "generate-release-evidence", version: packageJson.version }],
       component: { type: "application", bomRef: appRef, name: packageJson.name, version: packageJson.version, purl: appRef }
     },
     components,

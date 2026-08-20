@@ -23,7 +23,7 @@ beforeEach(() => {
     removeEventListener: () => undefined,
     dispatchEvent: () => true
   })) as typeof window.matchMedia;
-  window.cctools = {
+  window.openmind = {
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
     aiPrewarm: async () => undefined,
@@ -257,7 +257,7 @@ describe("ErrorEvent", () => {
 
   it("calls ai.rerun → aiStartRun with original prompt when retry clicked", async () => {
     const startRun = vi.fn(async () => "new-run-id");
-    window.cctools = { ...window.cctools, aiStartRun: startRun } as unknown as DesktopApi;
+    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
     const event = makeEvent("err6", "error", { text: "fail" });
     render(
       <AiProvider initial={snapshot}>
@@ -277,7 +277,7 @@ describe("ErrorEvent", () => {
     // 让 aiStartRun 挂起,模拟进行中
     let resolveStart!: (value: string) => void;
     const startRun = vi.fn(() => new Promise<string>((resolve) => { resolveStart = resolve; }));
-    window.cctools = { ...window.cctools, aiStartRun: startRun } as unknown as DesktopApi;
+    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
     const event = makeEvent("err6b", "error", { text: "fail" });
     render(
       <AiProvider initial={snapshot}>
@@ -295,7 +295,7 @@ describe("ErrorEvent", () => {
   it("recovers gracefully when rerun throws (catch branch)", async () => {
     // rerun 内部调 send → aiStartRun; 让它 reject,走 retry 的 catch
     const startRun = vi.fn(async () => { throw new Error("provider down"); });
-    window.cctools = { ...window.cctools, aiStartRun: startRun } as unknown as DesktopApi;
+    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
     const event = makeEvent("err6c", "error", { text: "fail" });
     render(
       <AiProvider initial={snapshot}>
@@ -312,7 +312,7 @@ describe("ErrorEvent", () => {
 
   it("opens run record path when button clicked", () => {
     const openPath = vi.fn();
-    window.cctools = { ...window.cctools, openPath } as unknown as DesktopApi;
+    window.openmind = { ...window.openmind, openPath } as unknown as DesktopApi;
     const event = makeEvent("err7", "error", { text: "fail" });
     render(
       <AiProvider initial={snapshot}>
@@ -329,7 +329,7 @@ describe("ErrorEvent", () => {
 
   it("uses backslash separator when projectRoot has backslash", () => {
     const openPath = vi.fn();
-    window.cctools = { ...window.cctools, openPath } as unknown as DesktopApi;
+    window.openmind = { ...window.openmind, openPath } as unknown as DesktopApi;
     const backslashSnapshot = { ...snapshot, projectRoot: "C:\\project" };
     const event = makeEvent("err8", "error", { text: "fail" });
     render(

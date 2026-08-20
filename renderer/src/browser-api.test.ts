@@ -1,43 +1,44 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installBrowserPreviewApi } from "./browser-api";
 
-const ELECTRON_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) cctools-desktop/1.0.0 Electron/42.4.0 Chrome/132.0.0.0 Safari/537.36";
+const ELECTRON_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) openmind-desktop/1.0.0 Electron/42.4.0 Chrome/132.0.0.0 Safari/537.36";
 const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
 
 beforeEach(() => {
-  delete (window as unknown as { cctools?: unknown }).cctools;
+  delete (window as unknown as { openmind?: unknown }).openmind;
 });
 
 afterEach(() => {
-  delete (window as unknown as { cctools?: unknown }).cctools;
+  delete (window as unknown as { openmind?: unknown }).openmind;
+  window.history.replaceState({}, "", "/");
 });
 
 describe("installBrowserPreviewApi", () => {
-  it("returns true and installs a preview window.cctools in a non-Electron browser", async () => {
+  it("returns true and installs a preview window.openmind in a non-Electron browser", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     const result = installBrowserPreviewApi();
     expect(result).toBe(true);
-    expect(window.cctools).toBeTruthy();
+    expect(window.openmind).toBeTruthy();
   });
 
-  it("returns true without re-installing when window.cctools already exists", () => {
+  it("returns true without re-installing when window.openmind already exists", () => {
     const existing = { existing: true };
-    (window as unknown as { cctools: unknown }).cctools = existing;
+    (window as unknown as { openmind: unknown }).openmind = existing;
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     expect(installBrowserPreviewApi()).toBe(true);
-    expect(window.cctools).toBe(existing);
+    expect(window.openmind).toBe(existing);
   });
 
   it("returns false and does not install in an Electron renderer", () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: ELECTRON_UA }, configurable: true });
     expect(installBrowserPreviewApi()).toBe(false);
-    expect(window.cctools).toBeUndefined();
+    expect(window.openmind).toBeUndefined();
   });
 
   it("getBootstrap returns preview skills and AI snapshot", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const boot = await window.cctools.getBootstrap();
+    const boot = await window.openmind.getBootstrap();
     expect(boot.validRepo).toBe(true);
     expect(boot.environment.mode).toBe("preview");
     expect(boot.skills.length).toBeGreaterThan(0);
@@ -45,42 +46,55 @@ describe("installBrowserPreviewApi", () => {
     expect(boot.ai.sessions.length).toBe(1);
   });
 
+  it("supports the interactive onboarding preview fixture", async () => {
+    window.history.replaceState({}, "", "/?preview=onboarding");
+    Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
+    installBrowserPreviewApi();
+
+    expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: false, skillsInstalled: false, onboardingCompleted: false });
+    expect((await window.openmind.getOpenmindRoot()).health.configured).toBe(false);
+    await window.openmind.setOpenmindRoot("/home/say/work/github/cctools/openmind");
+    expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: false });
+    await window.openmind.installSkillSource?.({ type: "git", locator: "https://github.com/example/skills.git" });
+    expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: true });
+  });
+
   it("content API returns preview articles and supports state updates", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const list = await window.cctools.listContent("article", "20260707");
+    const list = await window.openmind.listContent("article", "20260707");
     expect(list.length).toBeGreaterThan(0);
-    const read = await window.cctools.readContent("mymind/article/demo.md");
+    const read = await window.openmind.readContent("openmind/article/demo.md");
     expect(read.content).toContain("# ");
-    const written = await window.cctools.writeContent("p", "content");
+    const written = await window.openmind.writeContent("p", "content");
     expect(written.content).toBe("content");
-    const updated = await window.cctools.updateContentState("id", "p", { read: true });
+    const updated = await window.openmind.updateContentState("id", "p", { read: true });
     expect(updated.state.read).toBe(true);
   });
 
   it("inbox + facets + sources return preview data", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const inbox = await window.cctools.listInbox({ date: "2026-07-07", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 100 });
+    const inbox = await window.openmind.listInbox({ date: "2026-07-07", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 100 });
     expect(inbox.items.length).toBe(1);
     expect(inbox.items[0].state.starred).toBe(true);
-    const facets = await window.cctools.getInboxFacets({ date: "2026-07-07", search: "", tags: [] });
+    const facets = await window.openmind.getInboxFacets({ date: "2026-07-07", search: "", tags: [] });
     expect(facets.total).toBe(1);
-    const sources = await window.cctools.listSources();
+    const sources = await window.openmind.listSources();
     expect(sources.length).toBeGreaterThan(0);
-    const added = await window.cctools.addRssSource({ url: "https://x.com/feed", name: "X", kind: "rss" });
+    const added = await window.openmind.addRssSource({ url: "https://x.com/feed", name: "X", kind: "rss" });
     expect(added.id).toContain("rss");
-    expect(await window.cctools.importOpml()).toBe(2);
+    expect(await window.openmind.importOpml()).toBe(2);
   });
 
   it("daily brief + dashboard return structured preview data", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const brief = await window.cctools.getDailyBrief("2026-07-07");
+    const brief = await window.openmind.getDailyBrief("2026-07-07");
     expect(brief.date).toBe("20260707");
     expect(brief.counts.content).toBe(42);
     expect(brief.topics.length).toBe(1);
-    const dash = await window.cctools.getDashboard("2026-07-07");
+    const dash = await window.openmind.getDashboard("2026-07-07");
     expect(dash.date).toBe("20260707");
     expect(dash.metrics.collected).toBe(42);
     expect(dash.trend).toHaveLength(7);
@@ -89,80 +103,80 @@ describe("installBrowserPreviewApi", () => {
   it("searchWorkspace filters preview results by query", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const all = await window.cctools.searchWorkspace("");
+    const all = await window.openmind.searchWorkspace("");
     expect(all.length).toBeGreaterThan(0);
-    const filtered = await window.cctools.searchWorkspace("工程");
+    const filtered = await window.openmind.searchWorkspace("工程");
     expect(filtered.every((r) => `${r.title} ${r.subtitle}`.includes("工程"))).toBe(true);
-    const none = await window.cctools.searchWorkspace("zzzznomatch");
+    const none = await window.openmind.searchWorkspace("zzzznomatch");
     expect(none).toEqual([]);
   });
 
   it("creative API returns preview topics, projects, and supports CRUD", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const topics = await window.cctools.getCreativeTopics("2026-07-07");
+    const topics = await window.openmind.getCreativeTopics("2026-07-07");
     expect(topics.topics.length).toBe(1);
-    const allTopics = await window.cctools.getAllCreativeTopics();
+    const allTopics = await window.openmind.getAllCreativeTopics();
     expect(allTopics.length).toBe(1);
-    const projects = await window.cctools.getCreativeProjects();
+    const projects = await window.openmind.getCreativeProjects();
     expect(projects.length).toBe(1);
-    const project = await window.cctools.getCreativeProject("dir");
+    const project = await window.openmind.getCreativeProject("dir");
     expect(project.manifest?.topic).toBeTruthy();
-    const created = await window.cctools.createCreativeProject({ date: "20260707", topic: { title: "T", body: "B" } });
+    const created = await window.openmind.createCreativeProject({ date: "20260707", topic: { title: "T", body: "B" } });
     expect(created.manifest?.topic).toBe("T");
-    const advanced = await window.cctools.advanceCreativeProject("dir", "review");
+    const advanced = await window.openmind.advanceCreativeProject("dir", "review");
     expect(advanced.stage).toBe("review");
-    const reviewed = await window.cctools.reviewCreativeProject("dir");
+    const reviewed = await window.openmind.reviewCreativeProject("dir");
     expect(reviewed.reviewReport?.score).toBe(86);
-    const versions = await window.cctools.listCreativeVersions("dir", "draft.md");
+    const versions = await window.openmind.listCreativeVersions("dir", "draft.md");
     expect(versions.length).toBe(1);
-    const restored = await window.cctools.restoreCreativeVersion("dir", "draft.md", "versions/draft/v1.md");
+    const restored = await window.openmind.restoreCreativeVersion("dir", "draft.md", "versions/draft/v1.md");
     expect(restored.stage).toBeTruthy();
-    const releaseLog = await window.cctools.getCreativeReleaseLog("dir");
+    const releaseLog = await window.openmind.getCreativeReleaseLog("dir");
     expect(releaseLog.length).toBe(1);
-    const analytics = await window.cctools.getCreativeAnalytics();
+    const analytics = await window.openmind.getCreativeAnalytics();
     expect(analytics.total).toBe(1);
   });
 
   it("preferences API reads, updates, and resets", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const initial = await window.cctools.getPreferences();
+    const initial = await window.openmind.getPreferences();
     expect(initial.themeMode).toBe("light");
-    const updated = await window.cctools.updatePreferences({ themeMode: "dark" });
+    const updated = await window.openmind.updatePreferences({ themeMode: "dark" });
     expect(updated.themeMode).toBe("dark");
-    const reset = await window.cctools.resetPreferences();
+    const reset = await window.openmind.resetPreferences();
     expect(reset.themeMode).toBe("light");
   });
 
-  it("searchMymindFiles filters and respects the limit", async () => {
+  it("searchOpenmindFiles filters and respects the limit", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const result = await window.cctools.searchMymindFiles("wiki", 10);
+    const result = await window.openmind.searchOpenmindFiles("wiki", 10);
     expect(result.items.every((f) => f.path.includes("wiki"))).toBe(true);
-    const limited = await window.cctools.searchMymindFiles("", 1);
+    const limited = await window.openmind.searchOpenmindFiles("", 1);
     expect(limited.items.length).toBeLessThanOrEqual(1);
   });
 
   it("AI API is read-only in preview mode (start/update throw)", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    expect(await window.cctools.aiRefresh()).toBeTruthy();
-    expect(await window.cctools.aiPrewarm()).toBe(true);
-    const events = await window.cctools.aiGetEvents("preview-session");
+    expect(await window.openmind.aiRefresh()).toBeTruthy();
+    expect(await window.openmind.aiPrewarm()).toBe(true);
+    const events = await window.openmind.aiGetEvents("preview-session");
     expect(events).toHaveLength(3);
     expect(events.some((event) => event.kind === "changes")).toBe(true);
-    await expect(window.cctools.aiStartRun({} as never)).rejects.toThrow(/预览/);
-    await expect(window.cctools.aiUpdateSession("preview-session", {})).rejects.toThrow(/预览/);
-    expect(await window.cctools.aiCancelRun("x")).toBe(true);
-    expect(await window.cctools.aiResolveApproval("approval", "decline")).toBe(true);
+    await expect(window.openmind.aiStartRun({} as never)).rejects.toThrow(/预览/);
+    await expect(window.openmind.aiUpdateSession("preview-session", {})).rejects.toThrow(/预览/);
+    expect(await window.openmind.aiCancelRun("x")).toBe(true);
+    expect(await window.openmind.aiResolveApproval("approval", "decline")).toBe(true);
   });
 
   it("onAiEvent registers a listener that can be unsubscribed", () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
     const cb = vi.fn();
-    const unsubscribe = window.cctools.onAiEvent(cb);
+    const unsubscribe = window.openmind.onAiEvent(cb);
     expect(typeof unsubscribe).toBe("function");
     unsubscribe();
   });

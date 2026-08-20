@@ -38,10 +38,10 @@ describe("LEGACY_KIND_MATCHERS", () => {
 
 describe("content roots", () => {
   it("CONTENT_DATE_ROOTS are dated-subdirectory roots", () => {
-    expect(CONTENT_DATE_ROOTS).toEqual(["mymind/article", "mymind/post", "mymind/reddit"]);
+    expect(CONTENT_DATE_ROOTS).toEqual(["openmind/article", "openmind/post", "openmind/reddit"]);
   });
   it("CONTENT_FILE_ROOTS are date-in-filename roots", () => {
-    expect(CONTENT_FILE_ROOTS).toEqual(["mymind/daily-summary", "mymind/daily-topic"]);
+    expect(CONTENT_FILE_ROOTS).toEqual(["openmind/daily-summary", "openmind/daily-topic"]);
   });
 });
 
@@ -61,11 +61,11 @@ describe("LEGACY_GET_CONTENT_ALL_KINDS", () => {
 
 describe("LEGACY_CONTENT_DATE_DIRECTORY_KINDS / FILE_ROOT_KINDS", () => {
   it("maps reddit/posts to dated subdirectories", () => {
-    expect(LEGACY_CONTENT_DATE_DIRECTORY_KINDS.reddit).toEqual(["mymind", "reddit"]);
-    expect(LEGACY_CONTENT_DATE_DIRECTORY_KINDS.posts).toEqual(["mymind", "post"]);
+    expect(LEGACY_CONTENT_DATE_DIRECTORY_KINDS.reddit).toEqual(["openmind", "reddit"]);
+    expect(LEGACY_CONTENT_DATE_DIRECTORY_KINDS.posts).toEqual(["openmind", "post"]);
   });
   it("maps summaries/topics to date-in-filename directories", () => {
-    expect(LEGACY_CONTENT_FILE_ROOT_KINDS.summaries).toEqual(["mymind", "daily-summary"]);
-    expect(LEGACY_CONTENT_FILE_ROOT_KINDS.topics).toEqual(["mymind", "daily-topic"]);
+    expect(LEGACY_CONTENT_FILE_ROOT_KINDS.summaries).toEqual(["openmind", "daily-summary"]);
+    expect(LEGACY_CONTENT_FILE_ROOT_KINDS.topics).toEqual(["openmind", "daily-topic"]);
   });
 });

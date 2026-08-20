@@ -89,7 +89,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
   const lastScrollTop = useRef(0);
   const sessionId = ai.activeSession?.id || "__draft";
   const currentScrollSession = useRef(sessionId);
-  const serverPagedHistory = Boolean(window.cctools.aiListTurns);
+  const serverPagedHistory = Boolean(window.openmind.aiListTurns);
   const streamingRunId = ai.sessionActiveRun?.id || ai.activeRun?.id || null;
   const { streaming, reasoningStreaming } = useAiStreaming(streamingRunId);
   const timelineEvents = useMemo(() => {

@@ -13,11 +13,11 @@ afterEach(() => {
 
 describe("runtime-pack-trust", () => {
   it("fails closed when development resources do not contain trust roots", () => {
-    expect(loadRuntimeTrustRoots(path.join(os.tmpdir(), "cctools-runtime-trust-missing.json"))).toEqual({});
+    expect(loadRuntimeTrustRoots(path.join(os.tmpdir(), "openmind-runtime-trust-missing.json"))).toEqual({});
   });
 
   it("loads only Ed25519 public roots from the packaged schema", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-trust-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-trust-"));
     roots.push(root);
     const keyPair = crypto.generateKeyPairSync("ed25519");
     const pem = keyPair.publicKey.export({ type: "spki", format: "pem" }).toString();
@@ -27,7 +27,7 @@ describe("runtime-pack-trust", () => {
   });
 
   it("rejects malformed and non-Ed25519 roots", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-trust-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-trust-"));
     roots.push(root);
     const file = path.join(root, "runtime-trust-roots.json");
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, roots: { runtimeRoot: "not-a-key" } }));

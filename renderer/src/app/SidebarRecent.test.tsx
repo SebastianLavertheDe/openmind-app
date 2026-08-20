@@ -57,7 +57,7 @@ describe("SidebarRecent", () => {
     vi.setSystemTime(new Date("2026-01-03T00:00:00.000Z"));
     const repliedSession = { ...session, updatedAt: "2026-01-03T00:00:00.000Z" };
     const repliedSnapshot = { ...snapshot, sessions: [repliedSession], pendingApprovals: [] };
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => repliedSnapshot,
       aiGetEvents: async () => [],
       onAiEvent: () => () => undefined
@@ -74,7 +74,7 @@ describe("SidebarRecent", () => {
   });
 
   it("shows 等待批准 for a session with a pending approval", () => {
-    window.cctools = {
+    window.openmind = {
       aiRefresh: async () => snapshot,
       aiGetEvents: async () => [],
       onAiEvent: () => () => undefined
@@ -96,7 +96,7 @@ describe("SidebarRecent", () => {
     let resolveUpdate: ((value: AiSession) => void) | null = null;
     let eventListener: Parameters<DesktopApi["onAiEvent"]>[0] | null = null;
     const aiUpdateSession = vi.fn(() => new Promise<AiSession>((resolve) => { resolveUpdate = resolve; }));
-    window.cctools = {
+    window.openmind = {
       aiUpdateSession,
       aiRefresh: async () => snapshot,
       aiGetEvents: async () => [],
@@ -126,7 +126,7 @@ describe("SidebarRecent", () => {
   it("rolls an optimistic archive back when persistence fails", async () => {
     let rejectUpdate: ((cause: Error) => void) | null = null;
     const aiUpdateSession = vi.fn(() => new Promise<AiSession>((_resolve, reject) => { rejectUpdate = reject; }));
-    window.cctools = {
+    window.openmind = {
       aiUpdateSession,
       aiRefresh: async () => snapshot,
       aiGetEvents: async () => [],
@@ -148,7 +148,7 @@ describe("SidebarRecent", () => {
   it("pins a recent session from the same row action group", async () => {
     const pinnedSession = { ...session, pinned: true, updatedAt: "2026-07-21T12:00:00.000Z" };
     const aiUpdateSession = vi.fn().mockResolvedValue(pinnedSession);
-    window.cctools = {
+    window.openmind = {
       aiUpdateSession,
       aiRefresh: async () => snapshot,
       aiGetEvents: async () => [],

@@ -24,7 +24,7 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
   const current = ai.snapshot.pendingApprovals.find((item) => item.id === approval.id);
   if (!current) return null;
   const commitResolution = async (value: "accept" | "accept-session" | "decline") => {
-    const resolved = await window.cctools.aiResolveApproval(approval.id, value);
+    const resolved = await window.openmind.aiResolveApproval(approval.id, value);
     if (!resolved) throw new Error(m.ai.approval.alreadyHandled);
     await ai.refresh();
   };

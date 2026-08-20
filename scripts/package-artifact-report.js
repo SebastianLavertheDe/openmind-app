@@ -78,7 +78,7 @@ async function writeReport() {
   const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    kind: "cctools-package-artifact-evidence",
+    kind: "openmind-package-artifact-evidence",
     platform,
     host: { platform: process.platform, arch: process.arch, node: process.version, os: os.release() },
     artifacts,
@@ -221,7 +221,7 @@ function validatePackagedRecovery(report, targetPlatform) {
   const errors = [];
   const expectedHostPlatform = targetPlatform === "win" ? "win32" : "darwin";
   if (!report) return { errors: ["report missing"], forcedTerminationCount: 0, restoredPreviousState: false, transactionRemoved: false };
-  if (report.kind !== "cctools-packaged-recovery-smoke") errors.push(`kind=${report.kind || "missing"}`);
+  if (report.kind !== "openmind-packaged-recovery-smoke") errors.push(`kind=${report.kind || "missing"}`);
   if (report.status !== "passed") errors.push(`status=${report.status || "missing"}`);
   if (report.host?.platform !== expectedHostPlatform) errors.push(`host.platform=${report.host?.platform || "missing"}, expected ${expectedHostPlatform}`);
   if (!Array.isArray(report.scenarios) || report.scenarios.length < 2) {

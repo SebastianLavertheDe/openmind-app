@@ -118,7 +118,7 @@ export const SLASH_COMMANDS: readonly SlashCommandDefinition[] = [
     requiresArgument: true,
     acceptsContextFallback: false,
     keywords: ["技能", "自动化", "workflow", "skill"],
-    buildInstruction: (argument) => `调用项目中已注册的 cctools skill：${argument}。先从可用 skill 目录确认准确名称、命令、工作目录和产物，再执行；完成后读取产物并汇报结果。`
+    buildInstruction: (argument) => `调用项目中已注册的 openmind skill：${argument}。先从可用 skill 目录确认准确名称、命令、工作目录和产物，再执行；完成后读取产物并汇报结果。`
   }
 ] as const;
 

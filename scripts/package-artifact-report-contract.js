@@ -10,7 +10,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const appRoot = path.resolve(__dirname, "..");
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-package-artifact-report-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-package-artifact-report-"));
 const reportScript = path.join(appRoot, "scripts", "package-artifact-report.js");
 
 try {
@@ -40,9 +40,9 @@ function createFixture() {
   const dist = path.join(tempRoot, "dist");
   fs.mkdirSync(dist, { recursive: true });
   const files = [
-    ["CC-Tools-Portable-test.exe", "portable-fixture"],
-    ["CC-Tools-Setup-test.exe", "nsis-fixture"],
-    ["CC-Tools-test-win.zip", "zip-fixture"]
+    ["OpenMind-Portable-test.exe", "portable-fixture"],
+    ["OpenMind-Setup-test.exe", "nsis-fixture"],
+    ["OpenMind-test-win.zip", "zip-fixture"]
   ].map(([name, content]) => {
     const file = path.join(dist, name);
     fs.writeFileSync(file, content, "utf8");
@@ -55,7 +55,7 @@ function createFixture() {
   const artifactSafetyReport = path.join(tempRoot, "package-artifact-safety-report.json");
   writeJson(artifactSafetyReport, {
     schemaVersion: 1,
-    kind: "cctools-package-artifact-safety",
+    kind: "openmind-package-artifact-safety",
     platform: "win",
     status: "passed",
     artifacts: files.map((artifact) => ({ ...artifact, status: "passed", containsAsar: true })),
@@ -66,7 +66,7 @@ function createFixture() {
   const recoveryReport = path.join(tempRoot, "packaged-recovery-report.json");
   writeJson(recoveryReport, {
     schemaVersion: 1,
-    kind: "cctools-packaged-recovery-smoke",
+    kind: "openmind-packaged-recovery-smoke",
     status: "passed",
     host: { platform: "win32", arch: "x64" },
     scenarios: [

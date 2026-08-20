@@ -21,7 +21,7 @@ describe("buildMcpServerCatalog", () => {
   it("describes the controlled browser MCP service and its exposed tool", () => {
     const [server] = buildMcpServerCatalog(status());
     expect(server).toMatchObject({
-      id: "cctools_browser",
+      id: "openmind_browser",
       backend: "Microsoft Playwright MCP",
       transport: "stdio",
       status: "enabled",

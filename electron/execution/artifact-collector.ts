@@ -30,24 +30,24 @@ export class ArtifactCollector {
   collect(input: {
     runId: string;
     skillId: string;
-    mymindRoot: string;
+    openmindRoot: string;
     declarations: ArtifactDeclaration[];
     externalBindings?: Record<string, ExternalBinding>;
   }): ArtifactCollectionResult {
     const artifacts: RunArtifact[] = [];
     for (const declaration of input.declarations) {
       if (declaration.logicalPath) {
-        const entries = scanPattern(input.mymindRoot, declaration.logicalPath, this.maxEntries);
+        const entries = scanPattern(input.openmindRoot, declaration.logicalPath, this.maxEntries);
         for (const [relative, entry] of entries) {
           if (!matchesPattern(declaration.logicalPath, relative)) continue;
-          if (entry.kind === "symlink" || !isWithin(input.mymindRoot, entry.absolutePath)) continue;
+          if (entry.kind === "symlink" || !isWithin(input.openmindRoot, entry.absolutePath)) continue;
           if (entry.kind !== "file" && entry.kind !== "directory") continue;
           const safeEntry = {
             absolutePath: entry.absolutePath,
             kind: entry.kind as "file" | "directory",
             size: entry.size
           };
-          artifacts.push(this.toArtifact(input.runId, input.skillId, declaration, safeEntry, `mymind/${relative}`));
+          artifacts.push(this.toArtifact(input.runId, input.skillId, declaration, safeEntry, `openmind/${relative}`));
         }
       }
       if (declaration.externalPathRef) {
@@ -109,7 +109,7 @@ function resolveScanRoot(root: string, pattern: string): string {
   const wildcardIndex = segments.findIndex((segment) => segment.includes("*"));
   const staticSegments = wildcardIndex >= 0 ? segments.slice(0, wildcardIndex) : segments.slice(0, -1);
   const candidate = path.resolve(root, ...staticSegments);
-  if (!isWithin(root, candidate)) throw new Error(`Artifact 路径越出 mymind：${pattern}`);
+  if (!isWithin(root, candidate)) throw new Error(`Artifact 路径越出 openmind：${pattern}`);
   return candidate;
 }
 

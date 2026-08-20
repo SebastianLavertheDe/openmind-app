@@ -113,7 +113,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     setLoading(true);
     setError("");
     try {
-      const next = await window.cctools.listSources();
+      const next = await window.openmind.listSources();
       setSources(next);
       setSelectedId((current) => next.some((source) => source.id === current && (!initialSkillId || source.skillId === initialSkillId))
         ? current
@@ -128,7 +128,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
   }, [initialSkillId, initialSourceId]);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => window.cctools.onSkillEvent((event) => {
+  useEffect(() => window.openmind.onSkillEvent((event) => {
     const key = String(event.sourceId || event.skillId || "");
     if (!key) return;
     if (event.state) {
@@ -164,7 +164,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     setXCurlLoading(true);
     setXCurlError("");
     try {
-      const record = await window.cctools.readContent(X_CURL_PATH);
+      const record = await window.openmind.readContent(X_CURL_PATH);
       setXCurl(record.content || "");
       setXCurlDirty(false);
     } catch (cause) {
@@ -211,7 +211,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
 
   const toggle = async (source: SourceDefinition) => {
     try {
-      const updated = await window.cctools.updateSource(source.id, { enabled: !source.enabled });
+      const updated = await window.openmind.updateSource(source.id, { enabled: !source.enabled });
       setSources((current) => current.map((item) => item.id === source.id ? updated : item));
       ai.notify(updated.enabled ? m.sources.notify.enabled : m.sources.notify.disabled, "success");
     } catch (cause) {
@@ -223,7 +223,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     const confirmed = await ai.confirm({ title: "删除数据源", body: `确定删除“${source.name}”吗？RSS 链接会同时从订阅文件中移除。`, confirmText: "删除", danger: true });
     if (!confirmed) return;
     try {
-      await window.cctools.deleteSource(source.id);
+      await window.openmind.deleteSource(source.id);
       setSources((current) => current.filter((item) => item.id !== source.id));
       setSelectedId((current) => current === source.id ? "" : current);
       ai.notify("数据源已删除", "success");
@@ -261,7 +261,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     setXCurlSaving(true);
     setXCurlError("");
     try {
-      await window.cctools.writeContent(X_CURL_PATH, xCurl.trimEnd() + "\n");
+      await window.openmind.writeContent(X_CURL_PATH, xCurl.trimEnd() + "\n");
       setXCurlDirty(false);
       ai.notify("X curl 已覆盖保存", "success");
     } catch (cause) {
@@ -274,8 +274,8 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
   const run = async (source: SourceDefinition) => {
     const isRunning = running[source.id] || source.status === "running";
     try {
-      if (isRunning) await window.cctools.stopSource(source.id);
-      else await window.cctools.runSource(source.id, todayCompact());
+      if (isRunning) await window.openmind.stopSource(source.id);
+      else await window.openmind.runSource(source.id, todayCompact());
       setRunning((current) => ({ ...current, [source.id]: !isRunning }));
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
@@ -292,7 +292,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     try {
       for (const source of runnable) {
         setRunning((current) => ({ ...current, [source.id]: true }));
-        await window.cctools.runSource(source.id, todayCompact());
+        await window.openmind.runSource(source.id, todayCompact());
       }
       ai.notify(m.sources.notify.runAllSubmitted(runnable.length), "success");
     } catch (cause) {
@@ -307,12 +307,12 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     setSaving(true);
     try {
       const source = editingId
-        ? await window.cctools.updateSource(editingId, {
+        ? await window.openmind.updateSource(editingId, {
             name: addName.trim(),
             url: addUrl.trim(),
             tags: splitSourceTags(addTags)
           })
-        : await window.cctools.addRssSource({
+        : await window.openmind.addRssSource({
             name: addName.trim(),
             kind: addKind,
             url: addUrl.trim(),
@@ -334,7 +334,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     if (importing) return;
     setImporting(true);
     try {
-      const count = await window.cctools.importOpml();
+      const count = await window.openmind.importOpml();
       if (count) await load();
       ai.notify(m.sources.notify.opmlImported(count), count ? "success" : "info");
     } catch (cause) {
@@ -362,7 +362,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     const selected = sources.filter((source) => bulkSelected.has(source.id));
     if (!selected.length) return;
     try {
-      const updated = await Promise.all(selected.map((source) => window.cctools.updateSource(source.id, { enabled })));
+      const updated = await Promise.all(selected.map((source) => window.openmind.updateSource(source.id, { enabled })));
       const byId = new Map(updated.map((source) => [source.id, source]));
       setSources((current) => current.map((source) => byId.get(source.id) || source));
       ai.notify(`已${enabled ? "启用" : "停用"} ${updated.length} 个数据源`, "success");
@@ -377,7 +377,7 @@ export function SourcesPage({ initialSourceId, initialSkillId, embedded = false 
     const confirmed = await ai.confirm({ title: "批量删除数据源", body: `确定删除选中的 ${selected.length} 个数据源吗？`, confirmText: "删除", danger: true });
     if (!confirmed) return;
     try {
-      await Promise.all(selected.map((source) => window.cctools.deleteSource(source.id)));
+      await Promise.all(selected.map((source) => window.openmind.deleteSource(source.id)));
       setSources((current) => current.filter((source) => !bulkSelected.has(source.id)));
       setBulkSelected(new Set());
       ai.notify(`已删除 ${selected.length} 个数据源`, "success");

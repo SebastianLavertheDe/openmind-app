@@ -334,7 +334,7 @@ export class CliInstallerService {
       USERPROFILE: isolatedHome,
       LOCALAPPDATA: path.join(isolatedHome, "AppData", "Local"),
       CLAUDE_CONFIG_DIR: path.join(isolatedHome, ".claude"),
-      CCTOOLS_CLI_INSTALL_DIR: isolatedHome
+      OPENMIND_CLI_INSTALL_DIR: isolatedHome
     };
     const command = this.platform === "win32" ? "powershell.exe" : "sh";
     const args = this.platform === "win32"
@@ -592,7 +592,7 @@ function defaultSystemPathResolver(cli: CliToolId): string | null {
 }
 
 async function defaultTransport(url: string, signal?: AbortSignal): Promise<CliInstallerResponse> {
-  const response = await fetch(url, { redirect: "follow", signal, headers: { "User-Agent": "cctools-desktop" } });
+  const response = await fetch(url, { redirect: "follow", signal, headers: { "User-Agent": "openmind-desktop" } });
   return { statusCode: response.status, finalUrl: response.url, body: Buffer.from(await response.arrayBuffer()) };
 }
 

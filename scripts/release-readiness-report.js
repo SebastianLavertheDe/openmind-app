@@ -12,9 +12,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const appRoot = path.resolve(__dirname, "..");
-const buildRoot = path.resolve(process.env.CCTOOLS_RELEASE_READINESS_BUILD_ROOT || path.join(appRoot, ".build"));
-const reportOutput = path.resolve(process.env.CCTOOLS_RELEASE_READINESS_OUTPUT || path.join(buildRoot, "release-readiness-report.json"));
-const strict = process.env.CCTOOLS_RELEASE_READINESS_STRICT === "1";
+const buildRoot = path.resolve(process.env.OPENMIND_RELEASE_READINESS_BUILD_ROOT || path.join(appRoot, ".build"));
+const reportOutput = path.resolve(process.env.OPENMIND_RELEASE_READINESS_OUTPUT || path.join(buildRoot, "release-readiness-report.json"));
+const strict = process.env.OPENMIND_RELEASE_READINESS_STRICT === "1";
 
 const auditEvidence = readJson("audit-evidence.json");
 const releaseIndex = readJson(path.join("release-evidence", "index.json"));
@@ -42,7 +42,7 @@ const providerE2e = readJson("provider-e2e-report.json");
 const securityReview = readJson("security-review-report.json");
 const cleanMachine = readJson("clean-machine-report.json");
 const releaseEvidenceReady = Boolean(
-  releaseIndex?.kind === "cctools-release-evidence-index"
+  releaseIndex?.kind === "openmind-release-evidence-index"
   && Array.isArray(releaseIndex.artifacts)
   && releaseIndex.artifacts.length >= 3
   && ["sbom.cdx.json", "licenses.json", "provenance.json"].every((name) => {
@@ -56,12 +56,12 @@ const releaseEvidenceReady = Boolean(
   && releaseSbom?.bomFormat === "CycloneDX"
   && Array.isArray(releaseSbom.components)
   && releaseSbom.components.length === Number(releaseIndex.sbom.componentCount)
-  && licenses?.kind === "cctools-license-report"
+  && licenses?.kind === "openmind-license-report"
   && Number(licenses.componentCount) === releaseSbom.components.length
   && Number(releaseIndex.licenses?.componentCount) === Number(licenses.componentCount)
   && Number(licenses.unknownLicenseCount) === 0
   && Number(releaseIndex.licenses?.unknownLicenseCount) === 0
-  && provenance?.kind === "cctools-build-provenance"
+  && provenance?.kind === "openmind-build-provenance"
   && releaseIndex.provenance?.path === "release-evidence/provenance.json"
   && /^[a-f0-9]{64}$/.test(String(provenance.artifact?.treeSha256 || ""))
   && releaseIndex.provenance?.treeSha256 === provenance.artifact.treeSha256
@@ -165,7 +165,7 @@ const checks = [
 const failedChecks = checks.filter((check) => !check.passed);
 const report = {
   schemaVersion: 1,
-  kind: "cctools-release-readiness",
+  kind: "openmind-release-readiness",
   generatedAt: new Date().toISOString(),
   strict,
   status: failedChecks.length ? "manual-required" : "ready",

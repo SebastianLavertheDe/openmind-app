@@ -1,5 +1,5 @@
 param(
-  [string]$StageRoot = (Join-Path $env:TEMP "cctools-desktop-windows-package"),
+  [string]$StageRoot = (Join-Path $env:TEMP "openmind-desktop-windows-package"),
   [switch]$KeepStage
 )
 
@@ -83,7 +83,7 @@ try {
   & $packagedClaude --version
   Assert-LastExitCode "Packaged Claude Code executable"
 
-  $packagedApp = Join-Path $stageRoot "dist\win-unpacked\CC Tools.exe"
+  $packagedApp = Join-Path $stageRoot "dist\win-unpacked\OpenMind.exe"
   $smokeUserData = Join-Path $stageRoot "packaged-smoke-user-data"
   Write-Host "Verifying the packaged renderer and preload bridge"
   & $packagedApp --packaged-smoke-test "--user-data-dir=$smokeUserData"

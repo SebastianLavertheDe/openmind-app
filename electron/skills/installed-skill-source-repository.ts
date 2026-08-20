@@ -71,7 +71,7 @@ export class InstalledSkillSourceRepository {
   }
 
   replace(receipt: InstalledSkillSourceReceipt): InstalledSkillSourceReceipt {
-    if (!this.filePath) throw new Error("Skill 来源安装记录不可用：尚未绑定 mymind 根目录。");
+    if (!this.filePath) throw new Error("Skill 来源安装记录不可用：尚未绑定 openmind 根目录。");
     const normalized = validateReceipt({
       ...receipt,
       sourceLocator: normalizeGitSourceLocator(receipt.sourceLocator),

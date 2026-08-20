@@ -10,7 +10,7 @@ run, migration, backup restore, or external export.
   Declared Access and Export Location Binding are product controls and audit
   records, not an OS sandbox.
 - Do not send API keys, cookies, `.env` files, provider headers, browser
-  profiles, Credential Vault files, or unfiltered mymind content to support.
+  profiles, Credential Vault files, or unfiltered openmind content to support.
 - Signing, automatic updates, Signed Catalog, formal Linux distribution and
   the WSL release matrix are out of scope. Linux is a development/test host
   only; Windows-to-WSL behavior is a separate development contract.
@@ -23,7 +23,7 @@ Record only:
    App is packaged or a development checkout.
 2. The exact page/action, Run ID or Skill ID/version/digest, root generation,
    and the terminal state shown in Runs.
-3. The relevant Diagnostics status: mymind root health, migration state,
+3. The relevant Diagnostics status: openmind root health, migration state,
    Runtime Pack readiness/integrity, Skill package usability/source receipt, and Provider
    diagnostic text.
 4. A redacted screenshot or the generated local evidence report. Replace
@@ -35,7 +35,7 @@ terminal state or the recovery steps below have been completed.
 
 ## Startup and root problems
 
-1. Open Diagnostics and check that the selected mymind root is configured,
+1. Open Diagnostics and check that the selected openmind root is configured,
    accessible, readable and writable.
 2. If the root is wrong or unavailable, use root selection. The App performs
    canonical-path conflict checks before saving; it must not be placed under
@@ -92,7 +92,7 @@ terminal state or the recovery steps below have been completed.
 
 Use Diagnostics → App State Backup. The portable backup includes settings,
 private state, Automation and Run metadata. It excludes credentials, browser
-tokens, Skill/Runtime packages, caches/logs, temporary workspaces and mymind
+tokens, Skill/Runtime packages, caches/logs, temporary workspaces and openmind
 content.
 
 Before importing a backup:
@@ -123,7 +123,7 @@ npm run verify
 npm run stability:soak
 npm run recovery:drill
 npm run package:safety
-CCTOOLS_7ZZ=/path/to/7zz npm run package:artifact:safety
+OPENMIND_7ZZ=/path/to/7zz npm run package:artifact:safety
 npm run provider:e2e:report
 npm run security:review
 npm run clean-machine:report

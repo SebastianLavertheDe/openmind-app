@@ -3,12 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Returns a bounded metadata fingerprint for exact paths below mymindRoot.
+ * Returns a bounded metadata fingerprint for exact paths below openmindRoot.
  * It never follows a symlink outside the bound and does not read file
  * contents, so polling does not copy user content into Automation state.
  */
-export function createAutomationFileFingerprint(mymindRoot: string): (paths: readonly string[]) => string | undefined {
-  const root = canonicalDirectory(mymindRoot);
+export function createAutomationFileFingerprint(openmindRoot: string): (paths: readonly string[]) => string | undefined {
+  const root = canonicalDirectory(openmindRoot);
   if (!root) return () => undefined;
   return (paths) => {
     const hash = crypto.createHash("sha256");

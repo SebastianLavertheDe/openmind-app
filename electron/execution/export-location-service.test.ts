@@ -24,16 +24,16 @@ describe("ExportLocationService", () => {
     expect(() => service.resolve(binding.id)).toThrow(/已撤销/);
   });
 
-  it("rejects paths inside forbidden app-private or mymind roots", () => {
+  it("rejects paths inside forbidden app-private or openmind roots", () => {
     const root = makeRoot();
     const privateRoot = path.join(root, "app-data");
-    const mymindRoot = path.join(root, "mymind");
+    const openmindRoot = path.join(root, "openmind");
     fs.mkdirSync(path.join(privateRoot, "nested"), { recursive: true });
-    fs.mkdirSync(mymindRoot);
-    const service = new ExportLocationService(path.join(root, "bindings.json"), () => [privateRoot, mymindRoot]);
+    fs.mkdirSync(openmindRoot);
+    const service = new ExportLocationService(path.join(root, "bindings.json"), () => [privateRoot, openmindRoot]);
 
     expect(() => service.create("bad", path.join(privateRoot, "nested"))).toThrow(/不能位于/);
-    expect(() => service.create("bad", mymindRoot)).toThrow(/不能位于/);
+    expect(() => service.create("bad", openmindRoot)).toThrow(/不能位于/);
   });
 
   it("preserves a Manifest binding ID across revoke and Relink", () => {
@@ -63,7 +63,7 @@ describe("ExportLocationService", () => {
 });
 
 function makeRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-export-location-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-export-location-"));
   roots.push(root);
   return root;
 }

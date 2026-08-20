@@ -5,7 +5,7 @@ const { app, BrowserWindow } = require("electron");
 const appRoot = path.resolve(__dirname, "..");
 const rendererIndex = path.join(appRoot, ".build", "renderer", "index.html");
 const preload = path.join(__dirname, "visual-snapshot-preload.js");
-const outputRoot = path.resolve(process.env.CCTOOLS_SETTINGS_QA_OUTPUT || path.join(appRoot, "design-qa", "settings-unified"));
+const outputRoot = path.resolve(process.env.OPENMIND_SETTINGS_QA_OUTPUT || path.join(appRoot, "design-qa", "settings-unified"));
 const sections = ["常规", "AI 与模型", "内置运行时", "Skills", "MCP 服务", "浏览器", "权限与安全", "内容工作流", "数据与存储", "会话归档"];
 const viewports = [
   { id: "reference", width: 1744, height: 1255 },

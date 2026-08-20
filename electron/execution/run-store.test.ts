@@ -99,7 +99,7 @@ function request(inputs: Record<string, unknown> = {}) {
 }
 
 function makeRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-run-store-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-run-store-"));
   roots.push(root);
   return root;
 }

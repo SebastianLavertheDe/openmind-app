@@ -1,14 +1,14 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { MymindRelocationPreview, MymindRelocationReport } from "../../shared/contracts";
+import type { OpenmindRelocationPreview, OpenmindRelocationReport } from "../../shared/contracts";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { detectPathConflicts, type AppPaths } from "./app-paths-service";
-import { computeRootId } from "./mymind-path-resolver";
+import { computeRootId } from "./openmind-path-resolver";
 
 const SCHEMA_VERSION = 1;
-const TRANSACTION_DIRECTORY = "mymind-relocation";
-const TRANSACTION_PREFIX = ".cctools-mymind-relocation-";
+const TRANSACTION_DIRECTORY = "openmind-relocation";
+const TRANSACTION_PREFIX = ".openmind-openmind-relocation-";
 
 type TreeEntry = {
   relativePath: string;
@@ -38,7 +38,7 @@ type PendingRelocation = {
   preparedAt: string;
 };
 
-export type MymindRelocationInput = {
+export type OpenmindRelocationInput = {
   sourceDirectory: string;
   targetDirectory: string;
   paths: AppPaths;
@@ -51,7 +51,7 @@ export type MymindRelocationInput = {
  * into a strictly empty target, keeps the source, and uses a sibling swap so
  * an interrupted commit can be recovered without merging or overwriting.
  */
-export function previewMymindRelocation(input: MymindRelocationInput): MymindRelocationPreview {
+export function previewOpenmindRelocation(input: OpenmindRelocationInput): OpenmindRelocationPreview {
   const sourceCandidate = path.resolve(String(input.sourceDirectory || "").trim());
   const targetCandidate = path.resolve(String(input.targetDirectory || "").trim());
   const sourceDirectory = canonicalDirectory(sourceCandidate) || sourceCandidate;
@@ -62,7 +62,7 @@ export function previewMymindRelocation(input: MymindRelocationInput): MymindRel
   const sourceRootId = canonicalDirectory(sourceCandidate) ? computeRootId(sourceDirectory) : null;
 
   if (!sourceRootId) {
-    blockingReasons.push("当前 mymind 根目录不存在、不可访问或不是目录。");
+    blockingReasons.push("当前 openmind 根目录不存在、不可访问或不是目录。");
   } else {
     try {
       sourceSummary = snapshotTree(sourceDirectory);
@@ -70,7 +70,7 @@ export function previewMymindRelocation(input: MymindRelocationInput): MymindRel
       blockingReasons.push(errorMessage(error));
     }
     if (!canAccess(sourceDirectory, fs.constants.R_OK)) {
-      blockingReasons.push("当前 mymind 根目录不可读。");
+      blockingReasons.push("当前 openmind 根目录不可读。");
     }
   }
 
@@ -107,7 +107,7 @@ export function previewMymindRelocation(input: MymindRelocationInput): MymindRel
     }
   }
   if ((input.activeRunCount || 0) > 0) {
-    blockingReasons.push("有运行中的任务，暂时不能搬迁 mymind 内容。");
+    blockingReasons.push("有运行中的任务，暂时不能搬迁 openmind 内容。");
   }
 
   const pendingTransaction = hasPendingTransaction(input.paths, targetDirectory);
@@ -143,15 +143,15 @@ export function previewMymindRelocation(input: MymindRelocationInput): MymindRel
  * Copy and verify the tree, then atomically replace the pre-confirmed empty
  * target directory with the staged tree. The old source is never removed.
  */
-export function relocateMymind(input: MymindRelocationInput): MymindRelocationReport {
-  const preview = previewMymindRelocation(input);
+export function relocateOpenmind(input: OpenmindRelocationInput): OpenmindRelocationReport {
+  const preview = previewOpenmindRelocation(input);
   if (!preview.canCommit || !preview.sourceRootId || !preview.sourceDigest) {
-    throw new Error(preview.blockingReasons.join("；") || "mymind 搬迁预检未通过。");
+    throw new Error(preview.blockingReasons.join("；") || "openmind 搬迁预检未通过。");
   }
 
   const id = `${Date.now()}-${crypto.randomUUID()}`;
   const parent = path.dirname(preview.targetDirectory);
-  const base = safeName(path.basename(preview.targetDirectory) || "mymind");
+  const base = safeName(path.basename(preview.targetDirectory) || "openmind");
   const stagingDirectory = path.join(parent, `${TRANSACTION_PREFIX}${base}-${id}-staging`);
   const backupDirectory = path.join(parent, `${TRANSACTION_PREFIX}${base}-${id}-backup`);
   const markerDirectory = path.join(input.paths.migrations, TRANSACTION_DIRECTORY);
@@ -183,7 +183,7 @@ export function relocateMymind(input: MymindRelocationInput): MymindRelocationRe
 
     // The source must not change between the read-only preview and the swap.
     const sourceBeforeSwap = snapshotTree(preview.sourceDirectory);
-    assertSameTree(preview.sourceDigest, sourceBeforeSwap, "源 mymind 在搬迁前发生变化，请重新预览。");
+    assertSameTree(preview.sourceDigest, sourceBeforeSwap, "源 openmind 在搬迁前发生变化，请重新预览。");
     if (inspectTargetState(preview.targetDirectory) !== "empty") {
       throw new Error("搬迁目标在提交前已发生变化，拒绝 merge/overwrite。");
     }
@@ -212,12 +212,12 @@ export function relocateMymind(input: MymindRelocationInput): MymindRelocationRe
   }
 }
 
-function finalizePendingRelocation(pending: PendingRelocation, marker: string): MymindRelocationReport {
+function finalizePendingRelocation(pending: PendingRelocation, marker: string): OpenmindRelocationReport {
   const source = snapshotTree(pending.sourceDirectory);
-  assertSameTree(pending.tree.digest, source, "mymind 源目录已变化，不能确认无损搬迁。");
+  assertSameTree(pending.tree.digest, source, "openmind 源目录已变化，不能确认无损搬迁。");
   const target = snapshotTree(pending.targetDirectory);
-  assertSameTree(pending.tree.digest, target, "mymind 目标目录未通过无损校验。");
-  const report: MymindRelocationReport = {
+  assertSameTree(pending.tree.digest, target, "openmind 目标目录未通过无损校验。");
+  const report: OpenmindRelocationReport = {
     schemaVersion: SCHEMA_VERSION,
     status: "committed",
     sourceDirectory: pending.sourceDirectory,
@@ -234,7 +234,7 @@ function finalizePendingRelocation(pending: PendingRelocation, marker: string): 
   };
   const backupState = inspectTargetState(pending.backupDirectory);
   if (backupState !== "absent" && backupState !== "empty") {
-    throw new Error("mymind 搬迁 backup 不是原先确认的空目录，拒绝完成事务。");
+    throw new Error("openmind 搬迁 backup 不是原先确认的空目录，拒绝完成事务。");
   }
   writeJsonAtomic(marker.replace(/\.pending\.json$/, ".json"), report);
   safeRemove(marker);
@@ -259,13 +259,13 @@ function walkTree(root: string, current: string, entries: TreeEntry[]): void {
     const absolute = path.join(current, name);
     const relativePath = path.relative(root, absolute).split(path.sep).join("/");
     const stat = fs.lstatSync(absolute);
-    if (stat.isSymbolicLink()) throw new Error(`mymind 搬迁拒绝 symlink：${relativePath}`);
+    if (stat.isSymbolicLink()) throw new Error(`openmind 搬迁拒绝 symlink：${relativePath}`);
     if (stat.isDirectory()) {
       entries.push({ relativePath, kind: "directory" });
       walkTree(root, absolute, entries);
       continue;
     }
-    if (!stat.isFile()) throw new Error(`mymind 搬迁拒绝特殊文件：${relativePath}`);
+    if (!stat.isFile()) throw new Error(`openmind 搬迁拒绝特殊文件：${relativePath}`);
     entries.push({ relativePath, kind: "file", size: stat.size, sha256: hashFile(absolute) });
   }
 }
@@ -284,7 +284,7 @@ function copyTree(source: string, target: string): void {
     const to = path.join(target, name);
     const stat = fs.lstatSync(from);
     if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
-      throw new Error(`mymind 搬迁拒绝不可复制的文件：${path.relative(source, from)}`);
+      throw new Error(`openmind 搬迁拒绝不可复制的文件：${path.relative(source, from)}`);
     }
     if (stat.isDirectory()) {
       copyTree(from, to);
@@ -319,7 +319,7 @@ function hashFile(filePath: string): string {
   return hash.digest("hex");
 }
 
-function inspectTargetState(target: string): MymindRelocationPreview["targetState"] {
+function inspectTargetState(target: string): OpenmindRelocationPreview["targetState"] {
   try {
     const stat = fs.lstatSync(target);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return "invalid";
@@ -378,7 +378,7 @@ function readPending(filePath: string): PendingRelocation | null {
 }
 
 function safeName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "mymind";
+  return value.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "openmind";
 }
 
 function safeRemove(filePath: string): void {

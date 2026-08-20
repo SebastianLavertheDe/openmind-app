@@ -11,11 +11,11 @@ The implementation is based on these Codex CLI components:
 - `codex-rs/core/src/session/rollout_reconstruction.rs`: replay compaction checkpoints and rollback markers instead of rewriting old history.
 - `codex-rs/app-server/src/request_processors/thread_processor.rs`: rebuild turns from rollout and transfer them with opaque cursor pagination.
 
-## CC Tools mapping
+## OpenMind mapping
 
-| Codex concept | CC Tools implementation |
+| Codex concept | OpenMind implementation |
 | --- | --- |
-| Thread rollout | `.cctools/ai/sessions/<session-id>/rollout.jsonl` |
+| Thread rollout | `.openmind/ai/sessions/<session-id>/rollout.jsonl` |
 | `SessionMeta` | `session_meta` first line, including provider, origin, base-instruction owner, capabilities, history mode, and fork parent |
 | `TurnStarted` / `TurnComplete` / `TurnAborted` | `event_msg` lifecycle records keyed by run/turn ID |
 | Raw user event | `event_msg.user_message`; this is the exact text rendered by the UI |
@@ -39,4 +39,4 @@ Malformed rollout lines are counted and skipped, matching Codex replay behavior.
 
 ## Provider boundary
 
-Codex app-server and Claude Code still own their native execution sessions, tool runtime, and provider-specific token caches. CC Tools owns the durable cross-provider context contract above. This avoids replaying history twice during a healthy native resume while still making the local rollout sufficient to recover when the provider session is missing.
+Codex app-server and Claude Code still own their native execution sessions, tool runtime, and provider-specific token caches. OpenMind owns the durable cross-provider context contract above. This avoids replaying history twice during a healthy native resume while still making the local rollout sufficient to recover when the provider session is missing.

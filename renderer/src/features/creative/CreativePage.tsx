@@ -74,9 +74,9 @@ export function CreativeWorkspacePage({
   const [compactListOpen, setCompactListOpen] = useState(true);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
   const layout = useListDetailLayout(
-    "cctools.list-detail.creative.v1",
+    "openmind.list-detail.creative.v1",
     { listWidth: 280, listCollapsed: false },
-    { legacyStorageKeys: ["cctools.three-pane.creative.v2"] }
+    { legacyStorageKeys: ["openmind.three-pane.creative.v2"] }
   );
   const hasCompactDetail = Boolean(selectedTopicFilePath || selectedTopic || selectedProject);
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
@@ -91,16 +91,16 @@ export function CreativeWorkspacePage({
     setError("");
     try {
       const [topicDays, nextProjects, nextAnalytics] = await Promise.all([
-        window.cctools.getAllCreativeTopics(),
-        window.cctools.getCreativeProjects(),
-        window.cctools.getCreativeAnalytics()
+        window.openmind.getAllCreativeTopics(),
+        window.openmind.getCreativeProjects(),
+        window.openmind.getCreativeAnalytics()
       ]);
       setTopics(topicDays.flatMap((day) => day.topics.map((topic, index) => ({
         ...topic,
         id: topic.id || `${day.date}:${index}:${topic.title || "topic"}`,
         sourceDate: day.date,
         sourceLabel: day.label || displayDate(day.date) || day.date,
-        sourceFile: day.file || `mymind/daily-topic/${day.date}_daily_topic.md`
+        sourceFile: day.file || `openmind/daily-topic/${day.date}_daily_topic.md`
       }))));
       setProjects(nextProjects);
       setAnalytics(nextAnalytics);
@@ -114,7 +114,7 @@ export function CreativeWorkspacePage({
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     let active = true;
-    void window.cctools.getPreferences().then((preferences) => {
+    void window.openmind.getPreferences().then((preferences) => {
       if (!active) return;
       setWorkflowPolicy({
         autoSaveDraft: preferences.workflowAutoSaveDraft,
@@ -151,12 +151,12 @@ export function CreativeWorkspacePage({
     const targetStage = (project.stage as Stage) || stage;
     setStage(targetStage);
     try {
-      const next = await window.cctools.getCreativeProject(project.dir);
+      const next = await window.openmind.getCreativeProject(project.dir);
       setDetail(next);
       const firstFile = preferredFile(Object.keys(next.files || {}), targetStage);
       setActiveFile(firstFile);
       setDraft(next.files?.[firstFile] || "");
-      if (view === "history" && firstFile) setVersions(await window.cctools.listCreativeVersions(next.dir, firstFile));
+      if (view === "history" && firstFile) setVersions(await window.openmind.listCreativeVersions(next.dir, firstFile));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -176,7 +176,7 @@ export function CreativeWorkspacePage({
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const next = await window.cctools.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: false });
+          const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: false });
           setDetail(next);
           setDirty(false);
           setAutoSaveStatus("saved");
@@ -202,10 +202,10 @@ export function CreativeWorkspacePage({
     if (!detail || !activeFile || !dirty) return;
     setSaving(true);
     try {
-      const next = await window.cctools.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: "编辑器保存前版本" });
+      const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: "编辑器保存前版本" });
       setDetail(next);
       setDirty(false);
-      setVersions(await window.cctools.listCreativeVersions(next.dir, activeFile));
+      setVersions(await window.openmind.listCreativeVersions(next.dir, activeFile));
       ai.notify("草稿已保存并创建版本", "success");
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
@@ -219,7 +219,7 @@ export function CreativeWorkspacePage({
     if (!topic) return;
     const topicDate = (topic as TopicWithDate).sourceDate || normalizeDate(date);
     try {
-      const created = await window.cctools.createCreativeProject({ date: topicDate, topic, sourceTopicId: topic.id || undefined });
+      const created = await window.openmind.createCreativeProject({ date: topicDate, topic, sourceTopicId: topic.id || undefined });
       const reused = Boolean((created as { reused?: boolean }).reused);
       await load();
       setStage("drafting");
@@ -234,11 +234,11 @@ export function CreativeWorkspacePage({
       await openProject(summary);
       if (platform && created.files && !created.files[platform.file]) {
         try {
-          const seeded = await window.cctools.saveCreativeFile({ projectDir: created.dir, file: platform.file, content: `# ${topic.title || "草稿"}\n\n`, createVersion: false });
+          const seeded = await window.openmind.saveCreativeFile({ projectDir: created.dir, file: platform.file, content: `# ${topic.title || "草稿"}\n\n`, createVersion: false });
           setDetail(seeded);
           setActiveFile(platform.file);
           setDraft(seeded.files?.[platform.file] || "");
-          await window.cctools.updateCreativeManifest(created.dir, { platforms: { [platform.id]: "draft" } });
+          await window.openmind.updateCreativeManifest(created.dir, { platforms: { [platform.id]: "draft" } });
         } catch { /* platform seed optional */ }
       }
       ai.notify(reused ? "该选题已有草稿，已打开现有稿件" : platform ? `已创建草稿（${platform.label}）` : "已创建创作稿件", reused ? "info" : "success");
@@ -253,7 +253,7 @@ export function CreativeWorkspacePage({
     if (!nextStage) return;
     if (dirty) await save();
     try {
-      const moved = await window.cctools.advanceCreativeProject(detail.dir, nextStage);
+      const moved = await window.openmind.advanceCreativeProject(detail.dir, nextStage);
       ai.notify(`稿件已进入${stageLabel(nextStage)}`, "success");
       await load();
       setStage(nextStage);
@@ -272,8 +272,8 @@ export function CreativeWorkspacePage({
     try {
       const safeTopic = selectedProject.topic.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "draft";
       const platform = String(detail.manifest?.publish?.platform || "");
-      const file = await window.cctools.exportText(`${normalizeDate(selectedProject.date || date)}-${safeTopic.slice(0, 80)}${platform ? `.${platform}` : ""}.md`, draft);
-      const updated = await window.cctools.updateCreativeManifest(detail.dir, { publish: { status: "exported", exportedPath: file || null } });
+      const file = await window.openmind.exportText(`${normalizeDate(selectedProject.date || date)}-${safeTopic.slice(0, 80)}${platform ? `.${platform}` : ""}.md`, draft);
+      const updated = await window.openmind.updateCreativeManifest(detail.dir, { publish: { status: "exported", exportedPath: file || null } });
       setDetail(updated);
       ai.notify(file ? `已导出到 ${file}` : "导出已取消", file ? "success" : "info");
       await load();
@@ -286,13 +286,13 @@ export function CreativeWorkspacePage({
 
   const copyProject = async () => {
     if (!detail) return;
-    try { await window.cctools.copyCreativeProject(detail.dir); ai.notify("已复制稿件", "success"); await load(); }
+    try { await window.openmind.copyCreativeProject(detail.dir); ai.notify("已复制稿件", "success"); await load(); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const archiveProject = async () => {
     if (!detail) return;
     if (!await ai.confirm({ title: "归档稿件", body: "归档后稿件移入归档区，不会删除正文。确认归档吗？", confirmText: "归档", danger: true })) return;
-    try { await window.cctools.archiveCreativeProject(detail.dir); ai.notify("稿件已归档", "success"); setSelectedProject(null); setDetail(null); await load(); }
+    try { await window.openmind.archiveCreativeProject(detail.dir); ai.notify("稿件已归档", "success"); setSelectedProject(null); setDetail(null); await load(); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
 
@@ -328,7 +328,7 @@ export function CreativeWorkspacePage({
   };
   const insertLocalFileLink = async () => {
     try {
-      const files = await window.cctools.selectFiles();
+      const files = await window.openmind.selectFiles();
       if (!files.length) return;
       const file = files[0];
       insertAtCursor("[", `](${file})`, file.split(/[\\/]/).at(-1) || file);
@@ -338,7 +338,7 @@ export function CreativeWorkspacePage({
   const updateManifest = async (patch: Record<string, unknown>) => {
     if (!detail) return;
     try {
-      setDetail(await window.cctools.updateCreativeManifest(detail.dir, { publish: patch }));
+      setDetail(await window.openmind.updateCreativeManifest(detail.dir, { publish: patch }));
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }

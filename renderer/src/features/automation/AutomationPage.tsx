@@ -38,10 +38,10 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
     setLoading(true);
     try {
       const [nextRules, nextSchedules, nextRuns, nextSkillCatalog] = await Promise.all([
-        window.cctools.listAutomationRules(),
-        window.cctools.listAutomationSchedules(),
-        window.cctools.listAutomationRuns(),
-        window.cctools.listInstalledRunnableSkills()
+        window.openmind.listAutomationRules(),
+        window.openmind.listAutomationSchedules(),
+        window.openmind.listAutomationRuns(),
+        window.openmind.listInstalledRunnableSkills()
       ]);
       setRules(nextRules);
       setSchedules(nextSchedules);
@@ -65,7 +65,7 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
     return () => window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);
   }, [load]);
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
-  useEffect(() => window.cctools.onSkillEvent((event) => {
+  useEffect(() => window.openmind.onSkillEvent((event) => {
     const skillId = String(event.skillId || "");
     if (!skillId) return;
     const message = typeof event.text === "string" ? event.text : typeof event.error === "string" ? event.error : typeof event.reason === "string" ? event.reason : "";
@@ -77,8 +77,8 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
     }
   }), [load]);
   useEffect(() => {
-    if (typeof window.cctools.onSkillRunEvent !== "function") return;
-    return window.cctools.onSkillRunEvent((event) => {
+    if (typeof window.openmind.onSkillRunEvent !== "function") return;
+    return window.openmind.onSkillRunEvent((event) => {
       setLiveEvents((current) => ({ ...current, [event.runId]: appendRunEvent(current[event.runId] || [], event) }));
       if (!isActiveRunState(event.state)) void load();
     });
@@ -103,10 +103,10 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
     const targetType = latestRun?.target.type;
     if (!runId) return () => { cancelled = true; };
     const readSkill = async (id: string): Promise<{ child: BrokerRunRecord | null; events: BrokerRunEvent[] }> => {
-      if (typeof window.cctools.getSkillRun !== "function") return { child: null, events: [] };
+      if (typeof window.openmind.getSkillRun !== "function") return { child: null, events: [] };
       const [child, events] = await Promise.all([
-        window.cctools.getSkillRun(id).catch(() => null),
-        typeof window.cctools.getSkillRunEvents === "function" ? window.cctools.getSkillRunEvents(id).catch(() => []) : Promise.resolve([])
+        window.openmind.getSkillRun(id).catch(() => null),
+        typeof window.openmind.getSkillRunEvents === "function" ? window.openmind.getSkillRunEvents(id).catch(() => []) : Promise.resolve([])
       ]);
       return { child, events };
     };
@@ -117,8 +117,8 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
           if (!cancelled) { setChildRun(details.child); setChildEvents(details.events); }
           return;
         }
-        if (typeof window.cctools.getWorkflowRun !== "function") return;
-        const workflow = await window.cctools.getWorkflowRun(runId);
+        if (typeof window.openmind.getWorkflowRun !== "function") return;
+        const workflow = await window.openmind.getWorkflowRun(runId);
         const steps = await Promise.all(workflow.stepRuns.map(async (step) => {
           const details = step.runId ? await readSkill(step.runId) : { child: null, events: [] };
           return { step, ...details };
@@ -164,10 +164,10 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
     try {
       if (isActive) {
         if (!latestRun?.childRunId) return;
-        if (latestRun.target.type === "skill") await window.cctools.cancelSkillRun(latestRun.childRunId);
-        else await window.cctools.cancelWorkflowRun(latestRun.childRunId);
+        if (latestRun.target.type === "skill") await window.openmind.cancelSkillRun(latestRun.childRunId);
+        else await window.openmind.cancelWorkflowRun(latestRun.childRunId);
       } else {
-        await window.cctools.runAutomationNow(selected.id);
+        await window.openmind.runAutomationNow(selected.id);
       }
       await load();
     } catch (cause) {
@@ -269,7 +269,7 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
     setSaving(true); onError(null);
     try {
       const trigger = triggerForEditor(triggerType, dailyAt, weeklyAt, weeklyDays, interval);
-      await window.cctools.saveAutomationRule(toRuleInput({ ...rule, trigger, inputs: rule.inputs }));
+      await window.openmind.saveAutomationRule(toRuleInput({ ...rule, trigger, inputs: rule.inputs }));
       await onSaved();
     } catch (cause) {
       onError(cause instanceof Error ? cause.message : String(cause));
@@ -373,18 +373,18 @@ function RunHistory({ runs, artifacts, onRetry }: { runs: AutomationRunRecord[];
 }
 
 async function toggleRuleFor(rule: AutomationRule, enabled: boolean, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
-  try { await window.cctools.saveAutomationRule(toRuleInput({ ...rule, enabled })); await load(); }
+  try { await window.openmind.saveAutomationRule(toRuleInput({ ...rule, enabled })); await load(); }
   catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); await load(); }
 }
 
 async function retryRule(rule: AutomationRule, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
-  try { await window.cctools.runAutomationNow(rule.id); await load(); }
+  try { await window.openmind.runAutomationNow(rule.id); await load(); }
   catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
 }
 
 async function deleteRule(rule: AutomationRule, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
   if (!window.confirm(`确定删除 Automation Rule「${rule.name}」吗？`)) return;
-  try { await window.cctools.deleteAutomationRule(rule.id); await load(); }
+  try { await window.openmind.deleteAutomationRule(rule.id); await load(); }
   catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
 }
 

@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe("RuntimePackUsageRegistry", () => {
   it("holds a cross-process-safe lease and blocks matching mutations", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-lease-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-lease-"));
     roots.push(root);
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
@@ -30,7 +30,7 @@ describe("RuntimePackUsageRegistry", () => {
   });
 
   it("removes leases owned by dead processes before reporting usage", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-runtime-lease-stale-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-runtime-lease-stale-"));
     roots.push(root);
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);

@@ -46,7 +46,7 @@ export class ContentIndexStore {
   private datesCache: string[] | null = null;
   private datesFingerprint = "";
 
-  /** ADR-001: parent dir of `.cctools` (state root). Used for relative paths in maintenance reports. */
+  /** ADR-001: parent dir of `.openmind` (state root). Used for relative paths in maintenance reports. */
   private readonly stateBaseDir: string;
 
   constructor(
@@ -54,7 +54,7 @@ export class ContentIndexStore {
     private readonly content: ContentApi,
     /**
      * ADR-001 §1.3: app-private state dir under userData. When omitted, falls
-     * back to `<repoRoot>/.cctools` for back-compat with existing tests/users.
+     * back to `<repoRoot>/.openmind` for back-compat with existing tests/users.
      */
     stateRoot?: string
   ) {
@@ -135,7 +135,7 @@ export class ContentIndexStore {
       indexedDates: dates,
       itemCount,
       // ADR-001: report state paths relative to the state base dir (which
-      // may be userData rather than mymindRoot), so the logical `.cctools/...`
+      // may be userData rather than openmindRoot), so the logical `.openmind/...`
       // path stays stable regardless of where state is stored.
       // These are logical state paths exposed over IPC. Do not leak the host
       // separator into the renderer contract on Windows.
@@ -191,12 +191,12 @@ export class ContentIndexStore {
   }
 
   availableContentDates(): string[] {
-    // ADR-001: this.repoRoot is now the mymind content dir. CONTENT_DATE_ROOTS
-    // are logical paths with a historical `mymind/` prefix (relative to the
-    // old repo root); strip it so joins land inside mymindRoot.
-    const stripMymindPrefix = (rel: string) => rel.replace(/^mymind\/+/, "");
-    const dateRoots = CONTENT_DATE_ROOTS.map((rel) => path.join(this.repoRoot, stripMymindPrefix(rel)));
-    const fileRoots = CONTENT_FILE_ROOTS.map((rel) => path.join(this.repoRoot, stripMymindPrefix(rel)));
+    // ADR-001: this.repoRoot is now the openmind content dir. CONTENT_DATE_ROOTS
+    // are logical paths with a historical `openmind/` prefix (relative to the
+    // old repo root); strip it so joins land inside openmindRoot.
+    const stripOpenmindPrefix = (rel: string) => rel.replace(/^openmind\/+/, "");
+    const dateRoots = CONTENT_DATE_ROOTS.map((rel) => path.join(this.repoRoot, stripOpenmindPrefix(rel)));
+    const fileRoots = CONTENT_FILE_ROOTS.map((rel) => path.join(this.repoRoot, stripOpenmindPrefix(rel)));
     // 指纹 = 5 个根目录的 mtimeMs；新建/删除日期目录或 dated 文件才会变，故新增当天内容（已有日期下）不会误失效。
     const fingerprint = [...dateRoots, ...fileRoots]
       .map((root) => { try { return fs.statSync(root).mtimeMs; } catch { return 0; } })

@@ -13,7 +13,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const appRoot = path.resolve(__dirname, "..");
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-package-safety-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-package-safety-"));
 const scanner = path.join(appRoot, "scripts", "package-safety-scan.js");
 
 try {

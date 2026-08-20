@@ -22,13 +22,13 @@ The Utility Process owns all mutable AI runtime state. A worker crash rejects ou
 
 ## Provider Contract
 
-Codex runs `codex app-server` over JSONL JSON-RPC. The adapter initializes experimental capability only for registered dynamic cctools tools. It consumes semantic thread, turn, item, approval, usage and diff events. It never parses terminal prose.
+Codex runs `codex app-server` over JSONL JSON-RPC. The adapter initializes experimental capability only for registered dynamic openmind tools. It consumes semantic thread, turn, item, approval, usage and diff events. It never parses terminal prose.
 
 Claude runs through `@anthropic-ai/claude-agent-sdk`. `canUseTool` routes permission decisions through the same ApprovalBroker used by Codex. The adapter enables the Claude sandbox and never enables bypass-permissions modes.
 
 Provider events are normalized into versioned `AiEvent` records before persistence or UI rendering.
 
-The primary conversation timeline intentionally hides usage, provider initialization, lifecycle status and empty-change events. Those records may remain available to the run engine, but the conversation focuses on messages, tools, approvals, risks and errors. Claude sessions load user and project settings so local login and provider environment are inherited, while duplicate filesystem-discovered skills remain disabled and only a focused engineering tool set is exposed alongside registered cctools tools.
+The primary conversation timeline intentionally hides usage, provider initialization, lifecycle status and empty-change events. Those records may remain available to the run engine, but the conversation focuses on messages, tools, approvals, risks and errors. Claude sessions load user and project settings so local login and provider environment are inherited, while duplicate filesystem-discovered skills remain disabled and only a focused engineering tool set is exposed alongside registered openmind tools.
 
 ## Runs And Direct Project Access
 
@@ -47,18 +47,18 @@ The primary conversation timeline intentionally hides usage, provider initializa
 | Edit | yes | automatic | automatic | approval | approval |
 | Auto | yes | automatic | automatic | automatic | approval |
 
-Registered cctools skills declare a permission requirement, timeout and output artifact patterns. Skill calls from AI remain visible as formal tool events.
+Registered openmind skills declare a permission requirement, timeout and output artifact patterns. Skill calls from AI remain visible as formal tool events.
 
 ## Persistence
 
-Project records under `.cctools/ai/` are the source of truth. `session.json`, `run.json`, and `search-index.json` are materialized indexes; the canonical conversation history is the session's single append-only `rollout.jsonl`. JSON indexes use temporary-file replacement. Rollout appends are serialized, malformed records are counted and skipped during replay without rewriting history, and large semantic payloads are chunked and reassembled in the projection. Provider-private token/status deltas are not persisted or rendered.
+Project records under `.openmind/ai/` are the source of truth. `session.json`, `run.json`, and `search-index.json` are materialized indexes; the canonical conversation history is the session's single append-only `rollout.jsonl`. JSON indexes use temporary-file replacement. Rollout appends are serialized, malformed records are counted and skipped during replay without rewriting history, and large semantic payloads are chunked and reassembled in the projection. Provider-private token/status deltas are not persisted or rendered.
 
 Context follows the same separation used by Codex CLI:
 
 1. **Durable rollout:** each session owns one Codex-shaped JSONL stream. The first item is `session_meta`; later items use `event_msg`, `response_item`, `turn_context`, `world_state`, and `compacted`. Existing per-run `events.jsonl` files are migrated once and retained as untouched recovery artifacts.
 2. **Explicit turn boundaries:** each user turn persists `turn_started`, the raw `user_message`, model-visible response items, a full `turn_context`, world-state full/patch data, and `turn_complete` or `turn_aborted`. Event sequence numbers remain local to their turn.
 3. **Reconstructed model context:** replay applies compaction replacement-history checkpoints and append-only rollback markers, normalizes function call/output pairs, bounds tool output, restores token metadata, and tracks a history version plus context-window identity.
-4. **Provider recovery:** Codex and Claude normally resume their native provider thread. If resume fails before any output, CC Tools clears the stale provider ID, rebuilds surviving context from the local rollout, and retries once on a fresh provider thread.
+4. **Provider recovery:** Codex and Claude normally resume their native provider thread. If resume fails before any output, OpenMind clears the stale provider ID, rebuilds surviving context from the local rollout, and retries once on a fresh provider thread.
 5. **Conversation projection:** the renderer requests opaque-cursor pages of complete turns, then orders events by turn-local sequence. A user message can never be removed while its answer remains visible.
 
 The raw user message is stored independently from provider-only context. Temporal metadata and attachment context may be added to the provider prompt, but they do not alter the message rendered in the conversation.

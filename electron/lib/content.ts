@@ -5,7 +5,7 @@ import {
   LEGACY_CONTENT_FILE_ROOT_KINDS,
   LEGACY_GET_CONTENT_ALL_KINDS
 } from "../../shared/content-kinds";
-import { findRepoRoot, ensureInsideRepo, relativeToMymind, resolveMymindPath, resolveMymindRoot } from "./settings";
+import { findRepoRoot, ensureInsideRepo, relativeToOpenmind, resolveOpenmindPath, resolveOpenmindRoot } from "./settings";
 import { messages } from "../../shared/messages";
 
 export type ContentFileEntry = {
@@ -40,7 +40,7 @@ export function readJson<T>(filePath: string, fallback: T): T {
 
 function listFiles(directory: string, filter: (name: string) => boolean = () => true): ContentFileEntry[] {
   try {
-    const mymindRoot = resolveMymindRoot();
+    const openmindRoot = resolveOpenmindRoot();
     return fs
       .readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && filter(entry.name))
@@ -49,7 +49,7 @@ function listFiles(directory: string, filter: (name: string) => boolean = () => 
         const stat = fs.statSync(absolutePath);
         return {
           name: entry.name,
-          path: mymindRoot ? relativeToMymind(absolutePath) : path.relative(findRepoRoot(), absolutePath),
+          path: openmindRoot ? relativeToOpenmind(absolutePath) : path.relative(findRepoRoot(), absolutePath),
           size: stat.size,
           modifiedAt: stat.mtime.toISOString()
         };
@@ -61,7 +61,7 @@ function listFiles(directory: string, filter: (name: string) => boolean = () => 
 }
 
 function countPosts(date: string): number {
-  const posts = readJson<unknown>(ensureInsideRepo(path.join("mymind", "post", date, "posts.json")), []);
+  const posts = readJson<unknown>(ensureInsideRepo(path.join("openmind", "post", date, "posts.json")), []);
   if (Array.isArray(posts)) return posts.length;
   if (posts && typeof posts === "object" && Array.isArray((posts as { posts?: unknown }).posts)) return (posts as { posts: unknown[] }).posts.length;
   return 0;
@@ -73,14 +73,14 @@ function isXPostMarkdown(name: string): boolean {
 
 function listArticleFiles(date: string): ContentFileEntry[] {
   return listFiles(
-    ensureInsideRepo(path.join("mymind", "article", date)),
+    ensureInsideRepo(path.join("openmind", "article", date)),
     (name) => name.endsWith(".md") && !isXPostMarkdown(name)
   );
 }
 
 function listXPostFiles(date: string): ContentFileEntry[] {
   return listFiles(
-    ensureInsideRepo(path.join("mymind", "article", date)),
+    ensureInsideRepo(path.join("openmind", "article", date)),
     (name) => isXPostMarkdown(name)
   );
 }
@@ -94,7 +94,7 @@ function listDatedFiles(relativeDirectory: string, date: string, suffix?: string
 
 function latestCreativeTopics(date: string): ContentFileEntry[] {
   const formatted = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
-  const root = ensureInsideRepo(path.join("mymind", "creative"));
+  const root = ensureInsideRepo(path.join("openmind", "creative"));
   const matches: ContentFileEntry[] = [];
 
   function walk(directory: string, depth = 0): void {
@@ -106,7 +106,7 @@ function latestCreativeTopics(date: string): ContentFileEntry[] {
         const stat = fs.statSync(target);
         matches.push({
           name: entry.name,
-          path: resolveMymindRoot() ? relativeToMymind(target) : path.relative(findRepoRoot(), target),
+          path: resolveOpenmindRoot() ? relativeToOpenmind(target) : path.relative(findRepoRoot(), target),
           size: stat.size,
           modifiedAt: stat.mtime.toISOString()
         });
@@ -122,11 +122,11 @@ function getOverview(date: string): ContentOverview {
   const articles = listArticleFiles(date);
   const xPosts = listXPostFiles(date);
   const reddit = listFiles(
-    ensureInsideRepo(path.join("mymind", "reddit", date)),
+    ensureInsideRepo(path.join("openmind", "reddit", date)),
     (name) => name.endsWith(".md")
   );
-  const summary = listDatedFiles(path.join("mymind", "daily-summary"), date, ".md");
-  const topics = listDatedFiles(path.join("mymind", "daily-topic"), date, ".md");
+  const summary = listDatedFiles(path.join("openmind", "daily-summary"), date, ".md");
+  const topics = listDatedFiles(path.join("openmind", "daily-topic"), date, ".md");
   const creative = latestCreativeTopics(date);
   const posts = Math.max(countPosts(date), xPosts.length);
 
@@ -199,8 +199,8 @@ function readContent(relativePath: string): ContentReadResult {
 
 function writeContent(relativePath: string, rawContent: string): ContentReadResult {
   const logicalPath = String(relativePath).replaceAll("\\", "/");
-  const filePath = resolveMymindRoot() && (logicalPath === "mymind" || logicalPath.startsWith("mymind/"))
-    ? resolveMymindPath(relativePath, "write")
+  const filePath = resolveOpenmindRoot() && (logicalPath === "openmind" || logicalPath.startsWith("openmind/"))
+    ? resolveOpenmindPath(relativePath, "write")
     : ensureInsideRepo(relativePath);
   const stat = fs.statSync(filePath);
   if (!stat.isFile()) throw new Error(messages.errors.file.notAFile);

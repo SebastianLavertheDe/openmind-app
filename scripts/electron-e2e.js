@@ -5,22 +5,22 @@ const { spawn, spawnSync } = require("child_process");
 
 const appRoot = path.resolve(__dirname, "..");
 const electron = require("electron");
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-desktop-e2e-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-desktop-e2e-"));
 const userData = path.join(tempRoot, "user-data");
-const mymindRoot = path.join(tempRoot, "mymind");
+const openmindRoot = path.join(tempRoot, "openmind");
 const date = localDate();
 
-fs.mkdirSync(path.join(mymindRoot, "article", date), { recursive: true });
+fs.mkdirSync(path.join(openmindRoot, "article", date), { recursive: true });
 fs.writeFileSync(
-  path.join(mymindRoot, "article", date, "desktop-e2e.md"),
+  path.join(openmindRoot, "article", date, "desktop-e2e.md"),
   "# Desktop E2E fixture\n\nThis article verifies the real Electron preload and IPC bridge.\n",
   "utf8"
 );
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-env.CCTOOLS_E2E_USER_DATA_DIR = userData;
-env.CCTOOLS_MYMIND_ROOT = mymindRoot;
+env.OPENMIND_E2E_USER_DATA_DIR = userData;
+env.OPENMIND_ROOT = openmindRoot;
 
 const useXvfb = process.platform === "linux" && !process.env.DISPLAY && commandExists("xvfb-run");
 const command = useXvfb ? "xvfb-run" : electron;

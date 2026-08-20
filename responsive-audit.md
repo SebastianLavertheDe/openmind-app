@@ -139,7 +139,7 @@
 | `app/GlobalSearch.tsx` | `min(720px, calc(100vw - 48px))` |
 | `app/SidebarRecent.tsx` | 行网格 `minmax(0,1fr)` + 省略号 |
 | `app/responsive-layout.tsx` / `shared/responsive-policy.ts` | 响应式系统本体 |
-| `app/route-registry.tsx` / `routes.ts` / `App.tsx` / `main.tsx` / `theme.ts` / `ai-context.tsx` / `ai-utils.ts` / `browser-api.ts` / `mymind-root-selection.ts` | 路由/逻辑，无自有布局 |
+| `app/route-registry.tsx` / `routes.ts` / `App.tsx` / `main.tsx` / `theme.ts` / `ai-context.tsx` / `ai-utils.ts` / `browser-api.ts` / `openmind-root-selection.ts` | 路由/逻辑，无自有布局 |
 | `components/AiSidebar.tsx` | JS 钳制 `maximumRenderedWidth` |
 | `components/ColumnSplitter.tsx` | 3px 分隔条，配合 compact 状态隐藏 |
 | `components/ContentPreview.tsx` | 三分支均无固定宽（全量复查） |

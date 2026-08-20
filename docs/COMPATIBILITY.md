@@ -35,7 +35,7 @@ When an App version is retired, keep the last supported package and its
 release evidence available for recovery. Before removing a Runtime Pack or
 Skill version, confirm no active Run references its digest and retain the
 previous verified Runtime long enough for manual rollback. Never delete a
-user's mymind tree as part of uninstall, upgrade or recovery.
+user's openmind tree as part of uninstall, upgrade or recovery.
 
 Compatibility evidence must distinguish:
 

@@ -1,4 +1,4 @@
-export const FILE_PREVIEW_LAYOUT_STORAGE_KEY = "cctools:ai-file-preview-layout:v1";
+export const FILE_PREVIEW_LAYOUT_STORAGE_KEY = "openmind:ai-file-preview-layout:v1";
 export const FILE_PREVIEW_LAYOUT_SCHEMA_VERSION = 1;
 export const DEFAULT_PREVIEW_RATIO = 0.56;
 export const MIN_PREVIEW_RATIO = 0.34;

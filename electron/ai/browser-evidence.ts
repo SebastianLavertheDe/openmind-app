@@ -3,7 +3,7 @@ import { DEFAULT_BROWSER_EVIDENCE_DIR, type ProviderCapabilities } from "../../s
 import { toWslPath } from "./process-utils";
 import { buildAiWorkerEnvironment } from "./worker-environment";
 
-export const BROWSER_MCP_SERVER_NAME = "cctools_browser";
+export const BROWSER_MCP_SERVER_NAME = "openmind_browser";
 export const BROWSER_EVIDENCE_TOOL = "capture_source_evidence";
 export const CLAUDE_BROWSER_EVIDENCE_TOOL = `mcp__${BROWSER_MCP_SERVER_NAME}__${BROWSER_EVIDENCE_TOOL}`;
 
@@ -22,9 +22,9 @@ export interface BrowserMcpProcessConfig {
 
 export function browserAutomationConfigFromEnv(env: NodeJS.ProcessEnv = process.env): BrowserAutomationConfig {
   return {
-    enabled: env.CCTOOLS_BROWSER_AUTOMATION_ENABLED === "true",
-    reuseExistingTabs: env.CCTOOLS_BROWSER_REUSE_EXISTING_TABS !== "false",
-    evidenceDir: env.CCTOOLS_BROWSER_EVIDENCE_DIR?.trim() || DEFAULT_BROWSER_EVIDENCE_DIR,
+    enabled: env.OPENMIND_BROWSER_AUTOMATION_ENABLED === "true",
+    reuseExistingTabs: env.OPENMIND_BROWSER_REUSE_EXISTING_TABS !== "false",
+    evidenceDir: env.OPENMIND_BROWSER_EVIDENCE_DIR?.trim() || DEFAULT_BROWSER_EVIDENCE_DIR,
     extensionToken: env.PLAYWRIGHT_MCP_EXTENSION_TOKEN?.trim() || null
   };
 }

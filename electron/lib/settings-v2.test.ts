@@ -1,5 +1,5 @@
 /**
- * Phase 1 (ADR-001) settings v2 tests — mymindRoot / workspaceRoot resolution,
+ * Phase 1 (ADR-001) settings v2 tests — openmindRoot / workspaceRoot resolution,
  * atomic writes, and the guarantee that no hard-coded dev-machine WSL/Windows
  * paths remain.
  */
@@ -8,8 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-settings-v2-"));
-process.env.CCTOOLS_USER_DATA_DIR = userDataDir;
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-settings-v2-"));
+process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 
 vi.mock("electron", () => ({
   app: {
@@ -19,16 +19,16 @@ vi.mock("electron", () => ({
 
 import {
   SETTINGS_SCHEMA_VERSION,
-  setMymindRoot,
+  setOpenmindRoot,
   setWorkspaceRoot,
-  resolveMymindRoot,
+  resolveOpenmindRoot,
   resolveWorkspaceRoot,
-  isValidMymindRoot,
+  isValidOpenmindRoot,
   findRepoRoot,
   ensureInsideRepo,
-  resolveMymindPath,
-  relativeToMymind,
-  previewMymindRoot,
+  resolveOpenmindPath,
+  relativeToOpenmind,
+  previewOpenmindRoot,
   loadSettings,
   getPreferences,
   settingsFile,
@@ -37,8 +37,8 @@ import {
 
 afterEach(() => {
   try { fs.rmSync(settingsFile(), { force: true }); } catch { /* ignore */ }
-  delete process.env.CCTOOLS_MYMIND_ROOT;
-  delete process.env.CCTOOLS_WORKSPACE_ROOT;
+  delete process.env.OPENMIND_ROOT;
+  delete process.env.OPENMIND_WORKSPACE_ROOT;
 });
 
 describe("ADR-001 settings v2 — schemaVersion", () => {
@@ -47,48 +47,48 @@ describe("ADR-001 settings v2 — schemaVersion", () => {
   });
 });
 
-describe("ADR-001 isValidMymindRoot", () => {
+describe("ADR-001 isValidOpenmindRoot", () => {
   it("accepts a readable+writable directory", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-valid-"));
-    try { expect(isValidMymindRoot(dir)).toBe(true); }
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-valid-"));
+    try { expect(isValidOpenmindRoot(dir)).toBe(true); }
     finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   it("rejects a non-existent path", () => {
-    expect(isValidMymindRoot(path.join(os.tmpdir(), "definitely-not-here-" + Date.now()))).toBe(false);
+    expect(isValidOpenmindRoot(path.join(os.tmpdir(), "definitely-not-here-" + Date.now()))).toBe(false);
   });
 
   it("rejects a file (not a directory)", () => {
-    const file = path.join(os.tmpdir(), `cctools-file-${Date.now()}`);
+    const file = path.join(os.tmpdir(), `openmind-file-${Date.now()}`);
     fs.writeFileSync(file, "x");
-    try { expect(isValidMymindRoot(file)).toBe(false); }
+    try { expect(isValidOpenmindRoot(file)).toBe(false); }
     finally { fs.rmSync(file, { force: true }); }
   });
 
   it("rejects empty / non-string input", () => {
-    expect(isValidMymindRoot("")).toBe(false);
-    expect(isValidMymindRoot(null)).toBe(false);
-    expect(isValidMymindRoot(undefined)).toBe(false);
-    expect(isValidMymindRoot(123)).toBe(false);
+    expect(isValidOpenmindRoot("")).toBe(false);
+    expect(isValidOpenmindRoot(null)).toBe(false);
+    expect(isValidOpenmindRoot(undefined)).toBe(false);
+    expect(isValidOpenmindRoot(123)).toBe(false);
   });
 });
 
-describe("ADR-001 resolveMymindRoot", () => {
-  it("returns the v2 mymindRoot setting when valid", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-mymind-"));
+describe("ADR-001 resolveOpenmindRoot", () => {
+  it("returns the v2 openmindRoot setting when valid", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-openmind-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
-      setMymindRoot(dir);
-      expect(resolveMymindRoot()).toBe(path.resolve(dir));
+      setOpenmindRoot(dir);
+      expect(resolveOpenmindRoot()).toBe(path.resolve(dir));
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("honours CCTOOLS_MYMIND_ROOT env", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-env-mymind-"));
+  it("honours OPENMIND_ROOT env", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-env-openmind-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
-      process.env.CCTOOLS_MYMIND_ROOT = dir;
-      expect(resolveMymindRoot()).toBe(path.resolve(dir));
+      process.env.OPENMIND_ROOT = dir;
+      expect(resolveOpenmindRoot()).toBe(path.resolve(dir));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -97,36 +97,36 @@ describe("ADR-001 resolveMymindRoot", () => {
   it("returns empty string when nothing resolves", () => {
     // A sibling checkout must not count as an explicit save-directory binding.
     fs.writeFileSync(settingsFile(), "{}", "utf8");
-    delete process.env.CCTOOLS_MYMIND_ROOT;
-    expect(resolveMymindRoot()).toBe("");
+    delete process.env.OPENMIND_ROOT;
+    expect(resolveOpenmindRoot()).toBe("");
   });
 });
 
-describe("ADR-001 setMymindRoot", () => {
-  it("persists mymindRoot and drops a stale v1 repoRoot key", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-set-"));
+describe("ADR-001 setOpenmindRoot", () => {
+  it("persists openmindRoot and drops a stale v1 repoRoot key", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-set-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
       fs.writeFileSync(settingsFile(), JSON.stringify({ repoRoot: "/stale/legacy" }), "utf8");
-      setMymindRoot(dir);
+      setOpenmindRoot(dir);
       const raw = loadSettings();
-      expect(raw.mymindRoot).toBe(path.resolve(dir));
+      expect(raw.openmindRoot).toBe(path.resolve(dir));
       expect("repoRoot" in raw).toBe(false);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   it("rejects a non-directory", () => {
-    expect(() => setMymindRoot(path.join(os.tmpdir(), "no-such-" + Date.now()))).toThrow();
+    expect(() => setOpenmindRoot(path.join(os.tmpdir(), "no-such-" + Date.now()))).toThrow();
   });
 });
 
-describe("ADR-001 mymind root dry-run", () => {
+describe("ADR-001 openmind root dry-run", () => {
   it("previews a valid root without writing settings or content", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-preview-root-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-preview-root-"));
     fs.mkdirSync(path.join(dir, "private-notes"));
     try {
       fs.rmSync(settingsFile(), { force: true });
-      const preview = previewMymindRoot(dir);
+      const preview = previewOpenmindRoot(dir);
       expect(preview.canBind).toBe(true);
       expect(preview.canonicalRoot).toBe(path.resolve(dir));
       expect(preview.health.unknownPreservedEntries).toEqual(["private-notes"]);
@@ -136,7 +136,7 @@ describe("ADR-001 mymind root dry-run", () => {
   });
 
   it("reports app-private conflicts and active-run blocking without changing settings", () => {
-    const preview = previewMymindRoot(userDataDir, 1);
+    const preview = previewOpenmindRoot(userDataDir, 1);
     expect(preview.canBind).toBe(false);
     expect(preview.blockingReasons.join("；")).toContain("路径冲突");
     expect(preview.blockingReasons.join("；")).toContain("运行中的任务");
@@ -145,21 +145,21 @@ describe("ADR-001 mymind root dry-run", () => {
 
 describe("ADR-001 private state migration window", () => {
   it("moves the old implicit browser evidence default to a user-owned workspace output", () => {
-    fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, browserEvidenceDir: ".cctools/browser-evidence" }), "utf8");
+    fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, browserEvidenceDir: ".openmind/browser-evidence" }), "utf8");
 
     expect(getPreferences().browserEvidenceDir).toBe("assets/browser-evidence");
     expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).browserEvidenceDir).toBe("assets/browser-evidence");
   });
 
   it("never resolves private state inside a repo workspace; unbound writes use an app-private bucket", () => {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-private-state-ws-"));
-    fs.mkdirSync(path.join(workspace, ".cctools"), { recursive: true });
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-private-state-ws-"));
+    fs.mkdirSync(path.join(workspace, ".openmind"), { recursive: true });
     try {
-      // No mymind root bound; workspace is set. State must stay app-private.
-      fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, mymindRoot: "", workspaceRoot: workspace }), "utf8");
+      // No openmind root bound; workspace is set. State must stay app-private.
+      fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, openmindRoot: "", workspaceRoot: workspace }), "utf8");
       const statePath = appPrivateStatePath("creative-topic-state.json");
       expect(statePath).toContain(path.join(userDataDir, "state"));
-      expect(statePath).not.toContain(path.join(workspace, ".cctools"));
+      expect(statePath).not.toContain(path.join(workspace, ".openmind"));
     } finally {
       fs.rmSync(workspace, { recursive: true, force: true });
     }
@@ -168,21 +168,21 @@ describe("ADR-001 private state migration window", () => {
 
 describe("ADR-001 workspaceRoot", () => {
   it("setWorkspaceRoot persists and resolveWorkspaceRoot reads it back", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-ws-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ws-"));
     try {
       setWorkspaceRoot(dir);
       expect(resolveWorkspaceRoot()).toBe(path.resolve(dir));
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("workspaceRoot is independent of mymindRoot", () => {
-    const ws = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-ws2-"));
-    const mm = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-mm2-"));
+  it("workspaceRoot is independent of openmindRoot", () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ws2-"));
+    const mm = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-mm2-"));
     fs.mkdirSync(path.join(mm, "article"), { recursive: true });
     try {
-      setMymindRoot(mm);
+      setOpenmindRoot(mm);
       setWorkspaceRoot(ws);
-      expect(resolveMymindRoot()).toBe(path.resolve(mm));
+      expect(resolveOpenmindRoot()).toBe(path.resolve(mm));
       expect(resolveWorkspaceRoot()).toBe(path.resolve(ws));
     } finally {
       fs.rmSync(ws, { recursive: true, force: true });
@@ -192,48 +192,48 @@ describe("ADR-001 workspaceRoot", () => {
 });
 
 describe("ADR-001 findRepoRoot back-compat", () => {
-  it("returns the parent of mymindRoot so legacy path.join(root, 'mymind', x) still works", () => {
-    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-parent-"));
-    const mm = path.join(parent, "mymind");
+  it("returns the parent of openmindRoot so legacy path.join(root, 'openmind', x) still works", () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-parent-"));
+    const mm = path.join(parent, "openmind");
     fs.mkdirSync(path.join(mm, "article"), { recursive: true });
     try {
-      setMymindRoot(mm);
+      setOpenmindRoot(mm);
       const repoRoot = findRepoRoot();
-      // Legacy callers do path.join(repoRoot, "mymind", x); that must equal mm/x.
-      const joined = path.join(repoRoot, "mymind", "article");
+      // Legacy callers do path.join(repoRoot, "openmind", x); that must equal mm/x.
+      const joined = path.join(repoRoot, "openmind", "article");
       expect(joined).toBe(path.join(mm, "article"));
     } finally { fs.rmSync(parent, { recursive: true, force: true }); }
   });
 
   it("ensureInsideRepo still rejects traversal outside the root", () => {
-    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-parent2-"));
-    const mm = path.join(parent, "mymind");
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-parent2-"));
+    const mm = path.join(parent, "openmind");
     fs.mkdirSync(mm, { recursive: true });
     try {
-      setMymindRoot(mm);
+      setOpenmindRoot(mm);
       expect(() => ensureInsideRepo("../../etc/passwd")).toThrow();
     } finally { fs.rmSync(parent, { recursive: true, force: true }); }
   });
 });
 
-describe("ADR-001 arbitrary mymind roots", () => {
-  it("maps content paths to a selected root that is not named mymind", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-content-root-"));
+describe("ADR-001 arbitrary openmind roots", () => {
+  it("maps content paths to a selected root that is not named openmind", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-content-root-"));
     const file = path.join(root, "daily-summary", "20260805_daily_summary.md");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, "# summary");
     try {
-      setMymindRoot(root);
-      expect(resolveMymindPath("mymind/daily-summary/20260805_daily_summary.md")).toBe(file);
-      expect(relativeToMymind(file)).toBe("mymind/daily-summary/20260805_daily_summary.md");
-      expect(() => resolveMymindPath("mymind/.app-private/state.json", "write")).toThrow("non-writable top-level");
+      setOpenmindRoot(root);
+      expect(resolveOpenmindPath("openmind/daily-summary/20260805_daily_summary.md")).toBe(file);
+      expect(relativeToOpenmind(file)).toBe("openmind/daily-summary/20260805_daily_summary.md");
+      expect(() => resolveOpenmindPath("openmind/.app-private/state.json", "write")).toThrow("non-writable top-level");
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });
 
 describe("ADR-001 no hard-coded dev-machine paths", () => {
   // The refactor removed hard-coded WSL `\\wsl.localhost\Ubuntu\home\say\...`
-  // and `D:\work\cctools` candidates from auto-detection. This test enforces
+  // and `D:\work\openmind` candidates from auto-detection. This test enforces
   // that regression by reading the source and asserting those literals are gone
   // from the candidate lists (they may still appear in parseWslRepoPath tests).
   it("settings.ts contains no hard-coded WSL/Windows dev paths in candidate lists", () => {
@@ -243,17 +243,17 @@ describe("ADR-001 no hard-coded dev-machine paths", () => {
     // home directory. Assert the specific dev paths are absent.
     expect(src).not.toContain("\\\\wsl.localhost\\Ubuntu\\home\\say");
     expect(src).not.toContain("\\\\wsl$\\Ubuntu\\home\\say");
-    expect(src).not.toContain("D:\\\\work\\\\cctools");
-    expect(src).not.toContain('"D:\\work\\cctools"');
+    expect(src).not.toContain("D:\\\\work\\\\openmind");
+    expect(src).not.toContain('"D:\\work\\openmind"');
   });
 });
 
 describe("ADR-001 atomic settings write", () => {
   it("does not leave a .tmp file after a successful save", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-atomic-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-atomic-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
-      setMymindRoot(dir);
+      setOpenmindRoot(dir);
       const dirOfSettings = path.dirname(settingsFile());
       const tmps = fs.readdirSync(dirOfSettings).filter((f) => f.includes(".tmp-"));
       expect(tmps).toEqual([]);

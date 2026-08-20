@@ -23,9 +23,9 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
     setLoading(true);
     try {
       const [skillRuns, workflowRuns, nextArtifacts] = await Promise.all([
-        window.cctools.listSkillRuns(),
-        window.cctools.listWorkflowRuns(),
-        window.cctools.listRunArtifacts()
+        window.openmind.listSkillRuns(),
+        window.openmind.listWorkflowRuns(),
+        window.openmind.listRunArtifacts()
       ]);
       const nextEntries = [
         ...skillRuns.map((record) => ({ kind: "skill" as const, record })),
@@ -79,7 +79,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
       setEvents([]);
       return () => { cancelled = true; };
     }
-    void window.cctools.getSkillRunEvents(selected.record.id)
+    void window.openmind.getSkillRunEvents(selected.record.id)
       .then((next) => { if (!cancelled) setEvents(next); })
       .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause)); });
     return () => { cancelled = true; };
@@ -87,14 +87,14 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
 
   const cancel = async () => {
     if (!selected || selected.kind !== "skill") return;
-    await window.cctools.cancelSkillRun(selected.record.id);
+    await window.openmind.cancelSkillRun(selected.record.id);
     await load();
   };
 
   const retry = async () => {
     if (!selected || selected.kind !== "skill") return;
     try {
-      await window.cctools.retrySkillRun(selected.record.id);
+      await window.openmind.retrySkillRun(selected.record.id);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -104,7 +104,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   const deleteHistory = async () => {
     if (!selected || !window.confirm("确定删除这条运行历史吗？不会删除 Skill 产生的用户资料。")) return;
     try {
-      await window.cctools.deleteRunHistory(selected.record.id);
+      await window.openmind.deleteRunHistory(selected.record.id);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -114,7 +114,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   const retryStep = async (stepId: string) => {
     if (!selected || selected.kind !== "workflow") return;
     try {
-      await window.cctools.retryWorkflowStep(selected.record.id, stepId);
+      await window.openmind.retryWorkflowStep(selected.record.id, stepId);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -127,7 +127,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
       const parsed = JSON.parse(resumeInputs);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("恢复输入必须是 JSON object。");
       setResumeBusy(true);
-      await window.cctools.resumeWorkflowRun({ runId: selected.record.id, inputs: parsed as Record<string, unknown>, providerBindings: {}, rootGeneration: selected.record.rootGeneration });
+      await window.openmind.resumeWorkflowRun({ runId: selected.record.id, inputs: parsed as Record<string, unknown>, providerBindings: {}, rootGeneration: selected.record.rootGeneration });
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -217,8 +217,8 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
       <code title={location}>{location}</code>
       <small>{artifact.size == null ? "" : formatBytes(artifact.size)}{artifact.declared ? " · declared" : " · undeclared"}</small>
       {logicalPath ? <div className="artifact-actions">
-        <button type="button" data-motion="icon" aria-label={`打开 ${location}`} onClick={() => void window.cctools.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />打开</button>
-        <button type="button" data-motion="icon" aria-label={`定位 ${location}`} onClick={() => void window.cctools.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />定位</button>
+        <button type="button" data-motion="icon" aria-label={`打开 ${location}`} onClick={() => void window.openmind.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />打开</button>
+        <button type="button" data-motion="icon" aria-label={`定位 ${location}`} onClick={() => void window.openmind.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />定位</button>
       </div> : <small className="runs-muted">外部导出绑定：{artifact.externalPathRef || "不可用"}</small>}
     </div>;
   })}</div>;

@@ -4,10 +4,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAppPaths, ensureAppPaths } from "./app-paths-service";
 import {
-  previewMymindRelocation,
-  relocateMymind,
-  type MymindRelocationInput
-} from "./mymind-relocation-service";
+  previewOpenmindRelocation,
+  relocateOpenmind,
+  type OpenmindRelocationInput
+} from "./openmind-relocation-service";
 
 const cleanupRoots: string[] = [];
 
@@ -15,11 +15,11 @@ afterEach(() => {
   for (const root of cleanupRoots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-function makeCase(): { source: string; target: string; userData: string; input: MymindRelocationInput } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-mymind-relocation-"));
+function makeCase(): { source: string; target: string; userData: string; input: OpenmindRelocationInput } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-openmind-relocation-"));
   cleanupRoots.push(root);
-  const source = path.join(root, "source-mymind");
-  const target = path.join(root, "target-mymind");
+  const source = path.join(root, "source-openmind");
+  const target = path.join(root, "target-openmind");
   const userData = path.join(root, "user-data");
   fs.mkdirSync(source, { recursive: true });
   fs.mkdirSync(target, { recursive: true });
@@ -28,14 +28,14 @@ function makeCase(): { source: string; target: string; userData: string; input: 
   return { source, target, userData, input: { sourceDirectory: source, targetDirectory: target, paths } };
 }
 
-describe("mymind relocation", () => {
+describe("openmind relocation", () => {
   it("previews without modifying a non-empty target and refuses merge", () => {
     const testCase = makeCase();
     fs.mkdirSync(path.join(testCase.source, "article"));
     fs.writeFileSync(path.join(testCase.source, "article", "one.md"), "one");
     fs.writeFileSync(path.join(testCase.target, "keep.txt"), "do not overwrite");
 
-    const preview = previewMymindRelocation(testCase.input);
+    const preview = previewOpenmindRelocation(testCase.input);
 
     expect(preview.canCommit).toBe(false);
     expect(preview.targetState).toBe("non-empty");
@@ -51,9 +51,9 @@ describe("mymind relocation", () => {
     fs.writeFileSync(path.join(testCase.source, "private-notes", "draft.md"), "draft");
     fs.writeFileSync(path.join(testCase.source, "README.md"), "hello");
 
-    const preview = previewMymindRelocation(testCase.input);
+    const preview = previewOpenmindRelocation(testCase.input);
     expect(preview.canCommit).toBe(true);
-    const report = relocateMymind(testCase.input);
+    const report = relocateOpenmind(testCase.input);
 
     expect(report.status).toBe("committed");
     expect(report.sourcePreserved).toBe(true);
@@ -61,7 +61,7 @@ describe("mymind relocation", () => {
     expect(fs.readFileSync(path.join(testCase.source, "private-notes", "draft.md"), "utf8")).toBe("draft");
     expect(fs.readFileSync(path.join(testCase.target, ".obsidian", "workspace.json"), "utf8")).toBe("{}");
     expect(fs.readFileSync(path.join(testCase.target, "README.md"), "utf8")).toBe("hello");
-    expect(fs.readdirSync(path.dirname(testCase.target)).filter((name) => name.includes("cctools-mymind-relocation")).filter((name) => name.includes("staging") || name.includes("backup"))).toEqual([]);
+    expect(fs.readdirSync(path.dirname(testCase.target)).filter((name) => name.includes("openmind-openmind-relocation")).filter((name) => name.includes("staging") || name.includes("backup"))).toEqual([]);
   });
 
   it("rejects nested roots, symlinks, active runs, and app-private targets", () => {
@@ -69,7 +69,7 @@ describe("mymind relocation", () => {
     fs.writeFileSync(path.join(testCase.source, "one.md"), "one");
     const nested = path.join(testCase.source, "nested-target");
     fs.mkdirSync(nested);
-    expect(previewMymindRelocation({ ...testCase.input, targetDirectory: nested }).canCommit).toBe(false);
+    expect(previewOpenmindRelocation({ ...testCase.input, targetDirectory: nested }).canCommit).toBe(false);
 
     const sourceWithSymlink = path.join(testCase.source, "linked");
     try {
@@ -79,8 +79,8 @@ describe("mymind relocation", () => {
     } catch {
       return;
     }
-    expect(previewMymindRelocation(testCase.input).blockingReasons.join(" ")).toContain("symlink");
-    expect(previewMymindRelocation({ ...testCase.input, activeRunCount: 1 }).blockingReasons.join(" ")).toContain("运行中的任务");
-    expect(previewMymindRelocation({ ...testCase.input, targetDirectory: testCase.userData }).blockingReasons.join(" ")).toContain("userData");
+    expect(previewOpenmindRelocation(testCase.input).blockingReasons.join(" ")).toContain("symlink");
+    expect(previewOpenmindRelocation({ ...testCase.input, activeRunCount: 1 }).blockingReasons.join(" ")).toContain("运行中的任务");
+    expect(previewOpenmindRelocation({ ...testCase.input, targetDirectory: testCase.userData }).blockingReasons.join(" ")).toContain("userData");
   });
 });

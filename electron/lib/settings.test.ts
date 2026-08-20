@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-settings-"));
-process.env.CCTOOLS_USER_DATA_DIR = userDataDir;
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-settings-"));
+process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 
 vi.mock("electron", () => ({
   app: {
@@ -34,27 +34,27 @@ describe("settings path handling", () => {
   let repo = "";
 
   beforeEach(() => {
-    repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-repo-"));
-    fs.mkdirSync(path.join(repo, "mymind"), { recursive: true });
-    process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
+    repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-repo-"));
+    fs.mkdirSync(path.join(repo, "openmind"), { recursive: true });
+    process.env.OPENMIND_ROOT = path.join(repo, "openmind");
   });
 
   afterEach(() => {
-    delete process.env.CCTOOLS_MYMIND_ROOT;
+    delete process.env.OPENMIND_ROOT;
     fs.rmSync(repo, { recursive: true, force: true });
   });
 
   it("converts WSL UNC and Windows paths to a linux path", () => {
-    expect(parseWslRepoPath("\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\cctools")).toEqual({
+    expect(parseWslRepoPath("\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\openmind")).toEqual({
       distro: "Ubuntu",
-      linuxPath: "/home/say/work/cctools"
+      linuxPath: "/home/say/work/openmind"
     });
     expect(parseWslRepoPath("\\\\wsl$\\Debian\\root\\repo")).toEqual({
       distro: "Debian",
       linuxPath: "/root/repo"
     });
-    expect(parseWslRepoPath("/home/say/work/cctools")).toBeNull();
-    expect(parseWslRepoPath("D:\\work\\cctools")).toBeNull();
+    expect(parseWslRepoPath("/home/say/work/openmind")).toBeNull();
+    expect(parseWslRepoPath("D:\\work\\openmind")).toBeNull();
   });
 
   it("normalizes and trims repo roots with quotes", () => {
@@ -63,11 +63,11 @@ describe("settings path handling", () => {
   });
 
   it("keeps resolved paths inside the repo", () => {
-    expect(ensureInsideRepo("mymind/article/x.md")).toBe(path.resolve(repo, "mymind/article/x.md"));
+    expect(ensureInsideRepo("openmind/article/x.md")).toBe(path.resolve(repo, "openmind/article/x.md"));
     expect(() => ensureInsideRepo("../../etc/passwd")).toThrow("超出项目目录");
   });
 
-  it("derives the display repo root from the bound mymind root", () => {
+  it("derives the display repo root from the bound openmind root", () => {
     expect(findRepoRoot()).toBe(repo);
   });
 
@@ -77,7 +77,7 @@ describe("settings path handling", () => {
     expect(prefs.accentColor).toBe("#2563eb");
     expect(prefs.destructiveOpsRequireApproval).toBe(true);
     expect(prefs.riskScanEnabled).toBe(true);
-    expect(prefs.notesDir).toBe("mymind");
+    expect(prefs.notesDir).toBe("openmind");
     expect(prefs.defaultPlatform).toBe("公众号");
     expect(Array.isArray(prefs.userTags)).toBe(true);
     expect(prefs.schemaVersion).toBeGreaterThanOrEqual(1);
@@ -105,7 +105,7 @@ describe("settings path handling", () => {
 
   it("imports validated preferences from a selected json file", () => {
     const file = path.join(os.tmpdir(), `prefs-${Date.now()}.json`);
-    fs.writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFERENCES, themeMode: "light", mymindRoot: path.join(repo, "mymind") }), "utf8");
+    fs.writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFERENCES, themeMode: "light", openmindRoot: path.join(repo, "openmind") }), "utf8");
     const result = importPreferences(file);
     expect(result.imported).toBe(true);
     expect(result.preferences.themeMode).toBe("light");

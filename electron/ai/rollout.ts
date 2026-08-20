@@ -34,7 +34,7 @@ export function sessionMetaItem(session: AiSession): AiRolloutItem {
       forkedFromId: session.forkedFromId || null,
       timestamp: session.createdAt,
       cwd: session.cwd,
-      originator: "cctools-desktop",
+      originator: "openmind-desktop",
       appVersion: "1.0.17",
       provider: session.provider,
       providerId: session.providerId,

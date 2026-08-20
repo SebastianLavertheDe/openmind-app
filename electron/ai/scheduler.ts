@@ -76,7 +76,7 @@ export class RunScheduler {
     resolveProviderModel?: (kind: ProviderKind) => string,
     browserAutomation?: BrowserAutomationConfig,
     stateRoot?: string,
-    mymindRoot?: string,
+    openmindRoot?: string,
     rootGeneration = 1
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
@@ -85,35 +85,35 @@ export class RunScheduler {
     this.store = new SessionStore(projectRoot, stateRoot);
     this.registry = new ProviderRegistry(projectRoot);
     this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
-    const appPaths = mymindRoot
-      ? buildAppPaths(process.env.CCTOOLS_USER_DATA_DIR, resolveSkillStoreRoot(mymindRoot))
+    const appPaths = openmindRoot
+      ? buildAppPaths(process.env.OPENMIND_USER_DATA_DIR, resolveSkillStoreRoot(openmindRoot))
       : null;
-    const packageService = appPaths && mymindRoot ? new SkillPackageService(appPaths) : null;
-    const installedResolver = appPaths && mymindRoot
+    const packageService = appPaths && openmindRoot ? new SkillPackageService(appPaths) : null;
+    const installedResolver = appPaths && openmindRoot
       ? new InstalledSkillExecutionResolver(
         packageService!,
         new RuntimeManager(appPaths, {
           sharedPython: new SharedPythonRuntimeService(appPaths, {
             projects: () => listInstalledPythonProjects(packageService!),
-            ...(process.env.CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT
-              ? { bundledAssetRoot: process.env.CCTOOLS_PYTHON_RUNTIME_ASSET_ROOT }
+            ...(process.env.OPENMIND_PYTHON_RUNTIME_ASSET_ROOT
+              ? { bundledAssetRoot: process.env.OPENMIND_PYTHON_RUNTIME_ASSET_ROOT }
               : {})
           })
         }),
-        mymindRoot,
+        openmindRoot,
         rootGeneration,
         (bindingId) => {
           const binding = new ExportLocationService(
             path.join(appPaths.settings, "export-bindings.json"),
-            () => [appPaths.userData, mymindRoot]
+            () => [appPaths.userData, openmindRoot]
           ).resolve(bindingId);
           return { bindingId: binding.id, canonicalPath: binding.canonicalPath, revoked: binding.revoked };
         }
       )
       : undefined;
-    this.skillTools = new SkillToolRegistry(projectRoot, stateRoot, appPaths && mymindRoot ? {
+    this.skillTools = new SkillToolRegistry(projectRoot, stateRoot, appPaths && openmindRoot ? {
       paths: appPaths,
-      mymindRoot,
+      openmindRoot,
       rootGeneration,
       maxConcurrentRuns: this.maxConcurrentRuns,
       installedResolver,
@@ -129,10 +129,10 @@ export class RunScheduler {
       } : {})
     } : undefined);
     this.manualSkills = new ManualSkillController(this.skillTools, projectRoot, publish);
-    this.automation = appPaths && mymindRoot ? new AutomationScheduler({
+    this.automation = appPaths && openmindRoot ? new AutomationScheduler({
       repository: new AutomationRepository(appPaths),
       leader: new AutomationLeader(appPaths.automation),
-      fileFingerprint: createAutomationFileFingerprint(mymindRoot),
+      fileFingerprint: createAutomationFileFingerprint(openmindRoot),
       rootGeneration,
       submitSkill: (request) => this.skillTools.submitRun(request),
       submitWorkflow: (request) => this.skillTools.startWorkflowRun(request),

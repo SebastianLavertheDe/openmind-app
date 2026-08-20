@@ -1,13 +1,13 @@
 /**
- * Anonymous mymind fixture builder — Phase 0 deliverable #11.
+ * Anonymous openmind fixture builder — Phase 0 deliverable #11.
  *
- * Produces a deterministic, anonymised `mymind` directory tree under a temp
+ * Produces a deterministic, anonymised `openmind` directory tree under a temp
  * dir, for use by path/resolver/migration tests. Per the plan (§19.2) it
  * exercises: current top-level dirs, Chinese creative stage dirs, date dirs,
  * hidden dirs, user-unknown dirs, empty dirs, many files, symlink/junction,
  * read-only file, CJK/space/emoji/long names, and a damaged/partial layout.
  *
- * The builder never touches the real mymind tree; it creates everything
+ * The builder never touches the real openmind tree; it creates everything
  * fresh. Callers own the returned root and must `rmSync(root, recursive)`.
  */
 
@@ -21,7 +21,7 @@ export interface BuiltFixture {
   readonly outside: string;
 }
 
-export function buildAnonymousMymindFixture(prefix = "cctools-fixture-"): BuiltFixture {
+export function buildAnonymousOpenmindFixture(prefix = "openmind-fixture-"): BuiltFixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), prefix + "outside-"));
   try {
@@ -121,7 +121,7 @@ function buildInto(root: string, outside: string): void {
   w("invented-toplevel/x.md", "# not a contract dir\n");
 }
 
-/** Recursively remove a fixture built by {@link buildAnonymousMymindFixture}. */
+/** Recursively remove a fixture built by {@link buildAnonymousOpenmindFixture}. */
 export function disposeFixture(f: BuiltFixture): void {
   // Best-effort: reset read-only files before rm.
   try {

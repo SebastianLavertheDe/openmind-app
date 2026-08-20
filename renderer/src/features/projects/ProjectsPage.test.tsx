@@ -64,7 +64,7 @@ beforeEach(() => {
     files: { "topic-brief.md": input.topic.body || "" }
   };
   });
-  window.cctools = {
+  window.openmind = {
     aiRefresh: async () => snapshot,
     aiGetEvents: async () => [],
     onAiEvent: () => () => undefined,

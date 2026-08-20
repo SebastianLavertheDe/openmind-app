@@ -14,7 +14,7 @@ describe("InstalledSkillSourceRepository", () => {
   let repository: InstalledSkillSourceRepository;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-skill-source-receipt-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-skill-source-receipt-"));
     repository = new InstalledSkillSourceRepository(root);
   });
 
@@ -92,5 +92,5 @@ function receipt(sourceLocator: string, packages: InstalledSkillSourceReceipt["p
 }
 
 function pkg(packageRef: string, id: string, digestChar: string): InstalledSkillSourceReceipt["packages"][number] {
-  return { packageRef, key: `cctools/${id}`, id, version: "1.0.0", digest: digestChar.repeat(64) };
+  return { packageRef, key: `openmind/${id}`, id, version: "1.0.0", digest: digestChar.repeat(64) };
 }

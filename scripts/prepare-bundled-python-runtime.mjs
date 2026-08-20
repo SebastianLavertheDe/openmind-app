@@ -11,7 +11,7 @@ const { listIncompatibleWindowsDistlibLaunchers, pruneIncompatibleWindowsDistlib
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(scriptRoot, "..");
 const resourcesRoot = path.join(appRoot, "resources", "python-runtime");
-const pythonVersion = process.env.CCTOOLS_BUNDLED_PYTHON_VERSION || "3.12.8";
+const pythonVersion = process.env.OPENMIND_BUNDLED_PYTHON_VERSION || "3.12.8";
 const target = argument("target") || currentTarget();
 const expectedTarget = currentTarget();
 
@@ -29,11 +29,11 @@ if (process.argv.includes("--if-missing") && preparedRuntimeExists(targetRoot, t
 
 const uvExecutable = resolveUvExecutable();
 
-const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-python-runtime-stage-"));
+const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-python-runtime-stage-"));
 const preparedRoot = path.join(stagingRoot, target);
 fs.mkdirSync(path.join(preparedRoot, "bin"), { recursive: true });
 const distributionRoot = path.join(preparedRoot, "distribution");
-const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-python-build-cache-"));
+const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-python-build-cache-"));
 try {
   console.log(`Preparing embedded Python ${pythonVersion} for ${target}`);
   execFileSync(uvExecutable, ["python", "install", "--install-dir", distributionRoot, "--cache-dir", cacheRoot, "--reinstall", pythonVersion], {
@@ -99,12 +99,12 @@ function currentTarget() {
 }
 
 function resolveUvExecutable() {
-  const explicit = process.env.CCTOOLS_UV_EXECUTABLE || process.env.UV_EXECUTABLE;
+  const explicit = process.env.OPENMIND_UV_EXECUTABLE || process.env.UV_EXECUTABLE;
   if (explicit && fs.existsSync(explicit)) return path.resolve(explicit);
   const command = process.platform === "win32" ? "where.exe" : "which";
   const result = execFileSync(command, [process.platform === "win32" ? "uv.exe" : "uv"], { encoding: "utf8", windowsHide: true })
     .split(/\r?\n/).map((line) => line.trim()).find(Boolean);
-  if (!result || !fs.existsSync(result)) throw new Error("uv is required to prepare the bundled Python runtime. Set CCTOOLS_UV_EXECUTABLE when it is not on PATH.");
+  if (!result || !fs.existsSync(result)) throw new Error("uv is required to prepare the bundled Python runtime. Set OPENMIND_UV_EXECUTABLE when it is not on PATH.");
   return path.resolve(result);
 }
 

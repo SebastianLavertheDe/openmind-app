@@ -13,7 +13,7 @@ export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, o
           <button data-motion="selection" className={mode === "edit" ? "active" : ""} disabled={file.truncated} onClick={() => onMode("edit")}><Pencil size={13} />编辑</button>
         </div>
         <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? "保存中" : "保存"}</button>
-        <button data-motion="action" onClick={() => void window.cctools.openPath(file.path)}><ExternalLink size={14} />打开文件</button>
+        <button data-motion="action" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={14} />打开文件</button>
       </div>
     </header>
     <div className={`creative-topic-file-content ${mode}`}>

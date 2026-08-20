@@ -97,7 +97,7 @@ export class SkillSourceService {
       if (candidates.length === 0) {
         throw new SkillSourceError(
           "git-package-missing",
-          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml 或 SKILL.md）。"
+          "Git 仓库中没有找到任何 Skill 包（需要 openmind.skill.yaml 或 SKILL.md）。"
         );
       }
       return {
@@ -129,7 +129,7 @@ export class SkillSourceService {
       if (candidates.length === 0) {
         throw new SkillSourceError(
           "git-package-missing",
-          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml 或 SKILL.md）。"
+          "Git 仓库中没有找到任何 Skill 包（需要 openmind.skill.yaml 或 SKILL.md）。"
         );
       }
 
@@ -210,7 +210,7 @@ export class SkillSourceService {
           && this.packages.isInstalledCopyUsable(record)
         );
         return ALL_SKILL_IDS.every((id) => legacyRecords.some((record) =>
-          record.id === id && record.key === `cctools/${id}` && record.publisherId === "cctools"
+          record.id === id && record.key === `openmind/${id}` && record.publisherId === "openmind"
         ));
       } catch {
         return false;
@@ -218,7 +218,7 @@ export class SkillSourceService {
     }
     if (isCctoolsSkillsSourceLocator(sourceLocator)
       && !ALL_SKILL_IDS.every((id) => receipt.packages.some((snapshot) =>
-        snapshot.id === id && snapshot.key === `cctools/${id}`
+        snapshot.id === id && snapshot.key === `openmind/${id}`
       ))) {
       return false;
     }
@@ -449,7 +449,7 @@ export function resolveGitPackageCandidates(checkoutRoot: string): GitPackageCan
 }
 
 function hasSkillDescriptor(root: string): boolean {
-  return ["cctools.skill.yaml", "SKILL.md"].some((name) => {
+  return ["openmind.skill.yaml", "SKILL.md"].some((name) => {
     const candidate = path.join(root, name);
     try { return fs.statSync(candidate).isFile(); } catch { return false; }
   });

@@ -7,7 +7,7 @@ import { Select, Tooltip, useModalFocusScope } from "../design-system/components
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 
-const WIDTHS_KEY = "cctools.ai.sidebar-widths.v1";
+const WIDTHS_KEY = "openmind.ai.sidebar-widths.v1";
 const SIDEBAR_MIN_WIDTH = 380;
 const SIDEBAR_MAX_WIDTH = 960;
 const WIDTHS_SCHEMA_VERSION = 1;

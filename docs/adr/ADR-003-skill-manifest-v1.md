@@ -1,4 +1,4 @@
-# ADR-003: Skill Manifest v1 (`cctools.skill.yaml`)
+# ADR-003: Skill Manifest v1 (`openmind.skill.yaml`)
 
 - **Status:** Accepted
 - **Date:** 2026-08-05
@@ -26,23 +26,23 @@ strict, versioned, machine-verifiable contract.
 
 - **`SKILL.md`** — agent instructions, human documentation, triggers,
   methodology. YAML frontmatter optional, but **not** the execution contract.
-- **`cctools.skill.yaml`** — the host-verifiable execution, configuration,
+- **`openmind.skill.yaml`** — the host-verifiable execution, configuration,
   permissions, runtime, and artifact contract. Validated strictly by the
   Manifest Parser.
 
-A skill is **not runnable** without a valid `cctools.skill.yaml`. A legacy
+A skill is **not runnable** without a valid `openmind.skill.yaml`. A legacy
 skill with only `SKILL.md` is available for inspection and migration guidance
 until a Manifest is produced (legacy adapter, §6.4 of the plan).
 
 ### 2. Manifest v1 shape
 
 ```yaml
-apiVersion: cctools.dev/skill/v1
+apiVersion: openmind.dev/skill/v1
 id: daily-article-summarizer        # lowercase, unique per publisher
 version: 1.0.0                       # semver
 publisher:
-  id: cctools
-  displayName: cctools
+  id: openmind
+  displayName: openmind
 kind: process                        # process | workflow | agent
 
 display:
@@ -73,7 +73,7 @@ config:                              # non-sensitive persistent config
     required: true
 
 capabilities:
-  mymind:
+  openmind:
     read:  [article/**, reddit/**]
     write: [daily-summary/**]
   network: { required: true, hosts: [] }
@@ -87,7 +87,7 @@ artifacts:
 execution:
   concurrency:
     maxInstances: 1
-    mutexes: [mymind:daily-summary]
+    mutexes: [openmind:daily-summary]
   timeoutSeconds: 1800
   gracefulStopSeconds: 10
   retry: { maxAttempts: 1 }
@@ -114,8 +114,8 @@ compatibility:
 - `runtime` (process kind only; Agent execution is hosted by the selected
   Claude Code or Codex CLI).
 - `inputs` (if the skill takes run inputs).
-- `capabilities.mymind.write` (if the skill writes to mymind; patterns must be
-  a subset of `mymind-layout-v1` contentContract).
+- `capabilities.openmind.write` (if the skill writes to openmind; patterns must be
+  a subset of `openmind-layout-v1` contentContract).
 - `artifacts` (if the skill produces declared outputs).
 
 **Forbidden:**
@@ -148,8 +148,8 @@ and `{{ run.* }}` are the allowed execution template namespaces. A
 provider:<binding>` to resolve the selected Profile's Credential while still
 enforcing the exact publisher/Skill/version/digest scope in CredentialVault.
 For Python content Skills, the Broker-injected neutral environment names are
-`CCTOOLS_PROVIDER_PROTOCOL`, `CCTOOLS_PROVIDER_BASE_URL`,
-`CCTOOLS_PROVIDER_MODEL`, and `CCTOOLS_PROVIDER_API_KEY`; the last one is a
+`OPENMIND_PROVIDER_PROTOCOL`, `OPENMIND_PROVIDER_BASE_URL`,
+`OPENMIND_PROVIDER_MODEL`, and `OPENMIND_PROVIDER_API_KEY`; the last one is a
 short-lived secret binding and is never a run input or persisted config field.
 Templates are resolved by the Broker at run-prepare time, **after** schema
 validation, and the resolved values are schema-checked again. Provider Profile
@@ -179,6 +179,6 @@ A `SKILL.md`-only skill:
   diff-able. Capability changes between versions can force re-authorization.
 - **Positive:** the renderer can generate run/config forms from `inputs` /
   `config` JSON Schemas.
-- **Negative:** all 16 skills need a `cctools.skill.yaml` authored (Phase 6).
+- **Negative:** all 16 skills need a `openmind.skill.yaml` authored (Phase 6).
 - **Negative:** legacy `SKILL.md`-only discovery must be preserved for
   migration but cannot be treated as runnable.

@@ -63,7 +63,7 @@ const LEGACY_READINESS = ["installed-not-ready", "ready", "blocked", "stale"] as
  */
 export class InstalledSkillRepository {
   /**
-   * @param registryFile null when no mymind root is bound: reads report an
+   * @param registryFile null when no openmind root is bound: reads report an
    * empty store; writes fail fast as an internal invariant.
    */
   constructor(private readonly registryFile: string | null) {}
@@ -123,7 +123,7 @@ export class InstalledSkillRepository {
 
   private write(registry: InstalledSkillRegistryFile): void {
     if (this.registryFile === null) {
-      throw new Error("Skill store 不可用：尚未绑定 mymind 根目录（内部不变量，正常流程不应到达）。");
+      throw new Error("Skill store 不可用：尚未绑定 openmind 根目录（内部不变量，正常流程不应到达）。");
     }
     writeJsonAtomic(this.registryFile, validateCurrentRegistry(registry));
   }

@@ -154,7 +154,7 @@ describe("SharedPythonRuntimeService", () => {
 });
 
 function createFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-shared-python-test-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-shared-python-test-"));
   roots.push(root);
   const paths = buildAppPaths(path.join(root, "user-data"));
   ensureAppPaths(paths);
@@ -183,15 +183,15 @@ function createProject(root: string, id: string, dependency: string): SharedPyth
 
 function manifest(id: string): ProcessManifest {
   return SkillManifestSchema.parse({
-    apiVersion: "cctools.dev/skill/v1",
+    apiVersion: "openmind.dev/skill/v1",
     id,
     version: "1.0.0",
-    publisher: { id: "cctools", displayName: "cctools" },
+    publisher: { id: "openmind", displayName: "openmind" },
     kind: "process",
     display: { name: id, description: id, group: "test" },
     entrypoint: { runtime: "python", script: "main.py", args: [] },
     runtime: { version: ">=3.11,<3.13", dependencyFile: "pyproject.toml", packs: ["python-core"] },
-    capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] }, subprocess: { allowed: false } },
+    capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] }, subprocess: { allowed: false } },
     artifacts: [],
     execution: { concurrency: { maxInstances: 1, mutexes: [] }, timeoutSeconds: 60, gracefulStopSeconds: 2, retry: { maxAttempts: 0 } },
     platforms: [detectRuntimeTarget({ platform: process.platform, arch: process.arch })!],

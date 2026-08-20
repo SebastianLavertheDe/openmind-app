@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiEvent, AiRun, AiSnapshot, AppOverview, DesktopApi, SkillDefinition, UserPreferences } from "@shared/contracts";
+import type { AiEvent, AiRun, AiSnapshot, AppBootstrap, AppOverview, DesktopApi, OnboardingState, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { App } from "./App";
 
 const snapshot: AiSnapshot = {
@@ -13,10 +13,10 @@ const overview: AppOverview = { repoRoot: "/project", metrics: {}, recent: [] };
 const skills: SkillDefinition[] = [];
 const LAZY_ROUTE_TIMEOUT_MS = 10_000;
 const preferences: UserPreferences = {
-  schemaVersion: 1, mymindRoot: "/project/mymind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
+  schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" }, defaultPermissionProfile: "edit",
-  defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
+  defaultWorkDir: "", notesDir: "openmind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
   browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
   defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [], notificationsEnabled: true,
   dndStartHour: 22, dndEndHour: 8, maxNotificationHistory: 100, cacheMaxSizeMB: 500, logRetentionDays: 30,
@@ -25,8 +25,8 @@ const preferences: UserPreferences = {
 };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
-  window.cctools = {
-    getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
+  window.openmind = {
+    getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
     getPreferences: async () => preferences,
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
@@ -37,8 +37,8 @@ function installApi(overrides: Partial<DesktopApi> = {}) {
     aiUpdateSession: async () => { throw new Error("no-op"); },
     runSkill: vi.fn(async () => true),
     selectFiles: async () => [],
-    selectMymindFiles: async () => [],
-    searchMymindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    selectOpenmindFiles: async () => [],
+    searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
     openPath: vi.fn(async (p: string) => p),
     revealPath: async () => true,
     openExternal: async () => true,
@@ -67,8 +67,31 @@ describe("App bootstrap", () => {
     });
   });
 
-  it("renders a fatal error screen when window.cctools is missing", () => {
-    delete (window as unknown as { cctools?: unknown }).cctools;
+  it("opens an already configured workspace despite a stale onboarding completion flag", async () => {
+    installApi({
+      getBootstrap: async () => ({
+        repoRoot: "/project",
+        openmindRoot: "/project/openmind",
+        workspaceRoot: "/project",
+        validRepo: true,
+        skillsInstalled: true,
+        onboardingCompleted: false,
+        runtime: "test",
+        environment: { mode: "desktop", platform: "linux" },
+        overview,
+        skills,
+        ai: snapshot
+      })
+    });
+
+    render(<App />);
+
+    await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.querySelector(".onboarding-page")).toBeNull();
+  });
+
+  it("renders a fatal error screen when window.openmind is missing", () => {
+    delete (window as unknown as { openmind?: unknown }).openmind;
     render(<App />);
     expect(document.querySelector(".fatal")).toBeTruthy();
   });
@@ -98,6 +121,129 @@ describe("App bootstrap", () => {
     // no throw, no fatal screen
     expect(document.querySelector(".fatal")).toBeNull();
   });
+
+  it("keeps global search and new-session shortcuts inert until setup is complete", async () => {
+    const setupBootstrap: AppBootstrap = {
+      repoRoot: "/project",
+      openmindRoot: "",
+      workspaceRoot: "",
+      validRepo: false,
+      skillsInstalled: false,
+      onboardingCompleted: false,
+      runtime: "test",
+      environment: { mode: "desktop" as const, platform: "linux" },
+      overview,
+      skills,
+      ai: { ...snapshot, providers: [], sessions: [] }
+    };
+    installApi({
+      getBootstrap: async () => setupBootstrap,
+      getOpenmindRoot: async () => ({
+        openmindRoot: "",
+        workspaceRoot: "",
+        health: {
+          configured: false,
+          accessible: false,
+          readable: false,
+          writable: false,
+          missingInitializeEntries: [],
+          missingCreateIfNeededEntries: [],
+          optionalObservedEntries: [],
+          symlinkWarnings: [],
+          unknownPreservedEntries: [],
+          activeRunCount: 0,
+          warnings: []
+        },
+        snapshot: null
+      })
+    });
+
+    render(<App />);
+    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
+
+    for (const shortcut of [
+      { key: "k", ctrlKey: true },
+      { key: "k", metaKey: true },
+      { key: "n", ctrlKey: true },
+      { key: "n", metaKey: true }
+    ]) fireEvent.keyDown(window, shortcut);
+
+    expect(document.querySelector(".global-search-dialog")).toBeNull();
+    expect(document.querySelector(".ai-workbench")).toBeNull();
+    expect(document.querySelector(".onboarding-page")).toBeTruthy();
+    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("1");
+  });
+
+  it("keeps the same setup track mounted while the root and RSS gates advance", async () => {
+    const setupSnapshot: AiSnapshot = { ...snapshot, providers: [], sessions: [] };
+    let rootSelected = false;
+    let rssInstalled = false;
+    const getBootstrap = vi.fn(async (): Promise<AppBootstrap> => ({
+      repoRoot: rootSelected ? "/project" : "",
+      openmindRoot: rootSelected ? "/project/openmind" : "",
+      workspaceRoot: rootSelected ? "/project" : "",
+      validRepo: rootSelected,
+      skillsInstalled: rssInstalled,
+      onboardingCompleted: false,
+      runtime: "test",
+      environment: { mode: "desktop", platform: "linux" },
+      overview,
+      skills,
+      ai: setupSnapshot
+    }));
+    const rootHealth = () => ({
+      configured: rootSelected,
+      accessible: rootSelected,
+      readable: rootSelected,
+      writable: rootSelected,
+      missingInitializeEntries: [],
+      missingCreateIfNeededEntries: [],
+      optionalObservedEntries: [],
+      symlinkWarnings: [],
+      unknownPreservedEntries: [],
+      activeRunCount: 0,
+      warnings: []
+    });
+    installApi({
+      getBootstrap,
+      getOpenmindRoot: async () => ({
+        openmindRoot: rootSelected ? "/project/openmind" : "",
+        workspaceRoot: rootSelected ? "/project" : "",
+        health: rootHealth(),
+        snapshot: rootSelected ? { rootPath: "/project/openmind", rootId: "root", rootGeneration: 1 } : null
+      }),
+      selectOpenmindRoot: async () => "/project/openmind",
+      previewOpenmindRoot: async () => ({ candidate: "/project/openmind", canonicalRoot: "/project/openmind", health: { ...rootHealth(), configured: true, accessible: true, readable: true, writable: true }, canBind: true, blockingReasons: [] }),
+      setOpenmindRoot: async () => {
+        rootSelected = true;
+        return "/project/openmind";
+      },
+      getOnboardingState: async () => ({ completed: false, skill: "pending", provider: "pending" }),
+      getProviders: async () => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
+      installSkillSource: async () => {
+        rssInstalled = true;
+        return [];
+      }
+    });
+
+    render(<App />);
+    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
+    const track = document.querySelector<HTMLElement>(".onboarding-step-track");
+    expect(track?.dataset.currentStep).toBe("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "选择文件夹" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 数据目录" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "确认绑定" }));
+
+    await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" });
+    expect(document.querySelector(".onboarding-step-track")).toBe(track);
+    expect(track?.dataset.currentStep).toBe("2");
+
+    fireEvent.click(screen.getByRole("button", { name: "安装 RSS 源" }));
+    await screen.findByRole("heading", { level: 2, name: "连接 AI Provider" });
+    expect(document.querySelector(".onboarding-step-track")).toBe(track);
+    expect(track?.dataset.currentStep).toBe("3");
+  }, 15_000);
 
   it("remounts AI state when the workspace root changes", async () => {
     const rootASnapshot: AiSnapshot = {
@@ -129,14 +275,16 @@ describe("App bootstrap", () => {
       getBootstrap: async () => {
         bootstrapCalls += 1;
         return bootstrapCalls === 1
-          ? { repoRoot: "/project-a", mymindRoot: "/mymind-a", workspaceRoot: "/project-a", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootASnapshot }
-          : { repoRoot: "/project-b", mymindRoot: "/mymind-a", workspaceRoot: "/project-b", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootBSnapshot };
+          ? { repoRoot: "/project-a", openmindRoot: "/openmind-a", workspaceRoot: "/project-a", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootASnapshot }
+          : { repoRoot: "/project-b", openmindRoot: "/openmind-a", workspaceRoot: "/project-b", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootBSnapshot };
       },
       selectWorkspaceRoot: async () => "/project-b"
     });
 
     render(<App />);
     expect((await screen.findAllByText("Root A Session")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "创作" }));
+    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
     await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     fireEvent.click((await screen.findAllByRole("button", { name: "浏览" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }))[0]);
@@ -144,12 +292,15 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(bootstrapCalls).toBe(2));
     await waitFor(() => expect(screen.queryAllByText("Root A Session")).toHaveLength(0));
     expect(document.querySelector(".settings-page")).toBeNull();
+    await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.querySelector(".creative-workspace-page")).toBeNull();
   }, 15_000);
 
-  it("hydrates the first ready AI snapshot when the Skill setup gate opens without changing roots", async () => {
+  it("keeps setup open through the ready AI remount and hydrates that snapshot after finishing", async () => {
     const setupSnapshot: AiSnapshot = { ...snapshot, providers: [], sessions: [] };
     const readySnapshot: AiSnapshot = {
       ...snapshot,
+      providers: [],
       sessions: [{
         schemaVersion: 1,
         id: "first-ready-session",
@@ -171,22 +322,23 @@ describe("App bootstrap", () => {
       }]
     };
     let installed = false;
+    let onboardingState: OnboardingState = { completed: false, skill: "pending", provider: "pending" };
     installApi({
       getBootstrap: async () => ({
         repoRoot: "/project",
-        mymindRoot: "/project/mymind",
+        openmindRoot: "/project/openmind",
         workspaceRoot: "/project",
         validRepo: true,
         skillsInstalled: installed,
-        onboardingCompleted: false,
+        onboardingCompleted: onboardingState.completed,
         runtime: "test",
         environment: { mode: "desktop", platform: "linux" },
         overview,
         skills,
         ai: installed ? readySnapshot : setupSnapshot
       }),
-      getMymindRoot: async () => ({
-        mymindRoot: "/project/mymind",
+      getOpenmindRoot: async () => ({
+        openmindRoot: "/project/openmind",
         workspaceRoot: "/project",
         health: {
           configured: true,
@@ -203,7 +355,11 @@ describe("App bootstrap", () => {
         },
         snapshot: null
       }),
-      getOnboardingState: async () => ({ completed: false, skill: "pending", provider: "complete" }),
+      getOnboardingState: async () => onboardingState,
+      updateOnboardingState: async (patch) => {
+        onboardingState = { ...onboardingState, ...patch };
+        return onboardingState;
+      },
       getProviders: async () => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
       installSkillSource: async () => {
         installed = true;
@@ -212,9 +368,19 @@ describe("App bootstrap", () => {
     });
 
     render(<App />);
-    const install = await screen.findByRole("button", { name: "一键安装 cctools-skills" });
+    const install = await screen.findByRole("button", { name: "安装 RSS 源" });
     await waitFor(() => expect((install as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(install);
+
+    const providerHeading = await screen.findByRole("heading", { level: 2, name: "连接 AI Provider" }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.querySelector(".onboarding-page")).toBeTruthy();
+    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("3");
+    await waitFor(() => expect(document.activeElement).toBe(providerHeading));
+    fireEvent.click(screen.getByRole("button", { name: "稍后配置" }));
+    const finishHeading = await screen.findByRole("heading", { level: 2, name: "准备完成" });
+    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("4");
+    await waitFor(() => expect(document.activeElement).toBe(finishHeading));
+    fireEvent.click(screen.getByRole("button", { name: "进入工作台" }));
 
     expect((await screen.findAllByText("Ready after Skill install", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS })).length).toBeGreaterThan(0);
     expect(document.querySelector(".onboarding-page")).toBeNull();
@@ -254,13 +420,13 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
   }, 15_000);
 
-  it("returns to onboarding after opening the Skill import entry", async () => {
+  it("does not expose the Skill import entry while the required RSS setup is incomplete", async () => {
     installApi({
       getBootstrap: async () => ({
         repoRoot: "/project",
-        mymindRoot: "/project/mymind",
+        openmindRoot: "/project/openmind",
         workspaceRoot: "/project",
-        validRepo: false,
+        validRepo: true,
         skillsInstalled: false,
         onboardingCompleted: false,
         runtime: "test",
@@ -273,16 +439,15 @@ describe("App bootstrap", () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".onboarding-page")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: "打开导入入口" }));
-    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
-    fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
-    await waitFor(() => expect(document.querySelector(".onboarding-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "打开导入入口" })).toBeNull();
+    expect(document.querySelector(".settings-page")).toBeNull();
   }, 15_000);
 
   it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {
-    window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
+    window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
     // Reproduce a stale expanded companion preference from an earlier app run.
-    window.localStorage.setItem("cctools.ai.panel-mode.v1", JSON.stringify("default"));
+    window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("default"));
 
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
@@ -317,7 +482,7 @@ describe("App bootstrap", () => {
   }, 15_000);
 
   it("opens companion file references inside the left workspace instead of the external editor", async () => {
-    const path = "mymind/daily-topic/20260728_daily_topic.md";
+    const path = "openmind/daily-topic/20260728_daily_topic.md";
     const openPath = vi.fn(async (value: string) => value);
     const readContent = vi.fn(async () => ({
       path,
@@ -382,7 +547,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -420,7 +585,7 @@ describe("App bootstrap", () => {
   });
 
   it("restores the AI file split after navigating away and returning to the conversation", async () => {
-    const path = "mymind/daily-summary/20260728_daily_summary.md";
+    const path = "openmind/daily-summary/20260728_daily_summary.md";
     const readContent = vi.fn(async () => ({
       path,
       name: "20260728_daily_summary.md",
@@ -485,7 +650,7 @@ describe("App bootstrap", () => {
       runs: [run]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot,
       aiListTurns: async () => ({
         data: [{
@@ -523,7 +688,7 @@ describe("App bootstrap", () => {
   });
 
   it("keeps a fullscreen AI companion underneath the body-level global search", async () => {
-    window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
+    window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
     const view = render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "创作" }));
@@ -548,7 +713,7 @@ describe("App bootstrap", () => {
   });
 
   it("clears the recent-session selection when navigating to a feature page", async () => {
-    window.localStorage.setItem("cctools.nav.collapsed.v1", JSON.stringify(false));
+    window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
     const sessionSnapshot = {
       ...snapshot,
       sessions: [{
@@ -571,7 +736,7 @@ describe("App bootstrap", () => {
       }]
     };
     installApi({
-      getBootstrap: async () => ({ repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
+      getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: sessionSnapshot }),
       aiRefresh: async () => sessionSnapshot
     });
 

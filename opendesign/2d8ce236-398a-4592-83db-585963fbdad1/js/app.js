@@ -1,5 +1,5 @@
 /* ============================================================
-   CC Tools · 设计稿交互脚本（8 屏统一版）
+   OpenMind · 设计稿交互脚本（8 屏统一版）
    - 统一注入导航 + 全局工具栏（按 body[data-page] 标记激活）
    - 深浅色主题切换（持久化到 localStorage）
    - 分栏拖拽 + 持久化、列表/筛选项选中、视图/检视标签
@@ -60,9 +60,9 @@
       return `<a href="${p.href}" class="${cls}" ${p.id === cur ? 'aria-current="page"' : ""}>${svg(I[p.icon])}<span>${p.label}</span>${badge}</a>`;
     }).join("");
     nav.innerHTML =
-      `<div class="app-brand"><div class="brand-mark">CC</div><div class="brand-copy"><strong>CC Tools</strong><span>CONTENT WORKSPACE</span></div><button class="nav-collapse-btn" id="navCollapse" title="收起导航" aria-label="收起导航" aria-expanded="true">${svg(I.navCollapse)}</button></div>` +
+      `<div class="app-brand"><div class="brand-mark">CC</div><div class="brand-copy"><strong>OpenMind</strong><span>CONTENT WORKSPACE</span></div><button class="nav-collapse-btn" id="navCollapse" title="收起导航" aria-label="收起导航" aria-expanded="true">${svg(I.navCollapse)}</button></div>` +
       `<nav aria-label="主导航">${links}</nav>` +
-      `<div class="app-project-status"><span class="dot"></span><div><strong>本地已连接</strong><span>~/cctools</span></div></div>`;
+      `<div class="app-project-status"><span class="dot"></span><div><strong>本地已连接</strong><span>~/openmind</span></div></div>`;
   }
 
   function renderToolbar() {
@@ -78,7 +78,7 @@
   }
 
   /* ---------- 主题 ---------- */
-  const THEME_KEY = "cctools-theme";
+  const THEME_KEY = "openmind-theme";
   function getTheme() { return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
   let themeT;
   function setTheme(t, animate) {
@@ -101,7 +101,7 @@
     if (!nav) return;
     const btn = $("#navCollapse");
     let collapsed = false;
-    try { collapsed = localStorage.getItem("cctools-nav-collapsed") === "1"; } catch (_) {}
+    try { collapsed = localStorage.getItem("openmind-nav-collapsed") === "1"; } catch (_) {}
     const apply = (c) => {
       nav.classList.toggle("collapsed", c);
       document.documentElement.style.setProperty("--nav-width", c ? "64px" : "236px");
@@ -115,7 +115,7 @@
     apply(collapsed);
     if (btn) btn.addEventListener("click", () => {
       collapsed = !collapsed;
-      try { localStorage.setItem("cctools-nav-collapsed", collapsed ? "1" : "0"); } catch (_) {}
+      try { localStorage.setItem("openmind-nav-collapsed", collapsed ? "1" : "0"); } catch (_) {}
       apply(collapsed);
     });
   }
@@ -233,7 +233,7 @@
       const name = group.dataset.name;
       if (name) {
         try {
-          const saved = localStorage.getItem("cctools-" + name);
+          const saved = localStorage.getItem("openmind-" + name);
           if (saved && v) {
             document.documentElement.style.setProperty(v, saved);
             $$("button", group).forEach((b) => b.classList.toggle("active", b.dataset.val === saved));
@@ -243,7 +243,7 @@
       $$("button", group).forEach((btn) => {
         btn.addEventListener("click", () => {
           $$("button", group).forEach((b) => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
-          if (v && btn.dataset.val) { document.documentElement.style.setProperty(v, btn.dataset.val); if (name) { try { localStorage.setItem("cctools-" + name, btn.dataset.val); } catch (_) {} } }
+          if (v && btn.dataset.val) { document.documentElement.style.setProperty(v, btn.dataset.val); if (name) { try { localStorage.setItem("openmind-" + name, btn.dataset.val); } catch (_) {} } }
           syncSegThumbs(true);
         });
       });

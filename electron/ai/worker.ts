@@ -7,11 +7,11 @@ const parentPort = (process as unknown as { parentPort?: { on(event: string, cal
 if (!parentPort) throw new Error("AI worker must run as an Electron utility process.");
 const port = parentPort;
 
-const projectRoot = process.env.CCTOOLS_REPO_ROOT;
-if (!projectRoot) throw new Error("CCTOOLS_REPO_ROOT is required.");
-const stateRoot = process.env.CCTOOLS_STATE_ROOT?.trim() || undefined;
-const mymindRoot = process.env.CCTOOLS_MYMIND_ROOT?.trim() || undefined;
-const rootGeneration = Number(process.env.CCTOOLS_ROOT_GENERATION) || 1;
+const projectRoot = process.env.OPENMIND_REPO_ROOT;
+if (!projectRoot) throw new Error("OPENMIND_REPO_ROOT is required.");
+const stateRoot = process.env.OPENMIND_STATE_ROOT?.trim() || undefined;
+const openmindRoot = process.env.OPENMIND_ROOT?.trim() || undefined;
+const rootGeneration = Number(process.env.OPENMIND_ROOT_GENERATION) || 1;
 
 const scheduler = new RunScheduler(
   projectRoot,
@@ -20,7 +20,7 @@ const scheduler = new RunScheduler(
   () => AUTO_MODEL,
   browserAutomationConfigFromEnv(),
   stateRoot,
-  mymindRoot,
+  openmindRoot,
   rootGeneration
 );
 

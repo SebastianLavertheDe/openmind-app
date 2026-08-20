@@ -52,7 +52,7 @@ interface ActiveSkill {
 
 export type BrokerSkillRegistryOptions = {
   paths: AppPaths;
-  mymindRoot: string;
+  openmindRoot: string;
   rootGeneration: number;
   maxConcurrentRuns?: number;
   installedResolver?: InstalledSkillExecutionResolver;
@@ -80,7 +80,7 @@ export class SkillToolRegistry {
   private readonly broker: ExecutionBroker | null;
   private readonly brokerInvocations = new Map<string, BrokerInvocation>();
   private readonly brokerRunIds = new Map<string, string>();
-  private readonly executionMymindRoot: string;
+  private readonly executionOpenmindRoot: string;
   private readonly executionRootGeneration: number;
   private readonly installedResolver: InstalledSkillExecutionResolver | null;
   private readonly onRunEvent: (event: BrokerRunEvent) => void;
@@ -89,7 +89,7 @@ export class SkillToolRegistry {
 
   constructor(private projectRoot: string, private stateRoot?: string, brokerOptions?: BrokerSkillRegistryOptions) {
     this.skills = discoverSkills(projectRoot);
-    this.executionMymindRoot = brokerOptions?.mymindRoot ? path.resolve(brokerOptions.mymindRoot) : "";
+    this.executionOpenmindRoot = brokerOptions?.openmindRoot ? path.resolve(brokerOptions.openmindRoot) : "";
     this.executionRootGeneration = brokerOptions?.rootGeneration ?? 0;
     this.installedResolver = brokerOptions?.installedResolver || null;
     this.onRunEvent = brokerOptions?.onRunEvent || (() => undefined);
@@ -330,11 +330,11 @@ export class SkillToolRegistry {
         ...providerEnv,
         PYTHONIOENCODING: "utf-8",
         PYTHONUNBUFFERED: "1",
-        CCTOOLS_SKILL_ID: skill.id,
-        CCTOOLS_PROJECT_ROOT: executionRoot,
-        ...(typeof input.sourceId === "string" ? { CCTOOLS_SOURCE_ID: input.sourceId } : {}),
-        ...(typeof input.sourceUrl === "string" ? { CCTOOLS_SOURCE_URL: input.sourceUrl } : {}),
-        ...(typeof input.sourceName === "string" ? { CCTOOLS_SOURCE_NAME: input.sourceName } : {})
+        OPENMIND_SKILL_ID: skill.id,
+        OPENMIND_PROJECT_ROOT: executionRoot,
+        ...(typeof input.sourceId === "string" ? { OPENMIND_SOURCE_ID: input.sourceId } : {}),
+        ...(typeof input.sourceUrl === "string" ? { OPENMIND_SOURCE_URL: input.sourceUrl } : {}),
+        ...(typeof input.sourceName === "string" ? { OPENMIND_SOURCE_NAME: input.sourceName } : {})
       }
     });
     const active = { child, stopped: false };
@@ -412,8 +412,8 @@ export class SkillToolRegistry {
     if (path.resolve(executionRoot) !== path.resolve(this.projectRoot)) {
       throw new Error("Skill 只能在当前工作区的 Broker 计划中运行。");
     }
-    if (!this.executionMymindRoot || this.executionRootGeneration < 1) {
-      throw new Error("尚未绑定有效的 mymind 根目录，无法创建 Skill Run。");
+    if (!this.executionOpenmindRoot || this.executionRootGeneration < 1) {
+      throw new Error("尚未绑定有效的 openmind 根目录，无法创建 Skill Run。");
     }
     const installed = this.installedResolver?.installed(skillId);
     if (!installed) throw new Error(`没有已安装的 Skill：${skillId}。请先完成安装。`);
@@ -513,7 +513,7 @@ export class SkillToolRegistry {
     const sourceId = skill?.surfacesAsSource?.sourceId;
     if (!sourceId) return false;
     try {
-      const settings = JSON.parse(fs.readFileSync(path.join(this.stateRoot ?? this.projectRoot, ".cctools", "source-settings.json"), "utf8")) as {
+      const settings = JSON.parse(fs.readFileSync(path.join(this.stateRoot ?? this.projectRoot, ".openmind", "source-settings.json"), "utf8")) as {
         sources?: Record<string, { enabled?: boolean }>;
       };
       return settings.sources?.[sourceId]?.enabled === false;

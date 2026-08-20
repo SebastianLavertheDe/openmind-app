@@ -87,7 +87,7 @@ function renderBar(
       </AiProvider>
     );
   };
-  window.cctools = api;
+  window.openmind = api;
   return render(<Harness />);
 }
 

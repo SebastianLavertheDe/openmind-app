@@ -15,7 +15,7 @@
   digest, while Runtime preparation remains an execution-time check.
 - Complete Git-source installs now write an atomic local receipt containing the
   normalized repository, resolved revision and full package snapshot. Startup
-  stays in onboarding unless an explicit mymind save root and a complete,
+  stays in onboarding unless an explicit openmind save root and a complete,
   intact official `cctools-skills` installation are available; startup never
   contacts Git.
 - Installed Skills can now be enabled or disabled from Skill Center. The
@@ -34,10 +34,10 @@
 - Installed-but-unauthenticated CLI providers expose an external terminal login
   flow and a one-click recheck. WSL cards expose copyable install/login/recheck
   steps without pretending to provide a Windows-side one-click WSL installer.
-- First launch now has a three-step onboarding checklist for mymind root,
-  the mandatory official Skill repository, and Provider readiness. Provider
-  setup may be skipped; root and official Skill checks cannot be bypassed by a
-  stale onboarding flag.
+- First launch now presents one setup step at a time for the OpenMind data
+  directory, mandatory RSS collection setup, optional Provider readiness and
+  final confirmation. Each completed step slides left into the next; Provider
+  setup may be skipped, while the first two checks remain mandatory.
 
 ### Security and release notes
 

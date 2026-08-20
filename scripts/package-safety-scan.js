@@ -37,13 +37,13 @@ const workspacePathFragments = [
 
 const forbiddenPathFragments = [
   `${path.sep}.env`,
-  `${path.sep}.cctools${path.sep}ai${path.sep}sessions`,
-  `${path.sep}.cctools${path.sep}ai${path.sep}.runtime`,
+  `${path.sep}.openmind${path.sep}ai${path.sep}sessions`,
+  `${path.sep}.openmind${path.sep}ai${path.sep}.runtime`,
   `${path.sep}provider-state`,
-  `${path.sep}mymind${path.sep}article`,
-  `${path.sep}mymind${path.sep}post`,
-  `${path.sep}mymind${path.sep}reddit`,
-  `${path.sep}mymind${path.sep}daily-summary`
+  `${path.sep}openmind${path.sep}article`,
+  `${path.sep}openmind${path.sep}post`,
+  `${path.sep}openmind${path.sep}reddit`,
+  `${path.sep}openmind${path.sep}daily-summary`
 ].map((fragment) => fragment.toLowerCase());
 
 const secretPatterns = [
@@ -250,7 +250,7 @@ function writeReport(status) {
   fs.writeFileSync(reportOutput, `${JSON.stringify({
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    kind: "cctools-package-safety-evidence",
+    kind: "openmind-package-safety-evidence",
     status,
     scannedFiles,
     targets: targets.filter((target) => fs.existsSync(target)).map((target) => path.relative(root, target).replaceAll(path.sep, "/")),

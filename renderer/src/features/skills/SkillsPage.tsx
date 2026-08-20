@@ -56,14 +56,14 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
     if (showLoading) setLoading(true);
     try {
       const [nextInspections, nextInstalled, nextRuns] = await Promise.all([
-        window.cctools.inspectSkillWorkspace(),
-        window.cctools.listInstalledSkills(),
-        window.cctools.listSkillRuns()
+        window.openmind.inspectSkillWorkspace(),
+        window.openmind.listInstalledSkills(),
+        window.openmind.listSkillRuns()
       ]);
-      const inspectedInstalled = window.cctools.inspectInstalledSkill
+      const inspectedInstalled = window.openmind.inspectInstalledSkill
         ? await Promise.all(nextInstalled.map(async (record) => {
           try {
-            const inspection = await window.cctools.inspectInstalledSkill(record.key, record.digest);
+            const inspection = await window.openmind.inspectInstalledSkill(record.key, record.digest);
             return inspection ? [installedInspectionKey(record), inspection] as const : null;
           } catch {
             return null;
@@ -94,7 +94,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 
   useEffect(() => { void load(); }, [load]);
 
-  const sourcePickerApiAvailable = Boolean(window.cctools.inspectSkillSource && window.cctools.installSkillSource);
+  const sourcePickerApiAvailable = Boolean(window.openmind.inspectSkillSource && window.openmind.installSkillSource);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(initialSourcePickerOpen);
   const onSourceInstalled = useCallback(async () => {
     setSourcePickerOpen(false);
@@ -156,7 +156,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       return next;
     });
     try {
-      const updated = await window.cctools.setInstalledSkillEnabled(record.key, record.digest, enabled);
+      const updated = await window.openmind.setInstalledSkillEnabled(record.key, record.digest, enabled);
       setInstalled((current) => current.map((candidate) => (
         candidate.key === record.key && candidate.digest === record.digest ? updated : candidate
       )));
@@ -292,7 +292,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     setSelectedPackageRefs([]);
     setBusy("inspect");
     try {
-      const result = await window.cctools.inspectSkillSource!(source, requestId);
+      const result = await window.openmind.inspectSkillSource!(source, requestId);
       if (inspectRequestId.current === requestId) {
         setInspection(result);
         setSelectedPackageRefs(result.packages.map(inspectionPackageRef));
@@ -315,7 +315,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     setInspection(null);
     setSelectedPackageRefs([]);
     try {
-      const source = await window.cctools.selectSkillPackageSource?.() ?? null;
+      const source = await window.openmind.selectSkillPackageSource?.() ?? null;
       if (!source) return;
       setCandidate(source);
       void inspectSource(source);
@@ -336,7 +336,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
 
   const cancelInspect = useCallback(async () => {
     const requestId = inspectRequestId.current;
-    if (requestId) await window.cctools.cancelSkillSourceInspection?.(requestId);
+    if (requestId) await window.openmind.cancelSkillSourceInspection?.(requestId);
     inspectRequestId.current = null;
     setCandidate(null);
     setInspection(null);
@@ -352,8 +352,8 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
     setFailure(null);
     setBusy("install");
     try {
-      if (candidate.type === "git") await window.cctools.installSkillSource!(candidate, selectedPackageRefs);
-      else await window.cctools.installSkillSource!(candidate);
+      if (candidate.type === "git") await window.openmind.installSkillSource!(candidate, selectedPackageRefs);
+      else await window.openmind.installSkillSource!(candidate);
       setCandidate(null);
       setInspection(null);
       setSelectedPackageRefs([]);

@@ -4,7 +4,7 @@ import { AppShell } from "./AppShell";
 import { ResponsiveLayoutProvider } from "./responsive-layout";
 
 beforeEach(() => {
-  window.cctools = { openPath: vi.fn().mockResolvedValue("") } as never;
+  window.openmind = { openPath: vi.fn().mockResolvedValue("") } as never;
 });
 
 afterEach(() => cleanup());

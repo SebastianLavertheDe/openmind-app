@@ -6,15 +6,15 @@
 
 > The current build does not run this automatic `repoRoot` migration. The
 > pre-release `selectRepo`/`setRepo` shims and legacy-state copier were removed:
-> users bind `mymindRoot` and optional `workspaceRoot` explicitly, and startup
-> never derives a save root or copies `.cctools` state from an old checkout.
+> users bind `openmindRoot` and optional `workspaceRoot` explicitly, and startup
+> never derives a save root or copies `.openmind` state from an old checkout.
 
 ## 1. Inputs (legacy state that may exist)
 
 - old `settings.json` with `repoRoot`
-- `<repoRoot>/mymind/` (the content root)
+- `<repoRoot>/openmind/` (the content root)
 - `<repoRoot>/.claude/skills/` (16 skills + `_shared`)
-- `<repoRoot>/.cctools/` (leaked app state: browser-evidence, etc.)
+- `<repoRoot>/.openmind/` (leaked app state: browser-evidence, etc.)
 - skill `.env` files (secrets)
 - skill cache/log/state files
 - old run records
@@ -29,7 +29,7 @@
 - **Staging + atomic switch** — writes happen off to the side; `schemaVersion`
   is the last write.
 - **Non-destructive** — old data is never moved/renamed/deleted. Source
-  `.cctools` and `.env` are preserved verbatim.
+  `.openmind` and `.env` are preserved verbatim.
 - **Rollback-compatible** — rolling the app back to the previous version lets
   the old version still read the original repo data; new userData state does
   not pollute the old repo.
@@ -37,14 +37,14 @@
 ## 3. Flow (v1 → v2)
 
 1. Read old `settings.json` (do **not** write yet).
-2. If `<repoRoot>/mymind` exists → derive `mymindRoot` candidate.
+2. If `<repoRoot>/openmind` exists → derive `openmindRoot` candidate.
 3. Dry-run structure / permissions / symlink check on the candidate.
 4. Display "bind path only, no content moves" to the user.
 5. User confirms.
-6. Read-only preflight the old `.cctools` state and its app-private target;
-   target must be absent or empty. Migrate old `.cctools` state →
+6. Read-only preflight the old `.openmind` state and its app-private target;
+   target must be absent or empty. Migrate old `.openmind` state →
    `userData/state/<root-id>/` (copy; original kept), refusing merge/overwrite.
-7. Original `.cctools` preserved untouched.
+7. Original `.openmind` preserved untouched.
 8. Scan `<repoRoot>/.claude/skills` via the SkillPackageService legacy adapter.
 9. Run install pre-check + clean copy. No code execution occurs during
    inspection; a valid package is atomically installed as the one record for
@@ -61,7 +61,7 @@
 
 ## 4. Historical `repoRoot` derivation rule
 
-The baseline proposed deriving `workspaceRoot` and `mymindRoot` from an old
+The baseline proposed deriving `workspaceRoot` and `openmindRoot` from an old
 `repoRoot`. That proposal was not shipped. Current settings ignore the stale
 field and require explicit directory selection; there is no live `setRepo`
 IPC compatibility path.
@@ -80,14 +80,14 @@ standard terminal state, artifact index. Migration:
 
 ## 6. Root relocation vs. version migration (kept separate)
 
-- The current app does not derive `mymindRoot` from `repoRoot`; binding is an
+- The current app does not derive `openmindRoot` from `repoRoot`; binding is an
   explicit user action.
-- Copying the whole `mymind` tree to a new disk is a **user-initiated
+- Copying the whole `openmind` tree to a new disk is a **user-initiated
   relocation** (ADR-001 §5.6). The two are **never combined** in the same
   upgrade step. An app upgrade never moves user content.
 
 The local relocation contract is implemented by
-`electron/paths/mymind-relocation-service.ts` and is exposed from Diagnostics:
+`electron/paths/openmind-relocation-service.ts` and is exposed from Diagnostics:
 
 - the user selects an existing target directory and receives a read-only
   preview with canonical paths, file/directory counts, byte count and a tree
@@ -100,21 +100,21 @@ The local relocation contract is implemented by
 - a pending marker records the source/target tree digest. Startup recovery
   finishes only a matching transaction or restores the original empty target;
   a changed/non-matching target is preserved and never merged or overwritten;
-- only after the verified copy does Main bind the new `mymindRoot` and restart
+- only after the verified copy does Main bind the new `openmindRoot` and restart
   the Worker snapshot. The old root remains readable and is not deleted.
 
 ## 7. Acceptance (lossless)
 
-- Tree diff (before vs after) shows zero rename/move/delete in `mymind`.
+- Tree diff (before vs after) shows zero rename/move/delete in `openmind`.
 - File counts and paths identical.
 - Chinese-named directories identical.
 - Hidden directories identical.
 - User-unknown directories identical.
-- No app-private file appears in `mymind`.
+- No app-private file appears in `openmind`.
 - After root switch, new runs write only to the new root.
 - The old root is still readable by the old app version.
 - Migration is re-runnable.
-- Rollback does not require moving mymind content back.
+- Rollback does not require moving openmind content back.
 
 ## 8. Two-phase commit for irreversible migrations
 

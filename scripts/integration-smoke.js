@@ -3,7 +3,7 @@ const Module = require("module");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
-process.env.CCTOOLS_MYMIND_ROOT = path.join(repoRoot, "mymind");
+process.env.OPENMIND_ROOT = path.join(repoRoot, "openmind");
 
 const originalLoad = Module._load;
 Module._load = function loadWithElectronStub(request, parent, isMain) {
@@ -41,7 +41,7 @@ assert(creativeProjects.every((project) => project.completion >= 0 && project.co
 const creativeTopics = creative.getCreativeTopics("20260611");
 assert(creativeTopics.date === "20260611" && creativeTopics.topics.length > 0, "Creative topics do not follow the selected date");
 
-const wslPath = processUtils.parseWslPath("\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\cctools");
+const wslPath = processUtils.parseWslPath("\\\\wsl.localhost\\Ubuntu\\home\\say\\work\\github\\openmind");
 assert(wslPath?.distro === "Ubuntu", "WSL distro parsing failed");
 assert(wslPath?.linuxPath === "/home/say/work/github/cctools", "WSL Linux path parsing failed");
 

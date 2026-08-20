@@ -3,7 +3,7 @@ import type { BrowserAutomationStatus, McpServerDefinition } from "../../shared/
 export function buildMcpServerCatalog(browser: BrowserAutomationStatus): McpServerDefinition[] {
   const status = !browser.packageAvailable ? "unavailable" : browser.enabled ? "enabled" : "disabled";
   return [{
-    id: "cctools_browser",
+    id: "openmind_browser",
     title: "写作证据截图",
     description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
     backend: "Microsoft Playwright MCP",

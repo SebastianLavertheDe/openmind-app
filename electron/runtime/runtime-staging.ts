@@ -3,7 +3,7 @@ import path from "node:path";
 import type { AppPaths } from "../paths/app-paths-service";
 
 const RUNTIME_STAGING_SCHEMA_VERSION = 1 as const;
-const RUNTIME_STAGING_MARKER = ".cctools-runtime-staging.json";
+const RUNTIME_STAGING_MARKER = ".openmind-runtime-staging.json";
 
 export type RuntimeStagingKind =
   | "pack-install"

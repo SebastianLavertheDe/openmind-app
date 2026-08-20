@@ -16,11 +16,11 @@ description: Automates browser interactions for web testing.
   it("description 含冒号和反引号时不被截断", () => {
     const md = `---
 name: daily-article-summarizer
-description: Summarize daily articles and append to \`mymind/daily-summary/YYYYMMDD_daily_summary.md\`.
+description: Summarize daily articles and append to \`openmind/daily-summary/YYYYMMDD_daily_summary.md\`.
 allowed-tools: Bash,Write,Read
 ---`;
     const fm = parseSkillFrontmatter(md);
-    expect(fm.description).toBe("Summarize daily articles and append to `mymind/daily-summary/YYYYMMDD_daily_summary.md`.");
+    expect(fm.description).toBe("Summarize daily articles and append to `openmind/daily-summary/YYYYMMDD_daily_summary.md`.");
     expect(fm.allowedTools).toBe("Bash,Write,Read");
   });
 
@@ -42,7 +42,7 @@ args:
 envFile: .env
 permission: edit
 outputArtifacts:
-  - mymind/article/\${date}/
+  - openmind/article/\${date}/
 timeoutMs: 7200000
 ---`;
     const fm = parseSkillFrontmatter(md);
@@ -52,7 +52,7 @@ timeoutMs: 7200000
     expect(fm.args).toEqual(["run", "--env-file", ".env", "python", "main.py"]);
     expect(fm.envFile).toBe(".env");
     expect(fm.permission).toBe("edit");
-    expect(fm.outputArtifacts).toEqual(["mymind/article/${date}/"]);
+    expect(fm.outputArtifacts).toEqual(["openmind/article/${date}/"]);
     expect(fm.timeoutMs).toBe(7200000);
   });
 
@@ -64,14 +64,14 @@ surfacesAsSource:
   sourceId: x-following
   sourceName: X 关注动态
   kind: x
-  artifactRoot: mymind/post
+  artifactRoot: openmind/post
 ---`;
     const fm = parseSkillFrontmatter(md);
     expect(fm.surfacesAsSource).toEqual({
       sourceId: "x-following",
       sourceName: "X 关注动态",
       kind: "x",
-      artifactRoot: "mymind/post"
+      artifactRoot: "openmind/post"
     });
   });
 
@@ -88,10 +88,10 @@ surfacesAsSource:
   it("双引号包裹的 description 含特殊字符", () => {
     const md = `---
 name: daily-writing-orchestrator
-description: "Daily orchestrator. Creates package under mymind/creative/01-内容生产/."
+description: "Daily orchestrator. Creates package under openmind/creative/01-内容生产/."
 ---`;
     const fm = parseSkillFrontmatter(md);
-    expect(fm.description).toBe("Daily orchestrator. Creates package under mymind/creative/01-内容生产/.");
+    expect(fm.description).toBe("Daily orchestrator. Creates package under openmind/creative/01-内容生产/.");
   });
 
   it("没有 frontmatter 时返回空对象", () => {

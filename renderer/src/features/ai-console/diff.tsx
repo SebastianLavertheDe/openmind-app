@@ -58,7 +58,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
                 title={m.ai.message.previewFile(file.path)}
                 onClick={() => {
                   if (openPreview) openPreview(file.path);
-                  else void window.cctools.openPath(file.path);
+                  else void window.openmind.openPath(file.path);
                 }}
               >
                 <span>{file.path}</span>
@@ -115,8 +115,8 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
               <span>{statusLabel(file.status)}{file.additions || file.deletions ? ` · +${file.additions} -${file.deletions}` : ""}</span>
             </header>
             <div>
-              <button data-motion="icon" onClick={() => void window.cctools.openPath(file.path)}><ExternalLink size={13} />{m.ai.file.open}</button>
-              <button data-motion="icon" onClick={() => void window.cctools.revealPath(file.path)}><FolderOpen size={13} />{m.ai.file.revealFolder}</button>
+              <button data-motion="icon" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={13} />{m.ai.file.open}</button>
+              <button data-motion="icon" onClick={() => void window.openmind.revealPath(file.path)}><FolderOpen size={13} />{m.ai.file.revealFolder}</button>
               {file.patch ? <CopyButton text={file.patch} /> : null}
             </div>
             {file.patch ? <PatchView patch={file.patch} /> : null}

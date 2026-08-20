@@ -17,31 +17,31 @@ const path = require("node:path");
 
 const buildRoot = path.resolve(__dirname, "..", ".build");
 const appPathsModule = require(path.join(buildRoot, "electron/electron/paths/app-paths-service.js"));
-const relocationModule = require(path.join(buildRoot, "electron/electron/paths/mymind-relocation-service.js"));
+const relocationModule = require(path.join(buildRoot, "electron/electron/paths/openmind-relocation-service.js"));
 const backupModule = require(path.join(buildRoot, "electron/electron/backup/app-state-backup.js"));
 const runStoreModule = require(path.join(buildRoot, "electron/electron/execution/run-store.js"));
 const runtimeModule = require(path.join(buildRoot, "electron/electron/runtime/runtime-pack-service.js"));
 const verifierModule = require(path.join(buildRoot, "electron/electron/runtime/runtime-pack-verifier.js"));
-const reportOutput = path.resolve(process.env.CCTOOLS_RECOVERY_DRILL_OUTPUT || path.join(buildRoot, "recovery-drill-report.json"));
+const reportOutput = path.resolve(process.env.OPENMIND_RECOVERY_DRILL_OUTPUT || path.join(buildRoot, "recovery-drill-report.json"));
 
 const {
   buildAppPaths,
   ensureAppPaths
 } = appPathsModule;
 const {
-  previewMymindRelocation,
-  relocateMymind
+  previewOpenmindRelocation,
+  relocateOpenmind
 } = relocationModule;
 const { AppStateBackupService } = backupModule;
 const { RunStore } = runStoreModule;
 const { RuntimePackService } = runtimeModule;
 const { canonicalRuntimePackPayload } = verifierModule;
 
-const drillRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-built-recovery-drill-"));
+const drillRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-built-recovery-drill-"));
 
 try {
   assertBuildServices();
-  runMymindRelocationDrill();
+  runOpenmindRelocationDrill();
   runInterruptedRunDrill();
   runAppStateBackupDrill();
   runRuntimeRollbackDrill();
@@ -58,7 +58,7 @@ function writeReport(status, error = null) {
   fs.mkdirSync(path.dirname(reportOutput), { recursive: true });
   fs.writeFileSync(reportOutput, `${JSON.stringify({
     schemaVersion: 1,
-    kind: "cctools-built-recovery-drill",
+    kind: "openmind-built-recovery-drill",
     generatedAt: new Date().toISOString(),
     status,
     scope: "compiled Main-process services on the current host",
@@ -70,7 +70,7 @@ function writeReport(status, error = null) {
 function assertBuildServices() {
   for (const relative of [
     "electron/electron/paths/app-paths-service.js",
-    "electron/electron/paths/mymind-relocation-service.js",
+    "electron/electron/paths/openmind-relocation-service.js",
     "electron/electron/backup/app-state-backup.js",
     "electron/electron/execution/run-store.js",
     "electron/electron/runtime/runtime-pack-service.js"
@@ -114,28 +114,28 @@ function runInterruptedRunDrill() {
   assert(afterRestart.recoverInterrupted("second-restart").length === 0, "terminal recovered Run was recovered twice");
 }
 
-function runMymindRelocationDrill() {
-  const root = path.join(drillRoot, "mymind-relocation");
-  const source = path.join(root, "source-mymind");
-  const target = path.join(root, "target-mymind");
+function runOpenmindRelocationDrill() {
+  const root = path.join(drillRoot, "openmind-relocation");
+  const source = path.join(root, "source-openmind");
+  const target = path.join(root, "target-openmind");
   const paths = buildAppPaths(path.join(root, "user-data"));
   ensureAppPaths(paths);
   write(path.join(source, "article", "one.md"), "user-content");
   fs.mkdirSync(target, { recursive: true });
 
   const input = { sourceDirectory: source, targetDirectory: target, paths };
-  assert(previewMymindRelocation(input).canCommit, "mymind relocation preflight failed");
-  const report = relocateMymind(input);
-  assert(report.status === "committed" && report.verified && report.sourcePreserved, "mymind relocation was not verified");
-  assert(fs.readFileSync(path.join(source, "article", "one.md"), "utf8") === "user-content", "mymind source was modified");
-  assert(fs.readFileSync(path.join(target, "article", "one.md"), "utf8") === "user-content", "mymind target is incomplete");
+  assert(previewOpenmindRelocation(input).canCommit, "openmind relocation preflight failed");
+  const report = relocateOpenmind(input);
+  assert(report.status === "committed" && report.verified && report.sourcePreserved, "openmind relocation was not verified");
+  assert(fs.readFileSync(path.join(source, "article", "one.md"), "utf8") === "user-content", "openmind source was modified");
+  assert(fs.readFileSync(path.join(target, "article", "one.md"), "utf8") === "user-content", "openmind target is incomplete");
 }
 
 function runAppStateBackupDrill() {
   const root = path.join(drillRoot, "app-state-backup");
   const paths = buildAppPaths(path.join(root, "user-data"));
   ensureAppPaths(paths);
-  write(paths.settingsFile, JSON.stringify({ schemaVersion: 2, mymindRoot: "/external/mymind" }));
+  write(paths.settingsFile, JSON.stringify({ schemaVersion: 2, openmindRoot: "/external/openmind" }));
   write(path.join(paths.state, "root-1", "session.json"), "session-v1");
   const backup = path.join(root, "state-backup.zip");
   const service = new AppStateBackupService(paths);
@@ -145,14 +145,14 @@ function runAppStateBackupDrill() {
   write(path.join(paths.state, "root-1", "session.json"), "partially-applied");
   const imported = service.importFromFile(backup);
   assert(imported.operation === "import", "app-state backup restore did not complete");
-  assert(fs.readFileSync(paths.settingsFile, "utf8").includes("/external/mymind"), "settings restore failed");
+  assert(fs.readFileSync(paths.settingsFile, "utf8").includes("/external/openmind"), "settings restore failed");
   assert(fs.readFileSync(path.join(paths.state, "root-1", "session.json"), "utf8") === "session-v1", "state restore failed");
 
   // Simulate a process dying during commit. Constructor startup recovery must
   // restore the previous snapshot and remove the transaction marker.
   const transaction = path.join(paths.staging, "state-backup-restore-recovery");
   write(path.join(transaction, "previous", "settings", "settings.json"), "before-crash");
-  write(path.join(transaction, "marker.json"), JSON.stringify({ kind: "cctools-app-state-backup", schemaVersion: 1, phase: "committing" }));
+  write(path.join(transaction, "marker.json"), JSON.stringify({ kind: "openmind-app-state-backup", schemaVersion: 1, phase: "committing" }));
   write(paths.settingsFile, "partially-applied-again");
   new AppStateBackupService(paths);
   assert(fs.readFileSync(paths.settingsFile, "utf8") === "before-crash", "app-state crash recovery did not restore the previous snapshot");

@@ -18,7 +18,7 @@ vi.mock(import("./provider-command-runner"), () => ({
 const roots: string[] = [];
 const originalPath = process.env.PATH;
 function createRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-providers-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-providers-"));
   roots.push(root);
   return root;
 }

@@ -9,8 +9,8 @@ const { spawn } = require("node:child_process");
 const appRoot = path.resolve(__dirname, "..");
 const buildRunStore = path.join(appRoot, ".build", "electron", "electron", "execution", "run-store.js");
 const childScript = path.join(__dirname, "process-crash-recovery-child.js");
-const reportOutput = path.resolve(process.env.CCTOOLS_PROCESS_CRASH_RECOVERY_OUTPUT || path.join(appRoot, ".build", "process-crash-recovery-report.json"));
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-process-crash-drill-"));
+const reportOutput = path.resolve(process.env.OPENMIND_PROCESS_CRASH_RECOVERY_OUTPUT || path.join(appRoot, ".build", "process-crash-recovery-report.json"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-process-crash-drill-"));
 const runsRoot = path.join(root, "runs");
 const secret = "process-crash-drill-secret";
 
@@ -28,7 +28,7 @@ function writeReport(status, error = null) {
   fs.mkdirSync(path.dirname(reportOutput), { recursive: true });
   fs.writeFileSync(reportOutput, `${JSON.stringify({
     schemaVersion: 1,
-    kind: "cctools-process-crash-recovery-drill",
+    kind: "openmind-process-crash-recovery-drill",
     generatedAt: new Date().toISOString(),
     status,
     scope: "compiled RunStore restart after child-process forced termination on the current host",

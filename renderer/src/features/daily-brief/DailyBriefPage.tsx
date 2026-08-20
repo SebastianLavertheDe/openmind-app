@@ -34,7 +34,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
     setReading(true);
     setError("");
     try {
-      const next = await window.cctools.readContent(path);
+      const next = await window.openmind.readContent(path);
       setSelectedPath(path);
       setRecord(next);
       setDraft(next.content || "");
@@ -51,7 +51,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
     setLoading(true);
     setError("");
     try {
-      const next = await window.cctools.listContent("summaries", "");
+      const next = await window.openmind.listContent("summaries", "");
       setFiles(next);
       const compact = String(initialDate || "").replace(/\D/g, "").slice(0, 8);
       const preferred = next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next.find((file) => file.path === selectedPath) || next[0];
@@ -69,7 +69,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
   }, [initialDate, openFile, selectedPath]);
 
   useEffect(() => { void load(); }, []);
-  useEffect(() => window.cctools.onSkillEvent((event) => {
+  useEffect(() => window.openmind.onSkillEvent((event) => {
     if (event.type === "status" && event.state === "success" && String(event.skillId || "") === "daily-article-summarizer") void load();
   }), [load]);
 
@@ -88,7 +88,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
     if (!record || !dirty || saving) return;
     setSaving(true);
     try {
-      const next = await window.cctools.writeContent(record.path, draft);
+      const next = await window.openmind.writeContent(record.path, draft);
       setRecord(next);
       setDraft(next.content || draft);
       setDirty(false);
@@ -120,7 +120,7 @@ export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: st
       icon: FolderOpen,
       priority: "secondary",
       className: "document-open-button",
-      onSelect: () => void window.cctools.openPath(record.path)
+      onSelect: () => void window.openmind.openPath(record.path)
     }
   ] : [];
 

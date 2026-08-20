@@ -26,8 +26,8 @@ export const LEGACY_KIND_MATCHERS: ReadonlyArray<{ includes: string; kind: Conte
 ];
 
 // availableContentDates 的内容根目录（相对 repoRoot）：dateRoots 下按日期子目录，fileRoots 下按文件名含日期。
-export const CONTENT_DATE_ROOTS = ["mymind/article", "mymind/post", "mymind/reddit"] as const;
-export const CONTENT_FILE_ROOTS = ["mymind/daily-summary", "mymind/daily-topic"] as const;
+export const CONTENT_DATE_ROOTS = ["openmind/article", "openmind/post", "openmind/reddit"] as const;
+export const CONTENT_FILE_ROOTS = ["openmind/daily-summary", "openmind/daily-topic"] as const;
 
 // inbox 过滤栏的展示顺序（不含 html/unknown）。
 export const INBOX_FILTER_KIND_ORDER: ReadonlyArray<ContentKind> = ["article", "summary", "topic", "post", "reddit"];
@@ -37,12 +37,12 @@ export const LEGACY_GET_CONTENT_ALL_KINDS = ["articles", "reddit", "posts", "sum
 
 /** getContent 走日期子目录的 legacy kind → repo 相对路径前缀（不含 date）。 */
 export const LEGACY_CONTENT_DATE_DIRECTORY_KINDS: Record<string, readonly string[]> = {
-  reddit: ["mymind", "reddit"],
-  posts: ["mymind", "post"]
+  reddit: ["openmind", "reddit"],
+  posts: ["openmind", "post"]
 };
 
 /** getContent 走文件名含日期的 legacy kind → repo 相对目录。 */
 export const LEGACY_CONTENT_FILE_ROOT_KINDS: Record<string, readonly string[]> = {
-  summaries: ["mymind", "daily-summary"],
-  topics: ["mymind", "daily-topic"]
+  summaries: ["openmind", "daily-summary"],
+  topics: ["openmind", "daily-topic"]
 };

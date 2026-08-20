@@ -28,15 +28,15 @@ const manifestSchemaPath = path.join(buildRoot, "electron", "shared", "skill-man
 const browserCapturePath = path.join(buildRoot, "electron", "electron", "ai", "browser-evidence-capture.js");
 
 const config = {
-  cycles: positiveInteger("CCTOOLS_SOAK_CYCLES", 3),
-  manifestCount: positiveInteger("CCTOOLS_SOAK_MANIFESTS", 1000),
-  sessionCount: positiveInteger("CCTOOLS_SOAK_SESSIONS", 100),
-  eventCount: positiveInteger("CCTOOLS_SOAK_EVENTS", 1000),
-  brokerRunCount: positiveInteger("CCTOOLS_SOAK_BROKER_RUNS", 100),
-  browserContractCycles: positiveInteger("CCTOOLS_SOAK_BROWSER_CYCLES", 1000)
+  cycles: positiveInteger("OPENMIND_SOAK_CYCLES", 3),
+  manifestCount: positiveInteger("OPENMIND_SOAK_MANIFESTS", 1000),
+  sessionCount: positiveInteger("OPENMIND_SOAK_SESSIONS", 100),
+  eventCount: positiveInteger("OPENMIND_SOAK_EVENTS", 1000),
+  brokerRunCount: positiveInteger("OPENMIND_SOAK_BROKER_RUNS", 100),
+  browserContractCycles: positiveInteger("OPENMIND_SOAK_BROWSER_CYCLES", 1000)
 };
 
-const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-stability-soak-"));
+const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-stability-soak-"));
 const startedAt = new Date().toISOString();
 const started = performance.now();
 let report;
@@ -68,7 +68,7 @@ async function main() {
 
     report = {
       schemaVersion: 1,
-      kind: "cctools-local-stability-soak",
+      kind: "openmind-local-stability-soak",
       generatedAt: new Date().toISOString(),
       startedAt,
       status: "passed",
@@ -95,7 +95,7 @@ async function main() {
   } catch (error) {
     report = {
       schemaVersion: 1,
-      kind: "cctools-local-stability-soak",
+      kind: "openmind-local-stability-soak",
       generatedAt: new Date().toISOString(),
       startedAt,
       status: "failed",
@@ -124,15 +124,15 @@ function runManifestValidationSoak(SkillManifestSchema) {
   for (let index = 0; index < config.manifestCount; index += 1) {
     lastId = `stability-soak-${index}`;
     const parsed = SkillManifestSchema.parse({
-      apiVersion: "cctools.dev/skill/v1",
+      apiVersion: "openmind.dev/skill/v1",
       id: lastId,
       version: "1.0.0",
-      publisher: { id: "cctools", displayName: "CC Tools" },
+      publisher: { id: "openmind", displayName: "OpenMind" },
       kind: "process",
       display: { name: `Stability Soak ${index}`, description: "Synthetic local validation fixture." },
       entrypoint: { runtime: "python", script: "main.py", args: [] },
       runtime: { version: ">=3.11,<3.13", dependencyFile: "pyproject.toml", packs: ["python-core"] },
-      capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] } },
+      capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] } },
       artifacts: [],
       execution: {
         concurrency: { maxInstances: 1, mutexes: [] },
@@ -278,7 +278,7 @@ function runCliBrowserEvidenceContractSoak(buildControlledCaptureCode, cycle) {
   let codeBytes = 0;
   for (let index = 0; index < config.browserContractCycles; index += 1) {
     const code = buildControlledCaptureCode({
-      imagePath: `/tmp/cctools-soak-${cycle}-${index}.png`,
+      imagePath: `/tmp/openmind-soak-${cycle}-${index}.png`,
       quote: `quote-${index}`,
       scope: index % 2 ? "component" : "auto"
     });

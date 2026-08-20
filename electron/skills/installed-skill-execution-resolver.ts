@@ -28,13 +28,13 @@ export class InstalledSkillExecutionError extends Error {
  * resolver performs package/input checks; RuntimeManager owns execution-time
  * preparation, and Broker owns process lifecycle. The AI provider comes from
  * the single plaintext `config/providers.yaml` source of truth (injected as
- * `CCTOOLS_PROVIDER_*` env), shared with the crontab-driven Python path.
+ * `OPENMIND_PROVIDER_*` env), shared with the crontab-driven Python path.
  */
 export class InstalledSkillExecutionResolver {
   constructor(
     private readonly packages: SkillPackageService,
     private readonly runtimes: RuntimeManager,
-    private readonly mymindRoot: string,
+    private readonly openmindRoot: string,
     private readonly rootGeneration: number,
     private readonly resolveExportBinding?: SkillExportBindingResolver
   ) {}
@@ -137,7 +137,7 @@ export class InstalledSkillExecutionResolver {
       packageRoot,
       skillPath,
       referencePaths: listReferenceFiles(packageRoot),
-      mymindRoot: canonicalDirectory(this.mymindRoot),
+      openmindRoot: canonicalDirectory(this.openmindRoot),
       capabilities: inspection.manifest.capabilities
     };
   }
@@ -236,7 +236,7 @@ export class InstalledSkillExecutionResolver {
     if (request.rootGeneration !== this.rootGeneration) throw new InstalledSkillExecutionError("Run root generation 已过期。 ");
     if (manifest.kind === "agent") throw cliOnlyAgentError(manifest.id);
     const packageRoot = canonicalDirectory(record.packagePath);
-    // The single plaintext config/providers.yaml feeds the 7 CCTOOLS_PROVIDER_*
+    // The single plaintext config/providers.yaml feeds the 7 OPENMIND_PROVIDER_*
     // env vars; the crontab Python path reads the same file directly.
     const provider = readDefaultProviderEnv();
     const externalBindings: Record<string, ExternalBinding> = {};
@@ -263,7 +263,7 @@ export class InstalledSkillExecutionResolver {
       digest: record.digest,
       rootGeneration: this.rootGeneration,
       skillHome: packageRoot,
-      mymindRoot: canonicalDirectory(this.mymindRoot),
+      openmindRoot: canonicalDirectory(this.openmindRoot),
       capabilities: manifest.capabilities,
       runtime: {
         target: runtime.target,
@@ -325,9 +325,9 @@ export class InstalledSkillExecutionResolver {
         args: [],
         envFile: null,
         group: manifest.display.group,
-        permission: manifest.capabilities.mymind.write.length ? "edit" : "read-only",
+        permission: manifest.capabilities.openmind.write.length ? "edit" : "read-only",
         outputArtifacts: manifest.artifacts.map((artifact) => artifact.path
-          ? `mymind/${artifact.path}`
+          ? `openmind/${artifact.path}`
           : `external:${artifact.externalExportId}`),
         timeoutMs: manifest.execution.timeoutSeconds * 1000
       },
@@ -395,9 +395,9 @@ function resolveEntrypointEnv(
  */
 function resolveSourceContextEnv(inputs: Record<string, unknown>): Record<string, string> {
   const mappings: Record<string, string> = {
-    sourceId: "CCTOOLS_SOURCE_ID",
-    sourceUrl: "CCTOOLS_SOURCE_URL",
-    sourceName: "CCTOOLS_SOURCE_NAME"
+    sourceId: "OPENMIND_SOURCE_ID",
+    sourceUrl: "OPENMIND_SOURCE_URL",
+    sourceName: "OPENMIND_SOURCE_NAME"
   };
   const result: Record<string, string> = {};
   for (const [inputKey, envName] of Object.entries(mappings)) {

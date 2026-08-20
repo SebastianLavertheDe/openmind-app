@@ -8,7 +8,7 @@ describe("state-directory", () => {
   let root = "";
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-state-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-state-"));
   });
 
   afterEach(() => {
