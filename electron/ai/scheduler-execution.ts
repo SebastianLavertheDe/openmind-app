@@ -3,6 +3,7 @@ import {
   ApprovalDecisionSchema,
   type AiEvent,
   type AiRun,
+  type AiSession,
   type ApprovalDecision,
   type ApprovalRequest
 } from "../../shared/contracts";
@@ -47,8 +48,7 @@ export interface SchedulerExecutionHost {
 
 export async function persistScheduledTurnAndPump(host: SchedulerExecutionHost, run: AiRun): Promise<void> {
   try {
-    const skillInvocation = parseSkillSlashInvocation(run.prompt, host.skillTools.listDefinitions());
-    const skillBridge = skillInvocation ? host.skillTools.providerSkillBridge(skillInvocation.skill.id) : null;
+    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, host.store.getSession(run.sessionId), run.prompt);
     const modelInput = skillInvocation
       ? skillBridge ? composeNativeSkillTaskPrompt(run, skillInvocation) : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
@@ -107,8 +107,7 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     }
     const turnImages = extractImageContexts(host.projectRoot, run.contexts, host.stateRoot);
     if (turnImages.length && provider.supportsImages === false) throw new Error("当前 Provider 不支持图片附件。");
-    const skillInvocation = parseSkillSlashInvocation(run.prompt, host.skillTools.listDefinitions());
-    const skillBridge = skillInvocation ? host.skillTools.providerSkillBridge(skillInvocation.skill.id) : null;
+    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt);
     const contextState = host.store.getContextState(run.sessionId);
     const baseProviderPrompt = skillInvocation
       ? skillBridge ? composeNativeSkillTaskPrompt(run, skillInvocation) : composeNativeSkillProviderPrompt(run, skillInvocation)
@@ -271,4 +270,17 @@ async function finalizeScheduledRun(host: SchedulerExecutionHost, run: AiRun, ou
 function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unknown>): boolean {
   if (kind !== "assistant-message" || payload.phase === "commentary") return false;
   return Boolean(String(payload.text || payload.message || "").trim());
+}
+
+function resolveSessionSkillInvocation(host: SchedulerExecutionHost, session: AiSession, prompt: string) {
+  const snapshot = session.skillSnapshot;
+  if (!snapshot) throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
+  const skillInvocation = parseSkillSlashInvocation(prompt, snapshot.map((entry) => entry.definition));
+  if (!skillInvocation) return { skillInvocation: null, skillBridge: null };
+  const entry = snapshot.find((candidate) => candidate.definition.id === skillInvocation.skill.id);
+  if (!entry) throw new Error(`AI 会话 Skill 快照不完整：${skillInvocation.skill.id}`);
+  return {
+    skillInvocation,
+    skillBridge: host.skillTools.providerSkillBridge(entry)
+  };
 }

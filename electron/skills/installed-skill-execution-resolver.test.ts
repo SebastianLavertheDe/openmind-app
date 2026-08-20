@@ -32,23 +32,16 @@ afterEach(() => {
 });
 
 describe("InstalledSkillExecutionResolver", () => {
-  it("builds an execution plan once the installed package is active and ready", async () => {
+  it("builds an execution plan from an intact installed package", async () => {
     const fixture = createFixture();
     const resolver = fixture.resolver;
     const request = runRequest(fixture.digest);
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
     const plan = await resolver.resolve(request, "run-1");
     expect(plan).toBeTruthy();
   });
 
-  it("lists only active, ready Installed Skill metadata without exposing executable paths", () => {
-    const fixture = createFixture();
-    expect(fixture.resolver.listDefinitions()).toEqual([]);
-
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
-
+  it("lists only usable Installed Skill metadata without exposing executable paths", () => {
+    const fixture = createFixture(false, "python", { agent: true });
     expect(fixture.resolver.listDefinitions()).toEqual([
       expect.objectContaining({
         id: "resolver-fixture",
@@ -60,16 +53,48 @@ describe("InstalledSkillExecutionResolver", () => {
       })
     ]);
     expect(fixture.resolver.listDefinitions()[0]?.command).not.toContain(process.execPath);
+
+    const installed = fixture.packages.getInstalledById("resolver-fixture")!;
+    fs.appendFileSync(path.join(installed.packagePath, "main.py"), "\nchanged = True\n");
+    expect(fixture.resolver.listDefinitions()).toEqual([]);
   });
 
-  realSkillIt("bridges a ready Agent from the app-private SkillStore without falling back to workspace paths", () => {
+  it("filters disabled packages for current catalogs but includes them in legacy backfill", () => {
+    const fixture = createFixture(false, "python", { agent: true });
+    const enabledSnapshot = fixture.resolver.captureSessionSnapshot();
+    expect(enabledSnapshot).toHaveLength(1);
+    expect(enabledSnapshot[0]).toMatchObject({
+      definition: { id: "resolver-fixture" },
+      installed: { key: fixture.key, version: "1.0.0", digest: fixture.digest }
+    });
+
+    fixture.packages.setEnabled(fixture.key, fixture.digest, false);
+
+    expect(fixture.resolver.listDefinitions()).toEqual([]);
+    expect(fixture.resolver.captureSessionSnapshot()).toEqual([]);
+    expect(fixture.resolver.captureSessionSnapshot(true)).toEqual(enabledSnapshot);
+  });
+
+  it("fails the current catalog closed on corrupt preferences without blocking legacy capture", () => {
+    const fixture = createFixture(false, "python", { agent: true });
+    fs.writeFileSync(path.join(fixture.paths.skills!, "skill-preferences.json"), "{broken", "utf8");
+
+    expect(fixture.resolver.listDefinitions()).toEqual([]);
+    expect(fixture.resolver.captureSessionSnapshot()).toEqual([]);
+    expect(fixture.resolver.captureSessionSnapshot(true)).toEqual([
+      expect.objectContaining({ definition: expect.objectContaining({ id: "resolver-fixture" }) })
+    ]);
+  });
+
+  realSkillIt("bridges a usable Agent from the app-private SkillStore without falling back to workspace paths", () => {
     const fixture = createBatchAFixture("creative-writing", {
       resolveProviderProfile: (profileId) => profileId === "profile-main" ? providerProfile() : null
     });
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
-    const bridge = fixture.resolver.providerSkillBridge("creative-writing");
+    const snapshot = fixture.resolver.captureSessionSnapshot()
+      .find((entry) => entry.definition.id === "creative-writing")!;
+    fixture.packages.setEnabled(snapshot.installed!.key, snapshot.installed!.digest, false);
+    const bridge = fixture.resolver.providerSkillBridge(snapshot);
     expect(bridge).toMatchObject({
       id: "creative-writing",
       version: "1.0.0",
@@ -83,16 +108,119 @@ describe("InstalledSkillExecutionResolver", () => {
       "references/wechat-methodology.md"
     ]));
 
-    const processFixture = createFixture();
-    processFixture.packages.markReadiness(processFixture.key, processFixture.digest, "ready");
-    processFixture.packages.activate(processFixture.key, processFixture.digest);
-    expect(processFixture.resolver.providerSkillBridge(processFixture.key)).toBeNull();
+    expect(fixture.resolver.listDefinitions()).toEqual([]);
+
+  });
+
+  it("rejects a non-Agent snapshot instead of falling back to a same-name workspace Skill", () => {
+    const fixture = createFixture();
+    const record = fixture.packages.getInstalled(fixture.key, fixture.digest)!;
+    const snapshot = {
+      definition: {
+        id: record.id,
+        title: "Resolver Fixture",
+        description: "Process packages are not provider-native Skills",
+        cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,
+        command: "managed-runtime"
+      },
+      installed: { key: record.key, version: record.version, digest: record.digest }
+    };
+
+    expect(fixture.resolver.captureSessionSnapshot()).toEqual([]);
+    expect(() => fixture.resolver.providerSkillBridge(snapshot)).toThrow(/不是 Agent 类型/);
+    expect(() => fixture.resolver.providerSkillBridge({
+      ...snapshot,
+      installed: null
+    })).toThrow(/provenance/);
+    expect(() => fixture.resolver.providerSkillBridge({
+      ...snapshot,
+      installed: { ...snapshot.installed!, digest: "f".repeat(64) }
+    })).toThrow(/替换或删除/);
+    expect(() => fixture.resolver.providerSkillBridge({
+      ...snapshot,
+      installed: { ...snapshot.installed!, key: "other/resolver-fixture" }
+    })).toThrow(/替换或删除/);
+    expect(() => fixture.resolver.providerSkillBridge({
+      ...snapshot,
+      installed: { ...snapshot.installed!, version: "2.0.0" }
+    })).toThrow(/替换或删除/);
+
+    fs.appendFileSync(path.join(fixture.packages.getInstalled(fixture.key)!.packagePath, "main.py"), "\ntampered = True\n");
+    expect(() => fixture.resolver.providerSkillBridge(snapshot)).toThrow(/digest/);
+  });
+
+  it("checks enabled only before queue admission, not during asynchronous plan resolution", async () => {
+    const fixture = createFixture();
+    const request = runRequest(fixture.digest);
+    fixture.packages.setEnabled(fixture.key, fixture.digest, false);
+
+    expect(() => fixture.resolver.assertBrokerRunnable(request)).toThrow(/停用/);
+    await expect(fixture.resolver.resolve(request, "already-queued")).resolves.toMatchObject({
+      skillId: "resolver-fixture",
+      digest: fixture.digest
+    });
+  });
+
+  realSkillIt("rejects a disabled Workflow at the new-workflow admission boundary", () => {
+    const fixture = createBatchAFixture("rss-to-summary-workflow");
+    expect(fixture.resolver.workflowManifest("rss-to-summary-workflow")).toMatchObject({
+      id: "rss-to-summary-workflow",
+      kind: "workflow"
+    });
+
+    fixture.packages.setEnabled(fixture.key, fixture.digest, false);
+
+    expect(() => fixture.resolver.workflowManifest("rss-to-summary-workflow")).toThrow(/停用/);
+  });
+
+  it("admits a Workflow only after pinning every enabled and usable Process Step", () => {
+    const fixture = createWorkflowAdmissionFixture();
+
+    expect(fixture.resolver.admitWorkflow("resolver-workflow")).toEqual({
+      manifest: expect.objectContaining({ id: "resolver-workflow", kind: "workflow" }),
+      steps: [
+        {
+          stepId: "first",
+          skillId: "resolver-fixture",
+          version: "1.0.0",
+          digest: fixture.first.digest
+        },
+        {
+          stepId: "second",
+          skillId: "resolver-step-two",
+          version: "1.0.0",
+          digest: fixture.second.digest
+        }
+      ]
+    });
+  });
+
+  it("rejects Workflow admission when the body or any downstream Step is disabled", () => {
+    const bodyDisabled = createWorkflowAdmissionFixture();
+    bodyDisabled.packages.setEnabled(bodyDisabled.workflow.key, bodyDisabled.workflow.digest, false);
+    expect(() => bodyDisabled.resolver.admitWorkflow("resolver-workflow")).toThrow(/停用/);
+
+    const stepDisabled = createWorkflowAdmissionFixture();
+    stepDisabled.packages.setEnabled(stepDisabled.second.key, stepDisabled.second.digest, false);
+    expect(() => stepDisabled.resolver.admitWorkflow("resolver-workflow")).toThrow(/resolver-step-two|停用/);
+  });
+
+  it("keeps an admitted Workflow Step runnable after disable but rechecks exact package bytes", () => {
+    const fixture = createWorkflowAdmissionFixture();
+    const pinned = fixture.resolver.admitWorkflow("resolver-workflow").steps[1];
+    const request = { skillId: pinned.skillId, version: pinned.version, digest: pinned.digest };
+
+    fixture.packages.setEnabled(fixture.second.key, fixture.second.digest, false);
+    expect(() => fixture.resolver.assertBrokerRunnable(request)).toThrow(/停用/);
+    expect(() => fixture.resolver.assertAdmittedBrokerRunnable(request)).not.toThrow();
+    expect(() => fixture.resolver.assertAdmittedBrokerRunnable({ ...request, digest: "f".repeat(64) })).toThrow(/identity/);
+
+    fs.appendFileSync(path.join(fixture.second.packagePath, "main.py"), "\ntampered = True\n");
+    expect(() => fixture.resolver.assertAdmittedBrokerRunnable(request)).toThrow(/digest/);
   });
 
   realSkillIt("rejects Broker execution for Agent Skills", async () => {
     const fixture = createBatchAFixture("creative-writing");
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     await expect(fixture.resolver.resolve(SkillRunRequestSchema.parse({
       skillId: "creative-writing",
@@ -108,15 +236,13 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("pins package digest, manifest input templates and managed Runtime executable", async () => {
     const fixture = createFixture();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-3");
     expect(plan.version).toBe("1.0.0");
     expect(plan.digest).toBe(fixture.digest);
     expect(plan.process.executable).toBe(fs.realpathSync(process.execPath));
     expect(plan.process.args.at(-1)).toBe("20260805");
-    expect(plan.process.cwd).toContain("1.0.0-");
+    expect(plan.process.cwd).toBe(path.join(fixture.paths.skills!, "cctools", "resolver-fixture"));
     expect(plan.maxInstances).toBe(1);
     expect(plan.artifacts?.[0]).toMatchObject({ logicalPath: "daily-summary/20260805.md", type: "markdown" });
     await plan.prepareRuntime?.();
@@ -124,8 +250,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("applies declared input defaults before resolving args and artifacts", async () => {
     const fixture = createFixture();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-default-input");
 
@@ -136,8 +260,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("resolves an Export Location template only from the declared binding", async () => {
     const fixture = createFixture(false, "python", { externalExport: true });
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve({
       ...runRequest(fixture.digest),
@@ -153,8 +275,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("passes bounded source trigger context through the minimal installed-process environment", async () => {
     const fixture = createFixture();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const plan = await fixture.resolver.resolve({
       ...runRequest(fixture.digest),
@@ -175,8 +295,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("accepts a compatible Workflow-style caret version reference", async () => {
     const fixture = createFixture();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const request = { ...runRequest(fixture.digest), version: "^1.0.0" };
     const plan = await fixture.resolver.resolve(request, "run-range");
@@ -185,17 +303,13 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("rejects package content changes after installation", async () => {
     const fixture = createFixture();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
-    const active = fixture.packages.getActiveInstalled("resolver-fixture")!;
-    fs.appendFileSync(path.join(active.packagePath, "main.py"), "\nchanged = True\n");
+    const installed = fixture.packages.getInstalledById("resolver-fixture")!;
+    fs.appendFileSync(path.join(installed.packagePath, "main.py"), "\nchanged = True\n");
     await expect(fixture.resolver.resolve(runRequest(fixture.digest), "run-4")).rejects.toThrow(/digest/);
   });
 
   it("executes a formal installed Skill through RuntimeManager and ExecutionBroker", async () => {
     const fixture = createFixture(false, "node");
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -219,8 +333,6 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it.skipIf(process.platform !== "linux")("runs an installed Skill with only the absolute executable extracted from a managed Runtime Pack", async () => {
     const fixture = createFixture(false, "node", { managedRuntime: true });
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -250,8 +362,6 @@ describe("InstalledSkillExecutionResolver", () => {
     const fixture = createBatchAFixture();
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -297,8 +407,6 @@ describe("InstalledSkillExecutionResolver", () => {
       ].join("\n")
     );
 
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -358,8 +466,6 @@ describe("InstalledSkillExecutionResolver", () => {
         ""
       ].join("\n")
     );
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -426,8 +532,6 @@ describe("InstalledSkillExecutionResolver", () => {
         ""
       ].join("\n")
     );
-    fixture.packages.markReadiness(fixture.key, fixture.digest, "ready");
-    fixture.packages.activate(fixture.key, fixture.digest);
 
     const broker = new ExecutionBroker(
       fixture.paths,
@@ -516,8 +620,6 @@ describe("InstalledSkillExecutionResolver", () => {
       );
       const installed = fixture.packages.install(sourceCopy);
 
-      fixture.packages.markReadiness(installed.key, installed.digest, "ready");
-      fixture.packages.activate(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         fixture.paths,
@@ -652,8 +754,6 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n")
       );
       const installed = packages.install(sourceCopy);
-      packages.markReadiness(installed.key, installed.digest, "ready");
-      packages.activate(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -765,8 +865,6 @@ describe("InstalledSkillExecutionResolver", () => {
       });
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, mymindRoot, 1);
       const installed = packages.install(skillSourcePath("knowledge-wiki-compiler"));
-      packages.markReadiness(installed.key, installed.digest, "ready");
-      packages.activate(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -919,8 +1017,6 @@ describe("InstalledSkillExecutionResolver", () => {
         )
       );
       const installed = packages.install(sourceCopy);
-      packages.markReadiness(installed.key, installed.digest, "ready");
-      packages.activate(installed.key, installed.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -1077,21 +1173,15 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n")
       );
       const redditInstalled = packages.install(redditSourceCopy);
-      packages.markReadiness(redditInstalled.key, redditInstalled.digest, "ready");
-      packages.activate(redditInstalled.key, redditInstalled.digest);
 
       // Install daily-article-summarizer (no overlay; uses bundled config).
       const summarizerSource = path.join(paths.staging, "summarizer-source");
       copyTree(skillSourcePath("daily-article-summarizer"), summarizerSource);
       const summarizerInstalled = packages.install(summarizerSource);
-      packages.markReadiness(summarizerInstalled.key, summarizerInstalled.digest, "ready");
-      packages.activate(summarizerInstalled.key, summarizerInstalled.digest);
 
       // Install the third link against the exact same root and Runtime Pack.
       const topicSource = skillSourcePath("daily-topic-selector");
       const topicInstalled = packages.install(topicSource);
-      packages.markReadiness(topicInstalled.key, topicInstalled.digest, "ready");
-      packages.activate(topicInstalled.key, topicInstalled.digest);
 
       const broker = new ExecutionBroker(
         paths,
@@ -1196,7 +1286,7 @@ describe("InstalledSkillExecutionResolver", () => {
 function createFixture(
   withProvider = false,
   runtimeKind: "python" | "node" = "python",
-  options: { managedRuntime?: boolean; credentialFile?: boolean; externalExport?: boolean } = {}
+  options: { managedRuntime?: boolean; credentialFile?: boolean; externalExport?: boolean; agent?: boolean } = {}
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-installed-resolver-"));
   roots.push(root);
@@ -1225,7 +1315,13 @@ function createFixture(
     fs.writeFileSync(path.join(source, "main.py"), "print('ok')\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='resolver-fixture'\nversion='1.0.0'\n");
   }
-  fs.writeFileSync(path.join(source, "cctools.skill.yaml"), manifestYaml(withProvider, runtimeKind, options.externalExport));
+  if (options.agent) {
+    fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: resolver-fixture\ndescription: Test Agent Skill\n---\n\n# Resolver Fixture\n");
+  }
+  fs.writeFileSync(
+    path.join(source, "cctools.skill.yaml"),
+    options.agent ? agentManifestYaml() : manifestYaml(withProvider, runtimeKind, options.externalExport)
+  );
   const packages = new SkillPackageService(paths);
   const installed = packages.install(source);
   const key = installed.key;
@@ -1264,6 +1360,26 @@ function createFixture(
     externalRoot,
     runtimePack
   };
+}
+
+function createWorkflowAdmissionFixture() {
+  const fixture = createFixture();
+  const first = fixture.packages.getInstalledById("resolver-fixture")!;
+  const secondSource = path.join(fixture.paths.staging, "resolver-step-two-source");
+  fs.mkdirSync(secondSource, { recursive: true });
+  fs.writeFileSync(path.join(secondSource, "main.py"), "print('second')\n");
+  fs.writeFileSync(path.join(secondSource, "pyproject.toml"), "[project]\nname='resolver-step-two'\nversion='1.0.0'\n");
+  fs.writeFileSync(
+    path.join(secondSource, "cctools.skill.yaml"),
+    manifestYaml().replaceAll("resolver-fixture", "resolver-step-two").replace("Resolver Fixture", "Resolver Step Two")
+  );
+  const second = fixture.packages.install(secondSource);
+
+  const workflowSource = path.join(fixture.paths.staging, "resolver-workflow-source");
+  fs.mkdirSync(workflowSource, { recursive: true });
+  fs.writeFileSync(path.join(workflowSource, "cctools.skill.yaml"), workflowManifestYaml());
+  const workflow = fixture.packages.install(workflowSource);
+  return { ...fixture, first, second, workflow };
 }
 
 function createBatchAFixture(packageName = "skill-run-reporter") {
@@ -1490,6 +1606,89 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
     "  - linux-x64",
     "compatibility:",
     "  minAppVersion: 1.0.0",
+    ""
+  ].join("\n");
+}
+
+function agentManifestYaml(): string {
+  return [
+    "apiVersion: cctools.dev/skill/v1",
+    "id: resolver-fixture",
+    "version: 1.0.0",
+    "publisher:",
+    "  id: cctools",
+    "  displayName: cctools",
+    "kind: agent",
+    "display:",
+    "  name: Resolver Fixture",
+    "  description: test agent",
+    "  group: test",
+    "capabilities:",
+    "  mymind:",
+    "    read: []",
+    "    write: []",
+    "  network:",
+    "    required: false",
+    "    hosts: []",
+    "  subprocess:",
+    "    allowed: false",
+    "  browser: false",
+    "artifacts: []",
+    "execution:",
+    "  concurrency:",
+    "    maxInstances: 1",
+    "    mutexes: []",
+    "  timeoutSeconds: 1800",
+    "  gracefulStopSeconds: 10",
+    "  retry:",
+    "    maxAttempts: 0",
+    "platforms: [windows-x64, macos-arm64, linux-x64, wsl-linux-x64]",
+    "compatibility:",
+    "  minAppVersion: 1.0.0",
+    ""
+  ].join("\n");
+}
+
+function workflowManifestYaml(): string {
+  return [
+    "apiVersion: cctools.dev/skill/v1",
+    "id: resolver-workflow",
+    "version: 1.0.0",
+    "publisher:",
+    "  id: cctools",
+    "  displayName: cctools",
+    "kind: workflow",
+    "display:",
+    "  name: Resolver Workflow",
+    "  description: workflow admission fixture",
+    "capabilities:",
+    "  mymind:",
+    "    read: []",
+    "    write: []",
+    "  network:",
+    "    required: false",
+    "    hosts: []",
+    "artifacts: []",
+    "execution:",
+    "  concurrency:",
+    "    maxInstances: 1",
+    "    mutexes: []",
+    "  timeoutSeconds: 60",
+    "  gracefulStopSeconds: 1",
+    "platforms: [linux-x64]",
+    "compatibility:",
+    "  minAppVersion: 1.0.0",
+    "workflow:",
+    "  steps:",
+    "    - id: first",
+    "      skill: resolver-fixture",
+    "      version: ^1.0.0",
+    "      with: {}",
+    "    - id: second",
+    "      skill: resolver-step-two",
+    "      version: ^1.0.0",
+    "      needs: [first]",
+    "      with: {}",
     ""
   ].join("\n");
 }

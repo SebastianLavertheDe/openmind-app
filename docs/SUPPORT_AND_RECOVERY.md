@@ -24,7 +24,7 @@ Record only:
 2. The exact page/action, Run ID or Skill ID/version/digest, root generation,
    and the terminal state shown in Runs.
 3. The relevant Diagnostics status: mymind root health, migration state,
-   Runtime Pack readiness/integrity, Skill readiness/trust, and Provider
+   Runtime Pack readiness/integrity, Skill package usability/source receipt, and Provider
    diagnostic text.
 4. A redacted screenshot or the generated local evidence report. Replace
    physical paths, usernames, URLs with credentials, and content excerpts
@@ -45,6 +45,10 @@ terminal state or the recovery steps below have been completed.
 4. If a migration or relocation marker is present after an interrupted App,
    restart once and let startup recovery verify the matching tree. Preserve
    the marker and source tree if recovery reports a mismatch.
+5. If the root is healthy but onboarding still reports missing Skills, reinstall
+   the complete official Git source from onboarding. One matching URL record is
+   insufficient: the local complete-source receipt and every recorded package
+   path, Manifest identity and digest must validate offline.
 
 ## Runtime and Skill failures
 
@@ -56,10 +60,9 @@ terminal state or the recovery steps below have been completed.
    signature, version, license and SBOM before activation.
 3. If the new Pack fails, use Runtime rollback. The previous verified Pack is
    retained until the replacement is active and no Run is using it.
-4. In Skill Center, inspect the source, digest, review state and Runtime
-   readiness. A changed local package must pass static inspection again and be
-   reinstalled before it can become the active ready version; do not bypass
-   this state to make a run start.
+4. In Skill Center, inspect the source, digest, package usability and Runtime
+   readiness. A changed installed copy must be explicitly reinstalled; do not
+   edit the registry or source receipt to make a run start.
 
 ## Run, Agent and Provider failures
 
@@ -98,8 +101,8 @@ Before importing a backup:
 2. Confirm the backup was produced by the same App contract and keep its
    checksum.
 3. Import through Diagnostics; do not unpack files directly into `userData`.
-4. Restart the App and verify root generation, Runtime readiness, Run history
-   and Skill active/readiness state. If restore is interrupted, startup recovery restores the
+4. Restart the App and verify root generation, Runtime readiness, Run history,
+   installed Skill integrity and the official-source startup gate. If restore is interrupted, startup recovery restores the
    previous snapshot and removes only the completed transaction staging.
 
 ## External Export Location

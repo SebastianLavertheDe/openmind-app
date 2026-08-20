@@ -46,6 +46,62 @@ compatibility:
   minAppVersion: 1.0.0
 `;
 
+const AGENT_MANIFEST = `apiVersion: cctools.dev/skill/v1
+id: catalog-agent
+version: 1.0.0
+publisher:
+  id: cctools
+  displayName: cctools
+kind: agent
+display:
+  name: Catalog Agent
+  description: Conversation-only fixture
+  group: assistant
+capabilities:
+  mymind:
+    read: []
+    write: []
+  network:
+    required: false
+    hosts: []
+  subprocess:
+    allowed: false
+  browser: false
+platforms: [linux-x64]
+compatibility:
+  minAppVersion: 1.0.0
+`;
+
+const WORKFLOW_MANIFEST = `apiVersion: cctools.dev/skill/v1
+id: catalog-workflow
+version: 2.0.0
+publisher:
+  id: cctools
+  displayName: cctools
+kind: workflow
+display:
+  name: Catalog Workflow
+  description: Automation workflow fixture
+  group: workflow
+capabilities:
+  mymind:
+    read: []
+    write: []
+  network:
+    required: false
+    hosts: []
+platforms: [linux-x64]
+compatibility:
+  minAppVersion: 1.0.0
+workflow:
+  steps:
+    - id: run
+      skill: example-skill
+      version: "*"
+      needs: []
+      with: {}
+`;
+
 describe("SkillPackageService", () => {
   let tempRoot = "";
   let paths: AppPaths;
@@ -83,7 +139,7 @@ describe("SkillPackageService", () => {
     expect(first.files.map((file) => file.path)).not.toContain("mymind/article/user.md");
   });
 
-  it("installs only a clean quarantined copy and leaves active untouched", () => {
+  it("installs only a clean managed copy", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
@@ -92,8 +148,9 @@ describe("SkillPackageService", () => {
 
     const installed = service.install(source);
 
-    expect(installed.status).toBe("quarantined");
-    expect(installed.readiness).toBe("installed-not-ready");
+    expect(installed).not.toHaveProperty("status");
+    expect(installed).not.toHaveProperty("readiness");
+    expect(service.isInstalledCopyUsable(installed)).toBe(true);
     expect(service.listInstalled()).toHaveLength(1);
     expect(fs.existsSync(path.join(installed.packagePath, "run.sh"))).toBe(true);
     expect(fs.existsSync(path.join(installed.packagePath, ".env.local"))).toBe(false);
@@ -114,7 +171,7 @@ describe("SkillPackageService", () => {
 
     expect(inspection.sourceKind).toBe("zip");
     expect(inspection.valid).toBe(true);
-    expect(installed.status).toBe("quarantined");
+    expect(service.isInstalledCopyUsable(installed)).toBe(true);
     expect(fs.existsSync(path.join(installed.packagePath, "run.sh"))).toBe(true);
     expect(fs.existsSync(path.join(installed.packagePath, ".env"))).toBe(false);
   });
@@ -143,7 +200,7 @@ describe("SkillPackageService", () => {
     expect(inspection.issues.some((issue) => issue.code === "legacy-inspect-only")).toBe(true);
   });
 
-  it("batch-inspects the legacy .claude/skills surface and quarantines only formal packages", () => {
+  it("batch-inspects the legacy .claude/skills surface and installs only formal packages", () => {
     const workspace = path.join(tempRoot, "workspace");
     const legacy = path.join(workspace, ".claude", "skills", "legacy-skill");
     const formal = path.join(workspace, ".claude", "skills", "formal-skill");
@@ -161,7 +218,7 @@ describe("SkillPackageService", () => {
     expect(report.installed).toHaveLength(1);
     expect(report.skipped).toHaveLength(1);
     expect(report.skipped[0].sourcePath).toContain("legacy-skill");
-    expect(report.installed[0].status).toBe("quarantined");
+    expect(service.isInstalledCopyUsable(report.installed[0])).toBe(true);
     expect(service.listInstalled()).toHaveLength(1);
   });
 
@@ -275,7 +332,7 @@ describe("SkillPackageService", () => {
       "x-following-fetcher"
     ]);
     expect(installed.length).toBe(16);
-    expect(installed.every((record) => record.status === "quarantined" && record.readiness === "installed-not-ready")).toBe(true);
+    expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");
     const sharedProject = fs.readFileSync(path.join(sharedRoot, "pyproject.toml"), "utf8");
@@ -331,69 +388,184 @@ describe("SkillPackageService", () => {
     expect(inspection.issues.some((issue) => issue.code === "escaping-symlink")).toBe(true);
   });
 
-  it("refuses to uninstall an active record", () => {
+  it("uninstalls the skill's only installed copy", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
-    service.markReadiness(installed.key, installed.digest, "ready");
-    service.activate(installed.key, installed.digest);
-
-    expect(() => service.uninstall(installed.key, installed.digest)).toThrow(SkillPackageError);
-    expect(fs.existsSync(installed.packagePath)).toBe(true);
+    expect(service.uninstall(installed.key, installed.digest)).toBe(true);
+    expect(service.getInstalled(installed.key)).toBeUndefined();
+    expect(fs.existsSync(installed.packagePath)).toBe(false);
   });
 
-  it("installs a second version into quarantine, then supports readiness-gated activation and rollback", () => {
+  it("replaces the single directory when different content is installed", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const first = service.install(source);
-    service.markReadiness(first.key, first.digest, "ready");
-    service.activate(first.key, first.digest);
-
+    expect(first.packagePath).toBe(path.join(paths.skills!, "cctools", "example-skill"));
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
-    const candidate = service.install(source);
+    const second = service.install(source);
 
-    expect(candidate.digest).not.toBe(first.digest);
-    expect(candidate.status).toBe("quarantined");
-    expect(service.getInstalled(first.key, first.digest)?.status).toBe("active");
+    expect(second.digest).not.toBe(first.digest);
+    expect(service.isInstalledCopyUsable(second)).toBe(true);
+    expect(second.packagePath).toBe(first.packagePath);
+    // One record, one directory: the v1 copy is gone entirely.
+    expect(service.listInstalled()).toHaveLength(1);
+    expect(fs.readFileSync(path.join(second.packagePath, "run.sh"), "utf8")).toBe("echo v2\n");
 
-    service.markReadiness(candidate.key, candidate.digest, "ready");
-    service.activate(candidate.key, candidate.digest);
-    expect(service.getInstalled(candidate.key, candidate.digest)?.status).toBe("active");
-    expect(service.getInstalled(first.key, first.digest)?.status).toBe("previous");
-    expect(() => service.uninstall(first.key)).toThrowError(/必须指定 digest/);
-
-    service.rollback(first.key);
-    expect(service.getInstalled(first.key, first.digest)?.status).toBe("active");
-    expect(service.getInstalled(candidate.key, candidate.digest)?.status).toBe("previous");
+    expect(service.getInstalled(second.key)?.digest).toBe(second.digest);
   });
 
-  it("audits the installed copy and local source after activation", () => {
+  it("re-refreshes source provenance when identical content is reinstalled", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const first = service.install(source);
+    const installedAt = first.installedAt;
+
+    const again = service.install(source, { sourceType: "git", sourceLocator: "https://github.com/example/skills" });
+
+    expect(again.digest).toBe(first.digest);
+    expect(service.isInstalledCopyUsable(again)).toBe(true);
+    expect(again.installedAt).toBe(installedAt);
+    expect(again.sourceType).toBe("git");
+    expect(service.listInstalled()).toHaveLength(1);
+  });
+
+  it("derives installed-copy usability from the current package digest", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const installed = service.install(source);
-    service.markReadiness(installed.key, installed.digest, "ready");
-    service.activate(installed.key, installed.digest);
-
+    expect(service.toInstalledView(installed).usable).toBe(true);
     fs.writeFileSync(path.join(installed.packagePath, "run.sh"), "echo tampered\n");
 
-    const refreshed = service.getActiveInstalled(installed.id);
-    expect(refreshed).toMatchObject({
-      status: "active",
-      readiness: "ready",
+    const refreshed = service.getInstalledById(installed.id)!;
+    expect(service.toInstalledView(refreshed)).toMatchObject({
+      usable: false,
       signatureStatus: "unsigned",
       reviewStatus: "unreviewed",
       skillUpdatePolicy: "manual"
     });
+    expect(() => service.inspectInstalledCopy(refreshed)).toThrow(/digest/);
   });
 
-  it("uninstalls a candidate through a staging rename without touching the active version", () => {
+  it("defaults installed Skills to enabled and persists an independent disable override", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const installed = service.install(source);
+
+    expect(service.toInstalledView(installed)).toMatchObject({ enabled: true, usable: true });
+    expect(service.toInstalledView(service.setEnabled(installed.key, installed.digest, false))).toMatchObject({ enabled: false, usable: true });
+
+    const preferencesFile = path.join(paths.skills!, "skill-preferences.json");
+    expect(JSON.parse(fs.readFileSync(preferencesFile, "utf8"))).toEqual({
+      schemaVersion: 1,
+      disabledKeys: [installed.key]
+    });
+    expect(new SkillPackageService(paths).listInstalledViews()).toEqual([
+      expect.objectContaining({ key: installed.key, digest: installed.digest, enabled: false, usable: true })
+    ]);
+
+    expect(service.toInstalledView(service.setEnabled(installed.key, installed.digest, true)).enabled).toBe(true);
+    expect(JSON.parse(fs.readFileSync(preferencesFile, "utf8"))).toEqual({ schemaVersion: 1, disabledKeys: [] });
+  });
+
+  it("lists formal Process/Workflow metadata for Automation and excludes Agent packages", () => {
+    const processSource = createPackage(tempRoot, "catalog-process-source");
+    fs.writeFileSync(path.join(processSource, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(processSource, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(processSource, "pyproject.toml"), "[project]\nname='example'\n");
+    service.install(processSource);
+
+    const agentSource = createPackage(tempRoot, "catalog-agent-source");
+    fs.writeFileSync(path.join(agentSource, "cctools.skill.yaml"), AGENT_MANIFEST);
+    fs.writeFileSync(path.join(agentSource, "SKILL.md"), "# Catalog Agent\n");
+    service.install(agentSource);
+
+    const workflowSource = createPackage(tempRoot, "catalog-workflow-source");
+    fs.writeFileSync(path.join(workflowSource, "cctools.skill.yaml"), WORKFLOW_MANIFEST);
+    const workflow = service.install(workflowSource);
+    service.setEnabled(workflow.key, workflow.digest, false);
+
+    const catalog = service.listInstalledRunnableViews();
+
+    expect(catalog).toHaveLength(2);
+    expect(catalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "example-skill",
+        kind: "process",
+        title: "Example Skill",
+        description: "Static package fixture",
+        group: "test",
+        enabled: true
+      }),
+      expect.objectContaining({
+        id: "catalog-workflow",
+        kind: "workflow",
+        title: "Catalog Workflow",
+        description: "Automation workflow fixture",
+        group: "workflow",
+        version: "2.0.0",
+        enabled: false
+      })
+    ]));
+    expect(catalog.some((entry) => entry.id === "catalog-agent")).toBe(false);
+  });
+
+  it("preserves a logical Skill disable override across package replacement", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const first = service.install(source);
+    service.setEnabled(first.key, first.digest, false);
+
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
+    const replacement = service.install(source);
+
+    expect(replacement.digest).not.toBe(first.digest);
+    expect(service.toInstalledView(replacement)).toMatchObject({ enabled: false, usable: true });
+  });
+
+  it("rejects stale or unknown enablement targets without creating preferences", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const installed = service.install(source);
+    const preferencesFile = path.join(paths.skills!, "skill-preferences.json");
+
+    expect(() => service.setEnabled("cctools/missing", installed.digest, false)).toThrow(/不存在或已被替换/);
+    expect(() => service.setEnabled(installed.key, "0".repeat(64), false)).toThrow(/不存在或已被替换/);
+    expect(fs.existsSync(preferencesFile)).toBe(false);
+    expect(service.toInstalledView(installed).enabled).toBe(true);
+  });
+
+  it("fails closed when the independent enablement preferences are corrupt", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const installed = service.install(source);
+    const preferencesFile = path.join(paths.skills!, "skill-preferences.json");
+    fs.writeFileSync(preferencesFile, "{corrupt", "utf8");
+
+    expect(() => service.listInstalledViews()).toThrow("拒绝覆盖现有配置");
+    expect(() => service.setEnabled(installed.key, installed.digest, false)).toThrow("拒绝覆盖现有配置");
+    expect(fs.readFileSync(preferencesFile, "utf8")).toBe("{corrupt");
+  });
+
+  it("uninstalls an installed package through a staging rename", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
@@ -405,14 +577,12 @@ describe("SkillPackageService", () => {
     expect(fs.existsSync(installed.packagePath)).toBe(false);
   });
 
-  it("keeps the active registry and removes the candidate when the registry swap is interrupted", () => {
+  it("restores the previous package directory when the swap is interrupted", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST);
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
-    const active = service.install(source);
-    service.markReadiness(active.key, active.digest, "ready");
-    service.activate(active.key, active.digest);
+    const installed = service.install(source);
 
     fs.writeFileSync(path.join(source, "cctools.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
@@ -420,19 +590,21 @@ describe("SkillPackageService", () => {
     let renameCount = 0;
     const rename = vi.spyOn(fs, "renameSync").mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
       renameCount += 1;
-      if (renameCount === 2) throw new Error("simulated registry interruption");
+      if (renameCount === 2) throw new Error("simulated swap interruption");
       return originalRename(from, to);
     }) as typeof fs.renameSync);
 
     try {
-      expect(() => service.install(source)).toThrow("simulated registry interruption");
+      expect(() => service.install(source)).toThrow("simulated swap interruption");
     } finally {
       rename.mockRestore();
     }
 
-    expect(service.listInstalled()).toEqual([expect.objectContaining({ digest: active.digest, status: "active" })]);
-    expect(fs.readdirSync(paths.staging).filter((entry) => entry.startsWith("skill-package-") || entry.startsWith("skill-archive-install-"))).toEqual([]);
-    expect(fs.readdirSync(path.join(paths.skills, "cctools", "example-skill"))).toHaveLength(1);
+    // The v1 directory was restored and the registry still points at v1.
+    expect(service.listInstalled()).toEqual([expect.objectContaining({ digest: installed.digest })]);
+    expect(service.isInstalledCopyUsable(service.listInstalled()[0]!)).toBe(true);
+    expect(fs.readFileSync(path.join(installed.packagePath, "run.sh"), "utf8")).toBe("echo v1\n");
+    expect(fs.readdirSync(paths.staging).filter((entry) => entry.startsWith("skill-package-") || entry.startsWith("skill-replaced-") || entry.startsWith("skill-archive-install-"))).toEqual([]);
   });
 
   it("installs into the mymind-rooted .agent/skills store, not userData", () => {

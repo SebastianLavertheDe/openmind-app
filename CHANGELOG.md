@@ -9,10 +9,23 @@
   Manifest identity, digest, file count, warnings and issues before import,
   rejects credential-bearing/non-HTTPS Git URLs and supports cancelling a Git
   inspection.
-- Installed valid Skills are promoted to active + ready through the Main-owned
-  lifecycle after static validation and Runtime preparation. The removed
-  `executionTrust` host-approval gate is not recreated by the distribution UI;
-  the App still makes the OS-user execution boundary explicit.
+- Installed Skill lifecycle flags have been removed. An explicit successful
+  install creates one registry record per Skill; every list/run/bridge path
+  derives usability from the managed package path, Manifest identity and exact
+  digest, while Runtime preparation remains an execution-time check.
+- Complete Git-source installs now write an atomic local receipt containing the
+  normalized repository, resolved revision and full package snapshot. Startup
+  stays in onboarding unless an explicit mymind save root and a complete,
+  intact official `cctools-skills` installation are available; startup never
+  contacts Git.
+- Installed Skills can now be enabled or disabled from Skill Center. The
+  root-scoped preference controls future AI conversations and new execution
+  submissions; each conversation persists its exact Skill definition and
+  package digest snapshot, so toggling a Skill never changes an existing
+  conversation or restarts its Provider process. Package integrity is still
+  checked at execution time, and forks inherit the source conversation's
+  snapshot. Only Agent packages enter a conversation snapshot; Process and
+  Workflow packages remain on their Broker and Automation execution paths.
 - Settings can install Claude Code through its official HTTPS native installer
   or Codex CLI into App-private tools using the managed Node Runtime Pack. The
   installer records source/digest metadata, reports progress, supports cancel,
@@ -22,8 +35,9 @@
   flow and a one-click recheck. WSL cards expose copyable install/login/recheck
   steps without pretending to provide a Windows-side one-click WSL installer.
 - First launch now has a three-step onboarding checklist for mymind root,
-  Skill import and Provider readiness. Optional steps can be completed or
-  skipped; completion is persisted in App-private settings.
+  the mandatory official Skill repository, and Provider readiness. Provider
+  setup may be skipped; root and official Skill checks cannot be bypassed by a
+  stale onboarding flag.
 
 ### Security and release notes
 

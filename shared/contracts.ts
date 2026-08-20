@@ -208,6 +208,53 @@ export const ToolInvocationSchema = z.object({
 });
 export type ToolInvocation = z.infer<typeof ToolInvocationSchema>;
 
+export const SkillDefinitionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  description: z.string(),
+  cwd: z.string(),
+  command: z.string(),
+  runner: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  envFile: z.string().nullable().optional(),
+  group: z.string().optional(),
+  permission: z.enum(["read-only", "edit", "auto"]).optional(),
+  outputArtifacts: z.array(z.string()).optional(),
+  timeoutMs: z.number().int().positive().optional()
+});
+export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
+
+/**
+ * Skill availability is frozen with the conversation. Installed provenance
+ * prevents an existing session from silently crossing to replacement package
+ * bytes, while `definition` keeps slash-command rendering deterministic.
+ * Legacy workspace-only definitions have no installed provenance.
+ */
+export const AiSessionSkillSnapshotEntrySchema = z.object({
+  definition: SkillDefinitionSchema,
+  installed: z.object({
+    key: z.string().min(1),
+    version: z.string().min(1),
+    digest: z.string().regex(/^[a-f0-9]{64}$/)
+  }).nullable().default(null)
+});
+export type AiSessionSkillSnapshotEntry = z.infer<typeof AiSessionSkillSnapshotEntrySchema>;
+export const AiSessionSkillSnapshotSchema = z.array(AiSessionSkillSnapshotEntrySchema).superRefine((entries, context) => {
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  for (const [index, entry] of entries.entries()) {
+    if (ids.has(entry.definition.id)) {
+      context.addIssue({ code: "custom", path: [index, "definition", "id"], message: `Skill snapshot id 重复：${entry.definition.id}` });
+    }
+    ids.add(entry.definition.id);
+    if (!entry.installed) continue;
+    if (keys.has(entry.installed.key)) {
+      context.addIssue({ code: "custom", path: [index, "installed", "key"], message: `Skill snapshot key 重复：${entry.installed.key}` });
+    }
+    keys.add(entry.installed.key);
+  }
+});
+
 export const AiSessionSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
   id: z.string(),
@@ -220,6 +267,8 @@ export const AiSessionSchema = z.object({
   serviceProviderId: z.string().nullable().default(null),
   /** SHA-256 fingerprint used to prevent an existing conversation crossing API backends. */
   serviceProviderRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+  /** Installed Skill selection frozen when the conversation is created. */
+  skillSnapshot: AiSessionSkillSnapshotSchema.nullable().default(null),
   providerSessionId: z.string().nullable().default(null),
   forkedFromId: z.string().nullable().optional(),
   cwd: z.string(),
@@ -234,10 +283,11 @@ export const AiSessionSchema = z.object({
 });
 type ParsedAiSession = z.infer<typeof AiSessionSchema>;
 /** Defaulted fields stay optional for old persisted objects and existing callers. */
-export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision"> & {
+export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot"> & {
   interactionMode?: InteractionMode;
   serviceProviderId?: string | null;
   serviceProviderRevision?: string | null;
+  skillSnapshot?: AiSessionSkillSnapshotEntry[] | null;
 };
 
 export const AiRunSchema = z.object({
@@ -748,21 +798,6 @@ export const GlobalSearchResultSchema = z.object({
 });
 export type GlobalSearchResult = z.infer<typeof GlobalSearchResultSchema>;
 
-export interface SkillDefinition {
-  id: string;
-  title: string;
-  description: string;
-  cwd: string;
-  command: string;
-  runner?: string;
-  args?: string[];
-  envFile?: string | null;
-  group?: string;
-  permission?: "read-only" | "edit" | "auto";
-  outputArtifacts?: string[];
-  timeoutMs?: number;
-}
-
 /** Static package information exposed to Skill Center; it carries no executable command. */
 export interface SkillPackageInspectionView {
   sourcePath: string;
@@ -801,23 +836,34 @@ export interface InstalledSkillView {
   sourceType?: "directory" | "zip" | "git";
   sourceLocator?: string;
   sourceRef?: string;
+  sourcePackageRef?: string;
+  sourceRevision?: string;
   packagePath: string;
-  status: "quarantined" | "installed-not-ready" | "active" | "previous";
-  readiness: "installed-not-ready" | "ready" | "blocked" | "stale";
+  /** Main-side package inspection and digest verification passed. */
+  usable: boolean;
+  /** User default for future AI conversations; existing sessions keep a snapshot. */
+  enabled: boolean;
   signatureStatus: "unsigned" | "valid" | "invalid" | "revoked";
   reviewStatus: "unreviewed" | "automated-scan" | "manually-reviewed";
   skillUpdatePolicy: "manual" | "download-only";
   installedAt: string;
 }
 
-export interface SkillActivationView {
-  active: InstalledSkillView;
-  previous?: InstalledSkillView;
-}
-
-export interface SkillRollbackView {
-  active: InstalledSkillView;
-  previous: InstalledSkillView;
+/**
+ * Installed Process/Workflow metadata for non-conversation execution surfaces.
+ * Agent packages deliberately remain exclusive to the per-session AI catalog.
+ */
+export interface InstalledRunnableSkillView {
+  key: string;
+  id: string;
+  publisherId: string;
+  version: string;
+  digest: string;
+  kind: "process" | "workflow";
+  title: string;
+  description: string;
+  group: string;
+  enabled: boolean;
 }
 
 export interface SkillPackageMigrationReport {
@@ -1070,11 +1116,9 @@ export type SharedPythonRuntimeStatus = z.infer<typeof SharedPythonRuntimeStatus
 
 export const UserPreferencesSchema = z.object({
   schemaVersion: z.number().default(2),
-  repoRoot: z.string().default(""),
   /**
    * ADR-001: the actual mymind directory (not the cctools repo, not a
-   * subdirectory). The single active content root. `repoRoot` is kept only
-   * as a one-shot legacy migration input.
+   * subdirectory). The single active content root.
    */
   mymindRoot: z.string().default(""),
   /**
@@ -1210,14 +1254,6 @@ export type AppBootstrap = {
 export type MymindRootStatus = {
   mymindRoot: string;
   workspaceRoot: string;
-  /** App-private legacy state migration status; paths and file names stay Main-only. */
-  migration?: {
-    state: "not-needed" | "pending" | "skipped" | "committed" | "invalid";
-    legacyStatePresent: boolean;
-    markerPresent: boolean;
-    copiedFileCount: number;
-    sourcePreserved: boolean;
-  };
   health: {
     configured: boolean;
     rootId?: string;
@@ -1331,9 +1367,6 @@ export interface DesktopApi {
   revealPath(path: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   exportText(defaultName: string, content: string): Promise<string | null>;
-  setRepo(path: string): Promise<string>;
-  detectRepo(): Promise<string>;
-  selectRepo(): Promise<string | null>;
   /** ADR-001: select/set the actual mymind directory (not the repo). */
   setMymindRoot(path: string): Promise<string>;
   selectMymindRoot(): Promise<string | null>;
@@ -1399,21 +1432,23 @@ export interface DesktopApi {
   inspectSkillWorkspace(): Promise<SkillPackageInspectionView[]>;
   /** 静态检查 App 私有安装包，不执行包内代码。 */
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
-  /** 将带正式 Manifest 的旧 workspace Skill 导入 userData quarantine。 */
+  /** 将带正式 Manifest 的旧 workspace Skill 安装到应用管理的 Skill store。 */
   migrateSkillWorkspace(): Promise<SkillPackageMigrationReport>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
-  /** 将一个已检查的本地包复制到 quarantine；不执行包代码。 */
+  /** Process/Workflow catalog for Automation and Broker UI; never includes Agent Skills. */
+  listInstalledRunnableSkills(): Promise<InstalledRunnableSkillView[]>;
+  /** Change the default for future sessions without mutating existing sessions. */
+  setInstalledSkillEnabled(key: string, digest: string, enabled: boolean): Promise<InstalledSkillView>;
+  /** 将一个已检查的本地包安装到 Skill store；不执行包代码。 */
   installSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
-  /** 仅在存在 ready previous 时切换 active。 */
-  rollbackSkillPackage?(key: string): Promise<SkillRollbackView>;
-  /** 只能删除非 active 安装版本。 */
+  /** 删除该 Skill 唯一的安装副本（目录 + registry 记录）。 */
   uninstallSkillPackage?(key: string, digest?: string): Promise<boolean>;
   /** 选择本地目录或 ZIP；Git 通过 inspectSkillSource 输入地址。 */
   selectSkillPackageSource?(): Promise<import("./skill-package-sources").SkillPackageSourceInput | null>;
   /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。Git 仓库可含多个包。 */
   inspectSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, requestId?: string): Promise<SkillSourceInspectionView>;
   cancelSkillSourceInspection?(requestId: string): Promise<boolean>;
-  /** 将检查过的来源写入 quarantine；Git 可传选中包路径列表（缺省安装全部）。 */
+  /** 将检查过的来源安装到 Skill store；Git 可传选中包路径列表（缺省安装全部）。 */
   installSkillSource?(source: import("./skill-package-sources").SkillPackageSourceInput, selectedPackageRefs?: string[]): Promise<InstalledSkillView[]>;
   listSkillRuns(): Promise<BrokerRunRecord[]>;
   getSkillRun(runId: string): Promise<BrokerRunRecord>;

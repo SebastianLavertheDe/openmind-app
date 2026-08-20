@@ -3,9 +3,8 @@ export const electronMessages = {
   errors: {
     unregisteredSkill: (skillId: string) => `未注册的 cctools skill：${skillId}`,
     repo: {
-      selectValidFirst: "请先在设置中选择有效的 cctools 项目目录。",
-      invalidDirectory: "该目录不是有效的 cctools 项目（缺少 .claude/skills 或 mymind）。",
-      notAutoDetected: "没有自动找到 cctools 项目，请在设置中手动选择。",
+      selectValidFirst: "请先在设置中选择有效的 mymind 保存目录。",
+      invalidDirectory: "该目录不存在，或不是可读写的目录。",
       pathOutsideProject: "请求路径超出项目目录。"
     },
     file: {
@@ -82,8 +81,7 @@ export const electronMessages = {
     importOpml: "导入 OPML",
     selectProjectFile: "选择项目内文件",
     selectMymindFile: "选择 mymind 内文件",
-    exportMarkdown: "导出 Markdown",
-    selectRepo: "选择 cctools 项目目录"
+    exportMarkdown: "导出 Markdown"
   },
 
   pipeline: {

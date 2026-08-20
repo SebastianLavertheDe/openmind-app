@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { SkillRunRequest } from "../../shared/execution-contracts";
-import type { SkillDefinition } from "../../shared/contracts";
+import type { AiSessionSkillSnapshotEntry, SkillDefinition } from "../../shared/contracts";
 import { matchesSemverRange, type ProcessManifest, type SkillManifest } from "../../shared/skill-manifest-schema";
 import { SkillPackageService } from "./skill-package-service";
 import type { InstalledSkillRecord } from "./installed-skill-repository";
@@ -10,6 +10,7 @@ import type { ExecutionPlan } from "../execution/execution-broker";
 import type { ExternalBinding } from "../execution/artifact-collector";
 import type { ProviderSkillBridge } from "../ai/providers/skill-bridge";
 import { readDefaultProviderEnv } from "../config/providers-yaml";
+import type { WorkflowAdmission } from "../execution/workflow-engine";
 
 const FORBIDDEN_ENV_NAMES = new Set(["PATH", "HOME", "NODE_OPTIONS", "PYTHONPATH", "LD_PRELOAD"]);
 
@@ -23,7 +24,7 @@ export class InstalledSkillExecutionError extends Error {
 }
 
 /**
- * Converts one active, ready package into a Broker plan. This
+ * Converts one installed, integrity-checked package into a Broker plan. This
  * resolver performs package/input checks; RuntimeManager owns execution-time
  * preparation, and Broker owns process lifecycle. The AI provider comes from
  * the single plaintext `config/providers.yaml` source of truth (injected as
@@ -38,33 +39,94 @@ export class InstalledSkillExecutionResolver {
     private readonly resolveExportBinding?: SkillExportBindingResolver
   ) {}
 
-  active(skillId: string): InstalledSkillRecord | undefined {
-    return this.packages.getActiveInstalled(skillId);
+  installed(skillId: string): InstalledSkillRecord | undefined {
+    return this.packages.getInstalledById(skillId);
   }
 
-  /** Agent packages are executed only by the selected Claude Code/Codex CLI bridge. */
-  assertBrokerRunnable(skillId: string): void {
-    const record = this.active(skillId);
-    if (!record) return;
-    const inspection = this.packages.inspect(record.packagePath);
-    if (inspection.valid && inspection.manifest?.kind === "agent") throw cliOnlyAgentError(skillId);
+  /** Resolve the current user-enabled package at a new execution boundary. */
+  enabledInstalled(skillId: string): InstalledSkillRecord | undefined {
+    const record = this.installed(skillId);
+    if (!record) return undefined;
+    this.assertEnabled(record);
+    return record;
   }
 
   /**
-   * Resolves a ready Agent package for the external Codex/Claude bridge.
+   * Admit a new Broker request and return the exact package identity that must
+   * be persisted with it. Callers use the returned version/digest to prevent a
+   * queued wildcard request from silently switching to a later installation.
+   */
+  assertBrokerRunnable(request: Pick<SkillRunRequest, "skillId" | "version" | "digest">): InstalledSkillRecord {
+    const record = this.enabledInstalled(request.skillId);
+    if (!record) throw new InstalledSkillExecutionError(`没有已安装的 Skill：${request.skillId}`);
+    if (request.version && !matchesSemverRange(record.version, request.version)) {
+      throw new InstalledSkillExecutionError("请求的 Skill version 与已安装版本不匹配。 ");
+    }
+    if (request.digest && request.digest.toLowerCase() !== record.digest.toLowerCase()) {
+      throw new InstalledSkillExecutionError("请求的 Skill digest 与已安装版本不一致。 ");
+    }
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
+    if (inspection.manifest.kind === "agent") throw cliOnlyAgentError(request.skillId);
+    if (inspection.manifest.kind !== "process"
+      || inspection.manifest.id !== record.id
+      || inspection.manifest.version !== record.version) {
+      throw new InstalledSkillExecutionError(`只有完整的 Process Skill 可由 Broker 执行：${request.skillId}`);
+    }
+    return record;
+  }
+
+  /**
+   * Re-validates an exact Process package pinned by a Workflow admission. This
+   * intentionally ignores the current enabled preference: toggling a Skill
+   * must not mutate a Workflow that was already admitted, while replacement or
+   * package tampering must still fail closed before every child submission.
+   */
+  assertAdmittedBrokerRunnable(request: Pick<SkillRunRequest, "skillId" | "version" | "digest">): void {
+    if (!request.version || !request.digest) {
+      throw new InstalledSkillExecutionError("已准入的 Workflow Step 缺少精确 version 或 digest。 ");
+    }
+    const record = this.installed(request.skillId);
+    if (!record) throw new InstalledSkillExecutionError(`已准入的 Workflow Step 已被删除：${request.skillId}`);
+    if (record.version !== request.version || record.digest.toLowerCase() !== request.digest.toLowerCase()) {
+      throw new InstalledSkillExecutionError(`已准入的 Workflow Step package identity 已变化：${request.skillId}`);
+    }
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest
+      || inspection.manifest.kind !== "process"
+      || inspection.manifest.id !== request.skillId
+      || inspection.manifest.version !== request.version) {
+      throw new InstalledSkillExecutionError(`已准入的 Workflow Step 不再是匹配的 Process Skill：${request.skillId}`);
+    }
+  }
+
+  /**
+   * Resolves an integrity-checked Agent package for the external Codex/Claude bridge.
    * The returned physical paths never cross the Renderer boundary; adapters
    * re-check the package boundary before reading or handing them to a host.
    */
-  providerSkillBridge(skillId: string): ProviderSkillBridge | null {
-    const record = this.active(skillId);
-    if (!record) return null;
-    const inspection = this.packages.inspect(record.packagePath);
-    if (!inspection.valid || !inspection.manifest || inspection.digest !== record.digest) {
-      throw new InstalledSkillExecutionError("active Agent Skill 内容 digest 已变化，拒绝交给 Provider Bridge。 ");
+  providerSkillBridge(snapshot: AiSessionSkillSnapshotEntry): ProviderSkillBridge | null {
+    if (!snapshot.installed) {
+      throw new InstalledSkillExecutionError(`会话 Skill 缺少 Installed provenance：${snapshot.definition.id}`);
     }
-    if (inspection.manifest.kind !== "agent") return null;
-    if (record.status !== "active" || record.readiness !== "ready") {
-      throw new InstalledSkillExecutionError(`Agent Skill 尚未 ready：${skillId}`);
+    const reference = snapshot.installed;
+    const record = this.packages.getInstalled(reference.key, reference.digest);
+    if (!record
+      || record.id !== snapshot.definition.id
+      || record.version !== reference.version
+      || record.digest.toLowerCase() !== reference.digest.toLowerCase()) {
+      throw new InstalledSkillExecutionError(`会话绑定的 Installed Skill 已被替换或删除：${snapshot.definition.id}`);
+    }
+    // Deliberately do not read the current enabled preference here. Existing
+    // sessions retain their capability set, while package bytes and identity
+    // are still re-inspected on every bridge resolution.
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Agent Skill Manifest 校验失败。 ");
+    if (inspection.manifest.kind !== "agent") {
+      // Never let an Installed Process/Workflow snapshot fall through to the
+      // providers' legacy workspace Skill lookup. That would cross the exact
+      // package identity frozen with the conversation.
+      throw new InstalledSkillExecutionError(`会话 Skill 不是 Agent 类型，不能交给 Provider Bridge：${snapshot.definition.id}`);
     }
     const packageRoot = canonicalDirectory(record.packagePath);
     const skillPath = resolvePackageFile(packageRoot, "SKILL.md");
@@ -87,59 +149,87 @@ export class InstalledSkillExecutionResolver {
    * installed resolver is active.
    */
   listDefinitions(): SkillDefinition[] {
-    return this.packages.listInstalled()
-      .filter((record) => record.status === "active" && record.readiness === "ready")
-      .flatMap((record) => {
-        try {
-          const inspection = this.packages.inspect(record.packagePath);
-          if (!inspection.valid || !inspection.manifest || inspection.digest !== record.digest) return [];
-          const manifest = inspection.manifest;
-          return [{
-            id: manifest.id,
-            title: manifest.display.name,
-            description: manifest.display.description,
-            // This is a logical identifier, not a filesystem path. The real
-            // executable is resolved only inside Main/RuntimeManager.
-            cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,
-            command: "managed-runtime",
-            runner: "managed-runtime",
-            args: [],
-            envFile: null,
-            group: manifest.display.group,
-            permission: manifest.capabilities.mymind.write.length ? "edit" as const : "read-only" as const,
-            outputArtifacts: manifest.artifacts.map((artifact) => artifact.path
-              ? `mymind/${artifact.path}`
-              : `external:${artifact.externalExportId}`),
-            timeoutMs: manifest.execution.timeoutSeconds * 1000
-          } satisfies SkillDefinition];
-        } catch {
-          return [];
-        }
-      });
+    return this.captureSessionSnapshot().map((entry) => entry.definition);
+  }
+
+  /**
+   * Capture renderer-safe Agent metadata plus exact installed provenance. New
+   * sessions use enabled Agent packages only; legacy backfill opts into every
+   * usable Agent package to preserve the old all-installed behavior. Process
+   * and Workflow packages stay on their Broker/Automation boundaries.
+   */
+  captureSessionSnapshot(includeDisabled = false): AiSessionSkillSnapshotEntry[] {
+    let records = this.packages.listInstalled();
+    if (!includeDisabled) {
+      try {
+        records = records.filter((record) => this.packages.isEnabled(record));
+      } catch {
+        // A corrupt preference file must not make bootstrap fatal. Treat the
+        // entire current catalog as unavailable until the user repairs it.
+        return [];
+      }
+    }
+    const entries = records.flatMap((record) => {
+      try {
+        const entry = this.snapshotEntry(record);
+        return entry ? [entry] : [];
+      } catch {
+        return [];
+      }
+    });
+    // Slash commands are keyed by manifest id. Ambiguous ids fail closed
+    // instead of making a session snapshot invalid or selecting a publisher
+    // by incidental registry order.
+    const idCounts = new Map<string, number>();
+    for (const entry of entries) idCounts.set(entry.definition.id, (idCounts.get(entry.definition.id) || 0) + 1);
+    return entries.filter((entry) => idCounts.get(entry.definition.id) === 1);
   }
 
   workflowManifest(skillId: string, version?: string): Extract<SkillManifest, { kind: "workflow" }> {
-    const record = this.active(skillId);
+    const record = this.enabledInstalled(skillId);
     if (!record) throw new InstalledSkillExecutionError(`Workflow Skill 不存在：${skillId}`);
-    if (version && record.version !== version) throw new InstalledSkillExecutionError("请求的 Workflow version 不是 active 版本。 ");
-    const inspection = this.packages.inspect(record.packagePath);
-    if (!inspection.valid || !inspection.manifest || inspection.digest !== record.digest || inspection.manifest.kind !== "workflow") {
-      throw new InstalledSkillExecutionError("active Workflow Manifest 校验失败。 ");
+    if (version && record.version !== version) throw new InstalledSkillExecutionError("请求的 Workflow version 与已安装版本不一致。 ");
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest || inspection.manifest.kind !== "workflow") {
+      throw new InstalledSkillExecutionError("Installed Workflow Manifest 校验失败。 ");
     }
-    if (record.readiness !== "ready") throw new InstalledSkillExecutionError(`Workflow Skill 尚未 ready：${skillId}`);
     return inspection.manifest;
   }
 
-  async resolve(request: SkillRunRequest, runId: string): Promise<ExecutionPlan> {
-    const record = this.active(request.skillId);
-    if (!record) throw new InstalledSkillExecutionError(`没有 active Installed Skill：${request.skillId}`);
-    if (request.version && !matchesSemverRange(record.version, request.version)) throw new InstalledSkillExecutionError("请求的 Skill version 不是 active 版本。 ");
-    if (request.digest && request.digest.toLowerCase() !== record.digest.toLowerCase()) throw new InstalledSkillExecutionError("请求的 Skill digest 不是 active 版本。 ");
+  /** Admit the Workflow body and every referenced Process Step as one unit. */
+  admitWorkflow(skillId: string, version?: string): WorkflowAdmission {
+    const manifest = this.workflowManifest(skillId, version);
+    const steps = manifest.workflow.steps.map((step) => {
+      const record = this.enabledInstalled(step.skill);
+      if (!record) throw new InstalledSkillExecutionError(`Workflow Step Skill 不存在：${step.skill}`);
+      if (!matchesSemverRange(record.version, step.version)) {
+        throw new InstalledSkillExecutionError(`Workflow Step ${step.id} 的 version 与已安装版本不匹配。 `);
+      }
+      const inspection = this.packages.inspectInstalledCopy(record);
+      if (!inspection.manifest
+        || inspection.manifest.kind !== "process"
+        || inspection.manifest.id !== step.skill
+        || inspection.manifest.version !== record.version) {
+        throw new InstalledSkillExecutionError(`Workflow Step ${step.id} 不是可用的 Process Skill。 `);
+      }
+      return {
+        stepId: step.id,
+        skillId: record.id,
+        version: record.version,
+        digest: record.digest.toLowerCase()
+      };
+    });
+    return { manifest, steps };
+  }
 
-    const inspection = this.packages.inspect(record.packagePath);
-    if (!inspection.valid || !inspection.manifest) throw new InstalledSkillExecutionError("active Installed Skill Manifest 校验失败。 ");
-    if (inspection.digest !== record.digest) throw new InstalledSkillExecutionError("active Installed Skill 内容 digest 已变化，拒绝运行。 ");
-    if (record.readiness !== "ready") throw new InstalledSkillExecutionError("Installed Skill 尚未 ready，拒绝运行。 ");
+  async resolve(request: SkillRunRequest, runId: string): Promise<ExecutionPlan> {
+    const record = this.installed(request.skillId);
+    if (!record) throw new InstalledSkillExecutionError(`没有已安装的 Skill：${request.skillId}`);
+    if (request.version && !matchesSemverRange(record.version, request.version)) throw new InstalledSkillExecutionError("请求的 Skill version 与已安装版本不匹配。 ");
+    if (request.digest && request.digest.toLowerCase() !== record.digest.toLowerCase()) throw new InstalledSkillExecutionError("请求的 Skill digest 与已安装版本不一致。 ");
+
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
     const manifest = inspection.manifest;
     const inputs = applyInputDefaults(manifest, request.inputs);
     validateInputs(manifest, inputs);
@@ -206,6 +296,47 @@ export class InstalledSkillExecutionResolver {
       }
     };
     return plan;
+  }
+
+  private assertEnabled(record: InstalledSkillRecord): void {
+    if (!this.packages.isEnabled(record)) {
+      throw new InstalledSkillExecutionError(`Skill 已停用；重新启用后仅对新执行或新会话生效：${record.id}`);
+    }
+  }
+
+  private snapshotEntry(record: InstalledSkillRecord): AiSessionSkillSnapshotEntry | null {
+    const inspection = this.packages.inspectInstalledCopy(record);
+    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
+    const manifest = inspection.manifest;
+    // AI conversation snapshots are provider-native Agent catalogs. Process
+    // and Workflow packages stay available through their Broker/Automation
+    // entry points and must never be reinterpreted as workspace Agent Skills.
+    if (manifest.kind !== "agent") return null;
+    return {
+      definition: {
+        id: manifest.id,
+        title: manifest.display.name,
+        description: manifest.display.description,
+        // Logical metadata only. Physical paths remain Main-only and are
+        // recovered from exact installed provenance at execution time.
+        cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,
+        command: "managed-runtime",
+        runner: "managed-runtime",
+        args: [],
+        envFile: null,
+        group: manifest.display.group,
+        permission: manifest.capabilities.mymind.write.length ? "edit" : "read-only",
+        outputArtifacts: manifest.artifacts.map((artifact) => artifact.path
+          ? `mymind/${artifact.path}`
+          : `external:${artifact.externalExportId}`),
+        timeoutMs: manifest.execution.timeoutSeconds * 1000
+      },
+      installed: {
+        key: record.key,
+        version: record.version,
+        digest: record.digest.toLowerCase()
+      }
+    };
   }
 }
 

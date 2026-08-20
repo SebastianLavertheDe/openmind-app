@@ -730,7 +730,7 @@ export function bindCreativeSession(projectDir: string, sessionId: string): Crea
 }
 
 export function updateCreativeTopicState(date: string, topicId: string, patch: TopicStatePatch): TopicsPayload {
-  const statePath = appPrivateStatePath("creative-topic-state.json", true);
+  const statePath = appPrivateStatePath("creative-topic-state.json");
   const state = readJson<TopicStateStore>(statePath, {});
   const day = String(date || "").replace(/\D/g, "").slice(0, 8);
   state[day] ||= {};
@@ -912,7 +912,7 @@ export function addManualTopic(date: string, input: { title?: string; body?: str
     platform: input?.platform || messages.common.unspecified,
     createdAt: new Date().toISOString()
   });
-  writeJsonSafe(appPrivateStatePath("creative-manual-topics.json", true), store);
+  writeJsonSafe(appPrivateStatePath("creative-manual-topics.json"), store);
   return getCreativeTopics(day);
 }
 

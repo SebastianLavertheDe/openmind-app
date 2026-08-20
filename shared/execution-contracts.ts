@@ -171,7 +171,7 @@ export const WorkflowRunRecordSchema = z.object({
   id: z.string().min(1).max(120),
   workflowSkillId: z.string().min(1).max(128),
   workflowVersion: z.string().min(1).max(80),
-  /** SHA-256 of the active Workflow Manifest used to create this Run. Empty is legacy/non-resumable. */
+  /** SHA-256 of the installed Workflow Manifest used to create this Run. Empty is legacy/non-resumable. */
   workflowFingerprint: z.string().regex(/^[a-f0-9]{64}$/i).default(""),
   state: WorkflowRunStateSchema,
   rootGeneration: z.number().int().nonnegative(),

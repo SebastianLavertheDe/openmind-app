@@ -59,9 +59,9 @@ describe("skill-compatibility-matrix", () => {
   it("VideoDownload is the only external-export process skill (Export Location Binding)", () => {
     const externalExporters = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.externalExport);
     expect(externalExporters.map((e) => e.id).sort()).toEqual(
-      ["VideoDownload", "agent-browser"].sort()
+      ["video-download", "agent-browser"].sort()
     );
-    const vd = findSkillEntry("VideoDownload")!;
+    const vd = findSkillEntry("video-download")!;
     expect(vd.targetKind).toBe("process");
     expect(vd.mymindWrite.length).toBe(0);
   });

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSession, AiSnapshot, DesktopApi, InstalledSkillView, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackReadiness, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackReadiness, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
@@ -57,7 +57,7 @@ const mcpServers: McpServerDefinition[] = [{
 }];
 
 const defaultPrefs: UserPreferences = {
-  schemaVersion: 1, repoRoot: "/repo", mymindRoot: "/repo/mymind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
+  schemaVersion: 1, mymindRoot: "/repo/mymind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
@@ -109,7 +109,6 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     getMcpServers: async () => mcpServers,
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled: boolean) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "linux-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 2 : 0, ready: enabled, lastError: null }),
-    selectRepo: async () => "/repo-next",
     setMymindRoot: async (root: string) => root,
     selectMymindRoot: async () => "/repo/mymind-next",
     previewMymindRoot: async (candidate: string) => ({ candidate, canonicalRoot: candidate, health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, canBind: true, blockingReasons: [] }),
@@ -507,6 +506,7 @@ describe("SettingsPage", () => {
     openCategory("内置运行时");
 
     const toggle = await screen.findByRole("switch", { name: "启用内置 Python 运行时" });
+    await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     fireEvent.click(toggle);
     await waitFor(() => expect(setSharedPythonRuntimeEnabled).toHaveBeenCalledWith(true));
@@ -552,22 +552,6 @@ describe("SettingsPage", () => {
       issues: [],
       warnings: []
     };
-    const installed: InstalledSkillView = {
-      schemaVersion: 1,
-      key: "local/packaged",
-      id: "packaged",
-      publisherId: "local",
-      version: "1.0.0",
-      digest: inspection.digest,
-      sourcePath: inspection.sourcePath,
-      packagePath: "/userData/skills/local/packaged/1.0.0-abcdef1234567890",
-      status: "quarantined",
-      readiness: "installed-not-ready",
-      signatureStatus: "unsigned",
-      reviewStatus: "unreviewed",
-      skillUpdatePolicy: "manual",
-      installedAt: "2026-08-05T00:00:00.000Z"
-    };
     const inspectSkillWorkspace = vi.fn().mockResolvedValue([inspection]);
     const listInstalledSkills = vi.fn().mockResolvedValue([]);
     const listSkillRuns = vi.fn().mockResolvedValue([]);
@@ -581,7 +565,6 @@ describe("SettingsPage", () => {
     expect(document.getElementById("settings-detail-panel")?.classList.contains("settings-detail--wide")).toBe(false);
     expect(document.querySelector(".settings-stack")?.classList.contains("settings-stack--wide")).toBe(false);
     expect(screen.queryByRole("button", { name: "导入正式 Manifest" })).toBeNull();
-    expect(screen.queryByText("更新到 quarantine")).toBeNull();
   });
 
   it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {
@@ -634,15 +617,15 @@ describe("SettingsPage", () => {
 
   it("keeps project path actions connected to the desktop API", async () => {
     const onRepo = vi.fn();
-    const selectRepo = vi.fn().mockResolvedValue("/repo-next");
+    const selectWorkspaceRoot = vi.fn().mockResolvedValue("/repo-next");
     const openPath = vi.fn().mockResolvedValue("");
-    window.cctools = makeApi({ selectRepo, openPath });
+    window.cctools = makeApi({ selectWorkspaceRoot, openPath });
     renderSettings(onRepo);
     await waitFor(() => expect(screen.getByText("工作目录")).toBeTruthy());
 
     const browseButtons = screen.getAllByRole("button", { name: "浏览" });
     fireEvent.click(browseButtons[0]);
-    await waitFor(() => expect(selectRepo).toHaveBeenCalled());
+    await waitFor(() => expect(selectWorkspaceRoot).toHaveBeenCalled());
     expect(onRepo).toHaveBeenCalledWith("/repo-next");
 
     fireEvent.click(browseButtons[1]);

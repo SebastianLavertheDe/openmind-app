@@ -1,10 +1,13 @@
 import fs from "node:fs";
 import { writeJsonAtomic } from "../lib/fs-utils";
 
-export const INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION = 1 as const;
+/**
+ * v3: one metadata record per installed skill. Runtime availability is
+ * derived from the installed package and runtime inspection, so the old
+ * persisted status/readiness state machine is no longer part of the registry.
+ */
+export const INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION = 3 as const;
 
-export type InstalledSkillStatus = "quarantined" | "installed-not-ready" | "active" | "previous";
-export type InstalledSkillReadiness = "installed-not-ready" | "ready" | "blocked" | "stale";
 export type InstalledSkillSignatureStatus = "unsigned" | "valid" | "invalid" | "revoked";
 export type InstalledSkillReviewStatus = "unreviewed" | "automated-scan" | "manually-reviewed";
 export type InstalledSkillUpdatePolicy = "manual" | "download-only";
@@ -18,13 +21,14 @@ export type InstalledSkillRecord = {
   version: string;
   digest: string;
   sourcePath: string;
-  /** New source metadata is optional for registry v1 backward compatibility. */
+  /** Source metadata is optional for registry backward compatibility. */
   sourceType?: InstalledSkillSourceType;
   sourceLocator?: string;
   sourceRef?: string;
+  /** Repository-relative package identity and resolved revision, when known. */
+  sourcePackageRef?: string;
+  sourceRevision?: string;
   packagePath: string;
-  status: InstalledSkillStatus;
-  readiness: InstalledSkillReadiness;
   signatureStatus: InstalledSkillSignatureStatus;
   reviewStatus: InstalledSkillReviewStatus;
   skillUpdatePolicy: InstalledSkillUpdatePolicy;
@@ -36,39 +40,50 @@ export type InstalledSkillRegistryFile = {
   records: InstalledSkillRecord[];
 };
 
+type LegacyInstalledSkillStatus = "quarantined" | "installed-not-ready" | "active" | "previous";
+type LegacyInstalledSkillReadiness = "installed-not-ready" | "ready" | "blocked" | "stale";
+type LegacyInstalledSkillRecord = Omit<InstalledSkillRecord, "schemaVersion"> & {
+  schemaVersion: 1 | 2;
+  status: LegacyInstalledSkillStatus;
+  readiness: LegacyInstalledSkillReadiness;
+};
+
+const SIGNATURE_STATUSES = ["unsigned", "valid", "invalid", "revoked"] as const;
+const REVIEW_STATUSES = ["unreviewed", "automated-scan", "manually-reviewed"] as const;
+const UPDATE_POLICIES = ["manual", "download-only"] as const;
+const SOURCE_TYPES = ["directory", "zip", "git"] as const;
+const V1_STATUSES = ["quarantined", "installed-not-ready", "active", "previous"] as const;
+const V2_STATUSES = ["quarantined", "active"] as const;
+const LEGACY_READINESS = ["installed-not-ready", "ready", "blocked", "stale"] as const;
+
 /**
- * Owns only the installed-skill metadata and active/previous pointers.
- * Package bytes are managed by SkillPackageService; this repository never
- * reads or executes an original source directory.
+ * Owns only installed-skill metadata, one record per key. Package bytes are
+ * managed by SkillPackageService; legacy package paths are preserved during
+ * metadata migration and remain valid until a later reinstall replaces them.
  */
 export class InstalledSkillRepository {
   /**
    * @param registryFile null when no mymind root is bound: reads report an
-   * empty store (the onboarding page renders pre-binding), writes fail fast
-   * as an internal invariant — the renderer keeps unbound users on the
-   * onboarding page, so writes never legitimately reach a null store.
+   * empty store; writes fail fast as an internal invariant.
    */
   constructor(private readonly registryFile: string | null) {}
 
   list(): InstalledSkillRecord[] {
-    return this.read().records.slice().sort((left, right) =>
-      `${left.key}@${left.version}`.localeCompare(`${right.key}@${right.version}`)
-    );
+    return this.read().records.slice().sort((left, right) => left.key.localeCompare(right.key));
   }
 
   get(key: string, digest?: string): InstalledSkillRecord | undefined {
     return this.read().records.find((record) => record.key === key && (!digest || record.digest === digest));
   }
 
-  /** Idempotent for the same key + digest; does not alter another version's status. */
+  /** Idempotent for the same key; a new digest replaces the previous record. */
   upsert(record: InstalledSkillRecord): InstalledSkillRecord {
+    const canonical = validateCurrentRecord(record);
     const registry = this.read();
-    registry.records = registry.records.filter(
-      (candidate) => !(candidate.key === record.key && candidate.digest === record.digest)
-    );
-    registry.records.push(record);
+    registry.records = registry.records.filter((candidate) => candidate.key !== canonical.key);
+    registry.records.push(canonical);
     this.write(registry);
-    return record;
+    return canonical;
   }
 
   remove(key: string, digest?: string): InstalledSkillRecord | undefined {
@@ -80,139 +95,27 @@ export class InstalledSkillRepository {
     return target;
   }
 
-  /**
-   * Compatibility-only status update for migration/tests. New callers must
-   * use activate/rollback so the active and previous pointers are changed in
-   * one registry transaction.
-   */
-  replaceStatus(key: string, digest: string, status: InstalledSkillStatus): InstalledSkillRecord {
-    const registry = this.read();
-    const target = registry.records.find((record) => record.key === key && record.digest === digest);
-    if (!target) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    if (status === "active") {
-      throw new Error("不能直接写入 active；请使用 activate()。 ");
-    }
-    if (target.status === "active") {
-      throw new Error("当前 active 版本不能通过 replaceStatus() 降级；请使用 rollback()。 ");
-    }
-    if (status === "previous" && target.readiness !== "ready") {
-      throw new Error("只有 ready 版本才能标记为 previous。 ");
-    }
-    const records = registry.records.map((record) => {
-      if (record.key !== key) return record;
-      if (record.digest === digest) return { ...record, status };
-      return record.status === "previous" && status === "previous"
-        ? { ...record, status: "quarantined" as const }
-        : record;
-    });
-    this.write({ schemaVersion: registry.schemaVersion, records });
-    return records.find((record) => record.key === key && record.digest === digest)!;
-  }
-
-  markReadiness(key: string, digest: string, readiness: InstalledSkillReadiness): InstalledSkillRecord {
-    const registry = this.read();
-    const index = registry.records.findIndex((record) => record.key === key && record.digest === digest);
-    if (index < 0) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    const current = registry.records[index];
-    if ((current.status === "active" || current.status === "previous") && readiness !== "ready") {
-      throw new Error("active/previous 版本不能直接变为非 ready；请先切换或卸载该版本。 ");
-    }
-    const target = { ...current, readiness };
-    registry.records[index] = target;
-    this.write(registry);
-    return target;
-  }
-
-  /**
-   * Mark a package as changed after installation. A valid signature becomes
-   * invalid and review evidence is discarded; execution readiness is derived
-   * from the installed digest, static validation and Runtime state rather than
-   * from these informational labels.
-   */
-  markModified(key: string, digest: string): InstalledSkillRecord {
-    const registry = this.read();
-    const index = registry.records.findIndex((record) => record.key === key && record.digest === digest);
-    if (index < 0) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    const current = registry.records[index];
-    const target: InstalledSkillRecord = {
-      ...current,
-      signatureStatus: current.signatureStatus === "valid" ? "invalid" : current.signatureStatus,
-      reviewStatus: "unreviewed"
-    };
-    if (sameReviewState(current, target)) return current;
-    registry.records[index] = target;
-    this.write(registry);
-    return target;
-  }
-
-  /**
-   * Atomically promote a ready candidate and demote the previous active
-   * version. A single registry write makes a crash visible as either the old
-   * active pointer or the new one, never a half-written pair.
-   */
-  activate(key: string, digest: string): { active: InstalledSkillRecord; previous?: InstalledSkillRecord } {
-    const registry = this.read();
-    const target = registry.records.find((record) => record.key === key && record.digest === digest);
-    if (!target) throw new Error(`Installed Skill 不存在：${key}@${digest}`);
-    if (target.readiness !== "ready") throw new Error("Skill 尚未达到 ready，不能切换 active。");
-    if (target.status === "active") return { active: target };
-    const previous = registry.records.find((record) => record.key === key && record.status === "active");
-    const records = registry.records.map((record) => {
-      if (record.key !== key) return record;
-      if (record.digest === digest) {
-        return { ...record, status: "active" as const };
-      }
-      if (record.status === "active") return { ...record, status: "previous" as const };
-      if (record.status === "previous") return { ...record, status: "quarantined" as const };
-      return record;
-    });
-    this.write({ schemaVersion: registry.schemaVersion, records });
-    return {
-      active: records.find((record) => record.key === key && record.digest === digest)!,
-      ...(previous ? { previous: records.find((record) => record.digest === previous.digest && record.key === key) } : {})
-    };
-  }
-
-  /** Atomically swap the current active version with the newest previous one. */
-  rollback(key: string): { active: InstalledSkillRecord; previous: InstalledSkillRecord } {
-    const registry = this.read();
-    const active = registry.records.find((record) => record.key === key && record.status === "active");
-    const previous = registry.records
-      .filter((record) => record.key === key && record.status === "previous")
-      .sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
-    if (!active || !previous) throw new Error("没有可回滚的 Skill previous 版本。");
-    if (previous.readiness !== "ready") throw new Error("previous 版本尚未达到 ready，不能回滚。");
-    const records = registry.records.map((record) => {
-      if (record.key !== key) return record;
-      if (record.digest === previous.digest) return { ...record, status: "active" as const };
-      if (record.digest === active.digest) return { ...record, status: "previous" as const };
-      return record;
-    });
-    this.write({ schemaVersion: registry.schemaVersion, records });
-    return {
-      active: records.find((record) => record.key === key && record.status === "active")!,
-      previous: records.find((record) => record.key === key && record.status === "previous" && record.digest === active.digest)!
-    };
-  }
-
   private read(): InstalledSkillRegistryFile {
     try {
-      if (this.registryFile === null) {
+      if (this.registryFile === null || !fs.existsSync(this.registryFile)) {
         return { schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [] };
       }
-      if (!fs.existsSync(this.registryFile)) {
-        return { schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records: [] };
+      const parsed = JSON.parse(fs.readFileSync(this.registryFile, "utf8")) as { schemaVersion?: number; records?: unknown };
+      if (!Array.isArray(parsed.records)) throw new Error("Skill registry schema mismatch");
+      if (parsed.schemaVersion === 1 || parsed.schemaVersion === 2) {
+        const migrated = migrateLegacyRegistry(parsed.schemaVersion, parsed.records);
+        // A successful schema migration is durable immediately. Invalid legacy
+        // input never reaches this write and therefore remains untouched.
+        this.write(migrated);
+        return migrated;
       }
-      const parsed = JSON.parse(fs.readFileSync(this.registryFile, "utf8")) as Partial<InstalledSkillRegistryFile>;
-      if (parsed.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION || !Array.isArray(parsed.records)) {
+      if (parsed.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION) {
         throw new Error("Skill registry schema mismatch");
       }
-      const registry = {
+      return validateCurrentRegistry({
         schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
-      records: parsed.records.map((record) => validateRecord(record))
-      };
-      validateRegistry(registry);
-      return registry;
+        records: parsed.records
+      });
     } catch (error) {
       throw new Error(`Skill registry 无法读取，拒绝覆盖现有安装状态：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -222,73 +125,201 @@ export class InstalledSkillRepository {
     if (this.registryFile === null) {
       throw new Error("Skill store 不可用：尚未绑定 mymind 根目录（内部不变量，正常流程不应到达）。");
     }
-    validateRegistry(registry);
-    writeJsonAtomic(this.registryFile, registry);
+    writeJsonAtomic(this.registryFile, validateCurrentRegistry(registry));
   }
 }
 
-function validateRegistry(registry: InstalledSkillRegistryFile): void {
-  if (registry.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION) {
-    throw new Error("Skill registry schema mismatch");
+function migrateLegacyRegistry(schemaVersion: 1 | 2, rawRecords: unknown[]): InstalledSkillRegistryFile {
+  const records = rawRecords.map((record) => validateLegacyRecord(record, schemaVersion));
+  validateLegacyRegistry(records, schemaVersion);
+
+  const selected = new Map<string, LegacyInstalledSkillRecord>();
+  for (const candidate of records) {
+    const current = selected.get(candidate.key);
+    if (!current || preferLegacyRecord(candidate, current)) selected.set(candidate.key, candidate);
   }
+
+  return validateCurrentRegistry({
+    schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
+    records: [...selected.values()]
+      .map(projectCurrentRecord)
+      .sort((left, right) => left.key.localeCompare(right.key))
+  });
+}
+
+/** Active preserves the user's selected v1 version; otherwise latest install wins. */
+function preferLegacyRecord(candidate: LegacyInstalledSkillRecord, current: LegacyInstalledSkillRecord): boolean {
+  if ((candidate.status === "active") !== (current.status === "active")) return candidate.status === "active";
+  const installedAt = candidate.installedAt.localeCompare(current.installedAt);
+  if (installedAt !== 0) return installedAt > 0;
+  const digest = candidate.digest.localeCompare(current.digest);
+  if (digest !== 0) return digest > 0;
+  const packagePath = candidate.packagePath.localeCompare(current.packagePath);
+  if (packagePath !== 0) return packagePath > 0;
+  return legacyStableKey(candidate).localeCompare(legacyStableKey(current)) > 0;
+}
+
+function legacyStableKey(record: LegacyInstalledSkillRecord): string {
+  return [
+    record.version,
+    record.sourcePath,
+    record.sourceType || "",
+    record.sourceLocator || "",
+    record.sourceRef || "",
+    record.sourcePackageRef || "",
+    record.sourceRevision || "",
+    record.signatureStatus,
+    record.reviewStatus,
+    record.skillUpdatePolicy,
+    record.status,
+    record.readiness
+  ].join("\u0000");
+}
+
+function validateLegacyRegistry(records: LegacyInstalledSkillRecord[], schemaVersion: 1 | 2): void {
   const activeByKey = new Set<string>();
   const previousByKey = new Set<string>();
-  for (const record of registry.records) {
-    validateRecord(record);
+  const keySeen = new Set<string>();
+  for (const record of records) {
     if (record.status === "active") {
       if (record.readiness !== "ready") throw new Error("active Skill 必须是 ready");
       if (activeByKey.has(record.key)) throw new Error(`Skill 出现多个 active：${record.key}`);
       activeByKey.add(record.key);
     }
-    if (record.status === "previous") {
+    if (schemaVersion === 1 && record.status === "previous") {
       if (previousByKey.has(record.key)) throw new Error(`Skill 出现多个 previous：${record.key}`);
       previousByKey.add(record.key);
+    }
+    if (schemaVersion === 2) {
+      if (keySeen.has(record.key)) throw new Error(`Skill 出现多个记录：${record.key}`);
+      keySeen.add(record.key);
     }
   }
 }
 
-function validateRecord(value: unknown): InstalledSkillRecord {
-  if (!value || typeof value !== "object") throw new Error("Skill registry record 不是对象");
-  const record = { ...(value as Partial<InstalledSkillRecord>) };
-  delete (record as Record<string, unknown>).executionTrust;
-  const normalized = {
-    ...record,
-    signatureStatus: record.signatureStatus ?? "unsigned",
-    reviewStatus: record.reviewStatus ?? "unreviewed",
-    skillUpdatePolicy: record.skillUpdatePolicy ?? "manual"
-  };
-  const statuses: InstalledSkillStatus[] = ["quarantined", "installed-not-ready", "active", "previous"];
-  const readiness: InstalledSkillReadiness[] = ["installed-not-ready", "ready", "blocked", "stale"];
-  if (normalized.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION
-    || !nonEmptyString(normalized.key) || !nonEmptyString(normalized.id)
-    || !nonEmptyString(normalized.publisherId) || !nonEmptyString(normalized.version)
-    || !nonEmptyString(normalized.digest) || !nonEmptyString(normalized.sourcePath)
-    || !nonEmptyString(normalized.packagePath) || !statuses.includes(normalized.status as InstalledSkillStatus)
-    || !readiness.includes(normalized.readiness as InstalledSkillReadiness)
-    || !["unsigned", "valid", "invalid", "revoked"].includes(normalized.signatureStatus || "")
-    || !["unreviewed", "automated-scan", "manually-reviewed"].includes(normalized.reviewStatus || "")
-    || !["manual", "download-only"].includes(normalized.skillUpdatePolicy || "")
-    || !nonEmptyString(normalized.installedAt)) {
-    throw new Error("Skill registry record schema mismatch");
+function validateCurrentRegistry(value: { schemaVersion: number; records: unknown[] }): InstalledSkillRegistryFile {
+  if (value.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION) {
+    throw new Error("Skill registry schema mismatch");
   }
-  if (normalized.sourceType !== undefined && !["directory", "zip", "git"].includes(normalized.sourceType)) {
-    throw new Error("Skill registry source type mismatch");
+  const records = value.records.map(validateCurrentRecord);
+  const keySeen = new Set<string>();
+  const idSeen = new Set<string>();
+  for (const record of records) {
+    if (keySeen.has(record.key)) throw new Error(`Skill 出现多个记录：${record.key}`);
+    if (idSeen.has(record.id)) throw new Error(`Skill id 出现多个发布者记录：${record.id}`);
+    keySeen.add(record.key);
+    idSeen.add(record.id);
   }
-  if (normalized.sourceType === "git" && !nonEmptyString(normalized.sourceLocator)) {
-    throw new Error("Git Skill registry source locator mismatch");
-  }
-  if (normalized.sourceLocator !== undefined && !nonEmptyString(normalized.sourceLocator)) {
-    throw new Error("Skill registry source locator mismatch");
-  }
-  if (normalized.sourceRef !== undefined && !nonEmptyString(normalized.sourceRef)) {
-    throw new Error("Skill registry source ref mismatch");
-  }
-  return normalized as InstalledSkillRecord;
+  return { schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION, records };
 }
 
-function sameReviewState(left: InstalledSkillRecord, right: InstalledSkillRecord): boolean {
-  return left.signatureStatus === right.signatureStatus
-    && left.reviewStatus === right.reviewStatus;
+function validateCurrentRecord(value: unknown): InstalledSkillRecord {
+  const raw = objectRecord(value);
+  if (raw.schemaVersion !== INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION) {
+    throw new Error("Skill registry record schema mismatch");
+  }
+  return projectCurrentRecord(validateCommonRecord(raw));
+}
+
+function validateLegacyRecord(value: unknown, schemaVersion: 1 | 2): LegacyInstalledSkillRecord {
+  const raw = objectRecord(value);
+  if (raw.schemaVersion !== schemaVersion) throw new Error("Skill registry record schema mismatch");
+  const allowedStatuses = schemaVersion === 1 ? V1_STATUSES : V2_STATUSES;
+  if (!includes(allowedStatuses, raw.status) || !includes(LEGACY_READINESS, raw.readiness)) {
+    throw new Error("Skill registry record schema mismatch");
+  }
+  return {
+    ...validateCommonRecord(raw),
+    schemaVersion,
+    status: raw.status,
+    readiness: raw.readiness
+  };
+}
+
+function validateCommonRecord(raw: Record<string, unknown>): Omit<InstalledSkillRecord, "schemaVersion"> {
+  const signatureStatus = raw.signatureStatus ?? "unsigned";
+  const reviewStatus = raw.reviewStatus ?? "unreviewed";
+  const skillUpdatePolicy = raw.skillUpdatePolicy ?? "manual";
+  const sourceType = raw.sourceType;
+  const sourceLocator = optionalNonEmptyString("sourceLocator", raw.sourceLocator);
+  const sourceRef = optionalNonEmptyString("sourceRef", raw.sourceRef);
+  const sourcePackageRef = optionalNonEmptyString("sourcePackageRef", raw.sourcePackageRef);
+  const sourceRevision = optionalNonEmptyString("sourceRevision", raw.sourceRevision);
+  if (!nonEmptyString(raw.key) || !nonEmptyString(raw.id)
+    || !nonEmptyString(raw.publisherId) || !nonEmptyString(raw.version)
+    || !nonEmptyString(raw.digest) || !nonEmptyString(raw.sourcePath)
+    || !nonEmptyString(raw.packagePath) || !nonEmptyString(raw.installedAt)
+    || !includes(SIGNATURE_STATUSES, signatureStatus)
+    || !includes(REVIEW_STATUSES, reviewStatus)
+    || !includes(UPDATE_POLICIES, skillUpdatePolicy)) {
+    throw new Error("Skill registry record schema mismatch");
+  }
+  if (sourceType !== undefined && !includes(SOURCE_TYPES, sourceType)) {
+    throw new Error("Skill registry source type mismatch");
+  }
+  if (sourceType === "git" && sourceLocator === undefined) {
+    throw new Error("Git Skill registry source locator mismatch");
+  }
+
+  return {
+    key: raw.key,
+    id: raw.id,
+    publisherId: raw.publisherId,
+    version: raw.version,
+    digest: raw.digest,
+    sourcePath: raw.sourcePath,
+    ...(sourceType === undefined ? {} : { sourceType }),
+    ...(sourceLocator === undefined ? {} : { sourceLocator }),
+    ...(sourceRef === undefined ? {} : { sourceRef }),
+    ...(sourcePackageRef === undefined ? {} : { sourcePackageRef }),
+    ...(sourceRevision === undefined ? {} : { sourceRevision }),
+    packagePath: raw.packagePath,
+    signatureStatus,
+    reviewStatus,
+    skillUpdatePolicy,
+    installedAt: raw.installedAt
+  };
+}
+
+function projectCurrentRecord(record: Omit<InstalledSkillRecord, "schemaVersion">): InstalledSkillRecord;
+function projectCurrentRecord(record: LegacyInstalledSkillRecord): InstalledSkillRecord;
+function projectCurrentRecord(record: Omit<InstalledSkillRecord, "schemaVersion"> | LegacyInstalledSkillRecord): InstalledSkillRecord {
+  return {
+    schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
+    key: record.key,
+    id: record.id,
+    publisherId: record.publisherId,
+    version: record.version,
+    digest: record.digest,
+    sourcePath: record.sourcePath,
+    ...(record.sourceType === undefined ? {} : { sourceType: record.sourceType }),
+    ...(record.sourceLocator === undefined ? {} : { sourceLocator: record.sourceLocator }),
+    ...(record.sourceRef === undefined ? {} : { sourceRef: record.sourceRef }),
+    ...(record.sourcePackageRef === undefined ? {} : { sourcePackageRef: record.sourcePackageRef }),
+    ...(record.sourceRevision === undefined ? {} : { sourceRevision: record.sourceRevision }),
+    packagePath: record.packagePath,
+    signatureStatus: record.signatureStatus,
+    reviewStatus: record.reviewStatus,
+    skillUpdatePolicy: record.skillUpdatePolicy,
+    installedAt: record.installedAt
+  };
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Skill registry record 不是对象");
+  }
+  return value as Record<string, unknown>;
+}
+
+function includes<const T extends readonly string[]>(values: T, value: unknown): value is T[number] {
+  return typeof value === "string" && (values as readonly string[]).includes(value);
+}
+
+function optionalNonEmptyString(field: string, value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (nonEmptyString(value)) return value;
+  throw new Error(`Skill registry ${field} mismatch`);
 }
 
 function nonEmptyString(value: unknown): value is string {

@@ -190,7 +190,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
               </section>
             ) : null}
             {selected.kind === "workflow" ? <>
-              {selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <section className="run-section run-resume-section"><h3>恢复输入</h3><p className="runs-muted">应用重启后不会保存 Workflow 输入。确认 active Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Workflow 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
+              {selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <section className="run-section run-resume-section"><h3>恢复输入</h3><p className="runs-muted">应用重启后不会保存 Workflow 输入。确认已安装的 Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Workflow 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
               <WorkflowSteps record={selected.record} onRetry={retryStep} />
             </> : <>
               <section className="run-section"><h3>运行产物</h3><ArtifactList artifacts={selectedArtifacts} /></section>

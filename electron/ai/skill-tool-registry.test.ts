@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
+import { SkillManifestSchema, type WorkflowManifest } from "../../shared/skill-manifest-schema";
+import { EXECUTION_SCHEMA_VERSION } from "../../shared/execution-contracts";
+import { workflowManifestFingerprint } from "../execution/workflow-engine";
 
 /**
  * mock process-utils 的 spawn 相关函数 —— SkillToolRegistry.run() 内部
@@ -100,6 +103,7 @@ describe("SkillToolRegistry", () => {
       const defs = registry.listDefinitions();
       expect(defs.length).toBeGreaterThan(0);
       expect(defs.every((d) => "envFile" in d && "group" in d)).toBe(true);
+      expect(registry.captureSessionSnapshot()).toEqual(defs.map((definition) => ({ definition, installed: null })));
     });
 
     it("permission 缺省时回退 edit", () => {
@@ -120,6 +124,18 @@ describe("SkillToolRegistry", () => {
       const root = createRoot();
       const paths = buildAppPaths(path.join(root, "user-data"));
       ensureAppPaths(paths);
+      const installedSnapshot = [{
+        definition: {
+          id: "installed-skill",
+          title: "Installed Skill",
+          description: "formal manifest",
+          cwd: "installed/cctools/installed-skill/1.0.0",
+          command: "managed-runtime"
+        },
+        installed: { key: "cctools/installed-skill", version: "1.0.0", digest: "a".repeat(64) }
+      }];
+      const captureSessionSnapshot = vi.fn(() => installedSnapshot);
+      const providerSkillBridge = vi.fn(() => null);
       const installedResolver = {
         listDefinitions: () => [{
           id: "installed-skill",
@@ -135,7 +151,9 @@ describe("SkillToolRegistry", () => {
           outputArtifacts: [],
           timeoutMs: 1800000
         }],
-        active: () => undefined,
+        captureSessionSnapshot,
+        providerSkillBridge,
+        installed: () => undefined,
         resolve: vi.fn()
       } as unknown as InstalledSkillExecutionResolver;
       const registry = new SkillToolRegistry(root, root, {
@@ -149,6 +167,10 @@ describe("SkillToolRegistry", () => {
         expect.objectContaining({ id: "installed-skill", command: "managed-runtime" })
       ]);
       expect(registry.listDefinitions().some((skill) => skill.id === "test-skill")).toBe(false);
+      expect(registry.captureSessionSnapshot(true)).toEqual(installedSnapshot);
+      expect(captureSessionSnapshot).toHaveBeenCalledWith(true);
+      expect(registry.providerSkillBridge(installedSnapshot[0])).toBeNull();
+      expect(providerSkillBridge).toHaveBeenCalledWith(installedSnapshot[0]);
     });
   });
 
@@ -185,6 +207,25 @@ describe("SkillToolRegistry", () => {
       const skills = registry.list();
       expect(skills).toHaveLength(2);
       expect(skills.find((s) => s.id === "second-skill")).toBeTruthy();
+    });
+
+    it("Installed Resolver 激活时不再重扫 Legacy workspace Skill", () => {
+      const root = createRoot();
+      const paths = buildAppPaths(path.join(root, "user-data"));
+      ensureAppPaths(paths);
+      const installedResolver = { resolve: vi.fn() } as unknown as InstalledSkillExecutionResolver;
+      const registry = new SkillToolRegistry(root, root, {
+        paths,
+        mymindRoot: root,
+        rootGeneration: 1,
+        installedResolver
+      });
+      expect(registry.list().map((skill) => skill.id)).toEqual(["test-skill"]);
+      fs.rmSync(path.join(root, ".claude", "skills", "test-skill"), { recursive: true, force: true });
+
+      registry.refresh();
+
+      expect(registry.list().map((skill) => skill.id)).toEqual(["test-skill"]);
     });
   });
 
@@ -375,7 +416,7 @@ describe("SkillToolRegistry", () => {
     });
   });
 
-  it("生产手动路径只通过 active Installed Skill Resolver 进入 ExecutionBroker", async () => {
+  it("生产手动路径只通过 Installed Skill Resolver 进入 ExecutionBroker", async () => {
     const root = createRoot();
     const mymindRoot = path.join(root, "mymind");
     fs.mkdirSync(mymindRoot, { recursive: true });
@@ -383,7 +424,7 @@ describe("SkillToolRegistry", () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const digest = "a".repeat(64);
-    const active = { version: "1.0.0", digest };
+    const installed = { version: "1.0.0", digest };
     const resolve = vi.fn(async (request: { skillId: string; version?: string; digest?: string; inputs: Record<string, unknown> }) => ({
       skillId: request.skillId,
       version: "1.0.0",
@@ -403,9 +444,10 @@ describe("SkillToolRegistry", () => {
       artifacts: [],
       knownSecrets: []
     }));
+    const assertBrokerRunnable = vi.fn(() => installed as never);
     const installedResolver = {
-      active: vi.fn(() => active),
-      assertBrokerRunnable: vi.fn(),
+      installed: vi.fn(() => installed),
+      assertBrokerRunnable,
       resolve: resolve as unknown as InstalledSkillExecutionResolver["resolve"]
     } as unknown as InstalledSkillExecutionResolver;
     const registry = new SkillToolRegistry(root, root, { paths, mymindRoot, rootGeneration: 1, maxConcurrentRuns: 1, installedResolver });
@@ -425,6 +467,7 @@ describe("SkillToolRegistry", () => {
       digest,
       inputs: { date: "20260805", sourceId: "source-1", sourceUrl: "https://example.com/feed" }
     }), expect.any(String));
+
   });
 
   it("Agent Skill 在创建 Broker Run 前被引导到 Claude Code/Codex CLI", () => {
@@ -454,6 +497,10 @@ describe("SkillToolRegistry", () => {
       externalExportBindingIds: [],
       rootGeneration: 1
     })).toThrow("Claude Code CLI 或 Codex CLI");
+    expect(installedResolver.assertBrokerRunnable).toHaveBeenCalledWith(expect.objectContaining({
+      skillId: "creative-writing",
+      trigger: { type: "manual" }
+    }));
     expect(registry.listRuns()).toEqual([]);
   });
 
@@ -474,7 +521,220 @@ describe("SkillToolRegistry", () => {
       rootGeneration: 1
     });
     await waitFor(() => registry.getRun(run.id).state === "failed");
-    expect(registry.getRun(run.id).error).toContain("active Installed Skill");
+    expect(registry.getRun(run.id).error).toContain("Installed Skill");
+  });
+
+  it("pins a wildcard Process request to the exact admitted version and digest before queueing", async () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const digest = "c".repeat(64);
+    const installedResolver = {
+      assertBrokerRunnable: vi.fn(() => ({ version: "1.4.2", digest })),
+      resolve: vi.fn(async () => { throw new Error("stop after admission"); })
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, {
+      paths,
+      mymindRoot,
+      rootGeneration: 1,
+      installedResolver
+    });
+
+    const run = registry.submitRun({
+      skillId: "daily-article-summarizer",
+      inputs: {},
+      providerBindings: {},
+      trigger: { type: "automation", ruleId: "daily-summary" },
+      externalExportBindingIds: [],
+      rootGeneration: 1
+    });
+
+    expect(run.request).toMatchObject({ version: "1.4.2", digest });
+    await waitFor(() => registry.getRun(run.id).state === "failed");
+  });
+
+  it("Workflow 准入后使用固定 Step identity，运行中停用不会影响后续 Step", async () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const packageRoot = fs.realpathSync(path.join(root, ".claude", "skills", "test-skill"));
+    const manifest = workflowManifest();
+    const workflowAdmission = {
+      manifest,
+      steps: [
+        { stepId: "first", skillId: "first-step", version: "1.0.0", digest: "a".repeat(64) },
+        { stepId: "second", skillId: "second-step", version: "1.0.0", digest: "b".repeat(64) }
+      ]
+    };
+    let enabled = true;
+    const assertBrokerRunnable = vi.fn(() => {
+      if (!enabled) throw new Error("Skill 已停用");
+    });
+    const admittedRequests: Array<{ skillId: string; version?: string; digest?: string }> = [];
+    const assertAdmittedBrokerRunnable = vi.fn((request: { skillId: string; version?: string; digest?: string }) => {
+      admittedRequests.push({ skillId: request.skillId, version: request.version, digest: request.digest });
+      if (request.skillId === "first-step") enabled = false;
+    });
+    const installedResolver = {
+      admitWorkflow: vi.fn(() => workflowAdmission),
+      assertBrokerRunnable,
+      assertAdmittedBrokerRunnable,
+      resolve: vi.fn(async (request: { skillId: string; version?: string; digest?: string }) => ({
+        skillId: request.skillId,
+        version: request.version!,
+        digest: request.digest!,
+        rootGeneration: 1,
+        skillHome: packageRoot,
+        mymindRoot: fs.realpathSync(mymindRoot),
+        capabilities: { mymind: { read: [], write: [] } },
+        process: {
+          executable: process.execPath,
+          args: ["-e", "process.exit(0)"],
+          cwd: packageRoot,
+          env: {},
+          timeoutMs: 5_000,
+          gracefulStopMs: 100
+        },
+        artifacts: [],
+        knownSecrets: []
+      }))
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, {
+      paths,
+      mymindRoot,
+      rootGeneration: 1,
+      maxConcurrentRuns: 1,
+      installedResolver,
+      workflowRoot: path.join(root, "workflow-runs")
+    });
+
+    const run = registry.startWorkflowRun({
+      skillId: manifest.id,
+      version: manifest.version,
+      inputs: {},
+      providerBindings: {},
+      rootGeneration: 1
+    });
+    await waitFor(() => registry.getWorkflowRun(run.id).state === "succeeded");
+
+    expect(installedResolver.admitWorkflow).toHaveBeenCalledTimes(1);
+    expect(assertBrokerRunnable).not.toHaveBeenCalled();
+    expect(admittedRequests).toEqual(workflowAdmission.steps.map(({ skillId, version, digest }) => ({ skillId, version, digest })));
+    expect(enabled).toBe(false);
+  });
+
+  it("Workflow Step 显式重试会重新执行整条 Workflow admission", async () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const packageRoot = fs.realpathSync(path.join(root, ".claude", "skills", "test-skill"));
+    const manifest = workflowManifest();
+    const workflowAdmission = {
+      manifest,
+      steps: [
+        { stepId: "first", skillId: "first-step", version: "1.0.0", digest: "a".repeat(64) },
+        { stepId: "second", skillId: "second-step", version: "1.0.0", digest: "b".repeat(64) }
+      ]
+    };
+    let enabled = true;
+    const admitWorkflow = vi.fn(() => {
+      if (!enabled) throw new Error("Workflow Step Skill 已停用");
+      return workflowAdmission;
+    });
+    const installedResolver = {
+      admitWorkflow,
+      assertAdmittedBrokerRunnable: vi.fn(),
+      resolve: vi.fn(async (request: { skillId: string; version?: string; digest?: string }) => ({
+        skillId: request.skillId,
+        version: request.version!,
+        digest: request.digest!,
+        rootGeneration: 1,
+        skillHome: packageRoot,
+        mymindRoot: fs.realpathSync(mymindRoot),
+        capabilities: { mymind: { read: [], write: [] } },
+        process: {
+          executable: process.execPath,
+          args: ["-e", "process.exit(1)"],
+          cwd: packageRoot,
+          env: {},
+          timeoutMs: 5_000,
+          gracefulStopMs: 100
+        },
+        artifacts: [],
+        knownSecrets: []
+      }))
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, {
+      paths,
+      mymindRoot,
+      rootGeneration: 1,
+      installedResolver,
+      workflowRoot: path.join(root, "workflow-runs")
+    });
+    const run = registry.startWorkflowRun({
+      skillId: manifest.id,
+      version: manifest.version,
+      inputs: {},
+      providerBindings: {},
+      rootGeneration: 1
+    });
+    await waitFor(() => registry.getWorkflowRun(run.id).state === "failed");
+
+    enabled = false;
+    expect(() => registry.retryWorkflowStep(run.id, "first")).toThrow(/停用/);
+    expect(admitWorkflow).toHaveBeenCalledTimes(2);
+  });
+
+  it("Workflow 重启恢复会先重新执行整条 Workflow admission", () => {
+    const root = createRoot();
+    const mymindRoot = path.join(root, "mymind");
+    fs.mkdirSync(mymindRoot, { recursive: true });
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    ensureAppPaths(paths);
+    const workflowRoot = path.join(root, "workflow-runs");
+    fs.mkdirSync(workflowRoot, { recursive: true });
+    const manifest = workflowManifest();
+    const runId = "interrupted-workflow";
+    fs.writeFileSync(path.join(workflowRoot, `${runId}.json`), JSON.stringify({
+      schemaVersion: EXECUTION_SCHEMA_VERSION,
+      id: runId,
+      workflowSkillId: manifest.id,
+      workflowVersion: manifest.version,
+      workflowFingerprint: workflowManifestFingerprint(manifest),
+      state: "running",
+      rootGeneration: 1,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      error: null,
+      stepRuns: [
+        { stepId: "first", skillId: "first-step", state: "running", attempt: 1, retryAt: null, runId: "old-child", error: null, artifacts: [] },
+        { stepId: "second", skillId: "second-step", state: "pending", attempt: 0, retryAt: null, runId: null, error: null, artifacts: [] }
+      ]
+    }));
+    const admitWorkflow = vi.fn(() => {
+      throw new Error("Workflow Step Skill 已停用");
+    });
+    const installedResolver = {
+      admitWorkflow,
+      resolve: vi.fn()
+    } as unknown as InstalledSkillExecutionResolver;
+    const registry = new SkillToolRegistry(root, root, {
+      paths,
+      mymindRoot,
+      rootGeneration: 1,
+      installedResolver,
+      workflowRoot
+    });
+
+    expect(registry.getWorkflowRun(runId)).toMatchObject({ state: "failed", error: expect.stringContaining("应用重启") });
+    expect(() => registry.resumeWorkflowRun(runId, {}, 1)).toThrow(/停用/);
+    expect(admitWorkflow).toHaveBeenCalledWith(manifest.id, manifest.version);
   });
 
   describe("stop", () => {
@@ -543,4 +803,26 @@ async function waitFor(condition: () => boolean): Promise<void> {
     if (Date.now() > deadline) throw new Error("skill registry wait timed out");
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
+}
+
+function workflowManifest(): WorkflowManifest {
+  return SkillManifestSchema.parse({
+    apiVersion: "cctools.dev/skill/v1",
+    id: "registry-workflow",
+    version: "1.0.0",
+    publisher: { id: "cctools", displayName: "cctools" },
+    kind: "workflow",
+    display: { name: "Registry Workflow", description: "" },
+    capabilities: { mymind: { read: [], write: [] }, network: { required: false, hosts: [] } },
+    artifacts: [],
+    execution: { concurrency: { maxInstances: 1, mutexes: [] }, timeoutSeconds: 60, gracefulStopSeconds: 1, retry: { maxAttempts: 0 } },
+    platforms: ["linux-x64"],
+    compatibility: { minAppVersion: "1.0.0" },
+    workflow: {
+      steps: [
+        { id: "first", skill: "first-step", version: "^1.0.0", needs: [], with: {} },
+        { id: "second", skill: "second-step", version: "^1.0.0", needs: ["first"], with: {} }
+      ]
+    }
+  }) as WorkflowManifest;
 }

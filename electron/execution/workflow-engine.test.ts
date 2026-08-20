@@ -21,23 +21,41 @@ describe("WorkflowEngine", () => {
     expect(() => engine.validate(workflow({ cycle: true }))).toThrow(/循环依赖/);
   });
 
+  it("rejects an admission that does not pin every Step to a matching exact package", () => {
+    const root = makeRoot();
+    const engine = new WorkflowEngine(root, () => child("unused"), () => child("unused"));
+    const manifest = workflow();
+    const valid = admission(manifest);
+
+    expect(() => engine.start({ ...valid, steps: valid.steps.slice(0, 1) }, {}, 1)).toThrow(/覆盖全部 Step/);
+    expect(() => engine.start({
+      ...valid,
+      steps: valid.steps.map((step) => step.stepId === "summarize" ? { ...step, skillId: "other" } : step)
+    }, {}, 1)).toThrow(/identity/);
+    expect(() => engine.start({
+      ...valid,
+      steps: valid.steps.map((step) => step.stepId === "summarize" ? { ...step, digest: "bad" } : step)
+    }, {}, 1)).toThrow(/digest/);
+  });
+
   it("submits each ready step through Broker and persists a terminal workflow record", async () => {
     const root = makeRoot();
-    const submitted: Array<{ skillId: string; version?: string; inputs: Record<string, unknown> }> = [];
+    const submitted: Array<{ skillId: string; version?: string; digest?: string; inputs: Record<string, unknown> }> = [];
     const engine = new WorkflowEngine(
       root,
       (request) => {
-        submitted.push({ skillId: request.skillId, version: request.version, inputs: request.inputs });
+        submitted.push({ skillId: request.skillId, version: request.version, digest: request.digest, inputs: request.inputs });
         return child(`run-${submitted.length}`, "succeeded");
       },
       (runId) => child(runId, "succeeded")
     );
-    const run = engine.start(workflow(), { date: "20260805" }, 4);
+    const manifest = workflow();
+    const run = engine.start(admission(manifest), { date: "20260805" }, 4);
     await waitFor(() => engine.get(run.id).state === "succeeded");
 
     expect(submitted).toEqual([
-      { skillId: "collector", version: "^1.0.0", inputs: { date: "20260805" } },
-      { skillId: "summarizer", version: "^1.0.0", inputs: { date: "20260805" } }
+      { skillId: "collector", version: "1.0.0", digest: "a".repeat(64), inputs: { date: "20260805" } },
+      { skillId: "summarizer", version: "1.0.0", digest: "b".repeat(64), inputs: { date: "20260805" } }
     ]);
     expect(engine.get(run.id).stepRuns.every((step) => step.state === "succeeded")).toBe(true);
     expect(fs.existsSync(path.join(root, `${run.id}.json`))).toBe(true);
@@ -61,12 +79,12 @@ describe("WorkflowEngine", () => {
       (runId) => children.get(runId) || child(runId, "failed")
     );
 
-    const run = engine.start(manifest, { date: "20260805" }, 1);
+    const run = engine.start(admission(manifest), { date: "20260805" }, 1);
     await waitFor(() => engine.get(run.id).state === "succeeded");
 
     expect(submitted).toEqual([
-      { skillId: "collector", version: "^1.0.0", inputs: { date: "20260805" } },
-      { skillId: "summarizer", version: "^1.0.0", inputs: { artifactPath: "mymind/daily-summary/20260805.md", checksum: output.sha256 } }
+      { skillId: "collector", version: "1.0.0", inputs: { date: "20260805" } },
+      { skillId: "summarizer", version: "1.0.0", inputs: { artifactPath: "mymind/daily-summary/20260805.md", checksum: output.sha256 } }
     ]);
     expect(engine.get(run.id).stepRuns[0].artifacts).toEqual([output]);
     expect(JSON.parse(fs.readFileSync(path.join(root, `${run.id}.json`), "utf8")).stepRuns[0].artifacts).toEqual([output]);
@@ -77,7 +95,7 @@ describe("WorkflowEngine", () => {
     const manifest = workflow();
     manifest.workflow.steps[0].with = { artifactPath: "{{ steps.summarize.artifacts.output.logicalPath }}" };
     const engine = new WorkflowEngine(root, () => child("unused"), () => child("unused"));
-    const run = engine.start(manifest, {}, 1);
+    const run = engine.start(admission(manifest), {}, 1);
 
     await waitFor(() => engine.get(run.id).state === "failed");
     expect(engine.get(run.id).stepRuns[0].error).toContain("只能引用 needs");
@@ -86,7 +104,7 @@ describe("WorkflowEngine", () => {
   it("cancels a queued or running workflow and stops polling", async () => {
     const root = makeRoot();
     const engine = new WorkflowEngine(root, () => child("run-running", "queued"), () => child("run-running", "queued"));
-    const run = engine.start(workflow(), {}, 1);
+    const run = engine.start(admission(workflow()), {}, 1);
     expect(await engine.cancel(run.id)).toBe(true);
     expect(engine.get(run.id).state).toBe("cancelled");
   });
@@ -98,7 +116,7 @@ describe("WorkflowEngine", () => {
       () => { throw new Error("child broker unavailable"); },
       () => child("unused")
     );
-    const run = engine.start(workflow(), {}, 1);
+    const run = engine.start(admission(workflow()), {}, 1);
     await waitFor(() => engine.get(run.id).state === "failed");
 
     const failed = engine.get(run.id);
@@ -139,9 +157,9 @@ describe("WorkflowEngine", () => {
       () => child("resumed", "succeeded")
     );
     const validationEngine = new WorkflowEngine(root, () => child("unused"), () => child("unused"));
-    expect(() => validationEngine.resume(record.id, workflow(), { apiKey: "blocked" }, 1)).toThrow("Secret");
+    expect(() => validationEngine.resume(record.id, admission(workflow()), { apiKey: "blocked" }, 1)).toThrow("Secret");
 
-    const resumed = engine.resume(record.id, workflow(), { date: "20260805" }, 1);
+    const resumed = engine.resume(record.id, admission(workflow()), { date: "20260805" }, 1);
     expect(resumed.state).toBe("running");
     await waitFor(() => engine.get(record.id).state === "succeeded");
     expect(submitted).toEqual(["collector", "summarizer"]);
@@ -162,7 +180,7 @@ describe("WorkflowEngine", () => {
       (runId) => child(runId, childStates.get(runId) || "succeeded")
     );
     const manifest = workflowWithRetry();
-    const run = engine.start(manifest, {}, 1);
+    const run = engine.start(admission(manifest), {}, 1);
     await waitFor(() => engine.get(run.id).state === "succeeded");
 
     expect(submitted).toEqual(["collector", "summarizer", "summarizer"]);
@@ -185,11 +203,12 @@ describe("WorkflowEngine", () => {
       },
       (runId) => child(runId, childStates.get(runId) || "succeeded")
     );
-    const run = engine.start(workflow(), {}, 1);
+    const manifest = workflow();
+    const run = engine.start(admission(manifest), {}, 1);
     await waitFor(() => engine.get(run.id).state === "failed");
     shouldFail = false;
 
-    const retried = engine.retryStep(run.id, "summarize");
+    const retried = engine.retryStep(run.id, "summarize", admission(manifest));
     expect(retried.state).toBe("running");
     await waitFor(() => engine.get(run.id).state === "succeeded");
     expect(submitted).toEqual(["collector", "summarizer", "summarizer"]);
@@ -198,7 +217,7 @@ describe("WorkflowEngine", () => {
   it("deletes only terminal Workflow history", async () => {
     const root = makeRoot();
     const engine = new WorkflowEngine(root, () => child("run", "succeeded"), () => child("run", "succeeded"));
-    const run = engine.start(workflow(), {}, 1);
+    const run = engine.start(admission(workflow()), {}, 1);
     await waitFor(() => engine.get(run.id).state === "succeeded");
     expect(engine.deleteHistory(run.id)).toBe(true);
     expect(fs.existsSync(path.join(root, `${run.id}.json`))).toBe(false);
@@ -237,6 +256,18 @@ function workflowWithRetry(): WorkflowManifest {
   const manifest = workflow() as WorkflowManifest;
   manifest.workflow.steps[1].retry = { maxAttempts: 1, backoffMs: 0 };
   return manifest;
+}
+
+function admission(manifest: WorkflowManifest) {
+  return {
+    manifest,
+    steps: manifest.workflow.steps.map((step, index) => ({
+      stepId: step.id,
+      skillId: step.skill,
+      version: "1.0.0",
+      digest: (index + 10).toString(16).repeat(64)
+    }))
+  };
 }
 
 function child(id: string, state: BrokerRunRecord["state"] = "succeeded", artifacts: RunArtifact[] = []): BrokerRunRecord {

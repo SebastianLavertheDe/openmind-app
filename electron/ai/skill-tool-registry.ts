@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { type ChildProcessWithoutNullStreams } from "node:child_process";
-import type { SkillDefinition } from "../../shared/contracts";
+import type { AiSessionSkillSnapshotEntry, SkillDefinition } from "../../shared/contracts";
 import type { BrokerRunEvent, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
 import { messages } from "../../shared/messages";
 import { decodeProcessOutput, killProcessTree, spawnInDirectory } from "./process-utils";
@@ -10,8 +10,7 @@ import { ExecutionBroker, type ExecutionPlan } from "../execution/execution-brok
 import type { AppPaths } from "../paths/app-paths-service";
 import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
 import type { ProviderSkillBridge } from "./providers/skill-bridge";
-import { WorkflowEngine } from "../execution/workflow-engine";
-import type { WorkflowManifest } from "../../shared/skill-manifest-schema";
+import { WorkflowEngine, type WorkflowAdmission } from "../execution/workflow-engine";
 import { readDefaultProviderEnv } from "../config/providers-yaml";
 
 export interface SkillTool {
@@ -60,7 +59,6 @@ export type BrokerSkillRegistryOptions = {
   onRunEvent?(event: BrokerRunEvent): void;
   onWorkflowEvent?(event: WorkflowRunRecord): void;
   workflowRoot?: string;
-  resolveWorkflowManifest?(skillId: string, version?: string): WorkflowManifest;
 };
 
 type BrokerInvocation = {
@@ -107,10 +105,10 @@ export class SkillToolRegistry {
         { maxConcurrentRuns: brokerOptions.maxConcurrentRuns }
       )
       : null;
-    this.workflow = brokerOptions?.workflowRoot && brokerOptions.resolveWorkflowManifest && this.broker
+    this.workflow = brokerOptions?.workflowRoot && this.installedResolver && this.broker
       ? new WorkflowEngine(
         brokerOptions.workflowRoot,
-        (request) => this.submitRun(request),
+        (request) => this.submitAdmittedWorkflowStep(request),
         (runId) => this.getRun(runId),
         (runId) => this.cancelRun(runId),
         () => new Date(),
@@ -119,8 +117,12 @@ export class SkillToolRegistry {
       : null;
   }
 
-  /** 重新扫描 .claude/skills/ 下所有 SKILL.md,刷新内存里的 skill 列表。 */
+  /** Refresh legacy workspace discovery; Installed catalogs are read on demand. */
   refresh(): void {
+    // Installed catalogs are read from SkillPackageService on demand. Once the
+    // resolver is active, rescanning legacy workspace Skills for every new
+    // conversation is both wasted IO and an obsolete execution surface.
+    if (this.installedResolver) return;
     this.skills = discoverSkills(this.projectRoot);
   }
 
@@ -145,6 +147,19 @@ export class SkillToolRegistry {
 
   listDefinitions(): SkillDefinition[] {
     if (this.installedResolver) return this.installedResolver.listDefinitions();
+    return this.legacyDefinitions();
+  }
+
+  /** Freeze the catalog used by one conversation. */
+  captureSessionSnapshot(includeDisabled = false): AiSessionSkillSnapshotEntry[] {
+    if (this.installedResolver) return this.installedResolver.captureSessionSnapshot(includeDisabled);
+    const entries = this.legacyDefinitions().map((definition) => ({ definition, installed: null }));
+    const idCounts = new Map<string, number>();
+    for (const entry of entries) idCounts.set(entry.definition.id, (idCounts.get(entry.definition.id) || 0) + 1);
+    return entries.filter((entry) => idCounts.get(entry.definition.id) === 1);
+  }
+
+  private legacyDefinitions(): SkillDefinition[] {
     return this.skills.map((skill) => ({
       id: skill.id,
       title: skill.name,
@@ -162,8 +177,8 @@ export class SkillToolRegistry {
   }
 
   /** Main-only external Provider bridge; Renderer receives logical Skill metadata only. */
-  providerSkillBridge(skillId: string): ProviderSkillBridge | null {
-    return this.installedResolver?.providerSkillBridge(skillId) || null;
+  providerSkillBridge(snapshot: AiSessionSkillSnapshotEntry): ProviderSkillBridge | null {
+    return this.installedResolver?.providerSkillBridge(snapshot) || null;
   }
 
   isRunning(invocationId: string): boolean {
@@ -177,8 +192,7 @@ export class SkillToolRegistry {
 
   submitRun(request: SkillRunRequest): BrokerRunRecord {
     if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
-    this.installedResolver?.assertBrokerRunnable(request.skillId);
-    return this.broker.submit(request);
+    return this.broker.submit(this.admitBrokerRequest(request));
   }
 
   listRuns(): BrokerRunRecord[] { return this.broker?.list() || []; }
@@ -200,8 +214,7 @@ export class SkillToolRegistry {
 
   retryRun(runId: string): BrokerRunRecord {
     if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
-    this.installedResolver?.assertBrokerRunnable(this.broker.get(runId).request.skillId);
-    return this.broker.retry(runId);
+    return this.broker.retry(runId, (request) => this.admitBrokerRequest(request));
   }
 
   revokeCredential(credentialId: string): Promise<number> {
@@ -235,15 +248,17 @@ export class SkillToolRegistry {
 
   retryWorkflowStep(runId: string, stepId: string): WorkflowRunRecord {
     if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
-    return this.workflow.retryStep(runId, stepId);
+    const current = this.workflow.get(runId);
+    const admission = this.resolveWorkflowAdmission(current.workflowSkillId, current.workflowVersion);
+    return this.workflow.retryStep(runId, stepId, admission);
   }
 
   resumeWorkflowRun(runId: string, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
     if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
     const current = this.workflow.get(runId);
     if (rootGeneration !== this.executionRootGeneration) throw new Error("当前 root snapshot 已过期，拒绝恢复 Workflow。 ");
-    const manifest = this.resolveWorkflowManifest(current.workflowSkillId, current.workflowVersion);
-    return this.workflow.resume(runId, manifest, inputs, rootGeneration, providerBindings);
+    const admission = this.resolveWorkflowAdmission(current.workflowSkillId, current.workflowVersion);
+    return this.workflow.resume(runId, admission, inputs, rootGeneration, providerBindings);
   }
 
   cancelRun(runId: string): Promise<boolean> {
@@ -253,8 +268,8 @@ export class SkillToolRegistry {
 
   startWorkflowRun(request: WorkflowStartRequest): WorkflowRunRecord {
     if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
-    const manifest = this.resolveWorkflowManifest(request.skillId, request.version);
-    return this.workflow.start(manifest, request.inputs, request.rootGeneration, request.providerBindings);
+    const admission = this.resolveWorkflowAdmission(request.skillId, request.version);
+    return this.workflow.start(admission, request.inputs, request.rootGeneration, request.providerBindings);
   }
 
   listWorkflowRuns(): WorkflowRunRecord[] { return this.workflow?.list() || []; }
@@ -267,10 +282,28 @@ export class SkillToolRegistry {
     return this.workflow.cancel(runId);
   }
 
-  private resolveWorkflowManifest(skillId: string, version?: string): WorkflowManifest {
+  private resolveWorkflowAdmission(skillId: string, version?: string): WorkflowAdmission {
     const resolver = this.installedResolver;
-    if (!resolver) throw new Error(`没有 active Workflow Skill：${skillId}`);
-    return resolver.workflowManifest(skillId, version);
+    if (!resolver) throw new Error(`没有已安装的 Workflow Skill：${skillId}`);
+    return resolver.admitWorkflow(skillId, version);
+  }
+
+  private submitAdmittedWorkflowStep(request: SkillRunRequest): BrokerRunRecord {
+    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    const resolver = this.installedResolver;
+    if (!resolver) throw new Error(`没有已安装的 Workflow Step Skill：${request.skillId}`);
+    resolver.assertAdmittedBrokerRunnable(request);
+    return this.broker.submit(request);
+  }
+
+  private admitBrokerRequest(request: SkillRunRequest): SkillRunRequest {
+    const record = this.installedResolver?.assertBrokerRunnable(request);
+    if (!record) return request;
+    return {
+      ...request,
+      version: record.version,
+      digest: record.digest.toLowerCase()
+    };
   }
 
   async run(
@@ -280,7 +313,7 @@ export class SkillToolRegistry {
     options: SkillExecutionOptions = {}
   ): Promise<string> {
     const skill = this.skills.find((item) => item.id === skillId);
-    const installed = this.installedResolver?.active(skillId);
+    const installed = this.installedResolver?.installed(skillId);
     if (!skill && !installed) throw new Error(messages.errors.unregisteredSkill(skillId));
     if (skill && this.isSkillDisabled(skillId) && !input.sourceId) throw new Error(messages.errors.skill.sourceDisabled(skill.name));
     const invocationId = options.invocationId || `ai:${skillId}:${Date.now()}`;
@@ -382,8 +415,8 @@ export class SkillToolRegistry {
     if (!this.executionMymindRoot || this.executionRootGeneration < 1) {
       throw new Error("尚未绑定有效的 mymind 根目录，无法创建 Skill Run。");
     }
-    const active = this.installedResolver?.active(skillId);
-    if (!active) throw new Error(`没有 active Installed Skill：${skillId}。请先完成安装、ready 和 host 授权。`);
+    const installed = this.installedResolver?.installed(skillId);
+    if (!installed) throw new Error(`没有已安装的 Skill：${skillId}。请先完成安装。`);
     const sourceId = typeof input.sourceId === "string" ? input.sourceId : undefined;
     const requestInputs = { ...input, date: typeof input.date === "string" ? input.date.replaceAll("-", "") : localDate() };
     return new Promise<string>((resolve, reject) => {
@@ -403,8 +436,8 @@ export class SkillToolRegistry {
       try {
         const record = this.submitRun({
           skillId,
-          version: active.version,
-          digest: active.digest,
+          version: installed.version,
+          digest: installed.digest,
           inputs: requestInputs,
           providerBindings: {},
           trigger: { type: "manual" },
@@ -422,7 +455,7 @@ export class SkillToolRegistry {
   }
 
   private resolveExecutionPlan(request: import("../../shared/execution-contracts").SkillRunRequest, runId: string): Promise<ExecutionPlan> {
-    if (!this.installedResolver) throw new Error(`没有可执行的 active Installed Skill：${request.skillId}。请先完成安装、ready 和 host 授权。`);
+    if (!this.installedResolver) throw new Error(`没有可执行的 Installed Skill：${request.skillId}。请先完成安装并检查包体。`);
     return this.installedResolver.resolve(request, runId);
   }
 

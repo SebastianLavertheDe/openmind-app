@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, Check, Download, FolderCog, Settings, ShieldCheck } from "lucide-react";
-import type { AppBootstrap, InstalledSkillView, MymindRootStatus, OnboardingState } from "@shared/contracts";
+import type { AppBootstrap, MymindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
-import { CCTOOLS_SKILLS_REPO_URL, isCctoolsSkillsSourceLocator } from "@shared/skill-package-sources";
+import { CCTOOLS_SKILLS_REPO_URL } from "@shared/skill-package-sources";
 import type { Navigate } from "../../app/routes";
 import { StatusBadge } from "../../design-system/components";
 import { useAi } from "../../ai-context";
@@ -14,14 +14,14 @@ const DEFAULT_ONBOARDING: OnboardingState = { completed: false, skill: "pending"
 type Props = {
   bootstrap: AppBootstrap;
   go: Navigate;
-  onRefresh(): void;
+  onRefresh(): Promise<AppBootstrap>;
 };
 
 export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const ai = useAi();
   const [root, setRoot] = useState<MymindRootStatus | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState>(DEFAULT_ONBOARDING);
-  const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
+  const [skillsRepoReady, setSkillsRepoReady] = useState(bootstrap.skillsInstalled);
   const [configuredProvider, setConfiguredProvider] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"root" | "state" | "skills" | null>(null);
@@ -29,15 +29,15 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextRoot, nextState, installed, providers] = await Promise.all([
+      const [nextRoot, nextState, providers, nextBootstrap] = await Promise.all([
         window.cctools.getMymindRoot(),
         window.cctools.getOnboardingState?.() || Promise.resolve(DEFAULT_ONBOARDING),
-        window.cctools.listInstalledSkills?.() || Promise.resolve([]),
-        window.cctools.getProviders?.() || Promise.resolve(null)
+        window.cctools.getProviders?.() || Promise.resolve(null),
+        onRefresh()
       ]);
       setRoot(nextRoot);
       setOnboarding(nextState);
-      setInstalledSkills(installed);
+      setSkillsRepoReady(nextBootstrap.validRepo && nextBootstrap.skillsInstalled);
       setConfiguredProvider(Boolean(providers?.providers.some((provider) => provider.enabled && provider.apiKeySet)));
       setError(null);
     } catch (cause) {
@@ -45,9 +45,12 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onRefresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    setSkillsRepoReady(bootstrap.validRepo && bootstrap.skillsInstalled);
+  }, [bootstrap.validRepo, bootstrap.skillsInstalled]);
 
   const chooseRoot = async () => {
     setBusy("root");
@@ -60,7 +63,6 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!await ai.confirm({ title: "确认绑定 mymind 根目录", body: mymindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
       await window.cctools.setMymindRoot(selected);
       await refresh();
-      onRefresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "根目录选择失败，请返回设置检查目录配置。");
     } finally {
@@ -90,7 +92,6 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!window.cctools.installSkillSource) throw new Error("当前构建不支持在线安装 Skill 仓库，请通过导入入口手动安装。");
       await window.cctools.installSkillSource({ type: "git", locator: CCTOOLS_SKILLS_REPO_URL });
       await refresh();
-      onRefresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "cctools-skills 仓库安装失败，请检查网络后重试。");
     } finally {
@@ -98,9 +99,8 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
     }
   };
 
-  const rootReady = Boolean(root?.health.configured && root.health.accessible && root.health.readable && root.health.writable);
+  const rootReady = Boolean(bootstrap.validRepo || (root?.health.configured && root.health.accessible && root.health.readable && root.health.writable));
   const providerReady = Boolean(configuredProvider || ai.snapshot.providers.some((provider) => provider.available));
-  const skillsRepoReady = installedSkills.some((skill) => isCctoolsSkillsSourceLocator(skill.sourceLocator));
   const skillStatus = skillsRepoReady ? "complete" : "pending";
   const providerStatus = providerReady ? "complete" : onboarding.provider;
   const canFinish = rootReady && skillsRepoReady && providerStatus !== "pending";
@@ -110,7 +110,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const finish = async () => {
     if (!canFinish) return;
     if (!await updateStep({ completed: true })) return;
-    onRefresh();
+    await onRefresh();
     go("ai");
   };
 
@@ -130,7 +130,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
         <section className="workspace-card onboarding-card">
           <header className="onboarding-card-header"><div><span className="eyebrow">MYMIND ROOT</span><h2>{m.rootTitle}</h2></div><StepMark status={rootReady ? "complete" : "pending"} number="1" /></header>
           <p>{m.rootBody}</p>
-          <div className="onboarding-path">{loading ? "正在检查根目录…" : root?.mymindRoot || m.rootMissing}</div>
+          <div className="onboarding-path">{loading ? "正在检查根目录…" : bootstrap.mymindRoot || root?.mymindRoot || m.rootMissing}</div>
           <div className="onboarding-card-actions"><button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => void chooseRoot()}><FolderCog size={14} />{busy === "root" ? m.selecting : rootReady ? m.chooseAgain : m.chooseRoot}</button>{rootReady ? <span className="onboarding-inline-status"><Check size={13} />{m.rootSelected}</span> : null}</div>
         </section>
 

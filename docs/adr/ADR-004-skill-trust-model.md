@@ -5,9 +5,10 @@
 - **Phase:** 0 (Architecture freeze)
 
 > This ADR records the historical four-dimension host-consent design. The
-> current distribution flow removed the persisted `executionTrust` gate:
-> source inspection, exact digest checks, Runtime readiness and active-version
-> selection now determine whether an installed Skill can run. See
+> current distribution flow removed `executionTrust` and the persisted
+> `status/readiness` lifecycle entirely. Explicit installation plus a fresh
+> managed-path, Manifest-identity and exact-digest check determine whether an
+> installed Skill can enter its runtime-specific execution path. See
 > `docs/distribution-ux-plan.md` and `CHANGELOG.md` for the superseding flow.
 
 ## Context

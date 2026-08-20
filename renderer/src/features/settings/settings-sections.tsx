@@ -370,7 +370,6 @@ export function SkillSettingsSection({
   packageBusy,
   onInspectPackages,
   onMigratePackages,
-  onRollbackPackage,
   onUninstallPackage
 }: {
   mode?: "skills" | "mcp";
@@ -383,10 +382,9 @@ export function SkillSettingsSection({
   onOpenMcpSettings(): void;
   packageInspections: SkillPackageInspectionView[];
   installedSkills: InstalledSkillView[];
-  packageBusy: "inspect" | "migrate" | "rollback" | "uninstall" | null;
+  packageBusy: "inspect" | "migrate" | "uninstall" | null;
   onInspectPackages(): void;
   onMigratePackages(): void;
-  onRollbackPackage(key: string): void;
   onUninstallPackage(key: string, digest: string): void;
 }) {
   const [catalog, setCatalog] = useState<"skills" | "mcp">(mode || "skills");
@@ -592,7 +590,6 @@ export function SkillSettingsSection({
         busy={packageBusy}
         onInspect={onInspectPackages}
         onMigrate={onMigratePackages}
-        onRollback={onRollbackPackage}
         onUninstall={onUninstallPackage}
       />
     </SettingsPanel>
@@ -605,19 +602,16 @@ function SkillPackagePanel({
   busy,
   onInspect,
   onMigrate,
-  onRollback,
   onUninstall
 }: {
   inspections: SkillPackageInspectionView[];
   installed: InstalledSkillView[];
-  busy: "inspect" | "migrate" | "rollback" | "uninstall" | null;
+  busy: "inspect" | "migrate" | "uninstall" | null;
   onInspect(): void;
   onMigrate(): void;
-  onRollback(key: string): void;
   onUninstall(key: string, digest: string): void;
 }) {
   const installedBySource = new Map(installed.map((item) => [item.sourcePath, item]));
-  const canRollback = (key: string) => installed.some((item) => item.key === key && item.status === "active") && installed.some((item) => item.key === key && item.status === "previous" && item.readiness === "ready");
   return (
     <section className="settings-skill-packages" aria-label={m.settings.skills.packageTitle}>
       <header className="settings-skill-packages-header">
@@ -641,7 +635,7 @@ function SkillPackagePanel({
         <div className="settings-skill-package-list">
           {inspections.map((item) => {
             const record = installedBySource.get(item.sourcePath);
-            const status = record ? m.settings.skills.packageInstalled : item.sourceKind === "legacy-claude" ? m.settings.skills.packageLegacy : item.valid ? m.settings.skills.packageValid : m.settings.skills.packageInvalid;
+            const status = record ? record.usable ? m.settings.skills.packageInstalled : m.settings.skills.packageUnusable : item.sourceKind === "legacy-claude" ? m.settings.skills.packageLegacy : item.valid ? m.settings.skills.packageValid : m.settings.skills.packageInvalid;
             return (
               <article className="settings-skill-package-item" key={`${item.sourcePath}:${item.digest}`}>
                 <div className="settings-skill-package-main">
@@ -650,12 +644,11 @@ function SkillPackagePanel({
                     <strong>{item.manifest && typeof item.manifest === "object" && "id" in item.manifest ? String(item.manifest.id) : item.sourcePath.split(/[\\/]/).pop()}</strong>
                     <small>{item.sourcePath}</small>
                   </div>
-                  <StatusBadge tone={record ? "success" : item.valid ? "warning" : "danger"}>{status}</StatusBadge>
+                  <StatusBadge tone={record ? record.usable ? "success" : "danger" : item.valid ? "warning" : "danger"}>{status}</StatusBadge>
                 </div>
                 <div className="settings-skill-package-meta">
                   <span>{m.settings.skills.packageDigest}: <code>{item.digest.slice(0, 12)}</code></span>
                   <span>{item.files.length} files · {Math.round(item.totalBytes / 1024)} KB</span>
-                  {record ? <span>{m.settings.skills.packageQuarantined}</span> : null}
                   {item.issues.length ? <span className="is-invalid">{m.settings.skills.packageIssues(item.issues.length)}</span> : null}
                   {item.warnings.length ? <span>{m.settings.skills.packageWarnings(item.warnings.length)}</span> : null}
                 </div>
@@ -668,13 +661,13 @@ function SkillPackagePanel({
         <p className="settings-skill-package-empty">{m.settings.skills.packageEmpty}</p>
       )}
       {installed.length ? (
-        <div className="settings-skill-package-installed" aria-label="已安装 Skill 版本">
+        <div className="settings-skill-package-installed" aria-label="已安装 Skill">
           {installed.map((record) => (
             <div className="settings-skill-package-meta" key={`${record.key}:${record.digest}`}>
-              <span><strong>{record.key}@{record.version}</strong> · {record.status} · {record.readiness}</span>
+              <span><strong>{record.key}@{record.version}</strong></span>
+              <StatusBadge tone={record.usable ? "success" : "danger"}>{record.usable ? m.settings.skills.packageInstalled : m.settings.skills.packageUnusable}</StatusBadge>
               <div className="settings-skill-actions">
-                {canRollback(record.key) && record.status === "active" ? <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={() => onRollback(record.key)}>{busy === "rollback" ? "回滚中…" : m.settings.skills.packageRollback}</button> : null}
-                {record.status !== "active" ? <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={() => onUninstall(record.key, record.digest)}>{busy === "uninstall" ? "卸载中…" : m.settings.skills.packageUninstall}</button> : null}
+                <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={() => onUninstall(record.key, record.digest)}>{busy === "uninstall" ? "卸载中…" : m.settings.skills.packageUninstall}</button>
               </div>
             </div>
           ))}

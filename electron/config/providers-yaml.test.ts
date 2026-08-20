@@ -4,15 +4,13 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderProtocol, ProviderYamlInputEntry, ProvidersYamlInput } from "../../shared/providers-yaml";
 
-const originalRepoRoot = process.env.CCTOOLS_REPO_ROOT;
+const originalWorkspaceRoot = process.env.CCTOOLS_WORKSPACE_ROOT;
 const originalMymindRoot = process.env.CCTOOLS_MYMIND_ROOT;
 const originalUserDataDir = process.env.CCTOOLS_USER_DATA_DIR;
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-repo-"));
 const separateMymind = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-mymind-"));
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-provider-config-user-data-"));
-fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
-fs.mkdirSync(path.join(repo, "mymind"), { recursive: true });
-process.env.CCTOOLS_REPO_ROOT = repo;
+process.env.CCTOOLS_WORKSPACE_ROOT = repo;
 process.env.CCTOOLS_MYMIND_ROOT = separateMymind;
 process.env.CCTOOLS_USER_DATA_DIR = userDataDir;
 
@@ -29,8 +27,8 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  if (originalRepoRoot === undefined) delete process.env.CCTOOLS_REPO_ROOT;
-  else process.env.CCTOOLS_REPO_ROOT = originalRepoRoot;
+  if (originalWorkspaceRoot === undefined) delete process.env.CCTOOLS_WORKSPACE_ROOT;
+  else process.env.CCTOOLS_WORKSPACE_ROOT = originalWorkspaceRoot;
   if (originalMymindRoot === undefined) delete process.env.CCTOOLS_MYMIND_ROOT;
   else process.env.CCTOOLS_MYMIND_ROOT = originalMymindRoot;
   if (originalUserDataDir === undefined) delete process.env.CCTOOLS_USER_DATA_DIR;

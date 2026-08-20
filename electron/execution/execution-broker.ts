@@ -143,7 +143,7 @@ export class ExecutionBroker {
     return restored;
   }
 
-  retry(runId: string): BrokerRunRecord {
+  retry(runId: string, admit: (request: SkillRunRequest) => SkillRunRequest = (request) => request): BrokerRunRecord {
     const current = this.store.get(runId);
     if (!["failed", "timed_out", "cancelled"].includes(current.state)) {
       throw new Error("只有失败、超时或取消的 Run 可以重试。");
@@ -163,7 +163,7 @@ export class ExecutionBroker {
       externalExportBindingIds: current.request.externalExportBindingIds,
       rootGeneration: current.rootGeneration
     });
-    return this.submit({ ...request, trigger: { type: "manual" } });
+    return this.submit(admit({ ...request, trigger: { type: "manual" } }));
   }
   activeTaskCount(): number { return this.queue.length + this.active.size + this.inspecting.size; }
 

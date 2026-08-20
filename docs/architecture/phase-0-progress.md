@@ -69,7 +69,8 @@ Landed in the current implementation:
   is read-only compatibility input.
 - Settings v2 resolves/canonicalises an actual `mymindRoot`, keeps an optional
   independent `workspaceRoot`, performs userData path-conflict checks, and
-  derives legacy `repoRoot` settings without moving content.
+  ignores the pre-release legacy `repoRoot` field instead of deriving a save
+  root from it.
 - `ProductService`, `ContentIndexStore`, `SourceRegistry`, content helpers and
   creative path reporting use the selected content root; app-managed state for
   Product services is keyed below `userData/state/<root-id>`.
@@ -80,12 +81,9 @@ Landed in the current implementation:
 - `MymindLocationService` provides root health, preserved/unknown entry
   observations, conflict checks and generation-pinned snapshots; root IPC
   exposes health and snapshot data.
-- `legacy-state-migration.ts` provides a read-only preflight plus a strict
-  two-phase staging/commit migration for legacy `<repoRoot>/.cctools` into
-  `userData/state/<root-id>/.cctools`. It refuses non-empty targets instead of
-  merging/overwriting, keeps the source untouched, recovers a matching pending
-  transaction after interruption, and is invoked before ProductService
-  initialisation.
+- The pre-release `legacy-state-migration.ts` startup path was removed. Startup
+  does not inspect or copy `<repoRoot>/.cctools`; root binding is explicit and
+  app-private state begins under `userData/state/<root-id>`.
 - AI session, runtime-worktree, temporary-image and Skill source-setting state
   now accepts a root-scoped app-private state parent; Main passes
   `userData/state/<root-id>` to the worker. Creative topic/manual-topic reads
@@ -160,27 +158,24 @@ The first static package boundary is now implemented in
 - package path, symlink, hardlink and special-file checks;
 - exclusion of `.env`, virtualenv, cache, logs, browser state, credentials,
   `.cctools` and generated `mymind` content;
-- stable package digest and `sourceModified` detection;
-- clean copy into `userData/skills/<publisher>/<id>/<version>-<digest>`;
-- `InstalledSkillRepository` owns an atomic registry and keeps package bytes
-  separate from metadata;
+- stable package digest and live installed-copy integrity checks;
+- clean copy into `<mymind>/.agent/skills/<publisher>/<id>`, with a
+  staging-to-rename replacement and rollback of the previous directory if the
+  registry commit fails;
+- `InstalledSkillRepository` schema v3 owns one atomic metadata record per
+  Skill key and keeps package bytes separate from metadata. The obsolete
+  Installed Skill `status/readiness` state machine is not persisted;
+- v1/v2 registries migrate immediately and atomically. A unique legacy
+  `active` record wins only as migration input; otherwise the newest stable
+  record is selected, and all lifecycle fields are stripped;
 - batch inspection/migration scans the current workspace `.claude/skills`,
   imports only valid Manifest packages, and leaves Legacy `SKILL.md` as
   inspection-only;
-- Main IPC exposes inspect/migrate/list-installed contracts, and Settings
-  provides a basic static-check/import surface that explicitly shows
-  `quarantine`, `installed-not-ready`, `unsigned`, and inspection-only state;
-- new installs/updates remain `quarantined` / `installed-not-ready`, with
-  readiness-gated `active`/`previous` transitions owned by one atomic registry;
-- `InstalledSkillRepository` validates the registry fail-closed, enforces one
-  active/previous pointer per Skill, and atomically swaps them for activate and
-  rollback; direct active promotion is rejected;
-- uninstall renames a non-active package into staging before removing its
-  registry record, and refuses ambiguous key-only deletion when multiple
-  digests exist;
-- Main IPC exposes install/update/rollback/uninstall operations and Settings
-  shows the installed-version state with update, rollback and candidate
-  uninstall actions. These operations do not execute package code.
+- Main IPC exposes inspect/migrate/list/install/uninstall contracts. Renderer
+  usability is derived by Main from a fresh managed-path, Manifest-identity and
+  digest check; listing no longer promotes or rewrites records;
+- uninstall renames the one managed package into staging before removing its
+  registry record, restoring it if the metadata transaction fails;
 - `shared/skill-package-sources.ts` now defines the finite source union for
   local directory, ZIP and HTTPS Git. Signed Catalog is intentionally absent
   from the contract.
@@ -188,25 +183,29 @@ The first static package boundary is now implemented in
   checkout into app staging with prompts, credential helpers, submodules and
   package execution disabled. The checkout is removed after every inspect,
   install or update, while the installed registry retains the source locator
-  and optional ref.
+  and optional ref, package ref and resolved revision;
+- a complete Git-source install atomically writes
+  `source-installations.json` only after every discovered package succeeds.
+  Startup validates this receipt and every official package offline; partial,
+  corrupt or tampered installations fail closed to onboarding;
 - Skill Center now exposes a source picker for local directory/ZIP and Git
   HTTPS URLs. Every candidate goes through the same static Manifest, digest,
-  exclusion and quarantine boundary before it can be imported.
+  exclusion and installed-copy boundary before it can be imported.
 
-This intentionally does not support Signed Catalog sources, runtime-pack
-dependency preparation, signatures for Skill packages, or direct package
-execution from the source picker. A successful explicit import is promoted to
-active + ready; RuntimeManager and ExecutionBroker still own dependency
-preparation and the actual execution boundary. The current tests cover the
-static package boundary, quarantine behavior, active/previous transaction
-behavior, Git source safety, IPC contracts, and the Skill Center surface.
+This intentionally does not support Signed Catalog sources, signatures for
+Skill packages, or direct package execution from the source picker. A
+successful explicit import is installed immediately; RuntimeManager and
+ExecutionBroker still own dependency preparation and the actual execution
+boundary. The current tests cover the static package boundary, atomic
+replacement/rollback, v1/v2 migration, complete-source receipts, Git source
+safety, IPC contracts, and the Skill Center surface.
 
 Remaining Phase 2 work:
 
 - local interruption coverage now simulates a registry swap failure and verifies
-  the active record/package remain intact while staging is cleaned; packaged
+  the previous record/package remain intact while staging is cleaned; packaged
   crash drills and Windows/WSL path variants remain external;
-- RuntimeManager-owned dependency preparation and active + ready execution
+- RuntimeManager-owned dependency preparation and integrity-checked execution
   resolution (Phase 4/5).
 
 ## Phase 3 — Config, Provider, CredentialVault — 🟡 FOUNDATION IN PROGRESS
@@ -388,13 +387,13 @@ The first single-process execution chain is now implemented and exercised:
   reported without overriding the process exit outcome. Retry increments a persisted attempt counter,
   never creates a second terminal Run, and never retries user cancellation.
 - `electron/skills/installed-skill-execution-resolver.ts` now binds generic
-  Runs to an active, ready InstalledSkill digest, resolves a
+  Runs to an installed, freshly integrity-checked Skill digest, resolves a
   verified RuntimeManager plan, validates capabilities/paths, and supports
   exact-scope secret references plus explicit External ExportLocation
   bindings.
 - `electron/skills/installed-skill-execution-resolver.test.ts` now has a
   real formal-package execution gate: it installs a signed Runtime Pack
-  fixture, promotes it through RuntimePackService, installs/activates a
+  fixture, promotes it through RuntimePackService, installs a
   formal package, then starts a real Node child through
   RuntimeManager + ExecutionBroker and verifies declared Artifact persistence
   and Runtime Pack lease cleanup. This is a generic chain gate; it does not
@@ -421,7 +420,7 @@ The first single-process execution chain is now implemented and exercised:
   submission failure, and marks in-flight persisted Workflows as interrupted
   after an application restart rather than resubmitting with unknown inputs.
   `resumeWorkflowRun` now requires the current root generation, an unchanged
-  active Workflow definition/version/fingerprint and explicitly re-entered
+  installed Workflow definition/version/fingerprint and explicitly re-entered
   non-Secret JSON inputs; interrupted running steps are reset to pending
   before Broker submission. Completed child Run Artifact metadata is snapshotted
   into each Step, and dependent `with` values can reference
@@ -441,24 +440,24 @@ The first single-process execution chain is now implemented and exercised:
 - `SkillToolRegistry` manual/source calls now use the same installed-package
   resolver as renderer, Workflow and Automation Runs. The old event shape is
   retained at the controller boundary, while package digest/version, Runtime,
-  Artifact declarations, root generation and readiness all come from the
-  active Installed Skill. Source trigger context is type/length checked by the
+  Artifact declarations and root generation all come from the integrity-checked
+  Installed Skill. Source trigger context is type/length checked by the
   resolver before entering the Broker's minimal environment.
 - When the Installed Resolver is available, AI slash/tool definitions are
-  derived from active, ready formal Manifests. Legacy
+  derived from installed formal Manifests that pass a fresh integrity check. Legacy
   `SKILL.md` discovery remains available for migration/inspection but is not
   exposed as a runnable definition; Renderer receives a logical installed
   package identifier and `managed-runtime`, never the absolute executable.
 - Renderer no longer exposes the generic manual `startSkillRun` boundary.
   Internal source, Automation and Workflow submissions remain behind
-  active/ready package checks; no Broker legacy opt-in remains.
+  installed-copy package checks; no Broker legacy opt-in remains.
 - `CCTOOLS_MYMIND_ROOT` and `CCTOOLS_ROOT_GENERATION` are pinned into the AI
   worker bootstrap so root switching restarts the Broker with a new snapshot.
 - Automation now has a versioned shared Rule/Run/Schedule contract, an
   app-private atomic registry with one-time default seeding, durable
   daily/interval/cron/app-start/run-completed scheduling, missed-run and
   skip/queue/replace policies, Rule-level retry, Blocked state, and exact
-  active-version policy checks. Skill completion events come from the Broker;
+  installed-version policy checks. Skill completion events come from the Broker;
   Workflow completion events come from WorkflowEngine, so the old Main-owned
   hardcoded source-success coordinator is no longer in the production path.
 - The Automation IPC chain is complete from worker/Main through the typed
@@ -497,7 +496,7 @@ Remaining Phase 5 work:
 3 agent** (verified by `npm run lint:manifests` →
 `scripts/validate-all-skill-manifests.mjs`, wired into the `build` chain). The
 real-workspace migration test (`SkillPackageService > migrates only formal ...`)
-quarantines all 16 as `installed-not-ready`; `_shared` (not a runnable skill)
+installs all 16 as one record per Skill key; `_shared` (not a runnable skill)
 is not registered.
 
 Batch A now has formal `cctools.skill.yaml` manifests and locked Python
@@ -509,10 +508,9 @@ project metadata for:
 - `skill-run-reporter`;
 - `reddit-fetcher`.
 
-The real workspace migration test now recognizes all sixteen Batch A/B/C packages
-as formal packages and quarantines them as `installed-not-ready`. This is a static
-package migration gate; Runtime Pack readiness, active promotion, host approval
-and live execution are still intentionally not claimed.
+The real workspace migration test now recognizes and installs all sixteen Batch
+A/B/C packages as formal packages. This is a static package migration gate;
+Runtime Pack readiness and live execution are still intentionally not claimed.
 
 Batch A's process entrypoints now use the final path overlay contract:
 `CCTOOLS_MYMIND_ROOT`/`MYMIND_ROOT` is the only content-root binding,
@@ -578,19 +576,17 @@ from the runnable Skill migration list. Production packages continue to carry
 their own adapter rather than importing `_shared` through a workspace-relative
 path.
 
-Installed Skill integrity metadata keeps signature, review and update policy
-independent. `SkillPackageService` audits both the app-private installed copy
-and a local source before exposing records; a changed digest clears review
-evidence and turns a previously valid signature into `invalid`. Static
-inspection, exact digest checks and active + ready state remain required; no
-publisher signing or Catalog is introduced by this local integrity gate.
+Installed Skill metadata keeps signature, review and update policy independent.
+`SkillPackageService` derives usability from the managed installed copy's path,
+Manifest identity and exact digest. Static inspection and exact digest checks
+remain required; no publisher signing or Catalog is introduced by this local
+integrity gate.
 
-New candidate versions also receive a deterministic Manifest capability diff in
-Skill Center (added/removed mymind, network, browser and process capabilities).
-Promotion requires a candidate to pass static inspection and Runtime
-preparation before it becomes active + ready; Broker execution remains bound
-to the complete digest plus capability fingerprint. This keeps the local
-integrity path explicit without adding publisher signing or a Signed Catalog.
+Explicit source reinstall replaces the one managed package only after static
+inspection and a staging transaction. Broker execution remains bound to the
+complete digest plus capability fingerprint, with Runtime preparation performed
+at execution time. This keeps the local integrity path explicit without adding
+publisher signing or a Signed Catalog.
 
 `desktop-app/scripts/test_batch_b_skill_overlays.py` covers the five Batch B
 configuration/path overlays from an unrelated working directory.
@@ -635,7 +631,7 @@ Renderer and therefore show the binding without leaking a physical path.
 The local UI scope now also includes:
 
 - a standalone Skill Center route with installed/workspace status, source and
-  digest details, quarantine import, active + ready status, update/rollback and
+  digest details, inspect-before-install import, live package usability and
   uninstall actions;
 - a dynamic per-Process-Skill Run form driven by the Manifest input/config/artifact
   schema, Provider Profile and Export Location selectors, fixed root snapshot,

@@ -6,6 +6,7 @@ import { useAi } from "../../ai-context";
 import { mymindRootPreviewBody, mymindRootPreviewError } from "../../mymind-root-selection";
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
+import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
@@ -50,7 +51,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root: string): void; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean }) {
   const ai = useAi();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [skillPackageInspections, setSkillPackageInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
-  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "rollback" | "uninstall" | null>(null);
+  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "uninstall" | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -237,13 +238,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const selectWorkspace = async () => {
     try {
-      // New API keeps workspace independent from mymind. The legacy fallback
-      // is retained for one release so older preload bundles remain usable.
-      const root = window.cctools.selectWorkspaceRoot
-        ? await window.cctools.selectWorkspaceRoot()
-        : await window.cctools.selectRepo();
+      const root = await window.cctools.selectWorkspaceRoot();
       if (!root) return;
-      onRepo(root);
+      await onRepo(root);
       await loadPrefs();
       ai.notify(m.settings.notify.workspaceUpdated, "success");
     } catch {
@@ -259,6 +256,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       if (!preview.canBind) throw new Error(mymindRootPreviewError(preview));
       if (!await ai.confirm({ title: "确认绑定 mymind 根目录", body: mymindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
       await window.cctools.setMymindRoot(root);
+      await onRepo(root);
       await loadPrefs();
       ai.notify("mymind 内容根已更新", "success");
     } catch {
@@ -320,21 +318,11 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const report = await window.cctools.migrateSkillWorkspace();
       setSkillPackageInspections(report.inspected);
       setInstalledSkills(report.installed);
+      if (report.installed.length) {
+        notifyInstalledSkillCatalogChanged();
+        await onRepo();
+      }
       ai.notify(m.settings.skills.packageMigrateComplete(report.installed.length, report.skipped.length), "success");
-    } catch {
-      ai.notify(m.settings.skills.packageInspectFailed, "error");
-    } finally {
-      setSkillPackageBusy(null);
-    }
-  };
-
-  const rollbackSkillPackage = async (key: string) => {
-    if (skillPackageBusy || !window.cctools.rollbackSkillPackage) return;
-    setSkillPackageBusy("rollback");
-    try {
-      await window.cctools.rollbackSkillPackage(key);
-      await loadSkillPackages();
-      ai.notify(m.settings.skills.packageActionComplete, "success");
     } catch {
       ai.notify(m.settings.skills.packageInspectFailed, "error");
     } finally {
@@ -346,8 +334,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (skillPackageBusy || !window.cctools.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
     setSkillPackageBusy("uninstall");
     try {
-      await window.cctools.uninstallSkillPackage(key, digest);
+      const removed = await window.cctools.uninstallSkillPackage(key, digest);
       await loadSkillPackages();
+      if (removed) notifyInstalledSkillCatalogChanged();
+      await onRepo();
       ai.notify(m.settings.skills.packageActionComplete, "success");
     } catch {
       ai.notify(m.settings.skills.packageInspectFailed, "error");
@@ -623,13 +613,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "general" ? (
                 <>
                   <AppearanceSettingsSection prefs={prefs} save={save} />
-                  <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || prefs.repoRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                  <PathSettingsSection mymind={prefs.mymindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "mymind"} onSelectMymind={() => void selectMymindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
-              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} /> : null}
-              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onRollbackPackage={(key) => void rollbackSkillPackage(key)} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
+              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={ai.refreshSkills} /> : null}
+              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}

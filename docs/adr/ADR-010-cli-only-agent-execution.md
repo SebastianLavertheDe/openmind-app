@@ -27,7 +27,8 @@ CLI host:
 - Claude uses the Claude Code CLI transport exposed through the Claude Agent
   SDK.
 
-Both bridges receive only an active, ready, exact-digest package from the
+Both bridges receive only an installed package whose managed path, Manifest
+identity and exact digest have just been verified from the
 SkillStore under the bound mymind root. Codex receives the
 boundary-checked `SKILL.md` path as native Skill input. Claude receives
 bounded `SKILL.md` and reference text as transient system context. Neither

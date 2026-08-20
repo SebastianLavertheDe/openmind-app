@@ -31,6 +31,110 @@ describe("SessionStore", () => {
     expect(fs.existsSync(path.join(workspace, ".cctools"))).toBe(false);
   });
 
+  it("isolates sessions and runs by project when workspaces share one stateRoot", () => {
+    const stateRoot = createRoot();
+    const workspaceA = createRoot();
+    const workspaceB = createRoot();
+    const writerA = new SessionStore(workspaceA, stateRoot);
+    const sessionA = writerA.createSession({
+      provider: "codex",
+      providerId: "codex-native",
+      cwd: workspaceA,
+      title: "workspace alpha only",
+      permissionProfile: "edit"
+    });
+    const runA = writerA.createRun(sessionA, "alpha run", []);
+    const sharedSchemaFile = path.join(writerA.root, "schema.json");
+    const originalRootMetadata = JSON.parse(fs.readFileSync(sharedSchemaFile, "utf8"));
+
+    const writerB = new SessionStore(workspaceB, stateRoot);
+    const sessionB = writerB.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      cwd: workspaceB,
+      title: "workspace beta only",
+      permissionProfile: "read-only"
+    });
+    const runB = writerB.createRun(sessionB, "beta run", []);
+
+    // schema.json is legacy root-level metadata and remains first-writer-only;
+    // ownership comes from each session's projectId + projectRoot instead.
+    expect(JSON.parse(fs.readFileSync(sharedSchemaFile, "utf8"))).toEqual(originalRootMetadata);
+    expect(originalRootMetadata).toMatchObject({ id: writerA.projectId, root: workspaceA });
+    expect(writerB.root).toBe(writerA.root);
+
+    const readerA = new SessionStore(workspaceA, stateRoot);
+    expect(readerA.listSessions().map((session) => session.id)).toEqual([sessionA.id]);
+    expect(readerA.listRuns().map((run) => run.id)).toEqual([runA.id]);
+    expect(readerA.getSession(sessionA.id).projectRoot).toBe(workspaceA);
+    expect(readerA.getRun(runA.id).projectId).toBe(readerA.projectId);
+    expect(() => readerA.getSession(sessionB.id)).toThrow("不存在");
+    expect(() => readerA.getRun(runB.id)).toThrow("不存在");
+    expect(readerA.search("workspace alpha").map((session) => session.id)).toEqual([sessionA.id]);
+    expect(readerA.search("workspace beta")).toEqual([]);
+
+    const readerB = new SessionStore(workspaceB, stateRoot);
+    expect(readerB.listSessions().map((session) => session.id)).toEqual([sessionB.id]);
+    expect(readerB.listRuns().map((run) => run.id)).toEqual([runB.id]);
+    expect(readerB.getSession(sessionB.id).projectRoot).toBe(workspaceB);
+    expect(readerB.getRun(runB.id).projectId).toBe(readerB.projectId);
+    expect(() => readerB.getSession(sessionA.id)).toThrow("不存在");
+    expect(() => readerB.getRun(runA.id)).toThrow("不存在");
+    expect(readerB.search("workspace beta").map((session) => session.id)).toEqual([sessionB.id]);
+    expect(readerB.search("workspace alpha")).toEqual([]);
+
+    // Switching back constructs a fresh index and recovers A; B was ignored,
+    // never deleted or rewritten.
+    const switchedBack = new SessionStore(workspaceA, stateRoot);
+    expect(switchedBack.getSession(sessionA.id).id).toBe(sessionA.id);
+    expect(switchedBack.getRun(runA.id).id).toBe(runA.id);
+    expect(fs.existsSync(path.join(writerA.root, "sessions", sessionB.id, "session.json"))).toBe(true);
+  });
+
+  it("persists a fresh Skill snapshot and protects it from generic session patches", () => {
+    const store = new SessionStore(createRoot());
+    const snapshot = sessionSkillSnapshot();
+    const session = store.createSession({
+      provider: "codex",
+      providerId: "codex-native",
+      cwd: ".",
+      title: "Skill snapshot",
+      permissionProfile: "edit",
+      skillSnapshot: snapshot
+    });
+
+    const updated = store.updateSession(session.id, { title: "renamed", skillSnapshot: [] });
+    const persisted = JSON.parse(fs.readFileSync(path.join(store.root, "sessions", session.id, "session.json"), "utf8"));
+
+    expect(updated.skillSnapshot).toEqual(snapshot);
+    expect(persisted.skillSnapshot).toEqual(snapshot);
+  });
+
+  it("backfills only legacy null snapshots once and persists the compatibility catalog", () => {
+    const root = createRoot();
+    const writer = new SessionStore(root);
+    const legacy = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "legacy", permissionProfile: "edit" });
+    const frozen = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "frozen", permissionProfile: "edit" });
+    const legacyFile = path.join(writer.root, "sessions", legacy.id, "session.json");
+    const legacyJson = JSON.parse(fs.readFileSync(legacyFile, "utf8"));
+    delete legacyJson.skillSnapshot;
+    fs.writeFileSync(legacyFile, JSON.stringify(legacyJson), "utf8");
+
+    const reloaded = new SessionStore(root);
+    expect(reloaded.getSession(legacy.id).skillSnapshot).toBeNull();
+    const beforeUpdatedAt = reloaded.getSession(legacy.id).updatedAt;
+    const compatibilitySnapshot = sessionSkillSnapshot();
+
+    expect(reloaded.backfillMissingSkillSnapshots(() => compatibilitySnapshot)).toBe(1);
+    const unnecessaryCapture = vi.fn(() => []);
+    expect(reloaded.backfillMissingSkillSnapshots(unnecessaryCapture)).toBe(0);
+    expect(unnecessaryCapture).not.toHaveBeenCalled();
+    expect(reloaded.getSession(legacy.id).skillSnapshot).toEqual(compatibilitySnapshot);
+    expect(reloaded.getSession(legacy.id).updatedAt).toBe(beforeUpdatedAt);
+    expect(reloaded.getSession(frozen.id).skillSnapshot).toEqual([]);
+    expect(new SessionStore(root).getSession(legacy.id).skillSnapshot).toEqual(compatibilitySnapshot);
+  });
+
   it("keeps session order anchored to creation when archiving or replying", () => {
     const store = new SessionStore(createRoot());
     let older = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较早会话", permissionProfile: "edit" });
@@ -229,7 +333,8 @@ describe("SessionStore", () => {
       serviceProviderRevision: "a".repeat(64),
       cwd: ".",
       title: "Source",
-      permissionProfile: "edit"
+      permissionProfile: "edit",
+      skillSnapshot: sessionSkillSnapshot()
     });
     const first = await addCompletedTurn(store, source, "first prompt", "first answer");
     await addCompletedTurn(store, store.getSession(source.id), "second prompt", "second answer");
@@ -241,6 +346,7 @@ describe("SessionStore", () => {
     expect(fork.providerSessionId).toBeNull();
     expect(fork.serviceProviderId).toBe("managed-codex");
     expect(fork.serviceProviderRevision).toBe("a".repeat(64));
+    expect(fork.skillSnapshot).toEqual(source.skillSnapshot);
     expect(forkTurns.data).toHaveLength(1);
     expect(forkTurns.data[0].events.map((event) => event.payload.text)).toEqual(["first prompt", "first answer"]);
     expect(forkTurns.data[0].events.every((event) => event.sessionId === fork.id)).toBe(true);
@@ -360,6 +466,23 @@ describe("SessionStore", () => {
     expect((await store.appendEvent(run, "user-message", { text: secret }))[0].risks.some((finding) => finding.kind === "credential")).toBe(true);
   });
 });
+
+function sessionSkillSnapshot() {
+  return [{
+    definition: {
+      id: "creative-writing",
+      title: "Creative Writing",
+      description: "Write content",
+      cwd: "installed/cctools/creative-writing/1.0.0",
+      command: "managed-runtime"
+    },
+    installed: {
+      key: "cctools/creative-writing",
+      version: "1.0.0",
+      digest: "a".repeat(64)
+    }
+  }];
+}
 
 function legacyEvent(
   run: ReturnType<SessionStore["createRun"]>,

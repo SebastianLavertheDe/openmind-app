@@ -24,7 +24,7 @@
 There is **one** trust boundary: the OS user account. Every Process skill,
 External Agent, Browser CLI, and their children run as the current OS user.
 The app's process-tree management, minimal-env, secret-scope, and redaction
-are **hygiene and UX**, not a security sandbox. An installed active + ready
+are **hygiene and UX**, not a security sandbox. An installed, integrity-checked
 Skill can:
 - read any file the user can read,
 - open any network connection the user can open,
@@ -32,7 +32,7 @@ Skill can:
 - modify any mymind path (not just declared ones).
 
 Therefore the strongest controls are **static inspection before installation,
-exact-digest checks, Runtime readiness and explicit active-version selection**;
+exact-digest checks and Runtime readiness**;
 none of them turn a Skill into an OS sandbox.
 
 ## 3. Threats & mitigations
@@ -40,9 +40,9 @@ none of them turn a Skill into an OS sandbox.
 | Threat | Mitigation | Residual risk (explicit) |
 |---|---|---|
 | Malicious ZIP/Git path traversal (Zip Slip) | staging extraction; reject absolute/`..`/device/symlink-out/hardlink; cap count/size/ratio/time | — |
-| Skill impersonates an existing id | install dedups by `publisher+id+version+digest`; impersonation surfaces a conflict, not silent replace | — |
-| Publisher change | publisher and digest are part of the installed binding; changed content must pass inspection and be installed as a new active version | — |
-| Catalog replay of old version | anti-downgrade rule; `previous`-only rollback path | — |
+| Skill impersonates an existing id | registry identity is `publisher+id`; explicit reinstall stages and atomically replaces the one managed copy only after inspection | a user can still explicitly install malicious code under a trusted-looking identity |
+| Publisher/content change | publisher, Manifest identity and digest are rebound during explicit installation; every execution rechecks the installed copy | — |
+| Old Skill version reinstalled | there is no automatic Skill update channel; manual source reinstall always shows and records the resulting digest | the user can explicitly choose an older source revision |
 | Runtime binary tampered | hash + signature + expiry + embedded root; fail closed | offline-root compromise |
 | Install hook arbitrary exec | package install never executes package code; npm `postinstall` disabled; build-backend install treated as host-code exec, gated by digest approval | — |
 | Dependency supply-chain | lockfile mandatory (uv.lock); frozen sync; license/vuln scan | upstream vuln in a locked dep |
@@ -52,10 +52,10 @@ none of them turn a Skill into an OS sandbox.
 | Arbitrary subprocess | declared capability; Broker tracks the process tree; best-effort kill on stop; residual reporting | spawned children that double-fork can escape tracking |
 | Infinite log/file/CPU/memory | limits on stdout size, file count/size, timeout, graceful-stop, CPU/memory quotas (best-effort on platforms that lack enforcement) | — |
 | Process tree escape | Windows Job Object; POSIX process group; orphan detection on worker restart | untrackable descendants |
-| Agent prompt injection | instructions & web content are untrusted; only exact-digest, active + ready packages cross the CLI bridge; Claude Code/Codex own tool approval and session controls | the external CLI and its tools retain the OS user's authority; the app cannot enforce per-tool or per-path isolation |
+| Agent prompt injection | instructions & web content are untrusted; only installed packages passing a fresh exact-digest/identity check cross the CLI bridge; Claude Code/Codex own tool approval and session controls | the external CLI and its tools retain the OS user's authority; the app cannot enforce per-tool or per-path isolation |
 | Agent provider secret confusion | Agent bridge never resolves a Provider Profile, injects its Credential, or loads a Skill `.env`; CLI authentication stays in the selected CLI | a CLI may use credentials from its own user configuration, outside the App CredentialVault boundary |
 | Malicious update | three independent signed chains; trust chain (ADR-009) is a gate, not optional | — |
-| Crash mid-migration leaves half-state | staging + atomic switch + schemaVersion last; fail does not change active | — |
+| Crash mid-install/migration leaves half-state | per-package staging + atomic directory/registry writes; a complete-source receipt is committed only after the whole selected source succeeds | a failed multi-package install may leave already-committed packages, but cannot satisfy the complete-source startup gate |
 | mymind modified by a third-party Skill or external CLI | capability declarations are reviewed before install; App/App-native Workflow paths use the Resolver; declared output paths are indexed for Run history | host processes can modify other paths; the App neither prevents nor claims to detect undeclared writes |
 
 ## 4. Security acceptance (must pass before GA)
@@ -74,13 +74,13 @@ none of them turn a Skill into an OS sandbox.
   or diagnostic-platform audit.
 - Secret delete/rotate → revoke injection, delete vault copy, best-effort kill
   trackable runs.
-- Local Skill modified → digest changes, review evidence is cleared and the
-  package must pass static inspection before a new active + ready install.
+- Installed Skill modified → the fresh path/Manifest/digest check fails and the
+  package cannot run until an explicit reinstall restores a matching record.
 - Tampered runtime → refused.
-- Non-active or non-ready packages cannot run. Managed Process/Workflow manual
-  run cannot bypass digest, Runtime or Broker checks. Agent Skills have no
-  manual/Broker run path: only an active + ready package may cross the selected
-  Claude Code/Codex AI-console bridge.
+- A missing, malformed or digest-mismatched installed package cannot run.
+  Managed Process/Workflow manual runs cannot bypass package, Runtime or Broker
+  checks. Agent Skills have no manual/Broker run path and cross the selected
+  Claude Code/Codex bridge only after the same installed-copy verification.
 - Publisher revocation + key rotation have a tested recovery path.
 
 ## 5. Out of scope (explicit non-goals)

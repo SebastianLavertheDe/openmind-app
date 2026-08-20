@@ -28,6 +28,8 @@ const snapshot: AiSnapshot = {
 const skills: SkillDefinition[] = [];
 
 let aiListener: ((event: unknown) => void) | null;
+let refreshVisibleSkills: (() => Promise<SkillDefinition[] | null>) | null;
+let openBlankDraft: (() => Promise<void>) | null;
 
 function StreamingText({ runId }: { runId: string }) {
   const state = useAiStreaming(runId);
@@ -45,6 +47,21 @@ function DurableAssistantTexts() {
     .filter((event) => event.kind === "assistant-message")
     .map((event) => String(event.payload.text || ""));
   return <output data-testid="durable-assistant-texts">{JSON.stringify(texts)}</output>;
+}
+
+function VisibleSkillIds() {
+  const ai = useAi();
+  refreshVisibleSkills = ai.refreshSkills;
+  openBlankDraft = () => ai.setActiveSession(null);
+  return <output data-testid="visible-skill-ids">{ai.skills.map((skill) => skill.id).join(",")}</output>;
+}
+
+function DraftContextState() {
+  const ai = useAi();
+  return <output data-testid="draft-context-state">{JSON.stringify({
+    draft: ai.draft,
+    contexts: ai.pendingContexts.map((context) => context.path)
+  })}</output>;
 }
 
 const activeSnapshot: AiSnapshot = {
@@ -107,6 +124,8 @@ function assistantEvent(id: string, seq: number, text: string, phase: string): A
 
 beforeEach(() => {
   aiListener = null;
+  refreshVisibleSkills = null;
+  openBlankDraft = null;
   vi.useFakeTimers();
   window.cctools = {
     aiRefresh: async () => snapshot,
@@ -148,6 +167,121 @@ function flushTimers(): void {
 }
 
 describe("AiProvider streaming store via event pump", () => {
+  it("isolates blank drafts and file contexts by mymind/workspace scope", () => {
+    const draftKey = "__new-session__";
+    window.localStorage.setItem("cctools.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "draft from A" }));
+    window.localStorage.setItem("cctools.ai.contexts.v1:scope-a", JSON.stringify({
+      [draftKey]: [{ id: "a-file", kind: "file", label: "A", path: "workspace-a/file.md" }]
+    }));
+    window.localStorage.setItem("cctools.ai.drafts.v1:scope-b", JSON.stringify({ [draftKey]: "draft from B" }));
+    window.localStorage.setItem("cctools.ai.contexts.v1:scope-b", JSON.stringify({
+      [draftKey]: [{ id: "b-file", kind: "file", label: "B", path: "workspace-b/file.md" }]
+    }));
+
+    const first = render(<AiProvider initial={snapshot} storageScope="scope-a"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({
+      draft: "draft from A",
+      contexts: ["workspace-a/file.md"]
+    }));
+    first.unmount();
+
+    render(<AiProvider initial={snapshot} storageScope="scope-b"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({
+      draft: "draft from B",
+      contexts: ["workspace-b/file.md"]
+    }));
+  });
+
+  it("moves the legacy global draft into only the first active scope", () => {
+    const draftKey = "__new-session__";
+    window.localStorage.setItem("cctools.ai.drafts.v1", JSON.stringify({ [draftKey]: "legacy draft" }));
+    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({
+      [draftKey]: [{ id: "legacy-file", kind: "file", label: "Legacy", path: "legacy/file.md" }]
+    }));
+
+    const first = render(<AiProvider initial={snapshot} storageScope="scope-a"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({
+      draft: "legacy draft",
+      contexts: ["legacy/file.md"]
+    }));
+    expect(window.localStorage.getItem("cctools.ai.drafts.v1")).toBeNull();
+    expect(window.localStorage.getItem("cctools.ai.contexts.v1")).toBeNull();
+    expect(window.localStorage.getItem("cctools.ai.drafts.v1:scope-a")).toContain("legacy draft");
+    first.unmount();
+
+    render(<AiProvider initial={snapshot} storageScope="scope-b"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({ draft: "", contexts: [] }));
+  });
+
+  it("cleans a legacy slot left behind after a scoped migration crash", () => {
+    const draftKey = "__new-session__";
+    window.localStorage.setItem("cctools.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "safe A" }));
+    window.localStorage.setItem("cctools.ai.contexts.v1:scope-a", JSON.stringify({
+      [draftKey]: [{ id: "safe-a-file", kind: "file", label: "Safe A", path: "safe-a/file.md" }]
+    }));
+    window.localStorage.setItem("cctools.ai.drafts.v1", JSON.stringify({ [draftKey]: "stale global" }));
+    window.localStorage.setItem("cctools.ai.contexts.v1", JSON.stringify({
+      [draftKey]: [{ id: "stale-file", kind: "file", label: "Stale", path: "stale/file.md" }]
+    }));
+
+    const first = render(<AiProvider initial={snapshot} storageScope="scope-a"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({
+      draft: "safe A",
+      contexts: ["safe-a/file.md"]
+    }));
+    expect(window.localStorage.getItem("cctools.ai.drafts.v1")).toBeNull();
+    expect(window.localStorage.getItem("cctools.ai.contexts.v1")).toBeNull();
+    first.unmount();
+
+    render(<AiProvider initial={snapshot} storageScope="scope-b"><DraftContextState /></AiProvider>);
+    expect(screen.getByTestId("draft-context-state").textContent).toBe(JSON.stringify({ draft: "", contexts: [] }));
+  });
+
+  it("keeps an existing conversation frozen while a blank draft follows refreshed defaults", async () => {
+    const frozenSkill: SkillDefinition = {
+      id: "frozen-skill",
+      title: "Frozen",
+      description: "Frozen with the session",
+      cwd: "installed/local/frozen-skill/1.0.0",
+      command: "managed-runtime"
+    };
+    const currentDefault: SkillDefinition = {
+      id: "current-default",
+      title: "Current",
+      description: "Only for a new conversation",
+      cwd: "installed/local/current-default/1.0.0",
+      command: "managed-runtime"
+    };
+    const frozenSnapshot: AiSnapshot = {
+      ...activeSnapshot,
+      sessions: activeSnapshot.sessions.map((session) => ({
+        ...session,
+        skillSnapshot: [{
+          definition: frozenSkill,
+          installed: { key: "local/frozen-skill", version: "1.0.0", digest: "a".repeat(64) }
+        }]
+      }))
+    };
+    window.cctools = {
+      ...window.cctools,
+      aiRefreshSkills: async () => [currentDefault]
+    } as unknown as DesktopApi;
+
+    render(
+      <AiProvider initial={frozenSnapshot} skills={[currentDefault]}>
+        <VisibleSkillIds />
+      </AiProvider>
+    );
+
+    expect(screen.getByTestId("visible-skill-ids").textContent).toBe("frozen-skill");
+
+    await act(async () => { await refreshVisibleSkills?.(); });
+    expect(screen.getByTestId("visible-skill-ids").textContent).toBe("frozen-skill");
+
+    await act(async () => { await openBlankDraft?.(); });
+    expect(screen.getByTestId("visible-skill-ids").textContent).toBe("current-default");
+  });
+
   it("accumulates assistant-delta transient chunks into the streaming text", () => {
     render(
       <AiProvider initial={snapshot} skills={skills}>

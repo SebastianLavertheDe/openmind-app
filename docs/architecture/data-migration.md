@@ -1,8 +1,13 @@
 # Data Migration Spec — `repoRoot` → v2 paths
 
-- **Status:** Phase 0 baseline
+- **Status:** Superseded before release; retained as the historical Phase 0 baseline
 - **Date:** 2026-08-05
 - **Related:** ADR-001 (path boundaries), ADR-002 (layout)
+
+> The current build does not run this automatic `repoRoot` migration. The
+> pre-release `selectRepo`/`setRepo` shims and legacy-state copier were removed:
+> users bind `mymindRoot` and optional `workspaceRoot` explicitly, and startup
+> never derives a save root or copies `.cctools` state from an old checkout.
 
 ## 1. Inputs (legacy state that may exist)
 
@@ -42,24 +47,24 @@
 7. Original `.cctools` preserved untouched.
 8. Scan `<repoRoot>/.claude/skills` via the SkillPackageService legacy adapter.
 9. Run install pre-check + clean copy. No code execution occurs during
-   inspection; a valid package is promoted atomically to active + ready only
-   after its declared Runtime is prepared.
+   inspection; a valid package is atomically installed as the one record for
+   its key. Runtime preparation is checked later when execution is requested.
 10. `.env` — analyse variable **names** only; never copy values.
 11. User re-confirms each secret in the Vault.
 12. Migrate resolvable non-sensitive settings.
 13. Rebuild indexes under `userData/state/<root-id>/indexes/`.
-14. Static consistency check + index validation. Any smoke uses the selected
-   active + ready digest, the Runtime resolver and a disposable fixture or the
+14. Static consistency check + index validation. Any smoke uses the installed,
+   freshly verified digest, the Runtime resolver and a disposable fixture or the
    Skill's documented no-write mode.
 15. Write migration marker + `schemaVersion: 2`.
 16. Save migration report.
 
-## 4. `repoRoot` derivation rule
+## 4. Historical `repoRoot` derivation rule
 
-- `workspaceRoot` ← `repoRoot` (optional; the AI/code workspace).
-- `mymindRoot` ← `repoRoot/mymind` (must pass the ADR-002 health check).
-- `repoRoot` itself is **discarded** as a live concept post-migration; it
-  survives only inside the legacy `setRepo` IPC shim for one release.
+The baseline proposed deriving `workspaceRoot` and `mymindRoot` from an old
+`repoRoot`. That proposal was not shipped. Current settings ignore the stale
+field and require explicit directory selection; there is no live `setRepo`
+IPC compatibility path.
 
 ## 5. Run history legacy handling
 
@@ -75,7 +80,8 @@ standard terminal state, artifact index. Migration:
 
 ## 6. Root relocation vs. version migration (kept separate)
 
-- Deriving `mymindRoot` from `repoRoot` is a **settings migration** (this doc).
+- The current app does not derive `mymindRoot` from `repoRoot`; binding is an
+  explicit user action.
 - Copying the whole `mymind` tree to a new disk is a **user-initiated
   relocation** (ADR-001 §5.6). The two are **never combined** in the same
   upgrade step. An app upgrade never moves user content.

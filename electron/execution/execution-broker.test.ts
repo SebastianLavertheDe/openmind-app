@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SkillRunRequest } from "../../shared/execution-contracts";
 import { buildAppPaths, ensureAppPaths, type AppPaths } from "../paths/app-paths-service";
 import { ArtifactCollector } from "./artifact-collector";
 import { ExecutionBroker, type ExecutionPlan } from "./execution-broker";
@@ -110,6 +111,29 @@ describe("ExecutionBroker", () => {
     expect(completed.attempt).toBe(2);
     expect(completed.terminalState).toBe("succeeded");
     expect(retryBroker.events(run.id).some((event) => event.reason === "retry-after-failed")).toBe(true);
+  });
+
+  it("lets the admission boundary pin a public retry before the replacement Run is stored", async () => {
+    const failingBroker = new ExecutionBroker(
+      paths,
+      async () => { throw new Error("expected failure"); },
+      undefined,
+      { maxConcurrentRuns: 1 }
+    );
+    const original = failingBroker.submit({ ...request(), version: undefined, digest: undefined });
+    await waitFor(() => failingBroker.get(original.id).state === "failed");
+    const admittedDigest = "d".repeat(64);
+    const admit = vi.fn((candidate: SkillRunRequest): SkillRunRequest => ({
+      ...candidate,
+      version: "2.3.4",
+      digest: admittedDigest
+    }));
+
+    const retried = failingBroker.retry(original.id, admit);
+
+    expect(admit).toHaveBeenCalledOnce();
+    expect(retried.request).toMatchObject({ version: "2.3.4", digest: admittedDigest });
+    await waitFor(() => failingBroker.get(retried.id).state === "failed");
   });
 
   it("cancels active Runs and blocks later starts when a Credential is revoked", async () => {

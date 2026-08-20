@@ -125,8 +125,7 @@ export class RunScheduler {
           if (this.automation) void this.automation.handleWorkflowRunEvent(event).catch(() => undefined);
         },
       ...(appPaths && installedResolver ? {
-        workflowRoot: path.join(appPaths.runs, "workflows"),
-        resolveWorkflowManifest: (skillId: string, version?: string) => installedResolver.workflowManifest(skillId, version)
+        workflowRoot: path.join(appPaths.runs, "workflows")
       } : {})
     } : undefined);
     this.manualSkills = new ManualSkillController(this.skillTools, projectRoot, publish);
@@ -142,13 +141,15 @@ export class RunScheduler {
       cancelSkill: (runId) => this.skillTools.cancelRun(runId),
       cancelWorkflow: (runId) => this.skillTools.cancelWorkflowRun(runId),
       resolveTargetVersion: (target) => {
-        if (target.versionPolicy === "*") return undefined;
-        const active = installedResolver?.active(target.id);
-        if (!active || !matchesSemverRange(active.version, target.versionPolicy)) throw new Error(`当前 active Skill 不满足 version policy：${target.id}@${target.versionPolicy}`);
-        return active.version;
+        const installed = installedResolver?.enabledInstalled(target.id);
+        if (target.versionPolicy === "*") {
+          if (!installed) throw new Error(`当前没有启用的 Skill：${target.id}`);
+          return undefined;
+        }
+        if (!installed || !matchesSemverRange(installed.version, target.versionPolicy)) throw new Error(`当前已安装 Skill 不满足 version policy：${target.id}@${target.versionPolicy}`);
+        return installed.version;
       }
     }) : null;
-    this.automation?.start();
     this.changeApplications = new ChangeApplicationService(
       this.store,
       this.legacyChanges,
@@ -159,8 +160,15 @@ export class RunScheduler {
     );
     this.approvals = new ApprovalBroker((request) => void handleApprovalRequest(this.executionHost(), request));
     this.store.initialize();
+    // Old sessions predate the enabled preference and therefore behaved as if
+    // every usable installed Skill was on. Freeze that compatibility catalog
+    // synchronously before the worker accepts any request. This path never
+    // reads skill-preferences.json, so a corrupt preference cannot brick
+    // bootstrap or an existing conversation.
+    this.store.backfillMissingSkillSnapshots(() => this.skillTools.captureSessionSnapshot(true));
     recoverInterruptedRuns(this.store);
     cleanupStaleImages(this.projectRoot, this.stateRoot);
+    this.automation?.start();
   }
 
   snapshot(): AiSnapshot {
@@ -313,14 +321,18 @@ export class RunScheduler {
 
   startRun(raw: StartRunInput): { session: AiSession; run: AiRun } {
     const input = StartRunInputSchema.parse(raw);
-    // 新对话:重新扫描 skill 目录,确保 /skill 解析用的是最新列表
+    // New conversations refresh only the active catalog. Installed packages
+    // are read on demand; legacy workspace discovery rescans when applicable.
     if (!input.sessionId) this.skillTools.refresh();
     const cwd = normalizeCwd(this.projectRoot, input.cwd);
     const contexts = normalizeContextReferences(this.projectRoot, input.contexts);
-    const skillInvocation = parseSkillSlashInvocation(input.prompt, this.skillTools.listDefinitions());
+    let session = input.sessionId ? this.store.getSession(input.sessionId) : null;
+    const skillSnapshot = session
+      ? requireSessionSkillSnapshot(session)
+      : this.skillTools.captureSessionSnapshot();
+    const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
     const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
-    let session = input.sessionId ? this.store.getSession(input.sessionId) : null;
     const provider = this.registry.detect().find((item) => item.id === input.providerId);
     const pinnedManagedProvider = session?.serviceProviderId
       ? resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null)
@@ -342,7 +354,8 @@ export class RunScheduler {
         cwd,
         title: titleFromPrompt(input.prompt),
         permissionProfile: input.permissionProfile,
-        interactionMode: input.interactionMode
+        interactionMode: input.interactionMode,
+        skillSnapshot
       });
     } else if (
       session.permissionProfile !== input.permissionProfile
@@ -401,4 +414,11 @@ export class RunScheduler {
   }
 
   private publishSnapshot(): void { this.publish({ kind: "snapshot", snapshot: this.snapshot() }); }
+}
+
+function requireSessionSkillSnapshot(session: AiSession) {
+  if (!session.skillSnapshot) {
+    throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
+  }
+  return session.skillSnapshot;
 }

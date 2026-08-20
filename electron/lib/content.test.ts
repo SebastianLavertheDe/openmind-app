@@ -27,13 +27,12 @@ let repo = "";
 beforeEach(() => {
   repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-content-repo-"));
   roots.push(repo);
-  fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
   fs.mkdirSync(path.join(repo, "mymind"), { recursive: true });
-  process.env.CCTOOLS_REPO_ROOT = repo;
+  process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
 });
 
 afterEach(() => {
-  delete process.env.CCTOOLS_REPO_ROOT;
+  delete process.env.CCTOOLS_MYMIND_ROOT;
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
   vi.restoreAllMocks();
 });

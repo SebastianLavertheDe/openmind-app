@@ -13,7 +13,6 @@ vi.mock("electron", () => ({
 }));
 
 import {
-  looksLikeRepo,
   normalizeRepoRoot,
   parseWslRepoPath,
   ensureInsideRepo,
@@ -36,13 +35,12 @@ describe("settings path handling", () => {
 
   beforeEach(() => {
     repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-repo-"));
-    fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
     fs.mkdirSync(path.join(repo, "mymind"), { recursive: true });
-    process.env.CCTOOLS_REPO_ROOT = repo;
+    process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
   });
 
   afterEach(() => {
-    delete process.env.CCTOOLS_REPO_ROOT;
+    delete process.env.CCTOOLS_MYMIND_ROOT;
     fs.rmSync(repo, { recursive: true, force: true });
   });
 
@@ -64,18 +62,12 @@ describe("settings path handling", () => {
     expect(normalizeRepoRoot("/home/say/repo/../repo/")).toBe(path.posix.normalize("/home/say/repo/../repo/"));
   });
 
-  it("recognises valid cctools repositories", () => {
-    expect(looksLikeRepo(repo)).toBe(true);
-    expect(looksLikeRepo(os.tmpdir())).toBe(false);
-    expect(looksLikeRepo("")).toBe(false);
-  });
-
   it("keeps resolved paths inside the repo", () => {
     expect(ensureInsideRepo("mymind/article/x.md")).toBe(path.resolve(repo, "mymind/article/x.md"));
     expect(() => ensureInsideRepo("../../etc/passwd")).toThrow("超出项目目录");
   });
 
-  it("finds the repo root from environment and settings", () => {
+  it("derives the display repo root from the bound mymind root", () => {
     expect(findRepoRoot()).toBe(repo);
   });
 
@@ -113,7 +105,7 @@ describe("settings path handling", () => {
 
   it("imports validated preferences from a selected json file", () => {
     const file = path.join(os.tmpdir(), `prefs-${Date.now()}.json`);
-    fs.writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFERENCES, themeMode: "light", repoRoot: repo }), "utf8");
+    fs.writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFERENCES, themeMode: "light", mymindRoot: path.join(repo, "mymind") }), "utf8");
     const result = importPreferences(file);
     expect(result.imported).toBe(true);
     expect(result.preferences.themeMode).toBe("light");

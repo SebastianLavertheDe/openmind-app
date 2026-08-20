@@ -11,7 +11,7 @@ This is the formal-review hand-off record for the desktop app. Local tests and
 ## Review scope
 
 - App/Main/Utility Process and Renderer IPC boundaries;
-- Skill package installation, digest/readiness transitions and Runtime Pack
+- Skill package installation, installed-copy/receipt integrity and Runtime Pack
   verification;
 - CLI installer supply-chain controls: official HTTPS allowlists, isolated
   app-private staging, managed-Node npm execution, digest manifests, cancel and
@@ -32,7 +32,7 @@ scope by project decision; their absence is not a finding for this review.
 | ID | Priority | Review question | Status | Evidence / reviewer notes |
 | --- | --- | --- | --- | --- |
 | SEC-001 | P1 | Does any app-owned crash, diagnostic or deployment integration collect or upload a full memory dump from a Secret-bearing Worker? | pending | |
-| SEC-002 | P1 | Can a Skill digest/readiness transition, CLI or Runtime Pack change, archive path, symlink or TOCTOU race bypass static checks or execute outside the intended app-private boundary? | pending | |
+| SEC-002 | P1 | Can a Skill install/receipt transition, CLI or Runtime Pack change, archive path, symlink or TOCTOU race bypass static checks or execute outside the intended app-private boundary? | pending | |
 | SEC-003 | P1 | Can credentials enter another Skill, persist in App metadata/logs/diagnostics/package output, or survive revoke/replace beyond the documented host-process boundary? | pending | |
 | SEC-004 | P1 | Do packaged Windows/macOS startup, clean-machine, migration, force-quit and recovery behaviors preserve the stated data and permission boundaries? | pending | |
 | SEC-005 | P1 | Does the release/deployment platform add crash collection, telemetry, auto-update or secret-bearing diagnostic behavior not represented in this repository? | pending | |

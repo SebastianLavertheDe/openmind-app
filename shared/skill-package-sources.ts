@@ -59,10 +59,27 @@ export function parseSkillPackageSourceInput(value: unknown): SkillPackageSource
 /** Official first-start skill repository; installing it is part of the onboarding gate. */
 export const CCTOOLS_SKILLS_REPO_URL = "https://github.com/SebastianLavertheDe/cctools-skills";
 
-/** Matches a git source locator against {@link CCTOOLS_SKILLS_REPO_URL} (ignores trailing slash / .git). */
-export function isCctoolsSkillsSourceLocator(locator: string | null | undefined): boolean {
-  if (!locator) return false;
-  const normalized = locator.trim().replace(/\/+$/, "").replace(/\.git$/, "").toLowerCase();
-  return normalized === CCTOOLS_SKILLS_REPO_URL.toLowerCase();
+/** Canonical form used for local source provenance and receipt comparison. */
+export function normalizeGitSourceLocator(locator: string | null | undefined): string | null {
+  if (!locator) return null;
+  let url: URL;
+  try {
+    url = new URL(locator.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol.toLowerCase() !== "https:" || !url.hostname || url.username || url.password || url.search || url.hash) {
+    return null;
+  }
+  let pathname = url.pathname.replace(/\/+$/, "").replace(/\.git$/i, "");
+  if (!pathname || pathname === "/") return null;
+  if (url.hostname.toLowerCase() === "github.com") pathname = pathname.toLowerCase();
+  url.pathname = pathname;
+  return url.toString().replace(/\/$/, "");
 }
 
+/** Matches a git source locator against {@link CCTOOLS_SKILLS_REPO_URL} (ignores trailing slash / .git). */
+export function isCctoolsSkillsSourceLocator(locator: string | null | undefined): boolean {
+  const normalized = normalizeGitSourceLocator(locator);
+  return normalized?.toLowerCase() === normalizeGitSourceLocator(CCTOOLS_SKILLS_REPO_URL)?.toLowerCase();
+}

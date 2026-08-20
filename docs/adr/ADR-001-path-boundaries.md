@@ -63,9 +63,9 @@ into three concern areas. No two roots may alias or contain one another.
 - **Relationship to content:** completely independent of `mymindRoot`. Setting
   one does not set the other. They may legitimately be the same directory the
   user cares about, but the app never infers one from the other.
-- **Legacy role:** `repoRoot` is treated **only** as a one-time migration
-  input — `migrateLegacyRepoRoot()` derives `mymindRoot = repoRoot/mymind` and
-  optionally `workspaceRoot = repoRoot`, then discards `repoRoot`.
+- **Legacy role:** none in the current build. The pre-release automatic
+  `repoRoot` derivation and its IPC shims were removed; users explicitly bind
+  `mymindRoot` and, if needed, `workspaceRoot`.
 
 ### 3. App private roots — all under `userData`
 
@@ -115,21 +115,22 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
 2. No new code may call `path.join(repoRoot, ...)`. A `scripts/audit-no-reporoot.js`
    grep fails the build on any re-introduction.
 3. No new App or App-native Workflow code may join `mymind` content paths
-   except through `MymindPathResolver`. Claude Code/Codex and active + ready
-   Process Skills run with the OS user's authority and cannot be technically
+   except through `MymindPathResolver`. Claude Code/Codex and installed,
+   integrity-checked Process Skills run with the OS user's authority and cannot be technically
    constrained to Resolver paths; the product must state that boundary.
 4. Renderer never receives or sends raw absolute mymind paths for editing;
    it uses `mymind/...` logical paths. Absolute paths shown in UI are for
    display of resources the Main process has already validated.
-5. The legacy `selectRepo/setRepo` IPC is kept for exactly one release as a
-   migration shim (`setRepo` → derives `mymindRoot` → writes v2 setting).
+5. The legacy `selectRepo/setRepo` IPC and automatic `repoRoot` derivation are
+   removed. Startup must not infer a save root from the checkout or cwd.
 6. The product has no `repoRoot` user-facing copy after migration.
 
 ## Consequences
 
-- **Positive:** the app starts without a git repo, without `.claude`, and
-  without the cctools checkout. Content features work once a valid `mymindRoot`
-  is selected. App private state can be backed up/restored as a portable unit
+- **Positive:** the app starts without a cctools checkout. It enters the
+  workspace only after a valid `mymindRoot` is selected and the complete
+  official Skill source passes its offline receipt/integrity check. App
+  private state can be backed up/restored as a portable unit
   without touching user content. The implementation snapshots settings,
   root-scoped state, Automation and Run metadata; credentials/browser tokens,
   installed package/runtime bytes, transient work and caches/logs stay out of
@@ -141,12 +142,9 @@ layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
   `SourceRegistry` / `MymindFileSearch` / creative file service must be
   refactored to take a `MymindPathResolver` (or `mymindRootSnapshot`) via
   dependency injection instead of calling `findRepoRoot()`.
-- **Negative:** a one-time idempotent migration from `repoRoot` →
-  `mymindRoot` + `workspaceRoot` is required, and must be crash-safe and
-  re-runnable (see `docs/architecture/data-migration.md`).
-- **Risk:** existing users with `state` under `repoRoot/.cctools` must have
-  that state moved to `userData/state/<root-id>/`; the source `.cctools` is
-  preserved untouched.
+- **Negative:** pre-release users with only a legacy `repoRoot` setting must
+  explicitly reselect their save root and optional workspace. Startup performs
+  no implicit content or private-state copy.
 
 ## Open questions (deferred to follow-up ADRs)
 

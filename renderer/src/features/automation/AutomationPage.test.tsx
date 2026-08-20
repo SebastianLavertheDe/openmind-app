@@ -1,52 +1,59 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AutomationRule, AutomationRunRecord, BrokerRunRecord, DesktopApi, SkillDefinition, SourceRun, WorkflowRunRecord } from "@shared/contracts";
+import type { AutomationRule, AutomationRunRecord, BrokerRunRecord, DesktopApi, InstalledRunnableSkillView, SourceRun, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent } from "@shared/execution-contracts";
 import { messages } from "@shared/messages";
 import { AutomationPage } from "./AutomationPage";
+import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 
-const skills: SkillDefinition[] = [
+const skillCatalog: InstalledRunnableSkillView[] = [
   {
+    key: "cctools/rss-article-saver",
     id: "rss-article-saver",
+    publisherId: "cctools",
+    version: "1.0.0",
+    digest: "a".repeat(64),
+    kind: "process",
     title: "RSS 文章抓取",
     description: "拉取订阅并保存文章。",
-    cwd: ".claude/skills/rss-article-saver",
-    command: "uv",
-    runner: "uv",
-    args: ["run", "--env-file", ".env", "python", "main.py"],
-    envFile: ".env",
     group: "采集",
-    permission: "edit",
-    outputArtifacts: ["mymind/article/${date}/"],
-    timeoutMs: 7200000
+    enabled: true
   },
   {
+    key: "cctools/daily-article-summarizer",
     id: "daily-article-summarizer",
+    publisherId: "cctools",
+    version: "1.0.0",
+    digest: "b".repeat(64),
+    kind: "process",
     title: "每日文章总结",
     description: "总结当天文章。",
-    cwd: ".claude/skills/daily-article-summarizer",
-    command: "uv",
-    runner: "uv",
-    args: ["run", "python", "main.py"],
-    envFile: null,
     group: "分析",
-    permission: "edit",
-    outputArtifacts: [],
-    timeoutMs: 3600000
+    enabled: true
   },
   {
+    key: "cctools/daily-topic-selector",
     id: "daily-topic-selector",
+    publisherId: "cctools",
+    version: "1.0.0",
+    digest: "c".repeat(64),
+    kind: "process",
     title: "每日选题",
     description: "为新增资料归类并生成候选选题。",
-    cwd: ".",
-    command: "python",
-    runner: "python",
-    args: [".claude/skills/daily-topic-selector/scripts/generate_daily_topics.py"],
-    envFile: null,
     group: "创作",
-    permission: "edit",
-    outputArtifacts: [],
-    timeoutMs: 1800000
+    enabled: true
+  },
+  {
+    key: "cctools/rss-to-summary-workflow",
+    id: "rss-to-summary-workflow",
+    publisherId: "cctools",
+    version: "1.0.0",
+    digest: "d".repeat(64),
+    kind: "workflow",
+    title: "RSS 抓取与每日总结",
+    description: "依次抓取并总结 RSS 文章。",
+    group: "工作流",
+    enabled: true
   }
 ];
 
@@ -78,12 +85,22 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     listAutomationRules: async () => currentRules,
     listAutomationSchedules: async () => [],
     listAutomationRuns: async () => [],
+    listInstalledRunnableSkills: async () => skillCatalog,
     saveAutomationRule,
     runAutomationNow: vi.fn(async (ruleId) => ({ schemaVersion: 1, id: "automation-run", ruleId, target: currentRules.find((rule) => rule.id === ruleId)!.target, state: "running", attempt: 1, retryAt: null, childRunId: "child-run", triggerReason: "manual", scheduledFor: null, createdAt: new Date().toISOString(), completedAt: null, error: null } as AutomationRunRecord)),
     cancelSkillRun: async () => true,
     cancelWorkflowRun: async () => true,
     ...overrides
   } as unknown as DesktopApi;
+}
+
+async function changeTriggerAndWaitForField(value: "weekly" | "interval", fieldLabel: string): Promise<void> {
+  await waitFor(() => {
+    if (!screen.queryByLabelText(fieldLabel)) {
+      fireEvent.change(screen.getByLabelText("触发类型"), { target: { value } });
+    }
+    expect(screen.getByLabelText(fieldLabel)).toBeTruthy();
+  });
 }
 
 beforeEach(() => {
@@ -94,8 +111,88 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
+  it("loads the installed runnable catalog and shows formal Process metadata", async () => {
+    const listInstalledRunnableSkills = vi.fn(async () => skillCatalog);
+    window.cctools = makeApi({ listInstalledRunnableSkills });
+
+    render(<AutomationPage go={vi.fn()} />);
+
+    expect(await screen.findByText("每日文章总结 · Process · daily-article-summarizer")).toBeTruthy();
+    expect(screen.getByText("Process · v1.0.0")).toBeTruthy();
+    expect(listInstalledRunnableSkills).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows formal Workflow metadata from the independent installed catalog", async () => {
+    const workflowRule: AutomationRule = {
+      ...seedRules[0],
+      id: "rss-summary-workflow",
+      name: "RSS 工作流",
+      target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }
+    };
+    window.cctools = makeApi({ listAutomationRules: async () => [workflowRule] });
+
+    render(<AutomationPage go={vi.fn()} />);
+
+    expect(await screen.findByText("RSS 抓取与每日总结 · Workflow · rss-to-summary-workflow")).toBeTruthy();
+    expect(screen.getByText("Workflow · v1.0.0")).toBeTruthy();
+  });
+
+  it("blocks new Automation runs when the installed target is disabled", async () => {
+    const runAutomationNow = vi.fn();
+    const disabledCatalog = skillCatalog.map((skill) => skill.id === "daily-article-summarizer"
+      ? { ...skill, enabled: false }
+      : skill);
+    window.cctools = makeApi({
+      listInstalledRunnableSkills: async () => disabledCatalog,
+      runAutomationNow
+    });
+
+    render(<AutomationPage go={vi.fn()} />);
+
+    expect(await screen.findByText("Skill 已关闭")).toBeTruthy();
+    const runButton = screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement;
+    expect(runButton.disabled).toBe(true);
+    fireEvent.click(runButton);
+    expect(runAutomationNow).not.toHaveBeenCalled();
+  });
+
+  it("refreshes its preserved catalog after Skill Center changes availability", async () => {
+    let currentCatalog = skillCatalog;
+    window.cctools = makeApi({ listInstalledRunnableSkills: async () => currentCatalog });
+    render(<AutomationPage go={vi.fn()} />);
+
+    expect(await screen.findByText("已启用")).toBeTruthy();
+    currentCatalog = skillCatalog.map((skill) => skill.id === "daily-article-summarizer"
+      ? { ...skill, enabled: false }
+      : skill);
+    window.dispatchEvent(new Event(INSTALLED_SKILL_CATALOG_CHANGED_EVENT));
+
+    expect(await screen.findByText("Skill 已关闭")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("blocks a new Automation run when the installed target does not satisfy its version policy", async () => {
+    const runAutomationNow = vi.fn();
+    const incompatibleRule: AutomationRule = {
+      ...seedRules[0],
+      target: { ...seedRules[0].target, versionPolicy: "^2.0.0" }
+    };
+    window.cctools = makeApi({
+      listAutomationRules: async () => [incompatibleRule],
+      runAutomationNow
+    });
+
+    render(<AutomationPage go={vi.fn()} />);
+
+    expect(await screen.findByText("执行目标不可用")).toBeTruthy();
+    const runButton = screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement;
+    expect(runButton.disabled).toBe(true);
+    fireEvent.click(runButton);
+    expect(runAutomationNow).not.toHaveBeenCalled();
+  });
+
   it("shows the three persisted rules and no removed rules", async () => {
-    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    const { container } = render(<AutomationPage go={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("3 条规则")).toBeTruthy());
 
     expect(container.querySelector(".automation-page-transition")).toBeTruthy();
@@ -108,7 +205,7 @@ describe("AutomationPage", () => {
   });
 
   it("toggles a rule with SwitchButton and disables running when off", async () => {
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
     const toggle = await screen.findByRole("switch", { name: "启用 每日简报生成" });
     expect(toggle.getAttribute("aria-checked")).toBe("true");
 
@@ -120,7 +217,7 @@ describe("AutomationPage", () => {
   it("runs the selected automation rule through the Automation API", async () => {
     const runAutomationNow = vi.fn().mockResolvedValue({});
     window.cctools = makeApi({ runAutomationNow });
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
     expect(runAutomationNow).toHaveBeenCalledWith("daily-brief");
@@ -131,7 +228,7 @@ describe("AutomationPage", () => {
   });
 
   it("remounts the detail pane so rule changes replay the transition", async () => {
-    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    const { container } = render(<AutomationPage go={vi.fn()} />);
     await screen.findByText("每日简报生成", { selector: ".rule-detail h1" });
     const previousPane = container.querySelector(".automation-detail-transition");
 
@@ -143,7 +240,7 @@ describe("AutomationPage", () => {
   });
 
   it("uses the shared form controls and reveals trigger-specific schedule fields", async () => {
-    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    const { container } = render(<AutomationPage go={vi.fn()} />);
     await screen.findByText("触发与目标");
 
     expect(container.querySelector(".automation-editor-card")).toBeTruthy();
@@ -153,7 +250,7 @@ describe("AutomationPage", () => {
     expect(screen.getByText("调度设置")).toBeTruthy();
     expect(screen.getByLabelText("每日时间")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("触发类型"), { target: { value: "weekly" } });
+    await changeTriggerAndWaitForField("weekly", "每周时间");
     expect(screen.getByLabelText("每周时间")).toBeTruthy();
     expect(screen.getByLabelText("每周星期")).toBeTruthy();
   });
@@ -168,10 +265,10 @@ describe("AutomationPage", () => {
       updatedAt: "2026-06-15T08:00:00.000Z"
     }));
     window.cctools = makeApi({ saveAutomationRule });
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
     await screen.findByText("触发与目标");
 
-    fireEvent.change(screen.getByLabelText("触发类型"), { target: { value: "interval" } });
+    await changeTriggerAndWaitForField("interval", "间隔分钟");
     fireEvent.change(screen.getByLabelText("间隔分钟"), { target: { value: "30" } });
     fireEvent.click(screen.getByRole("button", { name: /保存规则/ }));
 
@@ -189,7 +286,7 @@ describe("AutomationPage", () => {
         return () => undefined;
       }
     });
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: messages.common.copy }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("生成完成"));
@@ -241,7 +338,7 @@ describe("AutomationPage", () => {
       onSkillRunEvent: (callback) => { onRunEvent = callback; return () => undefined; }
     });
 
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
     expect(await screen.findByText(/Workflow Step fetch failed/)).toBeTruthy();
     expect(screen.getByText(/rss-article-saver · 运行失败/)).toBeTruthy();
     expect(onRunEvent).toBeTruthy();
@@ -299,7 +396,7 @@ describe("AutomationPage", () => {
       getSkillRunEvents: async () => events
     });
 
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
 
     expect(await screen.findByText(/rss-article-saver · Loaded 122 RSS feeds/)).toBeTruthy();
     expect(screen.getByText(/rss-article-saver · Processing: Cursor is now a part of SpaceX/)).toBeTruthy();
@@ -307,6 +404,9 @@ describe("AutomationPage", () => {
   });
 
   it("prefers an active workflow over newer skipped runs and keeps its live logs visible", async () => {
+    const activeCreatedAt = new Date(Date.now() - 60_000).toISOString();
+    const skippedCreatedAt = new Date(Date.now() - 30_000).toISOString();
+    const activeEventAt = new Date(Date.parse(activeCreatedAt) + 1_000).toISOString();
     const workflowRule: AutomationRule = {
       ...seedRules[2],
       id: "rss-workflow",
@@ -324,7 +424,7 @@ describe("AutomationPage", () => {
       childRunId: "workflow-active-run",
       triggerReason: "manual",
       scheduledFor: null,
-      createdAt: "2026-08-16T09:11:00.000Z",
+      createdAt: activeCreatedAt,
       completedAt: null,
       error: null
     };
@@ -334,8 +434,8 @@ describe("AutomationPage", () => {
       state: "skipped",
       attempt: 0,
       childRunId: null,
-      createdAt: "2026-08-16T09:17:00.000Z",
-      completedAt: "2026-08-16T09:17:00.000Z",
+      createdAt: skippedCreatedAt,
+      completedAt: skippedCreatedAt,
       error: "已有 Automation Run 正在执行。"
     };
     const workflow: WorkflowRunRecord = {
@@ -358,8 +458,12 @@ describe("AutomationPage", () => {
       completedAt: null,
       artifacts: []
     } as unknown as BrokerRunRecord;
+    const cancelWorkflowRun = vi.fn(async () => true);
     window.cctools = makeApi({
       listAutomationRules: async () => [workflowRule],
+      listInstalledRunnableSkills: async () => skillCatalog.map((skill) => skill.id === "rss-to-summary-workflow"
+        ? { ...skill, enabled: false }
+        : skill),
       // The store returns newest-first; a skipped click must not hide this active parent.
       listAutomationRuns: async () => [skippedRun, activeRun],
       getWorkflowRun: async () => workflow,
@@ -368,26 +472,31 @@ describe("AutomationPage", () => {
         schemaVersion: 1,
         runId: "fetch-active-run",
         sequence: 1,
-        timestamp: "2026-08-16T09:11:01.000Z",
+        timestamp: activeEventAt,
         state: "running",
         stream: "stdout",
         text: "开始抓取 RSS"
-      }]
+      }],
+      cancelWorkflowRun
     });
 
-    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    const { container } = render(<AutomationPage go={vi.fn()} />);
 
     expect(await screen.findByRole("button", { name: "停止运行" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /立即运行/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /授权/ })).toBeNull();
     expect(screen.queryByText(/等待授权/)).toBeNull();
+    expect(screen.getByText("Skill 已关闭")).toBeTruthy();
     expect(container.querySelector(".rule-item .rule-copy small")?.textContent).toContain("运行中");
     await waitFor(() => expect(screen.getByRole("log").textContent).toContain("rss-article-saver · 运行中"));
     expect(screen.getByRole("log").textContent).toContain("rss-article-saver · 开始抓取 RSS");
-    expect(container.querySelector(".automation-history-row")?.textContent).toContain("running");
+    await waitFor(() => expect(container.querySelector(".automation-history-row")?.textContent).toContain("running"));
+    fireEvent.click(screen.getByRole("button", { name: "停止运行" }));
+    await waitFor(() => expect(cancelWorkflowRun).toHaveBeenCalledWith("workflow-active-run"));
   });
 
   it("labels a queued retry error as the previous attempt instead of a current Automation failure", async () => {
+    const createdAt = new Date(Date.now() - 60_000).toISOString();
     const queuedRetry: AutomationRunRecord = {
       schemaVersion: 1,
       id: "queued-retry",
@@ -395,11 +504,11 @@ describe("AutomationPage", () => {
       target: seedRules[0].target,
       state: "queued",
       attempt: 1,
-      retryAt: "2026-08-16T14:50:05.000Z",
+      retryAt: new Date(Date.parse(createdAt) + 30_000).toISOString(),
       childRunId: null,
       triggerReason: "manual",
       scheduledFor: null,
-      createdAt: "2026-08-16T14:49:34.000Z",
+      createdAt,
       completedAt: null,
       error: "Workflow Step fetch failed."
     };
@@ -408,9 +517,9 @@ describe("AutomationPage", () => {
       listAutomationRuns: async () => [queuedRetry]
     });
 
-    render(<AutomationPage skills={skills} go={vi.fn()} />);
+    render(<AutomationPage go={vi.fn()} />);
 
-    expect(await screen.findAllByText(/上次尝试失败，等待重试/)).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByText(/上次尝试失败，等待重试/)).toHaveLength(2));
     expect(screen.queryByText(/Automation 失败/)).toBeNull();
   });
 
@@ -443,7 +552,7 @@ describe("AutomationPage", () => {
       listAutomationRuns: async () => [recent, stale]
     });
 
-    const { container } = render(<AutomationPage skills={skills} go={vi.fn()} />);
+    const { container } = render(<AutomationPage go={vi.fn()} />);
     await screen.findByText("触发与目标");
 
     expect(container.querySelectorAll(".automation-history-row")).toHaveLength(1);

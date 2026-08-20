@@ -189,7 +189,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
 
   // --- Batch C: media, agent, workflow ---
   {
-    id: "VideoDownload",
+    id: "video-download",
     sourceDir: "VideoDownload",
     targetKind: "process",
     runtimePacks: ["python-core", "media-core"],

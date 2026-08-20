@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/execution-contracts";
 import { SkillsPage } from "./SkillsPage";
+import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 
 const digest = "a".repeat(64);
 const sourcePath = "/workspace/.claude/skills/demo-skill";
@@ -31,7 +32,7 @@ const inspection: SkillPackageInspectionView = {
   warnings: []
 };
 
-const active: InstalledSkillView = {
+const installedSkill: InstalledSkillView = {
   schemaVersion: 1,
   key: "local/demo-skill",
   id: "demo-skill",
@@ -40,8 +41,8 @@ const active: InstalledSkillView = {
   digest,
   sourcePath,
   packagePath: "/userData/skills/local/demo-skill/1.2.0-aaaaaaaaaaaaaaaa",
-  status: "active",
-  readiness: "ready",
+  usable: true,
+  enabled: true,
   signatureStatus: "unsigned",
   reviewStatus: "unreviewed",
   skillUpdatePolicy: "manual",
@@ -70,16 +71,17 @@ const demoRun = BrokerRunRecordSchema.parse({
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     inspectSkillWorkspace: async () => [inspection],
-    listInstalledSkills: async () => [active],
+    listInstalledSkills: async () => [installedSkill],
+    setInstalledSkillEnabled: async (_key: string, _digest: string, enabled: boolean) => ({ ...installedSkill, enabled }),
     listSkillRuns: async () => [demoRun],
     onAiEvent: () => () => undefined,
     ...overrides
   } as unknown as DesktopApi;
 }
 
-function renderPage(overrides: Partial<DesktopApi> = {}, initialSkillId?: string, initialSourcePickerOpen = false) {
+function renderPage(overrides: Partial<DesktopApi> = {}, initialSkillId?: string, initialSourcePickerOpen = false, onInstallationChange?: () => void | Promise<void>, onAvailabilityChange?: () => void | Promise<void>) {
   window.cctools = makeApi(overrides);
-  render(<SkillsPage skills={skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSourcePickerOpen} />);
+  render(<SkillsPage skills={skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSourcePickerOpen} onInstallationChange={onInstallationChange} onAvailabilityChange={onAvailabilityChange} />);
 }
 
 beforeEach(() => {
@@ -96,12 +98,76 @@ describe("SkillsPage", () => {
     expect(screen.getByRole("heading", { name: "运行记录" })).toBeTruthy();
     expect(screen.getByText("demo-run-1", { exact: false })).toBeTruthy();
     expect(screen.getByText("成功")).toBeTruthy();
+    expect(screen.getByText("包体已验证")).toBeTruthy();
+    expect(screen.getByText("后续可用性")).toBeTruthy();
+    expect(screen.getByText("更改不会修改已有会话，也不会取消已排队或正在运行的任务。")).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "启用 Demo Skill 的后续使用" }).getAttribute("aria-checked")).toBe("true");
 
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "不存在" } });
     expect(screen.getByText("没有匹配的 Skill")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "Demo" } });
     expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+  });
+
+  it("surfaces an unusable installed package without relying on lifecycle labels", async () => {
+    renderPage({ listInstalledSkills: async () => [{ ...installedSkill, usable: false, enabled: false }] });
+
+    expect((await screen.findAllByText("包体异常")).length).toBeGreaterThanOrEqual(1);
+    const toggle = screen.getByRole("switch", { name: "启用 Demo Skill 的后续使用" }) as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle.disabled).toBe(false);
+    expect(screen.queryByText("installed-not-ready")).toBeNull();
+    expect(screen.queryByText("quarantined")).toBeNull();
+  });
+
+  it("updates only the selected installed record and stays busy until the blank-draft catalog refreshes", async () => {
+    let resolveUpdate!: (value: InstalledSkillView) => void;
+    let resolveRefresh!: () => void;
+    const setInstalledSkillEnabled = vi.fn().mockReturnValue(new Promise<InstalledSkillView>((resolve) => { resolveUpdate = resolve; }));
+    const onInstallationChange = vi.fn();
+    const onAvailabilityChange = vi.fn().mockReturnValue(new Promise<void>((resolve) => { resolveRefresh = resolve; }));
+    const catalogChanged = vi.fn();
+    window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, catalogChanged);
+    renderPage({ setInstalledSkillEnabled }, undefined, false, onInstallationChange, onAvailabilityChange);
+
+    const toggle = await screen.findByRole("switch", { name: "启用 Demo Skill 的后续使用" }) as HTMLButtonElement;
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(setInstalledSkillEnabled).toHaveBeenCalledWith(installedSkill.key, installedSkill.digest, false));
+    expect(toggle.disabled).toBe(true);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText("正在更新…")).toBeTruthy();
+
+    resolveUpdate({ ...installedSkill, enabled: false });
+    await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
+    expect(catalogChanged).toHaveBeenCalledOnce();
+    expect(onAvailabilityChange).toHaveBeenCalledOnce();
+    expect(toggle.disabled).toBe(true);
+    resolveRefresh();
+    await waitFor(() => expect(toggle.disabled).toBe(false));
+    expect(screen.getByText("已为后续会话和运行停用。")).toBeTruthy();
+    expect(onInstallationChange).not.toHaveBeenCalled();
+    window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, catalogChanged);
+  });
+
+  it("keeps the previous state and reports an inline error when an availability update fails", async () => {
+    const setInstalledSkillEnabled = vi.fn().mockRejectedValue(new Error("写入失败"));
+    renderPage({ setInstalledSkillEnabled });
+
+    const toggle = await screen.findByRole("switch", { name: "启用 Demo Skill 的后续使用" });
+    fireEvent.click(toggle);
+
+    expect((await screen.findByRole("alert")).textContent).toContain("更新 Skill 可用性失败：写入失败");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("does not show an availability switch for a workspace-only Skill", async () => {
+    renderPage({ listInstalledSkills: async () => [] });
+
+    expect(await screen.findByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText("后续可用性")).toBeNull();
   });
 
   it("keeps the catalog focused on search instead of redundant status categories", async () => {
@@ -121,19 +187,21 @@ describe("SkillsPage", () => {
     await screen.findByRole("heading", { name: "Demo Skill" });
     for (const name of [
       "刷新列表", "同步工作区 Skill", "打开来源目录",
-      "撤销宿主机信任", "打开运行表单", "更新", "导入到 quarantine",
-      "查看扫描结果", "信任并允许运行", "回滚", "卸载候选版本"
+      "撤销宿主机信任", "打开运行表单", "更新",
+      "查看扫描结果", "信任并允许运行", "回滚"
     ]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
   it("imports a Git source through inspect → confirm → install", async () => {
     const source = { type: "git" as const, locator: "https://github.com/example/skill.git" };
     const gitInspection: SkillPackageInspectionView = { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "." };
-    const installSkillSource = vi.fn().mockResolvedValue([active]);
+    const installSkillSource = vi.fn().mockResolvedValue([installedSkill]);
+    const onInstallationChange = vi.fn();
+    const onAvailabilityChange = vi.fn();
     renderPage({
       inspectSkillSource: vi.fn().mockResolvedValue({ source, packages: [gitInspection] }),
       installSkillSource
-    });
+    }, undefined, false, onInstallationChange, onAvailabilityChange);
     await screen.findByRole("heading", { name: "Demo Skill" });
 
     fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
@@ -143,6 +211,8 @@ describe("SkillsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "安装" }));
     await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source, ["."]));
+    await waitFor(() => expect(onInstallationChange).toHaveBeenCalledTimes(1));
+    expect(onAvailabilityChange).toHaveBeenCalledTimes(1);
   });
 
   it("opens the import entry when reached from onboarding", async () => {
@@ -156,7 +226,7 @@ describe("SkillsPage", () => {
     const source = { type: "zip" as const, locator: "/tmp/demo.zip" };
     const zipInspection = { ...inspection, sourcePath: source.locator, sourceKind: "zip" as const, packageRef: ".", warnings: ["包含可选文件"] };
     const inspectSkillSource = vi.fn().mockResolvedValue({ source, packages: [zipInspection] });
-    const installSkillSource = vi.fn().mockResolvedValue([active]);
+    const installSkillSource = vi.fn().mockResolvedValue([installedSkill]);
     renderPage({ selectSkillPackageSource: vi.fn().mockResolvedValue(source), inspectSkillSource, installSkillSource });
     await screen.findByRole("heading", { name: "Demo Skill" });
     fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
@@ -199,7 +269,7 @@ describe("SkillsPage", () => {
       { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "one", manifest: { ...manifest, id: "one", display: { ...manifest.display, name: "Skill One" } } },
       { ...inspection, sourcePath: source.locator, sourceKind: "git", packageRef: "two", digest: "b".repeat(64), manifest: { ...manifest, id: "two", display: { ...manifest.display, name: "Skill Two" } } }
     ];
-    const installSkillSource = vi.fn().mockResolvedValue([active]);
+    const installSkillSource = vi.fn().mockResolvedValue([installedSkill]);
     renderPage({ inspectSkillSource: vi.fn().mockResolvedValue({ source, packages }), installSkillSource });
     await screen.findByRole("heading", { name: "Demo Skill" });
     fireEvent.click(screen.getByRole("button", { name: "添加其他来源" }));
@@ -217,8 +287,8 @@ describe("SkillsPage", () => {
 
   it("groups installed Git Skills by repository and keeps workspace-only Skills ungrouped", async () => {
     const locator = "https://github.com/example/cctools-skills.git";
-    const gitOne: InstalledSkillView = { ...active, sourceType: "git", sourceLocator: locator, sourcePath: locator };
-    const gitTwo: InstalledSkillView = { ...active, key: "local/other", id: "other", digest: "b".repeat(64), sourceType: "git", sourceLocator: locator, sourcePath: locator };
+    const gitOne: InstalledSkillView = { ...installedSkill, sourceType: "git", sourceLocator: locator, sourcePath: locator };
+    const gitTwo: InstalledSkillView = { ...installedSkill, key: "local/other", id: "other", digest: "b".repeat(64), sourceType: "git", sourceLocator: locator, sourcePath: locator };
     const workspaceOnly: SkillPackageInspectionView = {
       ...inspection,
       sourcePath: "/workspace/.claude/skills/workspace-only",

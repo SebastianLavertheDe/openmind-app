@@ -26,7 +26,6 @@ import { buildMcpServerCatalog } from "./ai/mcp-catalog";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
-import { migrateLegacyState } from "./paths/legacy-state-migration";
 import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
@@ -42,6 +41,7 @@ import { detectRuntimeTarget } from "../shared/runtime-targets";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
+import { CCTOOLS_SKILLS_REPO_URL } from "../shared/skill-package-sources";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
@@ -186,6 +186,7 @@ function sendToRenderer(channel: string, payload: unknown): void {
 class AiWorkerClient {
   private worker: UtilityProcess;
   private pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+  private retired = false;
 
   constructor(projectRoot: string, stateRoot?: string) {
     const browserPreferences = settings.getPreferences();
@@ -207,14 +208,19 @@ class AiWorkerClient {
     });
     this.worker.on("message", (message: unknown) => this.onMessage(message));
     this.worker.on("exit", (code) => {
+      const expectedRetirement = this.retired;
+      this.retired = true;
       for (const pending of this.pending.values()) pending.reject(new Error(messages.errors.ai.workerExited(code)));
       this.pending.clear();
       if (aiWorker === this) aiWorker = null;
-      sendToRenderer("ai:push", { kind: "worker-exit", code });
+      // A replaced root/workspace can still have buffered exit/message events.
+      // Never inject those into the Renderer state owned by the next worker.
+      if (!expectedRetirement) sendToRenderer("ai:push", { kind: "worker-exit", code });
     });
   }
 
   call(method: string, ...args: unknown[]): Promise<unknown> {
+    if (this.retired) return Promise.reject(new Error("AI Worker 已关闭。"));
     const id = crypto.randomUUID();
     this.worker.postMessage({ id, method, args });
     return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
@@ -225,10 +231,15 @@ class AiWorkerClient {
   }
 
   close(): void {
+    if (this.retired) return;
+    this.retired = true;
+    for (const pending of this.pending.values()) pending.reject(new Error("AI Worker 已重启。"));
+    this.pending.clear();
     this.worker.kill();
   }
 
   private onMessage(raw: unknown): void {
+    if (this.retired) return;
     const message = raw as { type?: string; id?: string; result?: unknown; error?: string; payload?: unknown };
     if (message.type === "push") {
       const push = message.payload as { kind?: string; event?: Record<string, unknown> } | undefined;
@@ -255,9 +266,13 @@ class AiWorkerClient {
 }
 
 function ensureAiWorker(): AiWorkerClient {
+  if (aiWorker) return aiWorker;
+  if (!hasRequiredStartupConfiguration()) {
+    throw new Error("请先配置 mymind 保存目录并完整安装官方 cctools-skills 仓库。");
+  }
   const projectRoot = settings.resolveWorkspaceRoot();
   if (!projectRoot) throw new Error("请先选择 AI/代码工作区。");
-  if (!aiWorker) aiWorker = new AiWorkerClient(projectRoot, resolveAiStateRoot());
+  aiWorker = new AiWorkerClient(projectRoot, resolveAiStateRoot());
   return aiWorker;
 }
 
@@ -268,14 +283,6 @@ function ensureProductService(): ProductService {
   const workspaceRoot = settings.resolveWorkspaceRoot();
   const stateRoot = path.join(getAppPaths().state, rootStateId(mymindRoot));
   ensureDir(stateRoot);
-  if (workspaceRoot && settings.looksLikeRepo(workspaceRoot)) {
-    migrateLegacyState({
-      legacyRepoRoot: workspaceRoot,
-      targetStateRoot: stateRoot,
-      stagingRoot: getAppPaths().staging,
-      rootId: rootStateId(mymindRoot)
-    });
-  }
   const cacheKey = `${workspaceRoot}\0${mymindRoot}`;
   if (!productService || productServiceRoot !== cacheKey) {
     // ProductService wires SourceRegistry/BriefService internally with the
@@ -322,6 +329,18 @@ function ensureSkillSourceService(): SkillSourceService {
   ensureAppPaths(paths);
   if (!skillSourceService) skillSourceService = new SkillSourceService(ensureSkillPackageService(), paths);
   return skillSourceService;
+}
+
+/** Startup/runtime gate. This is offline and fails closed on registry, receipt,
+ * manifest, path, or digest errors; it never reaches the remote Git source. */
+function hasRequiredStartupConfiguration(): boolean {
+  const mymindRoot = settings.resolveMymindRoot();
+  if (!mymindRoot || !settings.isValidMymindRoot(mymindRoot)) return false;
+  try {
+    return ensureSkillSourceService().hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL);
+  } catch {
+    return false;
+  }
 }
 
 function ensureExportLocationService(): ExportLocationService {
@@ -371,7 +390,9 @@ function restartAiWorker(): void {
   skillSourceService = null;
   sharedPythonRuntimeService = null;
   const workspaceRoot = settings.resolveWorkspaceRoot();
-  if (workspaceRoot) aiWorker = new AiWorkerClient(workspaceRoot, resolveAiStateRoot());
+  if (workspaceRoot && hasRequiredStartupConfiguration()) {
+    aiWorker = new AiWorkerClient(workspaceRoot, resolveAiStateRoot());
+  }
 }
 
 function handleIpc(channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown): void {
@@ -578,7 +599,8 @@ function createWindow(): void {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
-  if (!PACKAGED_SMOKE_TEST && !DESKTOP_E2E_TEST && settings.resolveWorkspaceRoot()) ensureAiWorker();
+  // The renderer bootstrap owns lazy worker startup after the configuration
+  // gate succeeds. Do not create schedulers while onboarding is still active.
 }
 
 async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Promise<void> {

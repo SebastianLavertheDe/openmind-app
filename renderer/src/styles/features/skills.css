@@ -316,6 +316,34 @@
 .skills-source-path span { color: var(--muted-2); font-size: 10px; white-space: nowrap; }
 .skills-source-path code { overflow: hidden; color: var(--muted); font: 10.5px/1.4 var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
 
+.skills-availability {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px 20px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-muted) 32%, var(--panel));
+}
+
+.skills-availability-copy { min-width: 0; }
+.skills-availability-copy h3 { margin: 0; color: var(--text); font-size: 12px; font-weight: 500; }
+.skills-availability-copy p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.skills-availability-copy small { display: block; margin-top: 6px; color: var(--muted-2); font-size: 10.5px; line-height: 1.5; }
+.skills-availability-control { display: flex; align-items: center; gap: 10px; }
+.skills-availability-control > span { min-width: 56px; color: var(--text-dim); font-size: 11px; text-align: right; white-space: nowrap; }
+.skills-availability-feedback {
+  grid-column: 1 / -1;
+  margin: -3px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+  color: var(--success-600);
+  font-size: 10.5px;
+}
+.skills-availability-feedback.error { color: var(--danger-600); }
+
 .skills-detail-section { margin-top: 24px; }
 .skills-run-history { padding-top: 0; }
 .skills-run-history > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -396,6 +424,10 @@
   .skills-overview-grid > div { border-right: 0; border-bottom: 1px solid var(--hairline); }
   .skills-overview-grid > div:last-child { border-bottom: 0; }
   .skills-source-path { grid-template-columns: 1fr; gap: 4px; }
+  .skills-availability { grid-template-columns: 1fr; }
+  .skills-availability-control { justify-content: space-between; }
+  .skills-availability-control > span { text-align: left; }
+  .skills-availability-feedback { grid-column: 1; }
   .skills-run-row { grid-template-columns: auto minmax(0, 1fr); }
   .skills-run-row time { grid-column: 2; }
 }

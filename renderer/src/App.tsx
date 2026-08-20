@@ -29,7 +29,16 @@ export function App() {
   }, []);
   if (error) return <div className="fatal"><strong>{m.app.fatalTitle}</strong><pre>{error}</pre></div>;
   if (!bootstrap) return <div className="splash"><div className="brand-mark">CC</div><span>{m.app.splashStarting}</span></div>;
-  return <ResponsiveLayoutProvider><AiProvider initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} /></AiProvider></ResponsiveLayoutProvider>;
+  // Main restarts the worker when either root changes. Remount the matching
+  // Renderer state as one unit so sessions and blank-draft Skill defaults can
+  // never leak across roots. Crossing the setup gate also needs one remount:
+  // the setup bootstrap intentionally carries an empty AI snapshot, while the
+  // first ready bootstrap carries the newly-started worker state. Ordinary
+  // same-root refreshes inside the ready state keep all conversation caches.
+  const aiStorageScope = `${bootstrap.mymindRoot}\u0000${bootstrap.workspaceRoot}`;
+  const aiReady = bootstrap.validRepo && bootstrap.skillsInstalled && Boolean(bootstrap.workspaceRoot);
+  const aiProviderKey = `${aiStorageScope}\u0000${aiReady ? "ready" : "setup"}`;
+  return <ResponsiveLayoutProvider><AiProvider key={aiProviderKey} storageScope={aiStorageScope} initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} /></AiProvider></ResponsiveLayoutProvider>;
 }
 
 function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void }) {
@@ -47,6 +56,11 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
   const ai = useAi();
   const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
+  const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
+    const next = await window.cctools.getBootstrap();
+    setBootstrap(next);
+    return next;
+  }, [setBootstrap]);
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
     if (page === "settings" || page === "skills" || page === "sources") {
       setSettingsRouteState({
@@ -121,7 +135,7 @@ function Workspace({ bootstrap, setBootstrap }: { bootstrap: Bootstrap; setBoots
     providers: ai.snapshot.providers,
     aiFilePreviewPath,
     onAiFilePreviewPathChange: setAiFilePreviewPath,
-    onRepo: () => void window.cctools.getBootstrap().then(setBootstrap),
+    onRepo: refreshBootstrap,
     onExitSettings: exitSettings
   };
   return (

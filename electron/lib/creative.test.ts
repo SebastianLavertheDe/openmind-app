@@ -11,15 +11,17 @@ describe("creative topics", () => {
   let repo = "";
   beforeEach(() => {
     repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-creative-repo-"));
-    fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
     fs.mkdirSync(path.join(repo, "mymind", "creative", "01-内容生产", "选题管理"), { recursive: true });
     fs.mkdirSync(path.join(repo, ".cctools"), { recursive: true });
-    process.env.CCTOOLS_REPO_ROOT = repo;
+    process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
+    // 每个用例独立的 workspace，让 app-private 状态按 root 隔离。
+    process.env.CCTOOLS_WORKSPACE_ROOT = repo;
     process.env.CCTOOLS_USER_DATA = userDataDir;
   });
 
   afterEach(() => {
-    delete process.env.CCTOOLS_REPO_ROOT;
+    delete process.env.CCTOOLS_MYMIND_ROOT;
+    delete process.env.CCTOOLS_WORKSPACE_ROOT;
     delete process.env.CCTOOLS_USER_DATA;
     fs.rmSync(repo, { recursive: true, force: true });
   });
@@ -66,14 +68,15 @@ describe("creative projects lifecycle", () => {
   let repo = "";
   beforeEach(() => {
     repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-creative-repo-"));
-    fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
     fs.mkdirSync(path.join(repo, "mymind", "creative", "01-内容生产", "选题管理"), { recursive: true });
     fs.mkdirSync(path.join(repo, ".cctools"), { recursive: true });
-    process.env.CCTOOLS_REPO_ROOT = repo;
+    process.env.CCTOOLS_MYMIND_ROOT = path.join(repo, "mymind");
+    process.env.CCTOOLS_WORKSPACE_ROOT = repo;
     process.env.CCTOOLS_USER_DATA = userDataDir;
   });
   afterEach(() => {
-    delete process.env.CCTOOLS_REPO_ROOT;
+    delete process.env.CCTOOLS_MYMIND_ROOT;
+    delete process.env.CCTOOLS_WORKSPACE_ROOT;
     delete process.env.CCTOOLS_USER_DATA;
     fs.rmSync(repo, { recursive: true, force: true });
   });

@@ -17,7 +17,6 @@ const path = require("node:path");
 
 const buildRoot = path.resolve(__dirname, "..", ".build");
 const appPathsModule = require(path.join(buildRoot, "electron/electron/paths/app-paths-service.js"));
-const migrationModule = require(path.join(buildRoot, "electron/electron/paths/legacy-state-migration.js"));
 const relocationModule = require(path.join(buildRoot, "electron/electron/paths/mymind-relocation-service.js"));
 const backupModule = require(path.join(buildRoot, "electron/electron/backup/app-state-backup.js"));
 const runStoreModule = require(path.join(buildRoot, "electron/electron/execution/run-store.js"));
@@ -29,10 +28,6 @@ const {
   buildAppPaths,
   ensureAppPaths
 } = appPathsModule;
-const {
-  migrateLegacyState,
-  previewLegacyStateMigration
-} = migrationModule;
 const {
   previewMymindRelocation,
   relocateMymind
@@ -46,13 +41,12 @@ const drillRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-built-recovery-
 
 try {
   assertBuildServices();
-  runLegacyMigrationDrill();
   runMymindRelocationDrill();
   runInterruptedRunDrill();
   runAppStateBackupDrill();
   runRuntimeRollbackDrill();
   writeReport("passed");
-  console.log("Built recovery drill passed: migration, relocation, interrupted Run/orphan recovery, app-state restore, runtime rollback.");
+  console.log("Built recovery drill passed: relocation, interrupted Run/orphan recovery, app-state restore, runtime rollback.");
 } catch (error) {
   writeReport("failed", error);
   throw error;
@@ -76,7 +70,6 @@ function writeReport(status, error = null) {
 function assertBuildServices() {
   for (const relative of [
     "electron/electron/paths/app-paths-service.js",
-    "electron/electron/paths/legacy-state-migration.js",
     "electron/electron/paths/mymind-relocation-service.js",
     "electron/electron/backup/app-state-backup.js",
     "electron/electron/execution/run-store.js",
@@ -119,63 +112,6 @@ function runInterruptedRunDrill() {
   assert(String(recovered[0].error).includes("人工诊断"), "orphan warning did not require manual diagnosis");
   assert(!readTree(root).includes(secret), "Run recovery persisted an input Secret");
   assert(afterRestart.recoverInterrupted("second-restart").length === 0, "terminal recovered Run was recovered twice");
-}
-
-function runLegacyMigrationDrill() {
-  const root = path.join(drillRoot, "legacy-migration");
-  const repoRoot = path.join(root, "legacy-repo");
-  const sourceFile = path.join(repoRoot, ".cctools", "runs.json");
-  const targetStateRoot = path.join(root, "user-data", "state", "root-1");
-  const stagingRoot = path.join(root, "user-data", "staging");
-  write(sourceFile, "legacy-state-v1");
-
-  const preview = previewLegacyStateMigration({
-    legacyRepoRoot: repoRoot,
-    targetStateRoot,
-    stagingRoot,
-    rootId: "root-1"
-  });
-  assert(preview.canCommit && preview.sourceFileCount === 1, "legacy migration preflight failed");
-
-  const report = migrateLegacyState({ legacyRepoRoot: repoRoot, targetStateRoot, stagingRoot, rootId: "root-1" });
-  assert(report.status === "committed" && report.preservedSource === true, "legacy migration did not commit safely");
-  assert(fs.readFileSync(sourceFile, "utf8") === "legacy-state-v1", "legacy source was modified");
-  assert(fs.readFileSync(path.join(targetStateRoot, ".cctools", "runs.json"), "utf8") === "legacy-state-v1", "legacy state was not copied");
-
-  // Simulate the crash window after the target directory was installed but
-  // before the final marker was written. Startup migration must commit the
-  // matching tree and refuse any merge/overwrite guess.
-  const pendingRoot = path.join(drillRoot, "legacy-pending");
-  const pendingRepo = path.join(pendingRoot, "legacy-repo");
-  const pendingTargetRoot = path.join(pendingRoot, "user-data", "state", "root-2");
-  const pendingTarget = path.join(pendingTargetRoot, ".cctools");
-  const pendingStaging = path.join(pendingRoot, "user-data", "staging", "legacy-state-root-2");
-  const pendingFile = path.join(pendingTarget, "runs.json");
-  write(path.join(pendingRepo, ".cctools", "runs.json"), "legacy-state-v2");
-  write(pendingFile, "legacy-state-v2");
-  const tree = [{
-    relativePath: "runs.json",
-    kind: "file",
-    size: Buffer.byteLength("legacy-state-v2"),
-    sha256: sha256("legacy-state-v2")
-  }];
-  write(path.join(pendingTargetRoot, "legacy-state-migration.pending.json"), JSON.stringify({
-    schemaVersion: 1,
-    status: "pending",
-    sourceDirectory: path.join(pendingRepo, ".cctools"),
-    targetDirectory: pendingTarget,
-    stagingDirectory: pendingStaging,
-    tree,
-    preparedAt: new Date().toISOString()
-  }));
-  const recovered = migrateLegacyState({
-    legacyRepoRoot: pendingRepo,
-    targetStateRoot: pendingTargetRoot,
-    stagingRoot: path.dirname(pendingStaging),
-    rootId: "root-2"
-  });
-  assert(recovered.status === "committed", "pending legacy migration was not recovered");
-  assert(!fs.existsSync(path.join(pendingTargetRoot, "legacy-state-migration.pending.json")), "pending migration marker remained after recovery");
 }
 
 function runMymindRelocationDrill() {

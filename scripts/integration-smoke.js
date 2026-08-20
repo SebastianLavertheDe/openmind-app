@@ -3,7 +3,7 @@ const Module = require("module");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
-process.env.CCTOOLS_REPO_ROOT = repoRoot;
+process.env.CCTOOLS_MYMIND_ROOT = path.join(repoRoot, "mymind");
 
 const originalLoad = Module._load;
 Module._load = function loadWithElectronStub(request, parent, isMain) {

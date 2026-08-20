@@ -8,14 +8,14 @@ import {
   type MymindEntryCategory
 } from "../../shared/mymind-layout-v2";
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
-import type { SkillPackageInspectionView } from "../../shared/contracts";
+import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
 import {
   INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
   InstalledSkillRepository,
-  type InstalledSkillReadiness,
   type InstalledSkillRecord
 } from "./installed-skill-repository";
+import { InstalledSkillPreferencesRepository } from "./installed-skill-preferences-repository";
 import { extractZipArchive, inspectZipArchive, SkillArchiveError } from "./zip-source";
 
 const MANIFEST_FILE = "cctools.skill.yaml";
@@ -43,6 +43,8 @@ const EXCLUDED_SEGMENTS = new Set([
   "x_curl.txt",
   "summary_cache.json",
   "article_cache.json",
+  "article-counter.json",
+  "wechat_storage_state.json",
   "posted_ids.json",
   "external_article_fetch.log",
   ".counter.json",
@@ -93,8 +95,7 @@ export type SkillPackageErrorCode =
   | "archive-too-many-files"
   | "archive-compression-ratio"
   | "archive-entry-forbidden"
-  | "active-version-protected"
-  | "installed-digest-required"
+  | "installed-skill-not-found"
   | "installed-path-invalid"
   | "skill-store-unavailable";
 
@@ -153,6 +154,10 @@ export type SkillPackageSourceMetadata = {
   sourceType: "directory" | "zip" | "git";
   sourceLocator: string;
   sourceRef?: string;
+  /** Path of this package inside a multi-package source repository. */
+  sourcePackageRef?: string;
+  /** Immutable Git commit resolved while the source checkout was installed. */
+  sourceRevision?: string;
 };
 
 export function toSkillPackageInspectionView(inspection: SkillPackageInspection): SkillPackageInspectionView {
@@ -182,18 +187,19 @@ type WalkResult = {
 /**
  * Phase 2 static package boundary.
  *
- * This service may read, hash, sanitize, and quarantine a package. It never
- * invokes an entrypoint, installs dependencies, executes hooks, or changes
- * the active version. Those operations belong behind RuntimeManager and
- * ExecutionBroker in later phases.
+ * This service may read, hash, sanitize, install, and verify a package. It
+ * never invokes an entrypoint, installs dependencies, or executes hooks.
+ * RuntimeManager and ExecutionBroker own all execution-time preparation.
  */
 export class SkillPackageService {
   private readonly paths: AppPaths;
   private readonly repository: InstalledSkillRepository;
+  private readonly preferences: InstalledSkillPreferencesRepository;
 
   constructor(paths: AppPaths = getAppPaths()) {
     this.paths = paths;
     this.repository = new InstalledSkillRepository(paths.skillRegistryFile);
+    this.preferences = new InstalledSkillPreferencesRepository(paths.skills);
   }
 
   inspect(sourcePath: string): SkillPackageInspection {
@@ -286,8 +292,9 @@ export class SkillPackageService {
   }
 
   /**
-   * Copy a valid local package into a private version directory and register
-   * it as quarantined. The active pointer is deliberately untouched.
+   * Copy a valid package into its single store directory and register it.
+   * Different content replaces the directory in a staging→rename transaction;
+   * identical, intact content only refreshes source provenance.
    */
   install(sourcePath: string, sourceMetadata?: SkillPackageSourceMetadata): InstalledSkillRecord {
     const inspection = this.inspect(sourcePath);
@@ -302,18 +309,25 @@ export class SkillPackageService {
       key,
       inspection.digest
     );
-    if (existing) {
+    if (existing && this.isInstalledCopyUsable(existing)) {
       // Reinstalling an identical package from Git is also how a workspace
       // installation is migrated to its durable repository source. Preserve
-      // lifecycle state while refreshing only the source provenance.
+      // the installed copy while refreshing only the source provenance.
       if (sourceMetadata) {
-        const { sourceRef: _previousSourceRef, ...existingWithoutSourceRef } = existing;
+        const {
+          sourceRef: _previousSourceRef,
+          sourcePackageRef: _previousSourcePackageRef,
+          sourceRevision: _previousSourceRevision,
+          ...existingWithoutSourceMetadata
+        } = existing;
         return this.repository.upsert({
-          ...existingWithoutSourceRef,
+          ...existingWithoutSourceMetadata,
           sourcePath: sourceMetadata.sourceLocator,
           sourceType: sourceMetadata.sourceType,
           sourceLocator: sourceMetadata.sourceLocator,
-          ...(sourceMetadata.sourceRef ? { sourceRef: sourceMetadata.sourceRef } : {})
+          ...(sourceMetadata.sourceRef ? { sourceRef: sourceMetadata.sourceRef } : {}),
+          ...(sourceMetadata.sourcePackageRef ? { sourcePackageRef: sourceMetadata.sourcePackageRef } : {}),
+          ...(sourceMetadata.sourceRevision ? { sourceRevision: sourceMetadata.sourceRevision } : {})
         });
       }
       return existing;
@@ -328,12 +342,12 @@ export class SkillPackageService {
     const stagingRoot = fs.mkdtempSync(path.join(this.paths.staging, "skill-package-"));
     let archiveRoot: string | null = null;
     let packageSource = inspection.sourcePath;
-    const destination = path.join(
-      this.paths.skills,
-      manifest.publisher.id,
-      manifest.id,
-      `${manifest.version}-${inspection.digest.slice(0, 16)}`
-    );
+    // One directory per skill: <skills>/<publisher>/<id>. Reinstalling
+    // different content swaps the directory in a single rename; the digest
+    // lives in the registry only, so the layout never accumulates versions.
+    const destination = path.join(this.paths.skills, manifest.publisher.id, manifest.id);
+    let replacedTrash: string | null = null;
+    let candidatePromoted = false;
     try {
       if (isZipSource(sourcePath)) {
         const archive = (() => {
@@ -345,13 +359,14 @@ export class SkillPackageService {
         catch (error) { throw toSkillPackageError(error); }
         packageSource = archiveRoot;
       }
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
       copyCleanPackage(packageSource, stagingRoot, inspection.files);
       if (fs.existsSync(destination)) {
-        fs.rmSync(stagingRoot, { recursive: true, force: true });
-      } else {
-        fs.renameSync(stagingRoot, destination);
+        replacedTrash = path.join(this.paths.staging, `skill-replaced-${inspection.digest.slice(0, 16)}-${Date.now()}`);
+        fs.renameSync(destination, replacedTrash);
       }
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.renameSync(stagingRoot, destination);
+      candidatePromoted = true;
 
       const record: InstalledSkillRecord = {
         schemaVersion: INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
@@ -366,38 +381,38 @@ export class SkillPackageService {
         ...(sourceMetadata ? {
           sourceType: sourceMetadata.sourceType,
           sourceLocator: sourceMetadata.sourceLocator,
-          ...(sourceMetadata.sourceRef ? { sourceRef: sourceMetadata.sourceRef } : {})
+          ...(sourceMetadata.sourceRef ? { sourceRef: sourceMetadata.sourceRef } : {}),
+          ...(sourceMetadata.sourcePackageRef ? { sourcePackageRef: sourceMetadata.sourcePackageRef } : {}),
+          ...(sourceMetadata.sourceRevision ? { sourceRevision: sourceMetadata.sourceRevision } : {})
         } : {}),
         packagePath: destination,
-        status: "quarantined",
-        readiness: "installed-not-ready",
         signatureStatus: "unsigned",
         reviewStatus: "unreviewed",
         skillUpdatePolicy: "manual",
         installedAt: new Date().toISOString()
       };
-      return this.repository.upsert(record);
+      const installed = this.repository.upsert(record);
+      // Registry commit is the transaction boundary. Old package bytes are
+      // best-effort cleanup after the new record is durable.
+      if (replacedTrash) {
+        try { fs.rmSync(replacedTrash, { recursive: true, force: true }); }
+        catch { /* A later staging cleanup may remove this inert backup. */ }
+      }
+      return installed;
     } catch (error) {
       if (fs.existsSync(stagingRoot)) fs.rmSync(stagingRoot, { recursive: true, force: true });
-      if (fs.existsSync(destination) && !this.repository.list().some((record) => record.packagePath === destination)) {
+      // No registry write completed: remove the candidate and put the exact
+      // previous package directory back before surfacing the failure.
+      if (candidatePromoted && fs.existsSync(destination)) {
         fs.rmSync(destination, { recursive: true, force: true });
+      }
+      if (replacedTrash && fs.existsSync(replacedTrash)) {
+        fs.renameSync(replacedTrash, destination);
       }
       throw error;
     } finally {
       if (archiveRoot && fs.existsSync(archiveRoot)) fs.rmSync(archiveRoot, { recursive: true, force: true });
     }
-  }
-
-  markReadiness(key: string, digest: string, readiness: InstalledSkillReadiness): InstalledSkillRecord {
-    return this.repository.markReadiness(key, digest, readiness);
-  }
-
-  activate(key: string, digest: string): { active: InstalledSkillRecord; previous?: InstalledSkillRecord } {
-    return this.repository.activate(key, digest);
-  }
-
-  rollback(key: string): { active: InstalledSkillRecord; previous: InstalledSkillRecord } {
-    return this.repository.rollback(key);
   }
 
   /**
@@ -418,7 +433,7 @@ export class SkillPackageService {
 
   /**
    * Batch migration entry for the old `.claude/skills` surface. Valid Manifest
-   * packages are copied to quarantine; Legacy packages remain inspection-only
+   * packages are installed; Legacy packages remain inspection-only
    * and are returned as skipped, never silently upgraded or executed.
    */
   migrateClaudeSkills(workspaceRoot: string): ClaudeSkillMigrationReport {
@@ -433,54 +448,89 @@ export class SkillPackageService {
   }
 
   listInstalled(): InstalledSkillRecord[] {
-    return this.repository.list().map((record) => this.refreshIntegrity(record));
+    return this.repository.list();
   }
 
   getInstalled(key: string, digest?: string): InstalledSkillRecord | undefined {
-    const record = this.repository.get(key, digest);
-    return record ? this.refreshIntegrity(record) : undefined;
+    return this.repository.get(key, digest);
   }
 
-  getActiveInstalled(skillId: string): InstalledSkillRecord | undefined {
-    return this.listInstalled().find((record) => record.id === skillId && record.status === "active");
+  getInstalledById(skillId: string): InstalledSkillRecord | undefined {
+    return this.listInstalled().find((record) => record.id === skillId);
   }
 
-  /** Returns whether the original local source changed since installation. */
-  sourceModified(record: InstalledSkillRecord): boolean {
-    // A Git locator is not a local checkout. Its remote ref can only be
-    // refreshed through SkillSourceService, so do not classify it as modified
-    // merely because the locator is not a filesystem path.
-    if (record.sourceType === "git") return false;
-    if (!fs.existsSync(record.sourcePath)) return true;
-    try {
-      const inspection = this.inspect(record.sourcePath);
-      return inspection.digest !== record.digest;
-    } catch {
-      return true;
-    }
+  /** User enablement is independent from package integrity and installation. */
+  isEnabled(record: InstalledSkillRecord): boolean {
+    return this.preferences.isEnabled(record.key);
+  }
+
+  /** Renderer-safe record with usability derived from current package bytes. */
+  toInstalledView(record: InstalledSkillRecord): InstalledSkillView {
+    return {
+      ...record,
+      enabled: this.isEnabled(record),
+      usable: this.isInstalledCopyUsable(record)
+    };
+  }
+
+  listInstalledViews(): InstalledSkillView[] {
+    return this.listInstalled().map((record) => this.toInstalledView(record));
   }
 
   /**
-   * Re-check both the app-private installed copy and the original local
-   * source. A changed digest remains inspectable, but it cannot retain host
-   * execution approval or review evidence.
+   * Non-conversation catalog for Automation/Broker surfaces. A fresh package
+   * inspection supplies the formal Manifest display metadata and excludes
+   * Agent packages, which belong only to frozen AI session snapshots.
    */
-  private refreshIntegrity(record: InstalledSkillRecord): InstalledSkillRecord {
-    let modified = !fs.existsSync(record.packagePath);
-    if (!modified) {
+  listInstalledRunnableViews(): InstalledRunnableSkillView[] {
+    return this.listInstalled().flatMap((record) => {
       try {
-        modified = this.inspect(record.packagePath).digest !== record.digest;
+        const inspection = this.inspectInstalledCopy(record);
+        const manifest = inspection.manifest;
+        if (!manifest || manifest.kind === "agent") return [];
+        return [{
+          key: record.key,
+          id: record.id,
+          publisherId: record.publisherId,
+          version: record.version,
+          digest: record.digest,
+          kind: manifest.kind,
+          title: manifest.display.name,
+          description: manifest.display.description,
+          group: manifest.display.group,
+          enabled: this.isEnabled(record)
+        } satisfies InstalledRunnableSkillView];
       } catch {
-        modified = true;
+        // Corrupt package bytes or enablement preferences fail closed and do
+        // not make the wider Automation page or app bootstrap fatal.
+        return [];
       }
-    }
-    if (!modified && record.sourceType !== "git") modified = this.sourceModified(record);
-    return modified ? this.repository.markModified(record.key, record.digest) : record;
+    });
   }
 
-  private assertInstalledCopyIntegrity(record: InstalledSkillRecord): void {
+  /**
+   * Atomically update the preference for the exact package shown to the user.
+   * Digest matching prevents a stale Renderer from toggling a replacement it
+   * has not inspected yet. No install metadata or source receipt is changed.
+   */
+  setEnabled(key: string, digest: string, enabled: boolean): InstalledSkillRecord {
+    if (typeof enabled !== "boolean") throw new Error("Skill enabled 必须是 boolean。");
+    const target = this.repository.get(key, digest);
+    if (!target) {
+      throw new SkillPackageError(
+        "installed-skill-not-found",
+        `Installed Skill 不存在或已被替换：${key}@${digest}`
+      );
+    }
+    this.preferences.setEnabled(target.key, enabled);
+    return target;
+  }
+
+  /** Re-inspect the managed package copy and bind it to its registry identity. */
+  inspectInstalledCopy(record: InstalledSkillRecord): SkillPackageInspection {
+    this.assertManagedPackagePath(record.packagePath);
     if (!fs.existsSync(record.packagePath)) {
-      throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体不存在，拒绝授予宿主机执行授权。", record.packagePath);
+      throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体不存在。", record.packagePath);
     }
     let inspection: SkillPackageInspection;
     try {
@@ -488,22 +538,32 @@ export class SkillPackageService {
     } catch (error) {
       throw new SkillPackageError("installed-path-invalid", `Installed Skill 包体无法重新检查：${error instanceof Error ? error.message : String(error)}`, record.packagePath);
     }
-    if (!inspection.valid || inspection.digest !== record.digest) {
-      throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体 digest 已变化，拒绝授予宿主机执行授权。", record.packagePath);
+    const manifest = inspection.manifest;
+    if (!inspection.valid || !manifest || inspection.digest !== record.digest) {
+      throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体或 digest 校验失败。", record.packagePath);
+    }
+    if (`${manifest.publisher.id}/${manifest.id}` !== record.key
+      || manifest.id !== record.id
+      || manifest.publisher.id !== record.publisherId
+      || manifest.version !== record.version) {
+      throw new SkillPackageError("installed-path-invalid", "Installed Skill Manifest 与 registry 身份不一致。", record.packagePath);
+    }
+    return inspection;
+  }
+
+  isInstalledCopyUsable(record: InstalledSkillRecord): boolean {
+    try {
+      this.inspectInstalledCopy(record);
+      return true;
+    } catch {
+      return false;
     }
   }
 
-  /** Remove only a non-active quarantined candidate; never deletes mymind/output data. */
+  /** Remove the skill's single installed copy; never deletes mymind/output data. */
   uninstall(key: string, digest?: string): boolean {
-    const matches = this.repository.list().filter((record) => record.key === key);
-    if (!digest && matches.length > 1) {
-      throw new SkillPackageError("installed-digest-required", "同一 Skill 有多个安装版本，卸载时必须指定 digest。", key);
-    }
-    const target = matches.find((record) => !digest || record.digest === digest);
+    const target = this.repository.get(key, digest);
     if (!target) return false;
-    if (target.status === "active") {
-      throw new SkillPackageError("active-version-protected", "当前 active 版本不能在 Phase 2 直接卸载。", target.packagePath);
-    }
     this.assertManagedPackagePath(target.packagePath);
     fs.mkdirSync(this.paths.staging, { recursive: true });
     const trashPath = path.join(this.paths.staging, `skill-uninstall-${target.digest}-${Date.now()}`);

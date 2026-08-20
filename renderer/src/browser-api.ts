@@ -120,7 +120,6 @@ export function installBrowserPreviewApi(): boolean {
   const listeners = new Set<(event: never) => void>();
   let preferences: UserPreferences = {
     schemaVersion: 1,
-    repoRoot: snapshot.projectRoot,
     mymindRoot: `${snapshot.projectRoot}/mymind`,
     workspaceRoot: snapshot.projectRoot,
     themeMode: "light" as const,
@@ -360,9 +359,6 @@ export function installBrowserPreviewApi(): boolean {
     revealPath: async () => true,
     openExternal: async () => true,
     exportText: async (defaultName) => defaultName,
-    setRepo: async (path) => path,
-    detectRepo: async () => snapshot.projectRoot,
-    selectRepo: async () => snapshot.projectRoot,
     setMymindRoot: async (p) => p,
     selectMymindRoot: async () => `${snapshot.projectRoot}/mymind`,
     previewMymindRoot: async (candidate) => ({
@@ -527,6 +523,8 @@ export function installBrowserPreviewApi(): boolean {
     inspectInstalledSkill: async () => null,
     migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
     listInstalledSkills: async () => [],
+    listInstalledRunnableSkills: async () => [],
+    setInstalledSkillEnabled: async () => { throw new Error("浏览器预览不管理 Skill 启用状态。 "); },
     listSkillRuns: async () => [],
     getSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
     getSkillRunEvents: async () => [],

@@ -2,7 +2,7 @@
 
 > 目标：把 desktop-app 打包产物发给没有开发环境的用户后，对方能在**不打开终端、不理解内部结构**的前提下，完成 skill 导入与 AI Provider 就绪。
 >
-> 前置状态（已完成）：`executionTrust` 审批门禁已移除，skill 安装（active + ready）即可执行。
+> 前置状态（已完成）：`executionTrust` 与 Installed Skill 的 `status/readiness` 门禁已移除；显式安装后由包路径、Manifest 身份和 digest 实时校验可用性。
 
 > 实施状态（2026-08-14）：W1–W6 的代码、IPC、界面、文档和本地自动化测试已完成。Windows/macOS 干净机器安装包验收、真实公开 Git 导入验收和独立安全复核仍属于发布前外部证据门槛，不能由 Linux 本地单测代替；见 [`docs/CLEAN_MACHINE_EVIDENCE.md`](./CLEAN_MACHINE_EVIDENCE.md) 与 [`docs/SECURITY_REVIEW.md`](./SECURITY_REVIEW.md)。
 

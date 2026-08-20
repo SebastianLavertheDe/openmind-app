@@ -106,7 +106,7 @@ const cleanMachineReady = Boolean(
 const checks = [
   evaluate("audit-evidence", auditEvidence, Boolean(auditEvidence && Array.isArray(auditEvidence.checks) && auditEvidence.checks.length === 26 && Array.isArray(auditEvidence.failed) && auditEvidence.failed.length === 0), "All 26 architecture/security evidence checks must exist with no failures."),
   evaluate("release-evidence", releaseIndex && releaseSbom && licenses && provenance, releaseEvidenceReady, "The release index, CycloneDX SBOM, license report and provenance must agree on component counts, artifact hashes and the build tree digest; unknown licenses must be zero."),
-  evaluate("built-recovery", readJson("recovery-drill-report.json"), statusIs("recovery-drill-report.json", "passed"), "Compiled migration/relocation/Run/Runtime recovery drill must pass."),
+  evaluate("built-recovery", readJson("recovery-drill-report.json"), statusIs("recovery-drill-report.json", "passed"), "Compiled relocation/Run/Runtime recovery drill must pass."),
   evaluate("process-crash-recovery", readJson("process-crash-recovery-report.json"), statusIs("process-crash-recovery-report.json", "passed"), "Compiled child forced-termination and RunStore restart recovery drill must pass."),
   evaluate("stability-soak", readJson("stability-soak-report.json"), statusIs("stability-soak-report.json", "passed"), "Local stability soak must pass."),
   evaluate("visual-snapshot", visualSnapshot, Boolean(

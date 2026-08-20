@@ -4,8 +4,10 @@ import { CheckCircle2, ChevronDown, Clock3, Download, FolderOpen, GitBranch, Pac
 import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView } from "@shared/contracts";
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
+import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { StatusBadge } from "../../design-system/components";
+import { ToggleSwitch } from "../../design-system/controls";
 
 const m = messages.skillCenter;
 
@@ -29,7 +31,12 @@ type SkillCatalogGroup = {
   items: SkillItem[];
 };
 
-export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean }) {
+type SkillToggleFeedback = {
+  tone: "success" | "error";
+  message: string;
+};
+
+export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false, onInstallationChange, onAvailabilityChange }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown }) {
   const [inspections, setInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
   const [installedInspections, setInstalledInspections] = useState<Record<string, SkillPackageInspectionView>>({});
@@ -39,6 +46,9 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
+  const [toggleBusyKeys, setToggleBusyKeys] = useState<Set<string>>(() => new Set());
+  const [toggleFeedback, setToggleFeedback] = useState<Record<string, SkillToggleFeedback>>({});
+  const toggleBusyKeysRef = useRef(new Set<string>());
   const catalogRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
 
@@ -86,10 +96,13 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 
   const sourcePickerApiAvailable = Boolean(window.cctools.inspectSkillSource && window.cctools.installSkillSource);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(initialSourcePickerOpen);
-  const onSourceInstalled = useCallback(() => {
+  const onSourceInstalled = useCallback(async () => {
     setSourcePickerOpen(false);
-    void load();
-  }, [load]);
+    await load();
+    notifyInstalledSkillCatalogChanged();
+    await onInstallationChange?.();
+    await onAvailabilityChange?.();
+  }, [load, onAvailabilityChange, onInstallationChange]);
 
   const items = useMemo(() => buildItems(inspections, installed, installedInspections), [inspections, installed, installedInspections]);
   const filteredItems = useMemo(() => {
@@ -132,6 +145,48 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
     requestAnimationFrame(() => detailRef.current?.scrollIntoView?.({ behavior, block: "start" }));
   }, []);
+
+  const setSkillEnabled = useCallback(async (record: InstalledSkillView, enabled: boolean) => {
+    if (toggleBusyKeysRef.current.has(record.key)) return;
+    toggleBusyKeysRef.current.add(record.key);
+    setToggleBusyKeys((current) => new Set(current).add(record.key));
+    setToggleFeedback((current) => {
+      const next = { ...current };
+      delete next[record.key];
+      return next;
+    });
+    try {
+      const updated = await window.cctools.setInstalledSkillEnabled(record.key, record.digest, enabled);
+      setInstalled((current) => current.map((candidate) => (
+        candidate.key === record.key && candidate.digest === record.digest ? updated : candidate
+      )));
+      notifyInstalledSkillCatalogChanged();
+      // Keep the switch busy until the blank-draft catalog has caught up. A
+      // refresh failure does not roll back the preference that Main already
+      // committed, and existing conversations still render their snapshot.
+      try { await onAvailabilityChange?.(); } catch { /* best-effort catalog refresh */ }
+      setToggleFeedback((current) => ({
+        ...current,
+        [record.key]: {
+          tone: "success",
+          message: enabled ? m.availability.enabledConfirmation : m.availability.disabledConfirmation
+        }
+      }));
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setToggleFeedback((current) => ({
+        ...current,
+        [record.key]: { tone: "error", message: m.availability.updateFailed(detail) }
+      }));
+    } finally {
+      toggleBusyKeysRef.current.delete(record.key);
+      setToggleBusyKeys((current) => {
+        const next = new Set(current);
+        next.delete(record.key);
+        return next;
+      });
+    }
+  }, [onAvailabilityChange]);
 
   if (loading && !items.length) {
     return <div className="feature-page skills-page"><section className="workspace-card skills-empty"><p>{m.loading}</p></section></div>;
@@ -201,6 +256,13 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
               <StatusBadge tone={skillState(selected).tone}>{skillState(selected).label}</StatusBadge>
             </header>
             <SkillOverview item={selected} summary={selectedSummary} />
+            {selected.kind === "installed" ? <SkillAvailability
+              record={selected.record}
+              summary={selectedSummary}
+              busy={toggleBusyKeys.has(selected.record.key)}
+              feedback={toggleFeedback[selected.record.key]}
+              onChange={(enabled) => void setSkillEnabled(selected.record, enabled)}
+            /> : null}
             <SkillRunHistory runs={selectedRuns} />
           </>}
         </main>
@@ -211,7 +273,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 
 /** Import panel for directory / ZIP / public HTTPS Git sources. Inspection
  * always precedes installation; nothing here executes package code. */
-function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onToggle(): void; onInstalled(): void }) {
+function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onToggle(): void; onInstalled(): Promise<void> }) {
   const picker = m.sourcePicker;
   const [gitUrl, setGitUrl] = useState("");
   const [gitRef, setGitRef] = useState("");
@@ -297,7 +359,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
       setSelectedPackageRefs([]);
       setGitUrl("");
       setGitRef("");
-      onInstalled();
+      await onInstalled();
     } catch (cause) {
       setFailure(sourceErrorMessage(cause));
     } finally {
@@ -496,7 +558,8 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
 function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { item: SkillItem; index: number; total: number; active: boolean; onSelect(): void; onNavigate(index: number): void }) {
   const summary = itemSummary(item);
   const attention = needsAttention(item);
-  const state = skillState(item);
+  const disabled = item.kind === "installed" && !item.record.enabled;
+  const state = skillListState(item);
   return <button
     type="button"
     className={`skills-list-item${active ? " active" : ""}`}
@@ -517,7 +580,7 @@ function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { i
   >
     <span className={`skills-list-icon ${attention ? "attention" : ""}`} aria-hidden><Package size={16} /></span>
     <span className="skills-list-copy"><strong>{summary.title}</strong><small>{summary.publisher}/{summary.id} · v{summary.version}</small></span>
-    {attention ? <span className={`skills-list-status ${state.tone}`}><i aria-hidden />{state.label}</span> : null}
+    {attention || disabled ? <span className={`skills-list-status ${state.tone}`}><i aria-hidden />{state.label}</span> : null}
   </button>;
 }
 
@@ -536,6 +599,35 @@ function SkillOverview({ item, summary }: { item: SkillItem; summary: ManifestSu
       <div><dt>{m.source}</dt><dd>{source}</dd></div>
     </dl>
     <div className="skills-source-path"><span>{m.sourcePath}</span><code title={sourcePath}>{sourcePath}</code></div>
+  </section>;
+}
+
+function SkillAvailability({ record, summary, busy, feedback, onChange }: {
+  record: InstalledSkillView;
+  summary: ManifestSummary;
+  busy: boolean;
+  feedback?: SkillToggleFeedback;
+  onChange(enabled: boolean): void;
+}) {
+  return <section className="skills-availability" aria-label={m.availability.title} aria-busy={busy || undefined}>
+    <div className="skills-availability-copy">
+      <h3>{m.availability.title}</h3>
+      <p>{m.availability.description}</p>
+      <small>{m.availability.newSessionsOnly}</small>
+    </div>
+    <div className="skills-availability-control">
+      <span role="status" aria-live="polite">{busy ? m.availability.updating : record.enabled ? m.availability.enabled : m.availability.disabled}</span>
+      <ToggleSwitch
+        checked={record.enabled}
+        disabled={busy}
+        label={m.availability.toggleAria(summary.title)}
+        onChange={onChange}
+      />
+    </div>
+    {feedback ? <p
+      className={`skills-availability-feedback ${feedback.tone}`}
+      role={feedback.tone === "error" ? "alert" : "status"}
+    >{feedback.message}</p> : null}
   </section>;
 }
 
@@ -660,18 +752,24 @@ function manifestSummary(input: unknown, record?: InstalledSkillView): ManifestS
 function stringValue(value: unknown, fallback: string): string { return typeof value === "string" && value.trim() ? value : fallback; }
 function needsAttention(item: SkillItem): boolean {
   if (item.kind === "workspace") return !item.inspection.valid || item.inspection.sourceKind === "legacy-claude";
-  return item.record.status !== "active" || item.record.readiness !== "ready";
+  return !item.record.usable;
 }
-function skillState(item: SkillItem): { label: string; tone: "success" | "warning" | "danger" | "info" } {
+type SkillState = { label: string; tone: "neutral" | "success" | "warning" | "danger" | "info" };
+function skillState(item: SkillItem): SkillState {
   if (item.kind === "workspace") {
     if (!item.inspection.valid) return { label: m.staticInvalid, tone: "danger" };
     if (item.inspection.sourceKind === "legacy-claude") return { label: m.legacyFormat, tone: "warning" };
     return { label: m.workspace, tone: "info" };
   }
-  if (item.record.readiness === "blocked") return { label: m.blockedLabel, tone: "danger" };
-  if (item.record.readiness === "stale") return { label: m.staleLabel, tone: "danger" };
-  if (item.record.status !== "active" || item.record.readiness !== "ready") return { label: m.notReady, tone: "warning" };
+  if (!item.record.usable) return { label: m.unusable, tone: "danger" };
   return { label: m.available, tone: "success" };
+}
+function skillListState(item: SkillItem): SkillState {
+  const packageState = skillState(item);
+  if (item.kind === "installed" && item.record.usable && !item.record.enabled) {
+    return { label: m.availability.disabled, tone: "neutral" };
+  }
+  return packageState;
 }
 function kindLabel(kind: string): string { return ({ process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }
 function runStateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }

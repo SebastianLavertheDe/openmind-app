@@ -1,9 +1,7 @@
 /**
  * Phase 1 (ADR-001) settings v2 tests — mymindRoot / workspaceRoot resolution,
- * legacy repoRoot migration, atomic writes, and the guarantee that no
- * hard-coded dev-machine WSL/Windows paths remain.
- *
- * These complement the existing settings.test.ts (legacy back-compat).
+ * atomic writes, and the guarantee that no hard-coded dev-machine WSL/Windows
+ * paths remain.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -96,52 +94,25 @@ describe("ADR-001 resolveMymindRoot", () => {
     }
   });
 
-  it("migrates a legacy repoRoot by descending into mymind/", () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-legacy-repo-"));
-    fs.mkdirSync(path.join(repo, "mymind", "article"), { recursive: true });
-    fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
-    try {
-      // Simulate a legacy settings.json that only has repoRoot.
-      fs.writeFileSync(settingsFile(), JSON.stringify({ repoRoot: repo }), "utf8");
-      const mymind = resolveMymindRoot();
-      expect(mymind).toBe(path.join(repo, "mymind"));
-    } finally { fs.rmSync(repo, { recursive: true, force: true }); }
-  });
-
   it("returns empty string when nothing resolves", () => {
-    // No setting, no env, no repo — but APP_ROOT/../mymind may exist in dev.
-    // Clear settings + env to test the negative path; tolerate the dev checkout.
+    // A sibling checkout must not count as an explicit save-directory binding.
     fs.writeFileSync(settingsFile(), "{}", "utf8");
     delete process.env.CCTOOLS_MYMIND_ROOT;
-    delete process.env.CCTOOLS_REPO_ROOT;
-    const result = resolveMymindRoot();
-    // It's either "" or the dev checkout's mymind — both are acceptable;
-    // the key invariant is it does not throw.
-    expect(typeof result).toBe("string");
+    expect(resolveMymindRoot()).toBe("");
   });
 });
 
 describe("ADR-001 setMymindRoot", () => {
-  it("persists mymindRoot and clears repoRoot", () => {
+  it("persists mymindRoot and drops a stale v1 repoRoot key", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-set-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
+      fs.writeFileSync(settingsFile(), JSON.stringify({ repoRoot: "/stale/legacy" }), "utf8");
       setMymindRoot(dir);
       const raw = loadSettings();
       expect(raw.mymindRoot).toBe(path.resolve(dir));
-      expect(raw.repoRoot).toBe("");
+      expect("repoRoot" in raw).toBe(false);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-  });
-
-  it("accepts a legacy repo and stores <repo>/mymind", () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-set-repo-"));
-    fs.mkdirSync(path.join(repo, "mymind", "article"), { recursive: true });
-    fs.mkdirSync(path.join(repo, ".claude", "skills"), { recursive: true });
-    try {
-      const result = setMymindRoot(repo);
-      expect(result).toBe(path.join(repo, "mymind"));
-      expect(loadSettings().mymindRoot).toBe(path.join(repo, "mymind"));
-    } finally { fs.rmSync(repo, { recursive: true, force: true }); }
   });
 
   it("rejects a non-directory", () => {
@@ -180,51 +151,17 @@ describe("ADR-001 private state migration window", () => {
     expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).browserEvidenceDir).toBe("assets/browser-evidence");
   });
 
-  it("reads legacy state until migrated, but always writes new state to userData", () => {
-    const legacyRepo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-private-state-legacy-"));
-    const mymind = path.join(legacyRepo, "mymind");
-    fs.mkdirSync(path.join(mymind, "article"), { recursive: true });
-    fs.mkdirSync(path.join(legacyRepo, ".cctools"), { recursive: true });
-    process.env.CCTOOLS_REPO_ROOT = legacyRepo;
+  it("never resolves private state inside a repo workspace; unbound writes use an app-private bucket", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-private-state-ws-"));
+    fs.mkdirSync(path.join(workspace, ".cctools"), { recursive: true });
     try {
-      setMymindRoot(mymind);
-      const legacyFile = path.join(legacyRepo, ".cctools", "creative-topic-state.json");
-      fs.writeFileSync(legacyFile, "legacy", "utf8");
-      fs.rmSync(appPrivateStatePath("creative-topic-state.json", true), { force: true });
-
-      expect(appPrivateStatePath("creative-topic-state.json")).toBe(legacyFile);
-      const writePath = appPrivateStatePath("creative-topic-state.json", true);
-      expect(writePath).not.toBe(legacyFile);
-      expect(writePath).toContain(path.join(userDataDir, "state"));
+      // No mymind root bound; workspace is set. State must stay app-private.
+      fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, mymindRoot: "", workspaceRoot: workspace }), "utf8");
+      const statePath = appPrivateStatePath("creative-topic-state.json");
+      expect(statePath).toContain(path.join(userDataDir, "state"));
+      expect(statePath).not.toContain(path.join(workspace, ".cctools"));
     } finally {
-      delete process.env.CCTOOLS_REPO_ROOT;
-      fs.rmSync(legacyRepo, { recursive: true, force: true });
-      fs.rmSync(mymind, { recursive: true, force: true });
-    }
-  });
-
-  it("keeps legacy state read-only and uses an app-private workspace bucket before binding", () => {
-    const legacyRepo = fs.mkdtempSync(path.join(os.tmpdir(), "cctools-private-state-unbound-"));
-    const mymind = path.join(legacyRepo, "mymind");
-    fs.mkdirSync(path.join(mymind, "article"), { recursive: true });
-    fs.mkdirSync(path.join(legacyRepo, ".cctools"), { recursive: true });
-    process.env.CCTOOLS_REPO_ROOT = legacyRepo;
-    try {
-      // The explicit v2 root is cleared; the test workspace is still a valid
-      // legacy source, but a write must never recreate state there.
-      fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, mymindRoot: "", workspaceRoot: legacyRepo }), "utf8");
-      const legacyFile = path.join(legacyRepo, ".cctools", "creative-topic-state.json");
-      fs.writeFileSync(legacyFile, "legacy", "utf8");
-
-      const readPath = appPrivateStatePath("creative-topic-state.json");
-      const writePath = appPrivateStatePath("creative-topic-state.json", true);
-      expect(readPath).toBe(legacyFile);
-      expect(writePath).not.toBe(legacyFile);
-      expect(writePath).toContain(path.join(userDataDir, "state"));
-      expect(writePath).not.toContain(path.join(legacyRepo, ".cctools"));
-    } finally {
-      delete process.env.CCTOOLS_REPO_ROOT;
-      fs.rmSync(legacyRepo, { recursive: true, force: true });
+      fs.rmSync(workspace, { recursive: true, force: true });
     }
   });
 });

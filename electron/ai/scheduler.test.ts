@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunScheduler } from "./scheduler";
-import type { AiEvent, AiRun, AiSession, ProviderCapabilities } from "../../shared/contracts";
+import type { AiEvent, AiRun, AiSession, AiSessionSkillSnapshotEntry, ProviderCapabilities } from "../../shared/contracts";
 import type { ProviderRunContext } from "./providers/types";
+import { SkillToolRegistry } from "./skill-tool-registry";
 
 const roots: string[] = [];
 
@@ -16,6 +17,7 @@ function createRoot(): string {
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+  vi.restoreAllMocks();
 });
 
 describe("RunScheduler input boundaries", () => {
@@ -169,6 +171,156 @@ describe("RunScheduler 会话/运行管理", () => {
     const updated = scheduler.updateSession(session.id, { title: "新标题" });
     expect(updated.title).toBe("新标题");
     expect(scheduler.snapshot().sessions.find((s) => s.id === session.id)?.title).toBe("新标题");
+  });
+
+  it("fresh session freezes the current Skill catalog", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined);
+    const internals = schedulerInternals(scheduler);
+    const snapshot = sessionSkillSnapshot();
+    const captureSessionSnapshot = vi.fn(() => snapshot);
+    internals.skillTools.captureSessionSnapshot = captureSessionSnapshot;
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      run: async (context) => { await context.emit("assistant-message", { text: "done" }); }
+    };
+
+    const { session, run } = scheduler.startRun({
+      providerId: "claude-native",
+      permissionProfile: "edit",
+      cwd: ".",
+      prompt: "start a new conversation",
+      contexts: []
+    });
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+
+    expect(captureSessionSnapshot).toHaveBeenCalledWith();
+    expect(internals.store.getSession(session.id).skillSnapshot).toEqual(snapshot);
+  });
+
+  it("existing session uses its frozen snapshot at start, persistence and execution", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined);
+    const internals = schedulerInternals(scheduler);
+    const snapshot = sessionSkillSnapshot();
+    const session = internals.store.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      cwd: ".",
+      title: "Frozen",
+      permissionProfile: "edit",
+      skillSnapshot: snapshot
+    });
+    const listDefinitions = vi.fn(() => []);
+    const captureSessionSnapshot = vi.fn(() => []);
+    const providerSkillBridge = vi.fn(() => null);
+    internals.skillTools.listDefinitions = listDefinitions;
+    internals.skillTools.captureSessionSnapshot = captureSessionSnapshot;
+    internals.skillTools.providerSkillBridge = providerSkillBridge;
+    internals.registry.detect = () => [claudeProvider];
+    let invokedSkill = "";
+    internals.adapters.claude = {
+      run: async (context) => {
+        invokedSkill = context.skillInvocation?.name || "";
+        await context.emit("assistant-message", { text: "done" });
+      }
+    };
+
+    const { run } = scheduler.startRun({
+      sessionId: session.id,
+      providerId: "claude-native",
+      permissionProfile: "edit",
+      cwd: ".",
+      prompt: "/creative-writing keep the old capability",
+      contexts: []
+    });
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+
+    expect(invokedSkill).toBe("creative-writing");
+    expect(listDefinitions).not.toHaveBeenCalled();
+    expect(captureSessionSnapshot).not.toHaveBeenCalled();
+    expect(providerSkillBridge).toHaveBeenCalledWith(snapshot[0]);
+    expect(providerSkillBridge).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { provider: claudeProvider, adapter: "claude" as const },
+    { provider: { ...claudeProvider, id: "codex-native", provider: "codex" as const, label: "Codex" }, adapter: "codex" as const }
+  ])("does not let a rejected Installed snapshot fall back to $adapter workspace Skills", async ({ provider, adapter }) => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined);
+    const internals = schedulerInternals(scheduler);
+    const session = internals.store.createSession({
+      provider: provider.provider,
+      providerId: provider.id,
+      cwd: ".",
+      title: "No legacy fallback",
+      permissionProfile: "edit",
+      skillSnapshot: sessionSkillSnapshot()
+    });
+    const adapterRun = vi.fn(async () => undefined);
+    internals.adapters[adapter] = { run: adapterRun };
+    internals.registry.detect = () => [provider];
+    internals.skillTools.providerSkillBridge = vi.fn(() => {
+      throw new Error("会话 Skill 不是 Agent 类型");
+    });
+
+    const { run } = scheduler.startRun({
+      sessionId: session.id,
+      providerId: provider.id,
+      permissionProfile: "edit",
+      cwd: ".",
+      prompt: "/creative-writing do not fall back",
+      contexts: []
+    });
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "failed");
+
+    expect(adapterRun).not.toHaveBeenCalled();
+    expect(scheduler.snapshot().runs.find((item) => item.id === run.id)?.error).toContain("不是 Agent 类型");
+  });
+
+  it("scheduler startup eagerly persists legacy snapshots using the include-disabled catalog", () => {
+    const root = createRoot();
+    const first = new RunScheduler(root, () => undefined);
+    const firstInternals = schedulerInternals(first);
+    const legacy = firstInternals.store.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      cwd: ".",
+      title: "Legacy",
+      permissionProfile: "edit"
+    });
+    const sessionFile = path.join(root, ".cctools", "ai", "sessions", legacy.id, "session.json");
+    const persisted = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+    delete persisted.skillSnapshot;
+    fs.writeFileSync(sessionFile, JSON.stringify(persisted), "utf8");
+    const snapshot = sessionSkillSnapshot();
+    const capture = vi.spyOn(SkillToolRegistry.prototype, "captureSessionSnapshot")
+      .mockImplementation((includeDisabled = false) => includeDisabled ? snapshot : []);
+
+    const restarted = new RunScheduler(root, () => undefined);
+
+    expect(capture).toHaveBeenCalledWith(true);
+    expect(restarted.snapshot().sessions.find((item) => item.id === legacy.id)?.skillSnapshot).toEqual(snapshot);
+    expect(JSON.parse(fs.readFileSync(sessionFile, "utf8")).skillSnapshot).toEqual(snapshot);
+  });
+
+  it("scheduler startup skips installed package capture when no legacy session needs migration", () => {
+    const root = createRoot();
+    const first = new RunScheduler(root, () => undefined);
+    schedulerInternals(first).store.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      cwd: ".",
+      title: "Already frozen",
+      permissionProfile: "edit",
+      skillSnapshot: []
+    });
+    const capture = vi.spyOn(SkillToolRegistry.prototype, "captureSessionSnapshot");
+
+    new RunScheduler(root, () => undefined);
+
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it("startRun:provider 不可用时抛错", () => {
@@ -426,7 +578,7 @@ type SchedulerInternals = {
     };
   };
   store: {
-    createSession(input: { provider: "claude"; providerId: string; cwd: string; title: string; permissionProfile: "edit" }): AiSession;
+    createSession(input: { provider: "claude"; providerId: string; cwd: string; title: string; permissionProfile: "edit"; skillSnapshot?: AiSessionSkillSnapshotEntry[] }): AiSession;
     updateSession(sessionId: string, patch: Partial<AiSession>): AiSession;
     getSession(sessionId: string): AiSession;
     createRun(session: AiSession, prompt: string, contexts: []): AiRun;
@@ -442,7 +594,11 @@ type SchedulerInternals = {
     listSessions(): AiSession[];
     listRuns(): AiRun[];
   };
-  skillTools: { listDefinitions(): unknown[] };
+  skillTools: {
+    listDefinitions(): unknown[];
+    captureSessionSnapshot(includeDisabled?: boolean): AiSessionSkillSnapshotEntry[];
+    providerSkillBridge(entry: AiSessionSkillSnapshotEntry): unknown;
+  };
   manualSkills: {
     startSkill(skillId: string, date?: string): boolean;
     startSource(sourceId: string, skillId: string, date?: string, url?: string, name?: string): boolean;
@@ -614,6 +770,23 @@ describe("RunScheduler 公共委托方法", () => {
 
 function schedulerInternals(scheduler: RunScheduler): SchedulerInternals {
   return scheduler as unknown as SchedulerInternals;
+}
+
+function sessionSkillSnapshot(): AiSessionSkillSnapshotEntry[] {
+  return [{
+    definition: {
+      id: "creative-writing",
+      title: "Creative Writing",
+      description: "Write content",
+      cwd: "installed/cctools/creative-writing/1.0.0",
+      command: "managed-runtime"
+    },
+    installed: {
+      key: "cctools/creative-writing",
+      version: "1.0.0",
+      digest: "a".repeat(64)
+    }
+  }];
 }
 
 async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {

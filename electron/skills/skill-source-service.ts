@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
 import type { SkillPackageSourceInput } from "../../shared/skill-package-sources";
-import { parseSkillPackageSourceInput } from "../../shared/skill-package-sources";
+import { isCctoolsSkillsSourceLocator, parseSkillPackageSourceInput } from "../../shared/skill-package-sources";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
 import {
   SkillPackageError,
@@ -11,6 +12,11 @@ import {
   type SkillPackageSourceMetadata
 } from "./skill-package-service";
 import type { InstalledSkillRecord } from "./installed-skill-repository";
+import {
+  INSTALLED_SKILL_SOURCE_REGISTRY_SCHEMA_VERSION,
+  InstalledSkillSourceRepository,
+  normalizeGitSourceLocator
+} from "./installed-skill-source-repository";
 
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_BUFFER = 4 * 1024 * 1024;
@@ -32,7 +38,8 @@ export type SkillSourceErrorCode =
   | "git-command-failed"
   | "git-timeout"
   | "git-cancelled"
-  | "git-package-missing";
+  | "git-package-missing"
+  | "git-package-selection-invalid";
 
 export class SkillSourceError extends Error {
   constructor(readonly code: SkillSourceErrorCode, message: string) {
@@ -65,12 +72,16 @@ export type SkillSourceInspection = {
  */
 export class SkillSourceService {
   private readonly activeGitInspections = new Map<string, AbortController>();
+  private readonly sourceInstallations: InstalledSkillSourceRepository;
 
   constructor(
     private readonly packages: SkillPackageService,
     private readonly paths: AppPaths = getAppPaths(),
-    private readonly runGit: GitCommandRunner = runGitCommand
-  ) {}
+    private readonly runGit: GitCommandRunner = runGitCommand,
+    sourceInstallations?: InstalledSkillSourceRepository
+  ) {
+    this.sourceInstallations = sourceInstallations || new InstalledSkillSourceRepository(paths.skills);
+  }
 
   async inspect(input: SkillPackageSourceInput, requestId?: string): Promise<SkillSourceInspection> {
     const source = parseSkillPackageSourceInput(input);
@@ -113,7 +124,7 @@ export class SkillSourceService {
     if (source.type !== "git") {
       return [this.packages.install(source.locator, toInstallMetadata(source))];
     }
-    return this.withGitCheckout(source, (checkoutRoot) => {
+    return this.withGitCheckout(source, async (checkoutRoot) => {
       const candidates = resolveGitPackageCandidates(checkoutRoot);
       if (candidates.length === 0) {
         throw new SkillSourceError(
@@ -121,14 +132,116 @@ export class SkillSourceService {
           "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml 或 SKILL.md）。"
         );
       }
-      const chosen = selectedRefs === undefined
-        ? candidates
-        : candidates.filter(({ ref }) => selectedRefs.includes(ref));
-      if (chosen.length === 0) {
-        throw new SkillSourceError("git-package-missing", "选中的 Skill 包在该 Git 仓库中不存在。");
+
+      const selected = selectGitPackageCandidates(candidates, selectedRefs);
+      const inspected = selected.chosen.map((candidate) => ({
+        ...candidate,
+        inspection: this.packages.inspect(candidate.absPath)
+      }));
+      const invalid = inspected.find(({ inspection }) => !inspection.valid || !inspection.manifest);
+      if (invalid) {
+        const issue = invalid.inspection.issues[0];
+        throw new SkillPackageError(
+          issue?.code || "manifest-invalid",
+          issue?.message || `Skill 包检查失败：${invalid.ref}`,
+          issue?.path
+        );
       }
-      return chosen.map(({ absPath }) => this.packages.install(absPath, toInstallMetadata(source)));
+      const packageKeys = new Set<string>();
+      const packageIds = new Set<string>();
+      for (const { ref, inspection } of inspected) {
+        const manifest = inspection.manifest!;
+        const key = `${manifest.publisher.id}/${manifest.id}`;
+        if (packageKeys.has(key) || packageIds.has(manifest.id)) {
+          throw new SkillSourceError(
+            "git-package-selection-invalid",
+            `Git 来源包含重复或有歧义的 Skill 身份 ${key}（包路径：${ref}）。`
+          );
+        }
+        packageKeys.add(key);
+        packageIds.add(manifest.id);
+      }
+
+      const sourceRevision = await this.resolveGitRevision(checkoutRoot);
+      const records = inspected.map(({ ref, absPath }) => this.packages.install(
+        absPath,
+        toInstallMetadata(source, ref, sourceRevision)
+      ));
+      if (selected.complete) {
+        this.sourceInstallations.replace({
+          schemaVersion: INSTALLED_SKILL_SOURCE_REGISTRY_SCHEMA_VERSION,
+          sourceType: "git",
+          sourceLocator: normalizeGitSourceLocator(source.locator),
+          ...(source.ref ? { sourceRef: source.ref } : {}),
+          ...(sourceRevision ? { sourceRevision } : {}),
+          packages: records.map((record, index) => ({
+            packageRef: inspected[index].ref,
+            key: record.key,
+            id: record.id,
+            version: record.version,
+            digest: record.digest
+          })),
+          installedAt: new Date().toISOString()
+        });
+      }
+      return records;
     });
+  }
+
+  /**
+   * Offline startup gate for a previously completed Git-source installation.
+   * The receipt captures the complete checkout at install time; every package
+   * must still have matching provenance, metadata and installed bytes.
+   */
+  hasCompleteInstallation(sourceLocator: string): boolean {
+    const receipt = this.sourceInstallations.get(sourceLocator);
+    if (!receipt) {
+      // Builds predating source receipts stored one intact official record per
+      // package but no packageRef/revision. Preserve that already-complete
+      // installation without turning corrupt receipts or new partial installs
+      // into a bypass. A later full reinstall writes the durable receipt.
+      if (this.sourceInstallations.isCorrupt() || !isCctoolsSkillsSourceLocator(sourceLocator)) return false;
+      try {
+        const legacyRecords = this.packages.listInstalled().filter((record) =>
+          record.sourceType === "git"
+          && normalizeGitSourceLocator(record.sourceLocator || "") === normalizeGitSourceLocator(sourceLocator)
+          && record.sourcePackageRef === undefined
+          && record.sourceRevision === undefined
+          && this.packages.isInstalledCopyUsable(record)
+        );
+        return ALL_SKILL_IDS.every((id) => legacyRecords.some((record) =>
+          record.id === id && record.key === `cctools/${id}` && record.publisherId === "cctools"
+        ));
+      } catch {
+        return false;
+      }
+    }
+    if (isCctoolsSkillsSourceLocator(sourceLocator)
+      && !ALL_SKILL_IDS.every((id) => receipt.packages.some((snapshot) =>
+        snapshot.id === id && snapshot.key === `cctools/${id}`
+      ))) {
+      return false;
+    }
+    try {
+      return receipt.packages.every((snapshot) => {
+        const record = this.packages.getInstalled(snapshot.key, snapshot.digest);
+        if (!record
+          || record.sourceType !== "git"
+          || normalizeGitSourceLocator(record.sourceLocator || "") !== receipt.sourceLocator
+          || (record.sourceRef || undefined) !== (receipt.sourceRef || undefined)
+          || record.sourcePackageRef !== snapshot.packageRef
+          || (record.sourceRevision || undefined) !== (receipt.sourceRevision || undefined)
+          || record.key !== snapshot.key
+          || record.id !== snapshot.id
+          || record.version !== snapshot.version
+          || record.digest.toLowerCase() !== snapshot.digest) {
+          return false;
+        }
+        return this.packages.isInstalledCopyUsable(record);
+      });
+    } catch {
+      return false;
+    }
   }
 
   private async withGitCheckout<T>(
@@ -158,13 +271,65 @@ export class SkillSourceService {
       fs.rmSync(stagingRoot, { recursive: true, force: true });
     }
   }
+
+  private async resolveGitRevision(checkoutRoot: string): Promise<string | undefined> {
+    try {
+      const result = await this.runGit(["rev-parse", "--verify", "HEAD"], {
+        cwd: checkoutRoot,
+        env: gitEnvironment(path.dirname(checkoutRoot)),
+        timeout: GIT_TIMEOUT_MS
+      });
+      const revision = result.stdout.trim().toLowerCase();
+      return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(revision) ? revision : undefined;
+    } catch (error) {
+      if (error instanceof SkillSourceError && error.code === "git-cancelled") throw error;
+      // A resolved commit strengthens provenance but is not required for
+      // installation from older or restricted Git clients.
+      return undefined;
+    }
+  }
 }
 
-function toInstallMetadata(source: Exclude<SkillPackageSourceInput, { type: "git" }> | Extract<SkillPackageSourceInput, { type: "git" }>): SkillPackageSourceMetadata {
+function toInstallMetadata(
+  source: Exclude<SkillPackageSourceInput, { type: "git" }> | Extract<SkillPackageSourceInput, { type: "git" }>,
+  sourcePackageRef?: string,
+  sourceRevision?: string
+): SkillPackageSourceMetadata {
   return {
     sourceType: source.type,
     sourceLocator: source.locator,
-    ...(source.type === "git" && source.ref ? { sourceRef: source.ref } : {})
+    ...(source.type === "git" && source.ref ? { sourceRef: source.ref } : {}),
+    ...(sourcePackageRef ? { sourcePackageRef } : {}),
+    ...(sourceRevision ? { sourceRevision } : {})
+  };
+}
+
+function selectGitPackageCandidates(
+  candidates: GitPackageCandidate[],
+  selectedRefs?: string[]
+): { chosen: GitPackageCandidate[]; complete: boolean } {
+  if (selectedRefs === undefined) return { chosen: candidates, complete: true };
+  if (selectedRefs.length === 0) {
+    throw new SkillSourceError("git-package-selection-invalid", "至少选择一个 Skill 包。");
+  }
+  const selected = new Set<string>();
+  for (const ref of selectedRefs) {
+    if (typeof ref !== "string" || !ref) {
+      throw new SkillSourceError("git-package-selection-invalid", "Skill 包选择包含空 ref。");
+    }
+    if (selected.has(ref)) {
+      throw new SkillSourceError("git-package-selection-invalid", `Skill 包选择包含重复 ref：${ref}`);
+    }
+    selected.add(ref);
+  }
+  const available = new Set(candidates.map(({ ref }) => ref));
+  const unknown = [...selected].find((ref) => !available.has(ref));
+  if (unknown) {
+    throw new SkillSourceError("git-package-selection-invalid", `选中的 Skill 包在该 Git 仓库中不存在：${unknown}`);
+  }
+  return {
+    chosen: candidates.filter(({ ref }) => selected.has(ref)),
+    complete: selected.size === candidates.length
   };
 }
 

@@ -115,6 +115,35 @@ const CONTEXTS_KEY = "cctools.ai.contexts.v1";
 const PANEL_KEY = "cctools.ai.panel-mode.v1";
 const FEEDBACK_LOG_KEY = "cctools.feedback.log.v1";
 
+function scopedStorageKey(base: string, scope: string): string {
+  return scope ? `${base}:${encodeURIComponent(scope)}` : base;
+}
+
+function scopedStorageJson<T>(base: string, scope: string, fallback: T): T {
+  const scopedKey = scopedStorageKey(base, scope);
+  if (!scope) return storageJson(scopedKey, fallback);
+  // Upgrade the one legacy global draft slot into the first active scope. The
+  // move is write-before-delete, so a later workspace can never import the
+  // same file contexts and reinterpret their relative paths.
+  try {
+    if (window.localStorage.getItem(scopedKey) !== null) {
+      // Crash recovery: the previous launch may have written the scoped value
+      // but exited before deleting the global slot. Its data is already safe
+      // here, so consume the legacy copy before any other scope can import it.
+      window.localStorage.removeItem(base);
+      return storageJson(scopedKey, fallback);
+    }
+    const legacy = window.localStorage.getItem(base);
+    if (legacy === null) return fallback;
+    const parsed = JSON.parse(legacy) as T;
+    window.localStorage.setItem(scopedKey, legacy);
+    window.localStorage.removeItem(base);
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
 // 流式/事件泵：onAiEvent 的推送分两类整理——结构化事件用 rAF 批量 flush，
 // 流式 token 用定时器按固定字符块节流。assistant-message 的「最终消息」要在 token 抽干后落，
 // 故 pendingFinalMessages 在 pumpStreams 末尾处理。抽成 factory 让 AiProvider 主体可读。
@@ -261,16 +290,21 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
   };
 }
 
-export function AiProvider({ initial, skills: initialSkills = [], children }: { initial: AiSnapshot; skills?: SkillDefinition[]; children: ReactNode }) {
+export function AiProvider({ initial, skills: initialSkills = [], storageScope = "", children }: { initial: AiSnapshot; skills?: SkillDefinition[]; storageScope?: string; children: ReactNode }) {
   const firstSession = initial.sessions.find((session) => !session.archived) || null;
+  // App remounts AiProvider when this scope changes. Draft text and file
+  // contexts must follow that same mymind/workspace boundary; otherwise a
+  // relative attachment selected in workspace A could be submitted in B.
+  const draftsStorageKey = scopedStorageKey(DRAFTS_KEY, storageScope);
+  const contextsStorageKey = scopedStorageKey(CONTEXTS_KEY, storageScope);
   const [snapshot, setSnapshot] = useState(initial);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(firstSession?.id || null);
   const [activeRunId, setActiveRunId] = useState<string | null>(latestRunForSession(initial.runs, firstSession?.id || null)?.id || null);
   const [eventsBySession, setEventsBySession] = useState<Record<string, AiEvent[]>>({});
   const [turnCursorBySession, setTurnCursorBySession] = useState<Record<string, string | null>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, string>>(() => storageJson(DRAFTS_KEY, {}));
-  const [contextsByDraft, setContextsByDraft] = useState<Record<string, ContextReference[]>>(() => storageJson(CONTEXTS_KEY, {}));
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => scopedStorageJson(DRAFTS_KEY, storageScope, {}));
+  const [contextsByDraft, setContextsByDraft] = useState<Record<string, ContextReference[]>>(() => scopedStorageJson(CONTEXTS_KEY, storageScope, {}));
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => storageJson(PANEL_KEY, "collapsed"));
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastSeq = useRef(0);
@@ -366,13 +400,19 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     }
   }, [replaceSession]);
 
-  const [skills, setSkills] = useState<SkillDefinition[]>(initialSkills);
+  const [defaultSkills, setDefaultSkills] = useState<SkillDefinition[]>(initialSkills);
+  const skills = useMemo(
+    () => activeSession?.skillSnapshot
+      ? activeSession.skillSnapshot.map((entry) => entry.definition)
+      : defaultSkills,
+    [activeSession, defaultSkills]
+  );
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const refreshSkills = useCallback(async () => {
     try {
       if (typeof window.cctools.aiRefreshSkills !== "function") return null;
       const next = await window.cctools.aiRefreshSkills();
-      setSkills(next);
+      setDefaultSkills(next);
       return next;
     } catch {
       // Skill 目录刷新是增强能力；扫描失败不能阻断发送、重试或恢复现有会话。
@@ -427,13 +467,18 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
     activeSessionRef.current = id;
     const latest = latestRunForSession(snapshotRef.current.runs, id);
     setActiveRunId(latest?.id || null);
-    if (!id) return;
+    if (!id) {
+      // A blank draft is the only surface that follows the current global
+      // Skill defaults. Existing sessions render their persisted snapshot.
+      await refreshSkills();
+      return;
+    }
     try {
       await loadEvents(id, requestId);
     } catch (cause) {
       if (selectionRequest.current === requestId) setError(m.ai.error.loadSessionFailed(errorText(cause)));
     }
-  }, [loadEvents]);
+  }, [loadEvents, refreshSkills]);
 
   const selectRun = useCallback((id: string | null) => {
     if (!id) {
@@ -471,8 +516,8 @@ export function AiProvider({ initial, skills: initialSkills = [], children }: { 
 
   useEffect(() => createAiEventPump({ streamingStore, setSnapshot: commitSnapshot, setEventsBySession, setError }), [commitSnapshot, streamingStore]);
 
-  useEffect(() => writeStorage(DRAFTS_KEY, drafts), [drafts]);
-  useEffect(() => writeStorage(CONTEXTS_KEY, contextsByDraft), [contextsByDraft]);
+  useEffect(() => writeStorage(draftsStorageKey, drafts), [drafts, draftsStorageKey]);
+  useEffect(() => writeStorage(contextsStorageKey, contextsByDraft), [contextsByDraft, contextsStorageKey]);
   useEffect(() => writeStorage(PANEL_KEY, panelMode), [panelMode]);
 
   const setDraft = useCallback((value: string) => {

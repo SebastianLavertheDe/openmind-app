@@ -34,13 +34,12 @@ import {
   SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
-import { SkillPackageSourceInputSchema, isCctoolsSkillsSourceLocator } from "../shared/skill-package-sources";
+import { CCTOOLS_SKILLS_REPO_URL, SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import type { ProductService } from "./product/product-service";
 import type { MymindFileSearch } from "./mymind-file-search";
 import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
-import type { InstalledSkillRecord } from "./skills/installed-skill-repository";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
 import { deleteProviderEntry, listProvidersForUi, saveProvidersFromInput } from "./config/providers-yaml";
@@ -86,33 +85,6 @@ function parseDate(value: unknown): string {
 
 function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
-}
-
-/** Installing is the user's explicit execution decision. Static package
- * validation happens before this point; a successful install is promoted
- * atomically and can run immediately once its Runtime is ready. */
-function makeInstalledSkillUsable(service: SkillPackageService, record: InstalledSkillRecord): InstalledSkillRecord {
-  // Lightweight test/source adapters may expose only install/list operations.
-  // In production SkillPackageService supplies the full promotion lifecycle.
-  if (typeof service.markReadiness !== "function" || typeof service.activate !== "function") return record;
-  let current = record;
-  if (current.readiness !== "ready") current = service.markReadiness(current.key, current.digest, "ready");
-  if (current.status !== "active") current = service.activate(current.key, current.digest).active;
-  return current;
-}
-
-/** One-time compatibility for candidates imported by older builds. If a Skill
- * has no active version, promote its newest installed copy on first read. */
-function listInstalledSkillsUsable(service: SkillPackageService): InstalledSkillRecord[] {
-  const records = service.listInstalled();
-  for (const key of new Set(records.map((record) => record.key))) {
-    const versions = records.filter((record) => record.key === key);
-    if (versions.some((record) => record.status === "active")) continue;
-    const newest = versions.slice().sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
-    if (!newest) continue;
-    try { makeInstalledSkillUsable(service, newest); } catch { /* Keep an invalid legacy candidate inspectable. */ }
-  }
-  return service.listInstalled();
 }
 
 async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 mymind 根目录。"): Promise<void> {
@@ -205,17 +177,18 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         // can drive the new path settings UI without re-deriving them.
         const mymindRoot = settings.resolveMymindRoot();
         const workspaceRoot = settings.resolveWorkspaceRoot();
-        // `validRepo` is retained in the wire contract for one release, but
-        // content readiness is now determined by mymindRoot alone. A .claude
-        // checkout is optional; skills may be installed into SkillStore later.
+        // `validRepo` is retained in the wire contract for one release. It
+        // means only that an explicit, usable mymind save root is bound; the
+        // separate complete-source receipt controls the Skill startup gate.
         const validRepo = Boolean(mymindRoot && settings.isValidMymindRoot(mymindRoot));
-        const aiWorkspace = workspaceRoot || (settings.looksLikeRepo(repoRoot) ? repoRoot : "");
+        const aiWorkspace = workspaceRoot;
         const hasAiWorkspace = Boolean(aiWorkspace);
         // No mymind root bound → no skill store; skip the service entirely so
         // bootstrap never constructs a null-root store on a fresh machine.
         const skillsInstalled = validRepo
-          ? listInstalledSkillsUsable(skillPackages()).some((record) => isCctoolsSkillsSourceLocator(record.sourceLocator))
+          ? skillSources().hasCompleteInstallation(CCTOOLS_SKILLS_REPO_URL)
           : false;
+        const appReady = validRepo && skillsInstalled && hasAiWorkspace;
         return {
           repoRoot,
           validRepo,
@@ -225,9 +198,9 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           workspaceRoot,
           runtime: settings.parseWslRepoPath(repoRoot) ? "Windows → WSL" : process.platform,
           environment: { mode: "desktop", platform: process.platform },
-          overview: validRepo ? product().getOverview(date) : { repoRoot, metrics: {}, recent: [] },
-          skills: hasAiWorkspace ? await ai().call("skills") : [],
-          ai: hasAiWorkspace ? await ai().call("snapshot") : {
+          overview: appReady ? product().getOverview(date) : { repoRoot, metrics: {}, recent: [] },
+          skills: appReady ? await ai().call("skills") : [],
+          ai: appReady ? await ai().call("snapshot") : {
             projectRoot: aiWorkspace || mymindRoot,
             providers: [],
             sessions: [],
@@ -411,35 +384,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return outputPath;
       }
     },
-    {
-      channel: C.setRepo,
-      handler: (value) => {
-        const result = settings.setRepoRoot(parseString(value));
-        ctx.restartAiWorker();
-        return result;
-      }
-    },
-    {
-      channel: C.detectRepo,
-      handler: () => {
-        const result = settings.detectRepoRoot();
-        ctx.restartAiWorker();
-        return result;
-      }
-    },
-    {
-      channel: C.selectRepo,
-      handler: async () => {
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: messages.dialogs.selectRepo,
-          properties: ["openDirectory"]
-        });
-        if (result.canceled || !result.filePaths[0]) return null;
-        const repoRoot = settings.setRepoRoot(result.filePaths[0]);
-        ctx.restartAiWorker();
-        return repoRoot;
-      }
-    },
     // --- ADR-001 mymindRoot / workspaceRoot handlers ---
     {
       channel: C.setMymindRoot,
@@ -516,14 +460,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: () => ({
         mymindRoot: settings.resolveMymindRoot(),
         workspaceRoot: settings.resolveWorkspaceRoot(),
-        migration: settings.getLegacyStateMigrationStatus(),
         health: settings.getMymindRootHealth(),
         snapshot: settings.getMymindRootSnapshot()
       })
     },
     {
       channel: C.setWorkspaceRoot,
-      handler: (value) => {
+      handler: async (value) => {
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能切换 AI/代码工作区目录。");
         const result = settings.setWorkspaceRoot(parseString(value));
         ctx.restartAiWorker();
         return result;
@@ -537,6 +481,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
+        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能切换 AI/代码工作区目录。");
         const workspaceRoot = settings.setWorkspaceRoot(result.filePaths[0]);
         ctx.restartAiWorker();
         return workspaceRoot;
@@ -831,15 +776,33 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const workspaceRoot = settings.resolveWorkspaceRoot();
         if (!workspaceRoot) return { inspected: [], installed: [], skipped: [] };
         const report = skillPackages().migrateClaudeSkills(workspaceRoot);
+        if (report.installed.length) ctx.restartAiWorker();
         return {
           inspected: report.inspected.map(toSkillPackageInspectionView),
-          installed: report.installed.map((record) => makeInstalledSkillUsable(skillPackages(), record)),
+          installed: report.installed.map((record) => skillPackages().toInstalledView(record)),
           skipped: report.skipped
         };
       }
     },
-    { channel: C.listInstalledSkills, handler: () => listInstalledSkillsUsable(skillPackages()) },
-    { channel: C.installSkillPackage, handler: (sourcePath) => makeInstalledSkillUsable(skillPackages(), skillPackages().install(parseString(sourcePath))) },
+    { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalledViews() },
+    { channel: C.listInstalledRunnableSkills, handler: () => skillPackages().listInstalledRunnableViews() },
+    {
+      channel: C.setInstalledSkillEnabled,
+      handler: (key, digest, enabled) => {
+        const service = skillPackages();
+        const record = service.setEnabled(parseString(key), parseString(digest), z.boolean().parse(enabled));
+        return service.toInstalledView(record);
+      }
+    },
+    {
+      channel: C.installSkillPackage,
+      handler: (sourcePath) => {
+        const service = skillPackages();
+        const installed = service.install(parseString(sourcePath));
+        ctx.restartAiWorker();
+        return service.toInstalledView(installed);
+      }
+    },
     {
       channel: C.selectSkillPackageSource,
       handler: async () => {
@@ -874,17 +837,19 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.installSkillSource,
       handler: async (input, selected) => {
-        const refs = Array.isArray(selected)
-          ? selected.filter((ref): ref is string => typeof ref === "string" && ref.length > 0)
-          : undefined;
+        const refs = selected == null ? undefined : z.array(z.string().max(4096)).parse(selected);
         const records = await skillSources().install(SkillPackageSourceInputSchema.parse(input), refs);
-        return records.map((record) => makeInstalledSkillUsable(skillPackages(), record));
+        ctx.restartAiWorker();
+        return records.map((record) => skillPackages().toInstalledView(record));
       }
     },
-    { channel: C.rollbackSkillPackage, handler: (key) => skillPackages().rollback(parseString(key)) },
     {
       channel: C.uninstallSkillPackage,
-      handler: (key, digest) => skillPackages().uninstall(parseString(key), parseOptionalString(digest))
+      handler: (key, digest) => {
+        const removed = skillPackages().uninstall(parseString(key), parseOptionalString(digest));
+        if (removed) ctx.restartAiWorker();
+        return removed;
+      }
     },
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },

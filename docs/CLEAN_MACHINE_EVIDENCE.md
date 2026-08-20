@@ -55,7 +55,8 @@ runs must additionally record these assertions in the same redacted evidence
 bundle:
 
 - import a public HTTPS Git Skill: inspect identity/digest, confirm install,
-  observe active + ready in Skill Center, and run it without a terminal;
+  observe the fresh package-integrity result in Skill Center, and run it without
+  a terminal;
 - import a ZIP/local directory and confirm warnings/issues are visible before
   installation;
 - install Claude Code and Codex from Settings without system Node/npm, verify

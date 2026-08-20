@@ -21,7 +21,7 @@ and release work that follows.
 ## Supporting architecture docs
 
 - [`../architecture/threat-model.md`](../architecture/threat-model.md) — threat model (single trust boundary: OS user).
-- [`../architecture/data-migration.md`](../architecture/data-migration.md) — `repoRoot` → v2 migration spec.
+- [`../architecture/data-migration.md`](../architecture/data-migration.md) — superseded historical `repoRoot` → v2 migration baseline.
 
 ## Machine-readable contracts (code)
 

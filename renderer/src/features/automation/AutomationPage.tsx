@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { CalendarClock, Check, Clock3, Play, Save, Square, Target } from "lucide-react";
-import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, SkillDefinition, WorkflowRunRecord } from "@shared/contracts";
+import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, InstalledRunnableSkillView, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
+import { matchesSemverRange } from "@shared/skill-manifest-schema";
 import type { Navigate } from "../../app/routes";
 import { messages } from "@shared/messages";
 import { LogViewer, Select, ToggleSwitch } from "../../design-system/components";
+import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 
 const m = messages;
 
@@ -12,9 +14,10 @@ type RuntimeState = { running: boolean; state: string };
 type TriggerType = "daily" | "weekly" | "hourly" | "interval";
 type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
-export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDefinition[]; initialSkillId?: string; go: Navigate }) {
+export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string; go: Navigate }) {
   void go;
   const [rules, setRules] = useState<AutomationRule[]>([]);
+  const [skillCatalog, setSkillCatalog] = useState<InstalledRunnableSkillView[]>([]);
   const [schedules, setSchedules] = useState<AutomationScheduleSnapshot[]>([]);
   const [runs, setRuns] = useState<AutomationRunRecord[]>([]);
   const [selectedId, setSelectedId] = useState(() => initialSkillId || "");
@@ -34,14 +37,16 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextRules, nextSchedules, nextRuns] = await Promise.all([
+      const [nextRules, nextSchedules, nextRuns, nextSkillCatalog] = await Promise.all([
         window.cctools.listAutomationRules(),
         window.cctools.listAutomationSchedules(),
-        window.cctools.listAutomationRuns()
+        window.cctools.listAutomationRuns(),
+        window.cctools.listInstalledRunnableSkills()
       ]);
       setRules(nextRules);
       setSchedules(nextSchedules);
       setRuns(nextRuns);
+      setSkillCatalog(nextSkillCatalog);
       setSelectedId((current) => nextRules.some((rule) => rule.id === current)
         ? current
         : initialRuleId(initialSkillId, nextRules));
@@ -54,6 +59,11 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   }, [initialSkillId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const refreshCatalog = () => { void load(); };
+    window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);
+    return () => window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);
+  }, [load]);
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
   useEffect(() => window.cctools.onSkillEvent((event) => {
     const skillId = String(event.skillId || "");
@@ -77,7 +87,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   const selected = rules.find((rule) => rule.id === selectedId) || rules[0];
   const selectedRuns = useMemo(() => selected ? prioritizeAutomationRuns(runs.filter((run) => run.ruleId === selected.id)) : [], [runs, selected]);
   const latestRun = selectedRuns[0];
-  const selectedSkill = selected ? skills.find((skill) => skill.id === selected.target.id) : undefined;
+  const selectedSkill = selected ? findTargetSkill(skillCatalog, selected) : undefined;
   const selectedRuntime = selected ? runtime[selected.target.id] : undefined;
   const selectedLogs = selected ? logs[selected.target.id] || [] : [];
   const selectedSchedule = selected ? schedules.find((schedule) => schedule.ruleId === selected.id) : undefined;
@@ -141,7 +151,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   );
   if (!selected) return null;
 
-  const selectedEnabled = selected.enabled;
+  const selectedEnabled = selected.enabled && Boolean(selectedSkill?.enabled);
   const hasRunDetails = Boolean(childRun || childEvents.length || workflowRun || workflowSteps.length || latestRun?.error);
   const consoleText = hasRunDetails || !selectedLogs.length ? runLogText(selected, latestRun, childRun, visibleChildEvents, workflowRun, visibleWorkflowSteps) : selectedLogs.join("");
   const observedState = selected.target.type === "workflow" ? workflowRun?.state : childRun?.state;
@@ -150,7 +160,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   const isRunning = isActive && Boolean(latestRun?.childRunId);
 
   const run = async () => {
-    if (!selected.enabled) return;
+    if (!isActive && !selectedEnabled) return;
     try {
       if (isActive) {
         if (!latestRun?.childRunId) return;
@@ -206,7 +216,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
             <header>
               <div><span className="eyebrow">{selected.target.type}:{selected.target.id}</span><h1>{selected.name}</h1><p>{selected.description || "未填写规则说明。"}</p></div>
               <div className="settings-inline-controls">
-                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={isActive || undefined} disabled={!selectedEnabled || (isActive && !latestRun?.childRunId)} onClick={() => void run()}>
+                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={isActive || undefined} disabled={isActive ? !latestRun?.childRunId : !selectedEnabled} onClick={() => void run()}>
                   {isRunning ? <><Square size={14} />{m.automation.actions.stop}</> : isActive ? <>正在运行…</> : <><Play size={14} />{m.automation.actions.run}</>}
                 </button>
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteRule(selected, load, setError)}>删除规则</button>
@@ -216,13 +226,13 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
             {error ? <p role="alert" className="automation-config-note">{error}</p> : null}
             <div className="rule-status-strip">
               <span className={`rule-pill ${runtimeTone(runState)}`}>{detailStatus(runState)}</span>
-              <span>{selectedEnabled ? m.automation.enabled : m.automation.disabled}</span>
+              <span>{automationAvailabilityLabel(selected, selectedSkill)}</span>
               <span>{latestRun ? `最近运行 ${formatRunTime(latestRun.createdAt)}` : m.automation.neverRun}</span>
               <span>{selectedSchedule?.nextRunAt ? `下次 ${formatRunTime(selectedSchedule.nextRunAt)}` : "无下一次计划"}</span>
-              {selectedSkill ? <span>{selectedSkill.cwd}</span> : <span>{m.automation.manifestMissing}</span>}
+              {selectedSkill ? <span>{skillKindLabel(selectedSkill.kind)} · v{selectedSkill.version}</span> : <span>{m.automation.manifestMissing}</span>}
             </div>
 
-            <ScheduleEditor rule={selected} skills={skills} onSaved={load} onError={setError} />
+            <ScheduleEditor rule={selected} skillCatalog={skillCatalog} onSaved={load} onError={setError} />
 
             <div className="rule-section">
               <h2>最近运行与产物</h2>
@@ -239,7 +249,7 @@ export function AutomationPage({ skills, initialSkillId, go }: { skills: SkillDe
   );
 }
 
-function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRule; skills: SkillDefinition[]; onSaved: () => Promise<void>; onError: (message: string | null) => void }) {
+function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: AutomationRule; skillCatalog: InstalledRunnableSkillView[]; onSaved: () => Promise<void>; onError: (message: string | null) => void }) {
   const [triggerType, setTriggerType] = useState<TriggerType>(normalizeTriggerType(rule.trigger.type));
   const [dailyAt, setDailyAt] = useState(rule.trigger.type === "daily" ? rule.trigger.at : "08:00");
   const [weeklyAt, setWeeklyAt] = useState(rule.trigger.type === "weekly" ? rule.trigger.at : "08:00");
@@ -266,8 +276,10 @@ function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRu
     } finally { setSaving(false); }
   };
 
-  const targetSkill = skills.find((skill) => skill.id === rule.target.id);
-  const targetLabel = targetSkill ? `${targetSkill.title} · ${targetSkill.id}` : rule.target.id;
+  const targetSkill = findTargetSkill(skillCatalog, rule);
+  const targetLabel = targetSkill
+    ? `${targetSkill.title} · ${skillKindLabel(targetSkill.kind)} · ${targetSkill.id}`
+    : rule.target.id;
 
   const triggerOptions: Array<{ value: TriggerType; label: string }> = [
     { value: "daily", label: "每日" },
@@ -328,6 +340,24 @@ function ScheduleEditor({ rule, skills, onSaved, onError }: { rule: AutomationRu
       </div>
     </div>
   );
+}
+
+function findTargetSkill(catalog: InstalledRunnableSkillView[], rule: AutomationRule): InstalledRunnableSkillView | undefined {
+  const expectedKind = rule.target.type === "workflow" ? "workflow" : "process";
+  return catalog.find((skill) => skill.id === rule.target.id
+    && skill.kind === expectedKind
+    && (rule.target.versionPolicy === "*" || matchesSemverRange(skill.version, rule.target.versionPolicy)));
+}
+
+function automationAvailabilityLabel(rule: AutomationRule, skill: InstalledRunnableSkillView | undefined): string {
+  if (!rule.enabled) return "规则已停用";
+  if (!skill) return "执行目标不可用";
+  if (!skill.enabled) return "Skill 已关闭";
+  return m.automation.enabled;
+}
+
+function skillKindLabel(kind: InstalledRunnableSkillView["kind"]): string {
+  return kind === "workflow" ? "Workflow" : "Process";
 }
 
 const RECENT_RUN_DAYS = 3;

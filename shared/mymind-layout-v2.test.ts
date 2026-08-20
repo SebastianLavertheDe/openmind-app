@@ -11,11 +11,11 @@ import {
 import { MYMIND_LAYOUT_V1 } from "./mymind-layout-v1";
 
 describe("mymind-layout-v2", () => {
-  it("carries every v1 entry verbatim and adds exactly the app-managed skill store", () => {
+  it("carries every v1 entry verbatim and adds exactly the app-managed .agent structures", () => {
     expect(MYMIND_LAYOUT_V2.slice(0, MYMIND_LAYOUT_V1.length)).toEqual(MYMIND_LAYOUT_V1);
-    expect(MYMIND_LAYOUT_V2.length).toBe(MYMIND_LAYOUT_V1.length + 1);
-    const entry = findLayoutEntry(".agent/skills");
-    expect(entry?.category).toBe("app-managed");
+    expect(MYMIND_LAYOUT_V2.length).toBe(MYMIND_LAYOUT_V1.length + 2);
+    expect(findLayoutEntry(".agent/skills")?.category).toBe("app-managed");
+    expect(findLayoutEntry(".agent/skill-data")?.category).toBe("app-managed");
     expect(MYMIND_LAYOUT_VERSION).toBe("mymind-layout-v2");
   });
 

@@ -14,6 +14,7 @@ import {
   type AiRolloutLine,
   type AiRun,
   type AiSession,
+  type AiSessionSkillSnapshotEntry,
   type AiTurnListParams,
   type AiTurnPage,
   type ProviderKind,
@@ -113,6 +114,7 @@ export class SessionStore {
     permissionProfile: AiSession["permissionProfile"];
     interactionMode?: AiSession["interactionMode"];
     forkedFromId?: string | null;
+    skillSnapshot?: AiSessionSkillSnapshotEntry[];
   }): AiSession {
     this.initialize();
     const now = new Date().toISOString();
@@ -130,6 +132,10 @@ export class SessionStore {
       cwd: input.cwd,
       permissionProfile: input.permissionProfile,
       interactionMode: input.interactionMode || "default",
+      // Every newly-created session has an explicit (possibly empty) frozen
+      // Skill set. `null` is reserved for persisted sessions from before the
+      // snapshot feature and is handled only by the eager backfill below.
+      skillSnapshot: input.skillSnapshot ?? [],
       createdAt: now,
       updatedAt: now
     });
@@ -158,7 +164,8 @@ export class SessionStore {
       title: `${source.title} (branch)`.slice(0, 120),
       permissionProfile: source.permissionProfile,
       interactionMode: source.interactionMode,
-      forkedFromId: source.id
+      forkedFromId: source.id,
+      skillSnapshot: source.skillSnapshot ?? []
     });
     const lines: AiRolloutLine[] = [];
     for (const sourceTurn of sourceTurns) {
@@ -222,12 +229,45 @@ export class SessionStore {
       providerId: current.providerId,
       serviceProviderId: current.serviceProviderId || null,
       serviceProviderRevision: current.serviceProviderRevision || null,
+      // Skill availability is a conversation boundary. Generic UI/lifecycle
+      // patches must never mutate the frozen snapshot.
+      skillSnapshot: current.skillSnapshot ?? null,
       updatedAt: new Date().toISOString()
     });
     writeJsonAtomic(this.sessionFile(id), next);
     this.sessions.set(id, next);
     if (next.title !== current.title) this.writeSearchIndex(id);
     return next;
+  }
+
+  /**
+   * One-time migration for sessions persisted before Skill snapshots existed.
+   * The caller supplies the pre-feature compatibility catalog (all currently
+   * usable installed packages, regardless of today's enabled preference).
+   * Existing snapshots are never replaced and migration does not reorder the
+   * conversation by changing its timestamp.
+   */
+  backfillMissingSkillSnapshots(resolveSkillSnapshot: () => AiSessionSkillSnapshotEntry[]): number {
+    this.initialize();
+    this.ensureIndex();
+    const missing = [...this.sessions.values()]
+      .filter((session) => session.skillSnapshot === null || session.skillSnapshot === undefined);
+    if (!missing.length) return 0;
+    // Integrity inspection can hash every installed package. Resolve it only
+    // when a pre-feature session actually needs migration.
+    const skillSnapshot = resolveSkillSnapshot();
+    let migrated = 0;
+    for (const current of missing) {
+      const next = AiSessionSchema.parse({
+        ...current,
+        skillSnapshot,
+        updatedAt: current.updatedAt
+      });
+      writeJsonAtomic(this.sessionFile(current.id), next);
+      this.sessions.set(current.id, next);
+      migrated += 1;
+    }
+    return migrated;
   }
 
   deleteSession(id: string): boolean {
@@ -425,6 +465,12 @@ export class SessionStore {
     for (const entry of fs.readdirSync(sessionsRoot, { withFileTypes: true }).filter((item) => item.isDirectory())) {
       try {
         const session = AiSessionSchema.parse(this.readJson(this.sessionFile(entry.name)));
+        // The app-private state root can be shared while the user switches
+        // workspaces. Keep foreign session directories untouched, but never
+        // index their metadata, search body, rollout, or runs into this
+        // workspace's scheduler.
+        if (session.projectId !== this.projectId
+          || path.resolve(session.projectRoot) !== path.resolve(this.projectRoot)) continue;
         this.sessions.set(session.id, session);
         try {
           const index = this.readJson(this.searchFile(session.id)) as { body?: string; text?: string };
@@ -440,6 +486,7 @@ export class SessionStore {
         for (const runEntry of fs.readdirSync(runsRoot, { withFileTypes: true }).filter((item) => item.isDirectory())) {
           try {
             const run = AiRunSchema.parse(this.readJson(this.runFile(session.id, runEntry.name)));
+            if (run.projectId !== this.projectId || run.sessionId !== session.id) continue;
             this.runs.set(run.id, run);
           } catch {
             // Corrupt run metadata is ignored and remains available for manual recovery.

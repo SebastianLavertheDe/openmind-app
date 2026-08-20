@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { WorkflowManifest } from "../../shared/skill-manifest-schema";
+import { matchesSemverRange, type WorkflowManifest } from "../../shared/skill-manifest-schema";
 import {
   EXECUTION_SCHEMA_VERSION,
   SkillRunRequestSchema,
@@ -15,6 +15,19 @@ import { writeJsonAtomic } from "../lib/fs-utils";
 export type WorkflowRunSubmitter = (request: SkillRunRequest) => BrokerRunRecord;
 export type WorkflowRunReader = (runId: string) => BrokerRunRecord;
 export type WorkflowRunEventHandler = (event: WorkflowRunRecord) => void;
+
+export type WorkflowStepAdmission = {
+  stepId: string;
+  skillId: string;
+  version: string;
+  digest: string;
+};
+
+/** Immutable package identities approved together at one Workflow admission. */
+export type WorkflowAdmission = {
+  manifest: WorkflowManifest;
+  steps: WorkflowStepAdmission[];
+};
 
 export class WorkflowDefinitionError extends Error {
   constructor(message: string) {
@@ -32,6 +45,7 @@ export class WorkflowEngine {
   private readonly definitions = new Map<string, WorkflowManifest>();
   private readonly inputs = new Map<string, Record<string, unknown>>();
   private readonly providerBindings = new Map<string, Record<string, string>>();
+  private readonly stepAdmissions = new Map<string, Map<string, WorkflowStepAdmission>>();
 
   constructor(
     private readonly root: string,
@@ -49,8 +63,10 @@ export class WorkflowEngine {
     return topologicalOrder(manifest).map((step) => step.id);
   }
 
-  start(manifest: WorkflowManifest, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
+  start(admission: WorkflowAdmission, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
+    const manifest = admission.manifest;
     const order = topologicalOrder(manifest);
+    const admittedSteps = validateWorkflowAdmission(manifest, admission.steps, order);
     assertSafeWorkflowInputs(inputs);
     const id = crypto.randomUUID();
     const record = WorkflowRunRecordSchema.parse({
@@ -70,6 +86,7 @@ export class WorkflowEngine {
     this.definitions.set(id, manifest);
     this.inputs.set(id, cloneInputs(inputs));
     this.providerBindings.set(id, { ...providerBindings });
+    this.stepAdmissions.set(id, admittedSteps);
     this.persist(record);
     void this.advance(id, manifest, inputs, providerBindings);
     return clone(record);
@@ -83,11 +100,13 @@ export class WorkflowEngine {
 
   list(): WorkflowRunRecord[] { return Array.from(this.records.values()).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).map(clone); }
 
-  retryStep(id: string, stepId: string): WorkflowRunRecord {
+  retryStep(id: string, stepId: string, admission: WorkflowAdmission): WorkflowRunRecord {
     const current = this.get(id);
-    const manifest = this.definitions.get(id);
+    const manifest = admission.manifest;
     const inputs = this.inputs.get(id);
-    if (!manifest || !inputs) throw new Error("该 Workflow 已在应用重启后恢复，缺少原始输入，无法直接重试 Step。");
+    if (!this.definitions.has(id) || !inputs) throw new Error("该 Workflow 已在应用重启后恢复，缺少原始输入，无法直接重试 Step。");
+    assertSameWorkflowDefinition(current, manifest);
+    const admittedSteps = validateWorkflowAdmission(manifest, admission.steps);
     const step = current.stepRuns.find((candidate) => candidate.stepId === stepId);
     if (!step) throw new Error(`Workflow Step 不存在：${stepId}`);
     if (step.state !== "failed") throw new Error("只有失败的 Workflow Step 可以重试。");
@@ -101,27 +120,23 @@ export class WorkflowEngine {
         : candidate)
     });
     this.records.set(id, next);
+    this.definitions.set(id, manifest);
+    this.stepAdmissions.set(id, admittedSteps);
     this.persist(next);
     void this.advance(id, manifest, inputs, this.providerBindings.get(id) || {});
     return clone(next);
   }
 
-  resume(id: string, manifest: WorkflowManifest, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
+  resume(id: string, admission: WorkflowAdmission, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
     const current = this.get(id);
+    const manifest = admission.manifest;
     if (current.state !== "failed" || current.error !== WORKFLOW_INTERRUPTED_ERROR) {
       throw new Error("只有因应用重启而中断的 Workflow 才能恢复。");
     }
     if (current.rootGeneration !== rootGeneration) throw new Error("Workflow 的 root snapshot 已过期，请从当前根目录重新开始。");
-    if (manifest.id !== current.workflowSkillId || manifest.version !== current.workflowVersion) {
-      throw new Error("Workflow 的 active version 已变化，拒绝恢复旧运行。");
-    }
-    if (!current.workflowFingerprint || current.workflowFingerprint !== workflowManifestFingerprint(manifest)) {
-      throw new Error("Workflow 定义已变化或缺少 fingerprint，拒绝恢复旧运行。");
-    }
     const order = topologicalOrder(manifest);
-    if (order.length !== current.stepRuns.length || order.some((step, index) => step.id !== current.stepRuns[index].stepId || step.skill !== current.stepRuns[index].skillId)) {
-      throw new Error("Workflow 定义已变化，拒绝恢复旧运行。");
-    }
+    assertSameWorkflowDefinition(current, manifest, order);
+    const admittedSteps = validateWorkflowAdmission(manifest, admission.steps, order);
     assertSafeWorkflowInputs(inputs);
     const next = WorkflowRunRecordSchema.parse({
       ...current,
@@ -136,6 +151,7 @@ export class WorkflowEngine {
     this.definitions.set(id, manifest);
     this.inputs.set(id, cloneInputs(inputs));
     this.providerBindings.set(id, { ...providerBindings });
+    this.stepAdmissions.set(id, admittedSteps);
     this.persist(next);
     void this.advance(id, manifest, inputs, providerBindings);
     return clone(next);
@@ -154,6 +170,7 @@ export class WorkflowEngine {
     this.definitions.delete(id);
     this.inputs.delete(id);
     this.providerBindings.delete(id);
+    this.stepAdmissions.delete(id);
     fs.rmSync(target, { force: true });
     return true;
   }
@@ -173,6 +190,7 @@ export class WorkflowEngine {
     const timer = this.timers.get(id);
     if (timer) clearTimeout(timer);
     this.timers.delete(id);
+    this.stepAdmissions.delete(id);
     return true;
   }
 
@@ -228,6 +246,12 @@ export class WorkflowEngine {
 
     for (const stepRun of updates.filter((step) => step.state === "pending")) {
       const definition = stepById.get(stepRun.stepId)!;
+      const admitted = this.stepAdmissions.get(id)?.get(stepRun.stepId);
+      if (!admitted) {
+        stepRun.state = "failed";
+        stepRun.error = `Workflow Step 缺少已准入的 package identity：${stepRun.stepId}`;
+        continue;
+      }
       if (stepRun.retryAt && new Date(stepRun.retryAt).getTime() > this.now().getTime()) continue;
       const dependencies = definition.needs.map((need) => updates.find((candidate) => candidate.stepId === need));
       if (dependencies.some((dependency) => dependency?.state !== "succeeded")) continue;
@@ -238,7 +262,8 @@ export class WorkflowEngine {
         }
         const request = SkillRunRequestSchema.parse({
           skillId: definition.skill,
-          version: definition.version,
+          version: admitted.version,
+          digest: admitted.digest,
           providerBindings,
           inputs: resolveStepInputs(definition.with, inputs, updates, new Set(definition.needs)),
           trigger: { type: "workflow", parentRunId: id, stepId: definition.id },
@@ -285,6 +310,7 @@ export class WorkflowEngine {
     const timer = this.timers.get(record.id);
     if (timer) clearTimeout(timer);
     this.timers.delete(record.id);
+    this.stepAdmissions.delete(record.id);
   }
 
   private persist(record: WorkflowRunRecord): void {
@@ -313,6 +339,52 @@ export class WorkflowEngine {
         // Preserve unreadable history for diagnostics; never overwrite it.
       }
     }
+  }
+}
+
+function validateWorkflowAdmission(
+  manifest: WorkflowManifest,
+  admissions: readonly WorkflowStepAdmission[],
+  order = topologicalOrder(manifest)
+): Map<string, WorkflowStepAdmission> {
+  if (admissions.length !== order.length) {
+    throw new WorkflowDefinitionError("Workflow admission 未覆盖全部 Step。 ");
+  }
+  const byStepId = new Map<string, WorkflowStepAdmission>();
+  for (const admission of admissions) {
+    if (byStepId.has(admission.stepId)) {
+      throw new WorkflowDefinitionError(`Workflow admission Step ID 重复：${admission.stepId}`);
+    }
+    byStepId.set(admission.stepId, { ...admission, digest: admission.digest.toLowerCase() });
+  }
+  for (const definition of order) {
+    const admitted = byStepId.get(definition.id);
+    if (!admitted || admitted.skillId !== definition.skill) {
+      throw new WorkflowDefinitionError(`Workflow admission 与 Step identity 不匹配：${definition.id}`);
+    }
+    if (!matchesSemverRange(admitted.version, definition.version)) {
+      throw new WorkflowDefinitionError(`Workflow admission 与 Step version 不匹配：${definition.id}`);
+    }
+    if (!/^[a-f0-9]{64}$/i.test(admitted.digest)) {
+      throw new WorkflowDefinitionError(`Workflow admission 缺少有效 digest：${definition.id}`);
+    }
+  }
+  return byStepId;
+}
+
+function assertSameWorkflowDefinition(
+  current: WorkflowRunRecord,
+  manifest: WorkflowManifest,
+  order = topologicalOrder(manifest)
+): void {
+  if (manifest.id !== current.workflowSkillId || manifest.version !== current.workflowVersion) {
+    throw new Error("Workflow 的 active version 已变化，拒绝恢复旧运行。");
+  }
+  if (!current.workflowFingerprint || current.workflowFingerprint !== workflowManifestFingerprint(manifest)) {
+    throw new Error("Workflow 定义已变化或缺少 fingerprint，拒绝恢复旧运行。");
+  }
+  if (order.length !== current.stepRuns.length || order.some((step, index) => step.id !== current.stepRuns[index].stepId || step.skill !== current.stepRuns[index].skillId)) {
+    throw new Error("Workflow 定义已变化，拒绝恢复旧运行。");
   }
 }
 

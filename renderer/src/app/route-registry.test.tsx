@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, AppBootstrap } from "@shared/contracts";
-import { renderActiveRoute, type RouteRenderProps } from "./route-registry";
+import { renderActiveRoute, ROUTE_DEFINITIONS, type RouteRenderProps } from "./route-registry";
 
 const snapshot: AiSnapshot = { projectRoot: "", providers: [], sessions: [], runs: [], pendingApprovals: [] };
 const baseBootstrap: AppBootstrap = { repoRoot: "", mymindRoot: "/m/mymind", workspaceRoot: "", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview: {} as AppBootstrap["overview"], skills: [], ai: snapshot };
@@ -14,7 +15,7 @@ function props(bootstrap: AppBootstrap): RouteRenderProps {
     providers: [],
     aiFilePreviewPath: null,
     onAiFilePreviewPathChange: () => undefined,
-    onRepo: () => undefined,
+    onRepo: async () => bootstrap,
     onExitSettings: () => undefined
   };
 }
@@ -38,5 +39,19 @@ describe("renderActiveRoute repo gate", () => {
     const p = props({ ...baseBootstrap, skillsInstalled: false });
     render(<>{renderActiveRoute(p)}</>);
     await waitFor(() => expect(p.navigate).toHaveBeenCalledWith("onboarding"));
+  });
+
+  it("does not forward the AI conversation catalog into the Automation route", () => {
+    const p = props({
+      ...baseBootstrap,
+      skills: [{ id: "conversation-agent" } as AppBootstrap["skills"][number]]
+    });
+    p.route = { page: "automation", state: { skillId: "daily-summary" }, nonce: 3 };
+    const automationRoute = ROUTE_DEFINITIONS.find((entry) => entry.page === "automation");
+
+    const element = automationRoute?.render(p) as ReactElement<Record<string, unknown>>;
+
+    expect(element.props).not.toHaveProperty("skills");
+    expect(element.props).toMatchObject({ initialSkillId: "daily-summary", go: p.navigate });
   });
 });

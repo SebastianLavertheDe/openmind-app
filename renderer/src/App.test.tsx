@@ -13,7 +13,7 @@ const overview: AppOverview = { repoRoot: "/project", metrics: {}, recent: [] };
 const skills: SkillDefinition[] = [];
 const LAZY_ROUTE_TIMEOUT_MS = 10_000;
 const preferences: UserPreferences = {
-  schemaVersion: 1, repoRoot: "/project", mymindRoot: "/project/mymind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
+  schemaVersion: 1, mymindRoot: "/project/mymind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" }, defaultPermissionProfile: "edit",
   defaultWorkDir: "", notesDir: "mymind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
@@ -98,6 +98,127 @@ describe("App bootstrap", () => {
     // no throw, no fatal screen
     expect(document.querySelector(".fatal")).toBeNull();
   });
+
+  it("remounts AI state when the workspace root changes", async () => {
+    const rootASnapshot: AiSnapshot = {
+      ...snapshot,
+      projectRoot: "/project-a",
+      sessions: [{
+        schemaVersion: 1,
+        id: "root-a-session",
+        projectId: "project-a",
+        projectRoot: "/project-a",
+        title: "Root A Session",
+        provider: "codex",
+        providerId: "codex-native",
+        providerSessionId: null,
+        cwd: ".",
+        permissionProfile: "edit",
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: "2026-08-19T00:00:00.000Z",
+        updatedAt: "2026-08-19T00:00:00.000Z",
+        lastRunId: null,
+        skillSnapshot: []
+      }]
+    };
+    const rootBSnapshot: AiSnapshot = { ...snapshot, projectRoot: "/project-b", sessions: [] };
+    let bootstrapCalls = 0;
+    installApi({
+      getBootstrap: async () => {
+        bootstrapCalls += 1;
+        return bootstrapCalls === 1
+          ? { repoRoot: "/project-a", mymindRoot: "/mymind-a", workspaceRoot: "/project-a", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootASnapshot }
+          : { repoRoot: "/project-b", mymindRoot: "/mymind-a", workspaceRoot: "/project-b", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootBSnapshot };
+      },
+      selectWorkspaceRoot: async () => "/project-b"
+    });
+
+    render(<App />);
+    expect((await screen.findAllByText("Root A Session")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    fireEvent.click((await screen.findAllByRole("button", { name: "浏览" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }))[0]);
+
+    await waitFor(() => expect(bootstrapCalls).toBe(2));
+    await waitFor(() => expect(screen.queryAllByText("Root A Session")).toHaveLength(0));
+    expect(document.querySelector(".settings-page")).toBeNull();
+  }, 15_000);
+
+  it("hydrates the first ready AI snapshot when the Skill setup gate opens without changing roots", async () => {
+    const setupSnapshot: AiSnapshot = { ...snapshot, providers: [], sessions: [] };
+    const readySnapshot: AiSnapshot = {
+      ...snapshot,
+      sessions: [{
+        schemaVersion: 1,
+        id: "first-ready-session",
+        projectId: "project",
+        projectRoot: "/project",
+        title: "Ready after Skill install",
+        provider: "codex",
+        providerId: "codex-native",
+        providerSessionId: null,
+        cwd: ".",
+        permissionProfile: "edit",
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: "2026-08-19T00:00:00.000Z",
+        updatedAt: "2026-08-19T00:00:00.000Z",
+        lastRunId: null,
+        skillSnapshot: []
+      }]
+    };
+    let installed = false;
+    installApi({
+      getBootstrap: async () => ({
+        repoRoot: "/project",
+        mymindRoot: "/project/mymind",
+        workspaceRoot: "/project",
+        validRepo: true,
+        skillsInstalled: installed,
+        onboardingCompleted: false,
+        runtime: "test",
+        environment: { mode: "desktop", platform: "linux" },
+        overview,
+        skills,
+        ai: installed ? readySnapshot : setupSnapshot
+      }),
+      getMymindRoot: async () => ({
+        mymindRoot: "/project/mymind",
+        workspaceRoot: "/project",
+        health: {
+          configured: true,
+          accessible: true,
+          readable: true,
+          writable: true,
+          missingInitializeEntries: [],
+          missingCreateIfNeededEntries: [],
+          optionalObservedEntries: [],
+          symlinkWarnings: [],
+          unknownPreservedEntries: [],
+          activeRunCount: 0,
+          warnings: []
+        },
+        snapshot: null
+      }),
+      getOnboardingState: async () => ({ completed: false, skill: "pending", provider: "complete" }),
+      getProviders: async () => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
+      installSkillSource: async () => {
+        installed = true;
+        return [];
+      }
+    });
+
+    render(<App />);
+    const install = await screen.findByRole("button", { name: "一键安装 cctools-skills" });
+    await waitFor(() => expect((install as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(install);
+
+    expect((await screen.findAllByText("Ready after Skill install", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS })).length).toBeGreaterThan(0);
+    expect(document.querySelector(".onboarding-page")).toBeNull();
+  }, 15_000);
 
   it("MOTION-P0-002: clicking the already-active nav does not remount the page", async () => {
     render(<App />);
