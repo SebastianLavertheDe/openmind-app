@@ -97,7 +97,7 @@ export class SkillSourceService {
       if (candidates.length === 0) {
         throw new SkillSourceError(
           "git-package-missing",
-          "Git 仓库中没有找到任何 Skill 包（需要 openmind.skill.yaml 或 SKILL.md）。"
+          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml、兼容的 openmind.skill.yaml 或 SKILL.md）。"
         );
       }
       return {
@@ -129,7 +129,7 @@ export class SkillSourceService {
       if (candidates.length === 0) {
         throw new SkillSourceError(
           "git-package-missing",
-          "Git 仓库中没有找到任何 Skill 包（需要 openmind.skill.yaml 或 SKILL.md）。"
+          "Git 仓库中没有找到任何 Skill 包（需要 cctools.skill.yaml、兼容的 openmind.skill.yaml 或 SKILL.md）。"
         );
       }
 
@@ -209,17 +209,13 @@ export class SkillSourceService {
           && record.sourceRevision === undefined
           && this.packages.isInstalledCopyUsable(record)
         );
-        return ALL_SKILL_IDS.every((id) => legacyRecords.some((record) =>
-          record.id === id && record.key === `openmind/${id}` && record.publisherId === "openmind"
-        ));
+        return hasCompleteOfficialInstalledIdentitySet(legacyRecords);
       } catch {
         return false;
       }
     }
     if (isCctoolsSkillsSourceLocator(sourceLocator)
-      && !ALL_SKILL_IDS.every((id) => receipt.packages.some((snapshot) =>
-        snapshot.id === id && snapshot.key === `openmind/${id}`
-      ))) {
+      && !hasCompleteOfficialSnapshotIdentitySet(receipt.packages)) {
       return false;
     }
     try {
@@ -449,10 +445,28 @@ export function resolveGitPackageCandidates(checkoutRoot: string): GitPackageCan
 }
 
 function hasSkillDescriptor(root: string): boolean {
-  return ["openmind.skill.yaml", "SKILL.md"].some((name) => {
+  return ["cctools.skill.yaml", "openmind.skill.yaml", "SKILL.md"].some((name) => {
     const candidate = path.join(root, name);
     try { return fs.statSync(candidate).isFile(); } catch { return false; }
   });
+}
+
+function hasCompleteOfficialInstalledIdentitySet(records: InstalledSkillRecord[]): boolean {
+  return ALL_SKILL_IDS.every((id) => records.some((record) =>
+    record.id === id && isSupportedOfficialIdentity(record.key, record.publisherId, id)
+  ));
+}
+
+function hasCompleteOfficialSnapshotIdentitySet(snapshots: Array<{ id: string; key: string }>): boolean {
+  return ALL_SKILL_IDS.every((id) => snapshots.some((snapshot) =>
+    snapshot.id === id
+    && (snapshot.key === `cctools/${id}` || snapshot.key === `openmind/${id}`)
+  ));
+}
+
+function isSupportedOfficialIdentity(key: string, publisherId: string, id: string): boolean {
+  return (key === `cctools/${id}` && publisherId === "cctools")
+    || (key === `openmind/${id}` && publisherId === "openmind");
 }
 
 function isDirectory(candidate: string): boolean {

@@ -53,7 +53,7 @@ describe("installBrowserPreviewApi", () => {
 
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: false, skillsInstalled: false, onboardingCompleted: false });
     expect((await window.openmind.getOpenmindRoot()).health.configured).toBe(false);
-    await window.openmind.setOpenmindRoot("/home/say/work/github/cctools/openmind");
+    await window.openmind.setOpenmindRoot("/fixtures/openmind-data/openmind");
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: false });
     await window.openmind.installSkillSource?.({ type: "git", locator: "https://github.com/example/skills.git" });
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: true });

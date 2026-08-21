@@ -114,7 +114,7 @@ stop future writes. Existing files are not deleted by Relink or Revoke.
 
 ## Maintainer verification
 
-Run from `desktop-app/` after preserving a redacted reproduction:
+Run from the repository root after preserving a redacted reproduction:
 
 ```bash
 npm run typecheck

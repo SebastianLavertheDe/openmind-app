@@ -14,7 +14,7 @@ Use one clean checkout and record the exact source commit, App version, target
 OS/architecture, package filename and SHA-256. Keep the source checkout and
 the packaged test user data separate from the user's real `openmind`.
 
-From `desktop-app/` on the target release host:
+From the repository root on the target release host:
 
 ```bash
 npm ci

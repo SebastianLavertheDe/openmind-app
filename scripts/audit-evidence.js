@@ -2,12 +2,11 @@ const fs = require("fs");
 const path = require("path");
 
 const appRoot = path.resolve(__dirname, "..");
-const repoRoot = path.resolve(appRoot, "..");
 const buildRoot = path.join(appRoot, ".build");
 const checks = [];
 
-check("uiuxopt references are present", countFiles(path.join(repoRoot, "uiuxopt")) >= 40, {
-  count: countFiles(path.join(repoRoot, "uiuxopt"))
+check("app-owned design evidence is present", countFiles(path.join(appRoot, "design-qa")) >= 40, {
+  count: countFiles(path.join(appRoot, "design-qa"))
 });
 
 check("renderer routes are lazy loaded", includes("renderer/src/app/route-registry.tsx", "const SourcesPage = lazy(") && includes("renderer/src/app/route-registry.tsx", "const AiWorkbench = lazy("));

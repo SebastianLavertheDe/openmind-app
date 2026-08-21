@@ -51,8 +51,8 @@ const FORBIDDEN_PATTERNS = [
   /path\.join\([^)]*\brepoRoot\b[^)]*,\s*["']\.claude["']/,
   /path\.join\([^)]*findRepoRoot\(\)[^)]*,\s*["']openmind["']/,
   // hardcoded dev-machine WSL / Windows paths (ADR-001 §16.1 removed these)
-  /\\\\wsl\.localhost\\Ubuntu\\home\\say/i,
-  /\\\\wsl\$\\Ubuntu\\home\\say/i,
+  /\\\\wsl\.localhost\\[^\\]+\\home\\[^\\]+\\/i,
+  /\\\\wsl\$\\[^\\]+\\home\\[^\\]+\\/i,
   /D:\\work\\openmind/i
 ];
 

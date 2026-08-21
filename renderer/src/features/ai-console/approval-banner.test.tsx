@@ -125,7 +125,7 @@ describe("ApprovalBanner", () => {
   });
 
   it("keeps single-approval actions usable with a very long WSL command", async () => {
-    const command = String.raw`wsl.exe -d Ubuntu -- bash -lc "cd /home/say/work/github/cctools && python .claude/skills/daily-topic-selector/scripts/generate_daily_topics.py --summary \\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260715_daily_summary.md --posts \\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\post\20260715\posts.json"`;
+    const command = String.raw`wsl.exe -d Ubuntu -- bash -lc "cd /home/test-user/work/openmind-data && python openmind/.agent/skills/cctools/daily-topic-selector/scripts/generate_daily_topics.py --summary \\wsl.localhost\Ubuntu\home\test-user\work\openmind-data\openmind\daily-summary\20260715_daily_summary.md --posts \\wsl.localhost\Ubuntu\home\test-user\work\openmind-data\openmind\post\20260715\posts.json"`;
     const approval = makeApproval("long-command", command);
     const resolveApproval = vi.fn().mockResolvedValue(true);
     window.openmind = {

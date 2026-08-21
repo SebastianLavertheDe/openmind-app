@@ -30,7 +30,8 @@ export class InstalledSkillPreferencesRepository {
 
   isEnabled(key: string): boolean {
     const canonicalKey = validateSkillKey(key);
-    return !this.read().disabledKeys.includes(canonicalKey);
+    const disabled = new Set(this.read().disabledKeys);
+    return preferenceKeys(canonicalKey).every((candidate) => !disabled.has(candidate));
   }
 
   listDisabledKeys(): string[] {
@@ -44,8 +45,11 @@ export class InstalledSkillPreferencesRepository {
 
     const current = this.read();
     const disabled = new Set(current.disabledKeys);
-    const changed = enabled ? disabled.delete(canonicalKey) : !disabled.has(canonicalKey);
+    const compatibleKeys = preferenceKeys(canonicalKey);
+    const before = [...disabled].sort().join("\0");
+    for (const candidate of compatibleKeys) disabled.delete(candidate);
     if (!enabled) disabled.add(canonicalKey);
+    const changed = before !== [...disabled].sort().join("\0");
     if (!changed) return;
 
     writeJsonAtomic(this.filePath, validatePreferences({
@@ -62,6 +66,12 @@ export class InstalledSkillPreferencesRepository {
       throw new Error(`Skill 偏好无法读取，拒绝覆盖现有配置：${error instanceof Error ? error.message : String(error)}`);
     }
   }
+}
+
+/** cctools/* supersedes the official openmind/* identity without re-enabling it. */
+function preferenceKeys(key: string): string[] {
+  if (!key.startsWith("cctools/")) return [key];
+  return [key, `openmind/${key.slice("cctools/".length)}`];
 }
 
 function emptyPreferences(): InstalledSkillPreferencesFile {

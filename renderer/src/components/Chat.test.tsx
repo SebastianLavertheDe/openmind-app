@@ -1489,7 +1489,7 @@ describe("chat timeline", () => {
     render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
 
     const process = disclosureFor(await screen.findByText(m.ai.chat.processing));
-    const first = process.querySelector<HTMLElement>(".tool-event")!;
+    const first = disclosureFor(await within(process).findByRole("button", { name: /Glob/ }));
     fireEvent.click(disclosureTrigger(first));
     expectDisclosureOpen(first, true);
 

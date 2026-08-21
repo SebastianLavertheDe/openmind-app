@@ -2,6 +2,11 @@
 
 OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端使用 React、TypeScript、Vite 和 Electron；Claude Code、Codex CLI 与 skills 全部在本机运行。
 
+源码、私人数据和 Skill 包分别维护：本仓库只保存 App 源码；用户选择的 `openmind`
+目录、`config/providers.yaml` 与 Electron `userData` 保存在私有数据仓；Skill 包的唯一
+源码在独立的 `cctools-skills` 仓库。App 会把已安装 Skill 放到
+`<openmindRoot>/.agent/skills/`，不会把私人内容或 provider key 打进安装包。
+
 ## 产品能力
 
 - 独立 AI 工作台：会话、运行、审批、风险和工具日志。
@@ -35,12 +40,15 @@ OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端�
 
 把打包产物发给没有开发环境的用户时，最小交付是两样东西：
 
-1. `desktop-app/dist/` 下的 Windows 安装包 / Portable 或 macOS dmg；
+1. `dist/` 下的 Windows 安装包 / Portable 或 macOS dmg；
 2. 一个包含 skill 的公开 HTTPS Git 仓库地址（或 zip 包）。
 
 对方流程：安装 App → 首启引导选择 openmind 根目录 → 技能中心「添加其他来源」
 粘贴 Git 地址 → 检查 → 安装（安装即生效，可直接运行）→ 需要会话/AI 能力时再
 在设置里一键安装 CLI 或配置自己的 provider key。
+
+正式 Skill 包使用 `cctools.skill.yaml`；App 仍兼容旧的
+`openmind.skill.yaml`，便于已有第三方包平滑迁移。
 
 > 注意：自本版本起，Installed Skill 的 `executionTrust` 审批门禁已移除——
 > 从 Git/ZIP 来源安装的 skill 安装完成即可在本机执行。安装前的静态检查、
@@ -49,7 +57,7 @@ OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端�
 Windows 安装包可连接 Windows 本地项目，也可直接连接：
 
 ```text
-\\wsl.localhost\Ubuntu\home\say\work\github\openmind
+\\wsl.localhost\Ubuntu\home\your-user\work\github\openmind-data
 ```
 
 应用会分别诊断 Windows 与 WSL 中的 Provider。WSL 仅作为 Windows 连接的开发/Provider 场景，
@@ -61,7 +69,7 @@ Windows 安装包可连接 Windows 本地项目，也可直接连接：
 在 WSL 项目中开发时，使用 WSL 的 npm，避免 Windows npm 在 `\\wsl$` 路径上创建损坏的依赖链接：
 
 ```bash
-cd desktop-app
+cd openmind-app
 npm install
 npm run typecheck
 npm test
@@ -75,6 +83,19 @@ npm run dev -- --host 0.0.0.0 --port 4173
 ```
 
 浏览器预览使用 mock API，不执行真实 AI 任务。
+
+### 将 userData 放到私有数据仓
+
+`OPENMIND_USER_DATA_DIR` 可在 Electron 初始化前把完整 App 状态重定向到一个绝对
+路径；命令行 `--user-data-dir=<absolute-path>` 的优先级更高。例如：
+
+```bash
+OPENMIND_USER_DATA_DIR=/home/user/openmind-data/.openmind-userdata/linux npm start
+```
+
+该目录包含设置、运行记录、CLI、凭据和 Chromium 会话数据，必须整体加入私有数据仓的
+`.gitignore`，不能提交到本源码仓。`userData` 应与 `openmind/` 为兄弟目录，不能放进
+`openmind/` 内；Windows 上也不要把 Chromium Profile 放到 WSL UNC 路径。
 
 ## 数据与安全
 
@@ -116,7 +137,7 @@ npm.cmd run dist:win:staged
 
 该命令会在 Windows 本地临时目录重新安装平台依赖并完成打包，避免 NSIS 不支持 UNC 路径以及误打入 Linux 可选依赖。
 
-Windows 构建产物写入 `desktop-app/dist/`：
+Windows 构建产物写入 `dist/`：
 
 - NSIS 安装包
 - Portable 单文件便携版，双击直接运行

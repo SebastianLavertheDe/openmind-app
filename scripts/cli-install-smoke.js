@@ -14,12 +14,11 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const Module = require("module");
+const os = require("os");
 const path = require("path");
 
-const repoRoot = path.resolve(__dirname, "..", "..");
-process.env.OPENMIND_REPO_ROOT = repoRoot;
-
-const userData = path.join(repoRoot, ".desktop-app-test");
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-cli-install-"));
+process.on("exit", () => fs.rmSync(userData, { recursive: true, force: true }));
 const originalLoad = Module._load;
 Module._load = function loadWithElectronStub(request, parent, isMain) {
   if (request === "electron") {

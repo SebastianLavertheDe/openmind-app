@@ -1,6 +1,6 @@
 # OpenMind Desktop — UI 全面审查 (0709)
 
-> 审查范围：`desktop-app/renderer/` 全部页面、组件、样式系统
+> 审查范围：`renderer/` 全部页面、组件、样式系统
 > 审查日期：2026-07-09
 > 对比基线：Cursor / Claude.ai / ChatGPT / Linear / Raycast（2024–2026 现代 AI 工具 UI）
 
@@ -169,7 +169,7 @@ source-row:  grid-template-columns: ...; min-width: 780px;
 
 ## 五、与既有评审的关系（避免重复劳动）
 
-`desktop-app/` 下已有三份评审，这次审查**不重复**它们，而是补充/验证：
+`` 下已有三份评审，这次审查**不重复**它们，而是补充/验证：
 
 | 既有文档 | 状态 | 本次验证结论 |
 |---|---|---|

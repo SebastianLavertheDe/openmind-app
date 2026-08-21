@@ -42,14 +42,21 @@ import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
 import { OPENMIND_SKILLS_REPO_URL } from "../shared/skill-package-sources";
+import { configureUserDataPath } from "./paths/user-data-bootstrap";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
 const DESKTOP_E2E_TEST = process.argv.includes("--e2e-test");
-if (DESKTOP_E2E_TEST) {
+const e2eUserData = DESKTOP_E2E_TEST
+  ? process.env.OPENMIND_E2E_USER_DATA_DIR?.trim()
+  : undefined;
+if (e2eUserData) {
   // Keep E2E state isolated from a developer's normal Electron profile.
-  const e2eUserData = process.env.OPENMIND_E2E_USER_DATA_DIR?.trim();
-  if (e2eUserData) app.setPath("userData", path.resolve(e2eUserData));
+  app.setPath("userData", path.resolve(e2eUserData));
+} else {
+  configureUserDataPath(app);
+}
+if (DESKTOP_E2E_TEST) {
   app.commandLine.appendSwitch("no-sandbox");
   app.commandLine.appendSwitch("disable-gpu");
 }

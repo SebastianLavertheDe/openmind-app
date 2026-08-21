@@ -61,7 +61,7 @@ describe("OpenmindFileSearch", () => {
 
   it("only indexes openmind and excludes credentials and private keys", async () => {
     const root = createRoot();
-    write(root, "desktop-app/renderer/src/composer.tsx");
+    write(root, "renderer/src/composer.tsx");
     write(root, "README.md");
     write(root, "openmind/settings.json");
     write(root, "openmind/.env");
@@ -115,11 +115,11 @@ describe("OpenmindFileSearch", () => {
   it("normalizes manual @ selections and rejects files outside openmind", () => {
     const root = createRoot();
     const inside = path.join(root, "openmind", "daily-summary", "today.md");
-    const outside = path.join(root, "desktop-app", "package.json");
+    const outside = path.join(root, "package.json");
     const outsideTarget = path.join(root, "outside.md");
     const linked = path.join(root, "openmind", "linked");
     write(root, "openmind/daily-summary/today.md");
-    write(root, "desktop-app/package.json");
+    write(root, "package.json");
     write(root, "outside.md");
     fs.symlinkSync(
       path.dirname(outsideTarget),

@@ -126,7 +126,7 @@
 ## W6 文档与发布
 
 1. README "环境要求"章节改写：区分「产品运行依赖（App 自带）」与「可选外部依赖（CLI、provider key）」，注明一键安装入口
-2. `desktop-app/README.md` 增加"分发给别人"小节：安装包 + skill 仓库 URL 的最小交付说明
+2. `README.md` 增加"分发给别人"小节：安装包 + skill 仓库 URL 的最小交付说明
 3. CHANGELOG / release notes 注明：skill 审批门禁移除（装即执行）的安全语义变更
 4. 清理代码中已过时的 host-trust 注释与 UI 文案；当前代码仅保留迁移兼容字段删除、legacy inspection-only 错误码和 ADR-004 历史记录，不再把它们作为现行执行门禁。
 

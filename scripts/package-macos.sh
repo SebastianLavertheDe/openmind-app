@@ -36,6 +36,14 @@ rsync -a \
   --exclude '.build' \
   --exclude 'openmind' \
   --exclude '.openmind-userdata' \
+  --exclude '.openmind' \
+  --exclude 'config/providers.yaml' \
+  --exclude 'curl.txt' \
+  --exclude 'curl_foryou.txt' \
+  --exclude 'x_curl.txt' \
+  --exclude 'wechat_storage_state.json' \
+  --exclude 'browser-state' \
+  --exclude 'browser-data' \
   --exclude '*.log' \
   "$source_root/" "$stage_root/"
 

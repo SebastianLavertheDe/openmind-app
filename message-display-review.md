@@ -1,7 +1,7 @@
 # AI 消息展示区 设计评审 — Desktop App
 
 > 评审视角：专业产品设计师
-> 评审范围：`desktop-app/renderer/src/features/ai-console/`（`Chat.tsx`、`message.tsx`、`thought.tsx`、`tool.tsx`、`plan.tsx`）+ 相关样式 `styles.css` / `ai-console.css`
+> 评审范围：`renderer/src/features/ai-console/`（`Chat.tsx`、`message.tsx`、`thought.tsx`、`tool.tsx`、`plan.tsx`）+ 相关样式 `styles.css` / `ai-console.css`
 > 评审日期：2026-07-05
 > 评审人：Claude
 > 配套文档：`motion-design-review.md`（动效专项，本文涉及动效处指向该文档）

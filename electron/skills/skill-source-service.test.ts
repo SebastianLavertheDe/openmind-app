@@ -39,6 +39,10 @@ platforms: [windows-x64]
 compatibility:
   minAppVersion: 1.0.0
 `;
+const CCTOOLS_MANIFEST = MANIFEST
+  .replace("apiVersion: openmind.dev/skill/v1", "apiVersion: cctools.dev/skill/v1")
+  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools")
+  .replace("  openmind:\n", "  mymind:\n");
 const REVISION = "c".repeat(40);
 
 describe("SkillSourceService", () => {
@@ -66,7 +70,7 @@ describe("SkillSourceService", () => {
       const checkout = args.at(-1)!;
       checkoutPaths.push(checkout);
       fs.mkdirSync(checkout, { recursive: true });
-      fs.writeFileSync(path.join(checkout, "openmind.skill.yaml"), MANIFEST);
+      fs.writeFileSync(path.join(checkout, "cctools.skill.yaml"), CCTOOLS_MANIFEST);
       fs.writeFileSync(path.join(checkout, "run.sh"), "echo ok\n");
       fs.writeFileSync(path.join(checkout, "pyproject.toml"), "[project]\nname='git-demo'\n");
       expect(args).toEqual(expect.arrayContaining([
@@ -99,6 +103,7 @@ describe("SkillSourceService", () => {
     expect(installed.sourcePackageRef).toBe(".");
     expect(installed.sourceRevision).toBe(REVISION);
     expect(installed.sourcePath).toBe(source.locator);
+    expect(installed.key).toBe("cctools/git-demo");
     expect(fs.existsSync(path.join(installed.packagePath, "run.sh"))).toBe(true);
     expect(service.hasCompleteInstallation(source.locator)).toBe(true);
     expect(fs.existsSync(path.join(paths.skills!, "source-installations.json"))).toBe(true);
@@ -108,8 +113,8 @@ describe("SkillSourceService", () => {
   it("accepts only a complete intact pre-receipt official installation as legacy compatibility", () => {
     const records = ALL_SKILL_IDS.map((id) => ({
       id,
-      key: `openmind/${id}`,
-      publisherId: "openmind",
+      key: `cctools/${id}`,
+      publisherId: "cctools",
       sourceType: "git" as const,
       sourceLocator: OPENMIND_SKILLS_REPO_URL
     }));
@@ -124,8 +129,8 @@ describe("SkillSourceService", () => {
     expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
     records.push({
       id: ALL_SKILL_IDS.at(-1)!,
-      key: `openmind/${ALL_SKILL_IDS.at(-1)!}`,
-      publisherId: "openmind",
+      key: `cctools/${ALL_SKILL_IDS.at(-1)!}`,
+      publisherId: "cctools",
       sourceType: "git",
       sourceLocator: OPENMIND_SKILLS_REPO_URL,
       sourcePackageRef: "new-partial-install"
@@ -136,11 +141,33 @@ describe("SkillSourceService", () => {
     expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
   });
 
+  it("keeps pre-receipt openmind identities compatible and accepts a mixed migration set", () => {
+    const records = ALL_SKILL_IDS.map((id, index) => {
+      const publisherId = index % 2 === 0 ? "cctools" : "openmind";
+      return {
+        id,
+        key: `${publisherId}/${id}`,
+        publisherId,
+        sourceType: "git" as const,
+        sourceLocator: OPENMIND_SKILLS_REPO_URL
+      };
+    });
+    const packageAdapter = {
+      listInstalled: vi.fn(() => records),
+      isInstalledCopyUsable: vi.fn(() => true)
+    } as unknown as SkillPackageService;
+    const service = new SkillSourceService(packageAdapter, paths, async () => ({ stdout: "", stderr: "" }));
+
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
+    records[0] = { ...records[0], publisherId: "openmind" };
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
+  });
+
   it("does not let a complete but undersized official ref bypass app-required Skills", async () => {
     const service = new SkillSourceService(
       new SkillPackageService(paths),
       paths,
-      multiPackageGitRunner(["one"])
+      multiPackageGitRunner(["one"], "cctools")
     );
 
     await service.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL, ref: "undersized-fixture" });
@@ -150,7 +177,7 @@ describe("SkillSourceService", () => {
   });
 
   it("accepts a complete official snapshot and verifies it offline on later startup checks", async () => {
-    const delegate = multiPackageGitRunner([...ALL_SKILL_IDS]);
+    const delegate = multiPackageGitRunner([...ALL_SKILL_IDS], "cctools");
     let gitCalls = 0;
     const runGit: GitCommandRunner = async (args, options) => {
       gitCalls += 1;
@@ -161,6 +188,7 @@ describe("SkillSourceService", () => {
     const installed = await service.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
 
     expect(installed).toHaveLength(ALL_SKILL_IDS.length);
+    expect(installed.every((record) => record.key === `cctools/${record.id}`)).toBe(true);
     expect(gitCalls).toBe(2); // clone + rev-parse
     expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
     expect(gitCalls).toBe(2);
@@ -335,19 +363,22 @@ describe("SkillSourceService", () => {
   });
 });
 
-function multiPackageGitRunner(names: string[]): GitCommandRunner {
+function multiPackageGitRunner(names: string[], dialect: "cctools" | "openmind" = "openmind"): GitCommandRunner {
   return async (args) => {
     if (args[0] === "rev-parse") return { stdout: `${REVISION}\n`, stderr: "" };
     const checkout = args.at(-1)!;
-    for (const name of names) writePackage(checkout, name);
+    for (const name of names) writePackage(checkout, name, dialect);
     return { stdout: "", stderr: "" };
   };
 }
 
-function writePackage(checkout: string, name: string): void {
+function writePackage(checkout: string, name: string, dialect: "cctools" | "openmind" = "openmind"): void {
   const candidate = path.join(checkout, name);
   fs.mkdirSync(candidate, { recursive: true });
-  fs.writeFileSync(path.join(candidate, "openmind.skill.yaml"), MANIFEST.replaceAll("git-demo", name));
+  fs.writeFileSync(
+    path.join(candidate, dialect === "cctools" ? "cctools.skill.yaml" : "openmind.skill.yaml"),
+    (dialect === "cctools" ? CCTOOLS_MANIFEST : MANIFEST).replaceAll("git-demo", name)
+  );
   fs.writeFileSync(path.join(candidate, "run.sh"), "echo ok\n");
   fs.writeFileSync(path.join(candidate, "pyproject.toml"), `[project]\nname='${name}'\n`);
 }

@@ -9,9 +9,9 @@ npm run audit:evidence
 npm run visual:snapshot
 ```
 
-The command writes `.build/audit-evidence.json` and verifies:
+The commands write `.build/audit-evidence.json` and verify:
 
-- `uiuxopt/1.png` through `uiuxopt/40.png` exist.
+- The repository contains the app-owned `design-qa/` evidence baseline.
 - Feature routes are lazy-loaded and renderer chunks are split.
 - Inbox and AI large lists still use `VirtualList`.
 - Focus-visible and reduced-motion styles exist.

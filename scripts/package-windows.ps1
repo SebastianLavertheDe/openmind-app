@@ -37,7 +37,9 @@ if (Test-Path -LiteralPath $stageRoot) {
 New-Item -ItemType Directory -Path $stageRoot | Out-Null
 
 Write-Host "Staging desktop app in $stageRoot"
-& robocopy.exe $sourceRoot $stageRoot /E /XD node_modules dist .build /XF "*.log"
+& robocopy.exe $sourceRoot $stageRoot /E `
+  /XD node_modules dist .build .git .openmind-userdata .openmind browser-state browser-data `
+  /XF "*.log" "providers.yaml" "curl.txt" "curl_foryou.txt" "x_curl.txt" "wechat_storage_state.json"
 if ($LASTEXITCODE -gt 7) {
   throw "Staging source files failed with robocopy exit code $LASTEXITCODE."
 }

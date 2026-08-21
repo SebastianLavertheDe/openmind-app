@@ -1,0 +1,40 @@
+node_modules/
+dist/
+.build/
+.coverage/
+.tmp/
+.vite/
+*.log
+
+# Development and smoke-test profiles. App userData never belongs in source Git.
+.openmind-userdata/
+.desktop-app-test/
+.openmind/
+config/providers.yaml
+**/config/providers.yaml
+**/curl.txt
+**/curl_foryou.txt
+**/x_curl.txt
+**/wechat_storage_state.json
+**/browser-state/
+**/browser-data/
+
+# Generated or machine-local runtime payloads.
+resources/python-runtime/*
+!resources/python-runtime/.gitkeep
+design-qa/
+
+# Local environment and language caches.
+.env
+.env.*
+!.env.example
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Local editor/agent state.
+.claude/settings.local.json
+.zcode/

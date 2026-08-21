@@ -1,6 +1,6 @@
 # OpenMind Desktop — UI/UX Pro Max Skill 模块化审查报告
 
-> 审查工具:`ui-ux-pro-max` skill(已安装于 `desktop-app/.claude/skills/`)
+> 审查工具:`ui-ux-pro-max` skill(已安装于 `.claude/skills/`)
 > 审查日期:2026-07-09
 > 范围:按 8 个模块逐一深入 review(全局 contrast/focus/z-index/reduced-motion 问题已在首轮修复,本轮只报模块特有问题)
 > 验证方法:每条均附 `file:line` 证据,agent 实读源码确认
@@ -231,4 +231,4 @@ python3 scripts/search.py "form validation error feedback settings risk toggle" 
 python3 scripts/search.py "command palette keyboard navigation toast live region a11y" --domain ux -n 8
 ```
 
-报告文件:`desktop-app/uipro-skill-review-modules.md`。所有 `file:line` 证据已由探查 agent 实读源码确认。
+报告文件:`uipro-skill-review-modules.md`。所有 `file:line` 证据已由探查 agent 实读源码确认。

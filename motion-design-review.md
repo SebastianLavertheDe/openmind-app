@@ -1,7 +1,7 @@
 # 动效设计评审 — Desktop App
 
 > 评审视角：专业产品设计师 / 动效系统角度
-> 评审范围：`desktop-app/renderer/src`（React + 纯 CSS，无动效库）
+> 评审范围：`renderer/src`（React + 纯 CSS，无动效库）
 > 评审日期：2026-07-05
 > 评审人：Claude
 

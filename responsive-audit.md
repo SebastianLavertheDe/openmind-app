@@ -1,7 +1,7 @@
 # 响应式/自适应布局审查报告
 
 - 日期：2026-08-15（两轮全量审查）
-- 范围：`desktop-app/renderer/src` 全部样式与组件 + `shared/responsive-policy.ts` + 快照脚本
+- 范围：`renderer/src` 全部样式与组件 + `shared/responsive-policy.ts` + 快照脚本
 - 基准：窗口最小宽度 720 CSS px（`shared/responsive-policy.ts` `narrowDensity`）；缩放 >100% 时实际 CSS 宽度可低至 ~480/360px
 - 状态标记：🔴 高（当前可见溢出/遮挡）· 🟡 中（窄宽度布局挤压）· ⚪ 低/潜在/死代码
 - 所有选择器均已对照 TSX 渲染验证存活；死代码单列，不计入线上问题

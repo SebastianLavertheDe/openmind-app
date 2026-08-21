@@ -1,14 +1,18 @@
-// Validate every top-level openmind.skill.yaml in the independent Skills
-// repository against the frozen SkillManifestSchema. Override the sibling
-// checkout with OPENMIND_SKILLS_REPO_ROOT. A desktop-app-only checkout has no
-// Skills source tree, so linting is skipped there.
+// Validate every top-level formal manifest in the independent Skills
+// repository against the frozen internal SkillManifestSchema. The public
+// cctools.skill.yaml contract is preferred; openmind.skill.yaml remains a
+// compatibility fallback. Override the sibling checkout with
+// OPENMIND_SKILLS_REPO_ROOT. A standalone app checkout without its sibling
+// Skills repository skips this lint.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(moduleDir, "..", "..");
-const skillsDir = path.resolve(process.env.OPENMIND_SKILLS_REPO_ROOT || path.join(root, "..", "cctools-skills"));
+const appRoot = path.resolve(moduleDir, "..");
+const skillsDir = path.resolve(process.env.OPENMIND_SKILLS_REPO_ROOT || path.join(appRoot, "..", "cctools-skills"));
+const primaryManifestFile = "cctools.skill.yaml";
+const compatManifestFile = "openmind.skill.yaml";
 
 // Minimal YAML→JS: the manifests are a flat-enough subset, but to be correct
 // we use the same parser the app uses. Load the compiled schema via tsx-style
@@ -48,12 +52,21 @@ let legacy = 0;
 const failures = [];
 
 for (const name of entries) {
-  const manifestPath = path.join(skillsDir, name, "openmind.skill.yaml");
-  if (!fs.existsSync(manifestPath)) {
+  const packageRoot = path.join(skillsDir, name);
+  const primaryManifestPath = path.join(packageRoot, primaryManifestFile);
+  const compatManifestPath = path.join(packageRoot, compatManifestFile);
+  const hasPrimaryManifest = fs.existsSync(primaryManifestPath);
+  const hasCompatManifest = fs.existsSync(compatManifestPath);
+  const manifestFile = hasPrimaryManifest ? primaryManifestFile : hasCompatManifest ? compatManifestFile : null;
+  if (!manifestFile) {
     legacy += 1;
-    console.log(`  • ${name}: LEGACY (no openmind.skill.yaml)`);
+    console.log(`  • ${name}: LEGACY (no ${primaryManifestFile} or ${compatManifestFile})`);
     continue;
   }
+  if (hasPrimaryManifest && hasCompatManifest) {
+    console.warn(`  ⚠ ${name}: both manifests found; using ${primaryManifestFile}`);
+  }
+  const manifestPath = path.join(packageRoot, manifestFile);
   const raw = fs.readFileSync(manifestPath, "utf8");
   let doc;
   try {
@@ -62,10 +75,10 @@ for (const name of entries) {
     failures.push({ name, error: `YAML parse error: ${e.message}` });
     continue;
   }
-  const result = validateManifest(doc);
+  const result = validateManifest(normalizeManifestDocument(doc, manifestFile));
   if (result.ok) {
     formal += 1;
-    console.log(`  ✓ ${name}: valid ${result.manifest.kind} v${result.manifest.version}`);
+    console.log(`  ✓ ${name}: valid ${result.manifest.kind} v${result.manifest.version} (${manifestFile})`);
   } else {
     const issuePaths = result.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     failures.push({ name, error: issuePaths });
@@ -83,3 +96,33 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log("✓ all formal manifests validate against SkillManifestSchema");
+
+function normalizeManifestDocument(value, manifestFile) {
+  if (manifestFile !== primaryManifestFile || !isRecord(value)) return value;
+  const capabilities = value.capabilities;
+  if (value.apiVersion !== "cctools.dev/skill/v1"
+    || !isRecord(capabilities)
+    || !Object.prototype.hasOwnProperty.call(capabilities, "mymind")
+    || Object.prototype.hasOwnProperty.call(capabilities, "openmind")) {
+    return { ...value, apiVersion: "invalid-cctools-manifest-dialect" };
+  }
+  const normalized = {
+    ...value,
+    apiVersion: "openmind.dev/skill/v1"
+  };
+  const { mymind, ...otherCapabilities } = capabilities;
+  normalized.capabilities = { ...otherCapabilities, openmind: mymind };
+  if (isRecord(value.config)) {
+    normalized.config = Object.fromEntries(Object.entries(value.config).map(([name, field]) => [
+      name,
+      isRecord(field) && field.type === "path-mymind"
+        ? { ...field, type: "path-openmind" }
+        : field
+    ]));
+  }
+  return normalized;
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}

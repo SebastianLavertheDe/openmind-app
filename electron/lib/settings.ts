@@ -235,8 +235,8 @@ function resolveExplicitWorkspaceRoot(): string {
  * AI session workspace root. Unbound workspaces fall back to the bound
  * openmind content root, so AI sessions work inside the user's content by
  * default; an explicit binding still takes precedence. Provider-config
- * discovery must NOT use this — it follows the code workspace (ADR-001),
- * shared with the Linux crontab, via {@link resolveExplicitWorkspaceRoot}.
+ * discovery is deliberately separate and follows the openmind root's private
+ * data repository instead of an arbitrary AI/code workspace.
  */
 function resolveWorkspaceRoot(): string {
   return resolveExplicitWorkspaceRoot() || resolveOpenmindRoot();

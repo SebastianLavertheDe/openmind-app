@@ -175,9 +175,9 @@ describe("provider contracts", () => {
   it("auto-approves safe reads when Claude reports the equivalent WSL UNC alias as blocked", () => {
     const autoWslContext = {
       session: { permissionProfile: "auto" },
-      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools"
+      cwd: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data"
     } as ProviderRunContext;
-    const file = "//wsl.localhost/Ubuntu/home/say/work/github/cctools/.claude/skills/daily-topic-selector/SKILL.md";
+    const file = "//wsl.localhost/Ubuntu/home/test-user/work/openmind-data/.agent/skills/cctools/daily-topic-selector/SKILL.md";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
     expect(decision.behavior).toBe("allow");
@@ -186,9 +186,9 @@ describe("provider contracts", () => {
   it("still asks before reading outside the WSL workspace in auto mode", () => {
     const autoWslContext = {
       session: { permissionProfile: "auto" },
-      cwd: "\\\\wsl$\\Ubuntu\\home\\say\\work\\github\\cctools"
+      cwd: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data"
     } as ProviderRunContext;
-    const file = "//wsl.localhost/Ubuntu/home/say/.ssh/id_rsa";
+    const file = "//wsl.localhost/Ubuntu/home/test-user/.ssh/id_rsa";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
     expect(decision).toMatchObject({ behavior: "ask", category: "outside-workspace" });

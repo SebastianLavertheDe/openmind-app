@@ -18,7 +18,9 @@ import {
 import { InstalledSkillPreferencesRepository } from "./installed-skill-preferences-repository";
 import { extractZipArchive, inspectZipArchive, SkillArchiveError } from "./zip-source";
 
-const MANIFEST_FILE = "openmind.skill.yaml";
+const PRIMARY_MANIFEST_FILE = "cctools.skill.yaml";
+const COMPAT_MANIFEST_FILE = "openmind.skill.yaml";
+const MANIFEST_FILES = [PRIMARY_MANIFEST_FILE, COMPAT_MANIFEST_FILE] as const;
 const LEGACY_FILE = "SKILL.md";
 const MAX_PACKAGE_BYTES = 250 * 1024 * 1024;
 const MAX_PACKAGE_FILES = 20_000;
@@ -220,21 +222,26 @@ export class SkillPackageService {
     const canonicalSource = this.canonicalSource(sourcePath);
     const walk = walkPackage(canonicalSource);
     const issues = [...walk.issues];
-    const manifestPath = path.join(canonicalSource, MANIFEST_FILE);
+    const presentManifestFiles = MANIFEST_FILES.filter((name) => isRegularFile(path.join(canonicalSource, name)));
+    const manifestFile = presentManifestFiles[0];
+    const manifestPath = manifestFile ? path.join(canonicalSource, manifestFile) : undefined;
     const legacyPath = path.join(canonicalSource, LEGACY_FILE);
+    const manifestWarnings = presentManifestFiles.length > 1
+      ? [`同时检测到 ${PRIMARY_MANIFEST_FILE} 与 ${COMPAT_MANIFEST_FILE}；已确定性使用 ${PRIMARY_MANIFEST_FILE}。`]
+      : [];
     let manifest: SkillManifest | undefined;
     let legacy: LegacySkillSuggestion | undefined;
     let sourceKind: SkillPackageInspection["sourceKind"] = "directory";
 
-    if (fs.existsSync(manifestPath) && fs.statSync(manifestPath).isFile()) {
+    if (manifestPath && manifestFile) {
       try {
         const parsed = yaml.load(fs.readFileSync(manifestPath, "utf8"), { json: true });
-        const result = validateManifest(parsed);
+        const result = validateManifest(normalizeManifestDocument(parsed, manifestFile));
         if (!result.ok) {
           issues.push({
             code: "manifest-invalid",
             message: result.error.issues.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`).join("; "),
-            path: MANIFEST_FILE
+            path: manifestFile
           });
         } else {
           manifest = result.manifest;
@@ -244,7 +251,7 @@ export class SkillPackageService {
         issues.push({
           code: "manifest-yaml-invalid",
           message: error instanceof Error ? error.message : String(error),
-          path: MANIFEST_FILE
+          path: manifestFile
         });
       }
     } else if (fs.existsSync(legacyPath) && fs.statSync(legacyPath).isFile()) {
@@ -252,11 +259,14 @@ export class SkillPackageService {
       legacy = buildLegacySuggestion(canonicalSource, fs.readFileSync(legacyPath, "utf8"));
       issues.push({
         code: "legacy-inspect-only",
-        message: "该 Skill 只有 SKILL.md，只能检查；需迁移为正式 openmind.skill.yaml 后才可安装运行。",
+        message: `该 Skill 只有 SKILL.md，只能检查；需迁移为正式 ${PRIMARY_MANIFEST_FILE} 后才可安装运行。`,
         path: LEGACY_FILE
       });
     } else {
-      issues.push({ code: "manifest-missing", message: `缺少 ${MANIFEST_FILE}。` });
+      issues.push({
+        code: "manifest-missing",
+        message: `缺少 ${PRIMARY_MANIFEST_FILE}（兼容 ${COMPAT_MANIFEST_FILE}）。`
+      });
     }
 
     const digest = digestPackage(canonicalSource, walk.files);
@@ -264,7 +274,7 @@ export class SkillPackageService {
       issues.push({
         code: "secret-in-package",
         message: "Manifest 包含疑似 Secret 值；只能引用 Secret 名称，不能携带 Secret 内容。",
-        path: MANIFEST_FILE
+        path: manifestFile
       });
     }
     if (walk.totalBytes > MAX_PACKAGE_BYTES) {
@@ -285,9 +295,12 @@ export class SkillPackageService {
       ...(manifest ? { manifest } : {}),
       ...(legacy ? { legacy } : {}),
       issues,
-      warnings: walk.excludedPaths.length
-        ? [`已排除 ${walk.excludedPaths.length} 个 Secret、缓存或生成内容路径。`]
-        : []
+      warnings: [
+        ...manifestWarnings,
+        ...(walk.excludedPaths.length
+          ? [`已排除 ${walk.excludedPaths.length} 个 Secret、缓存或生成内容路径。`]
+          : [])
+      ]
     };
   }
 
@@ -305,6 +318,12 @@ export class SkillPackageService {
 
     const manifest = inspection.manifest;
     const key = `${manifest.publisher.id}/${manifest.id}`;
+    // The official manifest namespace changed from openmind/* to cctools/*.
+    // Replace only that known compatibility identity; unrelated publishers
+    // with the same id still fail the repository's global-id invariant.
+    const compatibilityIdentity = manifest.publisher.id === "cctools"
+      ? this.repository.get(`openmind/${manifest.id}`)
+      : undefined;
     const existing = this.repository.get(
       key,
       inspection.digest
@@ -347,6 +366,7 @@ export class SkillPackageService {
     // lives in the registry only, so the layout never accumulates versions.
     const destination = path.join(this.paths.skills, manifest.publisher.id, manifest.id);
     let replacedTrash: string | null = null;
+    let compatibilityTrash: string | null = null;
     let candidatePromoted = false;
     try {
       if (isZipSource(sourcePath)) {
@@ -363,6 +383,16 @@ export class SkillPackageService {
       if (fs.existsSync(destination)) {
         replacedTrash = path.join(this.paths.staging, `skill-replaced-${inspection.digest.slice(0, 16)}-${Date.now()}`);
         fs.renameSync(destination, replacedTrash);
+      }
+      if (compatibilityIdentity && compatibilityIdentity.packagePath !== destination) {
+        this.assertManagedPackagePath(compatibilityIdentity.packagePath);
+        if (fs.existsSync(compatibilityIdentity.packagePath)) {
+          compatibilityTrash = path.join(
+            this.paths.staging,
+            `skill-identity-${inspection.digest.slice(0, 16)}-${Date.now()}`
+          );
+          fs.renameSync(compatibilityIdentity.packagePath, compatibilityTrash);
+        }
       }
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.renameSync(stagingRoot, destination);
@@ -391,11 +421,17 @@ export class SkillPackageService {
         skillUpdatePolicy: "manual",
         installedAt: new Date().toISOString()
       };
-      const installed = this.repository.upsert(record);
+      const installed = compatibilityIdentity
+        ? this.repository.replaceIdentity(compatibilityIdentity.key, record)
+        : this.repository.upsert(record);
       // Registry commit is the transaction boundary. Old package bytes are
       // best-effort cleanup after the new record is durable.
       if (replacedTrash) {
         try { fs.rmSync(replacedTrash, { recursive: true, force: true }); }
+        catch { /* A later staging cleanup may remove this inert backup. */ }
+      }
+      if (compatibilityTrash) {
+        try { fs.rmSync(compatibilityTrash, { recursive: true, force: true }); }
         catch { /* A later staging cleanup may remove this inert backup. */ }
       }
       return installed;
@@ -408,6 +444,12 @@ export class SkillPackageService {
       }
       if (replacedTrash && fs.existsSync(replacedTrash)) {
         fs.renameSync(replacedTrash, destination);
+      }
+      if (compatibilityTrash && compatibilityIdentity
+        && !fs.existsSync(compatibilityIdentity.packagePath)
+        && fs.existsSync(compatibilityTrash)) {
+        fs.mkdirSync(path.dirname(compatibilityIdentity.packagePath), { recursive: true });
+        fs.renameSync(compatibilityTrash, compatibilityIdentity.packagePath);
       }
       throw error;
     } finally {
@@ -767,10 +809,49 @@ function isWritableLayoutCategory(category: OpenmindEntryCategory): boolean {
 }
 
 function hasSkillDescriptor(sourcePath: string): boolean {
-  return [MANIFEST_FILE, LEGACY_FILE].some((name) => {
+  return [...MANIFEST_FILES, LEGACY_FILE].some((name) => {
     const candidate = path.join(sourcePath, name);
-    try { return fs.statSync(candidate).isFile(); } catch { return false; }
+    return isRegularFile(candidate);
   });
+}
+
+/**
+ * `cctools.skill.yaml` is the public source contract. Internally the app keeps
+ * using its frozen v1 schema, so translate the two renamed vocabulary fields
+ * at the read boundary and leave legacy `openmind.skill.yaml` untouched.
+ */
+function normalizeManifestDocument(value: unknown, manifestFile: string): unknown {
+  if (manifestFile !== PRIMARY_MANIFEST_FILE || !isRecord(value)) return value;
+  const capabilities = value.capabilities;
+  if (value.apiVersion !== "cctools.dev/skill/v1"
+    || !isRecord(capabilities)
+    || !Object.prototype.hasOwnProperty.call(capabilities, "mymind")
+    || Object.prototype.hasOwnProperty.call(capabilities, "openmind")) {
+    return { ...value, apiVersion: "invalid-cctools-manifest-dialect" };
+  }
+  const normalized: Record<string, unknown> = {
+    ...value,
+    apiVersion: "openmind.dev/skill/v1"
+  };
+  const { mymind, ...otherCapabilities } = capabilities;
+  normalized.capabilities = { ...otherCapabilities, openmind: mymind };
+  if (isRecord(value.config)) {
+    normalized.config = Object.fromEntries(Object.entries(value.config).map(([name, field]) => [
+      name,
+      isRecord(field) && field.type === "path-mymind"
+        ? { ...field, type: "path-openmind" }
+        : field
+    ]));
+  }
+  return normalized;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRegularFile(candidate: string): boolean {
+  try { return fs.statSync(candidate).isFile(); } catch { return false; }
 }
 
 function isZipSource(sourcePath: string): boolean {

@@ -113,13 +113,13 @@ final result: passed
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-547e0812-8eb4-438a-bd1c-591290363429.png`（原资料来源页，2048 × 1152）
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-600816ba-8aa1-4427-941c-c0c22f6f4d22.png`（原运行记录页，2048 × 1152）
 - Implementation screenshots:
-  - `desktop-app/design-qa/skill-detail-context-after.png`
-  - `desktop-app/design-qa/sources-settings-after.png`
-  - `desktop-app/design-qa/runs-center-after.png`
+  - `design-qa/skill-detail-context-after.png`
+  - `design-qa/sources-settings-after.png`
+  - `design-qa/runs-center-after.png`
 - Normalized comparisons:
-  - `desktop-app/design-qa/compare-skills.png`
-  - `desktop-app/design-qa/compare-sources-skill-ia.png`
-  - `desktop-app/design-qa/compare-runs.png`
+  - `design-qa/compare-skills.png`
+  - `design-qa/compare-sources-skill-ia.png`
+  - `design-qa/compare-runs.png`
 - Viewport: 2048 × 1152 CSS px, device density 1. Source and implementation are both 2048 × 1152; comparison images scale each side to 1024 × 576 before horizontal stacking.
 - State: light theme, browser preview data, Skill detail expanded and filtered-source context where available.
 
@@ -174,8 +174,8 @@ final result: blocked
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-bf1e3734-a71c-4515-985f-0aecdce311d9.png` (permission-success toast to remove; 3840 × 2088)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-ef6ed899-98a3-4022-ac09-60b5212af889.png` (terminal titlebar and expand-control baseline to remove; 3840 × 2088)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-46dec1a9-d600-4de4-8d98-b08778c37396.png` (authoritative simple code-block treatment; 1395 × 693)
-- Implementation screenshot: `desktop-app/design-qa/ai-code-block-simple-1366x768.png` (1366 × 741 content pixels from a 1366 × 768 Electron window, CSS density 1)
-- Focused normalized comparison: `desktop-app/design-qa/ai-code-block-focus-comparison.png` (1010 × 247; source and implementation blocks normalized to the same width)
+- Implementation screenshot: `design-qa/ai-code-block-simple-1366x768.png` (1366 × 741 content pixels from a 1366 × 768 Electron window, CSS density 1)
+- Focused normalized comparison: `design-qa/ai-code-block-focus-comparison.png` (1010 × 247; source and implementation blocks normalized to the same width)
 - State: light theme, completed AI response with two fenced `text` blocks; the first block is fully visible and the second verifies multi-line growth inside the conversation scroller.
 
 ### Full-view comparison evidence
@@ -221,8 +221,8 @@ final result: passed
 - Source visual truth:
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a622f50e-e9a6-4363-80e8-fb7fdb782262.png` (reported OpenMind control with unread count)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-a96672b1-fea0-425d-87f2-7c91dc39e1e1.png` (authoritative Codex control)
-- Implementation screenshot: `desktop-app/design-qa/scroll-to-bottom-codex-match-2026-07-22.jpg`
-- Focused comparison evidence: `desktop-app/design-qa/scroll-to-bottom-codex-comparison-2026-07-22.png`
+- Implementation screenshot: `design-qa/scroll-to-bottom-codex-match-2026-07-22.jpg`
+- Focused comparison evidence: `design-qa/scroll-to-bottom-codex-comparison-2026-07-22.png`
 - Viewport: 1550 × 1015 CSS pixels, matching the reported OpenMind capture at its 1.5 display scale; light theme; browser-preview data with a long-conversation scroll state.
 
 ### Full-view comparison evidence
@@ -262,12 +262,12 @@ final result: passed
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-023095e7-edc6-4d5f-8c1e-25c9a55d14de.png` (authoritative main-interface typography)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-60ebf065-74f6-4d51-b6ca-013894216ed5.png` (reported Settings baseline)
 - Implementation screenshots:
-  - `desktop-app/design-qa/settings-typography-1546x1012.jpg`
-  - `desktop-app/design-qa/settings-typography-dark-1546x1012.jpg`
+  - `design-qa/settings-typography-1546x1012.jpg`
+  - `design-qa/settings-typography-dark-1546x1012.jpg`
 - Combined comparison evidence:
-  - `desktop-app/design-qa/settings-typography-reference-comparison.png`
-  - `desktop-app/design-qa/settings-typography-focus-comparison.png`
-  - `desktop-app/design-qa/settings-typography-before-after.png`
+  - `design-qa/settings-typography-reference-comparison.png`
+  - `design-qa/settings-typography-focus-comparison.png`
+  - `design-qa/settings-typography-before-after.png`
 - Viewport: 1546 × 1012 CSS pixels, matching the 2319 × 1518 source rasters at the source's 1.5 display scale; light and dark themes; browser-preview data.
 
 ### Full-view comparison evidence
@@ -313,8 +313,8 @@ final result: passed
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-16c4e5f4-51ca-49ee-bbc8-dd6359dd39ea.png` (Codex compact window)
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-71e23580-8b66-423e-8176-e7aa295deb5b.png` (reported early AI-only state)
 - Implementation screenshots:
-  - `desktop-app/design-qa/responsive-motion-compact-docked-1440.png`
-  - `desktop-app/design-qa/responsive-motion-compact-docked-900.png`
+  - `design-qa/responsive-motion-compact-docked-1440.png`
+  - `design-qa/responsive-motion-compact-docked-900.png`
 - Viewports: 1440 × 800, 900 × 800, and 840 × 800 CSS pixels; light theme; browser-preview data.
 - The source capture is a higher-DPR Electron screenshot, so the comparison normalizes by responsive state and panel relationship rather than raw image pixels.
 - Latest evidence in this section supersedes all older overlay companion evidence below.
@@ -376,15 +376,15 @@ final result: passed
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-06df3966-ebe7-4ccf-86c1-cce812b17076.png`
   - `C:/Users/say/AppData/Local/Temp/codex-clipboard-4ac24b67-8c8e-4584-94f3-6b73a60a4379.png`
 - Implementation screenshots:
-  - `desktop-app/design-qa/responsive-codex-wide-1356.png`
-  - `desktop-app/design-qa/responsive-codex-medium-834.png`
-  - `desktop-app/design-qa/responsive-codex-narrow-720.png`
-  - `desktop-app/design-qa/responsive-ai-companion-720.png`
-  - `desktop-app/design-qa/responsive-companion-stable-1100.png`
+  - `design-qa/responsive-codex-wide-1356.png`
+  - `design-qa/responsive-codex-medium-834.png`
+  - `design-qa/responsive-codex-narrow-720.png`
+  - `design-qa/responsive-ai-companion-720.png`
+  - `design-qa/responsive-companion-stable-1100.png`
 - Normalized comparisons:
-  - `desktop-app/design-qa/responsive-codex-wide-comparison.png`
-  - `desktop-app/design-qa/responsive-codex-medium-comparison.png`
-  - `desktop-app/design-qa/responsive-codex-narrow-comparison.png`
+  - `design-qa/responsive-codex-wide-comparison.png`
+  - `design-qa/responsive-codex-medium-comparison.png`
+  - `design-qa/responsive-codex-narrow-comparison.png`
 - Viewports: 1356 × 1046, 834 × 1046, and 720 × 1034; light theme; browser-preview data.
 
 ### Full-view comparison evidence
@@ -484,10 +484,10 @@ final result: passed
 
 # New-task homepage audit follow-up QA — 2026-07-12
 
-- Source visual truth: `/home/say/work/github/cctools/.sisyphus/design-audits/2026-07-12-home-comparison/01-cctool-home.png`
-- Implementation screenshot: `/home/say/work/github/cctools/desktop-app/design-qa/home-audit-final-1280x720.png`
-- Expanded navigation and active prompt evidence: `/home/say/work/github/cctools/desktop-app/design-qa/home-audit-expanded-1280x720.png`
-- Recent-task flyout evidence: `/home/say/work/github/cctools/desktop-app/design-qa/home-audit-history-1280x720.png`
+- Source visual truth: historical comparison image retained outside this source repository
+- Implementation screenshot: `design-qa/home-audit-final-1280x720.png`
+- Expanded navigation and active prompt evidence: `design-qa/home-audit-expanded-1280x720.png`
+- Recent-task flyout evidence: `design-qa/home-audit-history-1280x720.png`
 - Viewport: implementation 1280 × 720; source 2048 × 1422. Both show the light-theme, new-task empty state. The source viewport could not be normalized in the browser, so the comparison uses visible proportions and interaction hierarchy rather than pixel-level coordinates.
 - State: collapsed navigation by default, empty new task, no active input focus; expanded, prompt-selected, and recent-task states were checked separately.
 
@@ -540,10 +540,10 @@ final result: passed
 
 # 资料库布局重构 QA — 2026-07-12
 
-- Source visual truth: `/home/say/work/github/cctools/desktop-app/design-qa/sources-layout-reference.png`
-- Implementation screenshot: `/home/say/work/github/cctools/desktop-app/design-qa/sources-layout-browser-final.png`
-- Normalized full-view comparison: `/home/say/work/github/cctools/desktop-app/design-qa/sources-layout-comparison-1280.png`
-- Focused content comparison: `/home/say/work/github/cctools/desktop-app/design-qa/sources-layout-focused-comparison.png`
+- Source visual truth: `design-qa/sources-layout-reference.png`
+- Implementation screenshot: `design-qa/sources-layout-browser-final.png`
+- Normalized full-view comparison: `design-qa/sources-layout-comparison-1280.png`
+- Focused content comparison: `design-qa/sources-layout-focused-comparison.png`
 - Viewport: browser implementation captured at 1280 × 720; supplied 1680 × 945 reference normalized to the same 16:9 comparison size. The responsive layout was also inspected at 1680 × 945.
 - State: light theme, browser-preview data, “全部”筛选，未展开添加或批量管理面板。
 
@@ -594,8 +594,8 @@ final result: passed
 # WorkBuddy optical typography match QA — 2026-07-12
 
 - Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-885261f5-764e-41ae-ad19-1fe239971f5b.png`
-- Implementation screenshot: `/home/say/work/github/cctools/desktop-app/design-qa/sidebar-optical-match-final.png`
-- Normalized side-by-side comparison: `/home/say/work/github/cctools/desktop-app/design-qa/compare-workbuddy-optical-match.png`
+- Implementation screenshot: `design-qa/sidebar-optical-match-final.png`
+- Normalized side-by-side comparison: `design-qa/compare-workbuddy-optical-match.png`
 - Viewport: 1280 × 720, light theme; WorkBuddy crop normalized from the same Windows screenshot scale to a 260px CSS sidebar.
 - State: expanded Daily Brief navigation with active row, recent task, and Settings visible.
 
@@ -784,8 +784,8 @@ final result: passed
 # WorkBuddy composer parity QA — 2026-07-12
 
 - Source visual truth: `C:/Users/say/AppData/Local/Temp/codex-clipboard-33707b1f-2078-4dc0-b3bb-918276e8b3b0.png`
-- Implementation screenshot: `/home/say/work/github/cctools/desktop-app/design-qa/composer-workbuddy-final-1280x720.png`
-- Focused interaction screenshot: `/home/say/work/github/cctools/desktop-app/design-qa/composer-workbuddy-permission-open-1280x720.png`
+- Implementation screenshot: `design-qa/composer-workbuddy-final-1280x720.png`
+- Focused interaction screenshot: `design-qa/composer-workbuddy-permission-open-1280x720.png`
 - Viewport: 1280 × 720, light theme, expanded navigation; source is 2048 × 1430 and was normalized by viewport width for proportion checks.
 - State: empty new task; model control idle; permission control tested both closed and expanded.
 

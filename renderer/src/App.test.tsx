@@ -159,7 +159,11 @@ describe("App bootstrap", () => {
     });
 
     render(<App />);
-    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
+    await screen.findByRole(
+      "heading",
+      { level: 2, name: "选择 OpenMind 数据目录" },
+      { timeout: LAZY_ROUTE_TIMEOUT_MS }
+    );
 
     for (const shortcut of [
       { key: "k", ctrlKey: true },
@@ -291,8 +295,8 @@ describe("App bootstrap", () => {
 
     await waitFor(() => expect(bootstrapCalls).toBe(2));
     await waitFor(() => expect(screen.queryAllByText("Root A Session")).toHaveLength(0));
-    expect(document.querySelector(".settings-page")).toBeNull();
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.querySelector(".settings-page")).toBeNull();
     expect(document.querySelector(".creative-workspace-page")).toBeNull();
   }, 15_000);
 

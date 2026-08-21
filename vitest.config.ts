@@ -10,7 +10,7 @@ import path from "node:path";
  * 当 root=renderer 时,electron/ 与 shared/ 这两个目录在 root 之外,coverage instrumenter
  * 不会插桩它们,导致覆盖率恒为 0。
  *
- * 这里把 root 设为项目根(desktop-app/),让 renderer/electron/shared 三处的源码都能被
+ * 这里把 root 设为项目根,让 renderer/electron/shared 三处的源码都能被
  * 正常插桩与统计。
  */
 export default defineConfig({

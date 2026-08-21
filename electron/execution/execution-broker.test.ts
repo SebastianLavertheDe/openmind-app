@@ -48,6 +48,25 @@ describe("ExecutionBroker", () => {
     expect(broker.events(run.id).map((event) => event.state)).not.toContain("waiting_execution_consent");
     expect(broker.events(run.id).find((event) => event.text?.includes("sk-secret"))).toBeUndefined();
     expect(fs.readFileSync(path.join(paths.runs, run.id, "run.json"), "utf8")).not.toContain("20260805");
+    const environment = JSON.parse(fs.readFileSync(path.join(packageRoot, "environment.json"), "utf8"));
+    expect(environment).toMatchObject({
+      CCTOOLS_RUN_ID: run.id,
+      CCTOOLS_SKILL_ID: "example-skill",
+      CCTOOLS_SKILL_VERSION: "1.0.0",
+      CCTOOLS_SKILL_HOME: packageRoot,
+      CCTOOLS_SKILL_DATA_DIR: path.join(openmindRoot, ".agent", "skill-data", "example-skill"),
+      CCTOOLS_RUN_DIR: path.join(paths.runs, run.id, "work"),
+      CCTOOLS_MYMIND_ROOT: openmindRoot,
+      CCTOOLS_ROOT_GENERATION: "1",
+      CCTOOLS_MANAGED_RUN: "1",
+      CCTOOLS_APP_USER_DATA: paths.userData,
+      MYMIND_ROOT: openmindRoot,
+      OPENMIND_ROOT: openmindRoot,
+      OPENMIND_MANAGED_RUN: "1"
+    });
+    expect(environment.OPENMIND_SKILL_DATA_DIR).toBe(
+      path.join(openmindRoot, ".agent", "skill-data", "example-skill")
+    );
   });
 
   it("accepts a compatible semver range returned by an execution plan", async () => {
@@ -196,8 +215,11 @@ function plan(
   overrides: (Partial<ExecutionPlan["process"]> & Pick<Partial<ExecutionPlan>, "mutexes" | "retry" | "credentialIds" | "acquireRuntime" | "releaseRuntime"> & { script?: string }) = {}
 ): ExecutionPlan {
   const output = path.join(openmindRoot, "daily-summary", "out.md");
+  const environmentOutput = path.join(packageRoot, "environment.json");
   const { script: overrideScript, acquireRuntime, releaseRuntime, ...processOverrides } = overrides;
-  const script = overrideScript || (processOverrides.args ? String(processOverrides.args[1]) : `require('fs').mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});require('fs').writeFileSync(${JSON.stringify(output)},'done');console.log('api-key=sk-secret')`);
+  const script = overrideScript || (processOverrides.args
+    ? String(processOverrides.args[1])
+    : `const fs=require('fs');fs.mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});fs.writeFileSync(${JSON.stringify(output)},'done');fs.writeFileSync(${JSON.stringify(environmentOutput)},JSON.stringify(process.env));console.log('api-key=sk-secret')`);
   return {
     skillId: "example-skill",
     version: "1.0.0",

@@ -2,9 +2,10 @@ const { contextBridge } = require("electron");
 
 const now = "2026-06-17T02:20:00.000Z";
 const date = "20260617";
-const repoRoot = "/home/say/work/github/cctools";
+const repoRoot = "/fixtures/openmind-data";
+const openmindRoot = `${repoRoot}/openmind`;
 const longPath = "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
-const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /home/say/work/github/cctools/openmind/post/20260617/posts.json && ls -la /home/say/work/github/cctools/openmind/post/20260617/posts.json'"`;
+const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\fixtures\openmind-data\openmind\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /fixtures/openmind-data/openmind/post/20260617/posts.json && ls -la /fixtures/openmind-data/openmind/post/20260617/posts.json'"`;
 let visualMode = "normal";
 let approvalResolved = false;
 
@@ -169,7 +170,7 @@ const runs = [
   { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: "总结规模验证报告", contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
-const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\home\say\work\github\openmind\openmind\daily-summary\20260617_daily_summary.md`, "/home/say/work/github/cctools/openmind/post/20260617/posts.json"], createdAt: now, status: "pending" };
+const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\fixtures\openmind-data\openmind\daily-summary\20260617_daily_summary.md`, "/fixtures/openmind-data/openmind/post/20260617/posts.json"], createdAt: now, status: "pending" };
 
 const aiSnapshot = { projectRoot: repoRoot, providers, sessions, runs, pendingApprovals: [approval] };
 
@@ -184,21 +185,21 @@ const aiEvents = [
   event("e8", 2, "session-2", "run-ai-2", "reasoning-summary", { text: "我会先核对会话、事件与输出重组指标，再运行对应测试，确认长会话在桌面端仍然保持稳定。" }),
   event("tools-1-start", 3, "session-2", "run-ai-2", "tool-start", { itemId: "source-files", tool: "Glob", input: { pattern: "renderer/src/**/*.tsx", path: "desktop-app" } }),
   event("tools-1-done", 4, "session-2", "run-ai-2", "tool-complete", { itemId: "source-files", output: "renderer/src/features/ai-console/Chat.tsx" }),
-  event("tools-2-start", 5, "session-2", "run-ai-2", "tool-start", { itemId: "group-usage", tool: "Grep", input: { pattern: "command-group", path: "desktop-app/renderer/src" } }),
+  event("tools-2-start", 5, "session-2", "run-ai-2", "tool-start", { itemId: "group-usage", tool: "Grep", input: { pattern: "command-group", path: "renderer/src" } }),
   event("tools-2-done", 6, "session-2", "run-ai-2", "tool-complete", { itemId: "group-usage", output: "renderer/src/features/ai-console/tool.tsx" }),
-  event("tools-3-start", 7, "session-2", "run-ai-2", "tool-start", { itemId: "chat-source", tool: "Read", input: { file_path: "desktop-app/renderer/src/features/ai-console/Chat.tsx" } }),
+  event("tools-3-start", 7, "session-2", "run-ai-2", "tool-start", { itemId: "chat-source", tool: "Read", input: { file_path: "renderer/src/features/ai-console/Chat.tsx" } }),
   event("tools-3-done", 8, "session-2", "run-ai-2", "tool-complete", { itemId: "chat-source", output: "TraceStepBlocks groups adjacent tool steps." }),
   event("tools-4-start", 9, "session-2", "run-ai-2", "tool-start", { itemId: "style-files", tool: "Glob", input: { pattern: "renderer/src/styles/**/*.css", path: "desktop-app" } }),
   event("tools-4-done", 10, "session-2", "run-ai-2", "tool-complete", { itemId: "style-files", output: "renderer/src/styles/features/ai-console.css" }),
-  event("tools-5-start", 11, "session-2", "run-ai-2", "tool-start", { itemId: "tool-styles", tool: "Grep", input: { pattern: "grouped-command", path: "desktop-app/renderer/src" } }),
+  event("tools-5-start", 11, "session-2", "run-ai-2", "tool-start", { itemId: "tool-styles", tool: "Grep", input: { pattern: "grouped-command", path: "renderer/src" } }),
   event("tools-5-done", 12, "session-2", "run-ai-2", "tool-complete", { itemId: "tool-styles", output: "renderer/src/styles.css" }),
-  event("tools-6-start", 13, "session-2", "run-ai-2", "tool-start", { itemId: "tool-source", tool: "Read", input: { file_path: "desktop-app/renderer/src/features/ai-console/tool.tsx" } }),
+  event("tools-6-start", 13, "session-2", "run-ai-2", "tool-start", { itemId: "tool-source", tool: "Read", input: { file_path: "renderer/src/features/ai-console/tool.tsx" } }),
   event("tools-6-done", 14, "session-2", "run-ai-2", "tool-complete", { itemId: "tool-source", output: "CommandGroup renders compact tool rows." }),
   event("tools-7-start", 15, "session-2", "run-ai-2", "tool-start", { itemId: "test-files", tool: "Glob", input: { pattern: "renderer/src/**/*.test.tsx", path: "desktop-app" } }),
   event("tools-7-done", 16, "session-2", "run-ai-2", "tool-complete", { itemId: "test-files", output: "renderer/src/components/Chat.test.tsx" }),
   event("tools-8-start", 17, "session-2", "run-ai-2", "tool-start", { itemId: "message-usage", tool: "Grep", input: { pattern: "commandGroupRan", path: "desktop-app" } }),
   event("tools-8-done", 18, "session-2", "run-ai-2", "tool-complete", { itemId: "message-usage", output: "shared/messages/zh-CN/ai.ts" }),
-  event("tools-9-start", 19, "session-2", "run-ai-2", "tool-start", { itemId: "messages", tool: "Read", input: { file_path: "desktop-app/shared/messages/zh-CN/ai.ts" } }),
+  event("tools-9-start", 19, "session-2", "run-ai-2", "tool-start", { itemId: "messages", tool: "Read", input: { file_path: "shared/messages/zh-CN/ai.ts" } }),
   event("tools-9-done", 20, "session-2", "run-ai-2", "tool-complete", { itemId: "messages", output: "Tool group labels are localized." }),
   event("tools-10-start", 21, "session-2", "run-ai-2", "tool-start", { itemId: "snapshots", tool: "Glob", input: { pattern: "scripts/visual-snapshot*.js", path: "desktop-app" } }),
   event("tools-10-done", 22, "session-2", "run-ai-2", "tool-complete", { itemId: "snapshots", output: "scripts/visual-snapshot-electron.js" }),
@@ -244,9 +245,13 @@ const preferences = {
 const api = {
   getBootstrap: async () => ({
     repoRoot,
+    openmindRoot,
+    workspaceRoot: repoRoot,
     validRepo: true,
+    skillsInstalled: true,
+    onboardingCompleted: true,
     runtime: "Linux Visual Snapshot",
-    environment: { mode: "desktop" },
+    environment: { mode: "desktop", platform: "linux" },
     overview: { repoRoot, metrics: { articles: 18, posts: 12, reddit: 6, summaries: 1 }, recent: contentItems },
     skills: skillDefinitions(),
     ai: currentAiSnapshot()

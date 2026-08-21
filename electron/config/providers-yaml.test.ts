@@ -7,11 +7,12 @@ import type { ProviderProtocol, ProviderYamlInputEntry, ProvidersYamlInput } fro
 const originalWorkspaceRoot = process.env.OPENMIND_WORKSPACE_ROOT;
 const originalOpenmindRoot = process.env.OPENMIND_ROOT;
 const originalUserDataDir = process.env.OPENMIND_USER_DATA_DIR;
-const repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-repo-"));
-const separateOpenmind = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-openmind-"));
+const repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-data-"));
+const separateWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-workspace-"));
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-user-data-"));
-process.env.OPENMIND_WORKSPACE_ROOT = repo;
-process.env.OPENMIND_ROOT = separateOpenmind;
+fs.mkdirSync(path.join(repo, "openmind"), { recursive: true });
+process.env.OPENMIND_WORKSPACE_ROOT = separateWorkspace;
+process.env.OPENMIND_ROOT = path.join(repo, "openmind");
 process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 
 vi.mock("electron", () => ({ app: { getPath: () => userDataDir } }));
@@ -34,7 +35,7 @@ afterAll(() => {
   if (originalUserDataDir === undefined) delete process.env.OPENMIND_USER_DATA_DIR;
   else process.env.OPENMIND_USER_DATA_DIR = originalUserDataDir;
   fs.rmSync(repo, { recursive: true, force: true });
-  fs.rmSync(separateOpenmind, { recursive: true, force: true });
+  fs.rmSync(separateWorkspace, { recursive: true, force: true });
   fs.rmSync(userDataDir, { recursive: true, force: true });
 });
 
@@ -105,6 +106,21 @@ describe("config/providers.yaml file repository", () => {
       "secret-codex-primary"
     ]);
     expect(config.readProvidersYaml()?.providers.every((provider) => provider.name.endsWith(" updated"))).toBe(true);
+  });
+
+  it("resolves an explicit openmind snapshot and emits both provider env namespaces", () => {
+    config.saveProvidersFromInput(providerDocument());
+    const explicitRoot = path.join(repo, "openmind");
+
+    expect(config.providersYamlPath(explicitRoot)).toBe(path.join(repo, "config", "providers.yaml"));
+    expect(config.readDefaultProviderEnv(explicitRoot).env).toMatchObject({
+      CCTOOLS_PROVIDER_API_KEY: "secret-general-chat",
+      CCTOOLS_PROVIDER_BASE_URL: "https://general-chat.example.com/v1/chat/completions",
+      CCTOOLS_PROVIDER_MODEL: "model-general-chat",
+      OPENMIND_PROVIDER_API_KEY: "secret-general-chat",
+      OPENMIND_PROVIDER_BASE_URL: "https://general-chat.example.com/v1/chat/completions",
+      OPENMIND_PROVIDER_MODEL: "model-general-chat"
+    });
   });
 
   it("returns a UI view that reports key presence without leaking plaintext keys", () => {

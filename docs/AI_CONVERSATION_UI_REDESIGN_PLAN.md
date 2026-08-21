@@ -35,33 +35,33 @@ Date: 2026-06-18
 
 Desktop app target:
 
-- `desktop-app/renderer/src/features/ai-console/Chat.tsx`
-- `desktop-app/renderer/src/features/ai-console/message.tsx`
-- `desktop-app/renderer/src/features/ai-console/tool.tsx`
-- `desktop-app/renderer/src/features/ai-console/thought.tsx`
-- `desktop-app/renderer/src/features/ai-console/timeline.ts`
-- `desktop-app/renderer/src/features/ai-console/approval.tsx`
-- `desktop-app/renderer/src/features/ai-console/diff.tsx`
-- `desktop-app/renderer/src/features/ai-console/types.ts`
-- `desktop-app/renderer/src/features/ai-console/AiWorkbench.tsx`
-- `desktop-app/renderer/src/styles/components.css`
-- `desktop-app/renderer/src/styles/product.css`
-- `desktop-app/renderer/src/styles/responsive.css`
-- `desktop-app/electron/ai/providers/codex-app-server.ts`
-- `desktop-app/electron/ai/providers/types.ts`
-- `desktop-app/shared/contracts.ts`
+- `renderer/src/features/ai-console/Chat.tsx`
+- `renderer/src/features/ai-console/message.tsx`
+- `renderer/src/features/ai-console/tool.tsx`
+- `renderer/src/features/ai-console/thought.tsx`
+- `renderer/src/features/ai-console/timeline.ts`
+- `renderer/src/features/ai-console/approval.tsx`
+- `renderer/src/features/ai-console/diff.tsx`
+- `renderer/src/features/ai-console/types.ts`
+- `renderer/src/features/ai-console/AiWorkbench.tsx`
+- `renderer/src/styles/components.css`
+- `renderer/src/styles/product.css`
+- `renderer/src/styles/responsive.css`
+- `electron/ai/providers/codex-app-server.ts`
+- `electron/ai/providers/types.ts`
+- `shared/contracts.ts`
 
 Codex reference:
 
-- `/home/say/work/github/codex/codex-rs/tui/src/chatwidget/protocol.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/chatwidget/streaming.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/chatwidget/command_lifecycle.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/chatwidget/tool_lifecycle.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/history_cell/mod.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/history_cell/messages.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/history_cell/mcp.rs`
-- `/home/say/work/github/codex/codex-rs/tui/src/exec_cell/render.rs`
-- `/home/say/work/github/codex/codex-rs/app-server-protocol/src/protocol/v2/item.rs`
+- `codex-rs/tui/src/chatwidget/protocol.rs`
+- `codex-rs/tui/src/chatwidget/streaming.rs`
+- `codex-rs/tui/src/chatwidget/command_lifecycle.rs`
+- `codex-rs/tui/src/chatwidget/tool_lifecycle.rs`
+- `codex-rs/tui/src/history_cell/mod.rs`
+- `codex-rs/tui/src/history_cell/messages.rs`
+- `codex-rs/tui/src/history_cell/mcp.rs`
+- `codex-rs/tui/src/exec_cell/render.rs`
+- `codex-rs/app-server-protocol/src/protocol/v2/item.rs`
 
 ## Codex 对齐点
 

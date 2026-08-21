@@ -519,7 +519,7 @@ Batch A's process entrypoints now use the final path overlay contract:
 scripts no longer walk `__file__` ancestors or search for a openmind repository;
 relative content paths are checked below the bound root, writing-package
 metadata stays root-relative, and Reddit cache is separated from openmind
-output. `desktop-app/scripts/test_batch_a_skill_overlays.py` runs six
+output. `scripts/test_batch_a_skill_overlays.py` runs six
 cross-entry temporary-root tests from an unrelated working directory.
 
 Batch B now has formal manifests and lockfiles for:
@@ -588,7 +588,7 @@ complete digest plus capability fingerprint, with Runtime preparation performed
 at execution time. This keeps the local integrity path explicit without adding
 publisher signing or a Signed Catalog.
 
-`desktop-app/scripts/test_batch_b_skill_overlays.py` covers the five Batch B
+`scripts/test_batch_b_skill_overlays.py` covers the five Batch B
 configuration/path overlays from an unrelated working directory.
 
 Remaining Phase 6 work:

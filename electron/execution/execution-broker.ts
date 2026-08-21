@@ -253,7 +253,10 @@ export class ExecutionBroker {
     const active = this.active.get(entry.runId);
     if (!active) return;
     const runDir = path.join(this.paths.runs, entry.runId, "work");
-    const skillDataDir = path.join(runDir, "skill-data");
+    // Dedup caches, browser state and other Skill-owned state must survive a
+    // single Run. Keep it beside the installed packages in the bound private
+    // openmind root; only RUN_DIR remains ephemeral and run-scoped.
+    const skillDataDir = path.join(entry.plan.openmindRoot, ".agent", "skill-data", entry.plan.skillId);
     fs.mkdirSync(skillDataDir, { recursive: true });
     let runtimeAcquired = false;
     try {
@@ -403,6 +406,18 @@ function requireProcessPlan(plan: ExecutionPlan): ProcessSpec {
 
 function buildMinimalEnvironment(paths: AppPaths, runId: string, plan: ExecutionPlan, runDir: string, skillDataDir: string): Record<string, string> {
   const standard: Record<string, string> = {
+    CCTOOLS_RUN_ID: runId,
+    CCTOOLS_SKILL_ID: plan.skillId,
+    CCTOOLS_SKILL_VERSION: plan.version,
+    CCTOOLS_SKILL_HOME: plan.skillHome,
+    CCTOOLS_SKILL_DATA_DIR: skillDataDir,
+    CCTOOLS_RUN_DIR: runDir,
+    CCTOOLS_MYMIND_ROOT: plan.openmindRoot,
+    CCTOOLS_ROOT_GENERATION: String(plan.rootGeneration),
+    CCTOOLS_ARTIFACT_MANIFEST: JSON.stringify(plan.artifacts || []),
+    CCTOOLS_MANAGED_RUN: "1",
+    // Transitional direct-run code also recognizes the neutral root name.
+    MYMIND_ROOT: plan.openmindRoot,
     OPENMIND_RUN_ID: runId,
     OPENMIND_SKILL_ID: plan.skillId,
     OPENMIND_SKILL_VERSION: plan.version,
@@ -414,7 +429,12 @@ function buildMinimalEnvironment(paths: AppPaths, runId: string, plan: Execution
     OPENMIND_ARTIFACT_MANIFEST: JSON.stringify(plan.artifacts || []),
     OPENMIND_MANAGED_RUN: "1"
   };
-  return { ...plan.process.env, ...standard, OPENMIND_APP_USER_DATA: paths.userData };
+  return {
+    ...plan.process.env,
+    ...standard,
+    CCTOOLS_APP_USER_DATA: paths.userData,
+    OPENMIND_APP_USER_DATA: paths.userData
+  };
 }
 
 function rejectSecretLikeInputKeys(inputs: Record<string, unknown>): void {

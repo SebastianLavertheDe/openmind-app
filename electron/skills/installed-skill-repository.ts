@@ -86,6 +86,22 @@ export class InstalledSkillRepository {
     return canonical;
   }
 
+  /** Replace an explicitly named compatibility identity for the same Skill id. */
+  replaceIdentity(previousKey: string, record: InstalledSkillRecord): InstalledSkillRecord {
+    const canonical = validateCurrentRecord(record);
+    const registry = this.read();
+    const previous = registry.records.find((candidate) => candidate.key === previousKey);
+    if (!previous || previous.id !== canonical.id || previous.key === canonical.key) {
+      throw new Error(`Skill identity migration mismatch：${previousKey} → ${canonical.key}`);
+    }
+    registry.records = registry.records.filter((candidate) =>
+      candidate.key !== previousKey && candidate.key !== canonical.key
+    );
+    registry.records.push(canonical);
+    this.write(registry);
+    return canonical;
+  }
+
   remove(key: string, digest?: string): InstalledSkillRecord | undefined {
     const registry = this.read();
     const target = registry.records.find((record) => record.key === key && (!digest || record.digest === digest));

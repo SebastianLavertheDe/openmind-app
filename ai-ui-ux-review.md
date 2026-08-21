@@ -1,6 +1,6 @@
 # AI 工作台 UI/UX Review
 
-> 针对 `desktop-app/renderer/src/features/ai-console/` 的视觉与交互审查。
+> 针对 `renderer/src/features/ai-console/` 的视觉与交互审查。
 > 覆盖静态视觉（字号、圆角、色彩、层次、密度）与动态交互（状态机、过渡、反馈、可发现性、可达性）。
 > 每项标注 `文件:行号`，便于直接定位落地。
 

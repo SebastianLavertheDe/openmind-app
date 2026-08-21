@@ -1,6 +1,6 @@
 # OpenMind Desktop — UI/UX Pro Max Skill 审查报告
 
-> 审查工具：`ui-ux-pro-max` skill (BM25 设计智能引擎,已安装于 `desktop-app/.claude/skills/`)
+> 审查工具：`ui-ux-pro-max` skill (BM25 设计智能引擎,已安装于 `.claude/skills/`)
 > 审查日期：2026-07-09
 > 审查范围：`renderer/` 全部 UI 代码(styles.css + shell/components/features CSS + AppShell 及各 feature 页面)
 > 技术栈：Electron + React 19 + Vite + 原生 CSS(无 Tailwind / 组件库)
@@ -180,4 +180,4 @@ python3 scripts/search.py "developer dark dashboard" --domain color -n 3
 python3 scripts/search.py "rerender memo list performance virtualize" --stack react -n 5
 ```
 
-skill 数据文件位于 `desktop-app/.claude/skills/ui-ux-pro-max/data/`(styles/colors/typography/ux-guidelines/products/stacks 等 CSV),可随时按域检索补充规则。
+skill 数据文件位于 `.claude/skills/ui-ux-pro-max/data/`(styles/colors/typography/ux-guidelines/products/stacks 等 CSV),可随时按域检索补充规则。

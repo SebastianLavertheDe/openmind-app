@@ -18,11 +18,12 @@ import type { AutomationRule } from "@shared/contracts";
 export function installBrowserPreviewApi(): boolean {
   if (window.openmind) return true;
   if (isElectronRenderer()) return false;
+  const previewProjectRoot = "/fixtures/openmind-data";
   const onboardingPreview = new URLSearchParams(window.location.search).get("preview") === "onboarding";
   let previewRootReady = !onboardingPreview;
   let previewSkillsReady = !onboardingPreview;
   let snapshot: AiSnapshot = {
-    projectRoot: "/home/say/work/github/cctools",
+    projectRoot: previewProjectRoot,
     providers: onboardingPreview ? [] : [
       { id: "codex-preview", provider: "codex", label: "Codex · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
       { id: "claude-preview", provider: "claude", label: "Claude Code · Preview", runtime: "native", available: true, version: "preview", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: "glm-5.2[1m]", contextWindow: 1_000_000, installable: false, oneMillion: true }
@@ -31,7 +32,7 @@ export function installBrowserPreviewApi(): boolean {
       schemaVersion: 1,
       id: "preview-session",
       projectId: "preview-project",
-      projectRoot: "/home/say/work/github/cctools",
+      projectRoot: previewProjectRoot,
       provider: "claude",
       providerId: "claude-preview",
       providerSessionId: null,
@@ -67,11 +68,11 @@ export function installBrowserPreviewApi(): boolean {
         runId: "preview-run",
         baseCommit: "preview-base",
         files: [
-          { path: "desktop-app/renderer/src/features/ai-console/AiWorkbench.tsx", status: "modified", additions: 18, deletions: 12, patch: "" },
-          { path: "desktop-app/renderer/src/features/ai-console/diff.tsx", status: "modified", additions: 42, deletions: 28, patch: "" },
-          { path: "desktop-app/renderer/src/styles/features/ai-console.css", status: "modified", additions: 16, deletions: 9, patch: "" },
-          { path: "desktop-app/renderer/src/components/AiWorkbench.test.tsx", status: "modified", additions: 14, deletions: 4, patch: "" },
-          { path: "desktop-app/renderer/src/features/ai-console/diff.test.tsx", status: "modified", additions: 20, deletions: 8, patch: "" }
+          { path: "renderer/src/features/ai-console/AiWorkbench.tsx", status: "modified", additions: 18, deletions: 12, patch: "" },
+          { path: "renderer/src/features/ai-console/diff.tsx", status: "modified", additions: 42, deletions: 28, patch: "" },
+          { path: "renderer/src/styles/features/ai-console.css", status: "modified", additions: 16, deletions: 9, patch: "" },
+          { path: "renderer/src/components/AiWorkbench.test.tsx", status: "modified", additions: 14, deletions: 4, patch: "" },
+          { path: "renderer/src/features/ai-console/diff.test.tsx", status: "modified", additions: 20, deletions: 8, patch: "" }
         ],
         patch: "",
         createdAt: "2026-06-28T08:04:50.000Z",

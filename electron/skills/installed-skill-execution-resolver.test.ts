@@ -18,9 +18,9 @@ import { InstalledSkillExecutionResolver } from "./installed-skill-execution-res
 
 const roots: string[] = [];
 const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../cctools-skills")
 );
-const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "openmind.skill.yaml"));
+const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml"));
 const realSkillIt = HAS_EXTERNAL_SKILLS ? it : it.skip;
 const linuxRealSkillIt = it.skipIf(process.platform !== "linux" || !HAS_EXTERNAL_SKILLS);
 const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
@@ -248,6 +248,25 @@ describe("InstalledSkillExecutionResolver", () => {
     await plan.prepareRuntime?.();
   });
 
+  it("pins provider configuration to the openmind snapshot and exposes both env namespaces", async () => {
+    const fixture = createFixture();
+    const dataRepositoryRoot = path.dirname(fixture.openmindRoot);
+    bindTestProvider(dataRepositoryRoot, 41234, "snapshot-provider-key");
+    process.env.OPENMIND_WORKSPACE_ROOT = path.join(fixture.paths.userData, "unrelated-workspace");
+
+    const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-provider-snapshot");
+    expect(plan.process.env).toMatchObject({
+      CCTOOLS_PROVIDER_API_KEY: "snapshot-provider-key",
+      CCTOOLS_PROVIDER_BASE_URL: "http://127.0.0.1:41234/chat/completions",
+      CCTOOLS_PROVIDER_MODEL: "local-test-model",
+      OPENMIND_PROVIDER_API_KEY: "snapshot-provider-key",
+      OPENMIND_PROVIDER_BASE_URL: "http://127.0.0.1:41234/chat/completions",
+      OPENMIND_PROVIDER_MODEL: "local-test-model"
+    });
+    expect(plan.process.env).not.toHaveProperty("CCTOOLS_PROVIDERS_FILE");
+    expect(plan.process.env).not.toHaveProperty("OPENMIND_PROVIDERS_FILE");
+  });
+
   it("applies declared input defaults before resolving args and artifacts", async () => {
     const fixture = createFixture();
 
@@ -287,6 +306,9 @@ describe("InstalledSkillExecutionResolver", () => {
     }, "run-source-context");
 
     expect(plan.process.env).toMatchObject({
+      CCTOOLS_SOURCE_ID: "source-1",
+      CCTOOLS_SOURCE_URL: "https://example.com/feed",
+      CCTOOLS_SOURCE_NAME: "Example Feed",
       OPENMIND_SOURCE_ID: "source-1",
       OPENMIND_SOURCE_URL: "https://example.com/feed",
       OPENMIND_SOURCE_NAME: "Example Feed"
@@ -895,7 +917,7 @@ describe("InstalledSkillExecutionResolver", () => {
       }
       expect(findMarkdownFiles(path.join(openmindRoot, "wiki")).length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(openmindRoot, "wiki-state"))).toBe(false);
-      expect(fs.existsSync(path.join(paths.runs, run.id, "work", "skill-data", "wiki-state"))).toBe(true);
+      expect(fs.existsSync(path.join(openmindRoot, ".agent", "skill-data", "knowledge-wiki-compiler", "wiki-state"))).toBe(true);
       // AI generation is optional in the current Skill config. If enabled,
       // every request must still receive the scoped credential.
       expect(providerRequests.every((request) => request.authorization === "Bearer wiki-test-credential")).toBe(true);
@@ -1008,7 +1030,7 @@ describe("InstalledSkillExecutionResolver", () => {
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
       const sourceCopy = path.join(paths.staging, "x-source-overlay");
       copyTree(skillSourcePath("x-following-fetcher"), sourceCopy);
-      const sourceManifest = path.join(sourceCopy, "openmind.skill.yaml");
+      const sourceManifest = path.join(sourceCopy, "cctools.skill.yaml");
       fs.writeFileSync(
         sourceManifest,
         fs.readFileSync(sourceManifest, "utf8").replace(

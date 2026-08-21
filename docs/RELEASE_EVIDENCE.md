@@ -15,7 +15,7 @@ It must be updated with dated Windows/macOS evidence before any release claim.
 | Field | Value |
 |---|---|
 | App version | `1.0.24` |
-| Source checkout | `/home/say/work/github/cctools` |
+| Source checkout | standalone `openmind-app` repository |
 | Base commit | `fe6b60e0f` (`main`, worktree is dirty) |
 | Host | Linux `aarch64` |
 | Node used for local checks | `v20.19.6` (packaged Windows script requires Node 22+) |

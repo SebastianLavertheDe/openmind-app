@@ -142,7 +142,7 @@ export const featureMessages = {
         "git-command-failed": "Git 克隆或检查失败，请确认仓库地址可公开访问。",
         "git-timeout": "Git 来源检查超时，请稍后重试。",
         "git-cancelled": "已取消 Git 来源检查。",
-        "git-package-missing": "仓库中没有找到 Skill 包（缺少 openmind.skill.yaml）。",
+        "git-package-missing": "仓库中没有找到 Skill 包（需要 cctools.skill.yaml，兼容 openmind.skill.yaml 或 SKILL.md）。",
         invalid: "来源输入不合法：Git 地址必须是有效的 HTTPS URL。",
         unknown: "来源检查失败。"
       } as Record<string, string>

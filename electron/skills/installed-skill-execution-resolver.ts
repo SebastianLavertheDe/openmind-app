@@ -236,9 +236,14 @@ export class InstalledSkillExecutionResolver {
     if (request.rootGeneration !== this.rootGeneration) throw new InstalledSkillExecutionError("Run root generation 已过期。 ");
     if (manifest.kind === "agent") throw cliOnlyAgentError(manifest.id);
     const packageRoot = canonicalDirectory(record.packagePath);
-    // The single plaintext config/providers.yaml feeds the 7 OPENMIND_PROVIDER_*
-    // env vars; the crontab Python path reads the same file directly.
-    const provider = readDefaultProviderEnv();
+    const openmindRoot = canonicalDirectory(this.openmindRoot);
+    // Resolve provider state against the same frozen root snapshot as content;
+    // never let a later workspace/settings change redirect an admitted run.
+    const provider = readDefaultProviderEnv(openmindRoot);
+    // Managed runs receive only the selected Provider fields. The full YAML
+    // path is reserved for trusted cron/direct runs so a Skill cannot open
+    // unrelated credentials from the private provider file.
+    const providerEnvironment = provider.env;
     const externalBindings: Record<string, ExternalBinding> = {};
     for (const artifact of manifest.artifacts) {
       if (!artifact.externalExportId) continue;
@@ -263,7 +268,7 @@ export class InstalledSkillExecutionResolver {
       digest: record.digest,
       rootGeneration: this.rootGeneration,
       skillHome: packageRoot,
-      openmindRoot: canonicalDirectory(this.openmindRoot),
+      openmindRoot,
       capabilities: manifest.capabilities,
       runtime: {
         target: runtime.target,
@@ -275,7 +280,7 @@ export class InstalledSkillExecutionResolver {
         executable: runtime.executable,
         args: [script, ...args],
         cwd: packageRoot,
-        env: { ...runtime.env, ...manifestEnv.values, ...provider.env },
+        env: { ...runtime.env, ...manifestEnv.values, ...providerEnvironment },
         timeoutMs: manifest.execution.timeoutSeconds * 1000,
         gracefulStopMs: manifest.execution.gracefulStopSeconds * 1000
       },
@@ -292,7 +297,7 @@ export class InstalledSkillExecutionResolver {
         await runtime.prepare();
         // Refresh the process spec with the prepared absolute interpreter.
         plan.process.executable = runtime.executable;
-        plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...provider.env };
+        plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...providerEnvironment };
       }
     };
     return plan;
@@ -394,19 +399,19 @@ function resolveEntrypointEnv(
  * Broker environment as every other input.
  */
 function resolveSourceContextEnv(inputs: Record<string, unknown>): Record<string, string> {
-  const mappings: Record<string, string> = {
-    sourceId: "OPENMIND_SOURCE_ID",
-    sourceUrl: "OPENMIND_SOURCE_URL",
-    sourceName: "OPENMIND_SOURCE_NAME"
+  const mappings: Record<string, string[]> = {
+    sourceId: ["CCTOOLS_SOURCE_ID", "OPENMIND_SOURCE_ID"],
+    sourceUrl: ["CCTOOLS_SOURCE_URL", "OPENMIND_SOURCE_URL"],
+    sourceName: ["CCTOOLS_SOURCE_NAME", "OPENMIND_SOURCE_NAME"]
   };
   const result: Record<string, string> = {};
-  for (const [inputKey, envName] of Object.entries(mappings)) {
+  for (const [inputKey, envNames] of Object.entries(mappings)) {
     const value = inputs[inputKey];
     if (value === undefined) continue;
     if (typeof value !== "string" || value.length > 4096) {
       throw new InstalledSkillExecutionError(`Skill 输入无效：${inputKey}`);
     }
-    result[envName] = value;
+    for (const envName of envNames) result[envName] = value;
   }
   return result;
 }

@@ -10,9 +10,9 @@ import {
 } from "./skill-package-service";
 
 const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../../cctools-skills")
+  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../cctools-skills")
 );
-const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "openmind.skill.yaml")) ? it : it.skip;
+const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml")) ? it : it.skip;
 
 const MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: example-skill
@@ -45,6 +45,11 @@ platforms: [linux-x64]
 compatibility:
   minAppVersion: 1.0.0
 `;
+
+const CCTOOLS_MANIFEST = MANIFEST
+  .replace("apiVersion: openmind.dev/skill/v1", "apiVersion: cctools.dev/skill/v1")
+  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools")
+  .replace("  openmind:\n", "  mymind:\n");
 
 const AGENT_MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: catalog-agent
@@ -137,6 +142,73 @@ describe("SkillPackageService", () => {
     expect(first.excludedPaths).toEqual(expect.arrayContaining([".env", "venv/", "openmind/", "openmind/article/", "openmind/article/user.md"]));
     expect(first.files.map((file) => file.path)).not.toContain(".env");
     expect(first.files.map((file) => file.path)).not.toContain("openmind/article/user.md");
+  });
+
+  it("normalizes the formal cctools manifest vocabulary at the read boundary", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(
+      path.join(source, "cctools.skill.yaml"),
+      CCTOOLS_MANIFEST.replace(
+        "capabilities:\n",
+        "config:\n  inputRoot:\n    type: path-mymind\n    required: false\ncapabilities:\n"
+      )
+    );
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+
+    const inspection = service.inspect(source);
+
+    expect(inspection.valid).toBe(true);
+    expect(inspection.manifest).toMatchObject({
+      apiVersion: "openmind.dev/skill/v1",
+      publisher: { id: "cctools" },
+      config: { inputRoot: { type: "path-openmind" } },
+      capabilities: { openmind: { read: ["article/**"], write: ["daily-summary/**"] } }
+    });
+    expect(inspection.manifest?.capabilities).not.toHaveProperty("mymind");
+  });
+
+  it("deterministically prefers cctools.skill.yaml when both manifest names exist", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(
+      path.join(source, "cctools.skill.yaml"),
+      CCTOOLS_MANIFEST.replace("id: example-skill", "id: preferred-skill")
+    );
+    fs.writeFileSync(
+      path.join(source, "openmind.skill.yaml"),
+      MANIFEST.replace("id: example-skill", "id: fallback-skill")
+    );
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+
+    const inspection = service.inspect(source);
+
+    expect(inspection.valid).toBe(true);
+    expect(inspection.manifest?.id).toBe("preferred-skill");
+    expect(inspection.manifest?.publisher.id).toBe("cctools");
+    expect(inspection.warnings).toContain(
+      "同时检测到 cctools.skill.yaml 与 openmind.skill.yaml；已确定性使用 cctools.skill.yaml。"
+    );
+  });
+
+  it("does not hide an invalid cctools manifest behind a valid compatibility manifest", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(
+      path.join(source, "cctools.skill.yaml"),
+      CCTOOLS_MANIFEST.replace("apiVersion: cctools.dev/skill/v1", "apiVersion: cctools.dev/skill/v2")
+    );
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+
+    const inspection = service.inspect(source);
+
+    expect(inspection.valid).toBe(false);
+    expect(inspection.manifest).toBeUndefined();
+    expect(inspection.issues).toContainEqual(expect.objectContaining({
+      code: "manifest-invalid",
+      path: "cctools.skill.yaml"
+    }));
   });
 
   it("installs only a clean managed copy", () => {
@@ -273,8 +345,8 @@ describe("SkillPackageService", () => {
     expect(video?.manifest?.runtime.lockFile).toBe("uv.lock");
     expect(video?.manifest?.artifacts[0]).toMatchObject({ path: "video/**" });
     const videoScript = fs.readFileSync(path.join(skillsRoot, "video-burnin-subtitles", "scripts", "burnin_subtitles.py"), "utf8");
-    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
-    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
+    expect(videoScript).toContain('os.environ.get("CCTOOLS_MYMIND_ROOT")');
+    expect(videoScript).toContain('os.environ.get("MYMIND_ROOT")');
     expect(videoScript).not.toContain("load_dotenv");
     expect(videoScript).not.toContain("--env-file");
 
@@ -298,19 +370,19 @@ describe("SkillPackageService", () => {
       ["select-topic", "daily-topic-selector", "^1.0.0"]
     ]);
     // Local/cron launcher coexists with the desktop Workflow Engine manifest.
-    // Desktop scheduling still comes only from openmind.skill.yaml above.
+    // Desktop scheduling comes from the preferred cctools.skill.yaml above.
     expect(workflow?.files.map((file) => file.path)).toContain("scripts/run_workflow.py");
     expect(workflow?.files.map((file) => file.path)).toContain("workflows.yaml");
-    expect(workflow?.files.map((file) => file.path)).toContain("openmind.skill.yaml");
+    expect(workflow?.files.map((file) => file.path)).toContain("cctools.skill.yaml");
   });
 
   realSkillIt("installs all formal packages from the independent Skills repository", () => {
     const packageDirectories = fs.readdirSync(EXTERNAL_SKILLS_ROOT, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "openmind.skill.yaml")))
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "cctools.skill.yaml")))
       .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // All 16 skills now have formal openmind.skill.yaml manifests
+    // All 16 skills now have formal cctools.skill.yaml manifests
     // (12 process / 1 workflow / 3 agent). `_shared` has no manifest and is
     // therefore not an install candidate.
     expect(installed.map((record) => record.id).sort()).toEqual([
@@ -336,15 +408,15 @@ describe("SkillPackageService", () => {
 
     const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");
     const sharedProject = fs.readFileSync(path.join(sharedRoot, "pyproject.toml"), "utf8");
-    expect(sharedProject).toContain('name = "openmind-skill-shared"');
+    expect(sharedProject).toContain('name = "cctools-skill-shared"');
     expect(sharedProject).toContain('version = "1.0.0"');
-    expect(fs.existsSync(path.join(sharedRoot, "openmind.skill.yaml"))).toBe(false);
+    expect(fs.existsSync(path.join(sharedRoot, "cctools.skill.yaml"))).toBe(false);
     expect(installed.some((record) => record.id === "_shared")).toBe(false);
   });
 
   it("rejects writes to an unknown openmind top-level", () => {
     const source = createPackage(tempRoot);
-    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("write: [daily-summary/**]", "write: [private-data/**]"));
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), CCTOOLS_MANIFEST.replace("write: [daily-summary/**]", "write: [private-data/**]"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
 
@@ -418,6 +490,33 @@ describe("SkillPackageService", () => {
     expect(fs.readFileSync(path.join(second.packagePath, "run.sh"), "utf8")).toBe("echo v2\n");
 
     expect(service.getInstalled(second.key)?.digest).toBe(second.digest);
+  });
+
+  it("migrates the official installed identity from openmind to cctools", () => {
+    const legacySource = createPackage(tempRoot, "legacy-identity-source");
+    fs.writeFileSync(path.join(legacySource, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(legacySource, "run.sh"), "echo legacy\n");
+    fs.writeFileSync(path.join(legacySource, "pyproject.toml"), "[project]\nname='example'\n");
+    const legacy = service.install(legacySource);
+    service.setEnabled(legacy.key, legacy.digest, false);
+
+    const formalSource = createPackage(tempRoot, "formal-identity-source");
+    fs.writeFileSync(path.join(formalSource, "cctools.skill.yaml"), CCTOOLS_MANIFEST);
+    fs.writeFileSync(path.join(formalSource, "run.sh"), "echo formal\n");
+    fs.writeFileSync(path.join(formalSource, "pyproject.toml"), "[project]\nname='example'\n");
+    const formal = service.install(formalSource);
+
+    expect(formal.key).toBe("cctools/example-skill");
+    expect(formal.packagePath).toBe(path.join(paths.skills!, "cctools", "example-skill"));
+    expect(service.listInstalled()).toEqual([expect.objectContaining({ key: formal.key })]);
+    expect(service.toInstalledView(formal).enabled).toBe(false);
+    expect(fs.existsSync(legacy.packagePath)).toBe(false);
+    expect(fs.readFileSync(path.join(formal.packagePath, "run.sh"), "utf8")).toBe("echo formal\n");
+    expect(service.toInstalledView(service.setEnabled(formal.key, formal.digest, true)).enabled).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(paths.skills!, "skill-preferences.json"), "utf8"))).toEqual({
+      schemaVersion: 1,
+      disabledKeys: []
+    });
   });
 
   it("re-refreshes source provenance when identical content is reinstalled", () => {

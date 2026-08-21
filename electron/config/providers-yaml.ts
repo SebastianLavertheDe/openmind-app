@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
-import { findRepoRoot, resolveExplicitWorkspaceRoot } from "../lib/settings";
+import { findRepoRoot } from "../lib/settings";
 import { writeTextAtomic } from "../lib/fs-utils";
 import {
   PROVIDERS_YAML_SCHEMA_VERSION,
@@ -22,7 +22,8 @@ import {
  * `config/providers.yaml` provider source of truth. The pure schemas/types
  * live in `shared/providers-yaml.ts` (importable from the Renderer); this
  * module owns `fs` access, the repo-root path, atomic writes and the
- * `OPENMIND_PROVIDER_*` env resolution consumed by the Execution Broker.
+ * dual `CCTOOLS_PROVIDER_*` / `OPENMIND_PROVIDER_*` env resolution consumed
+ * by the Execution Broker.
  *
  * Both execution paths — desktop Broker (here) and crontab Python (reads the
  * same YAML directly) — resolve to the same provider.
@@ -33,12 +34,15 @@ import {
 type YamlLoader = { load(input: string, options?: Record<string, unknown>): unknown; dump(value: unknown, options?: Record<string, unknown>): string };
 const yaml = require("js-yaml") as YamlLoader;
 
-/** Absolute path to `config/providers.yaml` inside the active code workspace. */
-export function providersYamlPath(): string {
-  // Provider config belongs to the AI/code workspace, not the openmind
-  // content root (ADR-001); the crontab shares this file, so only an
-  // explicitly bound workspace may move it away from the repo root.
-  return path.join(resolveExplicitWorkspaceRoot() || findRepoRoot(), "config", "providers.yaml");
+/** Absolute path to `config/providers.yaml` beside the active openmind root. */
+export function providersYamlPath(openmindRoot?: string): string {
+  // Provider config belongs to the private data repository, not the App
+  // source or an arbitrary AI/code workspace. A running resolver supplies its
+  // frozen root snapshot explicitly; settings/UI callers use the active root.
+  const dataRepositoryRoot = openmindRoot?.trim()
+    ? path.dirname(path.resolve(openmindRoot))
+    : findRepoRoot();
+  return path.join(dataRepositoryRoot, "config", "providers.yaml");
 }
 
 /**
@@ -47,8 +51,8 @@ export function providersYamlPath(): string {
  * which returns `None`). Throws on a present-but-corrupt file so a malformed
  * config is never silently ignored.
  */
-export function readProvidersYaml(): ProvidersYaml | null {
-  const filePath = providersYamlPath();
+export function readProvidersYaml(openmindRoot?: string): ProvidersYaml | null {
+  const filePath = providersYamlPath(openmindRoot);
   if (!fs.existsSync(filePath)) return null;
   let parsed: unknown;
   try {
@@ -69,14 +73,13 @@ export function readProvidersYaml(): ProvidersYaml | null {
 }
 
 /**
- * Resolve the active default provider into the 7 `OPENMIND_PROVIDER_*` env vars
- * consumed by both the Broker-injected Python process and the legacy direct
- * spawn path. Returns empty env / empty apiKey when no file is configured so
- * that non-AI skills and tests still resolve. Throws when the configured
- * default is disabled or refers to a missing provider.
+ * Resolve the active default provider into both the formal `CCTOOLS_PROVIDER_*`
+ * contract and the legacy `OPENMIND_PROVIDER_*` aliases. Returns empty env /
+ * empty apiKey when no file is configured so non-AI skills and tests still
+ * resolve. Throws when the configured default is disabled or missing.
  */
-export function readDefaultProviderEnv(): { env: Record<string, string>; apiKey: string } {
-  const config = readProvidersYaml();
+export function readDefaultProviderEnv(openmindRoot?: string): { env: Record<string, string>; apiKey: string } {
+  const config = readProvidersYaml(openmindRoot);
   if (!config) return { env: {}, apiKey: "" };
   const byId = new Map(config.providers.map((provider) => [provider.id, provider]));
   const defaultEntry = byId.get(config.default);
@@ -86,7 +89,12 @@ export function readDefaultProviderEnv(): { env: Record<string, string>; apiKey:
   if (!defaultEntry.enabled) {
     throw new Error(`config/providers.yaml 的 default provider 已禁用：${config.default}`);
   }
-  return { env: processProviderEnvironment(defaultEntry), apiKey: defaultEntry.apiKey };
+  const openmindEnv = processProviderEnvironment(defaultEntry);
+  const cctoolsEnv = Object.fromEntries(Object.entries(openmindEnv).map(([name, value]) => [
+    name.replace(/^OPENMIND_PROVIDER_/, "CCTOOLS_PROVIDER_"),
+    value
+  ]));
+  return { env: { ...openmindEnv, ...cctoolsEnv }, apiKey: defaultEntry.apiKey };
 }
 
 /**
