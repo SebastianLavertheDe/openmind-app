@@ -12,8 +12,7 @@ import { ToggleSwitch } from "../../design-system/controls";
 const m = messages.skillCenter;
 
 type SkillItem =
-  | { kind: "installed"; id: string; record: InstalledSkillView; inspection?: SkillPackageInspectionView; workspaceInspections: SkillPackageInspectionView[] }
-  | { kind: "workspace"; id: string; inspection: SkillPackageInspectionView; record?: InstalledSkillView };
+  | { kind: "installed"; id: string; record: InstalledSkillView; inspection?: SkillPackageInspectionView };
 
 type ManifestSummary = {
   id: string;
@@ -37,7 +36,6 @@ type SkillToggleFeedback = {
 };
 
 export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false, onInstallationChange, onAvailabilityChange }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown }) {
-  const [inspections, setInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
   const [installedInspections, setInstalledInspections] = useState<Record<string, SkillPackageInspectionView>>({});
   const [runs, setRuns] = useState<BrokerRunRecord[]>([]);
@@ -55,8 +53,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
   const load = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const [nextInspections, nextInstalled, nextRuns] = await Promise.all([
-        window.openmind.inspectSkillWorkspace(),
+      const [nextInstalled, nextRuns] = await Promise.all([
         window.openmind.listInstalledSkills(),
         window.openmind.listSkillRuns()
       ]);
@@ -74,13 +71,12 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       for (const entry of inspectedInstalled) {
         if (entry) nextInstalledInspections[entry[0]] = entry[1];
       }
-      setInspections(nextInspections);
       setInstalled(nextInstalled);
       setInstalledInspections(nextInstalledInspections);
       setRuns(nextRuns);
       setError(null);
       setSelectedId((current) => {
-        const nextItems = buildItems(nextInspections, nextInstalled, nextInstalledInspections);
+        const nextItems = buildItems(nextInstalled, nextInstalledInspections);
         if (nextItems.some((item) => item.id === current)) return current;
         const requested = nextItems.find((item) => item.kind === "installed" && item.record.id === initialSkillId);
         return requested?.id || nextItems[0]?.id || "";
@@ -104,13 +100,12 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
     await onAvailabilityChange?.();
   }, [load, onAvailabilityChange, onInstallationChange]);
 
-  const items = useMemo(() => buildItems(inspections, installed, installedInspections), [inspections, installed, installedInspections]);
+  const items = useMemo(() => buildItems(installed, installedInspections), [installed, installedInspections]);
   const filteredItems = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return items.filter((item) => {
       const summary = itemSummary(item);
-      const sourcePath = item.kind === "installed" ? item.record.sourcePath : item.inspection.sourcePath;
-      const text = `${summary.title} ${summary.id} ${summary.publisher} ${summary.version} ${summary.kind} ${item.kind} ${sourcePath}`.toLocaleLowerCase();
+      const text = `${summary.title} ${summary.id} ${summary.publisher} ${summary.version} ${summary.kind} ${item.kind} ${item.record.sourcePath}`.toLocaleLowerCase();
       return !needle || text.includes(needle);
     });
   }, [items, query]);
@@ -221,18 +216,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
           </header>
           <div ref={catalogRef} className="skills-catalog-list" aria-label={m.listAria}>
             {!filteredItems.length ? <div className="skills-empty"><Package size={20} aria-hidden /><strong>{items.length ? m.noMatch : m.emptyTitle}</strong><span>{items.length ? m.noMatchDescription : m.emptyDescription}</span></div> : null}
-            {catalogGroups.map((group) => group.key === "workspace" ? group.items.map((item) => {
-              const index = filteredIndexById.get(item.id) ?? 0;
-              return <SkillListItem
-                key={item.id}
-                item={item}
-                index={index}
-                total={filteredItems.length}
-                active={item.id === selectedId}
-                onSelect={() => selectItem(item.id, true)}
-                onNavigate={focusItem}
-              />;
-            }) : <SkillCatalogGroupView
+            {catalogGroups.map((group) => <SkillCatalogGroupView
               key={group.key}
               group={group}
               open={groupOpen[group.key] ?? true}
@@ -585,20 +569,14 @@ function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { i
 }
 
 function SkillOverview({ item, summary }: { item: SkillItem; summary: ManifestSummary }) {
-  const sourcePath = item.kind === "installed"
-    ? item.workspaceInspections[0]?.sourcePath || item.record.sourcePath
-    : item.inspection.sourcePath;
-  const source = item.kind === "installed"
-    ? item.workspaceInspections.length ? m.installedAndWorkspace : m.installed
-    : m.workspace;
   return <section className="skills-overview" aria-label={m.overviewAria}>
     <dl className="skills-overview-grid">
       <div><dt>{m.publisher}</dt><dd>{summary.publisher}</dd></div>
       <div><dt>{m.version}</dt><dd>v{summary.version}</dd></div>
       <div><dt>{m.kind}</dt><dd>{kindLabel(summary.kind)}</dd></div>
-      <div><dt>{m.source}</dt><dd>{source}</dd></div>
+      <div><dt>{m.source}</dt><dd>{m.installed}</dd></div>
     </dl>
-    <div className="skills-source-path"><span>{m.sourcePath}</span><code title={sourcePath}>{sourcePath}</code></div>
+    <div className="skills-source-path"><span>{m.sourcePath}</span><code title={item.record.sourcePath}>{item.record.sourcePath}</code></div>
   </section>;
 }
 
@@ -646,41 +624,20 @@ function SkillRunHistory({ runs }: { runs: BrokerRunRecord[] }) {
   </section>;
 }
 
-function buildItems(inspections: SkillPackageInspectionView[], installed: InstalledSkillView[], installedInspectionMap: Record<string, SkillPackageInspectionView> = {}): SkillItem[] {
-  const inspectionBySource = new Map(inspections.map((inspection) => [`${inspection.sourcePath}:${inspection.digest}`, inspection]));
-  const installedItems: Extract<SkillItem, { kind: "installed" }>[] = installed.map((record) => ({
-    kind: "installed",
-    id: `installed:${record.key}:${record.digest}`,
-    record,
-    inspection: installedInspectionMap[installedInspectionKey(record)] || inspectionBySource.get(`${record.sourcePath}:${record.digest}`),
-    workspaceInspections: []
-  }));
-  const installedByIdentity = new Map(installedItems.map((item) => [manifestIdentity(item.inspection?.manifest, item.record), item]));
-  const items: SkillItem[] = [...installedItems];
-  for (const inspection of inspections) {
-    const exact = installedItems.find((item) => item.record.sourcePath === inspection.sourcePath && item.record.digest === inspection.digest);
-    if (exact) {
-      exact.workspaceInspections.push(inspection);
-      continue;
-    }
-    const matchingInstalled = installedByIdentity.get(manifestIdentity(inspection.manifest));
-    if (matchingInstalled) {
-      matchingInstalled.workspaceInspections.push(inspection);
-      continue;
-    }
-    items.push({ kind: "workspace", id: `workspace:${inspection.sourcePath}:${inspection.digest}`, inspection });
-  }
-  return items.sort((left, right) => itemTitle(left).localeCompare(itemTitle(right), "zh-CN"));
+function buildItems(installed: InstalledSkillView[], installedInspectionMap: Record<string, SkillPackageInspectionView> = {}): SkillItem[] {
+  return installed
+    .map((record): SkillItem => ({
+      kind: "installed",
+      id: `installed:${record.key}:${record.digest}`,
+      record,
+      inspection: installedInspectionMap[installedInspectionKey(record)]
+    }))
+    .sort((left, right) => itemTitle(left).localeCompare(itemTitle(right), "zh-CN"));
 }
 
 function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
   const groups = new Map<string, SkillCatalogGroup>();
-  const workspace: SkillItem[] = [];
   for (const item of items) {
-    if (item.kind === "workspace") {
-      workspace.push(item);
-      continue;
-    }
     const locator = item.record.sourceType === "git" ? item.record.sourceLocator || item.record.sourcePath : undefined;
     const key = locator ? `git:${locator}` : "local";
     const existing = groups.get(key);
@@ -695,13 +652,11 @@ function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
       items: [item]
     });
   }
-  const grouped = [...groups.values()].sort((left, right) => {
+  return [...groups.values()].sort((left, right) => {
     if (left.key === "local") return 1;
     if (right.key === "local") return -1;
     return left.title.localeCompare(right.title, "zh-CN");
   });
-  if (workspace.length) grouped.push({ key: "workspace", title: "工作区", items: workspace });
-  return grouped;
 }
 
 function repositoryName(locator: string): string {
@@ -722,17 +677,7 @@ function itemTitle(item: SkillItem): string {
 }
 
 function itemSummary(item: SkillItem): ManifestSummary {
-  return item.kind === "installed"
-    ? manifestSummary(item.inspection?.manifest || item.workspaceInspections[0]?.manifest, item.record)
-    : manifestSummary(item.inspection.manifest);
-}
-
-function manifestIdentity(input: unknown, record?: InstalledSkillView): string {
-  const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
-  const publisher = value.publisher && typeof value.publisher === "object" ? value.publisher as Record<string, unknown> : {};
-  const publisherId = stringValue(publisher.id, record?.publisherId || "local");
-  const id = stringValue(value.id, record?.id || "unknown-skill");
-  return `${publisherId}/${id}`.toLocaleLowerCase();
+  return manifestSummary(item.inspection?.manifest, item.record);
 }
 
 function manifestSummary(input: unknown, record?: InstalledSkillView): ManifestSummary {
@@ -751,16 +696,10 @@ function manifestSummary(input: unknown, record?: InstalledSkillView): ManifestS
 
 function stringValue(value: unknown, fallback: string): string { return typeof value === "string" && value.trim() ? value : fallback; }
 function needsAttention(item: SkillItem): boolean {
-  if (item.kind === "workspace") return !item.inspection.valid || item.inspection.sourceKind === "legacy-claude";
   return !item.record.usable;
 }
 type SkillState = { label: string; tone: "neutral" | "success" | "warning" | "danger" | "info" };
 function skillState(item: SkillItem): SkillState {
-  if (item.kind === "workspace") {
-    if (!item.inspection.valid) return { label: m.staticInvalid, tone: "danger" };
-    if (item.inspection.sourceKind === "legacy-claude") return { label: m.legacyFormat, tone: "warning" };
-    return { label: m.workspace, tone: "info" };
-  }
   if (!item.record.usable) return { label: m.unusable, tone: "danger" };
   return { label: m.available, tone: "success" };
 }

@@ -3,9 +3,9 @@ const { contextBridge } = require("electron");
 const now = "2026-06-17T02:20:00.000Z";
 const date = "20260617";
 const repoRoot = "/fixtures/openmind-data";
-const openmindRoot = `${repoRoot}/openmind`;
+const openmindRoot = repoRoot;
 const longPath = "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
-const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\fixtures\openmind-data\openmind\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /fixtures/openmind-data/openmind/post/20260617/posts.json && ls -la /fixtures/openmind-data/openmind/post/20260617/posts.json'"`;
+const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /fixtures/openmind-data/post/20260617/posts.json && ls -la /fixtures/openmind-data/post/20260617/posts.json'"`;
 let visualMode = "normal";
 let approvalResolved = false;
 
@@ -170,7 +170,7 @@ const runs = [
   { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: "总结规模验证报告", contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
-const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\fixtures\openmind-data\openmind\daily-summary\20260617_daily_summary.md`, "/fixtures/openmind-data/openmind/post/20260617/posts.json"], createdAt: now, status: "pending" };
+const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md`, "/fixtures/openmind-data/post/20260617/posts.json"], createdAt: now, status: "pending" };
 
 const aiSnapshot = { projectRoot: repoRoot, providers, sessions, runs, pendingApprovals: [approval] };
 
@@ -371,7 +371,6 @@ const api = {
     settingsSection: "browser",
     tools: [{ id: "capture_source_evidence", title: "截取原文证据", description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。", inputs: ["url", "quote", "capture_scope", "caption", "filename"], outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"] }]
   }],
-  inspectSkillWorkspace: async () => [],
   listInstalledSkills: async () => [],
   listInstalledRunnableSkills: async () => [],
   listSkillRuns: async () => [],

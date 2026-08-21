@@ -34,6 +34,7 @@ writeFixture(
   "openmind/creative/01-内容生产/文稿库/02-制作中/20260610-fixture/topic-brief.md",
   "# Integration project\n"
 );
+writeFixture("openmind/config/providers.yaml", "# integration fixture\n");
 
 process.env.OPENMIND_ROOT = openmindRoot;
 process.env.OPENMIND_USER_DATA_DIR = userData;
@@ -49,13 +50,18 @@ try {
   const settings = require("../.build/electron/electron/lib/settings.js");
   const content = require("../.build/electron/electron/lib/content.js");
   const creative = require("../.build/electron/electron/lib/creative.js");
+  const providersYaml = require("../.build/electron/electron/config/providers-yaml.js");
   const processUtils = require("../.build/electron/electron/ai/process-utils.js");
   const codexProvider = require("../.build/electron/electron/ai/providers/codex-app-server.js");
   Module._load = originalLoad;
 
   const date = "20260610";
   const overview = content.getOverview(date);
-  assert(settings.findRepoRoot() === fixtureRoot, "Data repository root detection failed");
+  assert(settings.findRepoRoot() === openmindRoot, "Data repository root detection failed");
+  assert(
+    providersYaml.providersYamlPath() === path.join(openmindRoot, "config", "providers.yaml"),
+    "providers.yaml must resolve to <content root>/config/providers.yaml"
+  );
   assert(overview.metrics.articles > 0, "Expected article metrics for smoke-test date");
   assert(overview.metrics.posts > 0, "Expected X post metrics for smoke-test date");
   assert(overview.metrics.summaries > 0, "Flat daily-summary files were not detected");

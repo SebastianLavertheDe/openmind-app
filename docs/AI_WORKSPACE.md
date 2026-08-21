@@ -28,7 +28,7 @@ Claude runs through `@anthropic-ai/claude-agent-sdk`. `canUseTool` routes permis
 
 Provider events are normalized into versioned `AiEvent` records before persistence or UI rendering.
 
-The primary conversation timeline intentionally hides usage, provider initialization, lifecycle status and empty-change events. Those records may remain available to the run engine, but the conversation focuses on messages, tools, approvals, risks and errors. Claude sessions load user and project settings so local login and provider environment are inherited, while duplicate filesystem-discovered skills remain disabled and only a focused engineering tool set is exposed alongside registered openmind tools.
+The primary conversation timeline intentionally hides usage, provider initialization, lifecycle status and empty-change events. Those records may remain available to the run engine, but the conversation focuses on messages, tools, approvals, risks and errors. Claude sessions load user and project settings so local login and provider environment are inherited. `<openmindRoot>/.claude` links to `.agent`; Claude Code performs native project Skill discovery from `.claude/skills` with `skills: "all"`, without an app-owned discovery allowlist or transient Skill instruction injection. A focused engineering tool set remains exposed alongside registered openmind tools.
 
 ## Runs And Direct Project Access
 

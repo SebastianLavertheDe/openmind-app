@@ -6,7 +6,7 @@ import {
   OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL,
   OPENMIND_LAYOUT_VERSION,
   OPENMIND_OPTIONAL_TOP_LEVEL
-} from "../../shared/openmind-layout-v2";
+} from "../../shared/openmind-layout-v3";
 import { computeRootId, type OpenmindRootSnapshot } from "./openmind-path-resolver";
 
 export type RootBinding = {

@@ -866,12 +866,6 @@ export interface InstalledRunnableSkillView {
   enabled: boolean;
 }
 
-export interface SkillPackageMigrationReport {
-  inspected: SkillPackageInspectionView[];
-  installed: InstalledSkillView[];
-  skipped: Array<{ sourcePath: string; issues: Array<{ code: string; message: string; path?: string }> }>;
-}
-
 export const McpToolDefinitionSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -1117,8 +1111,8 @@ export type SharedPythonRuntimeStatus = z.infer<typeof SharedPythonRuntimeStatus
 export const UserPreferencesSchema = z.object({
   schemaVersion: z.number().default(2),
   /**
-   * ADR-001: the actual openmind directory (not the openmind repo, not a
-   * subdirectory). The single active content root.
+   * ADR-001: the selected private data repository and single active flat
+   * content root. Physical content is joined directly below this path.
    */
   openmindRoot: z.string().default(""),
   /**
@@ -1235,7 +1229,7 @@ export type AppEnvironment = z.infer<typeof AppEnvironmentSchema>;
 
 export type AppBootstrap = {
   repoRoot: string;
-  /** ADR-001: the actual openmind directory (may differ from repoRoot). */
+  /** Selected private data repository; this is also the flat content root. */
   openmindRoot: string;
   /** ADR-001: optional AI/code workspace, independent of openmind. */
   workspaceRoot: string;
@@ -1367,7 +1361,7 @@ export interface DesktopApi {
   revealPath(path: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   exportText(defaultName: string, content: string): Promise<string | null>;
-  /** ADR-001: select/set the actual openmind directory (not the repo). */
+  /** Select/set the private data repository, which is also the content root. */
   setOpenmindRoot(path: string): Promise<string>;
   selectOpenmindRoot(): Promise<string | null>;
   previewOpenmindRoot(path: string): Promise<OpenmindRootPreview>;
@@ -1426,14 +1420,10 @@ export interface DesktopApi {
   listCliToolStatuses(): Promise<CliToolStatusView[]>;
   /** 打开系统终端并引导 CLI 登录；凭据只进入 CLI 自己的登录流程。 */
   openCliLogin(cli: "claude" | "codex"): Promise<void>;
-  /** 重新扫描 .claude/skills/ 下所有 SKILL.md，返回最新 skill 列表。新对话开始时调用。 */
+  /** 重新扫描已安装技能商店，返回最新 skill 列表。新对话开始时调用。 */
   aiRefreshSkills(): Promise<SkillDefinition[]>;
-  /** 静态检查当前 workspace 下的 .claude/skills，不执行包内代码。 */
-  inspectSkillWorkspace(): Promise<SkillPackageInspectionView[]>;
   /** 静态检查 App 私有安装包，不执行包内代码。 */
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
-  /** 将带正式 Manifest 的旧 workspace Skill 安装到应用管理的 Skill store。 */
-  migrateSkillWorkspace(): Promise<SkillPackageMigrationReport>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
   /** Process/Workflow catalog for Automation and Broker UI; never includes Agent Skills. */
   listInstalledRunnableSkills(): Promise<InstalledRunnableSkillView[]>;

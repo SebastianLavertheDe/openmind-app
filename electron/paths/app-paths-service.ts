@@ -4,7 +4,7 @@
  *
  * Frozen by ADR-001, with one superseding decision: the Installed Skill store
  * no longer lives under `userData`. It lives under the bound openmind root at
- * `.agent/skills` (openmind-layout-v2, app-managed), so packages travel with
+ * `.agent/skills` (openmind-layout-v3, app-managed), so packages travel with
  * user content. With no openmind root bound there is no store: `skills` and
  * `skillRegistryFile` are `null` and skill writes fail fast while reads
  * report an empty store. All other app-owned state (settings, state,
@@ -72,7 +72,7 @@ export function resolveUserDataDir(explicit?: string): string {
 /**
  * Build the full AppPaths for a given userData dir. Pure computation; no IO.
  *
- * `skillStoreRoot` locates the Installed Skill store (openmind-layout-v2
+ * `skillStoreRoot` locates the Installed Skill store (openmind-layout-v3
  * `.agent/skills` under the bound openmind root). Omitted/null means no store:
  * reads report empty, writes fail fast — the renderer keeps unbound users on
  * the onboarding page, so a null store is an internal invariant, not a
@@ -108,7 +108,7 @@ export function buildAppPaths(userDataDir?: string, skillStoreRoot?: string | nu
 
 /**
  * Resolve the Installed Skill store root from the bound openmind root:
- * `<openmindRoot>/.agent/skills` (openmind-layout-v2, app-managed). Returns null
+ * `<openmindRoot>/.agent/skills` (openmind-layout-v3, app-managed). Returns null
  * when no root is bound. Pure computation; no IO.
  */
 export function resolveSkillStoreRoot(openmindRoot: string | null | undefined): string | null {

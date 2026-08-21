@@ -2,10 +2,13 @@
 
 OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端使用 React、TypeScript、Vite 和 Electron；Claude Code、Codex CLI 与 skills 全部在本机运行。
 
-源码、私人数据和 Skill 包分别维护：本仓库只保存 App 源码；用户选择的 `openmind`
-目录、`config/providers.yaml` 与 Electron `userData` 保存在私有数据仓；Skill 包的唯一
-源码在独立的 `cctools-skills` 仓库。App 会把已安装 Skill 放到
-`<openmindRoot>/.agent/skills/`，不会把私人内容或 provider key 打进安装包。
+源码、私人数据和 Skill 包分别维护：本仓库只保存 App 源码；用户选择的内容根
+（`openmindRoot`，`article/`、`config/`、`.agent/` 等目录直接位于该根下，没有嵌套的
+`openmind/` 子目录）、其中的 `config/providers.yaml` 与 Electron `userData` 保存在私有
+数据仓；Skill 包的唯一源码在独立的 `cctools-skills` 仓库。App 会把已安装 Skill 放到
+`<openmindRoot>/.agent/skills/<name>/`。Agent Skill 以业界通用的 `SKILL.md`
+为定义，不要求 OpenMind 私有 Manifest；`<openmindRoot>/.claude` 链接到 `.agent`，
+由 Claude Code 原生发现 `.claude/skills`，不会把私人内容或 provider key 打进安装包。
 
 ## 产品能力
 
@@ -94,8 +97,8 @@ OPENMIND_USER_DATA_DIR=/home/user/openmind-data/.openmind-userdata/linux npm sta
 ```
 
 该目录包含设置、运行记录、CLI、凭据和 Chromium 会话数据，必须整体加入私有数据仓的
-`.gitignore`，不能提交到本源码仓。`userData` 应与 `openmind/` 为兄弟目录，不能放进
-`openmind/` 内；Windows 上也不要把 Chromium Profile 放到 WSL UNC 路径。
+`.gitignore`，不能提交到本源码仓。`userData` 应位于内容根之外（例如与内容根互为兄弟
+目录），不能放进内容根内；Windows 上也不要把 Chromium Profile 放到 WSL UNC 路径。
 
 ## 数据与安全
 

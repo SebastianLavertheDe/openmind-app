@@ -35,8 +35,8 @@ describe("settings path handling", () => {
 
   beforeEach(() => {
     repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-repo-"));
-    fs.mkdirSync(path.join(repo, "openmind"), { recursive: true });
-    process.env.OPENMIND_ROOT = path.join(repo, "openmind");
+    fs.mkdirSync(path.join(repo, "article"), { recursive: true });
+    process.env.OPENMIND_ROOT = repo;
   });
 
   afterEach(() => {
@@ -63,11 +63,11 @@ describe("settings path handling", () => {
   });
 
   it("keeps resolved paths inside the repo", () => {
-    expect(ensureInsideRepo("openmind/article/x.md")).toBe(path.resolve(repo, "openmind/article/x.md"));
+    expect(ensureInsideRepo("openmind/article/x.md")).toBe(path.resolve(repo, "article/x.md"));
     expect(() => ensureInsideRepo("../../etc/passwd")).toThrow("超出项目目录");
   });
 
-  it("derives the display repo root from the bound openmind root", () => {
+  it("uses the bound flat data root as the display repo root", () => {
     expect(findRepoRoot()).toBe(repo);
   });
 

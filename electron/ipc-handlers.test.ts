@@ -44,11 +44,12 @@ vi.mock(import("electron"), async (importOriginal) => {
 describe("ipc registry", () => {
   it("maps every DesktopApi invoke method to a unique channel", () => {
     // The registry intentionally excludes removed manual Skill run, update and
-    // rollback endpoints while exposing the current onboarding/source-cancel/
-    // install controls, including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(154);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(154);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(154);
+    // rollback endpoints (and the retired workspace-import surface) while
+    // exposing the current onboarding/source-cancel/install controls,
+    // including CLI version checks and upgrades.
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(152);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(152);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(152);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -91,8 +92,6 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     ensureAiWorker: () => makeAiSpy() as never,
     ensureOpenmindFileSearch: () => ({ search: async () => [] }) as never,
     ensureSkillPackageService: () => ({
-      inspectClaudeSkills: () => [],
-      migrateClaudeSkills: () => ({ inspected: [], installed: [], skipped: [] }),
       listInstalled: () => [],
       listInstalledViews: () => [],
       listInstalledRunnableViews: () => [],
@@ -551,10 +550,8 @@ describe("handler forwarding — Skill package installation", () => {
       warnings: []
     };
     const service = {
-      inspectClaudeSkills: vi.fn(() => [inspection]),
       getInstalled: vi.fn(() => ({ packagePath: "/userData/skills/openmind/installed/1.0.0" })),
       inspect: vi.fn(() => inspection),
-      migrateClaudeSkills: vi.fn(() => ({ inspected: [inspection], installed: [], skipped: [{ sourcePath: inspection.sourcePath, issues: inspection.issues }] })),
       listInstalled: vi.fn(() => []),
       listInstalledViews: vi.fn(() => []),
       listInstalledRunnableViews: vi.fn(() => [{ id: "installed", kind: "process", title: "Installed", enabled: true }]),
@@ -565,19 +562,15 @@ describe("handler forwarding — Skill package installation", () => {
     const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
 
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillWorkspace)).toEqual([expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false })]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectInstalledSkill, "openmind/installed", "digest-installed")).toEqual(expect.objectContaining({ sourcePath: inspection.sourcePath, valid: false }));
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.migrateSkillWorkspace)).toEqual(expect.objectContaining({ inspected: [expect.any(Object)], skipped: [expect.any(Object)] }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledSkills)).toEqual([]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledRunnableSkills)).toEqual([
       expect.objectContaining({ id: "installed", kind: "process", title: "Installed", enabled: true })
     ]);
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "openmind/installed", "digest-installed")).toBe(true);
-    expect(service.inspectClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.getInstalled).toHaveBeenCalledWith("openmind/installed", "digest-installed");
     expect(service.inspect).toHaveBeenCalledWith("/userData/skills/openmind/installed/1.0.0");
-    expect(service.migrateClaudeSkills).toHaveBeenCalledWith("/workspace");
     expect(service.install).toHaveBeenCalledWith("/tmp/skill");
     expect(service.uninstall).toHaveBeenCalledWith("openmind/installed", "digest-installed");
     vi.restoreAllMocks();

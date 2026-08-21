@@ -128,7 +128,7 @@
 1. README "环境要求"章节改写：区分「产品运行依赖（App 自带）」与「可选外部依赖（CLI、provider key）」，注明一键安装入口
 2. `README.md` 增加"分发给别人"小节：安装包 + skill 仓库 URL 的最小交付说明
 3. CHANGELOG / release notes 注明：skill 审批门禁移除（装即执行）的安全语义变更
-4. 清理代码中已过时的 host-trust 注释与 UI 文案；当前代码仅保留迁移兼容字段删除、legacy inspection-only 错误码和 ADR-004 历史记录，不再把它们作为现行执行门禁。
+4. 清理代码中已过时的 host-trust 注释与 UI 文案；Agent Skill 以标准 `SKILL.md` 为准，不再要求 App Manifest。旧错误码仅作为序列化兼容字段保留，不作为现行安装门禁。
 
 ---
 

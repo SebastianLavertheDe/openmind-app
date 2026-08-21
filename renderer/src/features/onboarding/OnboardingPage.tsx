@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Download, Folder, FolderCog, LockKeyhole, PackageCheck, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, Folder, FolderCog, LockKeyhole, PackageCheck, Settings } from "lucide-react";
 import type { AppBootstrap, OpenmindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { OPENMIND_SKILLS_REPO_URL } from "@shared/skill-package-sources";
@@ -59,7 +59,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!selected) return;
       const preview = await window.openmind.previewOpenmindRoot(selected);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: "确认绑定 OpenMind 数据目录", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      if (!await ai.confirm({ title: "确认绑定 OpenMind 私人数据仓库", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
       await window.openmind.setOpenmindRoot(selected);
       await refresh();
     } catch (cause) {
@@ -102,11 +102,23 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const providerReady = Boolean(configuredProvider || ai.snapshot.providers.some((provider) => provider.available));
   const providerStatus = providerReady ? "complete" : onboarding.provider;
   const canFinish = rootReady && skillsRepoReady && providerStatus !== "pending";
-  const currentStep: 1 | 2 | 3 | 4 = !rootReady ? 1 : !skillsRepoReady ? 2 : providerStatus === "pending" ? 3 : 4;
+  const availableStep: 1 | 2 | 3 | 4 = !rootReady ? 1 : !skillsRepoReady ? 2 : providerStatus === "pending" ? 3 : 4;
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(availableStep);
+  const previousAvailableStep = useRef(availableStep);
   const mountedStep = useRef(currentStep).current;
-  const rootPath = loading ? "正在检查根目录…" : bootstrap.openmindRoot || root?.openmindRoot || m.rootMissing;
+  const rootPath = loading ? "正在检查数据仓库…" : rootReady ? bootstrap.repoRoot : m.rootMissing;
   const providerState = providerReady ? m.providerReady : m.providerPending;
   const currentTitle = [m.rootTitle, m.skillTitle, m.providerTitle, m.finishTitle][currentStep - 1];
+
+  useEffect(() => {
+    const previous = previousAvailableStep.current;
+    setCurrentStep((step) => {
+      if (availableStep < step) return availableStep;
+      if (availableStep > previous && step === previous) return availableStep;
+      return step;
+    });
+    previousAvailableStep.current = availableStep;
+  }, [availableStep]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -125,7 +137,19 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   return (
     <div className="feature-page onboarding-page" data-onboarding-current-step={currentStep} data-onboarding-mounted-step={mountedStep}>
       <header className="onboarding-topbar">
-        <strong className="onboarding-brand">openmind</strong>
+        <div className="onboarding-topbar-start">
+          <strong className="onboarding-brand">openmind</strong>
+          {currentStep > 1 ? (
+            <button type="button" className="onboarding-step-navigation" disabled={busy !== null} onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3)}>
+              <ArrowLeft size={15} aria-hidden />{m.previousStep}
+            </button>
+          ) : null}
+        </div>
+        {currentStep < availableStep ? (
+          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3 | 4)}>
+            {m.nextStep}<ArrowRight size={15} aria-hidden />
+          </button>
+        ) : null}
         <span className="onboarding-step-count" aria-label={m.progress(currentStep, 4)}>{currentStep} / 4</span>
       </header>
 

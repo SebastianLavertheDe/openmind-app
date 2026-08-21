@@ -46,6 +46,38 @@ const forbiddenPathFragments = [
   `${path.sep}openmind${path.sep}daily-summary`
 ].map((fragment) => fragment.toLowerCase());
 
+// Flat content-root layout (audited 2026-08-21): content dirs sit directly
+// under the selected root, so leaked content no longer carries an `openmind/`
+// prefix. Single-segment names are too generic for bundled dependency trees
+// (node_modules / python-runtime legitimately contain config/ or scripts/
+// subtrees), so these fragments only apply outside those trees. Directory
+// fragments carry a trailing separator to avoid prefix collisions.
+const flatContentPathFragments = [
+  `${path.sep}article${path.sep}`,
+  `${path.sep}post${path.sep}`,
+  `${path.sep}reddit${path.sep}`,
+  `${path.sep}daily-summary${path.sep}`,
+  `${path.sep}daily-topic${path.sep}`,
+  `${path.sep}creative${path.sep}`,
+  `${path.sep}wiki${path.sep}`,
+  `${path.sep}assets${path.sep}`,
+  `${path.sep}config${path.sep}providers.yaml`,
+  `${path.sep}.agent${path.sep}`,
+  `${path.sep}.openmind${path.sep}`
+].map((fragment) => fragment.toLowerCase());
+
+/**
+ * Trees where flat single-segment names are the app's own output or vendored
+ * dependencies (`.build/renderer/assets/` is Vite output; node_modules and the
+ * bundled python-runtime legitimately contain config/ or scripts/ subtrees).
+ * Flat content fragments only apply outside these trees — a real content leak
+ * lands under `dist/<plat>-unpacked/resources/` via extraResources/files.
+ */
+function insideBundledOrBuildTree(filePath) {
+  const segments = filePath.toLowerCase().split(path.sep);
+  return segments.includes(".build") || segments.includes("node_modules") || segments.includes("python-runtime");
+}
+
 const secretPatterns = [
   // Match an actual PEM payload, not a dependency's format validator or
   // redaction regex that merely contains the BEGIN header as source text.
@@ -123,6 +155,11 @@ function scanFile(file) {
   for (const fragment of forbiddenPathFragments) {
     if (normalized.includes(fragment)) findings.push(`forbidden package path: ${path.relative(root, file)}`);
   }
+  if (!insideBundledOrBuildTree(file)) {
+    for (const fragment of flatContentPathFragments) {
+      if (normalized.includes(fragment)) findings.push(`forbidden package path: ${path.relative(root, file)}`);
+    }
+  }
 
   const relative = path.relative(root, file);
   if (/(^|[\\/])[^\\/]+\.(?:test|spec)\.(?:cjs|mjs|js|jsx|ts|tsx)$/.test(relative) || relative.split(/[\\/]/).includes("__tests__")) {
@@ -177,6 +214,8 @@ function scanAsar(file) {
 
 function scanArchivePath(sourceName, archivePath) {
   const normalized = archivePath.toLowerCase().replace(/\\/g, "/");
+  // Flat content fragments are enforced on the real unpacked paths only: the
+  // asar contains just `.build/` + package.json, where `assets/` is Vite output.
   for (const fragment of forbiddenPathFragments.map((item) => item.replace(/\\/g, "/"))) {
     if (normalized.includes(fragment)) findings.push(`forbidden package path: ${sourceName}`);
   }

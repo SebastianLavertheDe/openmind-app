@@ -11,6 +11,9 @@
 > API-key-only Agent execution, Broker Agent execution and Internal Agent
 > checkpoints are no longer current architecture. Provider Profiles remain
 > supported for Process Skills.
+> ADR-010 also replaces the historical Claude instruction bridge: current
+> Claude execution uses native `.claude/skills` discovery through the
+> `.claude` → `.agent` directory link, without app-owned Skill filtering.
 
 ## Context
 

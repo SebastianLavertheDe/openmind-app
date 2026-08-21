@@ -27,12 +27,17 @@ CLI host:
 - Claude uses the Claude Code CLI transport exposed through the Claude Agent
   SDK.
 
-Both bridges receive only an installed package whose managed path, Manifest
-identity and exact digest have just been verified from the
-SkillStore under the bound openmind root. Codex receives the
-boundary-checked `SKILL.md` path as native Skill input. Claude receives
-bounded `SKILL.md` and reference text as transient system context. Neither
-bridge permanently copies the installed package into the workspace.
+Agent packages use the public Agent Skills `SKILL.md` contract and do not need
+an app-specific Manifest. Installed bytes and their digest remain recorded by
+the SkillStore under the bound openmind root. Codex receives the checked
+`SKILL.md` path as native Skill input.
+
+For Claude Code, `<openmindRoot>/.claude` is a directory link to `.agent`, so
+the installed flat package path `.agent/skills/<name>/SKILL.md` is also the
+native project path `.claude/skills/<name>/SKILL.md`. The adapter loads user
+and project settings with `skills: "all"`; Claude Code owns discovery and
+invocation without an OpenMind allowlist, metadata injection, or transient
+Skill text bridge.
 
 ### 2. AI console is the only Agent invocation surface
 
@@ -61,21 +66,20 @@ AI API. In particular, RSS processing, daily summarization, daily topic
 selection, knowledge-wiki compilation and subtitle translation continue to
 use that infrastructure.
 
-An Agent Manifest does not request a Provider Profile or a provider
-Credential. The external CLI uses its own authenticated user configuration.
+An Agent Skill does not request a Provider Profile or a provider Credential.
+The external CLI uses its own authenticated user configuration.
 The app does not translate `providerBindings` or a Skill `.env` file into an
 Agent provider connection.
 
 ### 4. Security boundary
 
 Claude Code, Codex and their tools run with the launching user's OS
-privileges. Manifest capabilities, package trust, CLI approvals and Artifact
-descriptions are instruction, gating and audit controls; they are not an OS
-sandbox and cannot technically restrict an external CLI to declared openmind
-paths.
+privileges. CLI approvals and Skill instructions are not an OS sandbox and
+cannot technically restrict an external CLI to declared openmind paths.
 
-Package and reference path validation remains Main-owned. Provider-native
-approval handling remains in the existing CLI adapters. The removed
+Archive extraction and install-target path safety remains Main-owned so an
+import cannot write outside its destination. Provider-native approval handling
+remains in the existing CLI adapters. The removed
 Internal-Agent-only approval, browser-action and logical-file tool policies
 must not be described as controls for external CLI execution.
 
@@ -90,10 +94,9 @@ Existing Run records may retain old `agentCheckpoint` and
 to restart work. Removing those fields from a strict persisted schema requires
 an explicit migration rather than silently dropping historical Runs.
 
-Existing installed Agent packages that still contain obsolete Provider
-Profile declarations may remain inspectable for compatibility, but unknown
-fields are stripped and the CLI bridge never interprets those bindings.
-Canonical Agent Manifests omit them.
+Existing installed Agent packages that also carry an app Manifest remain
+inspectable, but the CLI bridge does not require or interpret it for native
+Skill discovery.
 
 ## Consequences
 

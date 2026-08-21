@@ -242,7 +242,7 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(plan.digest).toBe(fixture.digest);
     expect(plan.process.executable).toBe(fs.realpathSync(process.execPath));
     expect(plan.process.args.at(-1)).toBe("20260805");
-    expect(plan.process.cwd).toBe(path.join(fixture.paths.skills!, "openmind", "resolver-fixture"));
+    expect(plan.process.cwd).toBe(path.join(fixture.paths.skills!, "resolver-fixture"));
     expect(plan.maxInstances).toBe(1);
     expect(plan.artifacts?.[0]).toMatchObject({ logicalPath: "daily-summary/20260805.md", type: "markdown" });
     await plan.prepareRuntime?.();
@@ -250,8 +250,8 @@ describe("InstalledSkillExecutionResolver", () => {
 
   it("pins provider configuration to the openmind snapshot and exposes both env namespaces", async () => {
     const fixture = createFixture();
-    const dataRepositoryRoot = path.dirname(fixture.openmindRoot);
-    bindTestProvider(dataRepositoryRoot, 41234, "snapshot-provider-key");
+    // providers.yaml lives inside the content root at config/providers.yaml.
+    bindTestProvider(fixture.openmindRoot, 41234, "snapshot-provider-key");
     process.env.OPENMIND_WORKSPACE_ROOT = path.join(fixture.paths.userData, "unrelated-workspace");
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-provider-snapshot");
@@ -856,7 +856,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const openmindRoot = path.join(fixtureRoot, "openmind");
       const articleDir = path.join(openmindRoot, "article", "20260805");
-      bindTestProvider(fixtureRoot, port, "wiki-test-credential");
+      bindTestProvider(openmindRoot, port, "wiki-test-credential");
       fs.mkdirSync(articleDir, { recursive: true });
       fs.writeFileSync(
         path.join(articleDir, "wiki-test.md"),
@@ -1149,7 +1149,7 @@ describe("InstalledSkillExecutionResolver", () => {
       ensureAppPaths(paths);
       const openmindRoot = path.join(fixtureRoot, "openmind");
       fs.mkdirSync(openmindRoot, { recursive: true });
-      bindTestProvider(fixtureRoot, port, "mock-credential-for-credential-token");
+      bindTestProvider(openmindRoot, port, "mock-credential-for-credential-token");
       // Seed an article so the summarizer has content to process and reaches
       // the _write_full_summary_file path. Without AI keys the per-article
       // summarization no-ops (returns None), but the summary file is still
@@ -1314,7 +1314,7 @@ function createFixture(
   roots.push(root);
   const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "openmind")));
   ensureAppPaths(paths);
-  const source = path.join(root, "source");
+  const source = path.join(root, options.agent ? "resolver-fixture" : "source");
   const openmindRoot = path.join(root, "openmind");
   const externalRoot = path.join(root, "export");
   fs.mkdirSync(source, { recursive: true });

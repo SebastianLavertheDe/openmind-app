@@ -71,6 +71,26 @@ function buildInto(root: string, outside: string): void {
   // --- optional / tool-private (preserved verbatim, never created by app) ---
   fs.mkdirSync(join(".claude"), { recursive: true });
   fs.writeFileSync(join(".claude", "settings.local.json"), "{}");
+  fs.mkdirSync(join(".claudian"), { recursive: true });
+  fs.writeFileSync(join(".claudian", "settings.json"), "{}");
+  fs.mkdirSync(join(".obsidian"), { recursive: true });
+  fs.writeFileSync(join(".obsidian", "app.json"), "{}");
+  fs.mkdirSync(join(".zcode"), { recursive: true });
+  fs.writeFileSync(join(".zcode", "config.json"), "{}");
+
+  // --- app-managed + flat-root entries (layout v3 audit 2026-08-21) ---
+  w(".agent/skills/registry.json", "{}\n");
+  w(".openmind/content-index.json", "{}\n");
+  w("config/providers.yaml", "# anonymous providers fixture\n");
+  w("assets/browser-evidence/run-1/notes.md", "# evidence note\n");
+  w("scripts/fetch_daily.py", "# anonymous automation script\n");
+
+  // --- root documentation files (optional-preserve-only) ---
+  w("AGENTS.md", "# anonymous agent instructions\n");
+  w("CLAUDE.md", "# anonymous agent instructions\n");
+  w("README.md", "# anonymous content root\n");
+  w(".gitignore", ".openmind/\nconfig/providers.yaml\n");
+  w(".gitattributes", "* text=auto\n");
 
   // --- user-unknown dir (must NOT be deleted/moved by app) ---
   w("my-custom-notes/note.md", "# personal\n");

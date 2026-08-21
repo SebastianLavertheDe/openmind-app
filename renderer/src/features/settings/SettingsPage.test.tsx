@@ -57,7 +57,7 @@ const mcpServers: McpServerDefinition[] = [{
 }];
 
 const defaultPrefs: UserPreferences = {
-  schemaVersion: 1, openmindRoot: "/repo/openmind", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
+  schemaVersion: 1, openmindRoot: "/repo", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
@@ -110,7 +110,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled: boolean) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "linux-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 2 : 0, ready: enabled, lastError: null }),
     setOpenmindRoot: async (root: string) => root,
-    selectOpenmindRoot: async () => "/repo/openmind-next",
+    selectOpenmindRoot: async () => "/repo-next",
     previewOpenmindRoot: async (candidate: string) => ({ candidate, canonicalRoot: candidate, health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, canBind: true, blockingReasons: [] }),
     openPath: async () => "",
     onAiEvent: () => () => undefined,
@@ -538,33 +538,33 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("heading", { name: "浏览器" })).toBeTruthy();
   });
 
-  it("静态检查 workspace Skill 包但不暴露导入和更新入口", async () => {
-    const inspection: SkillPackageInspectionView = {
-      sourcePath: "/repo/.claude/skills/packaged",
-      sourceKind: "directory",
-      valid: true,
+  it("列出已安装 Skill 包且不暴露导入入口", async () => {
+    const listInstalledSkills = vi.fn().mockResolvedValue([{
+      schemaVersion: 1,
+      key: "local/packaged",
+      id: "packaged",
+      publisherId: "local",
+      version: "1.0.0",
       digest: "abcdef1234567890abcdef1234567890",
-      totalBytes: 2048,
-      files: [{ path: "openmind.skill.yaml", type: "file", size: 512, digest: "manifest" }],
-      excludedPaths: [],
-      manifest: { id: "packaged", publisher: { id: "local" } },
-      legacy: null,
-      issues: [],
-      warnings: []
-    };
-    const inspectSkillWorkspace = vi.fn().mockResolvedValue([inspection]);
-    const listInstalledSkills = vi.fn().mockResolvedValue([]);
-    const listSkillRuns = vi.fn().mockResolvedValue([]);
-    window.openmind = makeApi({ inspectSkillWorkspace, listInstalledSkills, listSkillRuns });
+      sourcePath: "/root/.agent/skills/packaged",
+      packagePath: "/root/.agent/skills/packaged",
+      usable: true,
+      enabled: true,
+      signatureStatus: "unsigned",
+      reviewStatus: "unreviewed",
+      skillUpdatePolicy: "manual",
+      installedAt: "2026-08-21T00:00:00.000Z"
+    }]);
+    window.openmind = makeApi({ listInstalledSkills, listSkillRuns: vi.fn().mockResolvedValue([]) });
     renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
     await screen.findByRole("heading", { name: "常规" });
     openCategory("Skills");
 
-    await waitFor(() => expect(inspectSkillWorkspace).toHaveBeenCalled());
-    expect(await screen.findByText("packaged")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /packaged/ })).toBeTruthy();
     expect(document.getElementById("settings-detail-panel")?.classList.contains("settings-detail--wide")).toBe(false);
     expect(document.querySelector(".settings-stack")?.classList.contains("settings-stack--wide")).toBe(false);
     expect(screen.queryByRole("button", { name: "导入正式 Manifest" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "静态检查 workspace" })).toBeNull();
   });
 
   it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {

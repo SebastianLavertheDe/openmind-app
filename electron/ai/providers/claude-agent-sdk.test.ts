@@ -901,7 +901,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(stderrOn).toHaveBeenCalledWith("data", expect.any(Function));
   });
 
-  it("从 SkillStore 注入 Agent instructions，并禁用 project-local skill discovery", async () => {
+  it("keeps Claude Code native Skill discovery enabled for installed Skill invocations", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-bridge-"));
     fs.mkdirSync(`${tmpDir}/references`, { recursive: true });
     fs.writeFileSync(`${tmpDir}/SKILL.md`, "# Installed Agent\n执行受控任务。\n");
@@ -929,10 +929,9 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
       });
       await new ClaudeAgentSdkAdapter().run(ctx);
       const opts = sdkMock.query.mock.calls[0][0] as { options: { settingSources: string[]; skills: string[]; systemPrompt: { append?: string } } };
-      expect(opts.options.settingSources).toEqual(["user"]);
-      expect(opts.options.skills).toEqual([]);
-      expect(opts.options.systemPrompt.append).toContain("Installed Agent");
-      expect(opts.options.systemPrompt.append).toContain("references/rules.md");
+      expect(opts.options.settingSources).toEqual(["user", "project"]);
+      expect(opts.options.skills).toBe("all");
+      expect(opts.options.systemPrompt.append || "").not.toContain("Installed Agent");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

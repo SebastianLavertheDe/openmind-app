@@ -17,7 +17,7 @@
  *
  * FORBIDDEN elsewhere (electron/, shared/, renderer/src/):
  *   - path.join(repoRoot, "openmind", ...)   → use OpenmindPathResolver / openmindRoot
- *   - path.join(repoRoot, ".claude", ...)  → skills live under userData now
+ *   - path.join(repoRoot, ".claude", ...)  → installed skills live under the bound openmindRoot/.agent now
  *   - path.join(findRepoRoot(), "openmind")  → use resolveOpenmindRoot()
  *   - new hardcoded WSL/Windows dev paths  (\\\\wsl.localhost\\..., D:\\work\\...)
  *

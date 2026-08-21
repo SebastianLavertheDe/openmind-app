@@ -26,6 +26,7 @@ import { buildMcpServerCatalog } from "./ai/mcp-catalog";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
+import { ensureClaudeAgentLink, ensureClaudeSkillAliases } from "./paths/claude-agent-link";
 import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
@@ -289,18 +290,15 @@ function ensureProductService(): ProductService {
   // ADR-001: resolve the actual openmind content dir + app-private state root.
   const openmindRoot = settings.resolveOpenmindRoot();
   if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
-  const workspaceRoot = settings.resolveWorkspaceRoot();
   const stateRoot = path.join(getAppPaths().state, rootStateId(openmindRoot));
   ensureDir(stateRoot);
-  const cacheKey = `${workspaceRoot}\0${openmindRoot}`;
+  const cacheKey = openmindRoot;
   if (!productService || productServiceRoot !== cacheKey) {
     // ProductService wires SourceRegistry/BriefService internally with the
-    // optional workspace as the skill-source root and the userData state
-    // root, so app-private state no longer lands inside openmind (ADR-001 §1.3).
-    productService = new ProductService(openmindRoot, content, creative, {
-      skillSourcesRoot: workspaceRoot || undefined,
-      stateRoot
-    });
+    // userData state root, so app-private state no longer lands inside
+    // openmind (ADR-001 §1.3). Skill-backed sources come from the installed
+    // store under the root, not from any workspace scan.
+    productService = new ProductService(openmindRoot, content, creative, { stateRoot });
     productServiceRoot = cacheKey;
   }
   return productService;
@@ -329,6 +327,11 @@ function buildCurrentAppPaths(): AppPaths {
 function ensureSkillPackageService(): SkillPackageService {
   const paths = buildCurrentAppPaths();
   ensureAppPaths(paths);
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (openmindRoot && paths.skills) {
+    ensureClaudeAgentLink(openmindRoot);
+    ensureClaudeSkillAliases(paths.skills);
+  }
   if (!skillPackageService) skillPackageService = new SkillPackageService(paths);
   return skillPackageService;
 }

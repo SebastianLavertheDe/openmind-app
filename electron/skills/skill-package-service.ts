@@ -4,9 +4,9 @@ import path from "node:path";
 import type { SkillManifest } from "../../shared/skill-manifest-schema";
 import { validateManifest } from "../../shared/skill-manifest-schema";
 import {
-  OPENMIND_LAYOUT_V2,
+  OPENMIND_LAYOUT_V3,
   type OpenmindEntryCategory
-} from "../../shared/openmind-layout-v2";
+} from "../../shared/openmind-layout-v3";
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
@@ -21,9 +21,7 @@ import { extractZipArchive, inspectZipArchive, SkillArchiveError } from "./zip-s
 const PRIMARY_MANIFEST_FILE = "cctools.skill.yaml";
 const COMPAT_MANIFEST_FILE = "openmind.skill.yaml";
 const MANIFEST_FILES = [PRIMARY_MANIFEST_FILE, COMPAT_MANIFEST_FILE] as const;
-const LEGACY_FILE = "SKILL.md";
-const MAX_PACKAGE_BYTES = 250 * 1024 * 1024;
-const MAX_PACKAGE_FILES = 20_000;
+const SKILL_FILE = "SKILL.md";
 
 /** Files and directories which must never become part of an installed package. */
 const EXCLUDED_SEGMENTS = new Set([
@@ -62,13 +60,6 @@ const EXCLUDED_SEGMENTS = new Set([
   "wiki",
   "video"
 ]);
-
-const SECRET_VALUE_PATTERNS = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-  /\bsk-[A-Za-z0-9_-]{24,}\b/,
-  /\bnvapi-[A-Za-z0-9_-]{20,}\b/,
-  /\bsecret_[A-Za-z0-9]{20,}\b/
-];
 
 type YamlLoader = { load(input: string, options?: Record<string, unknown>): unknown };
 // js-yaml is intentionally loaded only by the Electron-side package service;
@@ -225,64 +216,66 @@ export class SkillPackageService {
     const presentManifestFiles = MANIFEST_FILES.filter((name) => isRegularFile(path.join(canonicalSource, name)));
     const manifestFile = presentManifestFiles[0];
     const manifestPath = manifestFile ? path.join(canonicalSource, manifestFile) : undefined;
-    const legacyPath = path.join(canonicalSource, LEGACY_FILE);
+    const skillPath = path.join(canonicalSource, SKILL_FILE);
+    const hasStandardSkill = isRegularFile(skillPath);
     const manifestWarnings = presentManifestFiles.length > 1
       ? [`同时检测到 ${PRIMARY_MANIFEST_FILE} 与 ${COMPAT_MANIFEST_FILE}；已确定性使用 ${PRIMARY_MANIFEST_FILE}。`]
       : [];
     let manifest: SkillManifest | undefined;
     let legacy: LegacySkillSuggestion | undefined;
-    let sourceKind: SkillPackageInspection["sourceKind"] = "directory";
+    const sourceKind: SkillPackageInspection["sourceKind"] = "directory";
 
     if (manifestPath && manifestFile) {
       try {
         const parsed = yaml.load(fs.readFileSync(manifestPath, "utf8"), { json: true });
         const result = validateManifest(normalizeManifestDocument(parsed, manifestFile));
         if (!result.ok) {
-          issues.push({
-            code: "manifest-invalid",
-            message: result.error.issues.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`).join("; "),
-            path: manifestFile
-          });
+          if (hasStandardSkill) {
+            const standard = inspectStandardAgentSkill(canonicalSource);
+            if (standard.issue) issues.push(standard.issue);
+            else manifest = standard.manifest;
+          } else {
+            issues.push({
+              code: "manifest-invalid",
+              message: result.error.issues.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`).join("; "),
+              path: manifestFile
+            });
+          }
         } else {
-          manifest = result.manifest;
-          issues.push(...validateManifestPackagePaths(manifest));
+          if (result.manifest.kind === "agent") {
+            const standard = inspectStandardAgentSkill(canonicalSource, result.manifest);
+            if (standard.issue) issues.push(standard.issue);
+            else manifest = standard.manifest;
+          } else {
+            manifest = result.manifest;
+            issues.push(...validateManifestPackagePaths(manifest));
+          }
         }
       } catch (error) {
-        issues.push({
-          code: "manifest-yaml-invalid",
-          message: error instanceof Error ? error.message : String(error),
-          path: manifestFile
-        });
+        if (hasStandardSkill) {
+          const standard = inspectStandardAgentSkill(canonicalSource);
+          if (standard.issue) issues.push(standard.issue);
+          else manifest = standard.manifest;
+        } else {
+          issues.push({
+            code: "manifest-yaml-invalid",
+            message: error instanceof Error ? error.message : String(error),
+            path: manifestFile
+          });
+        }
       }
-    } else if (fs.existsSync(legacyPath) && fs.statSync(legacyPath).isFile()) {
-      sourceKind = "legacy-claude";
-      legacy = buildLegacySuggestion(canonicalSource, fs.readFileSync(legacyPath, "utf8"));
-      issues.push({
-        code: "legacy-inspect-only",
-        message: `该 Skill 只有 SKILL.md，只能检查；需迁移为正式 ${PRIMARY_MANIFEST_FILE} 后才可安装运行。`,
-        path: LEGACY_FILE
-      });
+    } else if (hasStandardSkill) {
+      const standard = inspectStandardAgentSkill(canonicalSource);
+      if (standard.issue) issues.push(standard.issue);
+      else manifest = standard.manifest;
     } else {
       issues.push({
         code: "manifest-missing",
-        message: `缺少 ${PRIMARY_MANIFEST_FILE}（兼容 ${COMPAT_MANIFEST_FILE}）。`
+        message: `缺少 ${SKILL_FILE}；Process/Workflow 包可改用 ${PRIMARY_MANIFEST_FILE}。`
       });
     }
 
     const digest = digestPackage(canonicalSource, walk.files);
-    if (manifest && containsSecretValue(manifest)) {
-      issues.push({
-        code: "secret-in-package",
-        message: "Manifest 包含疑似 Secret 值；只能引用 Secret 名称，不能携带 Secret 内容。",
-        path: manifestFile
-      });
-    }
-    if (walk.totalBytes > MAX_PACKAGE_BYTES) {
-      issues.push({ code: "package-too-large", message: `包体超过 ${MAX_PACKAGE_BYTES} 字节。` });
-    }
-    if (walk.files.length + walk.excludedPaths.length > MAX_PACKAGE_FILES) {
-      issues.push({ code: "too-many-files", message: `包内文件数量超过 ${MAX_PACKAGE_FILES}。` });
-    }
 
     return {
       sourcePath: canonicalSource,
@@ -361,10 +354,11 @@ export class SkillPackageService {
     const stagingRoot = fs.mkdtempSync(path.join(this.paths.staging, "skill-package-"));
     let archiveRoot: string | null = null;
     let packageSource = inspection.sourcePath;
-    // One directory per skill: <skills>/<publisher>/<id>. Reinstalling
-    // different content swaps the directory in a single rename; the digest
+    // Agent Skills clients discover <skills>/<name>/SKILL.md, so installed
+    // packages are flat. The registry already enforces globally unique ids.
+    // Different content swaps the directory in a single rename; the digest
     // lives in the registry only, so the layout never accumulates versions.
-    const destination = path.join(this.paths.skills, manifest.publisher.id, manifest.id);
+    const destination = path.join(this.paths.skills, manifest.id);
     let replacedTrash: string | null = null;
     let compatibilityTrash: string | null = null;
     let candidatePromoted = false;
@@ -455,38 +449,6 @@ export class SkillPackageService {
     } finally {
       if (archiveRoot && fs.existsSync(archiveRoot)) fs.rmSync(archiveRoot, { recursive: true, force: true });
     }
-  }
-
-  /**
-   * Static discovery of the legacy workspace surface. Every returned item is
-   * inspected independently so one malformed Skill cannot hide the others.
-   */
-  inspectClaudeSkills(workspaceRoot: string): SkillPackageInspection[] {
-    const workspace = this.canonicalSource(workspaceRoot);
-    const skillsRoot = path.join(workspace, ".claude", "skills");
-    if (!fs.existsSync(skillsRoot) || !fs.statSync(skillsRoot).isDirectory()) return [];
-    return fs.readdirSync(skillsRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map((entry) => path.join(skillsRoot, entry.name))
-      .filter((sourcePath) => hasSkillDescriptor(sourcePath))
-      .map((sourcePath) => this.inspect(sourcePath));
-  }
-
-  /**
-   * Batch migration entry for the old `.claude/skills` surface. Valid Manifest
-   * packages are installed; Legacy packages remain inspection-only
-   * and are returned as skipped, never silently upgraded or executed.
-   */
-  migrateClaudeSkills(workspaceRoot: string): ClaudeSkillMigrationReport {
-    const inspected = this.inspectClaudeSkills(workspaceRoot);
-    const installed: InstalledSkillRecord[] = [];
-    const skipped: ClaudeSkillMigrationSkip[] = [];
-    for (const item of inspected) {
-      if (item.valid) installed.push(this.install(item.sourcePath));
-      else skipped.push({ sourcePath: item.sourcePath, issues: item.issues });
-    }
-    return { inspected, installed, skipped };
   }
 
   listInstalled(): InstalledSkillRecord[] {
@@ -609,12 +571,19 @@ export class SkillPackageService {
     this.assertManagedPackagePath(target.packagePath);
     fs.mkdirSync(this.paths.staging, { recursive: true });
     const trashPath = path.join(this.paths.staging, `skill-uninstall-${target.digest}-${Date.now()}`);
+    const nativeAlias = path.join(this.paths.skills!, target.id);
+    const removeNativeAlias = nativeAlias !== target.packagePath
+      && isDirectoryLinkTo(nativeAlias, target.packagePath);
     const moved = fs.existsSync(target.packagePath);
     if (moved) fs.renameSync(target.packagePath, trashPath);
     try {
       const removed = this.repository.remove(key, target.digest);
       if (!removed) throw new Error(`卸载时 registry 记录已消失：${key}@${target.digest}`);
       fs.rmSync(trashPath, { recursive: true, force: true });
+      if (removeNativeAlias) {
+        try { fs.unlinkSync(nativeAlias); }
+        catch { /* A stale compatibility alias is inert and repaired at startup. */ }
+      }
       return true;
     } catch (error) {
       if (moved && !fs.existsSync(target.packagePath) && fs.existsSync(trashPath)) {
@@ -655,17 +624,6 @@ export class SkillPackageService {
   }
 
 }
-
-export type ClaudeSkillMigrationSkip = {
-  sourcePath: string;
-  issues: SkillPackageIssue[];
-};
-
-export type ClaudeSkillMigrationReport = {
-  inspected: SkillPackageInspection[];
-  installed: InstalledSkillRecord[];
-  skipped: ClaudeSkillMigrationSkip[];
-};
 
 function walkPackage(root: string): WalkResult {
   const files: SkillPackageFile[] = [];
@@ -771,7 +729,7 @@ function validateManifestPackagePaths(manifest: SkillManifest): SkillPackageIssu
   }
   for (const pattern of manifest.capabilities.openmind.write) {
     const topLevel = pattern.split("/")[0];
-    const entry = OPENMIND_LAYOUT_V2.find((item) => item.logicalPath === topLevel);
+    const entry = OPENMIND_LAYOUT_V3.find((item) => item.logicalPath === topLevel);
     if (!entry || !isWritableLayoutCategory(entry.category)) {
       issues.push({ code: "openmind-write-forbidden", message: `openmind.write 不允许写入 '${topLevel}'。`, path: "capabilities.openmind.write" });
     }
@@ -779,29 +737,60 @@ function validateManifestPackagePaths(manifest: SkillManifest): SkillPackageIssu
   return issues;
 }
 
-function buildLegacySuggestion(sourceRoot: string, content: string): LegacySkillSuggestion {
-  const frontmatter = parseSkillFrontmatter(content);
-  const dirName = path.basename(sourceRoot);
-  const id = frontmatter.id || frontmatter.name || dirName;
-  const title = frontmatter.title || frontmatter.name || dirName;
-  const explicitRunner = frontmatter.runner && frontmatter.args && frontmatter.args.length > 0;
-  return {
-    id,
-    title,
-    description: frontmatter.description || "",
-    kind: explicitRunner ? "process-suggestion" : "agent",
-    frontmatter,
-    ...(explicitRunner ? {
-      suggestedEntrypoint: {
-        runner: frontmatter.runner as string,
-        args: frontmatter.args as string[],
-        cwd: frontmatter.cwd || path.join(".claude", "skills", dirName)
+function inspectStandardAgentSkill(
+  sourceRoot: string,
+  declaredManifest?: Extract<SkillManifest, { kind: "agent" }>
+): { manifest?: SkillManifest; issue?: SkillPackageIssue } {
+  const skillPath = path.join(sourceRoot, SKILL_FILE);
+  if (!isRegularFile(skillPath)) {
+    return { issue: { code: "manifest-missing", message: `Agent Skill 缺少 ${SKILL_FILE}。`, path: SKILL_FILE } };
+  }
+  const frontmatter = parseSkillFrontmatter(fs.readFileSync(skillPath, "utf8"));
+  const name = String(frontmatter.name || "").trim();
+  const description = String(frontmatter.description || "").trim();
+  const directoryName = path.basename(sourceRoot);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) {
+    return { issue: { code: "manifest-invalid", message: "SKILL.md name 必须为 1–64 位小写字母、数字和单连字符。", path: SKILL_FILE } };
+  }
+  if (name !== directoryName) {
+    return { issue: { code: "manifest-invalid", message: `SKILL.md name 必须与目录名一致：${directoryName}。`, path: SKILL_FILE } };
+  }
+  if (!description || description.length > 1024) {
+    return { issue: { code: "manifest-invalid", message: "SKILL.md description 必须为 1–1024 个字符。", path: SKILL_FILE } };
+  }
+
+  if (declaredManifest) {
+    return {
+      manifest: {
+        ...declaredManifest,
+        id: name,
+        display: {
+          ...declaredManifest.display,
+          // `title` is not required by the Agent Skills specification. Keep
+          // optional app display metadata when present; otherwise use name.
+          name: frontmatter.title || declaredManifest.display.name || name,
+          description,
+          group: frontmatter.group || declaredManifest.display.group
+        }
       }
-    } : {}),
-    migrationReason: explicitRunner
-      ? "旧 frontmatter 声明了 runner/args，但尚未形成 Manifest、能力、Runtime 和 Artifact 合同。"
-      : "旧 Skill 没有可验证的进程入口，应按 Agent/Prompt Skill 迁移。"
-  };
+    };
+  }
+
+  const projected = validateManifest({
+    apiVersion: "openmind.dev/skill/v1",
+    id: name,
+    version: "0.0.0",
+    publisher: { id: "agent-skills", displayName: "Agent Skills" },
+    display: { name: frontmatter.title || name, description, group: frontmatter.group || "agent-skills" },
+    capabilities: {},
+    artifacts: [],
+    execution: {},
+    platforms: ["windows-x64", "windows-arm64", "macos-arm64", "macos-x64", "linux-x64", "linux-arm64", "wsl-linux-x64"],
+    compatibility: { minAppVersion: "0.0.0" },
+    kind: "agent"
+  });
+  if (!projected.ok) throw new Error("Agent Skills internal projection is invalid");
+  return { manifest: projected.manifest };
 }
 
 function isWritableLayoutCategory(category: OpenmindEntryCategory): boolean {
@@ -809,7 +798,7 @@ function isWritableLayoutCategory(category: OpenmindEntryCategory): boolean {
 }
 
 function hasSkillDescriptor(sourcePath: string): boolean {
-  return [...MANIFEST_FILES, LEGACY_FILE].some((name) => {
+  return [...MANIFEST_FILES, SKILL_FILE].some((name) => {
     const candidate = path.join(sourcePath, name);
     return isRegularFile(candidate);
   });
@@ -854,6 +843,19 @@ function isRegularFile(candidate: string): boolean {
   try { return fs.statSync(candidate).isFile(); } catch { return false; }
 }
 
+function realpathOrSelf(candidate: string): string {
+  try { return fs.realpathSync(candidate); } catch { return path.resolve(candidate); }
+}
+
+function isDirectoryLinkTo(candidate: string, target: string): boolean {
+  try {
+    return fs.lstatSync(candidate).isSymbolicLink()
+      && fs.realpathSync(candidate) === fs.realpathSync(target);
+  } catch {
+    return false;
+  }
+}
+
 function isZipSource(sourcePath: string): boolean {
   try {
     return fs.statSync(sourcePath).isFile() && path.extname(sourcePath).toLocaleLowerCase() === ".zip";
@@ -885,13 +887,6 @@ function isSafeTemplatePath(value: string): boolean {
 function isInside(root: string, target: string): boolean {
   const relative = path.relative(root, target);
   return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
-}
-
-function containsSecretValue(value: unknown): boolean {
-  if (typeof value === "string") return SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value));
-  if (Array.isArray(value)) return value.some(containsSecretValue);
-  if (value && typeof value === "object") return Object.values(value).some(containsSecretValue);
-  return false;
 }
 
 function sha256(value: string): string {

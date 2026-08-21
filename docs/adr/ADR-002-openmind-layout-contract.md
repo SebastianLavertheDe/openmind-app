@@ -1,19 +1,20 @@
-# ADR-002: openmind Layout Contract v1 (`openmind-layout-v1`)
+# ADR-002: OpenMind Data Repository Layout Contract
 
-- **Status:** Accepted
+- **Status:** Accepted (current contract: `openmind-layout-v3`)
 - **Date:** 2026-08-05
 - **Phase:** 0 (Architecture freeze)
-- **Machine-readable manifest:** `shared/openmind-layout-v1.ts`
+- **Machine-readable manifest:** `shared/openmind-layout-v1.ts` (current:
+  `shared/openmind-layout-v3.ts`)
 
 ## Context
 
-The `openmind` directory has grown organically. Its current on-disk layout is a
+The private OpenMind data repository has grown organically. Its on-disk layout is a
 de-facto contract consumed by 16 skills, and it must not be reorganised by the
-app. Audit of the live `openmind/` directory on 2026-08-05 shows these top-level
-entries:
+app. The selected directory is the repository and content root; it does not
+contain another `openmind/` directory. Its content entries include:
 
 ```
-openmind/
+<openmindRoot>/
 ├── article/        (content)
 ├── creative/       (content, with Chinese-named subtrees — see below)
 ├── daily-summary/  (content)
@@ -27,7 +28,7 @@ The `creative/` subtree uses fixed Chinese stage directories that **must not**
 be renamed:
 
 ```
-openmind/creative/01-内容生产/
+<openmindRoot>/creative/01-内容生产/
 ├── 文稿库/
 │   └── 02-制作中/<package>/
 └── 选题管理/
@@ -79,7 +80,7 @@ frozen `OPENMIND_LAYOUT_V1` object with the following categories:
 | `.claudian/` | optional-preserve-only | may exist; never created by app |
 | `.obsidian/` | optional-preserve-only | may exist; never created by app |
 
-**Note on absence observed in audit:** the live `openmind/` on this machine has
+**Note on absence observed in audit:** a valid root may have
 no `.claude/`, `.obsidian/`, or `video/`. That is expected and valid; their
 absence is reported via `RootHealth.missingCreateIfNeededEntries` (for `video/`)
 or simply not surfaced (for optional entries).
@@ -139,3 +140,37 @@ type OpenmindRootHealth = {
   migrated to take `OPENMIND_ROOT` instead.
 - **Risk:** any future change to layout requires bumping to
   `openmind-layout-v2` and writing a migration; v1 is immutable post-freeze.
+
+## Supersession note: layout v2 (additive)
+
+`shared/openmind-layout-v2.ts` supersedes v1 additively: every v1 entry is
+carried over verbatim, plus a new `app-managed` category and the entries
+`.agent/skills` + `.agent/skill-data` (the Installed Skill store relocated
+from app-private userData into the bound root). No on-disk migration is
+required; the §3 immutability rules carry over unchanged.
+
+## Supersession: layout v3 (flat-root contract, 2026-08-21)
+
+`shared/openmind-layout-v3.ts` supersedes v2. Its root interpretation is a
+deliberate contract correction: the selected
+directory is the private data repository and the **flat** content root.
+`article/`, `config/`, `.agent/` etc. sit directly under the selected root,
+with no nested `openmind/` sub-directory. v3 additionally recognises:
+
+| Logical path | Category | Notes |
+|---|---|---|
+| `assets/` | create-if-needed | browser evidence / shared media output; skill-writable |
+| `config/` | app-managed | `providers.yaml`; written directly by the app, never via `openmind.write` |
+| `.openmind/` | app-managed | product state stores (content index, watchlist, …) |
+| `.agent/skills/` | app-managed | flat `<name>/SKILL.md` Agent Skills store plus registry |
+| `.claude/` | app-managed | directory link to `.agent`; Claude Code discovers `.claude/skills` natively |
+| `.zcode/` | optional-preserve-only | tool-private; never created by app |
+| `scripts/` | optional-preserve-only | user automation tooling |
+| `AGENTS.md`, `CLAUDE.md`, `README.md`, `.gitignore`, `.gitattributes` | optional-preserve-only | root documentation files |
+
+`video/` remains create-if-needed: it may be absent but is still owned by the
+`video-burnin-subtitles` skill contract. This is a new application, so no
+legacy binding upgrade is performed. When an existing real `.claude/` directory
+is encountered, the app preserves it below `.agent/legacy-claude`, moves only
+non-conflicting entries into `.agent`, and then creates the link; conflicting
+content is never overwritten. The §3 immutability rules carry over unchanged.

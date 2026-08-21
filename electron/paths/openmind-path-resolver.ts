@@ -29,7 +29,7 @@ import {
   OPENMIND_LAYOUT_VERSION,
   OPENMIND_WRITABLE_TOP_LEVEL_DIRS,
   topLevelOf
-} from "../../shared/openmind-layout-v2";
+} from "../../shared/openmind-layout-v3";
 
 export interface OpenmindRootSnapshot {
   /** Canonical real path of the openmind root. */

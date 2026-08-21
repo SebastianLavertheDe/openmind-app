@@ -3,23 +3,30 @@ import path from "node:path";
 import type { ProjectFileMatch, ProjectFileSearchResult } from "../shared/contracts";
 
 const IGNORED_DIRECTORIES = new Set([
+  ".agent",
   ".build",
   ".cache",
-  ".openmind",
+  ".claude",
+  ".claudian",
   ".git",
   ".idea",
   ".mypy_cache",
   ".next",
+  ".obsidian",
+  ".openmind",
   ".pytest_cache",
   ".ruff_cache",
   ".tox",
   ".venv",
+  ".zcode",
   "__pycache__",
   "build",
+  "config",
   "coverage",
   "dist",
   "node_modules",
   "out",
+  "scripts",
   "target",
   "venv"
 ]);
@@ -227,6 +234,7 @@ function isSensitiveFile(fileName: string): boolean {
     || normalized === "credentials"
     || normalized === "credentials.json"
     || normalized === "secrets.json"
+    || normalized === "providers.yaml"
   ) return true;
   if (normalized === ".env" || normalized.startsWith(".env.")) {
     return !/\.(example|sample|template)$/u.test(normalized);

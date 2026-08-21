@@ -665,12 +665,13 @@ clean-machine, crash/repair and manual-upgrade evidence remains external.
 > provider checkpoint/resume path described by the former Phase 9 have been
 > removed. The previous implementation and test counts are historical only.
 
-Installed `kind: agent` packages now run only from an AI console through the
-selected Claude Code CLI or Codex CLI bridge. The bridge resolves an active,
-ready, exact-digest package from the app-private SkillStore.
-Codex receives the boundary-checked package `SKILL.md` through its app-server
-bridge; Claude receives bounded package `SKILL.md`/`references` content
-transiently with project-local Skill discovery disabled.
+Installed Agent Skills now run only from an AI console through the selected
+Claude Code CLI or Codex CLI bridge. Agent packages follow the standard
+`SKILL.md` contract without requiring an app-specific Manifest. Codex receives
+the checked package `SKILL.md` through its app-server bridge. For Claude,
+`<openmindRoot>/.claude` links to `.agent`, and Claude Code owns native project
+discovery from the flat `.claude/skills/<name>/SKILL.md` tree with all Skills
+enabled; the app does not inject or filter discovered Skill instructions.
 
 ExecutionBroker, manual Skill Run, Automation, Workflow, retry and removed
 Internal Agent resume entry points fail closed for `kind: agent`. They do not

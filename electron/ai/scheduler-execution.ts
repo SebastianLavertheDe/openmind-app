@@ -50,7 +50,9 @@ export async function persistScheduledTurnAndPump(host: SchedulerExecutionHost, 
   try {
     const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, host.store.getSession(run.sessionId), run.prompt);
     const modelInput = skillInvocation
-      ? skillBridge ? composeNativeSkillTaskPrompt(run, skillInvocation) : composeNativeSkillProviderPrompt(run, skillInvocation)
+      ? skillBridge && host.store.getSession(run.sessionId).provider !== "claude"
+        ? composeNativeSkillTaskPrompt(run, skillInvocation)
+        : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
     const events = await host.store.beginTurn(run, modelInput);
     for (const event of events) host.publish({ kind: "event", event });
@@ -110,7 +112,9 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt);
     const contextState = host.store.getContextState(run.sessionId);
     const baseProviderPrompt = skillInvocation
-      ? skillBridge ? composeNativeSkillTaskPrompt(run, skillInvocation) : composeNativeSkillProviderPrompt(run, skillInvocation)
+      ? skillBridge && session.provider !== "claude"
+        ? composeNativeSkillTaskPrompt(run, skillInvocation)
+        : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
     const evidenceInstructions = browserEvidenceInstructions(host.browserAutomation);
     const browserAwarePrompt = evidenceInstructions ? `${baseProviderPrompt}\n\n${evidenceInstructions}` : baseProviderPrompt;
@@ -153,7 +157,9 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         raw: skillInvocation.raw,
         prompt: composeNativeSkillTaskPrompt(run, skillInvocation)
       } : null,
-      skillBridge,
+      // Claude discovers Agent Skills natively from `.claude/skills`. Codex
+      // still receives the exact installed path as a native Skill input.
+      skillBridge: session.provider === "claude" ? null : skillBridge,
       providerModel: host.resolveProviderModel(session.provider),
       browserAutomation: host.browserAutomation,
       images: turnImages

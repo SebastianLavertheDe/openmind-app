@@ -9,10 +9,10 @@ import { OnboardingPage } from "./OnboardingPage";
 const snapshot: AiSnapshot = { projectRoot: "", providers: [], sessions: [], runs: [], pendingApprovals: [] };
 const bootstrap: AppBootstrap = { repoRoot: "", openmindRoot: "", workspaceRoot: "", validRepo: false, skillsInstalled: false, runtime: "linux", environment: { mode: "desktop", platform: "linux" }, overview: {} as AppBootstrap["overview"], skills: [], ai: snapshot };
 
-const rootStatus = (ready = false): OpenmindRootStatus => ({ openmindRoot: ready ? "/workspace/openmind" : "", workspaceRoot: "", health: { configured: ready, accessible: ready, readable: ready, writable: ready, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, snapshot: ready ? { rootPath: "/workspace/openmind", rootId: "root", rootGeneration: 1 } : null });
+const rootStatus = (ready = false): OpenmindRootStatus => ({ openmindRoot: ready ? "/workspace" : "", workspaceRoot: "", health: { configured: ready, accessible: ready, readable: ready, writable: ready, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] }, snapshot: ready ? { rootPath: "/workspace", rootId: "root", rootGeneration: 1 } : null });
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
-  window.openmind = { getOpenmindRoot: vi.fn().mockResolvedValue(rootStatus()), selectOpenmindRoot: vi.fn().mockResolvedValue("/workspace/openmind"), setOpenmindRoot: vi.fn().mockResolvedValue("/workspace/openmind"), previewOpenmindRoot: vi.fn().mockResolvedValue({ candidate: "/workspace/openmind", canonicalRoot: "/workspace/openmind", health: rootStatus(true).health, canBind: true, blockingReasons: [] }), getBootstrap: vi.fn().mockResolvedValue({ ...bootstrap, validRepo: true, openmindRoot: "/workspace/openmind" }), onAiEvent: vi.fn(() => () => undefined), ...overrides } as unknown as DesktopApi;
+  window.openmind = { getOpenmindRoot: vi.fn().mockResolvedValue(rootStatus()), selectOpenmindRoot: vi.fn().mockResolvedValue("/workspace"), setOpenmindRoot: vi.fn().mockResolvedValue("/workspace"), previewOpenmindRoot: vi.fn().mockResolvedValue({ candidate: "/workspace", canonicalRoot: "/workspace", health: rootStatus(true).health, canBind: true, blockingReasons: [] }), getBootstrap: vi.fn().mockResolvedValue({ ...bootstrap, repoRoot: "/workspace", validRepo: true, openmindRoot: "/workspace" }), onAiEvent: vi.fn(() => () => undefined), ...overrides } as unknown as DesktopApi;
 }
 
 afterEach(() => cleanup());
@@ -35,24 +35,24 @@ describe("OnboardingPage", () => {
     const getOpenmindRoot = vi.fn(async () => rootStatus(ready));
     const setOpenmindRoot = vi.fn(async () => {
       ready = true;
-      return "/workspace/openmind";
+      return "/workspace";
     });
-    const onRefresh = vi.fn(async () => ({ ...bootstrap, validRepo: ready, openmindRoot: ready ? "/workspace/openmind" : "" }));
+    const onRefresh = vi.fn(async () => ({ ...bootstrap, repoRoot: ready ? "/workspace" : "", validRepo: ready, openmindRoot: ready ? "/workspace" : "" }));
     installApi({ getOpenmindRoot, setOpenmindRoot });
     render(<AiProvider initial={snapshot}><OnboardingPage bootstrap={bootstrap} go={vi.fn()} onRefresh={onRefresh} /><FeedbackHost /></AiProvider>);
 
-    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
-    expectActiveStep(1, "选择 OpenMind 数据目录");
+    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 私人数据仓库" });
+    expectActiveStep(1, "选择 OpenMind 私人数据仓库");
     expect(document.querySelector(".onboarding-risk")).toBeNull();
     expect(document.querySelector(".onboarding-progress")).toBeNull();
     expect(screen.queryByRole("button", { name: "稍后配置" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "选择文件夹" }));
     await waitFor(() => expect(window.openmind.selectOpenmindRoot).toHaveBeenCalledTimes(1));
-    const dialog = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 数据目录" });
+    const dialog = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 私人数据仓库" });
     fireEvent.click(within(dialog).getByRole("button", { name: "确认绑定" }));
 
-    await waitFor(() => expect(setOpenmindRoot).toHaveBeenCalledWith("/workspace/openmind"));
+    await waitFor(() => expect(setOpenmindRoot).toHaveBeenCalledWith("/workspace"));
     expect(onRefresh).toHaveBeenCalledTimes(2);
     await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" });
     expectActiveStep(2, "安装 RSS 源");
@@ -63,8 +63,8 @@ describe("OnboardingPage", () => {
     installApi();
     render(<AiProvider initial={snapshot}><OnboardingPage bootstrap={bootstrap} go={vi.fn()} onRefresh={vi.fn(async () => bootstrap)} /></AiProvider>);
 
-    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
-    expectActiveStep(1, "选择 OpenMind 数据目录");
+    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 私人数据仓库" });
+    expectActiveStep(1, "选择 OpenMind 私人数据仓库");
     expect(screen.queryByRole("button", { name: "安装 RSS 源" })).toBeNull();
     expect(screen.queryByRole("button", { name: "打开导入入口" })).toBeNull();
     expect(screen.queryByRole("button", { name: "打开 Provider 设置" })).toBeNull();
@@ -143,5 +143,37 @@ describe("OnboardingPage", () => {
     await screen.findByRole("heading", { level: 2, name: "准备完成" });
     expectActiveStep(4, "准备完成");
     expect((screen.getByRole("button", { name: "进入工作台" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("can revisit completed steps and move forward again without changing saved setup state", async () => {
+    const updateOnboardingState = vi.fn();
+    installApi({
+      getOpenmindRoot: vi.fn().mockResolvedValue(rootStatus(true)),
+      getOnboardingState: vi.fn().mockResolvedValue({ completed: false, skill: "pending", provider: "skipped" }),
+      updateOnboardingState
+    });
+    render(
+      <AiProvider initial={snapshot}>
+        <OnboardingPage
+          bootstrap={{ ...bootstrap, validRepo: true, openmindRoot: "/workspace/openmind", skillsInstalled: true }}
+          go={vi.fn()}
+          onRefresh={vi.fn(async () => ({ ...bootstrap, validRepo: true, openmindRoot: "/workspace/openmind", skillsInstalled: true }))}
+        />
+      </AiProvider>
+    );
+
+    await screen.findByRole("heading", { level: 2, name: "准备完成" });
+    fireEvent.click(screen.getByRole("button", { name: "上一步" }));
+    expectActiveStep(3, "连接 AI Provider");
+    fireEvent.click(screen.getByRole("button", { name: "上一步" }));
+    expectActiveStep(2, "安装 RSS 源");
+    const activePanel = document.querySelector<HTMLElement>('[data-onboarding-step="2"]')!;
+    expect(within(activePanel).getByText("RSS 采集能力已安装")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    expectActiveStep(3, "连接 AI Provider");
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    expectActiveStep(4, "准备完成");
+    expect(updateOnboardingState).not.toHaveBeenCalled();
   });
 });

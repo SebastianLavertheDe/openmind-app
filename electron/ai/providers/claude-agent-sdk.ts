@@ -13,7 +13,6 @@ import {
   browserEvidenceInstructions,
   buildBrowserMcpProcess
 } from "../browser-evidence";
-import { buildClaudeSkillBridgeInstructions } from "./skill-bridge";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 
@@ -205,10 +204,9 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const prompt = context.images.length ? claudeImageMessageStream(context.prompt, context.images) : context.prompt;
     let stderr = "";
     const captureStderr = (text: string) => { stderr = appendBounded(stderr, text); };
-    // A warm Claude process was created without a per-run SkillStore bridge;
-    // never reuse it for an installed Agent or its instructions could fall
-    // back to project-local `.claude/skills`.
-    let claimedWarm = context.skillBridge ? null : this.claimWarmSlot(context);
+    // Claude Code owns Skill discovery for every turn, including explicit
+    // `/skill-name` invocations, so warm sessions can be reused normally.
+    let claimedWarm = this.claimWarmSlot(context);
     const query = claimedWarm
       ? await (async () => {
         const slot = claimedWarm;
@@ -398,8 +396,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       : null;
     const browserServer = buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
     const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
-    const skillBridgeInstructions = context.skillBridge ? buildClaudeSkillBridgeInstructions(context.skillBridge) : "";
-    const systemAppend = [browserInstructions, skillBridgeInstructions].filter(Boolean).join("\n\n");
+    const systemAppend = browserInstructions;
     return {
       ...(context.providerModel && context.providerModel !== AUTO_MODEL
         ? { model: context.providerModel }
@@ -408,11 +405,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       cwd: context.cwd,
       resume: context.providerSessionId || undefined,
       permissionMode: context.interactionMode === "plan" ? "plan" : "default",
-      // An installed bridge may use user-level authentication/configuration,
-      // but must not discover project-local skills. Its package instructions
-      // are injected transiently below after Main-side boundary checks.
-      settingSources: context.skillBridge ? ["user"] : [...CLAUDE_SETTING_SOURCES],
-      skills: context.skillBridge ? [] : CLAUDE_SKILL_SELECTION,
+      settingSources: [...CLAUDE_SETTING_SOURCES],
+      skills: CLAUDE_SKILL_SELECTION,
       tools: CLAUDE_WORKBENCH_TOOLS,
       systemPrompt: { type: "preset", preset: "claude_code", ...(systemAppend ? { append: systemAppend } : {}) },
       ...(browserServer ? {

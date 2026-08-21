@@ -19,6 +19,10 @@ export function installBrowserPreviewApi(): boolean {
   if (window.openmind) return true;
   if (isElectronRenderer()) return false;
   const previewProjectRoot = "/fixtures/openmind-data";
+  // The selected private repository is the content root itself. Keep the
+  // preview contract identical to desktop: there is no nested `openmind/`.
+  const previewOpenmindRoot = previewProjectRoot;
+  const previewRelocationTarget = "/fixtures/openmind-data-next";
   const onboardingPreview = new URLSearchParams(window.location.search).get("preview") === "onboarding";
   let previewRootReady = !onboardingPreview;
   let previewSkillsReady = !onboardingPreview;
@@ -124,7 +128,7 @@ export function installBrowserPreviewApi(): boolean {
   const listeners = new Set<(event: never) => void>();
   let preferences: UserPreferences = {
     schemaVersion: 1,
-    openmindRoot: `${snapshot.projectRoot}/openmind`,
+    openmindRoot: previewOpenmindRoot,
     workspaceRoot: snapshot.projectRoot,
     themeMode: "light" as const,
     accentColor: "#2563eb",
@@ -183,7 +187,7 @@ export function installBrowserPreviewApi(): boolean {
   const api: DesktopApi = {
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
-      openmindRoot: previewRootReady ? `${snapshot.projectRoot}/openmind` : "",
+      openmindRoot: previewRootReady ? previewOpenmindRoot : "",
       workspaceRoot: snapshot.projectRoot,
       validRepo: previewRootReady,
       skillsInstalled: previewSkillsReady,
@@ -366,7 +370,7 @@ export function installBrowserPreviewApi(): boolean {
     openExternal: async () => true,
     exportText: async (defaultName) => defaultName,
     setOpenmindRoot: async (p) => { previewRootReady = true; return p; },
-    selectOpenmindRoot: async () => `${snapshot.projectRoot}/openmind`,
+    selectOpenmindRoot: async () => previewOpenmindRoot,
     previewOpenmindRoot: async (candidate) => ({
       candidate,
       canonicalRoot: candidate,
@@ -376,7 +380,7 @@ export function installBrowserPreviewApi(): boolean {
         accessible: true,
         readable: true,
         writable: true,
-        expectedStructureVersion: "openmind-layout-v2",
+        expectedStructureVersion: "openmind-layout-v3",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],
@@ -388,10 +392,10 @@ export function installBrowserPreviewApi(): boolean {
       canBind: true,
       blockingReasons: []
     }),
-    selectOpenmindRelocationTarget: async () => `${snapshot.projectRoot}/openmind-next`,
+    selectOpenmindRelocationTarget: async () => previewRelocationTarget,
     previewOpenmindRelocation: async (targetDirectory) => ({
       schemaVersion: 1,
-      sourceDirectory: `${snapshot.projectRoot}/openmind`,
+      sourceDirectory: previewOpenmindRoot,
       targetDirectory,
       sourceRootId: "preview-root",
       sourceFileCount: 2,
@@ -409,7 +413,7 @@ export function installBrowserPreviewApi(): boolean {
     relocateOpenmind: async (targetDirectory) => ({
       schemaVersion: 1,
       status: "committed" as const,
-      sourceDirectory: `${snapshot.projectRoot}/openmind`,
+      sourceDirectory: previewOpenmindRoot,
       targetDirectory,
       sourceRootId: "preview-root",
       targetRootId: "preview-target",
@@ -422,7 +426,7 @@ export function installBrowserPreviewApi(): boolean {
       completedAt: new Date().toISOString()
     }),
     getOpenmindRoot: async () => ({
-      openmindRoot: previewRootReady ? `${snapshot.projectRoot}/openmind` : "",
+      openmindRoot: previewRootReady ? previewOpenmindRoot : "",
       workspaceRoot: snapshot.projectRoot,
       health: {
         configured: previewRootReady,
@@ -430,7 +434,7 @@ export function installBrowserPreviewApi(): boolean {
         accessible: previewRootReady,
         readable: previewRootReady,
         writable: previewRootReady,
-        expectedStructureVersion: "openmind-layout-v2",
+        expectedStructureVersion: "openmind-layout-v3",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],
@@ -439,7 +443,7 @@ export function installBrowserPreviewApi(): boolean {
         activeRunCount: 0,
         warnings: []
       },
-      snapshot: previewRootReady ? { rootPath: `${snapshot.projectRoot}/openmind`, rootId: "preview-root", rootGeneration: 1 } : null
+      snapshot: previewRootReady ? { rootPath: previewOpenmindRoot, rootId: "preview-root", rootGeneration: 1 } : null
     }),
     setWorkspaceRoot: async (p) => p,
     selectWorkspaceRoot: async () => snapshot.projectRoot,
@@ -525,9 +529,7 @@ export function installBrowserPreviewApi(): boolean {
     listCliToolStatuses: async () => [],
     openCliLogin: async () => { throw new Error("浏览器预览不支持打开终端登录。 "); },
     aiRefreshSkills: async () => skills,
-    inspectSkillWorkspace: async () => [],
     inspectInstalledSkill: async () => null,
-    migrateSkillWorkspace: async () => ({ inspected: [], installed: [], skipped: [] }),
     listInstalledSkills: async () => [],
     installSkillSource: async () => { previewSkillsReady = true; return []; },
     listInstalledRunnableSkills: async () => [],

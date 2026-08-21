@@ -70,7 +70,7 @@ const demoRun = BrokerRunRecordSchema.parse({
 });
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
-    inspectSkillWorkspace: async () => [inspection],
+    inspectInstalledSkill: async () => inspection,
     listInstalledSkills: async () => [installedSkill],
     setInstalledSkillEnabled: async (_key: string, _digest: string, enabled: boolean) => ({ ...installedSkill, enabled }),
     listSkillRuns: async () => [demoRun],
@@ -162,10 +162,10 @@ describe("SkillsPage", () => {
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   });
 
-  it("does not show an availability switch for a workspace-only Skill", async () => {
+  it("shows an empty catalog when nothing is installed", async () => {
     renderPage({ listInstalledSkills: async () => [] });
 
-    expect(await screen.findByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+    expect(await screen.findByText("还没有可管理的 Skill")).toBeTruthy();
     expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.queryByText("后续可用性")).toBeNull();
   });
@@ -285,22 +285,15 @@ describe("SkillsPage", () => {
     await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source, ["one"]));
   });
 
-  it("groups installed Git Skills by repository and keeps workspace-only Skills ungrouped", async () => {
+  it("groups installed Git Skills by repository", async () => {
     const locator = "https://github.com/example/cctools-skills.git";
     const gitOne: InstalledSkillView = { ...installedSkill, sourceType: "git", sourceLocator: locator, sourcePath: locator };
     const gitTwo: InstalledSkillView = { ...installedSkill, key: "local/other", id: "other", digest: "b".repeat(64), sourceType: "git", sourceLocator: locator, sourcePath: locator };
-    const workspaceOnly: SkillPackageInspectionView = {
-      ...inspection,
-      sourcePath: "/workspace/.claude/skills/workspace-only",
-      digest: "c".repeat(64),
-      manifest: { ...manifest, id: "workspace-only", display: { ...manifest.display, name: "Workspace Only" } }
-    };
-    renderPage({ inspectSkillWorkspace: async () => [workspaceOnly], listInstalledSkills: async () => [gitOne, gitTwo] });
+    renderPage({ listInstalledSkills: async () => [gitOne, gitTwo] });
 
     const repository = await screen.findByRole("button", { name: "收起 cctools-skills" });
     expect(repository.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getAllByText(locator).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("button", { name: /Workspace Only/ })).toBeTruthy();
     fireEvent.click(repository);
     expect(repository.getAttribute("aria-expanded")).toBe("false");
   });
@@ -312,11 +305,12 @@ describe("SkillsPage", () => {
   });
 
   it("supports keyboard navigation and switches run history with the selection", async () => {
-    const otherInspection: SkillPackageInspectionView = {
-      ...inspection,
-      sourcePath: "/workspace/.claude/skills/other-skill",
+    const otherInstalled: InstalledSkillView = {
+      ...installedSkill,
+      key: "local/other-skill",
+      id: "other-skill",
       digest: "b".repeat(64),
-      manifest: { ...manifest, id: "other-skill", display: { ...manifest.display, name: "Other Skill" } }
+      sourcePath: "/workspace/.agent/skills/other-skill"
     };
     const otherRun = BrokerRunRecordSchema.parse({
       ...demoRun,
@@ -325,23 +319,14 @@ describe("SkillsPage", () => {
       state: "failed",
       terminalState: "failed"
     });
-    renderPage({ inspectSkillWorkspace: async () => [inspection, otherInspection], listSkillRuns: async () => [demoRun, otherRun] });
+    renderPage({
+      inspectInstalledSkill: async (key: string) => (key === "local/other-skill" ? null : inspection),
+      listInstalledSkills: async () => [installedSkill, otherInstalled],
+      listSkillRuns: async () => [demoRun, otherRun]
+    });
     const demoButton = await screen.findByRole("button", { name: /Demo Skill/ });
     fireEvent.keyDown(demoButton, { key: "ArrowDown" });
     expect(screen.getByText("other-run-1", { exact: false })).toBeTruthy();
     expect(screen.queryByText("demo-run-1", { exact: false })).toBeNull();
-  });
-
-  it("merges installed and workspace versions of the same Skill into one row", async () => {
-    const changedWorkspaceInspection: SkillPackageInspectionView = {
-      ...inspection,
-      digest: "b".repeat(64),
-      manifest: { ...manifest, version: "1.3.0" }
-    };
-    renderPage({ inspectSkillWorkspace: async () => [changedWorkspaceInspection] });
-
-    await screen.findByRole("heading", { name: "Demo Skill" });
-    expect(document.querySelectorAll(".skills-list-item")).toHaveLength(1);
-    expect(screen.getByText("已安装 · 工作区已关联")).toBeTruthy();
   });
 });

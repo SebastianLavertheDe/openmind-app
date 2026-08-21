@@ -17,10 +17,12 @@ describe("ProductService", () => {
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-product-"));
-    fs.mkdirSync(path.join(root, ".claude", "skills", "rss-article-saver"), { recursive: true });
+    // SourceRegistry reads skill data (subscriptions.opml) from the installed
+    // store under the flat content root: <root>/openmind/.agent/skills/...
+    fs.mkdirSync(path.join(root, "openmind", ".agent", "skills", "rss-article-saver"), { recursive: true });
     fs.mkdirSync(path.join(root, "openmind", "daily-summary"), { recursive: true });
     fs.writeFileSync(
-      path.join(root, ".claude", "skills", "rss-article-saver", "subscriptions.opml"),
+      path.join(root, "openmind", ".agent", "skills", "rss-article-saver", "subscriptions.opml"),
       `<?xml version="1.0"?><opml version="2.0"><body><outline text="Example" type="rss" xmlUrl="https://example.com/feed.xml"/></body></opml>`
     );
     fs.writeFileSync(path.join(root, "openmind", "daily-summary", "20260615_daily_summary.md"), "# 每日总结\n\n## 核心信号\n\n本地 AI 工作台正在成熟。");
@@ -71,7 +73,7 @@ describe("ProductService", () => {
       // ADR-001: keep app-private state under the legacy repo root for these
       // tests (so .openmind lands at root/.openmind as the fixtures expect);
       // production wires this to userData/state/<root-id>/ via main.ts.
-      { skillSourcesRoot: root, stateRoot: root }
+      { stateRoot: root }
     );
   }
 
@@ -398,9 +400,9 @@ describe("ProductService 创作委托方法", () => {
       path.join(root, "openmind"),
       content as ContentServiceApi,
       creative as unknown as CreativeServiceApi,
-      // ADR-001: opts (4th param) — keep skill-source + state under the legacy
-      // repo root for these tests. preferences is now the 5th param.
-      { skillSourcesRoot: root, stateRoot: root },
+      // ADR-001: opts (4th param) — keep state under the legacy repo root for
+      // these tests. preferences is now the 5th param.
+      { stateRoot: root },
       () => ({ ...UserPreferencesSchema.parse({}), ...preferenceOverrides })
     );
     return { service, creative };

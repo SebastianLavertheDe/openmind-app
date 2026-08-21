@@ -398,7 +398,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.selectOpenmindRoot,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 openmind 内容根目录",
+          title: "选择 OpenMind 私人数据仓库目录",
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
@@ -751,13 +751,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     { channel: C.aiRefreshSkills, handler: () => ai().call("refresh-skills") },
     {
-      channel: C.inspectSkillWorkspace,
-      handler: () => {
-        const workspaceRoot = settings.resolveWorkspaceRoot();
-        return workspaceRoot ? skillPackages().inspectClaudeSkills(workspaceRoot).map(toSkillPackageInspectionView) : [];
-      }
-    },
-    {
       channel: C.inspectInstalledSkill,
       handler: (key, digest) => {
         const record = skillPackages().getInstalled(parseString(key), parseOptionalString(digest));
@@ -768,20 +761,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           sourcePath: record.sourceLocator || inspection.sourcePath,
           sourceKind: record.sourceType === "git" ? "git" : inspection.sourceKind
         });
-      }
-    },
-    {
-      channel: C.migrateSkillWorkspace,
-      handler: () => {
-        const workspaceRoot = settings.resolveWorkspaceRoot();
-        if (!workspaceRoot) return { inspected: [], installed: [], skipped: [] };
-        const report = skillPackages().migrateClaudeSkills(workspaceRoot);
-        if (report.installed.length) ctx.restartAiWorker();
-        return {
-          inspected: report.inspected.map(toSkillPackageInspectionView),
-          installed: report.installed.map((record) => skillPackages().toInstalledView(record)),
-          skipped: report.skipped
-        };
       }
     },
     { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalledViews() },

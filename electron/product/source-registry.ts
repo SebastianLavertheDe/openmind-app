@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import {
@@ -10,7 +11,7 @@ import {
   type SourcePatch,
   type SourceRun
 } from "../../shared/contracts";
-import { discoverSkills } from "../ai/skill-discovery";
+import { parseSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { SkillSourceBinding } from "../../shared/skill-sources";
 import { messages } from "../../shared/messages";
 import { readStateJson, readStateJsonArray, STATE_DIRECTORY } from "./state-directory";
@@ -41,57 +42,59 @@ export class SourceRegistry {
   private skillSourcesCache: SkillSourceBinding[] | null = null;
 
   /**
-   * @param repoRoot legacy: the openmind repo root (parent of openmind), kept for
-   *   back-compat. Used for `.claude/skills/...` skill-source discovery and as
-   *   the fallback for content/state paths.
+   * @param openmindRoot the selected private data repository and content root.
+   *   Content paths join onto it directly; skill-backed sources are read from
+   *   the installed store at `<openmindRoot>/.agent/skills`.
    * @param content content API.
-   * @param openmindRoot ADR-001: the actual openmind content dir. When supplied,
-   *   content paths (`openmind/article/<date>`) join onto this directly instead
-   *   of `repoRoot/openmind`.
-   * @param skillSourcesRoot ADR-001: where to discover skills (`.claude/skills`
-   *   under the workspace, or `userData/skills` in future). Defaults to
-   *   `repoRoot` for back-compat.
    * @param stateRoot ADR-001 §1.3: app-private state dir under userData. When
-   *   supplied, `.openmind` state lives there instead of inside repoRoot.
+   *   supplied, `.openmind` state lives there instead of inside openmindRoot.
    */
   constructor(
-    private readonly repoRoot: string,
+    private readonly openmindRoot: string,
     private readonly content: ContentApi,
-    private readonly openmindRoot?: string,
-    private readonly skillSourcesRoot?: string,
     stateRoot?: string
   ) {
     // stateRoot is the *parent* of `.openmind` (e.g. userData/state/<root-id>
-    // or, for back-compat, the repo root). The `.openmind` segment is always
+    // or, for back-compat, the content root). The `.openmind` segment is always
     // appended so on-disk layout matches existing fixtures and migration.
-    const stateDirectory = path.join(stateRoot ?? repoRoot, STATE_DIRECTORY);
+    const stateDirectory = path.join(stateRoot ?? openmindRoot, STATE_DIRECTORY);
     this.sourceSettingsPath = path.join(stateDirectory, "source-settings.json");
     this.sourceRunsPath = path.join(stateDirectory, "source-runs.json");
   }
 
-  /** Resolve a content-relative path against openmindRoot (ADR-001) or repoRoot/openmind (legacy). */
+  /** Resolve a content-relative path against the selected flat data root. */
   private contentPath(...segments: string[]): string {
-    return this.openmindRoot
-      ? path.join(this.openmindRoot, ...segments)
-      // audit-no-reporoot: legacy back-compat branch (openmindRoot unset in old tests)
-      : path.join(this.repoRoot, "openmind", ...segments);
+    return path.join(this.openmindRoot, ...segments);
   }
 
-  /** Resolve a skill-source path (.claude/skills/...) against skillSourcesRoot or repoRoot. */
+  /** Resolve a path inside the installed Agent Skills store (.agent/skills/...). */
   private skillSourcePath(...segments: string[]): string {
-    const base = this.skillSourcesRoot ?? this.repoRoot;
-    return path.join(base, ".claude", "skills", ...segments);
+    return path.join(this.openmindRoot, ".agent", "skills", ...segments);
   }
 
-  /** 从已发现的 skill 里挑出带 surfacesAsSource 的,生成 skill→source 绑定。 */
+  /** 从已安装商店的 SKILL.md frontmatter 里挑出带 surfacesAsSource 的,生成 skill→source 绑定。 */
   private skillSources(): SkillSourceBinding[] {
     if (this.skillSourcesCache) return this.skillSourcesCache;
-    const skills = discoverSkills(this.skillSourcesRoot ?? this.repoRoot);
-    const bindings = skills.flatMap<SkillSourceBinding>((skill) => {
-      const source = skill.surfacesAsSource;
-      if (!source || (source.kind !== "x" && source.kind !== "reddit")) return [];
-      return [{ skillId: skill.id, ...source, kind: source.kind }];
-    });
+    const storeRoot = path.join(this.openmindRoot, ".agent", "skills");
+    const bySkill = new Map<string, SkillSourceBinding>();
+    try {
+      for (const entry of fs.readdirSync(storeRoot, { withFileTypes: true })) {
+        // Alias links for publisher-nested historical installs resolve to the
+        // same package; dedupe by skill id below.
+        if ((!entry.isDirectory() && !entry.isSymbolicLink()) || entry.name.startsWith("_")) continue;
+        const skillPath = path.join(storeRoot, entry.name, "SKILL.md");
+        if (!fs.existsSync(skillPath)) continue;
+        const frontmatter = parseSkillFrontmatter(fs.readFileSync(skillPath, "utf8"));
+        const source = frontmatter.surfacesAsSource;
+        if (!source) continue;
+        if (source.kind !== "x" && source.kind !== "reddit") continue;
+        const skillId = frontmatter.id || frontmatter.name || entry.name;
+        bySkill.set(skillId, { skillId, ...source, kind: source.kind });
+      }
+    } catch {
+      // Store absent (root unbound or not initialised): no skill-backed sources.
+    }
+    const bindings = [...bySkill.values()];
     this.skillSourcesCache = bindings;
     return bindings;
   }
@@ -436,11 +439,8 @@ export class SourceRegistry {
     artifactRoot: string
   ): SourceDefinition {
     // artifactRoot is a logical path like "openmind/post" or "openmind/reddit".
-    // When openmindRoot is supplied (ADR-001), strip the leading "openmind/" and
-    // join onto openmindRoot directly; otherwise fall back to repoRoot joining.
-    const artifactPath = this.openmindRoot
-      ? path.join(this.openmindRoot, artifactRoot.replace(/^openmind\/+/, ""), date)
-      : path.join(this.repoRoot, artifactRoot, date);
+    // Strip that namespace before joining it directly onto the flat data root.
+    const artifactPath = path.join(this.openmindRoot, artifactRoot.replace(/^openmind\/+/, ""), date);
     const lastRunAt = newestMtime([artifactPath]);
     const itemCount = this.content.getContent(kind === "x" ? "posts" : "reddit", date).length;
     return SourceDefinitionSchema.parse({

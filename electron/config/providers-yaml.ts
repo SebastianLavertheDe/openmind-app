@@ -34,13 +34,13 @@ import {
 type YamlLoader = { load(input: string, options?: Record<string, unknown>): unknown; dump(value: unknown, options?: Record<string, unknown>): string };
 const yaml = require("js-yaml") as YamlLoader;
 
-/** Absolute path to `config/providers.yaml` beside the active openmind root. */
+/** Absolute path to `config/providers.yaml` inside the selected data root. */
 export function providersYamlPath(openmindRoot?: string): string {
   // Provider config belongs to the private data repository, not the App
   // source or an arbitrary AI/code workspace. A running resolver supplies its
   // frozen root snapshot explicitly; settings/UI callers use the active root.
   const dataRepositoryRoot = openmindRoot?.trim()
-    ? path.dirname(path.resolve(openmindRoot))
+    ? path.resolve(openmindRoot)
     : findRepoRoot();
   return path.join(dataRepositoryRoot, "config", "providers.yaml");
 }

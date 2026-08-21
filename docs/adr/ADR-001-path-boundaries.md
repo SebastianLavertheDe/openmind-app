@@ -33,21 +33,24 @@ roots, each with a single, well-defined responsibility.
 Split the single `repoRoot` into exactly **five disjoint path roots**, grouped
 into three concern areas. No two roots may alias or contain one another.
 
-### 1. Content root — `openmindRoot` (user-owned, app-read-write)
+### 1. Private data repository / content root — `openmindRoot` (user-owned, app-read-write)
 
-- **What it is:** the actual `openmind` directory chosen by the user.
-  - Not the openmind repo. Not a subdirectory of `openmind` (e.g. not
-    `openmind/article`). Not a parent of `openmind` (e.g. not the repo).
+- **What it is:** the private OpenMind data repository chosen by the user. The
+  selected directory is also the content root: `article/`, `daily-summary/`,
+  `config/`, and `.agent/` are its direct children. There is no nested
+  `openmind/` directory.
+- **What it is not:** the desktop-app source checkout, a parent directory that
+  contains the data repository, or a content subdirectory such as `article/`.
 - **Cardinality:** exactly one active root per app instance at any time.
-- **Selection:** the user selects the literal `openmind` directory via the Main
+- **Selection:** the user selects the private data repository via the Main
   process directory picker; Main canonicalises with `fs.realpath()`. The
   candidate is previewed read-only (including conflict/access checks) and is
   persisted only after explicit user confirmation.
-- **What it stores:** content contracts only (see ADR-002).
-- **What it must NOT store:** app settings, run history, logs, caches, skill
-  packages, runtimes, credentials, indices, or any `.openmind`-style private
-  directory. App private state is forbidden here by an audited rule, not by OS
-  enforcement.
+- **What it stores:** user content, `config/providers.yaml`, installed Skills
+  and their persistent state under `.agent/`, and repository-travelling product
+  records under `.openmind/` (see ADR-002).
+- **What it must NOT store:** Electron settings, Chromium profiles, transient
+  runtimes/downloads, caches, or global logs. Those remain under `userData`.
 - **Switching:** forbidden while any Run is `queued | preparing_runtime |
   running | cancelling` (see ADR for Run state machine, Phase 5). Each Run
   pins a `openmindRootSnapshot` (path + `rootId` + `rootGeneration`).
@@ -67,7 +70,7 @@ into three concern areas. No two roots may alias or contain one another.
   `repoRoot` derivation and its IPC shims were removed; users explicitly bind
   `openmindRoot` and, if needed, `workspaceRoot`.
 
-### 3. App private roots — all under `userData`
+### 3. App-private roots — under `userData`, except repository-travelling data
 
 > **Superseding note (2026-08, skill store relocation).** The `skills/` root
 > below no longer lives under `userData`. The Installed Skill store now lives
@@ -78,8 +81,10 @@ into three concern areas. No two roots may alias or contain one another.
 > onboarding page. Everything else in this section is unchanged. Skills are
 > excluded from app-state backup by scope, as before.
 
-All app-owned state lives under `app.getPath("userData")`. The logical
-layout is fixed by `AppPathsService` (see §5.1 of the refactor plan):
+Machine-local app state lives under `app.getPath("userData")`. Data intended
+to travel with the private repository is explicitly listed in ADR-002 instead
+(`config/`, `.agent/`, and `.openmind/`). The machine-local layout is fixed by
+`AppPathsService` (see §5.1 of the refactor plan):
 
 ```
 <userData>/

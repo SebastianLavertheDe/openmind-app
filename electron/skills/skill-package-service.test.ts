@@ -259,39 +259,17 @@ describe("SkillPackageService", () => {
     catch (error) { expect((error as SkillPackageError).code).toBe("archive-entry-forbidden"); }
   });
 
-  it("does not auto-default a legacy SKILL.md to uv", () => {
-    const source = createPackage(tempRoot, "legacy-skill");
-    fs.writeFileSync(path.join(source, "SKILL.md"), `---\nid: legacy-skill\ntitle: Legacy\ndescription: Prompt only\n---\n# Legacy\n`);
+  it("accepts an Agent Skills standard SKILL.md without an app manifest", () => {
+    const source = createPackage(tempRoot, "native-skill");
+    fs.writeFileSync(path.join(source, "SKILL.md"), `---\nname: native-skill\ndescription: Prompt-only Agent Skill\n---\n# Native\n`);
 
     const inspection = service.inspect(source);
+    const installed = service.install(source);
 
-    expect(inspection.valid).toBe(false);
-    expect(inspection.sourceKind).toBe("legacy-claude");
-    expect(inspection.legacy?.kind).toBe("agent");
-    expect(inspection.legacy?.suggestedEntrypoint).toBeUndefined();
-    expect(inspection.issues.some((issue) => issue.code === "legacy-inspect-only")).toBe(true);
-  });
-
-  it("batch-inspects the legacy .claude/skills surface and installs only formal packages", () => {
-    const workspace = path.join(tempRoot, "workspace");
-    const legacy = path.join(workspace, ".claude", "skills", "legacy-skill");
-    const formal = path.join(workspace, ".claude", "skills", "formal-skill");
-    fs.mkdirSync(legacy, { recursive: true });
-    fs.mkdirSync(formal, { recursive: true });
-    fs.writeFileSync(path.join(legacy, "SKILL.md"), "---\nid: legacy-skill\ntitle: Legacy\n---\n# Legacy\n");
-    fs.writeFileSync(path.join(formal, "openmind.skill.yaml"), MANIFEST.replace("id: example-skill", "id: formal-skill"));
-    fs.writeFileSync(path.join(formal, "run.sh"), "echo ok\n");
-    fs.writeFileSync(path.join(formal, "pyproject.toml"), "[project]\nname='formal'\n");
-
-    const inspected = service.inspectClaudeSkills(workspace);
-    const report = service.migrateClaudeSkills(workspace);
-
-    expect(inspected).toHaveLength(2);
-    expect(report.installed).toHaveLength(1);
-    expect(report.skipped).toHaveLength(1);
-    expect(report.skipped[0].sourcePath).toContain("legacy-skill");
-    expect(service.isInstalledCopyUsable(report.installed[0])).toBe(true);
-    expect(service.listInstalled()).toHaveLength(1);
+    expect(inspection.valid).toBe(true);
+    expect(inspection.sourceKind).toBe("directory");
+    expect(inspection.manifest).toMatchObject({ id: "native-skill", kind: "agent" });
+    expect(installed.packagePath).toBe(path.join(paths.skills!, "native-skill"));
   });
 
   realSkillIt("recognizes the formal packages from the independent Skills repository", () => {
@@ -426,7 +404,7 @@ describe("SkillPackageService", () => {
     expect(inspection.issues.some((issue) => issue.code === "openmind-write-forbidden")).toBe(true);
   });
 
-  it("rejects Secret values embedded in the manifest", () => {
+  it("does not apply an app-specific Secret heuristic to Skill package text", () => {
     const source = createPackage(tempRoot);
     const manifest = MANIFEST.replace(
       "args: []",
@@ -438,8 +416,8 @@ describe("SkillPackageService", () => {
 
     const inspection = service.inspect(source);
 
-    expect(inspection.valid).toBe(false);
-    expect(inspection.issues.some((issue) => issue.code === "secret-in-package")).toBe(true);
+    expect(inspection.valid).toBe(true);
+    expect(inspection.issues.some((issue) => issue.code === "secret-in-package")).toBe(false);
   });
 
   it("rejects a symlink escaping the package root", () => {
@@ -477,7 +455,7 @@ describe("SkillPackageService", () => {
     fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
     const first = service.install(source);
-    expect(first.packagePath).toBe(path.join(paths.skills!, "openmind", "example-skill"));
+    expect(first.packagePath).toBe(path.join(paths.skills!, "example-skill"));
     fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST.replace("version: 1.0.0", "version: 2.0.0"));
     fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
     const second = service.install(source);
@@ -507,10 +485,11 @@ describe("SkillPackageService", () => {
     const formal = service.install(formalSource);
 
     expect(formal.key).toBe("cctools/example-skill");
-    expect(formal.packagePath).toBe(path.join(paths.skills!, "cctools", "example-skill"));
+    expect(formal.packagePath).toBe(path.join(paths.skills!, "example-skill"));
     expect(service.listInstalled()).toEqual([expect.objectContaining({ key: formal.key })]);
     expect(service.toInstalledView(formal).enabled).toBe(false);
-    expect(fs.existsSync(legacy.packagePath)).toBe(false);
+    expect(formal.packagePath).toBe(legacy.packagePath);
+    expect(fs.existsSync(path.join(paths.skills!, "openmind", "example-skill"))).toBe(false);
     expect(fs.readFileSync(path.join(formal.packagePath, "run.sh"), "utf8")).toBe("echo formal\n");
     expect(service.toInstalledView(service.setEnabled(formal.key, formal.digest, true)).enabled).toBe(true);
     expect(JSON.parse(fs.readFileSync(path.join(paths.skills!, "skill-preferences.json"), "utf8"))).toEqual({
@@ -585,9 +564,9 @@ describe("SkillPackageService", () => {
     fs.writeFileSync(path.join(processSource, "pyproject.toml"), "[project]\nname='example'\n");
     service.install(processSource);
 
-    const agentSource = createPackage(tempRoot, "catalog-agent-source");
+    const agentSource = createPackage(tempRoot, "catalog-agent");
     fs.writeFileSync(path.join(agentSource, "openmind.skill.yaml"), AGENT_MANIFEST);
-    fs.writeFileSync(path.join(agentSource, "SKILL.md"), "# Catalog Agent\n");
+    fs.writeFileSync(path.join(agentSource, "SKILL.md"), "---\nname: catalog-agent\ndescription: Conversation-only fixture\n---\n# Catalog Agent\n");
     service.install(agentSource);
 
     const workflowSource = createPackage(tempRoot, "catalog-workflow-source");
@@ -715,7 +694,7 @@ describe("SkillPackageService", () => {
     const record = service.install(source);
 
     expect(record.packagePath.startsWith(path.join(tempRoot, "openmind", ".agent", "skills") + path.sep)).toBe(true);
-    expect(fs.existsSync(path.join(tempRoot, "openmind", ".agent", "skills", "openmind", "example-skill"))).toBe(true);
+    expect(fs.existsSync(path.join(tempRoot, "openmind", ".agent", "skills", "example-skill"))).toBe(true);
     expect(fs.existsSync(path.join(paths.userData, "skills"))).toBe(false);
   });
 

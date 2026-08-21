@@ -20,8 +20,44 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
 }
+
+.onboarding-topbar-start {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.onboarding-step-navigation {
+  min-height: 36px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.onboarding-step-navigation:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text);
+}
+
+.onboarding-step-navigation:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--brand-accent-strong));
+  outline-offset: 2px;
+}
+
+.onboarding-step-navigation:disabled { cursor: not-allowed; opacity: .45; }
+.onboarding-step-navigation-next { margin-left: auto; }
 
 .onboarding-brand,
 .onboarding-step-count {

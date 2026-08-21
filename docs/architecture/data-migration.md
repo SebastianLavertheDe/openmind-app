@@ -1,90 +1,70 @@
-# Data Migration Spec — `repoRoot` → v2 paths
+# Data Root Binding and Relocation Spec
 
-- **Status:** Superseded before release; retained as the historical Phase 0 baseline
+- **Status:** Current binding/relocation contract; no legacy upgrade path
 - **Date:** 2026-08-05
 - **Related:** ADR-001 (path boundaries), ADR-002 (layout)
 
-> The current build does not run this automatic `repoRoot` migration. The
-> pre-release `selectRepo`/`setRepo` shims and legacy-state copier were removed:
-> users bind `openmindRoot` and optional `workspaceRoot` explicitly, and startup
-> never derives a save root or copies `.openmind` state from an old checkout.
+> OpenMind Desktop is a new application. It does not upgrade a legacy
+> `repoRoot` setting or reshape an old directory tree. Users explicitly bind a
+> private data repository as `openmindRoot`; that selected directory is the
+> flat content root.
 
-## 1. Inputs (legacy state that may exist)
+## 1. Bound directory contract
 
-- old `settings.json` with `repoRoot`
-- `<repoRoot>/openmind/` (the content root)
-- `<repoRoot>/.claude/skills/` (16 skills + `_shared`)
-- `<repoRoot>/.openmind/` (leaked app state: browser-evidence, etc.)
-- skill `.env` files (secrets)
-- skill cache/log/state files
-- old run records
-- browser-automation tokens
-- provider login / session state
+- `<openmindRoot>/article/`, `daily-summary/`, `creative/`, etc. — content
+- `<openmindRoot>/config/providers.yaml` — Provider configuration and API keys
+- `<openmindRoot>/.agent/skills/<name>/SKILL.md` — flat Agent Skills packages
+- `<openmindRoot>/.agent/skill-data/` — persistent per-Skill runtime state
+- `<openmindRoot>/.claude` — directory link to `.agent`, exposing the same
+  `skills/` tree to Claude Code's native project discovery
+- `<openmindRoot>/.openmind/` — repository-travelling product records
 
-## 2. Migration properties (must hold)
+`openmindRoot` is never derived by appending `openmind` to another path.
 
-- **Idempotent** — running twice yields the same result.
-- **Retryable** — any failed step can be retried.
-- **Crash-safe** — interrupted migration leaves the active root/skill untouched.
-- **Staging + atomic switch** — writes happen off to the side; `schemaVersion`
-  is the last write.
-- **Non-destructive** — old data is never moved/renamed/deleted. Source
-  `.openmind` and `.env` are preserved verbatim.
-- **Rollback-compatible** — rolling the app back to the previous version lets
-  the old version still read the original repo data; new userData state does
-  not pollute the old repo.
+## 2. Binding and relocation properties
 
-## 3. Flow (v1 → v2)
+- **Bind-only by default** — selecting a root stores a canonical path and does
+  not copy, move, rename, delete, or repair its contents.
+- **Explicit relocation** — copying data occurs only after the user starts and
+  confirms a relocation operation.
+- **Retryable and crash-safe** — an interrupted relocation leaves the source
+  untouched and can be recovered from its pending marker.
+- **Staged and verified** — relocation writes to a sibling staging directory,
+  verifies the complete tree, then performs the target switch.
+- **Non-destructive** — the source is never removed or modified.
 
-1. Read old `settings.json` (do **not** write yet).
-2. If `<repoRoot>/openmind` exists → derive `openmindRoot` candidate.
-3. Dry-run structure / permissions / symlink check on the candidate.
-4. Display "bind path only, no content moves" to the user.
-5. User confirms.
-6. Read-only preflight the old `.openmind` state and its app-private target;
-   target must be absent or empty. Migrate old `.openmind` state →
-   `userData/state/<root-id>/` (copy; original kept), refusing merge/overwrite.
-7. Original `.openmind` preserved untouched.
-8. Scan `<repoRoot>/.claude/skills` via the SkillPackageService legacy adapter.
-9. Run install pre-check + clean copy. No code execution occurs during
-   inspection; a valid package is atomically installed as the one record for
-   its key. Runtime preparation is checked later when execution is requested.
-10. `.env` — analyse variable **names** only; never copy values.
-11. User re-confirms each secret in the Vault.
-12. Migrate resolvable non-sensitive settings.
-13. Rebuild indexes under `userData/state/<root-id>/indexes/`.
-14. Static consistency check + index validation. Any smoke uses the installed,
-   freshly verified digest, the Runtime resolver and a disposable fixture or the
-   Skill's documented no-write mode.
-15. Write migration marker + `schemaVersion: 2`.
-16. Save migration report.
+## 3. Binding flow
 
-## 4. Historical `repoRoot` derivation rule
+1. The user chooses the private data repository itself.
+2. Main canonicalises the candidate and performs read-only structure,
+   permissions, overlap, and symlink checks.
+3. The UI makes clear that binding stores only the path and does not move,
+   delete, or repair existing content.
+4. After explicit confirmation, the app persists that exact canonical path as
+   `openmindRoot`.
+5. All physical paths resolve directly below that root. A logical UI/API path
+   such as `openmind/article/a.md` resolves to
+   `<openmindRoot>/article/a.md`; the `openmind/` segment is a logical namespace
+   only.
 
-The baseline proposed deriving `workspaceRoot` and `openmindRoot` from an old
-`repoRoot`. That proposal was not shipped. Current settings ignore the stale
-field and require explicit directory selection; there is no live `setRepo`
-IPC compatibility path.
+## 4. No legacy derivation or automatic upgrade
 
-## 5. Run history legacy handling
+The app does not infer `openmindRoot` from a checkout, current working
+directory, `workspaceRoot`, or parent directory. It does not append an
+`openmind/` segment, migrate old settings, or flatten directories during
+startup. Any reorganisation is performed by the user before binding.
 
-Old run records may lack: skill digest, runtime digest, root snapshot,
-standard terminal state, artifact index. Migration:
+## 5. Run history
 
-- tags them `legacyRun: true`;
-- never fabricates missing fields;
-- preserves time/skill/status/log where present;
-- re-runs redaction over old logs;
-- does not copy secret plaintext from old logs into the new RunStore;
-- if unsafe to migrate, provides a read-only archive note.
+There is no legacy run-history import. New runs pin the active root snapshot so
+later root changes cannot redirect their artifacts.
 
-## 6. Root relocation vs. version migration (kept separate)
+## 6. Root relocation
 
-- The current app does not derive `openmindRoot` from `repoRoot`; binding is an
-  explicit user action.
-- Copying the whole `openmind` tree to a new disk is a **user-initiated
-  relocation** (ADR-001 §5.6). The two are **never combined** in the same
-  upgrade step. An app upgrade never moves user content.
+- Binding `openmindRoot` is an explicit user action.
+- Copying the whole private data repository to a new disk is a **user-initiated
+  relocation**. Binding never silently triggers this operation, and an app
+  upgrade never moves user content.
 
 The local relocation contract is implemented by
 `electron/paths/openmind-relocation-service.ts` and is exposed from Diagnostics:
@@ -105,30 +85,21 @@ The local relocation contract is implemented by
 
 ## 7. Acceptance (lossless)
 
-- Tree diff (before vs after) shows zero rename/move/delete in `openmind`.
+- Tree diff (before vs after) shows zero rename/move/delete in the source root.
 - File counts and paths identical.
 - Chinese-named directories identical.
 - Hidden directories identical.
 - User-unknown directories identical.
-- No app-private file appears in `openmind`.
+- No machine-local `userData` file appears in the private data repository.
 - After root switch, new runs write only to the new root.
-- The old root is still readable by the old app version.
-- Migration is re-runnable.
-- Rollback does not require moving openmind content back.
+- The old root remains readable and unchanged.
+- Relocation recovery is re-runnable.
+- Rollback does not require moving content back.
 
-## 8. Two-phase commit for irreversible migrations
+## 8. Relocation recovery
 
-- Each schema bump has a documented rollback-compatibility window.
-- Irreversible migrations have their own gate; after execution the app must
-  not claim older versions still boot.
-- Migration uses two-phase commit: prepare (write the staged tree + a
-  `legacy-state-migration.pending.json` marker), atomically rename into an
-  absent/empty target, then commit (`legacy-state-migration.json`). A crash
-  before commit is retriable; a matching target/pending pair is recovered on
-  the next startup. A non-matching non-empty target is fail-closed; it is
-  never merged or overwritten.
-
-The same sibling-swap and pending-marker rule applies to user-initiated root
-relocation. Relocation is copy-only: it never removes the source, never merges
-into a non-empty target, and never runs as an implicit part of version
-migration.
+Relocation uses a pending marker plus a sibling staging directory. A matching
+staged tree can be completed on the next startup; the original empty target can
+be restored when the swap did not finish. A non-matching or non-empty target is
+fail-closed and is never merged or overwritten. Relocation is copy-only and
+never removes the source.

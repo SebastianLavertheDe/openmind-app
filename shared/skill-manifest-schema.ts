@@ -1,10 +1,11 @@
 /**
  * Skill Manifest v1 — Zod schema source of truth.
  *
- * Frozen by ADR-003. A `openmind.skill.yaml` is validated strictly by
- * {@link SkillManifestSchema}. A skill is NOT runnable without a valid
- * manifest. Legacy `SKILL.md`-only skills go through a separate legacy
- * adapter and remain available for inspection only.
+ * Frozen by ADR-003 for app-owned Process/Workflow execution. A
+ * `cctools.skill.yaml` or compatible `openmind.skill.yaml` is validated
+ * strictly by {@link SkillManifestSchema}. Agent Skills follow the public
+ * SKILL.md specification and do not require this app-specific Manifest; the
+ * installer projects their standard metadata into this internal type.
  *
  * Invariants enforced here (and re-checked at install/run):
  *  - `apiVersion` is exactly `openmind.dev/skill/v1`.
@@ -14,11 +15,11 @@
  *  - process/workflow require entrypoint or workflow; agent forbids entrypoint.
  *  - No secret values; secrets are referenced by name only.
  *  - No absolute paths; all package paths are relative + forward-slash.
- *  - `capabilities.openmind.write` top-level dirs ⊆ openmind-layout-v2
+ *  - `capabilities.openmind.write` top-level dirs ⊆ openmind-layout-v3
  *    {@link OPENMIND_ALLOWED_TOP_LEVEL_DIRS} (cross-checked at install).
  *
  * NOTE: the openmind-layout subset check is performed by the installer/resolver
- * (which imports from `./openmind-layout-v2`), not inside this pure schema, so
+ * (which imports from `./openmind-layout-v3`), not inside this pure schema, so
  * this module stays free of fs/platform concerns and remains unit-testable in
  * isolation.
  */

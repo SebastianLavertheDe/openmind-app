@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -365,11 +365,8 @@ export function SkillSettingsSection({
   onCopy,
   onOpenDirectory,
   onOpenMcpSettings,
-  packageInspections,
   installedSkills,
   packageBusy,
-  onInspectPackages,
-  onMigratePackages,
   onUninstallPackage
 }: {
   mode?: "skills" | "mcp";
@@ -380,11 +377,8 @@ export function SkillSettingsSection({
   onCopy(skillId: string): void;
   onOpenDirectory(path: string): void;
   onOpenMcpSettings(): void;
-  packageInspections: SkillPackageInspectionView[];
   installedSkills: InstalledSkillView[];
-  packageBusy: "inspect" | "migrate" | "uninstall" | null;
-  onInspectPackages(): void;
-  onMigratePackages(): void;
+  packageBusy: "uninstall" | null;
   onUninstallPackage(key: string, digest: string): void;
 }) {
   const [catalog, setCatalog] = useState<"skills" | "mcp">(mode || "skills");
@@ -585,11 +579,8 @@ export function SkillSettingsSection({
       </>}
 
       <SkillPackagePanel
-        inspections={packageInspections}
         installed={installedSkills}
         busy={packageBusy}
-        onInspect={onInspectPackages}
-        onMigrate={onMigratePackages}
         onUninstall={onUninstallPackage}
       />
     </SettingsPanel>
@@ -597,21 +588,14 @@ export function SkillSettingsSection({
 }
 
 function SkillPackagePanel({
-  inspections,
   installed,
   busy,
-  onInspect,
-  onMigrate,
   onUninstall
 }: {
-  inspections: SkillPackageInspectionView[];
   installed: InstalledSkillView[];
-  busy: "inspect" | "migrate" | "uninstall" | null;
-  onInspect(): void;
-  onMigrate(): void;
+  busy: "uninstall" | null;
   onUninstall(key: string, digest: string): void;
 }) {
-  const installedBySource = new Map(installed.map((item) => [item.sourcePath, item]));
   return (
     <section className="settings-skill-packages" aria-label={m.settings.skills.packageTitle}>
       <header className="settings-skill-packages-header">
@@ -619,47 +603,7 @@ function SkillPackagePanel({
           <h3>{m.settings.skills.packageTitle}</h3>
           <p>{m.settings.skills.packageDescription}</p>
         </div>
-        <div className="settings-skill-actions">
-          <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={onInspect}>
-            <Search size={13} aria-hidden />{busy === "inspect" ? m.settings.skills.packageInspecting : m.settings.skills.packageInspect}
-          </button>
-          <button type="button" data-motion="action" disabled={Boolean(busy) || !inspections.some((item) => item.valid)} onClick={onMigrate}>
-            <Package size={13} aria-hidden />{busy === "migrate" ? m.settings.skills.packageMigrating : m.settings.skills.packageMigrate}
-          </button>
-        </div>
       </header>
-      <div className="settings-skill-package-summary" role="status">
-        {m.settings.skills.packageScope(inspections.length, installed.length)}
-      </div>
-      {inspections.length ? (
-        <div className="settings-skill-package-list">
-          {inspections.map((item) => {
-            const record = installedBySource.get(item.sourcePath);
-            const status = record ? record.usable ? m.settings.skills.packageInstalled : m.settings.skills.packageUnusable : item.sourceKind === "legacy-claude" ? m.settings.skills.packageLegacy : item.valid ? m.settings.skills.packageValid : m.settings.skills.packageInvalid;
-            return (
-              <article className="settings-skill-package-item" key={`${item.sourcePath}:${item.digest}`}>
-                <div className="settings-skill-package-main">
-                  <span className={`settings-skill-package-dot ${item.valid || record ? "is-valid" : "is-invalid"}`} aria-hidden />
-                  <div>
-                    <strong>{item.manifest && typeof item.manifest === "object" && "id" in item.manifest ? String(item.manifest.id) : item.sourcePath.split(/[\\/]/).pop()}</strong>
-                    <small>{item.sourcePath}</small>
-                  </div>
-                  <StatusBadge tone={record ? record.usable ? "success" : "danger" : item.valid ? "warning" : "danger"}>{status}</StatusBadge>
-                </div>
-                <div className="settings-skill-package-meta">
-                  <span>{m.settings.skills.packageDigest}: <code>{item.digest.slice(0, 12)}</code></span>
-                  <span>{item.files.length} files · {Math.round(item.totalBytes / 1024)} KB</span>
-                  {item.issues.length ? <span className="is-invalid">{m.settings.skills.packageIssues(item.issues.length)}</span> : null}
-                  {item.warnings.length ? <span>{m.settings.skills.packageWarnings(item.warnings.length)}</span> : null}
-                </div>
-                {item.issues.length ? <ul className="settings-skill-package-issues">{item.issues.slice(0, 3).map((issue) => <li key={`${issue.code}:${issue.path || ""}`}>{issue.message}</li>)}</ul> : null}
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="settings-skill-package-empty">{m.settings.skills.packageEmpty}</p>
-      )}
       {installed.length ? (
         <div className="settings-skill-package-installed" aria-label="已安装 Skill">
           {installed.map((record) => (
@@ -672,8 +616,9 @@ function SkillPackagePanel({
             </div>
           ))}
         </div>
-      ) : null}
-      {!installed.length && inspections.length ? <p className="settings-skill-package-empty">{m.settings.skills.packageNoInstalled}</p> : null}
+      ) : (
+        <p className="settings-skill-package-empty">{m.settings.skills.packageEmpty}</p>
+      )}
     </section>
   );
 }

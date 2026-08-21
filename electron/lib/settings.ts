@@ -211,11 +211,6 @@ function setOpenmindRoot(candidate: string): string {
   return canonical;
 }
 
-/** Canonicalize a openmind root candidate (bare directory, readable + writable). */
-function resolveOpenmindCandidate(candidate: unknown): string | null {
-  return canonicalDirectory(normalizeRepoRoot(candidate));
-}
-
 /** Explicitly bound workspace root only (setting/env); "" when unbound. */
 function resolveExplicitWorkspaceRoot(): string {
   const settings = loadSettings();
@@ -270,11 +265,19 @@ function getOpenmindRootHealth(): OpenmindRootHealth {
  */
 function previewOpenmindRoot(candidate: string, activeRunCount = 0): OpenmindRootPreview {
   const normalized = normalizeRepoRoot(candidate);
-  const canonicalRoot = resolveOpenmindCandidate(normalized);
+  const canonicalRoot = canonicalDirectory(normalized);
   const inspected = new OpenmindLocationService({ paths: appPaths(), activeRunCount: () => activeRunCount })
     .inspect(canonicalRoot || normalized);
   const blockingReasons = [...inspected.warnings];
-  if (!canonicalRoot) blockingReasons.unshift("候选路径不存在、不可访问或不是目录。");
+  if (!canonicalRoot) {
+    blockingReasons.unshift("候选路径不存在、不可访问或不是目录。");
+  } else if (
+    canonicalDirectory(path.join(canonicalRoot, "openmind"))
+    || (path.basename(canonicalRoot).toLowerCase() === "openmind"
+      && (fs.existsSync(path.join(path.dirname(canonicalRoot), "config")) || fs.existsSync(path.join(path.dirname(canonicalRoot), ".git"))))
+  ) {
+    blockingReasons.unshift("检测到旧版嵌套布局：内容仍在 openmind 子目录中。请先完成扁平化迁移，使 article、config、.agent 等目录直接位于所选目录下。");
+  }
   if (!inspected.readable && !blockingReasons.includes("openmind 根目录不可读。")) blockingReasons.push("openmind 根目录不可读。");
   if (!inspected.writable && !blockingReasons.includes("openmind 根目录不可写。")) blockingReasons.push("openmind 根目录不可写。");
   if (activeRunCount > 0) blockingReasons.push("有运行中的任务，暂时不能切换 openmind 根目录。");
@@ -312,14 +315,12 @@ function appPrivateStatePath(name: string): string {
 }
 
 /**
- * Return a directory `R` such that `path.join(R, "openmind", ...)` lands inside
- * the current openmind root — i.e. the openmind dir's parent. With no openmind root
- * bound this falls back to the dev checkout parent. Display/UI compatibility
- * only; content paths must resolve against {@link resolveOpenmindRoot}.
+ * Return the selected private data repository/content root. With no explicit
+ * binding this falls back to the dev checkout parent for legacy diagnostics.
  */
 function findRepoRoot(): string {
   const openmind = resolveOpenmindRoot();
-  if (openmind) return normalizeRepoRoot(path.dirname(openmind));
+  if (openmind) return normalizeRepoRoot(openmind);
   return normalizeRepoRoot(path.resolve(APP_ROOT, ".."));
 }
 

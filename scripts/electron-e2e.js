@@ -16,6 +16,9 @@ fs.writeFileSync(
   "# Desktop E2E fixture\n\nThis article verifies the real Electron preload and IPC bridge.\n",
   "utf8"
 );
+// Flat content-root layout: config/ and .agent/ live directly under the root.
+fs.mkdirSync(path.join(openmindRoot, "config"), { recursive: true });
+fs.mkdirSync(path.join(openmindRoot, ".agent", "skills"), { recursive: true });
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;

@@ -164,7 +164,7 @@ describe("getOverview", () => {
 
     const overview = getOverview(DATE);
     expect(overview.date).toBe(DATE);
-    expect(overview.repoRoot).toBe(repo);
+    expect(overview.repoRoot).toBe(path.join(repo, "openmind"));
     expect(overview.metrics.articles).toBe(1);
     expect(overview.metrics.posts).toBe(3); // max(countPosts=3, xPosts=1) = 3
     expect(overview.metrics.reddit).toBe(1);

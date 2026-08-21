@@ -161,7 +161,7 @@ describe("App bootstrap", () => {
     render(<App />);
     await screen.findByRole(
       "heading",
-      { level: 2, name: "选择 OpenMind 数据目录" },
+      { level: 2, name: "选择 OpenMind 私人数据仓库" },
       { timeout: LAZY_ROUTE_TIMEOUT_MS }
     );
 
@@ -231,12 +231,12 @@ describe("App bootstrap", () => {
     });
 
     render(<App />);
-    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 数据目录" });
+    await screen.findByRole("heading", { level: 2, name: "选择 OpenMind 私人数据仓库" });
     const track = document.querySelector<HTMLElement>(".onboarding-step-track");
     expect(track?.dataset.currentStep).toBe("1");
 
     fireEvent.click(screen.getByRole("button", { name: "选择文件夹" }));
-    const confirm = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 数据目录" });
+    const confirm = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 私人数据仓库" });
     fireEvent.click(within(confirm).getByRole("button", { name: "确认绑定" }));
 
     await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" });

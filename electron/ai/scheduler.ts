@@ -111,7 +111,7 @@ export class RunScheduler {
         }
       )
       : undefined;
-    this.skillTools = new SkillToolRegistry(projectRoot, stateRoot, appPaths && openmindRoot ? {
+    this.skillTools = new SkillToolRegistry(projectRoot, appPaths && openmindRoot ? {
       paths: appPaths,
       openmindRoot,
       rootGeneration,

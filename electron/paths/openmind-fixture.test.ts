@@ -36,6 +36,20 @@ describe("buildAnonymousOpenmindFixture", () => {
     expect(fs.existsSync(path.join(fixture!.root, ".claude"))).toBe(true);
   });
 
+  it("creates the flat-root tool-private, app-managed, and content tops (layout v3)", () => {
+    for (const d of [".claudian", ".obsidian", ".zcode", ".agent", ".openmind", "config", "assets", "scripts"]) {
+      expect(fs.existsSync(path.join(fixture!.root, d))).toBe(true);
+    }
+    expect(fs.existsSync(path.join(fixture!.root, "config", "providers.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(fixture!.root, ".agent", "skills", "registry.json"))).toBe(true);
+  });
+
+  it("creates the root documentation files recognized by layout v3", () => {
+    for (const f of ["AGENTS.md", "CLAUDE.md", "README.md", ".gitignore", ".gitattributes"]) {
+      expect(fs.existsSync(path.join(fixture!.root, f))).toBe(true);
+    }
+  });
+
   it("creates a user-unknown dir that must never be deleted", () => {
     expect(fs.existsSync(path.join(fixture!.root, "my-custom-notes"))).toBe(true);
   });

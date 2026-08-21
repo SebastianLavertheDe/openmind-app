@@ -103,6 +103,16 @@ describe("ADR-001 resolveOpenmindRoot", () => {
 });
 
 describe("ADR-001 setOpenmindRoot", () => {
+  it("uses the selected private data repository itself as the content root", () => {
+    const repository = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-repository-"));
+    fs.mkdirSync(path.join(repository, "article"), { recursive: true });
+    try {
+      expect(setOpenmindRoot(repository)).toBe(repository);
+      expect(resolveOpenmindRoot()).toBe(repository);
+      expect(findRepoRoot()).toBe(repository);
+    } finally { fs.rmSync(repository, { recursive: true, force: true }); }
+  });
+
   it("persists openmindRoot and drops a stale v1 repoRoot key", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-set-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
@@ -121,9 +131,20 @@ describe("ADR-001 setOpenmindRoot", () => {
 });
 
 describe("ADR-001 openmind root dry-run", () => {
+  it("previews the selected repository itself as the content root", () => {
+    const repository = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-preview-repository-"));
+    fs.mkdirSync(path.join(repository, "article"), { recursive: true });
+    try {
+      const preview = previewOpenmindRoot(repository);
+      expect(preview.candidate).toBe(repository);
+      expect(preview.canonicalRoot).toBe(repository);
+      expect(preview.canBind).toBe(true);
+    } finally { fs.rmSync(repository, { recursive: true, force: true }); }
+  });
+
   it("previews a valid root without writing settings or content", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-preview-root-"));
-    fs.mkdirSync(path.join(dir, "private-notes"));
+    fs.mkdirSync(path.join(dir, "private-notes"), { recursive: true });
     try {
       fs.rmSync(settingsFile(), { force: true });
       const preview = previewOpenmindRoot(dir);
@@ -133,6 +154,20 @@ describe("ADR-001 openmind root dry-run", () => {
       expect(fs.existsSync(settingsFile())).toBe(false);
       expect(fs.existsSync(path.join(dir, "article"))).toBe(false);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("rejects the old nested openmind layout until it is flattened", () => {
+    const repository = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-preview-legacy-root-"));
+    fs.mkdirSync(path.join(repository, "openmind", "article"), { recursive: true });
+    fs.mkdirSync(path.join(repository, "config"), { recursive: true });
+    try {
+      const preview = previewOpenmindRoot(repository);
+      expect(preview.canBind).toBe(false);
+      expect(preview.blockingReasons.join("；")).toContain("旧版嵌套布局");
+      const nestedPreview = previewOpenmindRoot(path.join(repository, "openmind"));
+      expect(nestedPreview.canBind).toBe(false);
+      expect(nestedPreview.blockingReasons.join("；")).toContain("旧版嵌套布局");
+    } finally { fs.rmSync(repository, { recursive: true, force: true }); }
   });
 
   it("reports app-private conflicts and active-run blocking without changing settings", () => {
@@ -191,18 +226,16 @@ describe("ADR-001 workspaceRoot", () => {
   });
 });
 
-describe("ADR-001 findRepoRoot back-compat", () => {
-  it("returns the parent of openmindRoot so legacy path.join(root, 'openmind', x) still works", () => {
-    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-parent-"));
-    const mm = path.join(parent, "openmind");
+describe("ADR-001 findRepoRoot compatibility", () => {
+  it("returns the selected flat data root while logical openmind paths still resolve inside it", () => {
+    const mm = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-flat-root-"));
     fs.mkdirSync(path.join(mm, "article"), { recursive: true });
     try {
       setOpenmindRoot(mm);
       const repoRoot = findRepoRoot();
-      // Legacy callers do path.join(repoRoot, "openmind", x); that must equal mm/x.
-      const joined = path.join(repoRoot, "openmind", "article");
-      expect(joined).toBe(path.join(mm, "article"));
-    } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+      expect(repoRoot).toBe(mm);
+      expect(resolveOpenmindPath("openmind/article")).toBe(path.join(mm, "article"));
+    } finally { fs.rmSync(mm, { recursive: true, force: true }); }
   });
 
   it("ensureInsideRepo still rejects traversal outside the root", () => {

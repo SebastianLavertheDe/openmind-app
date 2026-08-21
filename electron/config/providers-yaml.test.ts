@@ -10,9 +10,8 @@ const originalUserDataDir = process.env.OPENMIND_USER_DATA_DIR;
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-data-"));
 const separateWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-workspace-"));
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-provider-config-user-data-"));
-fs.mkdirSync(path.join(repo, "openmind"), { recursive: true });
 process.env.OPENMIND_WORKSPACE_ROOT = separateWorkspace;
-process.env.OPENMIND_ROOT = path.join(repo, "openmind");
+process.env.OPENMIND_ROOT = repo;
 process.env.OPENMIND_USER_DATA_DIR = userDataDir;
 
 vi.mock("electron", () => ({ app: { getPath: () => userDataDir } }));
@@ -110,7 +109,7 @@ describe("config/providers.yaml file repository", () => {
 
   it("resolves an explicit openmind snapshot and emits both provider env namespaces", () => {
     config.saveProvidersFromInput(providerDocument());
-    const explicitRoot = path.join(repo, "openmind");
+    const explicitRoot = repo;
 
     expect(config.providersYamlPath(explicitRoot)).toBe(path.join(repo, "config", "providers.yaml"));
     expect(config.readDefaultProviderEnv(explicitRoot).env).toMatchObject({

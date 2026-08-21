@@ -54,21 +54,19 @@ export class ProductService {
     content: ContentServiceApi,
     creative: CreativeServiceApi,
     /**
-     * Optional ADR-001 wiring. `skillSourcesRoot` is where `.claude/skills`
-     * lives (the workspace/repo, not openmind). `stateRoot` is the app-private
-     * state dir under userData; when omitted, services fall back to the legacy
+     * Optional ADR-001 wiring. `stateRoot` is the app-private state dir under
+     * userData; when omitted, services fall back to the legacy
      * `<openmindRoot>/.openmind` location for back-compat.
      */
-    opts: { skillSourcesRoot?: string; stateRoot?: string } = {},
+    opts: { stateRoot?: string } = {},
     private readonly preferences: () => UserPreferences = getPreferences
   ) {
     this.openmindRoot = openmindRoot;
     this.content = content;
     this.creative = creative;
     this.contentIndex = new ContentIndexStore(openmindRoot, content, opts.stateRoot);
-    // SourceRegistry keeps a legacy `repoRoot` for back-compat; pass openmindRoot
-    // as the content root and skillSourcesRoot for `.claude/skills` discovery.
-    this.sources = new SourceRegistry(opts.skillSourcesRoot ?? openmindRoot, content, openmindRoot, opts.skillSourcesRoot, opts.stateRoot);
+    // Skill-backed sources are read from the installed store under the root.
+    this.sources = new SourceRegistry(openmindRoot, content, opts.stateRoot);
     this.briefs = new BriefService(openmindRoot, this.contentIndex, creative, opts.stateRoot);
     this.dashboard = new DashboardService(creative, this.briefs, this.sources);
   }

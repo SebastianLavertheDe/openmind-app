@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
@@ -68,9 +68,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [providersYamlBusy, setProvidersYamlBusy] = useState(false);
   const [savingBrowserToken, setSavingBrowserToken] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
-  const [skillPackageInspections, setSkillPackageInspections] = useState<SkillPackageInspectionView[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
-  const [skillPackageBusy, setSkillPackageBusy] = useState<"inspect" | "migrate" | "uninstall" | null>(null);
+  const [skillPackageBusy, setSkillPackageBusy] = useState<"uninstall" | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -114,14 +113,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const loadSkillPackages = useCallback(async () => {
     try {
-      const [inspections, installed] = await Promise.all([
-        window.openmind.inspectSkillWorkspace(),
-        window.openmind.listInstalledSkills()
-      ]);
-      setSkillPackageInspections(inspections);
-      setInstalledSkills(installed);
+      setInstalledSkills(await window.openmind.listInstalledSkills());
     } catch {
-      setSkillPackageInspections([]);
       setInstalledSkills([]);
     }
   }, []);
@@ -254,13 +247,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       if (!root) return;
       const preview = await window.openmind.previewOpenmindRoot(root);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: "确认绑定 openmind 根目录", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      if (!await ai.confirm({ title: "确认绑定 OpenMind 私人数据仓库", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
       await window.openmind.setOpenmindRoot(root);
       await onRepo(root);
       await loadPrefs();
-      ai.notify("openmind 内容根已更新", "success");
+      ai.notify("OpenMind 私人数据仓库已更新", "success");
     } catch {
-      ai.notify("选择 openmind 内容根失败", "error");
+      ai.notify("选择 OpenMind 私人数据仓库失败", "error");
     }
   };
 
@@ -298,38 +291,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   };
 
-  const inspectSkillPackages = async () => {
-    if (skillPackageBusy) return;
-    setSkillPackageBusy("inspect");
-    try {
-      await loadSkillPackages();
-      ai.notify(m.settings.skills.packageInspect, "success");
-    } catch {
-      ai.notify(m.settings.skills.packageInspectFailed, "error");
-    } finally {
-      setSkillPackageBusy(null);
-    }
-  };
-
-  const migrateSkillPackages = async () => {
-    if (skillPackageBusy) return;
-    setSkillPackageBusy("migrate");
-    try {
-      const report = await window.openmind.migrateSkillWorkspace();
-      setSkillPackageInspections(report.inspected);
-      setInstalledSkills(report.installed);
-      if (report.installed.length) {
-        notifyInstalledSkillCatalogChanged();
-        await onRepo();
-      }
-      ai.notify(m.settings.skills.packageMigrateComplete(report.installed.length, report.skipped.length), "success");
-    } catch {
-      ai.notify(m.settings.skills.packageInspectFailed, "error");
-    } finally {
-      setSkillPackageBusy(null);
-    }
-  };
-
   const uninstallSkillPackage = async (key: string, digest: string) => {
     if (skillPackageBusy || !window.openmind.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
     setSkillPackageBusy("uninstall");
@@ -340,7 +301,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       await onRepo();
       ai.notify(m.settings.skills.packageActionComplete, "success");
     } catch {
-      ai.notify(m.settings.skills.packageInspectFailed, "error");
+      ai.notify(m.settings.skills.packageUninstallFailed, "error");
     } finally {
       setSkillPackageBusy(null);
     }
@@ -613,13 +574,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "general" ? (
                 <>
                   <AppearanceSettingsSection prefs={prefs} save={save} />
-                  <PathSettingsSection openmind={prefs.openmindRoot || m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                  <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={ai.refreshSkills} /> : null}
-              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} packageInspections={skillPackageInspections} installedSkills={installedSkills} packageBusy={skillPackageBusy} onInspectPackages={() => void inspectSkillPackages()} onMigratePackages={() => void migrateSkillPackages()} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
+              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} installedSkills={installedSkills} packageBusy={skillPackageBusy} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
