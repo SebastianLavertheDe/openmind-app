@@ -399,19 +399,19 @@ function resolveEntrypointEnv(
  * Broker environment as every other input.
  */
 function resolveSourceContextEnv(inputs: Record<string, unknown>): Record<string, string> {
-  const mappings: Record<string, string[]> = {
-    sourceId: ["CCTOOLS_SOURCE_ID", "OPENMIND_SOURCE_ID"],
-    sourceUrl: ["CCTOOLS_SOURCE_URL", "OPENMIND_SOURCE_URL"],
-    sourceName: ["CCTOOLS_SOURCE_NAME", "OPENMIND_SOURCE_NAME"]
+  const mappings: Record<string, string> = {
+    sourceId: "OPENMIND_SOURCE_ID",
+    sourceUrl: "OPENMIND_SOURCE_URL",
+    sourceName: "OPENMIND_SOURCE_NAME"
   };
   const result: Record<string, string> = {};
-  for (const [inputKey, envNames] of Object.entries(mappings)) {
+  for (const [inputKey, envName] of Object.entries(mappings)) {
     const value = inputs[inputKey];
     if (value === undefined) continue;
     if (typeof value !== "string" || value.length > 4096) {
       throw new InstalledSkillExecutionError(`Skill 输入无效：${inputKey}`);
     }
-    for (const envName of envNames) result[envName] = value;
+    result[envName] = value;
   }
   return result;
 }

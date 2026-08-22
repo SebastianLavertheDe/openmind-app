@@ -50,23 +50,21 @@ describe("ExecutionBroker", () => {
     expect(fs.readFileSync(path.join(paths.runs, run.id, "run.json"), "utf8")).not.toContain("20260805");
     const environment = JSON.parse(fs.readFileSync(path.join(packageRoot, "environment.json"), "utf8"));
     expect(environment).toMatchObject({
-      CCTOOLS_RUN_ID: run.id,
-      CCTOOLS_SKILL_ID: "example-skill",
-      CCTOOLS_SKILL_VERSION: "1.0.0",
-      CCTOOLS_SKILL_HOME: packageRoot,
-      CCTOOLS_SKILL_DATA_DIR: path.join(openmindRoot, ".agent", "skill-data", "example-skill"),
-      CCTOOLS_RUN_DIR: path.join(paths.runs, run.id, "work"),
-      CCTOOLS_MYMIND_ROOT: openmindRoot,
-      CCTOOLS_ROOT_GENERATION: "1",
-      CCTOOLS_MANAGED_RUN: "1",
-      CCTOOLS_APP_USER_DATA: paths.userData,
-      MYMIND_ROOT: openmindRoot,
+      OPENMIND_RUN_ID: run.id,
+      OPENMIND_SKILL_ID: "example-skill",
+      OPENMIND_SKILL_VERSION: "1.0.0",
+      OPENMIND_SKILL_HOME: packageRoot,
+      OPENMIND_SKILL_DATA_DIR: path.join(openmindRoot, ".agent", "skill-data", "example-skill"),
+      OPENMIND_RUN_DIR: path.join(paths.runs, run.id, "work"),
       OPENMIND_ROOT: openmindRoot,
-      OPENMIND_MANAGED_RUN: "1"
+      OPENMIND_ROOT_GENERATION: "1",
+      OPENMIND_MANAGED_RUN: "1",
+      OPENMIND_APP_USER_DATA: paths.userData
     });
-    expect(environment.OPENMIND_SKILL_DATA_DIR).toBe(
-      path.join(openmindRoot, ".agent", "skill-data", "example-skill")
-    );
+    for (const name of Object.keys(environment)) {
+      expect(name.startsWith("CCTOOLS_")).toBe(false);
+      expect(name).not.toBe("MYMIND_ROOT");
+    }
   });
 
   it("accepts a compatible semver range returned by an execution plan", async () => {

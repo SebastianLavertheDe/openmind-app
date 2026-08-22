@@ -56,7 +56,7 @@ export interface OpenmindLayoutEntry {
 export const OPENMIND_LAYOUT_V2: readonly OpenmindLayoutEntry[] = [
   ...OPENMIND_LAYOUT_V1,
   { logicalPath: ".agent/skills", category: "app-managed", owner: "desktop-app SkillStore", note: "Installed Skill packages + registry.json; managed by the app, never by skills" },
-  { logicalPath: ".agent/skill-data", category: "app-managed", owner: "skill runtime (CCTOOLS_SKILL_DATA_DIR / OPENMIND_SKILL_DATA_DIR)", note: "Persistent per-skill runtime state (dedup caches, login state, data dirs) injected by the Execution Broker / cron; preserved verbatim by relocation, never written via openmind.write patterns" }
+  { logicalPath: ".agent/skill-data", category: "app-managed", owner: "skill runtime (OPENMIND_SKILL_DATA_DIR)", note: "Persistent per-skill runtime state (dedup caches, login state, data dirs) injected by the Execution Broker / cron; preserved verbatim by relocation, never written via openmind.write patterns" }
 ] as const;
 
 /** All logical paths in the contract (normalised forward-slash form). */

@@ -22,8 +22,7 @@ import {
  * `config/providers.yaml` provider source of truth. The pure schemas/types
  * live in `shared/providers-yaml.ts` (importable from the Renderer); this
  * module owns `fs` access, the repo-root path, atomic writes and the
- * dual `CCTOOLS_PROVIDER_*` / `OPENMIND_PROVIDER_*` env resolution consumed
- * by the Execution Broker.
+ * `OPENMIND_PROVIDER_*` env resolution consumed by the Execution Broker.
  *
  * Both execution paths — desktop Broker (here) and crontab Python (reads the
  * same YAML directly) — resolve to the same provider.
@@ -73,10 +72,10 @@ export function readProvidersYaml(openmindRoot?: string): ProvidersYaml | null {
 }
 
 /**
- * Resolve the active default provider into both the formal `CCTOOLS_PROVIDER_*`
- * contract and the legacy `OPENMIND_PROVIDER_*` aliases. Returns empty env /
- * empty apiKey when no file is configured so non-AI skills and tests still
- * resolve. Throws when the configured default is disabled or missing.
+ * Resolve the active default provider into the `OPENMIND_PROVIDER_*`
+ * contract. Returns empty env / empty apiKey when no file is configured so
+ * non-AI skills and tests still resolve. Throws when the configured default
+ * is disabled or missing.
  */
 export function readDefaultProviderEnv(openmindRoot?: string): { env: Record<string, string>; apiKey: string } {
   const config = readProvidersYaml(openmindRoot);
@@ -89,12 +88,7 @@ export function readDefaultProviderEnv(openmindRoot?: string): { env: Record<str
   if (!defaultEntry.enabled) {
     throw new Error(`config/providers.yaml 的 default provider 已禁用：${config.default}`);
   }
-  const openmindEnv = processProviderEnvironment(defaultEntry);
-  const cctoolsEnv = Object.fromEntries(Object.entries(openmindEnv).map(([name, value]) => [
-    name.replace(/^OPENMIND_PROVIDER_/, "CCTOOLS_PROVIDER_"),
-    value
-  ]));
-  return { env: { ...openmindEnv, ...cctoolsEnv }, apiKey: defaultEntry.apiKey };
+  return { env: processProviderEnvironment(defaultEntry), apiKey: defaultEntry.apiKey };
 }
 
 /**

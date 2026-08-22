@@ -805,34 +805,20 @@ function hasSkillDescriptor(sourcePath: string): boolean {
 }
 
 /**
- * `cctools.skill.yaml` is the public source contract. Internally the app keeps
- * using its frozen v1 schema, so translate the two renamed vocabulary fields
- * at the read boundary and leave legacy `openmind.skill.yaml` untouched.
+ * `cctools.skill.yaml` is the public source contract and shares the internal
+ * vocabulary; only its apiVersion differs, so translate that at the read
+ * boundary and leave legacy `openmind.skill.yaml` untouched. The old-brand
+ * `mymind` vocabulary is rejected outright.
  */
 function normalizeManifestDocument(value: unknown, manifestFile: string): unknown {
   if (manifestFile !== PRIMARY_MANIFEST_FILE || !isRecord(value)) return value;
   const capabilities = value.capabilities;
   if (value.apiVersion !== "cctools.dev/skill/v1"
     || !isRecord(capabilities)
-    || !Object.prototype.hasOwnProperty.call(capabilities, "mymind")
-    || Object.prototype.hasOwnProperty.call(capabilities, "openmind")) {
+    || Object.prototype.hasOwnProperty.call(capabilities, "mymind")) {
     return { ...value, apiVersion: "invalid-cctools-manifest-dialect" };
   }
-  const normalized: Record<string, unknown> = {
-    ...value,
-    apiVersion: "openmind.dev/skill/v1"
-  };
-  const { mymind, ...otherCapabilities } = capabilities;
-  normalized.capabilities = { ...otherCapabilities, openmind: mymind };
-  if (isRecord(value.config)) {
-    normalized.config = Object.fromEntries(Object.entries(value.config).map(([name, field]) => [
-      name,
-      isRecord(field) && field.type === "path-mymind"
-        ? { ...field, type: "path-openmind" }
-        : field
-    ]));
-  }
-  return normalized;
+  return { ...value, apiVersion: "openmind.dev/skill/v1" };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

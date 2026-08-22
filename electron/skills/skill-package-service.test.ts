@@ -48,8 +48,7 @@ compatibility:
 
 const CCTOOLS_MANIFEST = MANIFEST
   .replace("apiVersion: openmind.dev/skill/v1", "apiVersion: cctools.dev/skill/v1")
-  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools")
-  .replace("  openmind:\n", "  mymind:\n");
+  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools");
 
 const AGENT_MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: catalog-agent
@@ -144,13 +143,13 @@ describe("SkillPackageService", () => {
     expect(first.files.map((file) => file.path)).not.toContain("openmind/article/user.md");
   });
 
-  it("normalizes the formal cctools manifest vocabulary at the read boundary", () => {
+  it("translates only the formal cctools manifest apiVersion at the read boundary", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(
       path.join(source, "cctools.skill.yaml"),
       CCTOOLS_MANIFEST.replace(
         "capabilities:\n",
-        "config:\n  inputRoot:\n    type: path-mymind\n    required: false\ncapabilities:\n"
+        "config:\n  inputRoot:\n    type: path-openmind\n    required: false\ncapabilities:\n"
       )
     );
     fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
@@ -165,7 +164,25 @@ describe("SkillPackageService", () => {
       config: { inputRoot: { type: "path-openmind" } },
       capabilities: { openmind: { read: ["article/**"], write: ["daily-summary/**"] } }
     });
-    expect(inspection.manifest?.capabilities).not.toHaveProperty("mymind");
+  });
+
+  it("rejects the old-brand mymind manifest vocabulary", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(
+      path.join(source, "cctools.skill.yaml"),
+      CCTOOLS_MANIFEST.replace("  openmind:\n", "  mymind:\n")
+    );
+    fs.writeFileSync(path.join(source, "run.sh"), "echo ok\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+
+    const inspection = service.inspect(source);
+
+    expect(inspection.valid).toBe(false);
+    expect(inspection.manifest).toBeUndefined();
+    expect(inspection.issues).toContainEqual(expect.objectContaining({
+      code: "manifest-invalid",
+      path: "cctools.skill.yaml"
+    }));
   });
 
   it("deterministically prefers cctools.skill.yaml when both manifest names exist", () => {
@@ -323,8 +340,9 @@ describe("SkillPackageService", () => {
     expect(video?.manifest?.runtime.lockFile).toBe("uv.lock");
     expect(video?.manifest?.artifacts[0]).toMatchObject({ path: "video/**" });
     const videoScript = fs.readFileSync(path.join(skillsRoot, "video-burnin-subtitles", "scripts", "burnin_subtitles.py"), "utf8");
-    expect(videoScript).toContain('os.environ.get("CCTOOLS_MYMIND_ROOT")');
-    expect(videoScript).toContain('os.environ.get("MYMIND_ROOT")');
+    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
+    expect(videoScript).not.toContain("CCTOOLS_MYMIND_ROOT");
+    expect(videoScript).not.toContain("MYMIND_ROOT");
     expect(videoScript).not.toContain("load_dotenv");
     expect(videoScript).not.toContain("--env-file");
 

@@ -248,7 +248,7 @@ describe("InstalledSkillExecutionResolver", () => {
     await plan.prepareRuntime?.();
   });
 
-  it("pins provider configuration to the openmind snapshot and exposes both env namespaces", async () => {
+  it("pins provider configuration to the openmind snapshot and exposes the OPENMIND_PROVIDER_* env namespace", async () => {
     const fixture = createFixture();
     // providers.yaml lives inside the content root at config/providers.yaml.
     bindTestProvider(fixture.openmindRoot, 41234, "snapshot-provider-key");
@@ -256,13 +256,11 @@ describe("InstalledSkillExecutionResolver", () => {
 
     const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "run-provider-snapshot");
     expect(plan.process.env).toMatchObject({
-      CCTOOLS_PROVIDER_API_KEY: "snapshot-provider-key",
-      CCTOOLS_PROVIDER_BASE_URL: "http://127.0.0.1:41234/chat/completions",
-      CCTOOLS_PROVIDER_MODEL: "local-test-model",
       OPENMIND_PROVIDER_API_KEY: "snapshot-provider-key",
       OPENMIND_PROVIDER_BASE_URL: "http://127.0.0.1:41234/chat/completions",
       OPENMIND_PROVIDER_MODEL: "local-test-model"
     });
+    for (const name of Object.keys(plan.process.env)) expect(name.startsWith("CCTOOLS_PROVIDER_")).toBe(false);
     expect(plan.process.env).not.toHaveProperty("CCTOOLS_PROVIDERS_FILE");
     expect(plan.process.env).not.toHaveProperty("OPENMIND_PROVIDERS_FILE");
   });
@@ -306,13 +304,11 @@ describe("InstalledSkillExecutionResolver", () => {
     }, "run-source-context");
 
     expect(plan.process.env).toMatchObject({
-      CCTOOLS_SOURCE_ID: "source-1",
-      CCTOOLS_SOURCE_URL: "https://example.com/feed",
-      CCTOOLS_SOURCE_NAME: "Example Feed",
       OPENMIND_SOURCE_ID: "source-1",
       OPENMIND_SOURCE_URL: "https://example.com/feed",
       OPENMIND_SOURCE_NAME: "Example Feed"
     });
+    for (const name of Object.keys(plan.process.env)) expect(name.startsWith("CCTOOLS_SOURCE_")).toBe(false);
   });
 
   it("accepts a compatible Workflow-style caret version reference", async () => {

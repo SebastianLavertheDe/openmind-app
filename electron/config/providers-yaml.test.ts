@@ -107,19 +107,18 @@ describe("config/providers.yaml file repository", () => {
     expect(config.readProvidersYaml()?.providers.every((provider) => provider.name.endsWith(" updated"))).toBe(true);
   });
 
-  it("resolves an explicit openmind snapshot and emits both provider env namespaces", () => {
+  it("resolves an explicit openmind snapshot and emits the OPENMIND_PROVIDER_* env namespace", () => {
     config.saveProvidersFromInput(providerDocument());
     const explicitRoot = repo;
 
     expect(config.providersYamlPath(explicitRoot)).toBe(path.join(repo, "config", "providers.yaml"));
-    expect(config.readDefaultProviderEnv(explicitRoot).env).toMatchObject({
-      CCTOOLS_PROVIDER_API_KEY: "secret-general-chat",
-      CCTOOLS_PROVIDER_BASE_URL: "https://general-chat.example.com/v1/chat/completions",
-      CCTOOLS_PROVIDER_MODEL: "model-general-chat",
+    const env = config.readDefaultProviderEnv(explicitRoot).env;
+    expect(env).toMatchObject({
       OPENMIND_PROVIDER_API_KEY: "secret-general-chat",
       OPENMIND_PROVIDER_BASE_URL: "https://general-chat.example.com/v1/chat/completions",
       OPENMIND_PROVIDER_MODEL: "model-general-chat"
     });
+    for (const name of Object.keys(env)) expect(name.startsWith("CCTOOLS_PROVIDER_")).toBe(false);
   });
 
   it("returns a UI view that reports key presence without leaking plaintext keys", () => {

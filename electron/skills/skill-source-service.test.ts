@@ -41,8 +41,7 @@ compatibility:
 `;
 const CCTOOLS_MANIFEST = MANIFEST
   .replace("apiVersion: openmind.dev/skill/v1", "apiVersion: cctools.dev/skill/v1")
-  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools")
-  .replace("  openmind:\n", "  mymind:\n");
+  .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools");
 const REVISION = "c".repeat(40);
 
 describe("SkillSourceService", () => {
