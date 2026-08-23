@@ -113,7 +113,7 @@ describe("ADR-001 setOpenmindRoot", () => {
     } finally { fs.rmSync(repository, { recursive: true, force: true }); }
   });
 
-  it("persists openmindRoot and drops a stale v1 repoRoot key", () => {
+  it("persists openmindRoot over a settings file that still carries a stale v1 repoRoot key", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-set-"));
     fs.mkdirSync(path.join(dir, "article"), { recursive: true });
     try {
@@ -121,7 +121,7 @@ describe("ADR-001 setOpenmindRoot", () => {
       setOpenmindRoot(dir);
       const raw = loadSettings();
       expect(raw.openmindRoot).toBe(path.resolve(dir));
-      expect("repoRoot" in raw).toBe(false);
+      expect(resolveOpenmindRoot()).toBe(path.resolve(dir));
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 

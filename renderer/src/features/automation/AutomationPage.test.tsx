@@ -115,7 +115,7 @@ describe("AutomationPage", () => {
     const listInstalledRunnableSkills = vi.fn(async () => skillCatalog);
     window.openmind = makeApi({ listInstalledRunnableSkills });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText("每日文章总结 · Process · daily-article-summarizer")).toBeTruthy();
     expect(screen.getByText("Process · v1.0.0")).toBeTruthy();
@@ -131,7 +131,7 @@ describe("AutomationPage", () => {
     };
     window.openmind = makeApi({ listAutomationRules: async () => [workflowRule] });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText("RSS 抓取与每日总结 · Workflow · rss-to-summary-workflow")).toBeTruthy();
     expect(screen.getByText("Workflow · v1.0.0")).toBeTruthy();
@@ -147,7 +147,7 @@ describe("AutomationPage", () => {
       runAutomationNow
     });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText("Skill 已关闭")).toBeTruthy();
     const runButton = screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement;
@@ -159,7 +159,7 @@ describe("AutomationPage", () => {
   it("refreshes its preserved catalog after Skill Center changes availability", async () => {
     let currentCatalog = skillCatalog;
     window.openmind = makeApi({ listInstalledRunnableSkills: async () => currentCatalog });
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText("已启用")).toBeTruthy();
     currentCatalog = skillCatalog.map((skill) => skill.id === "daily-article-summarizer"
@@ -182,7 +182,7 @@ describe("AutomationPage", () => {
       runAutomationNow
     });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText("执行目标不可用")).toBeTruthy();
     const runButton = screen.getByRole("button", { name: /立即运行/ }) as HTMLButtonElement;
@@ -192,7 +192,7 @@ describe("AutomationPage", () => {
   });
 
   it("shows the three persisted rules and no removed rules", async () => {
-    const { container } = render(<AutomationPage go={vi.fn()} />);
+    const { container } = render(<AutomationPage />);
     await waitFor(() => expect(screen.getByText("3 条规则")).toBeTruthy());
 
     expect(container.querySelector(".automation-page-transition")).toBeTruthy();
@@ -205,7 +205,7 @@ describe("AutomationPage", () => {
   });
 
   it("toggles a rule with SwitchButton and disables running when off", async () => {
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
     const toggle = await screen.findByRole("switch", { name: "启用 每日简报生成" });
     expect(toggle.getAttribute("aria-checked")).toBe("true");
 
@@ -217,7 +217,7 @@ describe("AutomationPage", () => {
   it("runs the selected automation rule through the Automation API", async () => {
     const runAutomationNow = vi.fn().mockResolvedValue({});
     window.openmind = makeApi({ runAutomationNow });
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
     expect(runAutomationNow).toHaveBeenCalledWith("daily-brief");
@@ -228,7 +228,7 @@ describe("AutomationPage", () => {
   });
 
   it("remounts the detail pane so rule changes replay the transition", async () => {
-    const { container } = render(<AutomationPage go={vi.fn()} />);
+    const { container } = render(<AutomationPage />);
     await screen.findByText("每日简报生成", { selector: ".rule-detail h1" });
     const previousPane = container.querySelector(".automation-detail-transition");
 
@@ -240,7 +240,7 @@ describe("AutomationPage", () => {
   });
 
   it("uses the shared form controls and reveals trigger-specific schedule fields", async () => {
-    const { container } = render(<AutomationPage go={vi.fn()} />);
+    const { container } = render(<AutomationPage />);
     await screen.findByText("触发与目标");
 
     expect(container.querySelector(".automation-editor-card")).toBeTruthy();
@@ -265,7 +265,7 @@ describe("AutomationPage", () => {
       updatedAt: "2026-06-15T08:00:00.000Z"
     }));
     window.openmind = makeApi({ saveAutomationRule });
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
     await screen.findByText("触发与目标");
 
     await changeTriggerAndWaitForField("interval", "间隔分钟");
@@ -286,7 +286,7 @@ describe("AutomationPage", () => {
         return () => undefined;
       }
     });
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: messages.common.copy }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("生成完成"));
@@ -338,7 +338,7 @@ describe("AutomationPage", () => {
       onSkillRunEvent: (callback) => { onRunEvent = callback; return () => undefined; }
     });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
     expect(await screen.findByText(/Workflow Step fetch failed/)).toBeTruthy();
     expect(screen.getByText(/rss-article-saver · 运行失败/)).toBeTruthy();
     expect(onRunEvent).toBeTruthy();
@@ -380,13 +380,18 @@ describe("AutomationPage", () => {
       createdAt: "2026-08-17T14:00:20.000Z",
       completedAt: null,
       error: null,
-      stepRuns: [{ stepId: "fetch", skillId: "rss-article-saver", state: "running", attempt: 1, retryAt: null, runId: "fetch-progress-run", error: null, artifacts: [] }]
+      stepRuns: [
+        { stepId: "fetch", skillId: "rss-article-saver", state: "running", attempt: 1, retryAt: null, runId: "fetch-progress-run", error: null, artifacts: [] },
+        { stepId: "summarize", skillId: "daily-article-summarizer", state: "pending", attempt: 0, retryAt: null, runId: null, error: null, artifacts: [] },
+        { stepId: "select-topic", skillId: "daily-topic-selector", state: "pending", attempt: 0, retryAt: null, runId: null, error: null, artifacts: [] }
+      ]
     };
     const fetchRun = { id: "fetch-progress-run", state: "running", error: null, completedAt: null, artifacts: [], request: { skillId: "rss-article-saver" } } as unknown as BrokerRunRecord;
     const events: BrokerRunEvent[] = [
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 0, timestamp: "2026-08-17T14:00:20.000Z", state: "queued", reason: "run-created" },
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 1, timestamp: "2026-08-17T14:00:23.000Z", state: "running", reason: "process-started" },
-      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md" }
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nFetching URL to check content type...\nEntries: 7\nNew articles: 1\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md" },
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 3, timestamp: "2026-08-17T14:01:01.000Z", state: "running", stream: "system", text: "Artifact 登记失败，已忽略：测试错误" }
     ];
     window.openmind = makeApi({
       listAutomationRules: async () => [workflowRule],
@@ -396,11 +401,15 @@ describe("AutomationPage", () => {
       getSkillRunEvents: async () => events
     });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     expect(await screen.findByText(/rss-article-saver · Loaded 122 RSS feeds/)).toBeTruthy();
     expect(screen.getByText(/rss-article-saver · Processing: Cursor is now a part of SpaceX/)).toBeTruthy();
-    expect(screen.getByText(/rss-article-saver · 运行中/)).toBeTruthy();
+    expect(screen.getByText("rss-article-saver · 运行中")).toBeTruthy();
+    expect(screen.getByText(/步骤 1\/3 · rss-article-saver · 运行中/)).toBeTruthy();
+    expect(screen.getByText(/步骤 2\/3 · daily-article-summarizer · 等待上一步/)).toBeTruthy();
+    expect(screen.getByText(/RSS 进度：已开始检查 1 个源（初始订阅 122，嵌套源另计） · 发现新增 1 篇 · 已保存 1 篇 · 当前 Cursor Blog/)).toBeTruthy();
+    expect(screen.getByText(/Artifact 登记失败，已忽略：测试错误/)).toBeTruthy();
   });
 
   it("prefers an active workflow over newer skipped runs and keeps its live logs visible", async () => {
@@ -480,7 +489,7 @@ describe("AutomationPage", () => {
       cancelWorkflowRun
     });
 
-    const { container } = render(<AutomationPage go={vi.fn()} />);
+    const { container } = render(<AutomationPage />);
 
     expect(await screen.findByRole("button", { name: "停止运行" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /立即运行/ })).toBeNull();
@@ -517,7 +526,7 @@ describe("AutomationPage", () => {
       listAutomationRuns: async () => [queuedRetry]
     });
 
-    render(<AutomationPage go={vi.fn()} />);
+    render(<AutomationPage />);
 
     await waitFor(() => expect(screen.getAllByText(/上次尝试失败，等待重试/)).toHaveLength(2));
     expect(screen.queryByText(/Automation 失败/)).toBeNull();
@@ -552,12 +561,38 @@ describe("AutomationPage", () => {
       listAutomationRuns: async () => [recent, stale]
     });
 
-    const { container } = render(<AutomationPage go={vi.fn()} />);
+    const { container } = render(<AutomationPage />);
     await screen.findByText("触发与目标");
 
     expect(container.querySelectorAll(".automation-history-row")).toHaveLength(1);
     expect(screen.getByText("recent-child")).toBeTruthy();
     expect(screen.queryByText("stale-child")).toBeNull();
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+  });
+
+  it("does not render retry actions for failed run history", async () => {
+    const failed: AutomationRunRecord = {
+      schemaVersion: 1,
+      id: "recent-failed-run",
+      ruleId: seedRules[0].id,
+      target: seedRules[0].target,
+      state: "failed",
+      attempt: 2,
+      retryAt: null,
+      childRunId: "failed-child",
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt: new Date().toISOString(),
+      error: "Workflow Step failed."
+    };
+    window.openmind = makeApi({
+      listAutomationRules: async () => [seedRules[0]],
+      listAutomationRuns: async () => [failed]
+    });
+
+    render(<AutomationPage />);
+    expect(await screen.findByText("failed-child")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
   });
 });

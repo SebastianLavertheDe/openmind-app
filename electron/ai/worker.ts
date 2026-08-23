@@ -42,7 +42,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "refresh-providers": return scheduler.refreshProviders();
     case "events": return scheduler.getEvents(String(first));
     case "turns": return scheduler.getTurns(String(first), (second || {}) as never);
-    case "context-state": return scheduler.getContextState(String(first));
     case "search": return scheduler.searchSessions(String(first || ""));
     case "skills": return scheduler.listSkills();
     case "active-count": return scheduler.activeTaskCount();
@@ -51,8 +50,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "credential-replaced": return scheduler.rotateCredential(String(first));
     case "refresh-skills": return scheduler.refreshSkills();
     case "prewarm": return scheduler.prewarmClaude(typeof first === "string" ? first : undefined);
-    case "run-skill": return scheduler.startSkill(String(first), typeof second === "string" ? second : undefined);
-    case "stop-skill": return scheduler.stopSkill(String(first));
     case "skill-run-list": return scheduler.listSkillRuns();
     case "skill-run-get": return scheduler.getSkillRun(String(first));
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));
@@ -61,7 +58,6 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "run-retry-step": return scheduler.retryWorkflowStep(String(first), String(second));
     case "run-delete-history": return scheduler.deleteRunHistory(String(first));
     case "skill-run-cancel": return scheduler.cancelSkillRun(String(first));
-    case "workflow-run-start": return scheduler.startWorkflowRun(first as never);
     case "workflow-run-list": return scheduler.listWorkflowRuns();
     case "workflow-run-get": return scheduler.getWorkflowRun(String(first));
     case "workflow-run-resume": return scheduler.resumeWorkflowRun(first as never);
@@ -72,23 +68,11 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "automation-run-now": return scheduler.runAutomationNow(String(first));
     case "automation-runs-list": return scheduler.listAutomationRuns(typeof first === "string" ? first : undefined);
     case "automation-schedules-list": return scheduler.listAutomationSchedules();
-    case "run-source": {
-      const input = (third || {}) as { date?: string; url?: string; name?: string };
-      return scheduler.startSource(String(first), String(second), input.date, input.url, input.name);
-    }
-    case "stop-source": return scheduler.stopSource(String(first));
     case "start": return scheduler.startRun(first as never);
     case "cancel": return scheduler.cancelRun(String(first));
     case "update-session": return scheduler.updateSession(String(first), second as never);
-    case "delete-session": return scheduler.deleteSession(String(first));
     case "fork-session": return scheduler.forkSession(String(first), typeof second === "string" ? second : undefined);
-    case "rollback-turns": return scheduler.rollbackTurns(String(first), Number(second));
     case "resolve-approval": return scheduler.resolveApproval(String(first), second as never);
-    case "change-set": return scheduler.getChangeSet(String(first));
-    case "apply-change": return scheduler.applyChange(String(first), typeof second === "string" ? second : undefined);
-    case "revert-change": return scheduler.revertChange(String(first), String(second));
-    case "discard-change": return scheduler.discardChange(String(first), String(second));
-    case "discard-run": return scheduler.discardRun(String(first));
     default: throw new Error(`Unknown AI worker method: ${request.method}`);
   }
 }

@@ -186,8 +186,10 @@ The first static package boundary is now implemented in
   and optional ref, package ref and resolved revision;
 - a complete Git-source install atomically writes
   `source-installations.json` only after every discovered package succeeds.
-  Startup validates this receipt and every official package offline; partial,
-  corrupt or tampered installations fail closed to onboarding;
+  Startup checks for an installed official package without contacting Git.
+  Receipt, provenance and digest validation remains available to Skill Center
+  and fails closed when an affected package is inspected or executed, but does
+  not send an existing user back to onboarding;
 - Skill Center now exposes a source picker for local directory/ZIP and Git
   HTTPS URLs. Every candidate goes through the same static Manifest, digest,
   exclusion and installed-copy boundary before it can be imported.

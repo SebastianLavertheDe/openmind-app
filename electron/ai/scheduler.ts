@@ -4,7 +4,6 @@ import {
   SessionPatchSchema,
   StartRunInputSchema,
   type AiEvent,
-  type AiContextState,
   type AiRun,
   type AiSession,
   type AiSnapshot,
@@ -18,14 +17,11 @@ import {
 import { ApprovalBroker } from "./approval-broker";
 import { ProviderRegistry } from "./provider-registry";
 import { SessionStore } from "./session-store";
-import { LegacyChangeManager } from "./workspace-manager";
 import { SkillToolRegistry } from "./skill-tool-registry";
 import { ClaudeAgentSdkAdapter } from "./providers/claude-agent-sdk";
 import { CodexAppServerAdapter } from "./providers/codex-app-server";
-import { ChangeApplicationService } from "./change-application";
-import { ManualSkillController } from "./manual-skill-controller";
 import { normalizeContextReferences, normalizeCwd } from "./scheduler-paths";
-import { materializeImages, cleanupImages, cleanupStaleImages } from "./scheduler-images";
+import { materializeImages, cleanupStaleImages } from "./scheduler-images";
 import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
 import { slashCommandValidationError } from "../../shared/slash-commands";
 import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
@@ -54,11 +50,8 @@ import { providerConfigurationRevision, resolveCliProvider } from "../config/pro
 export class RunScheduler {
   private readonly store: SessionStore;
   private readonly registry: ProviderRegistry;
-  private readonly legacyChanges: LegacyChangeManager;
   private readonly approvals: ApprovalBroker;
   private readonly skillTools: SkillToolRegistry;
-  private readonly manualSkills: ManualSkillController;
-  private readonly changeApplications: ChangeApplicationService;
   private readonly queue: string[] = [];
   private readonly active = new Map<string, ActiveRun>();
   // Provider 注册表（adapters map 从它派生）：新增 provider = 加一行 + 实现 ProviderAdapter。
@@ -84,7 +77,6 @@ export class RunScheduler {
     this.stateRoot = stateRoot;
     this.store = new SessionStore(projectRoot, stateRoot);
     this.registry = new ProviderRegistry(projectRoot);
-    this.legacyChanges = new LegacyChangeManager(projectRoot, stateRoot);
     const appPaths = openmindRoot
       ? buildAppPaths(process.env.OPENMIND_USER_DATA_DIR, resolveSkillStoreRoot(openmindRoot))
       : null;
@@ -128,7 +120,6 @@ export class RunScheduler {
         workflowRoot: path.join(appPaths.runs, "workflows")
       } : {})
     } : undefined);
-    this.manualSkills = new ManualSkillController(this.skillTools, projectRoot, publish);
     this.automation = appPaths && openmindRoot ? new AutomationScheduler({
       repository: new AutomationRepository(appPaths),
       leader: new AutomationLeader(appPaths.automation),
@@ -150,14 +141,6 @@ export class RunScheduler {
         return installed.version;
       }
     }) : null;
-    this.changeApplications = new ChangeApplicationService(
-      this.store,
-      this.legacyChanges,
-      {
-        append: (run, kind, payload) => appendScheduledEvent(this.executionHost(), run, kind, payload),
-        publishSnapshot: () => this.publishSnapshot()
-      }
-    );
     this.approvals = new ApprovalBroker((request) => void handleApprovalRequest(this.executionHost(), request));
     this.store.initialize();
     // Old sessions predate the enabled preference and therefore behaved as if
@@ -197,7 +180,6 @@ export class RunScheduler {
 
   getEvents(sessionId: string): AiEvent[] { return this.store.readEvents(sessionId); }
   getTurns(sessionId: string, params: AiTurnListParams = {}): AiTurnPage { return this.store.listTurns(sessionId, params); }
-  getContextState(sessionId: string): AiContextState { return this.store.getContextState(sessionId); }
   searchSessions(query: string): AiSession[] { return this.store.search(query); }
   listSkills(): SkillDefinition[] { return this.skillTools.listDefinitions(); }
 
@@ -230,13 +212,6 @@ export class RunScheduler {
     return prewarmProviderSession({ projectRoot: this.projectRoot, store: this.store, registry: this.registry, adapter: this.adapters[provider], provider, resolveProviderModel: this.resolveProviderModel, browserAutomation: this.browserAutomation }, sessionId);
   }
 
-  startSkill(skillId: string, date?: string): boolean { return this.manualSkills.startSkill(skillId, date); }
-  startSource(sourceId: string, skillId: string, date?: string, sourceUrl?: string, sourceName?: string): boolean {
-    return this.manualSkills.startSource(sourceId, skillId, date, sourceUrl, sourceName);
-  }
-  stopSkill(skillId: string): Promise<boolean> { return this.manualSkills.stopSkill(skillId); }
-  stopSource(sourceId: string): Promise<boolean> { return this.manualSkills.stopSource(sourceId); }
-
   listSkillRuns(): BrokerRunRecord[] { return this.skillTools.listRuns(); }
   getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
@@ -248,11 +223,7 @@ export class RunScheduler {
     this.publishSnapshot();
     return cancelled;
   }
-  startWorkflowRun(rawRequest: WorkflowStartRequest): WorkflowRunRecord {
-    return this.skillTools.startWorkflowRun(WorkflowStartRequestSchema.parse(rawRequest));
-  }
-  listWorkflowRuns(): WorkflowRunRecord[] { return this.skillTools.listWorkflowRuns(); }
-  getWorkflowRun(runId: string): WorkflowRunRecord { return this.skillTools.getWorkflowRun(runId); }
+  listWorkflowRuns(): WorkflowRunRecord[] { return this.skillTools.listWorkflowRuns(); }  getWorkflowRun(runId: string): WorkflowRunRecord { return this.skillTools.getWorkflowRun(runId); }
   retryWorkflowStep(runId: string, stepId: string): WorkflowRunRecord { return this.skillTools.retryWorkflowStep(runId, stepId); }
   resumeWorkflowRun(rawRequest: WorkflowResumeRequest): WorkflowRunRecord { const request = WorkflowResumeRequestSchema.parse(rawRequest); return this.skillTools.resumeWorkflowRun(request.runId, request.inputs, request.rootGeneration, request.providerBindings); }
   cancelWorkflowRun(runId: string): Promise<boolean> { return this.skillTools.cancelWorkflowRun(runId); }
@@ -279,16 +250,6 @@ export class RunScheduler {
     return result;
   }
 
-  deleteSession(id: string): boolean {
-    const unfinished = this.store.listRuns(id).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status));
-    if (unfinished) throw new Error("会话仍有运行中或排队任务，请先停止后再删除。");
-    for (const adapter of Object.values(this.adapters)) adapter.disposeSession?.(id);
-    for (const run of this.store.listRuns(id)) cleanupImages(this.projectRoot, run.id, this.stateRoot);
-    const result = this.store.deleteSession(id);
-    this.publishSnapshot();
-    return result;
-  }
-
   async forkSession(sessionId: string, throughRunId?: string): Promise<AiSession> {
     const source = this.store.getSession(sessionId);
     if (this.store.listRuns(sessionId).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status))) {
@@ -298,25 +259,6 @@ export class RunScheduler {
     if (this.adapters[source.provider]?.prewarm) void this.prewarm(source.provider, fork.id).catch(() => undefined);
     this.publishSnapshot();
     return fork;
-  }
-
-  async rollbackTurns(sessionId: string, numTurns: number): Promise<boolean> {
-    const session = this.store.getSession(sessionId);
-    if (this.store.listRuns(sessionId).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status))) {
-      throw new Error("Cannot roll back a session while a turn is active.");
-    }
-    const removed = await this.store.rollbackTurns(sessionId, numTurns);
-    for (const runId of removed) cleanupImages(this.projectRoot, runId, this.stateRoot);
-    if (!removed.length) return false;
-    this.adapters[session.provider].disposeSession?.(session.id);
-    const latest = this.store.listRuns(sessionId)[0] || null;
-    this.store.updateSession(sessionId, {
-      providerSessionId: null,
-      lastRunId: latest?.id || null,
-      status: "idle"
-    });
-    this.publishSnapshot();
-    return true;
   }
 
   startRun(raw: StartRunInput): { session: AiSession; run: AiRun } {
@@ -381,13 +323,6 @@ export class RunScheduler {
     const decision = ApprovalDecisionSchema.parse(rawDecision);
     return resolveScheduledApproval(this.executionHost(), id, decision);
   }
-
-  getChangeSet(runId: string): ChangeSet | null { return this.store.getRun(runId).changeSet; }
-
-  async applyChange(runId: string, patch?: string): Promise<{ applied: boolean; conflict?: string }> { return this.changeApplications.applyChange(runId, patch); }
-  async revertChange(runId: string, patch: string): Promise<{ applied: boolean; conflict?: string }> { return this.changeApplications.revertChange(runId, patch); }
-  async discardChange(runId: string, patch: string): Promise<ChangeSet | null> { return this.changeApplications.discardChange(runId, patch); }
-  async discardRun(runId: string): Promise<boolean> { return this.changeApplications.discardRun(runId); }
 
   private async append(run: AiRun, kind: AiEvent["kind"], payload: Record<string, unknown>): Promise<void> {
     return appendScheduledEvent(this.executionHost(), run, kind, payload);

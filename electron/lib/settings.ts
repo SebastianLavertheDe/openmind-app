@@ -2,7 +2,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences } from "../../shared/contracts";
+import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { computeRootId, OpenmindPathResolver } from "../paths/openmind-path-resolver";
@@ -192,8 +192,8 @@ function resolveOpenmindRoot(): string {
 }
 
 /**
- * Set the openmind root. Persists `openmindRoot`; a stale v1 `repoRoot` key, if
- * present, is dropped so future reads are unambiguous.
+ * Set the openmind root. Persists `openmindRoot`. Unknown legacy keys (such
+ * as the pre-release v1 `repoRoot`) are ignored on read and left as-is.
  */
 function setOpenmindRoot(candidate: string): string {
   const canonical = canonicalDirectory(normalizeRepoRoot(candidate));
@@ -201,7 +201,7 @@ function setOpenmindRoot(candidate: string): string {
     throw new Error(messages.errors.repo.invalidDirectory);
   }
   assertRootDoesNotConflict(canonical, resolveWorkspaceRoot());
-  const { repoRoot: _staleRepoRoot, ...current } = loadSettings();
+  const current = loadSettings();
   const previous = typeof current.openmindRoot === "string" ? canonicalDirectory(current.openmindRoot) : null;
   const generation = Number.isInteger(current.openmindRootGeneration) && Number(current.openmindRootGeneration) > 0
     ? Number(current.openmindRootGeneration) + (previous === canonical ? 0 : 1)
@@ -369,7 +369,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   openmindRoot: "",
   workspaceRoot: "",
   themeMode: "light",
-  accentColor: "#2563eb",
   density: "default",
   fontSize: "default",
   autoSaveIntervalMs: 30000,
@@ -379,9 +378,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   contentPreviewMode: "sidebar",
   markReadOnOpen: true,
   defaultProvider: "",
-  providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
-  defaultWorkDir: "",
   notesDir: "openmind",
   browserAutomationEnabled: false,
   browserReuseExistingTabs: true,
@@ -393,18 +390,11 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   defaultContentLength: "medium",
   defaultTemplate: "",
   userTags: [],
-  notificationsEnabled: true,
-  dndStartHour: 22,
-  dndEndHour: 8,
-  maxNotificationHistory: 100,
-  cacheMaxSizeMB: 500,
-  logRetentionDays: 30,
   workflowAutoSaveDraft: true,
   workflowAutoVersionOnStageChange: true,
   workflowReviewRequiredForReady: true,
   workflowPublishChecklistEnabled: true,
-  workflowAutoArchiveEnabled: false,
-  workflowAutoBriefOnSourceComplete: false
+  workflowAutoArchiveEnabled: false
 };
 
 function getPreferences(): UserPreferences {
@@ -417,15 +407,18 @@ function getPreferences(): UserPreferences {
   return migrated;
 }
 
-function updatePreferences(patch: Partial<UserPreferences>): UserPreferences {
+function updatePreferences(patch: UserPreferencesPatch): UserPreferences {
+  if ("openmindRoot" in patch || "workspaceRoot" in patch || "schemaVersion" in patch) {
+    throw new Error("保存目录只能通过专用的目录选择操作修改。");
+  }
   const current = loadSettings();
   const preferences = getPreferences();
   // Preserve root settings across a partial update: a preference patch must
   // not wipe openmindRoot/workspaceRoot. Explicit root changes go through
   // setOpenmindRoot/setWorkspaceRoot, not updatePreferences.
   const preserveRoots = {
-    openmindRoot: patch?.openmindRoot ?? current.openmindRoot ?? preferences.openmindRoot ?? "",
-    workspaceRoot: patch?.workspaceRoot ?? current.workspaceRoot ?? preferences.workspaceRoot ?? ""
+    openmindRoot: current.openmindRoot ?? preferences.openmindRoot ?? "",
+    workspaceRoot: current.workspaceRoot ?? preferences.workspaceRoot ?? ""
   };
   const next = normalizePreferences({ ...preferences, ...patch, ...preserveRoots }, true);
   saveSettings({ ...current, ...next });
@@ -456,26 +449,6 @@ function resetPreferences(section?: string): UserPreferences {
   return getPreferences();
 }
 
-function importPreferences(filePath: string): { imported: true; preferences: UserPreferences } {
-  const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as RawSettings;
-  const current = loadSettings();
-  // Imported openmindRoot must be a real directory, else keep the current one.
-  const importedOpenmind = typeof raw.openmindRoot === "string" && (!raw.openmindRoot || isValidOpenmindRoot(raw.openmindRoot))
-    ? raw.openmindRoot
-    : current.openmindRoot || "";
-  const importedWorkspace = typeof raw.workspaceRoot === "string" && (!raw.workspaceRoot || fs.existsSync(raw.workspaceRoot))
-    ? raw.workspaceRoot
-    : current.workspaceRoot || "";
-  const next = normalizePreferences({
-    ...raw,
-    openmindRoot: importedOpenmind,
-    workspaceRoot: importedWorkspace
-  }, true);
-  saveSettings({ ...current, ...next });
-  invalidateRootCache();
-  return { imported: true, preferences: getPreferences() };
-}
-
 function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
   const source = raw && typeof raw === "object" ? raw as RawSettings : {};
   return {
@@ -483,7 +456,6 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     openmindRoot: stringPref(source.openmindRoot, DEFAULT_PREFERENCES.openmindRoot, strict, "openmindRoot", 4096),
     workspaceRoot: stringPref(source.workspaceRoot, DEFAULT_PREFERENCES.workspaceRoot, strict, "workspaceRoot", 4096),
     themeMode: enumPref(source.themeMode, ["dark", "light"], DEFAULT_PREFERENCES.themeMode, strict, "themeMode"),
-    accentColor: colorPref(source.accentColor, DEFAULT_PREFERENCES.accentColor, strict),
     density: enumPref(source.density, ["compact", "default", "comfortable"], DEFAULT_PREFERENCES.density, strict, "density"),
     fontSize: enumPref(source.fontSize, ["small", "default", "large"], DEFAULT_PREFERENCES.fontSize, strict, "fontSize"),
     autoSaveIntervalMs: intPref(source.autoSaveIntervalMs, 5000, 600000, DEFAULT_PREFERENCES.autoSaveIntervalMs, strict, "autoSaveIntervalMs"),
@@ -493,9 +465,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     contentPreviewMode: enumPref(source.contentPreviewMode, ["inline", "sidebar"], DEFAULT_PREFERENCES.contentPreviewMode, strict, "contentPreviewMode"),
     markReadOnOpen: boolPref(source.markReadOnOpen, DEFAULT_PREFERENCES.markReadOnOpen, strict, "markReadOnOpen"),
     defaultProvider: stringPref(source.defaultProvider, DEFAULT_PREFERENCES.defaultProvider, strict, "defaultProvider", 200),
-    providerModels: normalizeProviderModels(source.providerModels),
     defaultPermissionProfile: enumPref(source.defaultPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
-    defaultWorkDir: stringPref(source.defaultWorkDir, DEFAULT_PREFERENCES.defaultWorkDir, strict, "defaultWorkDir", 4096),
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
     browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),
@@ -514,26 +484,11 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     defaultContentLength: enumPref(source.defaultContentLength, ["short", "medium", "long"], DEFAULT_PREFERENCES.defaultContentLength, strict, "defaultContentLength"),
     defaultTemplate: stringPref(source.defaultTemplate, DEFAULT_PREFERENCES.defaultTemplate, strict, "defaultTemplate", 4096),
     userTags: tagsPref(source.userTags, strict),
-    notificationsEnabled: boolPref(source.notificationsEnabled, DEFAULT_PREFERENCES.notificationsEnabled, strict, "notificationsEnabled"),
-    dndStartHour: intPref(source.dndStartHour, 0, 23, DEFAULT_PREFERENCES.dndStartHour, strict, "dndStartHour"),
-    dndEndHour: intPref(source.dndEndHour, 0, 23, DEFAULT_PREFERENCES.dndEndHour, strict, "dndEndHour"),
-    maxNotificationHistory: intPref(source.maxNotificationHistory, 10, 500, DEFAULT_PREFERENCES.maxNotificationHistory, strict, "maxNotificationHistory"),
-    cacheMaxSizeMB: intPref(source.cacheMaxSizeMB, 50, 5000, DEFAULT_PREFERENCES.cacheMaxSizeMB, strict, "cacheMaxSizeMB"),
-    logRetentionDays: intPref(source.logRetentionDays, 1, 90, DEFAULT_PREFERENCES.logRetentionDays, strict, "logRetentionDays"),
     workflowAutoSaveDraft: boolPref(source.workflowAutoSaveDraft, DEFAULT_PREFERENCES.workflowAutoSaveDraft, strict, "workflowAutoSaveDraft"),
     workflowAutoVersionOnStageChange: boolPref(source.workflowAutoVersionOnStageChange, DEFAULT_PREFERENCES.workflowAutoVersionOnStageChange, strict, "workflowAutoVersionOnStageChange"),
     workflowReviewRequiredForReady: boolPref(source.workflowReviewRequiredForReady, DEFAULT_PREFERENCES.workflowReviewRequiredForReady, strict, "workflowReviewRequiredForReady"),
     workflowPublishChecklistEnabled: boolPref(source.workflowPublishChecklistEnabled, DEFAULT_PREFERENCES.workflowPublishChecklistEnabled, strict, "workflowPublishChecklistEnabled"),
-    workflowAutoArchiveEnabled: boolPref(source.workflowAutoArchiveEnabled, DEFAULT_PREFERENCES.workflowAutoArchiveEnabled, strict, "workflowAutoArchiveEnabled"),
-    workflowAutoBriefOnSourceComplete: boolPref(source.workflowAutoBriefOnSourceComplete, DEFAULT_PREFERENCES.workflowAutoBriefOnSourceComplete, strict, "workflowAutoBriefOnSourceComplete")
-  };
-}
-
-function normalizeProviderModels(value: unknown): { codex: string; claude: string } {
-  const record = value && typeof value === "object" ? value as RawSettings : {};
-  return {
-    codex: typeof record.codex === "string" && record.codex ? record.codex : "auto",
-    claude: typeof record.claude === "string" && record.claude ? record.claude : "auto"
+    workflowAutoArchiveEnabled: boolPref(source.workflowAutoArchiveEnabled, DEFAULT_PREFERENCES.workflowAutoArchiveEnabled, strict, "workflowAutoArchiveEnabled")
   };
 }
 
@@ -573,13 +528,6 @@ function intPref(value: unknown, min: number, max: number, fallback: number, str
   return fallback;
 }
 
-function colorPref(value: unknown, fallback: string, strict: boolean): string {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) return fallback;
-  if (strict) throw new Error(messages.errors.preferences.invalidAccentColor);
-  return fallback;
-}
-
 function tagsPref(value: unknown, strict: boolean): string[] {
   if (value === undefined || value === null) return DEFAULT_PREFERENCES.userTags;
   if (Array.isArray(value) && value.every((tag) => typeof tag === "string" && tag.trim() && tag.length <= 40)) {
@@ -591,16 +539,14 @@ function tagsPref(value: unknown, strict: boolean): string[] {
 
 function startsWithPrefix(key: string, prefix: string): boolean {
   const groups: Record<string, string[]> = {
-    theme: ["themeMode", "accentColor", "density", "fontSize"],
+    theme: ["themeMode", "density", "fontSize"],
     save: ["autoSaveIntervalMs", "maxVersions", "archiveAfterDays"],
     content: ["defaultReadFilter", "contentPreviewMode", "markReadOnOpen"],
-    ai: ["defaultProvider", "defaultPermissionProfile", "defaultWorkDir", "destructiveOpsRequireApproval", "riskScanEnabled"],
-    project: ["defaultWorkDir", "notesDir"],
+    ai: ["defaultProvider", "defaultPermissionProfile", "destructiveOpsRequireApproval", "riskScanEnabled"],
+    project: ["notesDir"],
     creative: ["defaultPlatform", "defaultLanguage", "defaultContentLength", "defaultTemplate"],
     tags: ["userTags"],
-    notifications: ["notificationsEnabled", "dndStartHour", "dndEndHour", "maxNotificationHistory"],
-    data: ["cacheMaxSizeMB", "logRetentionDays"],
-    workflow: ["autoSaveIntervalMs", "archiveAfterDays", "workflowAutoSaveDraft", "workflowAutoVersionOnStageChange", "workflowReviewRequiredForReady", "workflowPublishChecklistEnabled", "workflowAutoArchiveEnabled", "workflowAutoBriefOnSourceComplete"]
+    workflow: ["autoSaveIntervalMs", "archiveAfterDays", "workflowAutoSaveDraft", "workflowAutoVersionOnStageChange", "workflowReviewRequiredForReady", "workflowPublishChecklistEnabled", "workflowAutoArchiveEnabled"]
   };
   const keys = groups[prefix] || [];
   return keys.includes(key);
@@ -630,5 +576,4 @@ export {
   getPreferences,
   updatePreferences,
   resetPreferences,
-  importPreferences
 };

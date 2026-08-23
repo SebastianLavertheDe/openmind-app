@@ -353,21 +353,6 @@ describe("SessionStore", () => {
     expect(forkTurns.data[0].id).not.toBe(first.id);
   });
 
-  it("rolls back turns by appending a marker and hiding rolled-back materialized runs", async () => {
-    const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Rollback", permissionProfile: "edit" });
-    const first = await addCompletedTurn(store, session, "first", "one");
-    const second = await addCompletedTurn(store, store.getSession(session.id), "second", "two");
-
-    expect(await store.rollbackTurns(session.id, 1)).toEqual([second.id]);
-
-    expect(store.listTurns(session.id, { sortDirection: "asc" }).data.map((turn) => turn.id)).toEqual([first.id]);
-    expect(store.listRuns(session.id).map((run) => run.id)).toEqual([first.id]);
-    expect(store.getContextState(session.id).history.map((item) => item.content)).toEqual(["first", "one"]);
-    const rolloutFile = path.join(store.root, "sessions", session.id, "rollout.jsonl");
-    expect(fs.readFileSync(rolloutFile, "utf8")).toContain('"type":"thread_rolled_back"');
-  });
-
   it("does not persist Claude private token deltas and normalizes legacy init events", async () => {
     const store = new SessionStore(createRoot());
     const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "语义事件", permissionProfile: "edit" });

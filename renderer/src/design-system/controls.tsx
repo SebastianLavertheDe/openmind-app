@@ -77,10 +77,6 @@ export function Tabs<T extends string>({
   );
 }
 
-export function DatePicker({ value, onChange, label = m.designSystem.pickDate }: { value: string; onChange(value: string): void; label?: string }) {
-  return <label className="ui-date-picker"><span>{label}</span><input type="date" value={value} onChange={(event) => onChange(event.target.value)} /></label>;
-}
-
 export function ToggleSwitch({
   checked,
   label,
@@ -108,33 +104,6 @@ export function ToggleSwitch({
     </button>
   );
 }
-
-export function MetricCard({
-  label,
-  value,
-  detail,
-  tone = "neutral",
-  onClick
-}: {
-  label: string;
-  value: number | string;
-  detail?: string;
-  tone?: "neutral" | "success" | "warning" | "danger" | "info";
-  onClick?(): void;
-}) {
-  const content = (
-    <>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {detail ? <small>{detail}</small> : null}
-    </>
-  );
-  return onClick
-    ? <button className={`ui-metric-card ${tone}`} data-motion="card" onClick={onClick}>{content}</button>
-    : <article className={`ui-metric-card ${tone}`}>{content}</article>;
-}
-
-export const StatCard = MetricCard;
 
 export function DataTable<T>({
   rows,

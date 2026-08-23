@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   SKILL_MANIFEST_API_VERSION,
   SkillManifestSchema,
-  diffSkillCapabilities,
   matchesSemverRange,
   validateManifest
 } from "./skill-manifest-schema";
@@ -55,26 +54,6 @@ function baseProcessManifest(): Record<string, unknown> {
 }
 
 describe("SkillManifestSchema", () => {
-  it("computes a stable capability diff for a new manifest", () => {
-    const previous = { capabilities: { openmind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } };
-    const next = { capabilities: { openmind: { read: ["article/**"], write: ["daily-summary/**"] }, network: { required: true, hosts: ["api.example.com"] }, browser: true } };
-
-    expect(diffSkillCapabilities(previous, next)).toEqual({
-      added: [
-        "capabilities.browser=true",
-        "capabilities.network.hosts[]=api.example.com",
-        "capabilities.network.required=true",
-        "capabilities.openmind.write[]=daily-summary/**"
-      ],
-      removed: [
-        "capabilities.browser=false",
-        "capabilities.network.required=false"
-      ],
-      changed: true
-    });
-    expect(diffSkillCapabilities(previous, { capabilities: { openmind: { read: ["article/**"], write: [] }, network: { required: false, hosts: [] }, browser: false } }).changed).toBe(false);
-  });
-
   it("matches exact, caret, tilde and comparator Skill version ranges", () => {
     expect(matchesSemverRange("1.2.3", "1.2.3")).toBe(true);
     expect(matchesSemverRange("1.4.0", "^1.2.3")).toBe(true);

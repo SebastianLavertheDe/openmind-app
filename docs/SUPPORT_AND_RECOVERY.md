@@ -45,10 +45,11 @@ terminal state or the recovery steps below have been completed.
 4. If a migration or relocation marker is present after an interrupted App,
    restart once and let startup recovery verify the matching tree. Preserve
    the marker and source tree if recovery reports a mismatch.
-5. If the root is healthy but onboarding still reports missing Skills, reinstall
-   the complete official Git source from onboarding. One matching URL record is
-   insufficient: the local complete-source receipt and every recorded package
-   path, Manifest identity and digest must validate offline.
+5. If the root is healthy but onboarding still reports missing Skills, verify
+   that at least one official Git-source Skill has an installation record and
+   package directory, then reinstall the official source if both are absent.
+   Receipt, revision or digest warnings alone do not trigger onboarding; repair
+   those from Skill Center before running the affected Skill.
 
 ## Runtime and Skill failures
 

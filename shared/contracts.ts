@@ -28,25 +28,13 @@ export {
   type ProvidersYamlView,
   type ProviderPreset
 } from "./providers-yaml";
-export {
-  EnvVariableKindSchema,
-  EnvVariableInsightSchema,
-  EnvFileAnalysisSchema,
-  type EnvVariableKind,
-  type EnvVariableInsight,
-  type EnvFileAnalysis
-} from "./env-file-analysis";
 import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
-import type { BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
-import { RuntimeTargetSchema, type RuntimePackDownloadDescriptor, type RuntimePackDownloadJob, type RuntimePackReadiness, type RuntimePackId, type RuntimeTarget } from "./runtime-targets";
+import { RuntimeTargetSchema } from "./runtime-targets";
 
-export type { BrokerRunEvent, BrokerRunRecord, ExportLocationBinding, RunArtifact, RunUsage, SkillRunRequest, WorkflowRunRecord, WorkflowResumeRequest, WorkflowStartRequest } from "./execution-contracts";
+export type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 export type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
-export type { RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, RuntimePackId, RuntimeTarget } from "./runtime-targets";
-import type { EnvFileAnalysis } from "./env-file-analysis";
-import type { AppStateBackupReport } from "./state-backup";
-export { AppStateBackupReportSchema, type AppStateBackupReport } from "./state-backup";
 
 export const SCHEMA_VERSION = 1;
 
@@ -56,7 +44,6 @@ export const IpcErrorSchema = z.object({
   detail: z.string().nullable().default(null),
   recoverable: z.boolean().default(true)
 });
-export type IpcErrorPayload = z.infer<typeof IpcErrorSchema>;
 
 export const ProviderKindSchema = z.enum(["codex", "claude"]);
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
@@ -68,7 +55,6 @@ export const AiProjectSchema = z.object({
   root: z.string(),
   createdAt: z.string()
 });
-export type AiProject = z.infer<typeof AiProjectSchema>;
 
 export const PermissionProfileSchema = z.enum(["read-only", "edit", "auto"]);
 export type PermissionProfile = z.infer<typeof PermissionProfileSchema>;
@@ -109,7 +95,6 @@ export const EventKindSchema = z.enum([
   "error",
   "system"
 ]);
-export type EventKind = z.infer<typeof EventKindSchema>;
 
 export const ContextReferenceSchema = z.object({
   id: z.string(),
@@ -161,7 +146,6 @@ export const ChangeFileSchema = z.object({
   deletions: z.number().default(0),
   patch: z.string().default("")
 });
-export type ChangeFile = z.infer<typeof ChangeFileSchema>;
 
 export const ChangeSetSchema = z.object({
   id: z.string(),
@@ -206,7 +190,6 @@ export const ToolInvocationSchema = z.object({
   output: z.unknown().optional(),
   error: z.string().nullable().default(null)
 });
-export type ToolInvocation = z.infer<typeof ToolInvocationSchema>;
 
 export const SkillDefinitionSchema = z.object({
   id: z.string().min(1),
@@ -359,7 +342,6 @@ export const AiRolloutSessionMetaSchema = z.object({
   selectedCapabilityRoots: z.array(z.string()).default([]),
   historyMode: z.literal("save-all").default("save-all")
 });
-export type AiRolloutSessionMeta = z.infer<typeof AiRolloutSessionMetaSchema>;
 
 export const AiRolloutTurnContextSchema = AiTurnContextSchema.extend({
   turnId: z.string(),
@@ -397,8 +379,6 @@ export const ROLLOUT_EVENT_TYPES = [
   ...ROLLOUT_LIFECYCLE_EVENT_TYPES,
   ...ROLLOUT_REAL_EVENT_TYPES
 ] as const;
-export type RolloutLifecycleEventType = (typeof ROLLOUT_LIFECYCLE_EVENT_TYPES)[number];
-export type RolloutRealEventType = (typeof ROLLOUT_REAL_EVENT_TYPES)[number];
 
 export const AiRolloutEventMessageSchema = z.object({
   type: z.enum(ROLLOUT_EVENT_TYPES),
@@ -584,84 +564,7 @@ export interface AppOverview {
 export const ContentKindSchema = z.enum(["article", "post", "summary", "topic", "reddit", "html", "unknown"]);
 export type ContentKind = z.infer<typeof ContentKindSchema>;
 
-export const ContentStateSchema = z.object({
-  read: z.boolean().default(false),
-  starred: z.boolean().default(false),
-  score: z.number().min(0).max(100).nullable().default(null),
-  tags: z.array(z.string()).default([]),
-  lastViewedAt: z.string().nullable().default(null)
-});
-export type ContentState = z.infer<typeof ContentStateSchema>;
-
-export const ContentItemSchema = z.object({
-  schemaVersion: z.number().default(SCHEMA_VERSION),
-  id: z.string(),
-  path: z.string(),
-  name: z.string(),
-  title: z.string(),
-  kind: ContentKindSchema,
-  source: z.string(),
-  author: z.string().nullable().default(null),
-  originalUrl: z.string().nullable().default(null),
-  publishedAt: z.string().nullable().default(null),
-  capturedAt: z.string(),
-  modifiedAt: z.string(),
-  size: z.number().nonnegative(),
-  excerpt: z.string().default(""),
-  state: ContentStateSchema
-});
-export type ContentItem = z.infer<typeof ContentItemSchema>;
-
-export const ContentQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/),
-  kinds: z.array(ContentKindSchema).default([]),
-  search: z.string().default(""),
-  source: z.string().optional(),
-  read: z.boolean().optional(),
-  starred: z.boolean().optional(),
-  minScore: z.number().min(0).max(100).optional(),
-  tags: z.array(z.string()).default([]),
-  sort: z.enum(["newest", "oldest", "title", "score", "source"]).default("newest"),
-  cursor: z.number().int().nonnegative().default(0),
-  limit: z.number().int().min(1).max(500).default(100)
-});
-export type ContentQuery = z.infer<typeof ContentQuerySchema>;
-
-export const ContentPageSchema = z.object({
-  items: z.array(ContentItemSchema),
-  total: z.number().int().nonnegative(),
-  nextCursor: z.number().int().nonnegative().nullable()
-});
-export type ContentPage = z.infer<typeof ContentPageSchema>;
-
-export const ContentFacetsQuerySchema = ContentQuerySchema.pick({
-  date: true,
-  search: true,
-  tags: true
-});
-export type ContentFacetsQuery = z.infer<typeof ContentFacetsQuerySchema>;
-
-export const ContentFacetsSchema = z.object({
-  total: z.number().int().nonnegative(),
-  kindCounts: z.record(z.string(), z.number().int().nonnegative()),
-  tags: z.array(z.object({
-    tag: z.string(),
-    count: z.number().int().nonnegative()
-  }))
-});
-export type ContentFacets = z.infer<typeof ContentFacetsSchema>;
-
-export const ContentStatePatchSchema = z.object({
-  read: z.boolean().optional(),
-  starred: z.boolean().optional(),
-  score: z.number().min(0).max(100).nullable().optional(),
-  tags: z.array(z.string()).optional(),
-  lastViewedAt: z.string().nullable().optional()
-});
-export type ContentStatePatch = z.infer<typeof ContentStatePatchSchema>;
-
 export const SourceKindSchema = z.enum(["rss", "web", "x", "reddit", "manual", "api"]);
-export type SourceKind = z.infer<typeof SourceKindSchema>;
 
 export const SourceDefinitionSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -720,71 +623,8 @@ export const AddRssSourceInputSchema = z.object({
 });
 export type AddRssSourceInput = z.input<typeof AddRssSourceInputSchema>;
 
-export const BriefTopicSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  summary: z.string(),
-  score: z.number().min(0).max(100).nullable().default(null),
-  sourceCount: z.number().int().nonnegative(),
-  contentIds: z.array(z.string()).default([])
-});
-export type BriefTopic = z.infer<typeof BriefTopicSchema>;
 
-export const DailyBriefSchema = z.object({
-  schemaVersion: z.number().default(SCHEMA_VERSION),
-  date: z.string(),
-  generatedAt: z.string().nullable().default(null),
-  sourcePath: z.string().nullable().default(null),
-  counts: z.object({
-    content: z.number().int().nonnegative(),
-    unread: z.number().int().nonnegative(),
-    articles: z.number().int().nonnegative().default(0),
-    posts: z.number().int().nonnegative().default(0),
-    reddit: z.number().int().nonnegative().default(0),
-    important: z.number().int().nonnegative(),
-    topics: z.number().int().nonnegative()
-  }),
-  topics: z.array(BriefTopicSchema),
-  signals: z.array(z.string()),
-  watchlist: z.array(ContentItemSchema),
-  sourceContribution: z.array(z.object({ source: z.string(), count: z.number().int().nonnegative() })),
-  recommendations: z.array(z.string()),
-  markdown: z.string()
-});
-export type DailyBrief = z.infer<typeof DailyBriefSchema>;
 
-export const DashboardDataSchema = z.object({
-  schemaVersion: z.number().default(SCHEMA_VERSION),
-  date: z.string(),
-  refreshedAt: z.string(),
-  metrics: z.object({
-    collected: z.number().int().nonnegative(),
-    unread: z.number().int().nonnegative(),
-    articles: z.number().int().nonnegative(),
-    posts: z.number().int().nonnegative(),
-    reddit: z.number().int().nonnegative(),
-    drafting: z.number().int().nonnegative(),
-    review: z.number().int().nonnegative(),
-    ready: z.number().int().nonnegative(),
-    failedSources: z.number().int().nonnegative(),
-    pendingApprovals: z.number().int().nonnegative()
-  }),
-  sourceCounts: z.object({
-    articles: z.number().int().nonnegative().default(0),
-    posts: z.number().int().nonnegative().default(0),
-    reddit: z.number().int().nonnegative().default(0)
-  }).default({ articles: 0, posts: 0, reddit: 0 }),
-  recommendedTopics: z.array(BriefTopicSchema),
-  creativeStages: z.array(z.object({ stage: z.string(), count: z.number().int().nonnegative() })),
-  trend: z.array(z.object({ date: z.string(), content: z.number().int().nonnegative(), creative: z.number().int().nonnegative() })),
-  attention: z.array(z.object({
-    id: z.string(),
-    kind: z.enum(["source", "approval", "review", "publish"]),
-    title: z.string(),
-    detail: z.string()
-  }))
-});
-export type DashboardData = z.infer<typeof DashboardDataSchema>;
 
 export const GlobalSearchResultSchema = z.object({
   id: z.string(),
@@ -801,7 +641,7 @@ export type GlobalSearchResult = z.infer<typeof GlobalSearchResultSchema>;
 /** Static package information exposed to Skill Center; it carries no executable command. */
 export interface SkillPackageInspectionView {
   sourcePath: string;
-  sourceKind: "directory" | "legacy-claude" | "zip" | "git";
+  sourceKind: "directory" | "zip" | "git";
   /** Git 多包仓库内的包路径（"." 为仓库根包）；目录/ZIP 来源固定为 "."。 */
   packageRef?: string;
   valid: boolean;
@@ -873,7 +713,6 @@ export const McpToolDefinitionSchema = z.object({
   inputs: z.array(z.string()),
   outputs: z.array(z.string())
 });
-export type McpToolDefinition = z.infer<typeof McpToolDefinitionSchema>;
 
 export const McpServerDefinitionSchema = z.object({
   id: z.string().min(1),
@@ -930,7 +769,6 @@ export const CreativePublishConfigSchema = z.object({
   publishedUrl: z.string().nullable().default(null),
   publishedAt: z.string().nullable().default(null)
 });
-export type CreativePublishConfig = z.infer<typeof CreativePublishConfigSchema>;
 export const CreativePublishPatchSchema = z.object({
   platform: z.string().optional(),
   scheduledAt: z.string().nullable().optional(),
@@ -942,7 +780,6 @@ export const CreativePublishPatchSchema = z.object({
   publishedUrl: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional()
 });
-export type CreativePublishPatch = z.infer<typeof CreativePublishPatchSchema>;
 
 export const CreativeProjectManifestSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -1041,20 +878,6 @@ export const CreativeCreateInputSchema = z.object({
   sourceTopicId: z.string().optional()
 });
 export type CreativeCreateInput = z.infer<typeof CreativeCreateInputSchema>;
-export const AddCreativeTopicInputSchema = z.object({
-  date: z.string(),
-  title: z.string().min(1).max(160),
-  body: z.string().default(""),
-  score: z.number().min(0).max(100).optional(),
-  platform: z.string().max(40).optional()
-});
-export type AddCreativeTopicInput = z.infer<typeof AddCreativeTopicInputSchema>;
-export const BriefWatchlistInputSchema = z.object({
-  date: z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/),
-  path: z.string().min(1).max(512),
-  add: z.boolean()
-});
-export type BriefWatchlistInput = z.infer<typeof BriefWatchlistInputSchema>;
 export const CreativeSaveInputSchema = z.object({
   projectDir: z.string(),
   file: z.string(),
@@ -1084,10 +907,6 @@ export const CreativeManifestPatchSchema = z.object({
 });
 export type CreativeManifestPatch = z.infer<typeof CreativeManifestPatchSchema>;
 
-export const CreativeTopicStatePatchSchema = z.object({
-  ignored: z.boolean().optional()
-});
-export type CreativeTopicStatePatch = z.infer<typeof CreativeTopicStatePatchSchema>;
 
 /**
  * Legacy direct-provider browser evidence is a user-owned workspace output,
@@ -1121,7 +940,6 @@ export const UserPreferencesSchema = z.object({
    */
   workspaceRoot: z.string().default(""),
   themeMode: z.enum(["dark", "light"]).default("light"),
-  accentColor: z.string().default("#2563eb"),
   density: z.enum(["compact", "default", "comfortable"]).default("default"),
   fontSize: z.enum(["small", "default", "large"]).default("default"),
   autoSaveIntervalMs: z.number().int().min(5000).max(600000).default(30000),
@@ -1131,16 +949,7 @@ export const UserPreferencesSchema = z.object({
   contentPreviewMode: z.enum(["inline", "sidebar"]).default("sidebar"),
   markReadOnOpen: z.boolean().default(true),
   defaultProvider: z.string().default(""),
-  /**
-   * 每个 provider kind 的模型覆盖。"auto" = 跟随 CLI 配置（默认，不向 provider 传模型）；
-   * 其它值为透传给 provider 的模型 id（codex 走 --config model=，Claude 走 SDK model）。
-   */
-  providerModels: z.object({
-    codex: z.string().default("auto"),
-    claude: z.string().default("auto")
-  }).default({ codex: "auto", claude: "auto" }),
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("edit"),
-  defaultWorkDir: z.string().default(""),
   notesDir: z.string().default("openmind"),
   /** AI 写作时允许通过 Playwright MCP 从已登录的 Chrome 获取原文证据截图。 */
   browserAutomationEnabled: z.boolean().default(false),
@@ -1155,12 +964,6 @@ export const UserPreferencesSchema = z.object({
   defaultContentLength: z.enum(["short", "medium", "long"]).default("medium"),
   defaultTemplate: z.string().default(""),
   userTags: z.array(z.string().min(1).max(40)).max(60).default([]),
-  notificationsEnabled: z.boolean().default(true),
-  dndStartHour: z.number().int().min(0).max(23).default(22),
-  dndEndHour: z.number().int().min(0).max(23).default(8),
-  maxNotificationHistory: z.number().int().min(10).max(500).default(100),
-  cacheMaxSizeMB: z.number().int().min(50).max(5000).default(500),
-  logRetentionDays: z.number().int().min(1).max(90).default(30),
   // ── SET-WF-002~005: 创作工作流规则 ──
   /** 自动保存草稿（true 时按 autoSaveIntervalMs 间隔自动写入版本）。 */
   workflowAutoSaveDraft: z.boolean().default(true),
@@ -1171,11 +974,35 @@ export const UserPreferencesSchema = z.object({
   /** 发布前检查清单（平台、标题、摘要、标签、封面）。 */
   workflowPublishChecklistEnabled: z.boolean().default(true),
   /** 自动归档已发布项目（true 时按 archiveAfterDays 自动归档）。 */
-  workflowAutoArchiveEnabled: z.boolean().default(false),
-  /** 来源运行完成后自动触发每日简报生成。 */
-  workflowAutoBriefOnSourceComplete: z.boolean().default(false)
+  workflowAutoArchiveEnabled: z.boolean().default(false)
 });
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;
+
+/**
+ * Patch schema for ordinary preference updates.
+ *
+ * `UserPreferencesSchema.partial()` is unsafe here because every field in the
+ * full read schema has a default. Zod applies those defaults while parsing a
+ * partial object, turning an update such as `{ themeMode: "dark" }` into a
+ * complete preferences object whose root bindings are empty strings.
+ *
+ * Root bindings and the schema version are deliberately excluded: only the
+ * dedicated root-selection IPC endpoints may change those values.
+ */
+export type UserPreferencesPatch = Partial<Omit<UserPreferences, "schemaVersion" | "openmindRoot" | "workspaceRoot">>;
+
+const userPreferencesPatchShape = Object.fromEntries(
+  Object.entries(UserPreferencesSchema.shape)
+    .filter(([key]) => key !== "schemaVersion" && key !== "openmindRoot" && key !== "workspaceRoot")
+    .map(([key, field]) => {
+      const withoutDefault = field instanceof z.ZodDefault ? field.removeDefault() : field;
+      return [key, withoutDefault.optional()];
+    })
+);
+
+export const UserPreferencesPatchSchema = z.object(userPreferencesPatchShape)
+  .strict()
+  .transform((value) => value as UserPreferencesPatch);
 
 export const BrowserAutomationStatusSchema = z.object({
   backend: z.literal("playwright-mcp"),
@@ -1192,24 +1019,7 @@ export type BrowserAutomationStatus = z.infer<typeof BrowserAutomationStatusSche
 
 export const BrowserExtensionTokenSchema = z.string().trim().min(1).max(4096);
 
-export const ContentIndexMaintenanceSchema = z.object({
-  schemaVersion: z.number().default(SCHEMA_VERSION),
-  indexedDates: z.array(z.string()),
-  itemCount: z.number().int().min(0),
-  indexPath: z.string(),
-  statePath: z.string(),
-  rebuiltAt: z.string()
-});
-export type ContentIndexMaintenance = z.infer<typeof ContentIndexMaintenanceSchema>;
-
-export const PreferencesImportResultSchema = z.object({
-  imported: z.boolean(),
-  preferences: UserPreferencesSchema
-});
-export type PreferencesImportResult = z.infer<typeof PreferencesImportResultSchema>;
-
 export const OnboardingStepStatusSchema = z.enum(["pending", "complete", "skipped"]);
-export type OnboardingStepStatus = z.infer<typeof OnboardingStepStatusSchema>;
 export const OnboardingStateSchema = z.object({
   completed: z.boolean(),
   skill: OnboardingStepStatusSchema,
@@ -1317,43 +1127,25 @@ export interface DesktopApi {
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;
   writeContent(path: string, content: string): Promise<ContentRecord>;
-  listInbox(query: ContentQuery): Promise<ContentPage>;
-  getInboxFacets(query: ContentFacetsQuery): Promise<ContentFacets>;
-  updateContentState(id: string, path: string, patch: ContentStatePatch): Promise<ContentItem>;
   listSources(): Promise<SourceDefinition[]>;
   updateSource(id: string, patch: SourcePatch): Promise<SourceDefinition>;
-  deleteSource(id: string): Promise<boolean>;
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;
   importOpml(): Promise<number>;
-  listSourceRuns(sourceId?: string): Promise<SourceRun[]>;
-  runSource(sourceId: string, date?: string): Promise<boolean>;
-  stopSource(sourceId: string): Promise<boolean>;
-  getDailyBrief(date: string): Promise<DailyBrief>;
-  updateBriefWatchlist(input: BriefWatchlistInput): Promise<DailyBrief>;
-  getDashboard(date: string): Promise<DashboardData>;
   searchWorkspace(query: string): Promise<GlobalSearchResult[]>;
-  getCreativeTopics(date: string): Promise<CreativeTopicsPayload>;
   getAllCreativeTopics(): Promise<CreativeTopicDay[]>;
-  addCreativeTopic(input: AddCreativeTopicInput): Promise<CreativeTopicsPayload>;
   getCreativeProjects(): Promise<CreativeProjectSummary[]>;
   getCreativeProject(path: string): Promise<CreativeProjectDetail>;
   createCreativeProject(input: CreativeCreateInput): Promise<CreativeProjectDetail>;
   saveCreativeFile(input: CreativeSaveInput): Promise<CreativeProjectDetail>;
   advanceCreativeProject(path: string, stage: string): Promise<CreativeProjectDetail>;
   updateCreativeManifest(path: string, patch: CreativeManifestPatch): Promise<CreativeProjectDetail>;
-  updateCreativeTopicState(date: string, topicId: string, patch: CreativeTopicStatePatch): Promise<CreativeTopicsPayload>;
-  reviewCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  setCreativeReviewStatus(path: string, status: "pending" | "changes-requested" | "approved"): Promise<CreativeProjectDetail>;
   listCreativeVersions(path: string, file: string): Promise<CreativeVersion[]>;
   readCreativeVersion(path: string): Promise<{ path: string; content: string }>;
   restoreCreativeVersion(projectPath: string, file: string, versionPath: string): Promise<CreativeProjectDetail>;
   getCreativeReleaseLog(path: string): Promise<CreativeReleaseEvent[]>;
   copyCreativeProject(path: string): Promise<CreativeProjectDetail>;
   archiveCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  restoreCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  deleteCreativeProject(path: string): Promise<boolean>;
   getCreativeAnalytics(): Promise<CreativeAnalytics>;
-  bindCreativeSession(path: string, sessionId: string): Promise<CreativeProjectDetail>;
   selectFiles(): Promise<string[]>;
   selectOpenmindFiles(): Promise<string[]>;
   searchOpenmindFiles(query: string, limit?: number): Promise<ProjectFileSearchResult>;
@@ -1365,48 +1157,22 @@ export interface DesktopApi {
   setOpenmindRoot(path: string): Promise<string>;
   selectOpenmindRoot(): Promise<string | null>;
   previewOpenmindRoot(path: string): Promise<OpenmindRootPreview>;
-  selectOpenmindRelocationTarget(): Promise<string | null>;
-  previewOpenmindRelocation(targetPath: string): Promise<OpenmindRelocationPreview>;
-  relocateOpenmind(targetPath: string): Promise<OpenmindRelocationReport>;
   getOpenmindRoot(): Promise<OpenmindRootStatus>;
   /** ADR-001: optional AI/code workspace, independent of openmind. */
-  setWorkspaceRoot(path: string): Promise<string>;
   selectWorkspaceRoot(): Promise<string | null>;
   getPreferences(): Promise<UserPreferences>;
   getOnboardingState(): Promise<OnboardingState>;
   updateOnboardingState(patch: Partial<OnboardingState>): Promise<OnboardingState>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;
   resetPreferences(section?: string): Promise<UserPreferences>;
-  exportAppStateBackup(): Promise<AppStateBackupReport | null>;
-  importAppStateBackup(): Promise<AppStateBackupReport | null>;
   getBrowserAutomationStatus(): Promise<BrowserAutomationStatus>;
   getMcpServers(): Promise<McpServerDefinition[]>;
   saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
   clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
-  analyzeEnvFile(path: string): Promise<EnvFileAnalysis>;
   getProviders(): Promise<ProvidersYamlView>;
   saveProviders(input: ProvidersYamlInput): Promise<ProvidersYamlView>;
-  deleteProvider(id: string): Promise<ProvidersYamlView>;
-  importPreferences(path: string): Promise<PreferencesImportResult>;
   getSharedPythonRuntimeStatus(): Promise<SharedPythonRuntimeStatus>;
   setSharedPythonRuntimeEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus>;
-  listRuntimePacks(): Promise<RuntimePackReadiness[]>;
-  getRuntimePackReadiness(packId: RuntimePackId, target: RuntimeTarget): Promise<RuntimePackReadiness | null>;
-  importRuntimePack(): Promise<RuntimePackReadiness | null>;
-  repairRuntimePackFromFile(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<RuntimePackReadiness | null>;
-  installRuntimePack(metadata: unknown, bytes: Uint8Array): Promise<RuntimePackReadiness>;
-  repairRuntimePack(metadata: unknown, bytes: Uint8Array): Promise<RuntimePackReadiness>;
-  activateRuntimePack(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<RuntimePackReadiness[]>;
-  rollbackRuntimePack(packId: RuntimePackId, target: RuntimeTarget): Promise<RuntimePackReadiness[]>;
-  removeRuntimePack(packId: RuntimePackId, target: RuntimeTarget, digest: string): Promise<boolean>;
-  garbageCollectRuntimePacks(): Promise<RuntimePackReadiness[]>;
-  selectRuntimePackDownloadManifest(): Promise<RuntimePackDownloadDescriptor | null>;
-  listRuntimePackDownloads(): Promise<RuntimePackDownloadJob[]>;
-  startRuntimePackDownload(metadata: unknown): Promise<RuntimePackDownloadJob>;
-  pauseRuntimePackDownload(id: string): Promise<RuntimePackDownloadJob>;
-  resumeRuntimePackDownload(id: string): Promise<RuntimePackDownloadJob>;
-  removeRuntimePackDownload(id: string): Promise<boolean>;
-  rebuildContentIndex(): Promise<ContentIndexMaintenance>;
   aiRefresh(): Promise<AiSnapshot>;
   /** 异步重新探测 provider（启动后/登录后/换模型后），完成后推送新 snapshot；不在 send 路径上。 */
   aiRefreshProviders(): Promise<void>;
@@ -1417,7 +1183,6 @@ export interface DesktopApi {
   /** 检查当前 CLI 的官方版本信息，不执行升级。 */
   checkCliToolUpdate(cli: "claude" | "codex"): Promise<CliToolUpdateView>;
   cancelCliToolInstall(cli: "claude" | "codex"): Promise<boolean>;
-  listCliToolStatuses(): Promise<CliToolStatusView[]>;
   /** 打开系统终端并引导 CLI 登录；凭据只进入 CLI 自己的登录流程。 */
   openCliLogin(cli: "claude" | "codex"): Promise<void>;
   /** 重新扫描已安装技能商店，返回最新 skill 列表。新对话开始时调用。 */
@@ -1429,10 +1194,6 @@ export interface DesktopApi {
   listInstalledRunnableSkills(): Promise<InstalledRunnableSkillView[]>;
   /** Change the default for future sessions without mutating existing sessions. */
   setInstalledSkillEnabled(key: string, digest: string, enabled: boolean): Promise<InstalledSkillView>;
-  /** 将一个已检查的本地包安装到 Skill store；不执行包代码。 */
-  installSkillPackage?(sourcePath: string): Promise<InstalledSkillView>;
-  /** 删除该 Skill 唯一的安装副本（目录 + registry 记录）。 */
-  uninstallSkillPackage?(key: string, digest?: string): Promise<boolean>;
   /** 选择本地目录或 ZIP；Git 通过 inspectSkillSource 输入地址。 */
   selectSkillPackageSource?(): Promise<import("./skill-package-sources").SkillPackageSourceInput | null>;
   /** 检查本地目录、ZIP 或 HTTPS Git 来源；不执行包代码。Git 仓库可含多个包。 */
@@ -1448,7 +1209,6 @@ export interface DesktopApi {
   retryWorkflowStep(runId: string, stepId: string): Promise<WorkflowRunRecord>;
   deleteRunHistory(runId: string): Promise<boolean>;
   cancelSkillRun(runId: string): Promise<boolean>;
-  startWorkflowRun(input: WorkflowStartRequest): Promise<WorkflowRunRecord>;
   listWorkflowRuns(): Promise<WorkflowRunRecord[]>;
   getWorkflowRun(runId: string): Promise<WorkflowRunRecord>;
   resumeWorkflowRun(input: WorkflowResumeRequest): Promise<WorkflowRunRecord>;
@@ -1459,32 +1219,17 @@ export interface DesktopApi {
   runAutomationNow(id: string): Promise<AutomationRunRecord>;
   listAutomationRuns(ruleId?: string): Promise<AutomationRunRecord[]>;
   listAutomationSchedules(): Promise<AutomationScheduleSnapshot[]>;
-  listExportLocations(): Promise<ExportLocationBinding[]>;
   /** Without bindingId creates a new binding; with bindingId opens the Main picker for create/relink of that stable Manifest ID. */
-  selectExportLocation(label: string, bindingId?: string): Promise<ExportLocationBinding | null>;
-  revokeExportLocation(id: string): Promise<boolean>;
   aiPrewarm(sessionId?: string): Promise<boolean>;
-  aiSearchSessions(query: string): Promise<AiSession[]>;
   aiStartRun(input: StartRunInput): Promise<{ session: AiSession; run: AiRun }>;
   aiCancelRun(runId: string): Promise<boolean>;
   aiUpdateSession(sessionId: string, patch: SessionPatch): Promise<AiSession>;
-  aiDeleteSession(sessionId: string): Promise<boolean>;
   aiGetEvents(sessionId: string): Promise<AiEvent[]>;
   aiListTurns?(sessionId: string, params?: AiTurnListParams): Promise<AiTurnPage>;
-  aiGetContextState?(sessionId: string): Promise<AiContextState>;
   aiForkSession?(sessionId: string, throughRunId?: string): Promise<AiSession>;
-  aiRollbackTurns?(sessionId: string, numTurns: number): Promise<boolean>;
   aiResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean>;
-  aiGetChangeSet(runId: string): Promise<ChangeSet | null>;
-  aiApplyChange(runId: string, patch?: string): Promise<{ applied: boolean; conflict?: string }>;
-  aiRevertChange(runId: string, patch: string): Promise<{ applied: boolean; conflict?: string }>;
-  aiDiscardChange(runId: string, patch: string): Promise<ChangeSet | null>;
-  aiDiscardRun(runId: string): Promise<boolean>;
-  runSkill(skillId: string, date?: string): Promise<boolean>;
-  stopSkill(skillId: string): Promise<boolean>;
   onAiEvent(callback: (event: AiEvent | { kind: "snapshot"; snapshot: AiSnapshot }) => void): () => void;
   onSkillEvent(callback: (event: Record<string, unknown>) => void): () => void;
   onSkillRunEvent(callback: (event: BrokerRunEvent) => void): () => void;
-  onRuntimePackDownloadEvent(callback: (job: RuntimePackDownloadJob) => void): () => void;
   onCliInstallProgress(callback: (progress: CliInstallProgress) => void): () => void;
 }

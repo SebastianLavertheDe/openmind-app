@@ -1,12 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Archive, CheckCircle2, CircleX, LoaderCircle, Redo2, ShieldAlert, Users, Wrench } from "lucide-react";
+import { Archive, CheckCircle2, CircleX, LoaderCircle, Redo2, ShieldAlert, Users } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { formatDateTime } from "../../ai-utils";
 import { useAi } from "../../ai-context";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { CopyButton } from "./message";
-import { firstLine, technicalEventText } from "./timeline";
+import { firstLine } from "./timeline";
 import { ConversationCell } from "./conversation-cell";
 
 export function SystemEvent({ text, icon, danger = false }: { text: string; icon: ReactNode; danger?: boolean }) {
@@ -175,32 +174,6 @@ export function ErrorEvent({ event }: { event: AiEvent }) {
         <pre>{text}</pre>
       </OverflowBox>
       <footer><CopyButton text={text} /><button data-motion="action" onClick={() => void window.openmind.openPath(runRecordPath(ai.snapshot.projectRoot, event))}>{m.ai.events.openRunRecord}</button><button data-motion="action" disabled={busy} onClick={() => void retry()}><Redo2 size={13} />{m.ai.events.retry}</button></footer>
-    </ConversationCell>
-  );
-}
-
-export function TechnicalEventGroup({ events }: { events: AiEvent[] }) {
-  return (
-    <ConversationCell
-      tone="system"
-      icon={<Wrench size={15} />}
-      label="System"
-      title={m.ai.events.runDetail}
-      subtitle={m.ai.events.runDetailSubtitle}
-      status={events.length}
-      statusTone="muted"
-      className="technical-events"
-      collapsible
-    >
-        <div>
-          {events.map((event) => (
-            <article key={event.id}>
-              <span>{event.kind === "system" ? m.ai.events.system : m.ai.events.status}</span>
-              <p>{technicalEventText(event)}</p>
-              <time>{formatDateTime(event.timestamp)}</time>
-            </article>
-          ))}
-        </div>
     </ConversationCell>
   );
 }

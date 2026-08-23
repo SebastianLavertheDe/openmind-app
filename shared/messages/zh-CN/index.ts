@@ -5,7 +5,6 @@ import { featureMessages } from "./features";
 import { creativeUiMessages } from "./creative-ui";
 import { aiMessages } from "./ai";
 import { slashMessages } from "./slash";
-import { browserPreviewMessages } from "./browser-preview";
 
 const { settings: settingsDefaults, brief: briefBackend, ...electronRest } = electronMessages;
 const { settings: settingsPage, brief: briefPage, ...featureRest } = featureMessages;
@@ -20,8 +19,7 @@ export const zhCN = {
   brief: { ...briefBackend, ...briefPage },
   creativeUi: creativeUiMessages,
   ai: aiMessages,
-  slash: slashMessages,
-  browserPreview: browserPreviewMessages
+  slash: slashMessages
 } as const;
 
 export type Messages = typeof zhCN;

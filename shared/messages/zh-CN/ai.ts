@@ -1,32 +1,20 @@
 /** AI 工作台 / 侧栏 / composer / tool / approval 等 UI 文案。 */
 export const aiMessages = {
   session: {
-    title: "会话",
     new: "新会话",
-    search: "搜索会话",
     recent: "最近会话",
     list: "AI 会话",
     empty: "还没有会话",
-    deleteTitle: "删除会话",
-    deleteBody: (title: string) => `将永久删除「${title}」及其全部运行记录，此操作不可恢复。`,
-    deleteConfirm: "删除",
-    deleted: "会话已删除",
     unpin: "取消置顶",
     pin: "置顶",
-    rename: "重命名",
-    unarchive: "取消归档",
-    archive: "归档",
     archiveTask: "归档任务",
     archiveNamed: (title: string) => `归档会话：${title}`,
-    delete: "删除",
-    renamed: "会话已重命名",
     archived: "会话已归档",
     archiveFailed: "会话归档失败",
     updateFailed: "会话更新失败",
     unarchived: "已取消归档",
     pinned: "会话已置顶",
     unpinned: "已取消置顶",
-    updated: "已更新",
     /* P1-SES-3: actions overflow 菜单 */
     moreActions: "更多操作"
   },
@@ -61,7 +49,6 @@ export const aiMessages = {
     loadMoreEvents: (n: number) => `加载更早的 ${n} 个事件`,
     loadOlderTurns: "加载更早的回合",
     transcriptLabel: "对话消息",
-    newEventsJump: (unread: number) => `${unread} 条新事件 · `,
     jumpToBottom: "回到底部",
     currentProject: "当前工作区",
     emptyTitle: "从资料到创作，让 AI 帮你推进",
@@ -71,7 +58,6 @@ export const aiMessages = {
     processed: "已处理",
     finalMissing: "最终回复缺失",
     finalMissingDetail: "Provider 已结束运行，但没有返回最终回复。该运行未被视为成功。",
-    completedRounds: (n: number) => `已完成 ${n} 轮`,
     /* P1-CHAT-1: 与 OpenMind 核心内容工作流对应的快捷任务 */
     emptyPrompts: [
       { title: "整理资料库", body: "归类新增资料，提炼要点并保留来源", prompt: "请查看资料库中今天新增的内容，按主题归类，提炼关键信息，并为每项保留来源链接。" },
@@ -105,10 +91,6 @@ export const aiMessages = {
     placeholderContinue: (title: string) => `继续 ${title}`,
     placeholderNew: "描述要整理、创作或自动化的内容任务…",
     addAttachment: "添加附件",
-    attachment: "附件",
-    selectProviderFirst: "选择 Provider 后发送",
-    hintFilesSkills: " · @ 文件 · / Skills",
-    queuedCount: (n: number) => ` · ${n} 条排队消息`,
     stop: "停止",
     enqueue: "加入队列",
     send: "发送",
@@ -116,12 +98,9 @@ export const aiMessages = {
     charCount: (n: number) => `${n} 字符`,
     sendShortcut: "⌘↵ 发送",
     /* P2-CMP-2: 空状态 prompt 提示 chip */
-    placeholderChipFile: "@ 引用文件",
-    placeholderChipSkill: "/ 选择 Skill",
     /* P0-CMP-3: 自定义 select */
     provider: "Provider",
     openWorkspace: "打开当前项目",
-    selectProvider: "选择 Provider",
     moreActions: "更多操作"
   },
 
@@ -182,7 +161,7 @@ export const aiMessages = {
     runFailed: "运行失败",
     ran: "已运行",
     running: "正在运行",
-    commandGroupRan: (n: number) => `\u8fd0\u884c\u4e86 ${n} \u6761\u547d\u4ee4`,
+    commandGroupRan: (n: number) => `运行了 ${n} 条命令`,
     commandGroupRunning: (n: number) => `正在运行 ${n} 条命令`,
     commandGroupCancelled: (n: number) => `命令执行已取消 · 共 ${n} 条`,
     commandGroupFailedTitle: (n: number) => `命令执行失败 · 共 ${n} 条`,
@@ -191,15 +170,15 @@ export const aiMessages = {
     commandGroupFailed: (n: number) => `${n} 条失败`,
     commandGroupCancelledCount: (n: number) => `${n} 条取消`,
     commandGroupIncompleteCount: (n: number) => `${n} 条结果不完整`,
-    toolGroupRan: (n: number) => `\u8fd0\u884c\u4e86 ${n} \u4e2a\u5de5\u5177`,
-    toolGroupRunning: (n: number) => `\u6b63\u5728\u8fd0\u884c ${n} \u4e2a\u5de5\u5177`,
-    toolGroupCancelled: (n: number) => `\u5de5\u5177\u8fd0\u884c\u5df2\u53d6\u6d88 \u00b7 \u5171 ${n} \u4e2a`,
-    toolGroupFailedTitle: (n: number) => `\u5de5\u5177\u8fd0\u884c\u5931\u8d25 \u00b7 \u5171 ${n} \u4e2a`,
-    toolGroupConflicted: (n: number) => `\u5de5\u5177\u8fd0\u884c\u5b58\u5728\u51b2\u7a81 \u00b7 \u5171 ${n} \u4e2a`,
-    toolGroupIncomplete: (n: number) => `\u5de5\u5177\u7ed3\u679c\u4e0d\u5b8c\u6574 \u00b7 \u5171 ${n} \u4e2a`,
-    toolGroupFailed: (n: number) => `${n} \u4e2a\u5931\u8d25`,
-    toolGroupCancelledCount: (n: number) => `${n} \u4e2a\u53d6\u6d88`,
-    toolGroupIncompleteCount: (n: number) => `${n} \u4e2a\u7ed3\u679c\u4e0d\u5b8c\u6574`,
+    toolGroupRan: (n: number) => `运行了 ${n} 个工具`,
+    toolGroupRunning: (n: number) => `正在运行 ${n} 个工具`,
+    toolGroupCancelled: (n: number) => `工具运行已取消 · 共 ${n} 个`,
+    toolGroupFailedTitle: (n: number) => `工具运行失败 · 共 ${n} 个`,
+    toolGroupConflicted: (n: number) => `工具运行存在冲突 · 共 ${n} 个`,
+    toolGroupIncomplete: (n: number) => `工具结果不完整 · 共 ${n} 个`,
+    toolGroupFailed: (n: number) => `${n} 个失败`,
+    toolGroupCancelledCount: (n: number) => `${n} 个取消`,
+    toolGroupIncompleteCount: (n: number) => `${n} 个结果不完整`,
     commandRunning: (elapsed: string) => `正在运行命令，已持续 ${elapsed}`,
     commandRan: (elapsed: string) => `已运行命令，已持续 ${elapsed}`,
     commandFailed: "命令失败",
@@ -293,19 +272,14 @@ export const aiMessages = {
     alreadyHandled: "审批已经被其他操作处理。",
     required: "需要你的授权",
     pending: "等待处理",
-    showDetails: "查看请求详情",
     requestDetail: "请求详情",
-    cwd: "工作目录",
     affectedPaths: "影响路径",
-    risk: "风险",
     sessionHint: "「本会话允许」仅记住相同类别与命令，不会放开删除、提权或项目外访问。",
     decline: "拒绝",
     acceptSession: "本会话允许",
-    acceptOnce: "本次允许",
     allow: "允许",
     executeAsk: "是否执行",
     details: "详情",
-    result: (decision: string, time: string) => `审批结果：${decision} · ${time}`,
     category: {
       command: "命令",
       fileChange: "文件修改",
@@ -321,7 +295,6 @@ export const aiMessages = {
     },
     decision: { declined: "已拒绝", processed: "已处理" },
     /* P1-APR-3: 决策后 toast + undo */
-    allowedToast: (subject: string) => `已允许：${subject}`,
     declinedToast: (subject: string) => `已拒绝：${subject}`,
     undo: "撤销",
     undoExpired: "撤销窗口已过",
@@ -401,23 +374,13 @@ export const aiMessages = {
     codexSummary: "推理摘要",
     process: "思考过程",
     streaming: "思考中",
-    thinkingAria: "思考中",
     /* P1-RSN-1: 折叠态路标 */
-    waypoint: (chars: number, elapsed: string) => `思考过程 · ${elapsed} · ${chars} 字`,
-    waypointStreaming: (chars: number) => `正在思考 · ${chars} 字`,
-    expand: "展开",
     /* P2-THT-2: pending elapsed timer */
     thinkingFor: (elapsed: string) => `思考中 · ${elapsed}`
   },
 
   /* P1-RSN-2: 推理过程独立面板（方案 C 侧抽屉） */
   reasoningPanel: {
-    title: "思考过程",
-    close: "关闭思考面板",
-    searchPlaceholder: "在思考中搜索…",
-    section: (index: number) => `第 ${index} 段思考`,
-    chars: (n: number) => `${n} 字`,
-    empty: "暂无思考内容",
     virtualHint: "内容过长，已启用虚拟滚动"
   },
 
@@ -455,7 +418,6 @@ export const aiMessages = {
 
   sidebar: {
     expand: "展开 AI 侧栏",
-    close: "关闭 AI 侧栏",
     width: "AI 侧栏宽度",
     viewInWorkbench: "在工作台查看会话",
     pendingContexts: (n: number) => `${n} 项待发送上下文`,
@@ -495,8 +457,6 @@ export const aiMessages = {
   },
 
   common: {
-    notProvided: "未提供",
-    notReported: "未报告",
     notRecorded: "未记录",
     chars: (n: number) => `${n} 字符`
   }

@@ -11,7 +11,6 @@ import {
   buildCreativeBuckets,
   buildPlatformOptions,
   buildWorkflowStages,
-  dimensionLabel,
   platformLabel,
   stageLabel
 } from "@shared/display-labels";
@@ -32,13 +31,6 @@ export type WorkspaceView = "workflow" | "history" | "release" | "analytics";
 export type PlatformOption = { id: string; label: string; file: string };
 
 export const PLATFORM_OPTIONS = buildPlatformOptions();
-
-export interface CreativeReportShape {
-  score: number;
-  status: string;
-  dimensions: Record<string, number>;
-  issues: Array<{ id: string; severity: string; title: string; detail: string; line: number | null }>;
-}
 
 export function preferredFile(files: string[], stage: Stage): string {
   return preferredCreativeFile(files, stage);
@@ -62,7 +54,7 @@ export function normalizeDate(value: string | undefined): string {
   return String(value || "").replace(/\D/g, "").slice(0, 8);
 }
 
-export { stageLabel, platformLabel, actionLabel, dimensionLabel };
+export { stageLabel, platformLabel, actionLabel };
 
 export function nextStage(value: Stage): Stage {
   return nextWorkflowStage(value);

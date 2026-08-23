@@ -230,12 +230,19 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  margin: var(--workspace-inset);
+  /* Settings keeps its inset canvas at desktop window sizes even when OS
+   * scaling drops the CSS viewport below the workbench's 1280px breakpoint. */
+  margin: 6px;
   padding: 46px clamp(28px, 5vw, 72px) 64px;
-  border: 1px solid var(--workspace-border);
-  border-radius: var(--workspace-radius);
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 13px;
   background: var(--page-bg);
-  box-shadow: var(--workspace-shadow);
+  /* The navigation rail and title strip are one continuous chrome surface;
+   * this white detail canvas deliberately floats above it. Keep the shadow
+   * settings-specific so the denser workbench panels stay visually quiet. */
+  box-shadow:
+    0 1px 2px rgba(18, 32, 29, 0.055),
+    0 10px 30px rgba(18, 32, 29, 0.075);
 }
 
 .settings-detail-inner {
@@ -2127,26 +2134,42 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
 }
 
-.settings-card--resource .settings-skill-toolbar {
+.settings-card--resource .settings-skill-toolbar,
+.settings-card--mcp .settings-skill-toolbar {
   margin-bottom: 10px;
 }
 
+.settings-card--mcp .settings-skill-search {
+  border-color: transparent;
+  background: var(--surface);
+}
+
+.settings-card--mcp .settings-skill-search:focus-within {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .settings-mcp-list {
-  gap: 8px;
+  gap: 0;
+  padding-top: 0;
 }
 
 .settings-mcp-server {
   overflow: hidden;
   border: 0;
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-mcp-server + .settings-mcp-server {
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
 }
 
 .settings-mcp-server-header {
   width: 100%;
   min-height: 72px;
   grid-template-columns: 34px minmax(0, 1fr) auto 18px;
-  padding: 13px 15px;
+  padding: 13px 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -2154,12 +2177,17 @@
 }
 
 .settings-mcp-server-header:hover {
-  background: color-mix(in srgb, var(--panel-muted) 42%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 48%, transparent);
+}
+
+.settings-mcp-server-header:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 44%, transparent);
+  outline-offset: -2px;
 }
 
 .settings-mcp-chevron {
   color: var(--muted-2);
-  transition: transform 160ms ease;
+  transition: transform var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 
 .settings-mcp-server[data-expanded] .settings-mcp-chevron {
@@ -2167,14 +2195,19 @@
 }
 
 .settings-mcp-details {
-  padding: 0 15px 15px 62px;
+  margin: 0 0 14px 47px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-muted) 52%, var(--panel));
+}
+
+.settings-mcp-details > dl {
   background: transparent;
 }
 
-.settings-mcp-details > dl,
 .settings-mcp-diagnostic,
 .settings-mcp-tool {
-  background: color-mix(in srgb, var(--panel-muted) 52%, var(--panel));
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
 }
 
 .settings-browser-backend {
@@ -2263,25 +2296,30 @@
 }
 
 .settings-provider-add-button {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .settings-provider-add-button:hover {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
   color: var(--accent-fg);
 }
 
 .settings-provider-list-note { margin: 0 0 14px; }
+
+.settings-provider-config-list {
+  display: grid;
+  gap: 0;
+}
 
 .settings-provider-save-row button,
 .settings-provider-dialog footer button {
@@ -2294,29 +2332,174 @@
 }
 
 .settings-provider-config-card {
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-provider-config-card + .settings-provider-config-card {
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .settings-provider-config-header {
-  min-height: 64px;
-  display: flex;
+  min-height: 70px;
+  position: relative;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 13px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  background: color-mix(in srgb, var(--panel-muted) 48%, var(--surface));
+  border: 0;
+  background: transparent;
 }
 
-.settings-provider-config-header > div:first-child { min-width: 0; }
-.settings-provider-config-header strong { color: var(--text); font-size: 13px; font-weight: 500; }
-.settings-provider-config-header p { margin: 4px 0 0; color: var(--muted); font: 11px/1.4 var(--font-mono); }
-.settings-provider-config-actions { flex: 0 0 auto; justify-content: flex-end; gap: 8px; }
-.settings-provider-delete:hover { color: var(--red); }
-.settings-provider-config-body { padding: 16px; }
+.settings-provider-config-summary {
+  width: 100%;
+  min-width: 0;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  padding-right: 142px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.settings-provider-config-summary:hover {
+  background: color-mix(in srgb, var(--panel-muted) 52%, transparent);
+}
+
+.settings-provider-config-summary:focus-visible,
+.settings-provider-menu-trigger:focus-visible,
+.settings-provider-advanced-trigger:focus-visible,
+.settings-provider-discard-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 2px;
+}
+
+.settings-provider-config-identity {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.settings-provider-config-title,
+.settings-provider-config-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.settings-provider-config-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-provider-config-meta code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font: 11px/1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-provider-config-meta > span {
+  flex: 0 0 auto;
+  color: var(--muted-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.settings-provider-config-meta > span[data-state="set"] { color: var(--green); }
+.settings-provider-config-meta > span[data-state="pending"] { color: var(--orange); }
+
+.settings-provider-config-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.settings-provider-config-card[data-expanded] .settings-provider-config-chevron { transform: rotate(180deg); }
+
+.settings-provider-config-actions {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 46px;
+  justify-content: flex-end;
+  gap: 8px;
+  transform: translateY(-50%);
+}
+
+.settings-provider-menu { position: relative; }
+
+.settings-provider-menu-trigger {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.settings-provider-menu-trigger:hover,
+.settings-provider-menu-trigger[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--panel-muted) 80%, var(--panel));
+  color: var(--text);
+}
+
+.settings-provider-menu-popover {
+  min-width: 128px;
+  position: absolute;
+  z-index: var(--z-popover, 30);
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  box-shadow: var(--shadow-2);
+}
+
+.settings-provider-menu-popover button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: left;
+}
+
+.settings-provider-menu-popover button:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
+.settings-provider-menu-popover button:disabled { opacity: .45; }
+.settings-provider-menu-popover .settings-provider-menu-danger { color: var(--red); }
+
+.settings-provider-config-body {
+  display: grid;
+  gap: 18px;
+  margin: 0 8px 8px;
+  padding: 18px 14px 12px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--panel-muted) 66%, var(--panel));
+}
 
 .settings-grid-2 {
   display: grid;
@@ -2331,8 +2514,86 @@
 .settings-field .settings-select { width: 100%; max-width: none; min-height: 36px; }
 .settings-field .settings-browser-path-input[readonly] { background: var(--panel-muted); color: var(--muted); cursor: default; }
 .settings-field--wide { grid-column: 1 / -1; }
-.settings-provider-save-row { justify-content: flex-end; }
+
+.settings-provider-config-body .settings-browser-path-input,
+.settings-provider-config-body .settings-select {
+  min-height: 38px;
+  padding-inline: 11px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--surface) 68%, var(--panel-muted));
+}
+
+.settings-provider-config-body .settings-browser-path-input:focus,
+.settings-provider-config-body .settings-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.settings-provider-advanced-trigger {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.settings-provider-advanced-trigger:hover { color: var(--text); }
+.settings-provider-advanced-trigger > span { display: flex; align-items: baseline; gap: 14px; }
+.settings-provider-advanced-trigger strong { color: var(--text); font-size: 12px; font-weight: 600; }
+.settings-provider-advanced-trigger small { color: var(--muted); font-size: 11px; }
+.settings-provider-advanced-trigger svg { transition: transform var(--dur-fast) var(--ease-standard); }
+.settings-provider-advanced-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.settings-provider-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 2px 0 6px;
+}
+
+.settings-provider-save-row {
+  min-height: 58px;
+  position: sticky;
+  z-index: 4;
+  bottom: -18px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-muted) 78%, var(--panel));
+  box-shadow: none;
+}
+
 .settings-provider-save-row .settings-note { margin-right: auto; }
+
+.settings-provider-save-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-provider-discard-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-provider-discard-button:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
+.settings-provider-discard-button:disabled { opacity: .42; }
 
 .settings-provider-dialog-scrim {
   position: fixed;
@@ -2495,13 +2756,23 @@
   }
 
   .settings-provider-config-header {
-    align-items: flex-start;
-    flex-direction: column;
+    min-height: 0;
+    align-items: stretch;
   }
 
-  .settings-provider-config-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .settings-provider-config-summary { min-height: 64px; padding-right: 14px; }
+  .settings-provider-config-actions {
+    width: auto;
+    position: static;
+    justify-content: flex-start;
+    padding: 0 14px 10px;
+    transform: none;
+  }
+  .settings-provider-config-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .settings-grid-2 { grid-template-columns: 1fr; }
-  .settings-provider-save-row button { width: 100%; }
+  .settings-provider-advanced-grid { grid-template-columns: 1fr; }
+  .settings-provider-save-actions { width: 100%; }
+  .settings-provider-save-row button { width: auto; flex: 1 1 0; }
 }
 
 /* One-click CLI install inside provider cards */

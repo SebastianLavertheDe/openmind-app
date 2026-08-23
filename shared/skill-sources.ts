@@ -17,15 +17,3 @@ export type SkillManifestEntry = {
 };
 
 export type SkillSourceBinding = SkillSourceSurface & { skillId: string };
-
-export function parseSkillSources(skills: ReadonlyArray<SkillManifestEntry>): SkillSourceBinding[] {
-  return skills.flatMap((skill) =>
-    skill.surfacesAsSource
-      ? [{ skillId: skill.id, ...skill.surfacesAsSource }]
-      : []
-  );
-}
-
-export function parseSkillToSourceId(sources: ReadonlyArray<SkillSourceBinding>): Readonly<Record<string, string>> {
-  return Object.fromEntries(sources.map((source) => [source.skillId, source.sourceId]));
-}

@@ -46,11 +46,6 @@ export type SkillLegacyIssue =
   | "missing-uv-lock"            // has pyproject.toml but no uv.lock
   | "no-pyproject";              // no pyproject.toml at all
 
-const ALL_PLATFORMS: readonly PlatformTarget[] = [
-  "windows-x64",
-  "macos-arm64",
-  "linux-x64"
-];
 
 export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
   // --- Batch A: low-dependency process skills ---
@@ -272,15 +267,3 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
 export const ALL_SKILL_IDS: readonly string[] = SKILL_COMPATIBILITY_MATRIX.map((e) => e.id);
 
 /** Count by kind — used by the §17.7 acceptance gate. */
-export function countByKind(): Record<SkillKind, number> {
-  const counts: Record<SkillKind, number> = { process: 0, workflow: 0, agent: 0 };
-  for (const e of SKILL_COMPATIBILITY_MATRIX) counts[e.targetKind] += 1;
-  return counts;
-}
-
-/** Look up an entry by skill id. */
-export function findSkillEntry(id: string): SkillCompatibilityEntry | undefined {
-  return SKILL_COMPATIBILITY_MATRIX.find((e) => e.id === id);
-}
-
-export { ALL_PLATFORMS };

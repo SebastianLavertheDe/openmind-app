@@ -29,7 +29,7 @@ describe("DailyBriefPage", () => {
     const api = makeApi(writeContent);
     const listContent = vi.fn(api.listContent);
     window.openmind = { ...api, listContent };
-    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage go={vi.fn()} initialDate="20260630" /></AiProvider>);
+    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
 
     await waitFor(() => expect(listContent).toHaveBeenCalledWith("summaries", ""));
     expect(container.querySelector(".brief-library-container > .brief-library-page")).toBeTruthy();
@@ -47,7 +47,7 @@ describe("DailyBriefPage", () => {
   it("quotes the full preview selection into the AI composer and focuses the prompt", async () => {
     render(
       <AiProvider initial={snapshot}>
-        <DailyBriefPage go={vi.fn()} initialDate="20260630" />
+        <DailyBriefPage initialDate="20260630" />
         <ChatComposer />
       </AiProvider>
     );

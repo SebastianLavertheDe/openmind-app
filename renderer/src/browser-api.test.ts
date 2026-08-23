@@ -59,7 +59,7 @@ describe("installBrowserPreviewApi", () => {
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: true });
   });
 
-  it("content API returns preview articles and supports state updates", async () => {
+  it("content API returns preview articles", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
     const list = await window.openmind.listContent("article", "20260707");
@@ -68,36 +68,16 @@ describe("installBrowserPreviewApi", () => {
     expect(read.content).toContain("# ");
     const written = await window.openmind.writeContent("p", "content");
     expect(written.content).toBe("content");
-    const updated = await window.openmind.updateContentState("id", "p", { read: true });
-    expect(updated.state.read).toBe(true);
   });
 
-  it("inbox + facets + sources return preview data", async () => {
+  it("sources return preview data", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const inbox = await window.openmind.listInbox({ date: "2026-07-07", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 100 });
-    expect(inbox.items.length).toBe(1);
-    expect(inbox.items[0].state.starred).toBe(true);
-    const facets = await window.openmind.getInboxFacets({ date: "2026-07-07", search: "", tags: [] });
-    expect(facets.total).toBe(1);
     const sources = await window.openmind.listSources();
     expect(sources.length).toBeGreaterThan(0);
     const added = await window.openmind.addRssSource({ url: "https://x.com/feed", name: "X", kind: "rss" });
     expect(added.id).toContain("rss");
     expect(await window.openmind.importOpml()).toBe(2);
-  });
-
-  it("daily brief + dashboard return structured preview data", async () => {
-    Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
-    installBrowserPreviewApi();
-    const brief = await window.openmind.getDailyBrief("2026-07-07");
-    expect(brief.date).toBe("20260707");
-    expect(brief.counts.content).toBe(42);
-    expect(brief.topics.length).toBe(1);
-    const dash = await window.openmind.getDashboard("2026-07-07");
-    expect(dash.date).toBe("20260707");
-    expect(dash.metrics.collected).toBe(42);
-    expect(dash.trend).toHaveLength(7);
   });
 
   it("searchWorkspace filters preview results by query", async () => {
@@ -111,11 +91,9 @@ describe("installBrowserPreviewApi", () => {
     expect(none).toEqual([]);
   });
 
-  it("creative API returns preview topics, projects, and supports CRUD", async () => {
+  it("creative API returns preview projects and supports CRUD", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();
-    const topics = await window.openmind.getCreativeTopics("2026-07-07");
-    expect(topics.topics.length).toBe(1);
     const allTopics = await window.openmind.getAllCreativeTopics();
     expect(allTopics.length).toBe(1);
     const projects = await window.openmind.getCreativeProjects();
@@ -126,8 +104,6 @@ describe("installBrowserPreviewApi", () => {
     expect(created.manifest?.topic).toBe("T");
     const advanced = await window.openmind.advanceCreativeProject("dir", "review");
     expect(advanced.stage).toBe("review");
-    const reviewed = await window.openmind.reviewCreativeProject("dir");
-    expect(reviewed.reviewReport?.score).toBe(86);
     const versions = await window.openmind.listCreativeVersions("dir", "draft.md");
     expect(versions.length).toBe(1);
     const restored = await window.openmind.restoreCreativeVersion("dir", "draft.md", "versions/draft/v1.md");

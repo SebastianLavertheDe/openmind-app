@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
-import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent, TechnicalEventGroup } from "./events";
+import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 
 afterEach(() => cleanup());
 
@@ -340,42 +340,5 @@ describe("ErrorEvent", () => {
     fireEvent.click(screen.getByText("打开运行记录"));
     const calledPath = openPath.mock.calls[0][0] as string;
     expect(calledPath).toContain("\\");
-  });
-});
-
-describe("TechnicalEventGroup", () => {
-  it("renders technical events group with count", () => {
-    const events = [
-      makeEvent("sys1", "system", { text: "system event 1" }),
-      makeEvent("stat1", "status", { state: "running" })
-    ];
-    render(<TechnicalEventGroup events={events} />);
-    expect(screen.getByText("运行详情")).toBeTruthy();
-    expect(screen.getByText("2")).toBeTruthy();
-  });
-
-  it("is collapsible and shows events when expanded", async () => {
-    const events = [
-      makeEvent("sys2", "system", { text: "started up" }),
-      makeEvent("stat2", "status", { state: "completed" })
-    ];
-    render(<TechnicalEventGroup events={events} />);
-    // Should be collapsible (has a trigger button)
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
-    expect(screen.getByText("started up")).toBeTruthy();
-    expect(screen.getByText("运行完成")).toBeTruthy();
-  });
-
-  it("shows system and status labels for each event", async () => {
-    const events = [
-      makeEvent("sys3", "system", { text: "init" }),
-      makeEvent("stat3", "status", { state: "running" })
-    ];
-    const { container } = render(<TechnicalEventGroup events={events} />);
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
-    expect(screen.getByText("系统")).toBeTruthy();
-    expect(screen.getByText("状态")).toBeTruthy();
   });
 });

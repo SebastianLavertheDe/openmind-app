@@ -7,7 +7,6 @@ import {
   ConversationCellHeader,
   ConversationCellMeta,
   ConversationStatusPill,
-  ParameterPreview
 } from "./conversation-cell";
 
 afterEach(() => cleanup());
@@ -207,13 +206,5 @@ describe("ConversationStatusPill", () => {
     const { container } = render(<ConversationStatusPill>idle</ConversationStatusPill>);
     const pill = container.querySelector(".conversation-status.neutral");
     expect(pill).toBeTruthy();
-  });
-});
-
-describe("ParameterPreview", () => {
-  it("renders code with children", () => {
-    const { container } = render(<ParameterPreview>{`{ key: "val" }`}</ParameterPreview>);
-    const code = container.querySelector("code.parameter-preview");
-    expect(code?.textContent).toContain("key");
   });
 });

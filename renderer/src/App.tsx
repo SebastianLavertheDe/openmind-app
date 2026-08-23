@@ -184,7 +184,6 @@ function Workspace({
       aiSessionOpen={Boolean(ai.activeSession)}
       aiMode={showAiCompanion ? ai.panelMode : "collapsed"}
       aiSidebar={showAiCompanion ? <AiSidebar openWorkbench={() => navigate("ai")} /> : null}
-      aiNavigation={null}
       recentTasks={<SidebarRecent activeSessionId={route.page === "ai" ? ai.activeSession?.id || null : null} onOpen={(id) => { void ai.setActiveSession(id); navigate("ai"); }} />}
       onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
       >

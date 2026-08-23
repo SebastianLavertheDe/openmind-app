@@ -29,7 +29,6 @@ export function AppShell({
   aiMode,
   children,
   aiSidebar,
-  aiNavigation,
   recentTasks,
   onNewTask
 }: {
@@ -46,7 +45,6 @@ export function AppShell({
   aiMode: string;
   children: ReactNode;
   aiSidebar?: ReactNode;
-  aiNavigation?: ReactNode;
   recentTasks?: ReactNode;
   onNewTask?(): void;
 }) {
@@ -224,12 +222,6 @@ export function AppShell({
                 </div>
               );
             })()}
-            {page === "ai" && aiNavigation ? (
-              <div className="nav-conversation-module">
-                <div className="nav-section-divider" aria-hidden="true" />
-                <div className="nav-session-history">{aiNavigation}</div>
-              </div>
-            ) : null}
           </nav>
         </div>
         <footer className="app-project-status">

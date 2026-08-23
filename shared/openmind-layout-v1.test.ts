@@ -1,19 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  OPENMIND_ALLOWED_TOP_LEVEL_DIRS,
-  OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL,
-  OPENMIND_LAYOUT_V1,
-  OPENMIND_LAYOUT_VERSION,
-  OPENMIND_OPTIONAL_TOP_LEVEL,
-  findLayoutEntry,
-  topLevelOf
-} from "./openmind-layout-v1";
+import { OPENMIND_LAYOUT_V1 } from "./openmind-layout-v1";
 
 describe("openmind-layout-v1", () => {
-  it("version is frozen as openmind-layout-v1", () => {
-    expect(OPENMIND_LAYOUT_VERSION).toBe("openmind-layout-v1");
-  });
-
   it("includes the audited on-disk top-level content dirs", () => {
     const tops = new Set(OPENMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0]));
     for (const expected of [
@@ -31,36 +19,15 @@ describe("openmind-layout-v1", () => {
   });
 
   it("preserves the Chinese creative stage paths verbatim", () => {
-    expect(findLayoutEntry("creative/01-内容生产/文稿库/02-制作中")).toBeDefined();
-    expect(findLayoutEntry("creative/01-内容生产/选题管理")).toBeDefined();
+    const paths = new Set(OPENMIND_LAYOUT_V1.map((e) => e.logicalPath));
+    expect(paths.has("creative/01-内容生产/文稿库/02-制作中")).toBe(true);
+    expect(paths.has("creative/01-内容生产/选题管理")).toBe(true);
   });
 
   it("classifies optional tool dirs as optional-preserve-only", () => {
-    expect(findLayoutEntry(".claude")?.category).toBe("optional-preserve-only");
-    expect(findLayoutEntry(".obsidian")?.category).toBe("optional-preserve-only");
-  });
-
-  it("create-if-needed entries are a subset of allowed top-level dirs", () => {
-    for (const top of OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL) {
-      expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
-    }
-  });
-
-  it("optional top-level entries are also in the allowed set (for read classification)", () => {
-    for (const top of OPENMIND_OPTIONAL_TOP_LEVEL) {
-      expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has(top)).toBe(true);
-    }
-  });
-
-  it("topLevelOf extracts the first path segment", () => {
-    expect(topLevelOf("article/20260805/x.md")).toBe("article");
-    expect(topLevelOf("daily-summary/20260805_daily_summary.md")).toBe("daily-summary");
-    expect(topLevelOf("creative/01-内容生产/文稿库/02-制作中/pkg/file.md")).toBe("creative");
-    expect(topLevelOf("")).toBeNull();
-  });
-
-  it("does not allow an unknown top-level dir as a write target", () => {
-    expect(OPENMIND_ALLOWED_TOP_LEVEL_DIRS.has("new-toplevel-not-in-contract")).toBe(false);
+    const byPath = new Map(OPENMIND_LAYOUT_V1.map((e) => [e.logicalPath, e.category]));
+    expect(byPath.get(".claude")).toBe("optional-preserve-only");
+    expect(byPath.get(".obsidian")).toBe("optional-preserve-only");
   });
 
   it("every entry has a non-empty owner and note (documentation hygiene)", () => {

@@ -52,6 +52,7 @@ describe("renderActiveRoute repo gate", () => {
     const element = automationRoute?.render(p) as ReactElement<Record<string, unknown>>;
 
     expect(element.props).not.toHaveProperty("skills");
-    expect(element.props).toMatchObject({ initialSkillId: "daily-summary", go: p.navigate });
+    expect(element.props).toMatchObject({ initialSkillId: "daily-summary" });
+    expect(element.props).not.toHaveProperty("go");
   });
 });

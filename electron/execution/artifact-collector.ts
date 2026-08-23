@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RunArtifact, RunArtifactType } from "../../shared/execution-contracts";
 
+const MAX_ARTIFACT_ID_LENGTH = 120;
+const ARTIFACT_ID_DIGEST_LENGTH = 32;
+
 export type ArtifactDeclaration = {
   id: string;
   type: RunArtifactType;
@@ -71,7 +74,7 @@ export class ArtifactCollector {
     logicalPath: string
   ): RunArtifact {
     const artifact: RunArtifact = {
-      id: `${declaration.id}:${logicalPath}`,
+      id: buildArtifactId(declaration.id, logicalPath),
       runId,
       skillId,
       ...(declaration.externalPathRef ? { externalPathRef: declaration.externalPathRef } : { logicalPath }),
@@ -85,6 +88,15 @@ export class ArtifactCollector {
     }
     return artifact;
   }
+}
+
+function buildArtifactId(declarationId: string, logicalPath: string): string {
+  const candidate = `${declarationId}:${logicalPath}`;
+  if (candidate.length <= MAX_ARTIFACT_ID_LENGTH) return candidate;
+
+  const digest = crypto.createHash("sha256").update(candidate).digest("hex").slice(0, ARTIFACT_ID_DIGEST_LENGTH);
+  const prefixLength = MAX_ARTIFACT_ID_LENGTH - digest.length - 1;
+  return `${declarationId.slice(0, prefixLength)}:${digest}`;
 }
 
 type ScannedEntry = { absolutePath: string; kind: "file" | "directory" | "symlink"; size: number };

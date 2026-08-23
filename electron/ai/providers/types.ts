@@ -68,7 +68,7 @@ export type ProviderDefinition = {
   adapter: ProviderAdapter;
 };
 
-export function classifyApproval(command: string, toolName = ""): ProviderRunContext extends never ? never : {
+export function classifyApproval(command: string, toolName = ""): {
   category: "command" | "file-change" | "delete" | "outside-workspace" | "network" | "elevation" | "tool";
   title: string;
 } {

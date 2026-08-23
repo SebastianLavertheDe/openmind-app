@@ -73,30 +73,6 @@ describe("RunScheduler 会话/运行管理", () => {
     supportsImages: true, diagnostic: null
   };
 
-  it("deleteSession:有未完成 run 时抛错", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    internals.registry.detect = () => [claudeProvider];
-    internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
-    const run = internals.store.createRun(session, "p", []);
-    internals.store.updateRun(run.id, { status: "running" });
-    expect(() => scheduler.deleteSession(session.id)).toThrow("运行中");
-  });
-
-  it("deleteSession:无未完成 run 时返回 true 并 dispose", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const disposeSession = vi.fn();
-    internals.registry.detect = () => [claudeProvider];
-    internals.adapters.claude = { disposeSession, run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
-    expect(scheduler.deleteSession(session.id)).toBe(true);
-    expect(disposeSession).toHaveBeenCalledWith(session.id);
-  });
-
   it("forkSession:有活跃 run 时抛错", async () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -119,16 +95,6 @@ describe("RunScheduler 会话/运行管理", () => {
     const fork = await scheduler.forkSession(session.id);
     expect(fork.id).not.toBe(session.id);
     expect(fork.providerId).toBe("claude-native");
-  });
-
-  it("rollbackTurns:无删除项时返回 false", async () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
-    // 无 run → rollbackTurns 返回 false
-    await expect(scheduler.rollbackTurns(session.id, 1)).resolves.toBe(false);
   });
 
   it("cancelRun:不存在的 run 返回 false", async () => {
@@ -402,19 +368,6 @@ describe("RunScheduler Claude prewarm", () => {
     expect(prewarm).not.toHaveBeenCalled();
   });
 
-  it("disposes Claude prewarm state when deleting a session", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const disposeSession = vi.fn();
-    internals.adapters.claude = { disposeSession, run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
-
-    expect(scheduler.deleteSession(session.id)).toBe(true);
-
-    expect(disposeSession).toHaveBeenCalledWith(session.id);
-  });
-
   it("captures and injects fresh turn context for every resumed Claude run", async () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -546,25 +499,6 @@ describe("RunScheduler Claude prewarm", () => {
     expect(prompts[1]).toContain("old answer");
     expect(internals.store.getSession(session.id).providerSessionId).toBeNull();
   });
-
-  it("detaches stale provider history after an append-only rollback", async () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const disposeSession = vi.fn();
-    internals.adapters.claude = { disposeSession, run: async () => undefined };
-    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
-    session = internals.store.updateSession(session.id, { providerSessionId: "provider-history" });
-    let run = internals.store.createRun(session, "remove me", []);
-    await internals.store.beginTurn(run);
-    run = internals.store.updateRun(run.id, { status: "completed", completedAt: new Date().toISOString() });
-    await internals.store.completeTurn(run);
-
-    await expect(scheduler.rollbackTurns(session.id, 1)).resolves.toBe(true);
-
-    expect(internals.store.getSession(session.id).providerSessionId).toBeNull();
-    expect(disposeSession).toHaveBeenCalledWith(session.id);
-  });
 });
 
 type SchedulerInternals = {
@@ -634,16 +568,6 @@ describe("RunScheduler 公共委托方法", () => {
     expect(listTurns).toHaveBeenCalledWith("sess-1", { limit: 10 });
   });
 
-  it("getContextState 委托 store", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const getContextState = vi.fn(() => ({ contexts: [] }));
-    internals.store.getContextState = getContextState as never;
-    scheduler.getContextState("sess-1");
-    expect(getContextState).toHaveBeenCalledWith("sess-1");
-  });
-
   it("searchSessions 委托 store.search", () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -664,40 +588,6 @@ describe("RunScheduler 公共委托方法", () => {
     expect(listDefinitions).toHaveBeenCalled();
   });
 
-  it("startSkill 委托 manualSkills.startSkill", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const startSkill = vi.fn(() => true);
-    internals.manualSkills.startSkill = startSkill;
-    expect(scheduler.startSkill("rss", "20260708")).toBe(true);
-    expect(startSkill).toHaveBeenCalledWith("rss", "20260708");
-  });
-
-  it("startSource 委托 manualSkills.startSource", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const startSource = vi.fn(() => true);
-    internals.manualSkills.startSource = startSource;
-    scheduler.startSource("src-1", "rss", "20260708", "http://x", "name");
-    expect(startSource).toHaveBeenCalledWith("src-1", "rss", "20260708", "http://x", "name");
-  });
-
-  it("stopSkill / stopSource 委托 manualSkills", async () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const stopSkill = vi.fn(async () => true);
-    const stopSource = vi.fn(async () => true);
-    internals.manualSkills.stopSkill = stopSkill;
-    internals.manualSkills.stopSource = stopSource;
-    await scheduler.stopSkill("rss");
-    await scheduler.stopSource("src-1");
-    expect(stopSkill).toHaveBeenCalledWith("rss");
-    expect(stopSource).toHaveBeenCalledWith("src-1");
-  });
-
   it("updateSession 委托 store.updateSession", () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -705,46 +595,6 @@ describe("RunScheduler 公共委托方法", () => {
     const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
     const updated = scheduler.updateSession(session.id, { title: "新标题" });
     expect(updated.title).toBe("新标题");
-  });
-
-  it("deleteSession 返回 true 并清除 session", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
-    expect(scheduler.deleteSession(session.id)).toBe(true);
-    expect(scheduler.snapshot().sessions.find((s) => s.id === session.id)).toBeUndefined();
-  });
-
-  it("getChangeSet 返回 run 的 changeSet", () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
-    const run = internals.store.createRun(session, "p", []);
-    expect(scheduler.getChangeSet(run.id)).toBe(run.changeSet);
-  });
-
-  it("applyChange / revertChange / discardChange / discardRun 委托 changeApplications", async () => {
-    const root = createRoot();
-    const scheduler = new RunScheduler(root, () => undefined);
-    const internals = schedulerInternals(scheduler);
-    const applyChange = vi.fn(async () => ({ applied: true }));
-    const revertChange = vi.fn(async () => ({ applied: true }));
-    const discardChange = vi.fn(async () => null);
-    const discardRun = vi.fn(async () => true);
-    internals.changeApplications.applyChange = applyChange;
-    internals.changeApplications.revertChange = revertChange;
-    internals.changeApplications.discardChange = discardChange;
-    internals.changeApplications.discardRun = discardRun;
-    await scheduler.applyChange("run-1", "p1");
-    await scheduler.revertChange("run-1", "p1");
-    await scheduler.discardChange("run-1", "p1");
-    await scheduler.discardRun("run-1");
-    expect(applyChange).toHaveBeenCalledWith("run-1", "p1");
-    expect(revertChange).toHaveBeenCalledWith("run-1", "p1");
-    expect(discardChange).toHaveBeenCalledWith("run-1", "p1");
-    expect(discardRun).toHaveBeenCalledWith("run-1");
   });
 
   it("refreshProviders 调 registry.refresh", async () => {

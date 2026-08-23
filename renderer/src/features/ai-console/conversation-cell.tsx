@@ -142,7 +142,3 @@ export function ConversationCellMeta({ children }: { children: ReactNode }) {
 export function ConversationStatusPill({ tone = "neutral", children }: { tone?: ConversationStatusTone; children: ReactNode }) {
   return <span className={`conversation-status ${tone}`}>{children}</span>;
 }
-
-export function ParameterPreview({ children }: { children: ReactNode }) {
-  return <code className="parameter-preview">{children}</code>;
-}

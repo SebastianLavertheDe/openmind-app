@@ -4,21 +4,12 @@ import path from "node:path";
 import { z } from "zod";
 import {
   ApprovalDecisionSchema,
-  AppStateBackupReportSchema,
   AddRssSourceInputSchema,
-  ContentFacetsQuerySchema,
-  ContentQuerySchema,
-  ContentStatePatchSchema,
-  AddCreativeTopicInputSchema,
-  BriefWatchlistInputSchema,
   CreativeCreateInputSchema,
   CreativeManifestPatchSchema,
   CreativeSaveInputSchema,
   CreativeStageSchema,
-  CreativeTopicStatePatchSchema,
-  ContentIndexMaintenanceSchema,
   ProjectFileSearchResultSchema,
-  PreferencesImportResultSchema,
   SourcePatchSchema,
   SessionPatchSchema,
   StartRunInputSchema,
@@ -27,8 +18,8 @@ import {
   BrowserExtensionTokenSchema,
   McpServerCatalogSchema,
   OnboardingStateSchema,
+  UserPreferencesPatchSchema,
   UserPreferencesSchema,
-  EnvFileAnalysisSchema,
   ProvidersYamlInputSchema,
   ProvidersYamlViewSchema,
   SharedPythonRuntimeStatusSchema,
@@ -42,27 +33,19 @@ import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
-import { deleteProviderEntry, listProvidersForUi, saveProvidersFromInput } from "./config/providers-yaml";
-import type { RuntimePackService } from "./runtime/runtime-pack-service";
-import type { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
+import { listProvidersForUi, saveProvidersFromInput } from "./config/providers-yaml";
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
-import type { AppStateBackupService } from "./backup/app-state-backup";
 import { normalizeOpenmindSelection } from "./openmind-file-search";
-import { getAppPaths } from "./paths/app-paths-service";
-import { previewOpenmindRelocation, relocateOpenmind } from "./paths/openmind-relocation-service";
 import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
-import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema } from "../shared/execution-contracts";
+import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
-import { RuntimePackIdSchema, RuntimePackMetadataSchema, RuntimeTargetSchema, type RuntimePackMetadata } from "../shared/runtime-targets";
 
 const StringArgSchema = z.string().min(1).max(4096);
 const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const OptionalStringArgSchema = z.string().min(1).max(4096).optional();
 const RequestIdSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
-const ExportLabelSchema = z.string().trim().min(1).max(160);
 const FileContentSchema = z.string().max(5 * 1024 * 1024, messages.errors.file.tooLarge);
-const RuntimePackBytesSchema = z.instanceof(Uint8Array).refine((value) => value.byteLength <= 2 * 1024 * 1024 * 1024, "Runtime Pack 超过单包大小限制。");
 const DateArgSchema = z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/).transform((value) => value.replaceAll("-", ""));
 const HttpUrlArgSchema = z.string().url().refine((value) => /^https?:\/\//i.test(value), messages.errors.url.httpOnly);
 
@@ -104,12 +87,8 @@ export type IpcMainContext = {
   ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
-  ensureExportLocationService: () => import("./execution/export-location-service").ExportLocationService;
-  ensureRuntimePackService?: () => RuntimePackService;
-  ensureRuntimePackDownloadService?: () => RuntimePackDownloadService;
   ensureSharedPythonRuntimeService?: () => SharedPythonRuntimeService;
-  ensureAppStateBackupService?: () => AppStateBackupService;
-  analyzeEnvFile: (filePath: string) => unknown;
+  hasRequiredStartupConfiguration: () => boolean;
   getActiveRunCount: () => Promise<number>;
   restartAiWorker: () => void;
   getBrowserAutomationStatus: () => unknown;
@@ -135,36 +114,9 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const ai = () => ctx.ensureAiWorker();
   const skillPackages = () => ctx.ensureSkillPackageService();
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
-  const runtimePacks = () => {
-    if (!ctx.ensureRuntimePackService) throw new Error("Runtime Pack 服务尚未初始化。 ");
-    return ctx.ensureRuntimePackService();
-  };
-  const runtimeDownloads = () => {
-    if (!ctx.ensureRuntimePackDownloadService) throw new Error("Runtime Pack 下载服务尚未初始化。 ");
-    return ctx.ensureRuntimePackDownloadService();
-  };
   const sharedPython = () => {
     if (!ctx.ensureSharedPythonRuntimeService) throw new Error("内置 Python 运行时服务尚未初始化。 ");
     return ctx.ensureSharedPythonRuntimeService();
-  };
-  const stateBackup = () => {
-    if (!ctx.ensureAppStateBackupService) throw new Error("应用状态备份服务尚未初始化。 ");
-    return ctx.ensureAppStateBackupService();
-  };
-  const selectRuntimePack = async (): Promise<{ metadata: RuntimePackMetadata; bytes: Uint8Array } | null> => {
-    const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-      title: "选择 Runtime Pack Manifest",
-      properties: ["openFile"],
-      filters: [{ name: "Runtime Pack Manifest", extensions: ["json"] }]
-    });
-    if (result.canceled || !result.filePaths[0]) return null;
-    const manifestPath = result.filePaths[0];
-    const metadata = RuntimePackMetadataSchema.parse(JSON.parse(await fs.readFile(manifestPath, "utf8")));
-    const packagePath = path.join(path.dirname(manifestPath), metadata.filename);
-    const stat = await fs.stat(packagePath);
-    if (!stat.isFile()) throw new Error("Runtime Pack 文件不是普通文件。");
-    if (stat.size > 2 * 1024 * 1024 * 1024) throw new Error("Runtime Pack 超过单包大小限制。");
-    return { metadata, bytes: new Uint8Array(await fs.readFile(packagePath)) };
   };
 
   return [
@@ -178,15 +130,16 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const openmindRoot = settings.resolveOpenmindRoot();
         const workspaceRoot = settings.resolveWorkspaceRoot();
         // `validRepo` is retained in the wire contract for one release. It
-        // means only that an explicit, usable openmind save root is bound; the
-        // separate complete-source receipt controls the Skill startup gate.
+        // means only that an explicit, usable openmind save root is bound.
+        // Setup checks Skill installation presence only; integrity/provenance
+        // disagreements remain visible in Skill Center and fail at execution.
         const validRepo = Boolean(openmindRoot && settings.isValidOpenmindRoot(openmindRoot));
         const aiWorkspace = workspaceRoot;
         const hasAiWorkspace = Boolean(aiWorkspace);
         // No openmind root bound → no skill store; skip the service entirely so
         // bootstrap never constructs a null-root store on a fresh machine.
         const skillsInstalled = validRepo
-          ? skillSources().hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)
+          ? skillSources().hasInstallation(OPENMIND_SKILLS_REPO_URL)
           : false;
         const appReady = validRepo && skillsInstalled && hasAiWorkspace;
         return {
@@ -216,16 +169,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.writeContent,
       handler: (filePath, rawContent) => product().writeContent(parseString(filePath), FileContentSchema.parse(rawContent))
     },
-    { channel: C.listInbox, handler: (query) => product().listInbox(ContentQuerySchema.parse(query)) },
-    { channel: C.getInboxFacets, handler: (query) => product().getInboxFacets(ContentFacetsQuerySchema.parse(query)) },
-    {
-      channel: C.updateContentState,
-      handler: (id, filePath, patch) =>
-        product().updateContentState(parseString(id), parseString(filePath), ContentStatePatchSchema.parse(patch))
-    },
     { channel: C.listSources, handler: () => product().listSources() },
     { channel: C.updateSource, handler: (id, patch) => product().updateSource(parseString(id), SourcePatchSchema.parse(patch)) },
-    { channel: C.deleteSource, handler: (id) => product().deleteSource(parseString(id)) },
     { channel: C.addRssSource, handler: (input) => product().addRssSource(AddRssSourceInputSchema.parse(input)) },
     {
       channel: C.importOpml,
@@ -239,36 +184,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return product().importOpml(settings.ensureInsideRepo(result.filePaths[0]));
       }
     },
-    { channel: C.listSourceRuns, handler: (sourceId) => product().listSourceRuns(parseOptionalString(sourceId)) },
-    {
-      channel: C.runSource,
-      handler: async (sourceId, date) => {
-        const parsedSourceId = parseString(sourceId);
-        const source = product().listSources().find((item) => item.id === parsedSourceId);
-        if (!source) throw new Error(messages.errors.source.notFound);
-        if (!source.enabled) throw new Error(messages.errors.source.disabled);
-        if (!source.skillId) throw new Error(messages.errors.source.noSkill);
-        return ai().call("run-source", source.id, source.skillId, {
-          date: date ? parseDate(date) : undefined,
-          url: source.url || undefined,
-          name: source.name
-        });
-      }
-    },
-    { channel: C.stopSource, handler: (sourceId) => ai().call("stop-source", parseString(sourceId)) },
-    { channel: C.getDailyBrief, handler: (date) => product().getDailyBrief(parseDate(date)) },
-    {
-      channel: C.updateBriefWatchlist,
-      handler: (input) => {
-        const parsed = BriefWatchlistInputSchema.parse(input);
-        return product().updateBriefWatchlist(parsed.date, parsed.path, parsed.add);
-      }
-    },
-    { channel: C.getDashboard, handler: (date) => product().getDashboard(parseDate(date), 0) },
     { channel: C.searchWorkspace, handler: (rawQuery) => ctx.globalSearch(rawQuery) },
-    { channel: C.getCreativeTopics, handler: (date) => product().getCreativeTopics(parseDate(date)) },
     { channel: C.getAllCreativeTopics, handler: () => product().getAllCreativeTopics() },
-    { channel: C.addCreativeTopic, handler: (input) => product().addCreativeTopic(AddCreativeTopicInputSchema.parse(input)) },
     { channel: C.getCreativeProjects, handler: () => product().listCreativeProjects() },
     { channel: C.getCreativeProject, handler: (filePath) => product().getCreativeProject(parseString(filePath)) },
     { channel: C.createCreativeProject, handler: (input) => product().createCreativeProject(CreativeCreateInputSchema.parse(input)) },
@@ -280,17 +197,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.updateCreativeManifest,
       handler: (filePath, patch) => product().updateCreativeManifest(parseString(filePath), CreativeManifestPatchSchema.parse(patch))
-    },
-    {
-      channel: C.updateCreativeTopicState,
-      handler: (date, topicId, patch) =>
-        product().updateCreativeTopicState(parseDate(date), parseString(topicId), CreativeTopicStatePatchSchema.parse(patch))
-    },
-    { channel: C.reviewCreativeProject, handler: (filePath) => product().reviewCreativeProject(parseString(filePath)) },
-    {
-      channel: C.setCreativeReviewStatus,
-      handler: (filePath, status) =>
-        product().setCreativeReviewStatus(parseString(filePath), z.enum(["pending", "changes-requested", "approved"]).parse(status))
     },
     {
       channel: C.listCreativeVersions,
@@ -305,13 +211,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.getCreativeReleaseLog, handler: (filePath) => product().getCreativeReleaseLog(parseString(filePath)) },
     { channel: C.copyCreativeProject, handler: (filePath) => product().copyCreativeProject(parseString(filePath)) },
     { channel: C.archiveCreativeProject, handler: (filePath) => product().archiveCreativeProject(parseString(filePath)) },
-    { channel: C.restoreCreativeProject, handler: (filePath) => product().restoreCreativeProject(parseString(filePath)) },
-    { channel: C.deleteCreativeProject, handler: (filePath) => product().deleteCreativeProject(parseString(filePath)) },
     { channel: C.getCreativeAnalytics, handler: () => product().getCreativeAnalytics() },
-    {
-      channel: C.bindCreativeSession,
-      handler: (filePath, sessionId) => product().bindCreativeSession(parseString(filePath), parseString(sessionId))
-    },
     {
       channel: C.selectFiles,
       handler: async () => {
@@ -412,50 +312,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async (value) => settings.previewOpenmindRoot(parseString(value), await ctx.getActiveRunCount())
     },
     {
-      channel: C.selectOpenmindRelocationTarget,
-      handler: async () => {
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 openmind 搬迁目标（必须为空目录）",
-          properties: ["openDirectory"]
-        });
-        if (result.canceled || !result.filePaths[0]) return null;
-        return result.filePaths[0];
-      }
-    },
-    {
-      channel: C.previewOpenmindRelocation,
-      handler: async (value) => {
-        const sourceDirectory = settings.resolveOpenmindRoot();
-        if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
-        return previewOpenmindRelocation({
-          sourceDirectory,
-          targetDirectory: parseString(value),
-          paths: getAppPaths(),
-          activeRunCount: await ctx.getActiveRunCount()
-        });
-      }
-    },
-    {
-      channel: C.relocateOpenmind,
-      handler: async (value) => {
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能搬迁 openmind 内容。");
-        const sourceDirectory = settings.resolveOpenmindRoot();
-        if (!sourceDirectory) throw new Error(messages.errors.repo.selectValidFirst);
-        const report = relocateOpenmind({
-          sourceDirectory,
-          targetDirectory: parseString(value),
-          paths: getAppPaths(),
-          activeRunCount: await ctx.getActiveRunCount()
-        });
-        // Content copy and root binding are separate operations. Only after
-        // the copy has passed its source/target tree verification do we bind
-        // the new root and restart the worker snapshot.
-        settings.setOpenmindRoot(report.targetDirectory);
-        ctx.restartAiWorker();
-        return report;
-      }
-    },
-    {
       channel: C.getOpenmindRoot,
       handler: () => ({
         openmindRoot: settings.resolveOpenmindRoot(),
@@ -463,15 +319,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         health: settings.getOpenmindRootHealth(),
         snapshot: settings.getOpenmindRootSnapshot()
       })
-    },
-    {
-      channel: C.setWorkspaceRoot,
-      handler: async (value) => {
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能切换 AI/代码工作区目录。");
-        const result = settings.setWorkspaceRoot(parseString(value));
-        ctx.restartAiWorker();
-        return result;
-      }
     },
     {
       channel: C.selectWorkspaceRoot,
@@ -497,7 +344,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.updatePreferences,
       handler: (patch) => {
         const previous = settings.getPreferences();
-        const next = UserPreferencesSchema.parse(settings.updatePreferences(UserPreferencesSchema.partial().parse(patch)));
+        const next = UserPreferencesSchema.parse(settings.updatePreferences(UserPreferencesPatchSchema.parse(patch)));
         if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
         ctx.syncWindowTheme(next.themeMode);
         return next;
@@ -511,39 +358,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
         ctx.syncWindowTheme(next.themeMode);
         return next;
-      }
-    },
-    {
-      channel: C.importPreferences,
-      handler: (filePath) =>
-        PreferencesImportResultSchema.parse(settings.importPreferences(settings.ensureInsideRepo(parseString(filePath))))
-    },
-    {
-      channel: C.exportAppStateBackup,
-      handler: async () => {
-        const result = await dialog.showSaveDialog(ctx.getMainWindow()!, {
-          title: "备份应用状态",
-          defaultPath: "openmind-state-backup.zip",
-          filters: [{ name: "OpenMind 应用状态备份", extensions: ["zip"] }]
-        });
-        if (result.canceled || !result.filePath) return null;
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能备份应用状态。 ");
-        return AppStateBackupReportSchema.parse(stateBackup().exportToFile(result.filePath));
-      }
-    },
-    {
-      channel: C.importAppStateBackup,
-      handler: async () => {
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "恢复应用状态",
-          properties: ["openFile"],
-          filters: [{ name: "OpenMind 应用状态备份", extensions: ["zip"] }]
-        });
-        if (result.canceled || !result.filePaths[0]) return null;
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能恢复应用状态。 ");
-        const report = AppStateBackupReportSchema.parse(stateBackup().importFromFile(result.filePaths[0]));
-        ctx.restartAiWorker();
-        return report;
       }
     },
     {
@@ -563,10 +377,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: () => BrowserAutomationStatusSchema.parse(ctx.clearBrowserExtensionToken())
     },
     {
-      channel: C.analyzeEnvFile,
-      handler: (filePath) => EnvFileAnalysisSchema.parse(ctx.analyzeEnvFile(parseString(filePath)))
-    },
-    {
       channel: C.getProviders,
       handler: () => ProvidersYamlViewSchema.parse(listProvidersForUi())
     },
@@ -579,134 +389,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
-      channel: C.deleteProvider,
-      handler: async (id) => {
-        deleteProviderEntry(parseString(id));
-        await ai().call("refresh-providers");
-        return ProvidersYamlViewSchema.parse(listProvidersForUi());
-      }
-    },
-    {
       channel: C.getSharedPythonRuntimeStatus,
       handler: () => SharedPythonRuntimeStatusSchema.parse(sharedPython().status())
     },
     {
       channel: C.setSharedPythonRuntimeEnabled,
       handler: async (enabled) => SharedPythonRuntimeStatusSchema.parse(await sharedPython().setEnabled(z.boolean().parse(enabled)))
-    },
-    { channel: C.listRuntimePacks, handler: () => runtimePacks().listReadiness() },
-    {
-      channel: C.getRuntimePackReadiness,
-      handler: (packId, target) => runtimePacks().getReadiness(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target)) || null
-    },
-    {
-      channel: C.importRuntimePack,
-      handler: async () => {
-        const selected = await selectRuntimePack();
-        if (!selected) return null;
-        const service = runtimePacks();
-        const record = service.install(selected.metadata, RuntimePackBytesSchema.parse(selected.bytes));
-        const readiness = service.getReadiness(record.packId, record.target);
-        if (!readiness) throw new Error("Runtime Pack 导入后无法读取 readiness。");
-        return readiness;
-      }
-    },
-    {
-      channel: C.repairRuntimePackFromFile,
-      handler: async (packId, target, digest) => {
-        const selected = await selectRuntimePack();
-        if (!selected) return null;
-        const expectedPackId = RuntimePackIdSchema.parse(packId);
-        const expectedTarget = RuntimeTargetSchema.parse(target);
-        const expectedDigest = parseString(digest).toLowerCase();
-        if (selected.metadata.packId !== expectedPackId || selected.metadata.target !== expectedTarget || selected.metadata.sha256 !== expectedDigest) {
-          throw new Error("选择的 Runtime Pack Manifest 与待修复版本不匹配。");
-        }
-        const service = runtimePacks();
-        const record = service.repair(selected.metadata, RuntimePackBytesSchema.parse(selected.bytes));
-        const readiness = service.getReadiness(record.packId, record.target);
-        if (!readiness) throw new Error("Runtime Pack repair 后无法读取 readiness。");
-        return readiness;
-      }
-    },
-    {
-      channel: C.installRuntimePack,
-      handler: (metadata, bytes) => {
-        const service = runtimePacks();
-        const record = service.install(metadata, RuntimePackBytesSchema.parse(bytes));
-        const readiness = service.getReadiness(record.packId, record.target);
-        if (!readiness) throw new Error("Runtime Pack 安装后无法读取 readiness。");
-        return readiness;
-      }
-    },
-    {
-      channel: C.repairRuntimePack,
-      handler: (metadata, bytes) => {
-        const service = runtimePacks();
-        const record = service.repair(metadata, RuntimePackBytesSchema.parse(bytes));
-        const readiness = service.getReadiness(record.packId, record.target);
-        if (!readiness) throw new Error("Runtime Pack repair 后无法读取 readiness。");
-        return readiness;
-      }
-    },
-    {
-      channel: C.activateRuntimePack,
-      handler: (packId, target, digest) => {
-        runtimePacks().activate(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target), parseString(digest));
-        return runtimePacks().listReadiness();
-      }
-    },
-    {
-      channel: C.rollbackRuntimePack,
-      handler: (packId, target) => {
-        runtimePacks().rollback(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target));
-        return runtimePacks().listReadiness();
-      }
-    },
-    {
-      channel: C.removeRuntimePack,
-      handler: (packId, target, digest) => runtimePacks().remove(RuntimePackIdSchema.parse(packId), RuntimeTargetSchema.parse(target), parseString(digest))
-    },
-    {
-      channel: C.garbageCollectRuntimePacks,
-      handler: () => runtimePacks().garbageCollect()
-    },
-    {
-      channel: C.selectRuntimePackDownloadManifest,
-      handler: async () => {
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择可下载 Runtime Pack Manifest",
-          properties: ["openFile"],
-          filters: [{ name: "Runtime Pack Manifest", extensions: ["json"] }]
-        });
-        if (result.canceled || !result.filePaths[0]) return null;
-        const metadata = JSON.parse(await fs.readFile(result.filePaths[0], "utf8"));
-        return runtimeDownloads().describe(metadata);
-      }
-    },
-    {
-      channel: C.listRuntimePackDownloads,
-      handler: () => runtimeDownloads().list()
-    },
-    {
-      channel: C.startRuntimePackDownload,
-      handler: (metadata) => runtimeDownloads().start(metadata)
-    },
-    {
-      channel: C.pauseRuntimePackDownload,
-      handler: (id) => runtimeDownloads().pause(parseString(id))
-    },
-    {
-      channel: C.resumeRuntimePackDownload,
-      handler: (id) => runtimeDownloads().resume(parseString(id))
-    },
-    {
-      channel: C.removeRuntimePackDownload,
-      handler: (id) => runtimeDownloads().remove(parseString(id))
-    },
-    {
-      channel: C.rebuildContentIndex,
-      handler: () => ContentIndexMaintenanceSchema.parse(product().rebuildContentIndex())
     },
     { channel: C.aiRefresh, handler: () => ai().call("snapshot") },
     { channel: C.aiRefreshProviders, handler: () => ai().call("refresh-providers") },
@@ -739,10 +427,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (cli) => ctx.ensureCliInstallerService?.()?.cancel(parseCliToolId(cli)) ?? false
     },
     {
-      channel: C.listCliToolStatuses,
-      handler: () => ctx.ensureCliInstallerService?.()?.list() ?? []
-    },
-    {
       channel: C.openCliLogin,
       handler: (cli) => {
         const { openCliLoginTerminal } = require("./install/cli-login") as typeof import("./install/cli-login");
@@ -771,15 +455,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const service = skillPackages();
         const record = service.setEnabled(parseString(key), parseString(digest), z.boolean().parse(enabled));
         return service.toInstalledView(record);
-      }
-    },
-    {
-      channel: C.installSkillPackage,
-      handler: (sourcePath) => {
-        const service = skillPackages();
-        const installed = service.install(parseString(sourcePath));
-        ctx.restartAiWorker();
-        return service.toInstalledView(installed);
       }
     },
     {
@@ -822,14 +497,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return records.map((record) => skillPackages().toInstalledView(record));
       }
     },
-    {
-      channel: C.uninstallSkillPackage,
-      handler: (key, digest) => {
-        const removed = skillPackages().uninstall(parseString(key), parseOptionalString(digest));
-        if (removed) ctx.restartAiWorker();
-        return removed;
-      }
-    },
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },
     { channel: C.getSkillRunEvents, handler: (runId) => ai().call("skill-run-events", parseString(runId)) },
@@ -838,7 +505,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.retryWorkflowStep, handler: (runId, stepId) => ai().call("run-retry-step", parseString(runId), parseString(stepId)) },
     { channel: C.deleteRunHistory, handler: (runId) => ai().call("run-delete-history", parseString(runId)) },
     { channel: C.cancelSkillRun, handler: (runId) => ai().call("skill-run-cancel", parseString(runId)) },
-    { channel: C.startWorkflowRun, handler: (input) => ai().call("workflow-run-start", WorkflowStartRequestSchema.parse(input)) },
     { channel: C.listWorkflowRuns, handler: () => ai().call("workflow-run-list") },
     { channel: C.getWorkflowRun, handler: (runId) => ai().call("workflow-run-get", parseString(runId)) },
     { channel: C.resumeWorkflowRun, handler: (input) => ai().call("workflow-run-resume", WorkflowResumeRequestSchema.parse(input)) },
@@ -849,72 +515,31 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.runAutomationNow, handler: (id) => ai().call("automation-run-now", IdentifierArgSchema.parse(id)) },
     { channel: C.listAutomationRuns, handler: (ruleId) => ai().call("automation-runs-list", ruleId == null || ruleId === "" ? undefined : IdentifierArgSchema.parse(ruleId)) },
     { channel: C.listAutomationSchedules, handler: () => ai().call("automation-schedules-list") },
-    { channel: C.listExportLocations, handler: () => ctx.ensureExportLocationService().list() },
-    {
-      channel: C.selectExportLocation,
-      handler: async (label, bindingId) => {
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 Skill 导出目录",
-          properties: ["openDirectory", "createDirectory"]
-        });
-        if (result.canceled || !result.filePaths[0]) return null;
-        const service = ctx.ensureExportLocationService();
-        const requestedBindingId = bindingId == null || bindingId === "" ? undefined : IdentifierArgSchema.parse(bindingId);
-        if (requestedBindingId && service.get(requestedBindingId)) return service.relink(requestedBindingId, result.filePaths[0]);
-        return requestedBindingId
-          ? service.create(ExportLabelSchema.parse(label), result.filePaths[0], requestedBindingId)
-          : service.create(ExportLabelSchema.parse(label), result.filePaths[0]);
-      }
-    },
-    { channel: C.revokeExportLocation, handler: (id) => ctx.ensureExportLocationService().revoke(parseString(id)) },
     {
       channel: C.aiPrewarm,
-      handler: (sessionId) => settings.resolveWorkspaceRoot()
+      handler: (sessionId) => settings.resolveWorkspaceRoot() && ctx.hasRequiredStartupConfiguration()
         ? ai().call("prewarm", parseOptionalString(sessionId))
         : false
     },
-    { channel: C.aiSearchSessions, handler: (query) => ai().call("search", z.string().max(500).parse(query || "")) },
     { channel: C.aiStartRun, handler: (input) => ai().call("start", StartRunInputSchema.parse(input)) },
     { channel: C.aiCancelRun, handler: (runId) => ai().call("cancel", parseString(runId)) },
     {
       channel: C.aiUpdateSession,
       handler: (sessionId, patch) => ai().call("update-session", parseString(sessionId), SessionPatchSchema.parse(patch))
     },
-    { channel: C.aiDeleteSession, handler: (sessionId) => ai().call("delete-session", parseString(sessionId)) },
     { channel: C.aiGetEvents, handler: (sessionId) => ai().call("events", parseString(sessionId)) },
     {
       channel: C.aiListTurns,
       handler: (sessionId, params) => ai().call("turns", parseString(sessionId), AiTurnListParamsSchema.parse(params || {}))
     },
-    { channel: C.aiGetContextState, handler: (sessionId) => ai().call("context-state", parseString(sessionId)) },
     {
       channel: C.aiForkSession,
       handler: (sessionId, throughRunId) => ai().call("fork-session", parseString(sessionId), parseOptionalString(throughRunId))
     },
     {
-      channel: C.aiRollbackTurns,
-      handler: (sessionId, numTurns) => ai().call("rollback-turns", parseString(sessionId), z.number().int().min(1).max(100).parse(numTurns))
-    },
-    {
       channel: C.aiResolveApproval,
       handler: (approvalId, decision) => ai().call("resolve-approval", parseString(approvalId), ApprovalDecisionSchema.parse(decision))
     },
-    { channel: C.aiGetChangeSet, handler: (runId) => ai().call("change-set", parseString(runId)) },
-    {
-      channel: C.aiApplyChange,
-      handler: (runId, patch) => ai().call("apply-change", parseString(runId), parseOptionalString(patch))
-    },
-    {
-      channel: C.aiRevertChange,
-      handler: (runId, patch) => ai().call("revert-change", parseString(runId), parseString(patch))
-    },
-    {
-      channel: C.aiDiscardChange,
-      handler: (runId, patch) => ai().call("discard-change", parseString(runId), parseString(patch))
-    },
-    { channel: C.aiDiscardRun, handler: (runId) => ai().call("discard-run", parseString(runId)) },
-    { channel: C.runSkill, handler: (skillId, date) => ai().call("run-skill", parseString(skillId), date ? parseDate(date) : undefined) },
-    { channel: C.stopSkill, handler: (skillId) => ai().call("stop-skill", parseString(skillId)) }
   ];
 }
 
@@ -926,7 +551,7 @@ function browserPreferencesChanged(previous: z.infer<typeof UserPreferencesSchem
 
 export function registerIpcHandlers(
   ctx: IpcMainContext,
-  register: (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) => void
+  register: (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => void) => void
 ): void {
   const entries = createIpcHandlerEntries(ctx);
   const registryChannels = new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel));

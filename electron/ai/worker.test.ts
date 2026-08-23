@@ -15,27 +15,15 @@ const hoisted = vi.hoisted(() => ({
     refreshProviders: vi.fn(async () => []),
     getEvents: vi.fn(() => []),
     getTurns: vi.fn(() => ({ items: [], nextCursor: null })),
-    getContextState: vi.fn(() => ({ contexts: [] })),
     searchSessions: vi.fn(() => []),
     listSkills: vi.fn(() => []),
     activeTaskCount: vi.fn(() => 0),
     prewarmClaude: vi.fn(async () => true),
-    startSkill: vi.fn(() => true),
-    stopSkill: vi.fn(async () => true),
-    startSource: vi.fn(() => true),
-    stopSource: vi.fn(async () => true),
     startRun: vi.fn(async () => "run-1"),
     cancelRun: vi.fn(async () => undefined),
     updateSession: vi.fn(() => ({})),
-    deleteSession: vi.fn(async () => undefined),
     forkSession: vi.fn(() => ({})),
-    rollbackTurns: vi.fn(() => ({})),
     resolveApproval: vi.fn(async () => undefined),
-    getChangeSet: vi.fn(() => ({ changes: [] })),
-    applyChange: vi.fn(async () => undefined),
-    revertChange: vi.fn(async () => undefined),
-    discardChange: vi.fn(async () => undefined),
-    discardRun: vi.fn(async () => undefined),
     revokeCredential: vi.fn(async () => 1),
     restoreCredential: vi.fn(() => 1),
     rotateCredential: vi.fn(async () => 1)
@@ -101,21 +89,11 @@ describe("worker dispatch", () => {
     expect(hoisted.schedulerMethods.searchSessions).toHaveBeenCalledWith("");
   });
 
-  it("run-skill 转发 skillId + date", async () => {
-    await sendMessage("run-skill", ["rss", "20260708"]);
-    expect(hoisted.schedulerMethods.startSkill).toHaveBeenCalledWith("rss", "20260708");
-  });
-
   it("active-count 返回 scheduler 的根切换保护计数", async () => {
     hoisted.schedulerMethods.activeTaskCount.mockReturnValue(2);
     await sendMessage("active-count");
     expect(hoisted.schedulerMethods.activeTaskCount).toHaveBeenCalled();
     expect(hoisted.posted).toContainEqual({ type: "response", id: "1", result: 2 });
-  });
-
-  it("run-source 转发 sourceId + skillId + input", async () => {
-    await sendMessage("run-source", ["src-1", "rss", { date: "20260708", url: "http://x", name: "n" }]);
-    expect(hoisted.schedulerMethods.startSource).toHaveBeenCalledWith("src-1", "rss", "20260708", "http://x", "n");
   });
 
   it("credential revoke/replace 状态转发到 scheduler", async () => {
@@ -135,11 +113,6 @@ describe("worker dispatch", () => {
   it("cancel 方法转发 runId", async () => {
     await sendMessage("cancel", ["run-1"]);
     expect(hoisted.schedulerMethods.cancelRun).toHaveBeenCalledWith("run-1");
-  });
-
-  it("rollback-turns 转发 sessionId + numTurns(Number 化)", async () => {
-    await sendMessage("rollback-turns", ["sess-1", 3]);
-    expect(hoisted.schedulerMethods.rollbackTurns).toHaveBeenCalledWith("sess-1", 3);
   });
 
   it("prewarm 转发 sessionId(string 时)", async () => {
@@ -201,34 +174,14 @@ describe("worker dispatch", () => {
     expect(hoisted.schedulerMethods.getTurns).toHaveBeenCalledWith("sess-1", {});
   });
 
-  it("context-state 转发 sessionId", async () => {
-    await sendMessage("context-state", ["sess-1"]);
-    expect(hoisted.schedulerMethods.getContextState).toHaveBeenCalledWith("sess-1");
-  });
-
   it("skills 转发", async () => {
     await sendMessage("skills");
     expect(hoisted.schedulerMethods.listSkills).toHaveBeenCalled();
   });
 
-  it("stop-skill 转发 skillId", async () => {
-    await sendMessage("stop-skill", ["rss"]);
-    expect(hoisted.schedulerMethods.stopSkill).toHaveBeenCalledWith("rss");
-  });
-
-  it("stop-source 转发 sourceId", async () => {
-    await sendMessage("stop-source", ["src-1"]);
-    expect(hoisted.schedulerMethods.stopSource).toHaveBeenCalledWith("src-1");
-  });
-
   it("update-session 转发 sessionId + patch", async () => {
     await sendMessage("update-session", ["sess-1", { title: "t" }]);
     expect(hoisted.schedulerMethods.updateSession).toHaveBeenCalledWith("sess-1", { title: "t" });
-  });
-
-  it("delete-session 转发 sessionId", async () => {
-    await sendMessage("delete-session", ["sess-1"]);
-    expect(hoisted.schedulerMethods.deleteSession).toHaveBeenCalledWith("sess-1");
   });
 
   it("fork-session 转发 sessionId + throughRunId(string)", async () => {
@@ -244,33 +197,6 @@ describe("worker dispatch", () => {
   it("resolve-approval 转发 approvalId + decision", async () => {
     await sendMessage("resolve-approval", ["apr-1", "accept"]);
     expect(hoisted.schedulerMethods.resolveApproval).toHaveBeenCalledWith("apr-1", "accept");
-  });
-
-  it("change-set 转发 runId", async () => {
-    await sendMessage("change-set", ["run-1"]);
-    expect(hoisted.schedulerMethods.getChangeSet).toHaveBeenCalledWith("run-1");
-  });
-
-  it("apply-change 转发 runId + patch(string 时)", async () => {
-    await sendMessage("apply-change", ["run-1", "patch-1"]);
-    expect(hoisted.schedulerMethods.applyChange).toHaveBeenCalledWith("run-1", "patch-1");
-  });
-
-  it("apply-change patch 非 string 时传 undefined", async () => {
-    await sendMessage("apply-change", ["run-1", null]);
-    expect(hoisted.schedulerMethods.applyChange).toHaveBeenCalledWith("run-1", undefined);
-  });
-
-  it("revert-change / discard-change 转发 runId + patch", async () => {
-    await sendMessage("revert-change", ["run-1", "p1"]);
-    await sendMessage("discard-change", ["run-1", "p1"]);
-    expect(hoisted.schedulerMethods.revertChange).toHaveBeenCalledWith("run-1", "p1");
-    expect(hoisted.schedulerMethods.discardChange).toHaveBeenCalledWith("run-1", "p1");
-  });
-
-  it("discard-run 转发 runId", async () => {
-    await sendMessage("discard-run", ["run-1"]);
-    expect(hoisted.schedulerMethods.discardRun).toHaveBeenCalledWith("run-1");
   });
 
   it("成功 response 带正确的 id", async () => {

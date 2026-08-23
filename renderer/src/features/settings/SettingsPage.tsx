@@ -1,31 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, HardDrive, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, InstalledSkillView, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
-import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
   AiProvidersSettingsSection,
   BrowserSettingsSection,
-  DataRetentionSettingsSection,
   PathSettingsSection,
   PermissionSettingsSection,
   ProviderSettingsSection,
-  RuntimeSettingsSection,
   SharedPythonRuntimeSection,
   SkillSettingsSection,
   WorkflowSettingsSection
 } from "./settings-sections";
 
 const m = messages;
-const BLUE_ACCENT = "#2563eb";
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "storage" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -45,7 +41,6 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
   { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
-  { id: "storage", group: "data", icon: HardDrive, ...m.settings.navigation.sections.storage },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ];
 
@@ -59,17 +54,12 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [saving, setSaving] = useState(false);
   const [browserStatus, setBrowserStatus] = useState<BrowserAutomationStatus | null>(null);
   const [mcpServers, setMcpServers] = useState<McpServerDefinition[]>([]);
-  const [runtimePacks, setRuntimePacks] = useState<RuntimePackReadiness[]>([]);
-  const [runtimeDownloads, setRuntimeDownloads] = useState<RuntimePackDownloadJob[]>([]);
-  const [runtimeDownloadCandidate, setRuntimeDownloadCandidate] = useState<RuntimePackDownloadDescriptor | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [sharedPythonRuntime, setSharedPythonRuntime] = useState<SharedPythonRuntimeStatus | null>(null);
   const [providersYaml, setProvidersYaml] = useState<ProvidersYamlView | null>(null);
   const [providersYamlBusy, setProvidersYamlBusy] = useState(false);
   const [savingBrowserToken, setSavingBrowserToken] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
-  const [installedSkills, setInstalledSkills] = useState<InstalledSkillView[]>([]);
-  const [skillPackageBusy, setSkillPackageBusy] = useState<"uninstall" | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -110,27 +100,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   }, [loadMcpServers]);
 
   useEffect(() => { void loadPrefs(); }, [loadPrefs]);
-
-  const loadSkillPackages = useCallback(async () => {
-    try {
-      setInstalledSkills(await window.openmind.listInstalledSkills());
-    } catch {
-      setInstalledSkills([]);
-    }
-  }, []);
-
-  const loadRuntimePacks = useCallback(async () => {
-    try {
-      setRuntimePacks(await window.openmind.listRuntimePacks());
-    } catch {
-      setRuntimePacks([]);
-    }
-    try {
-      if (window.openmind.listRuntimePackDownloads) setRuntimeDownloads(await window.openmind.listRuntimePackDownloads());
-    } catch {
-      setRuntimeDownloads([]);
-    }
-  }, []);
 
   const loadSharedPythonRuntime = useCallback(async () => {
     try { setSharedPythonRuntime(await window.openmind.getSharedPythonRuntimeStatus()); }
@@ -181,23 +150,11 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   }, [ai, loadSharedPythonRuntime, runtimeBusy]);
 
-  useEffect(() => {
-    if (!window.openmind.onRuntimePackDownloadEvent) return;
-    return window.openmind.onRuntimePackDownloadEvent((job) => {
-      setRuntimeDownloads((current) => {
-        const next = current.filter((item) => item.id !== job.id);
-        next.push(job);
-        return next.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-      });
-      if (job.status === "installed") void loadRuntimePacks();
-    });
-  }, [loadRuntimePacks]);
-
   const save = useCallback((patch: Partial<UserPreferences>): Promise<void> => {
     pendingSaves.current += 1;
     setSaving(true);
     const operation = saveQueue.current.then(async () => {
-      const next = await window.openmind.updatePreferences({ ...patch, accentColor: BLUE_ACCENT });
+      const next = await window.openmind.updatePreferences(patch);
       setPrefs(next);
       applyTheme(next);
       if ("browserAutomationEnabled" in patch || "browserReuseExistingTabs" in patch || "browserEvidenceDir" in patch) {
@@ -283,190 +240,11 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (refreshingSkills) return;
     setRefreshingSkills(true);
     try {
-      const [next, servers] = await Promise.all([ai.refreshSkills(), loadMcpServers(), loadSkillPackages()]);
+      const [next, servers] = await Promise.all([ai.refreshSkills(), loadMcpServers()]);
       if (next) ai.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
       else ai.notify(m.settings.skills.scanFailed, "error");
     } finally {
       setRefreshingSkills(false);
-    }
-  };
-
-  const uninstallSkillPackage = async (key: string, digest: string) => {
-    if (skillPackageBusy || !window.openmind.uninstallSkillPackage || !window.confirm(m.settings.skills.packageUninstallConfirm)) return;
-    setSkillPackageBusy("uninstall");
-    try {
-      const removed = await window.openmind.uninstallSkillPackage(key, digest);
-      await loadSkillPackages();
-      if (removed) notifyInstalledSkillCatalogChanged();
-      await onRepo();
-      ai.notify(m.settings.skills.packageActionComplete, "success");
-    } catch {
-      ai.notify(m.settings.skills.packageUninstallFailed, "error");
-    } finally {
-      setSkillPackageBusy(null);
-    }
-  };
-
-  const refreshRuntimePacks = async () => {
-    if (runtimeBusy) return;
-    setRuntimeBusy("refresh");
-    try {
-      await loadRuntimePacks();
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const importRuntimePack = async () => {
-    if (runtimeBusy) return;
-    setRuntimeBusy("import");
-    try {
-      const imported = await window.openmind.importRuntimePack();
-      if (!imported) return;
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 已导入为候选版本", "success");
-    } catch {
-      ai.notify("Runtime Pack 导入失败：签名、版本或内容校验未通过", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const selectRuntimePackDownloadManifest = async () => {
-    if (runtimeBusy || !window.openmind.selectRuntimePackDownloadManifest) return;
-    setRuntimeBusy("download-select");
-    try {
-      const candidate = await window.openmind.selectRuntimePackDownloadManifest();
-      if (candidate) setRuntimeDownloadCandidate(candidate);
-    } catch {
-      ai.notify("Runtime Pack Manifest 无效，或未声明 HTTPS 下载地址", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const startRuntimePackDownload = async () => {
-    if (runtimeBusy || !runtimeDownloadCandidate || !window.openmind.startRuntimePackDownload) return;
-    setRuntimeBusy("download-start");
-    try {
-      await window.openmind.startRuntimePackDownload(runtimeDownloadCandidate.metadata);
-      setRuntimeDownloadCandidate(null);
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 下载已开始，可在当前页面暂停或继续", "success");
-    } catch {
-      ai.notify("Runtime Pack 下载启动失败：请检查 Manifest 和 HTTPS 地址", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const pauseRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.openmind.pauseRuntimePackDownload) return;
-    setRuntimeBusy(`download-pause:${job.id}`);
-    try {
-      await window.openmind.pauseRuntimePackDownload(job.id);
-      await loadRuntimePacks();
-    } catch {
-      ai.notify("Runtime Pack 下载暂停失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const resumeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.openmind.resumeRuntimePackDownload) return;
-    setRuntimeBusy(`download-resume:${job.id}`);
-    try {
-      await window.openmind.resumeRuntimePackDownload(job.id);
-      await loadRuntimePacks();
-    } catch {
-      ai.notify("Runtime Pack 下载继续失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const removeRuntimePackDownload = async (job: RuntimePackDownloadJob) => {
-    if (runtimeBusy || !window.openmind.removeRuntimePackDownload || !window.confirm(`确认删除 ${job.metadata.packId} ${job.metadata.version} 的下载记录和未完成文件？`)) return;
-    setRuntimeBusy(`download-remove:${job.id}`);
-    try {
-      await window.openmind.removeRuntimePackDownload(job.id);
-      await loadRuntimePacks();
-    } catch {
-      ai.notify("Runtime Pack 下载记录删除失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const repairRuntimePack = async (pack: RuntimePackReadiness) => {
-    if (runtimeBusy) return;
-    setRuntimeBusy(`repair:${pack.digest}`);
-    try {
-      const repaired = await window.openmind.repairRuntimePackFromFile(pack.packId, pack.target, pack.digest);
-      if (!repaired) return;
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 已修复，请重新检查 readiness", "success");
-    } catch {
-      ai.notify("Runtime Pack 修复失败：请选择匹配的签名 Manifest 和包文件", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const activateRuntimePack = async (pack: RuntimePackReadiness) => {
-    if (runtimeBusy) return;
-    setRuntimeBusy(`activate:${pack.digest}`);
-    try {
-      await window.openmind.activateRuntimePack(pack.packId, pack.target, pack.digest);
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 已激活", "success");
-    } catch {
-      ai.notify("Runtime Pack 激活失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const rollbackRuntimePack = async (pack: RuntimePackReadiness) => {
-    if (runtimeBusy) return;
-    setRuntimeBusy(`rollback:${pack.packId}:${pack.target}`);
-    try {
-      await window.openmind.rollbackRuntimePack(pack.packId, pack.target);
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 已回滚", "success");
-    } catch {
-      ai.notify("Runtime Pack 回滚失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const removeRuntimePack = async (pack: RuntimePackReadiness) => {
-    if (runtimeBusy || !window.confirm(`确认移除 ${pack.packId} ${pack.version}？`)) return;
-    setRuntimeBusy(`remove:${pack.digest}`);
-    try {
-      await window.openmind.removeRuntimePack(pack.packId, pack.target, pack.digest);
-      await loadRuntimePacks();
-      ai.notify("Runtime Pack 已移除", "success");
-    } catch {
-      ai.notify("Runtime Pack 移除失败", "error");
-    } finally {
-      setRuntimeBusy(null);
-    }
-  };
-
-  const garbageCollectRuntimePacks = async () => {
-    if (runtimeBusy) return;
-    setRuntimeBusy("gc");
-    try {
-      await window.openmind.garbageCollectRuntimePacks();
-      await loadRuntimePacks();
-      ai.notify("未激活且未使用的 Runtime Pack 已清理", "success");
-    } catch {
-      ai.notify("Runtime Pack 清理失败：当前状态可能正在被 Run 使用", "error");
-    } finally {
-      setRuntimeBusy(null);
     }
   };
 
@@ -580,11 +358,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={ai.refreshSkills} /> : null}
-              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} installedSkills={installedSkills} packageBusy={skillPackageBusy} onUninstallPackage={(key, digest) => void uninstallSkillPackage(key, digest)} /> : null}
+              {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
-              {activeSection === "storage" ? <DataRetentionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
             </div>
           )}

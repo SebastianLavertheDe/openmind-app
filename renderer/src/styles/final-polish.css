@@ -16,8 +16,6 @@
 .ui-tabs button,
 .workspace-card,
 .item-list button,
-.topic-list button,
-.dashboard-topic-list button,
 .rule-item-shell,
 .rule-pill,
 .status-badge,
@@ -56,34 +54,14 @@ button,
   color: var(--text);
 }
 
-.brief-reader {
-  width: min(100%, 70ch);
-  font-size: var(--fs-body);
-  line-height: 1.75;
-}
-
-.brief-reader.reader-markdown,
-.brief-reader.reader-body {
-  width: 100%;
-  max-width: none;
-}
-
-.brief-reader :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, table, pre, hr) {
-  max-width: none;
-}
-
-.ui-page-header,
-.dashboard-head,
-.brief-head {
+.ui-page-header {
   animation: page-head-rise 180ms ease-out both;
 }
 
 .feature-page > :not(.ui-page-header),
 .ai-workbench,
 .creative-workspace,
-.automation-layout,
-.dashboard-main-grid,
-.brief-md {
+.automation-layout {
   animation: pane-fade 180ms ease-out both;
 }
 
@@ -344,8 +322,6 @@ body :is(.eyebrow, .session-list-heading, .message-meta, .run-boundary, .tool-ev
 .session-filters button:active:not(:disabled),
 .document-tabs button:active:not(:disabled),
 .ui-tabs button:active:not(:disabled),
-.topic-list button:active:not(:disabled),
-.dashboard-topic-list button:active:not(:disabled),
 .item-list button:active:not(:disabled) {
   transform: none;
 }

@@ -718,16 +718,6 @@ export function updateCreativeManifest(projectDir: string, patch: ManifestPatch)
   return getCreativeProject(relativeContentPath(absDir));
 }
 
-export function bindCreativeSession(projectDir: string, sessionId: string): CreativeProjectFullDetail {
-  const absDir = ensureInsideRepo(projectDir);
-  const manifest = readJson<DiskManifest>(path.join(absDir, "manifest.json"), {});
-  const ids = Array.isArray(manifest.aiSessionIds) ? manifest.aiSessionIds : [];
-  if (!ids.includes(sessionId)) ids.push(sessionId);
-  manifest.aiSessionIds = ids;
-  manifest.updated_at = new Date().toISOString();
-  persistManifest(absDir, manifest, { action: "session_bound", stage: (manifest.stage as string) || stageFromProjectDir(projectDir), detail: messages.creativeUi.releaseDetail.sessionBound(sessionId) });
-  return getCreativeProject(relativeContentPath(absDir));
-}
 
 export function updateCreativeTopicState(date: string, topicId: string, patch: TopicStatePatch): TopicsPayload {
   const statePath = appPrivateStatePath("creative-topic-state.json");
@@ -739,38 +729,7 @@ export function updateCreativeTopicState(date: string, topicId: string, patch: T
   return getCreativeTopics(day);
 }
 
-export function reviewCreativeProject(projectDir: string): CreativeProjectFullDetail {
-  const absDir = ensureInsideRepo(projectDir);
-  const detail = getCreativeProject(projectDir);
-  const preferred = ["draft.md", "wechat-draft.md", "xiaohongshu-draft.md", "twitter-thread.md"].find((file) => detail.files?.[file]) || Object.keys(detail.files || {}).find((file) => file !== "topic-brief.md");
-  if (!preferred) throw new Error(messages.errors.creative.noDraftForReview);
-  const content = detail.files[preferred] || "";
-  const report = buildReviewReport(content);
-  writeJsonSafe(path.join(absDir, "review-report.json"), report);
-  const manifest = readJson<DiskManifest>(path.join(absDir, "manifest.json"), {});
-  manifest.reviewReport = report;
-  manifest.review = report.status;
-  manifest.updated_at = new Date().toISOString();
-  persistManifest(absDir, manifest, { action: "review_generated", stage: stageFromProjectDir(projectDir), file: preferred, status: report.status, detail: messages.creativeUi.releaseDetail.reviewScore(report.score) });
-  return getCreativeProject(relativeContentPath(absDir));
-}
 
-export function setCreativeReviewStatus(projectDir: string, status: "pending" | "changes-requested" | "approved"): CreativeProjectFullDetail {
-  if (!["pending", "changes-requested", "approved"].includes(status)) throw new Error(messages.errors.creative.invalidReviewStatus);
-  const absDir = ensureInsideRepo(projectDir);
-  const reportPath = path.join(absDir, "review-report.json");
-  const report = readJson<CreativeReviewReport | null>(reportPath, null);
-  if (!report) throw new Error(messages.errors.creative.reviewReportRequired);
-  report.status = status;
-  report.updatedAt = new Date().toISOString();
-  writeJsonSafe(reportPath, report);
-  const manifest = readJson<DiskManifest>(path.join(absDir, "manifest.json"), {});
-  manifest.reviewReport = report;
-  manifest.review = status;
-  manifest.updated_at = new Date().toISOString();
-  persistManifest(absDir, manifest, { action: "review_status_changed", stage: stageFromProjectDir(projectDir), status, detail: messages.creativeUi.releaseDetail.reviewStatus(status) });
-  return getCreativeProject(relativeContentPath(absDir));
-}
 
 export function readCreativeVersion(versionPath: string): { path: string; content: string } {
   const absPath = ensureInsideRepo(versionPath);
@@ -842,31 +801,7 @@ export function archiveCreativeProject(projectDir: string): CreativeProjectFullD
   return getCreativeProject(relativeContentPath(target));
 }
 
-export function restoreCreativeProject(projectDir: string): CreativeProjectFullDetail {
-  const absDir = ensureInsideRepo(projectDir);
-  if (stageFromProjectDir(projectDir) !== "archived") throw new Error(messages.errors.creative.onlyArchivedRestorable);
-  const targetRoot = ensureInsideRepo(path.join(...CREATIVE_WORKSPACE_SEGMENTS, STAGE_FOLDERS.drafting));
-  fs.mkdirSync(targetRoot, { recursive: true });
-  let target = path.join(targetRoot, path.basename(absDir));
-  if (fs.existsSync(target)) target = path.join(targetRoot, `${path.basename(absDir)}-${Date.now()}`);
-  moveDirectory(absDir, target);
-  const manifest = readJson<DiskManifest>(path.join(target, "manifest.json"), {});
-  manifest.stage = "drafting";
-  manifest.status = "drafting_ready";
-  manifest.updated_at = new Date().toISOString();
-  writeJsonSafe(path.join(target, "manifest.json"), manifest);
-  appendReleaseLog(target, { action: "stage_changed", stage: "drafting", detail: messages.creativeUi.releaseDetail.restoredFromArchive });
-  return getCreativeProject(relativeContentPath(target));
-}
 
-export function deleteCreativeProject(projectDir: string): true {
-  const absDir = ensureInsideRepo(projectDir);
-  const projectRoot = ensureInsideRepo(path.join(...CREATIVE_WORKSPACE_SEGMENTS));
-  if (!isInside(projectRoot, absDir) || path.resolve(projectRoot) === path.resolve(absDir)) throw new Error(messages.errors.creative.deleteScopeOnly);
-  fs.rmSync(absDir, { recursive: true, force: false });
-  invalidateCreativeProjectsCache();
-  return true;
-}
 
 function appendReleaseLog(projectDir: string, event: ReleaseEventInput): void {
   const filePath = path.join(projectDir, "release-log.json");
@@ -896,26 +831,6 @@ function readCreativeTopicState(): TopicStateStore {
   return readJson<TopicStateStore>(appPrivateStatePath("creative-topic-state.json"), {});
 }
 
-export function addManualTopic(date: string, input: { title?: string; body?: string; score?: number; platform?: string } | undefined): CreativeTopicsPayload {
-  const day = String(date || "").replace(/\D/g, "").slice(0, 8);
-  if (!/^\d{8}$/.test(day)) throw new Error(messages.errors.creative.invalidTopicDate);
-  const title = String(input?.title || "").trim();
-  if (!title) throw new Error(messages.errors.creative.emptyTopicTitle);
-  const store = readManualTopics();
-  store[day] = Array.isArray(store[day]) ? store[day] : [];
-  if (store[day].some((entry) => entry.title === title)) throw new Error(messages.errors.creative.duplicateTopic);
-  store[day].push({
-    title,
-    body: String(input?.body || ""),
-    score: Number.isFinite(input?.score) ? Math.max(0, Math.min(100, input!.score!)) : 0,
-    section: "manual",
-    platform: input?.platform || messages.common.unspecified,
-    createdAt: new Date().toISOString()
-  });
-  writeJsonSafe(appPrivateStatePath("creative-manual-topics.json"), store);
-  return getCreativeTopics(day);
-}
-
 function createStageVersions(absDir: string, fromStage: string, toStage: string): void {
   for (const file of fs.readdirSync(absDir).filter((name) => name.endsWith(".md"))) {
     createCreativeVersion(relativeContentPath(absDir), file, fs.readFileSync(path.join(absDir, file), "utf8"), messages.creative.version.stageChange(fromStage, toStage));
@@ -933,41 +848,6 @@ function publishChecklistComplete(absDir: string, publish: PublishConfig): boole
     Array.isArray(publish.tags) && publish.tags.some((tag) => String(tag).trim()) &&
     String(publish.coverPath || "").trim()
   );
-}
-
-// 审稿规则阈值与扣分。
-const REVIEW_THRESHOLDS = { minBodyChars: 800, maxLineLength: 240, maxTitleLength: 42 };
-const REVIEW_PENALTY: Record<string, number> = { error: 35, warning: 18, info: 8 };
-const REVIEW_DIMENSIONS = ["structure", "accuracy", "readability", "platform", "seo"];
-
-function scoreDimension(issues: CreativeReviewIssue[], dimension: string): number {
-  return Math.max(0, 100 - issues.filter((issue) => issue.dimension === dimension).reduce(issuePenalty, 0));
-}
-
-function buildReviewReport(content: string): CreativeReviewReport {
-  const now = new Date().toISOString();
-  const lines = content.split(/\r?\n/);
-  const issues: CreativeReviewIssue[] = [];
-  const add = (dimension: CreativeReviewIssue["dimension"], severity: CreativeReviewIssue["severity"], title: string, detail: string, line: number | null = null): void => {
-    issues.push({ id: crypto.randomUUID(), dimension, severity, title, detail, line });
-  };
-  const h = messages.creativeUi.review.heuristics;
-  if (content.trim().length < REVIEW_THRESHOLDS.minBodyChars) add("readability", "warning", h.bodyTooShort.title, h.bodyTooShort.detail(content.trim().length), 1);
-  if (!/^##\s+/m.test(content)) add("structure", "error", h.missingStructure.title, h.missingStructure.detail, 1);
-  if (!/https?:\/\//.test(content)) add("accuracy", "warning", h.missingSource.title, h.missingSource.detail, null);
-  const longLine = lines.findIndex((line) => line.length > REVIEW_THRESHOLDS.maxLineLength);
-  if (longLine >= 0) add("readability", "info", h.longParagraph.title, h.longParagraph.detail, longLine + 1);
-  const title = lines.find((line) => /^#\s+/.test(line))?.replace(/^#\s+/, "").trim() || "";
-  if (!title) add("seo", "error", h.missingTitle.title, h.missingTitle.detail, 1);
-  else if (title.length > REVIEW_THRESHOLDS.maxTitleLength) add("platform", "warning", h.titleTooLong.title, h.titleTooLong.detail(title.length), 1);
-  if (!/[\u4e00-\u9fffA-Za-z0-9][。！？.!?]\s*$/.test(content.trim())) add("readability", "info", h.weakEnding.title, h.weakEnding.detail, lines.length);
-  const dimensions = Object.fromEntries(REVIEW_DIMENSIONS.map((dimension) => [dimension, scoreDimension(issues, dimension)]));
-  const score = Math.round(Object.values(dimensions).reduce((sum, value) => sum + value, 0) / Object.keys(dimensions).length);
-  return { score, status: issues.some((issue) => issue.severity === "error") ? "changes-requested" : "pending", dimensions, issues, createdAt: now, updatedAt: now };
-}
-
-function issuePenalty(sum: number, issue: CreativeReviewIssue): number {
-  return sum + (REVIEW_PENALTY[issue.severity] ?? REVIEW_PENALTY.info);
 }
 
 function stageProgress(stage: string): number {

@@ -5,7 +5,7 @@ import { z, type ZodType } from "zod";
 import { writeJsonAtomic as writeJsonAtomicImpl } from "../lib/fs-utils";
 import type * as ContentLib from "../lib/content";
 import type * as CreativeLib from "../lib/creative";
-import type { ContentItem, ContentQuery, ContentState } from "../../shared/contracts";
+import { ContentKindSchema, type ContentKind } from "../../shared/contracts";
 import { LEGACY_KIND_MATCHERS } from "../../shared/content-kinds";
 import { messages } from "../../shared/messages";
 
@@ -26,12 +26,26 @@ export type LegacyContentEntry = {
 
 export type LegacyCreativeProject = { id?: string; dir: string; topic: string; stage: string; completion: number; date?: string };
 
-export type StoredContentState = Record<string, ContentState>;
+export const IndexedContentSchema = z.object({
+  schemaVersion: z.number().default(1),
+  id: z.string(),
+  path: z.string(),
+  name: z.string(),
+  title: z.string(),
+  kind: ContentKindSchema,
+  source: z.string(),
+  author: z.string().nullable().default(null),
+  originalUrl: z.string().nullable().default(null),
+  publishedAt: z.string().nullable().default(null),
+  capturedAt: z.string(),
+  modifiedAt: z.string(),
+  size: z.number().nonnegative(),
+  excerpt: z.string().default(""),
+  date: z.string().regex(/^\d{8}$/),
+  searchText: z.string()
+});
 
-export type IndexedContent = Omit<ContentItem, "state"> & {
-  date: string;
-  searchText: string;
-};
+export type IndexedContent = z.infer<typeof IndexedContentSchema>;
 
 export type ContentIndexFile = {
   schemaVersion: number;
@@ -68,14 +82,6 @@ export type SourceSettings = {
   disabledUrls: string[];
 };
 
-export const CONTENT_STATE_DEFAULT: ContentState = {
-  read: false,
-  starred: false,
-  score: null,
-  tags: [],
-  lastViewedAt: null
-};
-
 export function parseMetadata(raw: string, fallbackName: string): {
   title: string;
   source: string;
@@ -94,7 +100,7 @@ export function parseMetadata(raw: string, fallbackName: string): {
   return { title, source, author, url, publishedAt, excerpt: firstParagraph(stripMetadata(raw)).slice(0, 280) };
 }
 
-export function normalizeContentKind(kind: string | undefined, relativePath: string): ContentItem["kind"] {
+export function normalizeContentKind(kind: string | undefined, relativePath: string): ContentKind {
   const normalized = String(kind || "").toLocaleLowerCase();
   for (const { includes, kind: mapped } of LEGACY_KIND_MATCHERS) {
     if (normalized.includes(includes)) return mapped;
@@ -104,15 +110,6 @@ export function normalizeContentKind(kind: string | undefined, relativePath: str
 }
 
 export { contentKindLabel } from "../../shared/display-labels";
-export { contentSorter } from "../../shared/content-sort";
-
-export function normalizeTags(tags: string[]): string[] {
-  return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].slice(0, 30);
-}
-
-export function stateForRecord(record: IndexedContent, state: StoredContentState): ContentState | undefined {
-  return state[record.id] || state[record.path];
-}
 
 export function stableContentId(
   entryPath: string,
@@ -167,20 +164,6 @@ export function stripMetadata(markdown: string): string {
 
 export function countMarkdownLinks(markdown: string): number {
   return [...markdown.matchAll(/\[[^\]]+\]\([^)]+\)/g)].length;
-}
-
-export function relatedContent(title: string, body: string, items: ContentItem[]): ContentItem[] {
-  const terms = [...new Set(`${title} ${firstParagraph(body)}`.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((term) => term.length >= 2))].slice(0, 20);
-  if (!terms.length) return [];
-  return items
-    .map((item) => {
-      const haystack = `${item.title} ${item.excerpt} ${item.source}`.toLocaleLowerCase();
-      const score = terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
-      return { item, score };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((left, right) => right.score - left.score)
-    .map((entry) => entry.item);
 }
 
 export function extractHeadings(markdown: string): string[] {

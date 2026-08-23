@@ -144,12 +144,12 @@ export function GlobalSearch({
 
   const choose = async (result: GlobalSearchResult) => {
     if (result.kind === "content") {
-      navigate("sources", { date: result.date || undefined, contentPath: result.path || undefined });
+      navigate("sources", { date: result.date || undefined });
     } else if (result.kind === "project") {
       navigate("creative", { projectDir: result.targetId });
     } else if (result.kind === "session") {
       await ai.setActiveSession(result.targetId);
-      navigate("ai", { sessionId: result.targetId });
+      navigate("ai");
     } else {
       navigate("automation", { skillId: result.targetId });
     }

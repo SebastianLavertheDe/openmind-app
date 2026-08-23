@@ -136,11 +136,6 @@ export function __resetAppPathsForTest(): void {
   cached = null;
 }
 
-/** Test-only: force a specific AppPaths instance. */
-export function __setAppPathsForTest(paths: AppPaths): void {
-  cached = paths;
-}
-
 /**
  * Ensure every directory in AppPaths exists. Idempotent. Null entries (skill
  * store without a bound openmind root) are skipped — the store is created by

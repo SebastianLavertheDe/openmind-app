@@ -51,6 +51,7 @@ export class AppStateBackupService {
       { name: "runs", root: paths.runs }
     ];
     fs.mkdirSync(paths.staging, { recursive: true });
+    this.recoverInterruptedTransactions();
   }
 
   exportToFile(destinationPath: string): AppStateBackupReport {
@@ -299,6 +300,62 @@ export class AppStateBackupService {
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
         fs.copyFileSync(sourcePath, targetPath);
       });
+    }
+  }
+
+  /**
+   * Finish cleanup for an interrupted restore before any caller reads app
+   * state. A transaction in `committing` may already have cleared or replaced
+   * part of the live scopes, so it must roll back from the verified snapshot.
+   */
+  private recoverInterruptedTransactions(): void {
+    for (const entry of fs.readdirSync(this.paths.staging, { withFileTypes: true })) {
+      if (!entry.name.startsWith(TRANSACTION_PREFIX)) continue;
+      const transaction = path.join(this.paths.staging, entry.name);
+      const stat = fs.lstatSync(transaction);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        throw new Error(`应用状态恢复事务不是普通目录：${entry.name}`);
+      }
+      const markerPath = path.join(transaction, "marker.json");
+      if (!fs.existsSync(markerPath)) continue;
+      const marker = this.readRestoreMarker(markerPath);
+      if (marker.phase === "committing") {
+        const previousRoot = path.join(transaction, "previous");
+        this.validateSnapshot(previousRoot);
+        this.restoreSnapshot(previousRoot);
+      }
+      fs.rmSync(transaction, { recursive: true, force: true });
+    }
+  }
+
+  private readRestoreMarker(markerPath: string): RestoreMarker {
+    let value: unknown;
+    try {
+      value = JSON.parse(fs.readFileSync(markerPath, "utf8"));
+    } catch (error) {
+      throw new Error(`应用状态恢复事务标记无效：${formatError(error)}`);
+    }
+    const marker = value as Partial<RestoreMarker> | null;
+    if (!marker
+      || marker.kind !== APP_STATE_BACKUP_KIND
+      || marker.schemaVersion !== APP_STATE_BACKUP_SCHEMA_VERSION
+      || !["prepared", "committing", "committed"].includes(String(marker.phase))) {
+      throw new Error("应用状态恢复事务标记无效。 ");
+    }
+    return marker as RestoreMarker;
+  }
+
+  /** Validate the whole rollback tree before clearing any live state. */
+  private validateSnapshot(previousRoot: string): void {
+    if (!fs.existsSync(previousRoot)) throw new Error("应用状态恢复事务缺少回滚快照。 ");
+    const rootStat = fs.lstatSync(previousRoot);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("应用状态回滚快照不是普通目录。 ");
+    const allowedScopes = new Set(this.scopes.map((scope) => scope.name));
+    for (const entry of fs.readdirSync(previousRoot, { withFileTypes: true })) {
+      if (!allowedScopes.has(entry.name as BackupScopeName) || !entry.isDirectory() || entry.isSymbolicLink()) {
+        throw new Error(`应用状态回滚快照包含未授权条目：${entry.name}`);
+      }
+      this.walkFiles(path.join(previousRoot, entry.name), () => undefined);
     }
   }
 

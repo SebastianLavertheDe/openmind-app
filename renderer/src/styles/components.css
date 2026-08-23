@@ -732,10 +732,7 @@
 
 .ui-page-actions button,
 .workspace-card header button,
-.reader-actions button,
-.content-insights button,
-.source-toolbar button,
-.project-detail-card header button {
+.reader-actions button {
   min-height: 33px;
   display: inline-flex;
   align-items: center;
@@ -750,9 +747,7 @@
 
 .ui-page-actions button:hover,
 .workspace-card header button:hover,
-.reader-actions button:hover,
-.content-insights button:hover,
-.project-detail-card header button:hover {
+.reader-actions button:hover {
   border-color: var(--border-strong);
   color: var(--text);
 }
@@ -1201,4 +1196,27 @@ button.ui-metric-card:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-tooltip { animation: none; }
+}
+.workspace-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.workspace-card > header {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace-card > header h2 {
+  margin: 2px 0 0;
+  font-size: 15px;
 }

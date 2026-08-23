@@ -98,11 +98,15 @@ try {
   const schedulerSource = ["scheduler.ts", "scheduler-execution.ts"]
     .map((file) => fs.readFileSync(path.join(appRoot, "electron", "ai", file), "utf8"))
     .join("\n");
-  const legacyChangeSource = fs.readFileSync(path.join(appRoot, "electron", "ai", "workspace-manager.ts"), "utf8");
+  const aiSourceRoot = path.join(appRoot, "electron", "ai");
+  const aiSources = fs.readdirSync(aiSourceRoot, { recursive: true })
+    .filter((file) => typeof file === "string" && file.endsWith(".ts") && !file.endsWith(".test.ts"))
+    .map((file) => fs.readFileSync(path.join(aiSourceRoot, file), "utf8"))
+    .join("\n");
   assert(schedulerSource.includes("const directCwd = resolveCwd"), "AI runs are not routed to the configured project directory");
   assert(!schedulerSource.includes(".create(run)"), "AI runs must not create isolated workspaces");
   assert(!schedulerSource.includes(".collect(this.store.getRun"), "AI runs must not collect isolated workspace changes");
-  assert(!legacyChangeSource.includes("git worktree add"), "Desktop app must not create Git worktrees");
+  assert(!aiSources.includes("git worktree add"), "Desktop app must not create Git worktrees");
 
   console.log(
     `Desktop integration smoke passed with isolated fixture: ${overview.metrics.articles} articles, ${overview.metrics.posts} posts, ${overview.metrics.summaries} summary.`

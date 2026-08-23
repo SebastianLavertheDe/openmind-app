@@ -24,28 +24,6 @@ export function PageHeader({
   );
 }
 
-export function Toolbar({ children, label = m.designSystem.toolbar }: { children: ReactNode; label?: string }) {
-  return <div className="ui-toolbar" role="toolbar" aria-label={label}>{children}</div>;
-}
-
-export function FilterBar({ children, label = m.designSystem.filterBar }: { children: ReactNode; label?: string }) {
-  return <div className="ui-filter-bar" role="group" aria-label={label}>{children}</div>;
-}
-
-export function MasterDetailLayout({
-  master,
-  detail,
-  inspector,
-  className = ""
-}: {
-  master: ReactNode;
-  detail: ReactNode;
-  inspector?: ReactNode;
-  className?: string;
-}) {
-  return <div className={`ui-master-detail ${inspector ? "with-inspector" : ""} ${className}`}>{master}{detail}{inspector}</div>;
-}
-
 export function ResizablePane({
   children,
   width,

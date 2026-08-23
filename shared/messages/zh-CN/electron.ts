@@ -1,7 +1,6 @@
 /** Electron 主进程 / product 层用户可见错误、对话框、诊断文案。 */
 export const electronMessages = {
   errors: {
-    unregisteredSkill: (skillId: string) => `未注册的 OpenMind skill：${skillId}`,
     repo: {
       selectValidFirst: "请先在设置中选择有效的 openmind 保存目录。",
       invalidDirectory: "该目录不存在，或不是可读写的目录。",
@@ -15,9 +14,6 @@ export const electronMessages = {
       httpOnly: "只允许打开 HTTP 或 HTTPS 链接。"
     },
     source: {
-      notFound: "找不到数据源。",
-      disabled: "该数据源已停用，请先启用。",
-      noSkill: "该数据源没有可执行的 Skill。",
       updateNotFound: "找不到要更新的数据源。",
       refreshFailed: "数据源已保存，但刷新后无法读取。",
       invalidRssUrl: "RSS 地址必须是有效 URL。",
@@ -35,7 +31,6 @@ export const electronMessages = {
     },
     preferences: {
       invalidSetting: (key: string) => `设置项 ${key} 无效。`,
-      invalidAccentColor: "设置项 accentColor 无效。",
       invalidUserTags: "设置项 userTags 无效。"
     },
     creative: {
@@ -48,20 +43,11 @@ export const electronMessages = {
       emptyTopicTitle: "选题标题不能为空。",
       invalidProjectDir: "创作项目目录无效。",
       truncatedSaveBlocked: (file: string) => `${file} 在磁盘上超过 512KB，编辑器加载的是截断内容。直接保存会丢失数据；请在外部编辑器修改后再保存。`,
-      noDraftForReview: "项目还没有可审核的草稿文件。",
-      invalidReviewStatus: "审核状态无效。",
-      reviewReportRequired: "请先生成审核报告。",
       invalidVersionPath: "版本路径无效。",
-      onlyArchivedRestorable: "只有归档项目才能恢复。",
-      deleteScopeOnly: "只允许删除文稿库中的项目目录。",
-      invalidTopicDate: "选题日期无效。",
-      duplicateTopic: "该选题已存在，无需重复添加。",
       markdownOnly: "只允许保存项目根目录下的 Markdown 文件。"
     },
     skill: {
-      sourceDisabled: (name: string) => `数据源已停用：${name}`,
       alreadyRunning: (skillId: string) => `Skill 正在运行：${skillId}`,
-      cwdMissing: (cwd: string) => `Skill 工作目录不存在：${cwd}`,
       stopped: (name: string) => `Skill 已停止：${name}`,
       failed: (code: number | null, name: string, detail: string) => `Skill 执行失败（退出码 ${code ?? "?"}）：${name}\n${detail}`
     },
@@ -99,7 +85,6 @@ export const electronMessages = {
   },
 
   brief: {
-    unnamedTopic: (index: number) => `选题 ${index + 1}`,
     recommendation: (title: string) => `围绕"${title}"整理资料并进入创作阶段。`
   },
 

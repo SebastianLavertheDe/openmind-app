@@ -270,16 +270,6 @@ export class SessionStore {
     return migrated;
   }
 
-  deleteSession(id: string): boolean {
-    const target = this.sessionRoot(id);
-    if (!fs.existsSync(target)) return false;
-    fs.rmSync(target, { recursive: true, force: true });
-    this.sessions.delete(id);
-    this.searchIndex.delete(id);
-    this.discardPendingRollout(this.rolloutFile(id));
-    for (const [runId, run] of this.runs) if (run.sessionId === id) this.runs.delete(runId);
-    return true;
-  }
 
   createRun(session: AiSession, prompt: string, contexts: AiRun["contexts"], id?: string): AiRun {
     const now = new Date().toISOString();
@@ -375,19 +365,6 @@ export class SessionStore {
     this.writeSearchIndex(run.sessionId);
   }
 
-  async rollbackTurns(sessionId: string, numTurns: number): Promise<string[]> {
-    const count = Math.max(0, Math.trunc(numTurns));
-    if (!count) return [];
-    const turns = this.reconstruct(sessionId).turns;
-    const removedIds = turns.slice(Math.max(0, turns.length - count)).map((turn) => turn.id);
-    await this.appendRolloutItems(sessionId, [rollbackItem(count)]);
-    const rolledBackAt = new Date().toISOString();
-    for (const runId of removedIds) {
-      const run = this.runs.get(runId);
-      if (run) this.updateRun(runId, { rolledBackAt });
-    }
-    return removedIds;
-  }
 
   async appendEvent(run: AiRun, kind: AiEvent["kind"], payload: Record<string, unknown>): Promise<AiEvent[]> {
     if (isProviderPrivateDelta(kind, payload)) return [];

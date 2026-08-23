@@ -69,20 +69,10 @@ const contentItems = [
   }
 ];
 
-const briefTopics = [
-  { id: "topic-1", title: "本地 AI 工作台的真实 Provider E2E 验收", summary: "围绕 Provider 登录、工具调用、审批和取消运行形成完整验收路径。", score: 94, sourceCount: 5, contentIds: ["content-long", "content-reddit"] },
-  { id: "topic-2", title: "视觉矩阵：长标题、空状态、错误状态和深色界面", summary: "把 40 张参考图对应到可复现截图矩阵和状态矩阵。", score: 89, sourceCount: 4, contentIds: ["content-summary"] }
-];
-
 const sources = [
   { schemaVersion: 1, id: "rss-main", name: "AI Newsletter With A Very Long Source Name", kind: "rss", url: "https://example.com/feed.xml", skillId: "rss-article-saver", enabled: true, frequency: "每日流水线", lastRunAt: now, lastSuccessAt: now, successRate: 100, status: "success", recentError: null, itemCount: 18 },
   { schemaVersion: 1, id: "x-following", name: "X 关注动态", kind: "x", url: null, skillId: "x-following-fetcher", enabled: true, frequency: "每日流水线", lastRunAt: now, lastSuccessAt: null, successRate: 67, status: "warning", recentError: "最近一次运行未发现新增内容。", itemCount: 0 },
   { schemaVersion: 1, id: "reddit", name: "Reddit 订阅", kind: "reddit", url: null, skillId: "reddit-fetcher", enabled: false, frequency: "每日流水线", lastRunAt: now, lastSuccessAt: null, successRate: 50, status: "disabled", recentError: "已暂停。", itemCount: 12 }
-];
-
-const sourceRuns = [
-  { schemaVersion: 1, id: "run-success", sourceId: "rss-main", skillId: "rss-article-saver", status: "success", startedAt: "2026-06-17T01:00:00.000Z", completedAt: "2026-06-17T01:00:12.000Z", durationMs: 12000, code: 0, error: null, itemCount: 18, logs: [{ timestamp: now, stream: "stdout", text: "Fetched 18 items\n" }] },
-  { schemaVersion: 1, id: "run-failed", sourceId: "x-following", skillId: "x-following-fetcher", status: "failed", startedAt: "2026-06-17T01:10:00.000Z", completedAt: "2026-06-17T01:10:05.000Z", durationMs: 5000, code: 1, error: "Token expired", itemCount: 0, logs: [{ timestamp: now, stream: "stderr", text: "Token expired. Please refresh credentials.\n" }] }
 ];
 
 const automationRules = [
@@ -213,10 +203,10 @@ const aiEvents = [
 ];
 
 const preferences = {
-  schemaVersion: 1,
-  repoRoot,
+  schemaVersion: 2,
+  openmindRoot: repoRoot,
+  workspaceRoot: repoRoot,
   themeMode: "light",
-  accentColor: "#2563eb",
   density: "default",
   fontSize: "default",
   autoSaveIntervalMs: 30000,
@@ -226,21 +216,121 @@ const preferences = {
   contentPreviewMode: "sidebar",
   markReadOnOpen: true,
   defaultProvider: "codex:native",
-  providerModels: { codex: "auto", claude: "auto" },
   defaultPermissionProfile: "edit",
-  defaultWorkDir: ".",
+  notesDir: "openmind",
+  browserAutomationEnabled: false,
+  browserReuseExistingTabs: true,
+  browserEvidenceDir: "assets/browser-evidence",
+  destructiveOpsRequireApproval: true,
+  riskScanEnabled: true,
   defaultPlatform: "公众号",
   defaultLanguage: "zh-CN",
   defaultContentLength: "medium",
   defaultTemplate: "深度分析",
   userTags: ["AI", "工程", "验收"],
-  notificationsEnabled: true,
-  dndStartHour: 22,
-  dndEndHour: 8,
-  maxNotificationHistory: 100,
-  cacheMaxSizeMB: 500,
-  logRetentionDays: 30
+  workflowAutoSaveDraft: true,
+  workflowAutoVersionOnStageChange: true,
+  workflowReviewRequiredForReady: true,
+  workflowPublishChecklistEnabled: true,
+  workflowAutoArchiveEnabled: false
 };
+
+let visualProviders = {
+  schemaVersion: 1,
+  default: "glm",
+  cli: { claude: null, codex: null },
+  providers: [
+    {
+      id: "glm",
+      name: "智谱 GLM",
+      enabled: true,
+      protocol: "anthropic-messages",
+      authMode: "bearer",
+      baseUrl: "https://open.bigmodel.cn/api/anthropic/v1",
+      model: "glm-5.1",
+      apiKeySet: true,
+      proxyUrl: "",
+      proxyPolicy: "system",
+      tlsPolicy: "verify"
+    },
+    {
+      id: "doubao",
+      name: "火山豆包",
+      enabled: true,
+      protocol: "openai-responses",
+      authMode: "bearer",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      model: "doubao-seed-2-0-mini-260215",
+      apiKeySet: true,
+      proxyUrl: "",
+      proxyPolicy: "system",
+      tlsPolicy: "verify"
+    }
+  ]
+};
+
+const visualSkillSource = "https://github.com/SebastianLavertheDe/cctools-skills";
+const visualSkillDefinitions = [
+  ["creative-writing", "多平台内容生产助手", "串联素材、写作与多平台内容生产。"],
+  ["agent-browser", "浏览器自动化 Agent", "使用浏览器完成受控的网页自动化任务。"],
+  ["daily-article-summarizer", "每日文章总结", "总结当天文章并同步每日摘要。"],
+  ["daily-topic-selector", "每日选题筛选", "从每日摘要中筛选值得继续创作的主题。"],
+  ["video-burnin-subtitles", "视频烧录字幕", "将字幕烧录到最终视频文件。"],
+  ["video-download", "视频下载", "下载视频与相关元数据。"],
+  ["asset-collector", "素材收集器", "收集并整理创作所需的本地素材。"],
+  ["daily-writing-orchestrator", "写作素材包", "组织每日写作流程需要的素材与步骤。"],
+  ["collect-interest-markers", "兴趣标记整理", "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"]
+];
+let visualInstalledSkills = visualSkillDefinitions.map(([id], index) => ({
+  schemaVersion: 1,
+  key: `cctools/${id}`,
+  id,
+  publisherId: "cctools",
+  version: "1.0.0",
+  digest: String(index + 1).repeat(64).slice(0, 64),
+  sourcePath: visualSkillSource,
+  sourceType: "git",
+  sourceLocator: visualSkillSource,
+  packagePath: `/fixtures/userData/skills/cctools/${id}/1.0.0`,
+  usable: true,
+  enabled: true,
+  signatureStatus: "unsigned",
+  reviewStatus: "unreviewed",
+  skillUpdatePolicy: "manual",
+  installedAt: now
+}));
+
+function visualSkillInspection(record) {
+  const definition = visualSkillDefinitions.find(([id]) => id === record.id) || [record.id, record.id, record.id];
+  return {
+    sourcePath: visualSkillSource,
+    sourceKind: "git",
+    packageRef: ".",
+    valid: true,
+    digest: record.digest,
+    totalBytes: 2048,
+    files: [{ path: "cctools.skill.yaml", type: "file", size: 1024, digest: "manifest" }],
+    excludedPaths: [],
+    manifest: {
+      apiVersion: "openmind.dev/skill/v1",
+      id: record.id,
+      version: record.version,
+      kind: "process",
+      publisher: { id: "cctools", displayName: "cctools" },
+      display: { name: definition[1], description: definition[2], group: "进程" },
+      config: {},
+      capabilities: {
+        openmind: { read: ["daily-summary/**"], write: ["creative/**"] },
+        network: { required: false, hosts: [] },
+        browser: false,
+        subprocess: { allowed: false }
+      }
+    },
+    legacy: null,
+    issues: [],
+    warnings: []
+  };
+}
 
 const api = {
   getBootstrap: async () => ({
@@ -263,17 +353,6 @@ const api = {
     content: "# Visual Audit Sample\n\n## Provider unavailable state\n\n这段 Markdown 覆盖长标题、长路径、中英文混排和 TOC 高亮。\n\n```bash\nnpm run verify\n```\n\n## Error state\n\nToken expired / Provider unavailable / Windows path boundary.",
     type: itemPath.endsWith(".html") ? "html" : "markdown"
   }),
-  listInbox: async (query) => {
-    const search = String(query && query.search || "").toLocaleLowerCase();
-    const filtered = search ? contentItems.filter((item) => `${item.title} ${item.excerpt}`.toLocaleLowerCase().includes(search)) : contentItems;
-    return { items: filtered, total: filtered.length, nextCursor: null };
-  },
-  getInboxFacets: async () => ({
-    total: contentItems.length,
-    kindCounts: contentItems.reduce((counts, item) => ({ ...counts, [item.kind]: (counts[item.kind] || 0) + 1 }), {}),
-    tags: [{ tag: "AI", count: contentItems.length }, { tag: "工程", count: 1 }]
-  }),
-  updateContentState: async (id, itemPath, patch) => ({ ...contentItems.find((item) => item.id === id) || contentItems[0], path: itemPath, state: { ...contentState, ...patch } }),
   listSources: async () => {
     if (visualMode === "error") throw new Error("视觉验收模拟错误：数据源读取失败，请检查日志后重试。");
     return visualMode === "empty" ? [] : sources;
@@ -281,49 +360,32 @@ const api = {
   updateSource: async (id, patch) => ({ ...sources.find((source) => source.id === id) || sources[0], ...patch }),
   addRssSource: async (input) => ({ ...sources[0], id: "rss-added", name: input.name, url: input.url }),
   importOpml: async () => 2,
-  listSourceRuns: async (sourceId) => sourceId ? sourceRuns.filter((run) => run.sourceId === sourceId || run.skillId === sourceId) : sourceRuns,
   listAutomationRules: async () => automationRules,
   listAutomationSchedules: async () => automationSchedules,
   listAutomationRuns: async (ruleId) => ruleId ? automationRuns.filter((run) => run.ruleId === ruleId) : automationRuns,
   saveAutomationRule: async (input) => ({ schemaVersion: 1, ...input, lastTriggeredAt: null, lastScheduledKey: null, createdAt: now, updatedAt: now }),
   deleteAutomationRule: async () => true,
   runAutomationNow: async (ruleId) => automationRuns.find((run) => run.ruleId === ruleId) || automationRuns[0],
-  runSource: async () => true,
-  stopSource: async () => true,
-  getDailyBrief: async () => dailyBrief(),
-  updateBriefWatchlist: async () => dailyBrief(),
-  getDashboard: async () => {
-    if (visualMode === "error") throw new Error("视觉验收模拟错误：Dashboard 数据读取失败，请检查日志后重试。");
-    return dashboardData();
-  },
   searchWorkspace: async (query) => [
     { id: "content:long", kind: "content", title: contentItems[0].title, subtitle: "Local Visual Audit · 文章", path: contentItems[0].path, date, status: "未读", targetId: contentItems[0].id },
     { id: "project:visual", kind: "project", title: projectSummary.topic, subtitle: "ready · wechat", path: projectSummary.dir, date, status: "ready", targetId: projectSummary.dir },
     { id: "session:1", kind: "session", title: sessions[0].title, subtitle: "Claude Code · waiting-approval", path: ".", date: now, status: "waiting-approval", targetId: sessions[0].id },
     { id: "skill:rss", kind: "skill", title: "RSS Article Saver", subtitle: "自动化", path: ".claude/skills/rss-article-saver", date: null, status: "ready", targetId: "rss-article-saver" }
   ].filter((item) => item.title.toLocaleLowerCase().includes(String(query || "").toLocaleLowerCase()) || !query),
-  getCreativeTopics: async () => ({ date, topics: creativeTopics }),
   getAllCreativeTopics: async () => [{ date, label: "今日选题", topics: creativeTopics }],
-  addCreativeTopic: async (input) => ({ date: input.date, topics: creativeTopics.concat({ id: "new-topic", title: input.title, body: input.body, score: input.score || 80 }) }),
   getCreativeProjects: async () => [projectSummary, { ...projectSummary, dir: "openmind/creative/review-project", topic: "审核中的长标题项目 Review Stage", stage: "review", completion: 55 }],
   getCreativeProject: async () => projectDetail,
   createCreativeProject: async () => projectDetail,
   saveCreativeFile: async () => projectDetail,
   advanceCreativeProject: async (_path, stage) => ({ ...projectDetail, stage, manifest: { ...projectDetail.manifest, stage } }),
   updateCreativeManifest: async (_path, patch) => ({ ...projectDetail, manifest: { ...projectDetail.manifest, ...patch } }),
-  updateCreativeTopicState: async () => ({ date, topics: creativeTopics }),
-  reviewCreativeProject: async () => projectDetail,
-  setCreativeReviewStatus: async () => projectDetail,
   listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "openmind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: "视觉验收版本", size: 2048 }],
   readCreativeVersion: async () => ({ path: "versions/draft-v1.md", content: projectDetail.files["draft.md"] }),
   restoreCreativeVersion: async () => projectDetail,
   getCreativeReleaseLog: async () => projectDetail.releaseLog,
   copyCreativeProject: async () => projectDetail,
   archiveCreativeProject: async () => projectDetail,
-  restoreCreativeProject: async () => projectDetail,
-  deleteCreativeProject: async () => true,
   getCreativeAnalytics: async () => ({ total: 2, stages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 68, averageCycleHours: 18, stageDurations: [{ stage: "drafting", averageHours: 10 }, { stage: "review", averageHours: 4 }] }),
-  bindCreativeSession: async () => projectDetail,
   selectFiles: async () => [longPath],
   selectOpenmindFiles: async () => ["openmind/daily-summary/20260625_daily_summary.md"],
   searchOpenmindFiles: async (query, limit = 40) => {
@@ -354,7 +416,20 @@ const api = {
   getPreferences: async () => preferences,
   updatePreferences: async (patch) => ({ ...preferences, ...patch }),
   resetPreferences: async () => preferences,
-  importPreferences: async () => ({ imported: true, preferences }),
+  getProviders: async () => visualProviders,
+  saveProviders: async (input) => {
+    visualProviders = {
+      schemaVersion: 1,
+      default: input.default,
+      cli: input.cli || { claude: null, codex: null },
+      providers: input.providers.map(({ apiKey, ...provider }) => ({
+        ...provider,
+        apiKeySet: Boolean(apiKey) || Boolean(visualProviders.providers.find((entry) => entry.id === provider.id)?.apiKeySet)
+      }))
+    };
+    return visualProviders;
+  },
+  aiRefreshProviders: async () => visualProviders,
   getSharedPythonRuntimeStatus: async () => ({ enabled: true, phase: "ready", target: "windows-x64", pythonVersion: "3.12.8", uvVersion: "0.5.27", managedSkills: 16, ready: true, lastError: null }),
   setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 16 : 0, ready: enabled, lastError: null }),
   getMcpServers: async () => [{
@@ -371,29 +446,29 @@ const api = {
     settingsSection: "browser",
     tools: [{ id: "capture_source_evidence", title: "截取原文证据", description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。", inputs: ["url", "quote", "capture_scope", "caption", "filename"], outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"] }]
   }],
-  listInstalledSkills: async () => [],
+  inspectInstalledSkill: async (key, digest) => {
+    const record = visualInstalledSkills.find((item) => item.key === key && item.digest === digest);
+    return record ? visualSkillInspection(record) : null;
+  },
+  listInstalledSkills: async () => visualInstalledSkills,
+  setInstalledSkillEnabled: async (key, digest, enabled) => {
+    visualInstalledSkills = visualInstalledSkills.map((item) => item.key === key && item.digest === digest ? { ...item, enabled } : item);
+    return visualInstalledSkills.find((item) => item.key === key && item.digest === digest);
+  },
+  inspectSkillSource: async () => ({ source: { type: "git", locator: visualSkillSource }, packages: [], issues: [], warnings: [] }),
+  installSkillSource: async () => true,
   listInstalledRunnableSkills: async () => [],
   listSkillRuns: async () => [],
-  rebuildContentIndex: async () => ({ schemaVersion: 1, indexedDates: [date], itemCount: contentItems.length, indexPath: ".openmind/content-index.json", statePath: ".openmind/content-state.json", rebuiltAt: now }),
   aiRefresh: async () => currentAiSnapshot(),
   aiPrewarm: async () => true,
-  aiSearchSessions: async () => sessions,
   aiStartRun: async () => ({ session: sessions[0], run: runs[0] }),
   aiCancelRun: async () => true,
   aiUpdateSession: async (_id, patch) => ({ ...sessions[0], ...patch }),
-  aiDeleteSession: async () => true,
   aiGetEvents: async (sessionId) => aiEvents.filter((item) => item.sessionId === sessionId),
   aiResolveApproval: async () => {
     approvalResolved = true;
     return true;
   },
-  aiGetChangeSet: async () => runs[0].changeSet,
-  aiApplyChange: async () => ({ applied: true }),
-  aiRevertChange: async () => ({ applied: true }),
-  aiDiscardChange: async () => runs[0].changeSet,
-  aiDiscardRun: async () => true,
-  runSkill: async () => true,
-  stopSkill: async () => true,
   onAiEvent: () => () => undefined,
   onSkillEvent: () => () => undefined,
   __setVisualMode: (mode) => { visualMode = mode || "normal"; }
@@ -408,40 +483,6 @@ function currentAiSnapshot() {
     sessions: aiSnapshot.sessions.map((session) => session.id === approval.sessionId ? { ...session, status: "idle" } : session),
     runs: aiSnapshot.runs.map((run) => run.id === approval.runId ? { ...run, status: "completed", completedAt: now } : run),
     pendingApprovals: []
-  };
-}
-
-function dashboardData() {
-  return {
-    schemaVersion: 1,
-    date,
-    refreshedAt: now,
-    metrics: { collected: 36, unread: 12, articles: 18, posts: 12, reddit: 6, drafting: 1, review: 1, ready: 1, failedSources: 1, pendingApprovals: 1 },
-    sourceCounts: { articles: 1, posts: 1, reddit: 1 },
-    recommendedTopics: briefTopics,
-    creativeStages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }],
-    trend: Array.from({ length: 7 }, (_, index) => ({ date: `202606${11 + index}`, content: 20 + index * 3, creative: index % 3 })),
-    attention: [
-      { id: "source:x", kind: "source", title: "X 关注动态需要处理", detail: "Token expired / Provider unavailable" },
-      { id: "approval:1", kind: "approval", title: approval.title, detail: approval.detail },
-      { id: "publish:visual", kind: "publish", title: projectSummary.topic, detail: "稿件已准备导出。" }
-    ]
-  };
-}
-
-function dailyBrief() {
-  return {
-    schemaVersion: 1,
-    date,
-    generatedAt: now,
-    sourcePath: "openmind/daily-summary/20260617_daily_summary.md",
-    counts: { content: 36, unread: 12, articles: 18, posts: 12, reddit: 6, important: 8, topics: 2 },
-    topics: briefTopics,
-    signals: ["Provider E2E 仍需真实账号验收", "视觉截图矩阵需要覆盖长标题和错误状态", "性能预算已进入 verify"],
-    watchlist: contentItems.slice(0, 2),
-    sourceContribution: [{ source: "RSS", count: 18 }, { source: "Reddit", count: 12 }, { source: "X", count: 6 }],
-    recommendations: ["补齐 Windows GUI 验收截图。", "运行真实 Claude/Codex Provider E2E。"],
-    markdown: "# 每日简报\n\n## 核心信号\n\nProvider E2E 和视觉矩阵是发布前最后的人工验收项。\n\n## 推荐主题\n\n- 本地 AI 工作台验收\n- Windows/WSL 桌面应用发布"
   };
 }
 

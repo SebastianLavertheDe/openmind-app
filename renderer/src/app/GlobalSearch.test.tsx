@@ -118,7 +118,7 @@ describe("GlobalSearch", () => {
     await act(async () => { vi.advanceTimersByTime(300); });
     const result = await screen.findByText("Alpha");
     await user.click(result);
-    expect(navigate).toHaveBeenCalledWith("sources", expect.objectContaining({ date: "20260707", contentPath: "a.md" }));
+    expect(navigate).toHaveBeenCalledWith("sources", { date: "20260707" });
   });
 
   it("navigates by project kind", async () => {

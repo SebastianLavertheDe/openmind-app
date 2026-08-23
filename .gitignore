@@ -38,3 +38,8 @@ __pycache__/
 # Local editor/agent state.
 .claude/settings.local.json
 .zcode/
+
+# Stray vite chunks accidentally copied to the repo root.
+/appearance-settings-*.js
+/general-settings-*.js
+/settings-page-*.js

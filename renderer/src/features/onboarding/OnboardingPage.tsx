@@ -140,13 +140,13 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
         <div className="onboarding-topbar-start">
           <strong className="onboarding-brand">openmind</strong>
           {currentStep > 1 ? (
-            <button type="button" className="onboarding-step-navigation" disabled={busy !== null} onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3)}>
+            <button type="button" className="onboarding-step-navigation" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3)}>
               <ArrowLeft size={15} aria-hidden />{m.previousStep}
             </button>
           ) : null}
         </div>
         {currentStep < availableStep ? (
-          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3 | 4)}>
+          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3 | 4)}>
             {m.nextStep}<ArrowRight size={15} aria-hidden />
           </button>
         ) : null}

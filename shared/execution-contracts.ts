@@ -24,7 +24,6 @@ export const SkillRunTriggerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("workflow"), parentRunId: z.string().min(1).max(120), stepId: z.string().min(1).max(120) }).strict(),
   z.object({ type: z.literal("automation"), ruleId: z.string().min(1).max(120) }).strict()
 ]);
-export type SkillRunTrigger = z.infer<typeof SkillRunTriggerSchema>;
 
 export const SkillRunRequestSchema = z.object({
   skillId: z.string().trim().min(1).max(128).regex(/^[A-Za-z][A-Za-z0-9._-]*$/),
@@ -161,10 +160,8 @@ export const BrokerRunEventSchema = z.object({
 export type BrokerRunEvent = z.infer<typeof BrokerRunEventSchema>;
 
 export const WorkflowRunStateSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled"]);
-export type WorkflowRunState = z.infer<typeof WorkflowRunStateSchema>;
 
 export const WorkflowStepRunStateSchema = z.enum(["pending", "running", "succeeded", "failed", "skipped"]);
-export type WorkflowStepRunState = z.infer<typeof WorkflowStepRunStateSchema>;
 
 export const WorkflowRunRecordSchema = z.object({
   schemaVersion: z.literal(EXECUTION_SCHEMA_VERSION),

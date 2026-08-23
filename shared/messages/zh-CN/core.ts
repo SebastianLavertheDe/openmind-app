@@ -22,8 +22,6 @@ export const coreMessages = {
   },
 
   repoRequired: {
-    title: "先连接 OpenMind 项目",
-    body: "项目尚未识别。进入设置选择项目目录后，资料、skills 和 AI 工作台才会启用。",
     action: "打开设置"
   },
 
@@ -74,10 +72,6 @@ export const coreMessages = {
       project_archived: "归档稿件"
     },
     reviewDimension: {
-      structure: "结构逻辑",
-      accuracy: "准确性",
-      readability: "可读性",
-      platform: "平台适配",
       seo: "本地启发式"
     },
     defaults: {
@@ -103,31 +97,10 @@ export const coreMessages = {
     unnamedTopic: "(未命名选题)",
     justSaved: "刚刚保存",
     justNow: "刚刚",
-    unknown: "未知",
-    unknownDate: "日期未知",
-    none: "无",
-    notSet: "未设置",
-    notConfigured: "未配置",
     close: "关闭",
     copy: "复制",
-    copied: "已复制",
-    save: "保存",
-    saving: "保存中",
-    saved: "已保存",
-    delete: "删除",
     retry: "重试",
-    cancel: "取消",
     open: "打开",
-    edit: "编辑",
-    preview: "预览",
-    loading: "正在加载",
-    loadingContent: "正在加载内容",
-    loadFailed: "加载失败",
-    name: "名称",
-    type: "类型",
-    status: "状态",
-    actions: "操作",
-    all: "全部",
     minutesAgo: (n: number) => `${n} 分钟前`,
     hoursAgo: (n: number) => `${n} 小时前`,
     daysAgo: (n: number) => `${n} 天前`,

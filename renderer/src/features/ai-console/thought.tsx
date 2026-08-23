@@ -8,10 +8,6 @@ import { firstLine } from "./timeline";
 import { PlanCard } from "./plan";
 import { formatDuration } from "../../ai-utils";
 
-export function ReasoningEvent({ event }: { event: AiEvent }) {
-  return <ReasoningCard events={[event]} />;
-}
-
 /**
  * 推理过程默认留在消息流里，点击后内联展开并在固定高度内滚动。
  */

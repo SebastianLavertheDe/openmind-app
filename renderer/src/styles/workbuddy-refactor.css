@@ -174,7 +174,11 @@ select:focus-visible,
   --window-titlebar-height: 38px;
   height: 100vh;
   padding-top: var(--window-titlebar-height);
-  background: transparent;
+  /* Keep the native title strip and the navigation rail on the same soft
+   * mint chrome used by the full-page settings surface.  A transparent shell
+   * lets Windows Mica introduce a cooler blue/grey cast, which made the
+   * workbench look like a different product from Settings. */
+  background: var(--app-chrome-bg);
 }
 
 .app-shell.window-chrome-mica > .window-titlebar-drag-region {
@@ -187,7 +191,7 @@ select:focus-visible,
 }
 
 .app-shell.window-chrome-mica > .app-nav {
-  background: color-mix(in srgb, var(--panel-muted) 14%, transparent);
+  background: var(--app-chrome-bg);
 }
 
 .app-nav {
@@ -676,7 +680,10 @@ select:focus-visible,
   gap: 6px;
   padding: 0 12px;
   border: 0;
-  background: color-mix(in srgb, var(--panel-muted) 46%, var(--page-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 52%, transparent);
+  /* Repeat the chrome wash instead of falling back to a neutral panel tint,
+   * so the top bar and left rail read as one continuous application frame. */
+  background: var(--app-chrome-bg);
   box-shadow: none;
 }
 
@@ -871,8 +878,6 @@ select:focus-visible,
 }
 
 .ui-page-header h1,
-.dashboard-head h1,
-.brief-head h1,
 .reader-header h1 {
   color: var(--text);
   font-family: var(--font-display);
@@ -880,27 +885,19 @@ select:focus-visible,
   letter-spacing: 0;
 }
 
-.ui-page-header h1,
-.dashboard-head h1,
-.brief-head h1 {
+.ui-page-header h1 {
   font-size: 27px;
   line-height: 1.25;
 }
 
-.ui-page-header p,
-.dashboard-head p,
-.brief-head p {
+.ui-page-header p {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.7;
 }
 
 .workspace-card,
-.settings-card,
-.project-detail-card,
-.project-list-card,
-.source-table-card,
-.brief-md {
+.settings-card {
   border-color: var(--border);
   border-radius: 8px;
   background: var(--panel);
@@ -908,8 +905,7 @@ select:focus-visible,
 }
 
 .workspace-card > header,
-.settings-card > header,
-.project-detail-card > header {
+.settings-card > header {
   min-height: 54px;
   padding: 11px 15px;
 }
@@ -934,7 +930,6 @@ select:focus-visible,
 .ui-metric-card > small { color: var(--muted); }
 
 .primary-button,
-.dashboard-head-actions .primary-button,
 .ui-page-actions .primary-button,
 .approval-btn-primary {
   border-color: var(--accent) !important;
@@ -945,18 +940,12 @@ select:focus-visible,
 }
 
 .primary-button:hover,
-.dashboard-head-actions .primary-button:hover,
 .ui-page-actions .primary-button:hover,
 .approval-btn-primary:hover { background: var(--accent-strong) !important; }
 
 .ui-page-actions button,
 .workspace-card header button,
 .reader-actions button,
-.source-toolbar button,
-.project-detail-card header button,
-.dashboard-head-actions button,
-.dashboard-topic-panel > header button,
-.dashboard-brief-snippet button,
 .settings-control button,
 .skill-grid article > button,
 .icon-text-button {
@@ -971,9 +960,6 @@ select:focus-visible,
 .ui-page-actions button:hover,
 .workspace-card header button:hover,
 .reader-actions button:hover,
-.source-toolbar button:hover,
-.project-detail-card header button:hover,
-.dashboard-head-actions button:hover,
 .icon-text-button:hover {
   border-color: var(--border-strong);
   background: var(--control-hover);
@@ -1036,7 +1022,6 @@ select:focus-visible,
 .search-field,
 .creative-search,
 .session-search,
-.source-toolbar input,
 .ui-page-actions input,
 .ui-page-actions select,
 .settings-select,
@@ -1053,7 +1038,6 @@ select:focus-visible,
 .search-field:focus-within,
 .creative-search:focus-within,
 .session-search:focus-within,
-.source-toolbar input:focus,
 .publish-field input:focus,
 .publish-field textarea:focus,
 .publish-field select:focus {
@@ -1099,82 +1083,7 @@ select:focus-visible,
 
 .ui-toggle-switch.active span { background: var(--page-bg); }
 
-/* Dashboard */
-
-.dashboard-page { gap: 14px; }
-
-.dashboard-head {
-  align-items: flex-start;
-  padding: 2px 140px 20px 0;
-  border-bottom-color: var(--border);
-}
-
-.dashboard-head h1 { margin: 4px 0 3px; }
-.dashboard-head-actions { padding-top: 1px; }
-
-.dashboard-metrics,
-.source-metrics,
-.brief-metrics { gap: 10px; }
-
-.dashboard-metrics-3 .ui-metric-card,
-.source-metrics .ui-metric-card,
-.brief-metrics .ui-metric-card {
-  min-height: 96px;
-  padding: 13px 15px;
-}
-
-.dashboard-metrics-3 .ui-metric-card > strong {
-  margin-top: 9px;
-  font-size: 29px;
-}
-
-.dashboard-main-grid {
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .75fr);
-  gap: 14px;
-}
-
-.dashboard-topic-list > button { padding: 14px 15px; }
-
-.dashboard-topic-list > button:hover,
-.quick-actions button:hover,
-.stage-summary button:hover { background: var(--control-hover); }
-
-.dashboard-topic-list span[data-score] {
-  border-radius: 999px;
-  background: var(--panel-muted);
-  color: var(--text-dim);
-}
-
-.dashboard-side-stack { gap: 14px; }
-
-.stage-summary {
-  gap: 0;
-  padding: 0 14px 14px;
-}
-
-.stage-summary button {
-  min-height: 72px;
-  border-color: var(--border);
-  border-radius: 0;
-  background: var(--panel);
-}
-
-.stage-summary button:nth-child(1) { border-radius: 6px 0 0 0; }
-.stage-summary button:nth-child(2) { border-radius: 0 6px 0 0; }
-.stage-summary button:nth-child(3) { border-radius: 0 0 0 6px; }
-.stage-summary button:nth-child(4) { border-radius: 0 0 6px 0; }
-
-.quick-actions { gap: 7px; }
-
-.quick-actions button {
-  border-color: var(--border);
-  border-radius: 7px;
-  background: var(--panel);
-}
-
-.quick-actions svg { color: var(--text-dim); }
-
-/* Inbox and reading */
+/* Reading */
 
 .filter-pane,
 .item-pane,
@@ -1203,13 +1112,10 @@ select:focus-visible,
   font-weight: 620;
 }
 
-.item-list button,
-.inbox-list button { border-radius: 7px; }
+.item-list button { border-radius: 7px; }
 
 .item-list button:hover,
-.item-list button.active,
-.inbox-list button:hover,
-.inbox-list button.active {
+.item-list button.active {
   border-color: transparent;
   background: var(--control-hover);
   box-shadow: none;
@@ -1384,20 +1290,11 @@ select:focus-visible,
 .column-splitter:hover::after,
 .column-splitter:focus-visible::after { background: var(--border-strong); }
 
-/* Sources, projects, automation, and settings */
+/* Automation and settings */
 
-.source-workspace,
-.projects-layout,
 .automation-layout,
 .settings-stack { gap: 14px; }
 
-.source-toolbar {
-  border-bottom-color: var(--border);
-  background: var(--panel);
-}
-
-.source-list > li,
-.source-item,
 .rule-item-shell,
 .version-row,
 .settings-preference-row,
@@ -1407,13 +1304,9 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.source-list > li:hover,
-.source-item:hover,
 .rule-item-shell:hover,
 .version-row:hover { background: var(--control-hover); }
 
-.source-list > li.active,
-.source-item.active,
 .rule-item.active,
 .version-row.active {
   border-color: var(--border-strong);
@@ -1421,7 +1314,6 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.source-item.selected,
 .rule-item-shell.active {
   border-color: transparent;
   background: var(--list-selected-bg);
@@ -1435,37 +1327,26 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.source-item:focus-visible,
 .creative-stream-card:focus-visible,
 .rule-item:focus-visible {
   outline: 2px solid var(--brand-accent-strong);
   outline-offset: 2px;
 }
 
-.source-item-head svg,
-.source-item-main > svg,
-.project-source-chip svg,
-.quick-actions svg { color: var(--text-dim); }
-
 .automation-main,
 .automation-detail-pane,
-.project-main-pane,
 .creative-main-pane { background: var(--page-bg); }
 
 .automation-layout,
 .automation-main,
-.automation-detail-pane,
-.project-list-card,
-.project-detail-card { border-color: var(--border); }
+.automation-detail-pane { border-color: var(--border); }
 
 .metric-bar,
-.analytics-grid article > div > div > i,
-.contribution-list > div > div > i { background: var(--text); }
+.analytics-grid article > div > div > i { background: var(--text); }
 
 .settings-note,
 .rule-readonly-note,
-.publish-note,
-.inline-error-banner {
+.publish-note {
   border-color: var(--border);
   border-radius: 7px;
   background: var(--panel-muted);
@@ -1630,8 +1511,7 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.creative-item-main,
-.project-draft-card {
+.creative-item-main {
   border-color: var(--border);
   border-radius: 7px;
   box-shadow: none;
@@ -1713,8 +1593,7 @@ select:focus-visible,
 }
 
 .creative-item-list button:hover,
-.creative-item-main:hover,
-.project-draft-card:hover {
+.creative-item-main:hover {
   border-color: transparent;
   background: var(--control-hover);
   box-shadow: none;
@@ -2410,10 +2289,6 @@ select:focus-visible,
 
 @media (max-width: 1240px) {
   .feature-page { padding-inline: 28px; }
-
-  .dashboard-main-grid {
-    grid-template-columns: minmax(0, 1.3fr) minmax(260px, .8fr);
-  }
 }
 
 @media (min-width: 921px) and (max-width: 1380px) {
@@ -2426,8 +2301,6 @@ select:focus-visible,
   :root { --workspace-inset: 6px; }
 
   .feature-page { padding: 30px 24px 40px; }
-
-  .dashboard-main-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -2438,21 +2311,13 @@ select:focus-visible,
 
   .feature-page { padding: 26px 18px 34px; }
 
-  .ui-page-header,
-  .dashboard-head,
-  .brief-head {
+  .ui-page-header {
     display: grid;
     gap: 14px;
     padding-right: 0;
   }
 
-  .ui-page-actions,
-  .dashboard-head-actions,
-  .brief-actions { justify-content: flex-start; }
-
-  .dashboard-metrics-3,
-  .source-metrics,
-  .brief-metrics { grid-template-columns: 1fr; }
+  .ui-page-actions { justify-content: flex-start; }
 
   .reader-header { padding-inline: 20px; }
 
@@ -3298,9 +3163,7 @@ select:focus-visible,
   .layout-shell-drawer .conversation-header .provider-segmented { white-space: nowrap; }
   .layout-shell-drawer .creative-page-header .funnel-bar { padding-left: 52px; }
   .layout-shell-drawer .document-library-list > header { padding-left: 58px; }
-  .layout-shell-drawer .feature-page > .ui-page-header,
-  .layout-shell-drawer .dashboard-head,
-  .layout-shell-drawer .brief-head { padding-left: 42px; }
+  .layout-shell-drawer .feature-page > .ui-page-header { padding-left: 42px; }
 
   .ai-rail {
     top: 13px;

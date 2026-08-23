@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry, ContentRecord } from "@shared/contracts";
-import type { Navigate } from "../../app/routes";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAi } from "../../ai-context";
 import { ContentPreview } from "../../components/ContentPreview";
@@ -9,7 +8,7 @@ import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type Re
 
 type ViewMode = "preview" | "edit";
 
-export function DailyBriefPage({ initialDate }: { go: Navigate; initialDate?: string }) {
+export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
   const layoutRef = useRef<HTMLDivElement>(null);
   // The brief can remain usable below the generic split-workspace minimum: its
   // container queries stack the file list and document at this component-owned

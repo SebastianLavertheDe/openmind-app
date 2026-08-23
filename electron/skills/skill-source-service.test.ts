@@ -109,6 +109,38 @@ describe("SkillSourceService", () => {
     expect(checkoutPaths.every((candidate) => !fs.existsSync(candidate))).toBe(true);
   });
 
+  it("does not let a Windows checkout cleanup failure replace a successful inspection", async () => {
+    const remove = vi.spyOn(fs.promises, "rm").mockRejectedValueOnce(Object.assign(
+      new Error("EPERM: operation not permitted, lstat staging checkout"),
+      { code: "EPERM" }
+    ));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const service = new SkillSourceService(
+        new SkillPackageService(paths),
+        paths,
+        multiPackageGitRunner(["one"])
+      );
+
+      const inspection = await service.inspect({
+        type: "git",
+        locator: "https://github.com/example/cleanup-race.git"
+      });
+
+      expect(inspection.packages.map((item) => item.packageRef)).toEqual(["one"]);
+      expect(remove).toHaveBeenCalledWith(expect.stringContaining(`${path.sep}skill-git-`), {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 200
+      });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("EPERM: operation not permitted"));
+    } finally {
+      remove.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it("accepts only a complete intact pre-receipt official installation as legacy compatibility", () => {
     const records = ALL_SKILL_IDS.map((id) => ({
       id,
@@ -191,6 +223,26 @@ describe("SkillSourceService", () => {
     expect(gitCalls).toBe(2); // clone + rev-parse
     expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
     expect(gitCalls).toBe(2);
+  });
+
+  it("keeps an installed official source past onboarding when receipt provenance disagrees", async () => {
+    const packages = new SkillPackageService(paths);
+    const service = new SkillSourceService(
+      packages,
+      paths,
+      multiPackageGitRunner([...ALL_SKILL_IDS], "cctools")
+    );
+    const installed = await service.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
+
+    const registry = JSON.parse(fs.readFileSync(paths.skillRegistryFile!, "utf8"));
+    registry.records[0].sourceRevision = "d".repeat(40);
+    fs.writeFileSync(paths.skillRegistryFile!, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+
+    expect(service.hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
+    expect(service.hasInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(true);
+
+    for (const record of installed) fs.rmSync(record.packagePath, { recursive: true, force: true });
+    expect(service.hasInstallation(OPENMIND_SKILLS_REPO_URL)).toBe(false);
   });
 
   it("rejects unsafe locators and supports selecting packages from a multi-Skill repository", async () => {

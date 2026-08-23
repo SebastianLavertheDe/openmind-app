@@ -18,33 +18,13 @@ export const creativeUiMessages = {
   },
 
   review: {
-    title: "审核",
-    subtitle: "本地启发式规则，未接入真实 SEO 数据",
     checks: {
-      length: "正文长度",
-      headings: "结构标题",
-      links: "来源链接",
-      closing: "结尾收束",
-      headingsDetail: "至少包含一个二级标题",
-      linksDetail: "至少包含一个可追溯链接",
       closingDetail: "结尾应形成观点或行动建议"
     },
     notify: {
-      generated: "已生成完整审核报告",
-      approved: "审核已通过，可进入待发布",
-      changesRequested: "已要求返回修改",
       reset: "审核状态已重置"
     },
-    issueLine: (line: number) => `（第 ${line} 行附近）`,
-    locate: "点击定位",
-    noIssues: "没有发现需要修改的问题。",
     status: { approved: "已批准", changesRequested: "需修改", pending: "待处理" },
-    empty: "尚未生成完整审核报告。点击下方按钮运行后端审核并持久化到稿件。",
-    running: "审核中",
-    rerun: "重新审核",
-    run: "运行审核",
-    requestChanges: "返回修改",
-    approve: "批准",
     heuristics: {
       bodyTooShort: { title: "正文偏短", detail: (n: number) => `当前正文 ${n} 字符，建议补充论据或案例。` },
       missingStructure: { title: "缺少章节结构", detail: "至少添加一个二级标题，帮助读者快速扫读。" },
@@ -74,8 +54,6 @@ export const creativeUiMessages = {
     reexport: "重新导出",
     exportNow: "立即导出",
     blocked: "缺少必填项，暂不能导出。",
-    configTitle: "发布配置",
-    platformPrefix: "平台：",
     statusPrefix: "状态："
   },
 
@@ -90,34 +68,20 @@ export const creativeUiMessages = {
   },
 
   materials: {
-    title: "稿件素材",
-    count: (n: number) => `${n} 项素材记录`,
     empty: "稿件尚未记录素材。"
   },
 
   files: { title: "稿件文件" },
 
   ai: {
-    title: "AI 协作",
-    description: "把当前选题、稿件内容和正在编辑的文件作为结构化上下文加入对话。",
     addContext: "加入 AI 上下文"
   },
 
   notes: {
-    title: "创作备注",
-    openFirst: "打开稿件后查看备注。",
-    description: "记录选题判断、编辑要求、引用提醒和发布注意事项；内容会写入稿件 manifest。",
-    placeholder: "例如：发布前核对数据来源；小红书版本需要更短的开头；封面图突出核心观点。",
-    unsaved: "有未保存备注",
-    synced: "备注已同步到稿件 manifest.json",
-    save: "保存备注",
     saved: "创作备注已保存"
   },
 
   versions: {
-    noFileTitle: "没有活动文件",
-    noFileDescription: "选择一个稿件文件后查看版本。",
-    title: (filename: string) => `${filename} 版本`,
     empty: "保存文件后会在这里生成历史版本。"
   },
 
@@ -126,9 +90,6 @@ export const creativeUiMessages = {
     createdFromTopic: "从推荐选题创建项目",
     fileSaved: (file: string) => `保存 ${file}`,
     publishStatus: (status: string) => `发布状态更新为 ${status}`,
-    sessionBound: (sessionId: string) => `绑定 AI 会话 ${sessionId}`,
-    reviewScore: (score: number) => `审核得分 ${score}`,
-    reviewStatus: (status: string) => `审核状态更新为 ${status}`,
     versionRestored: "历史版本已恢复为新版本",
     copiedFrom: (p: string) => `复制自 ${p}`,
     archived: "项目已归档",

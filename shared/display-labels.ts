@@ -17,10 +17,6 @@ export function stageLabel(value: string): string {
   return messages.creative.stage[value as CreativeStageId] || value;
 }
 
-export function bucketLabel(value: string): string {
-  return messages.creative.bucket[value as keyof typeof messages.creative.bucket] || value;
-}
-
 export function platformLabel(value: string): string {
   const id = normalizePlatformId(value);
   if (id && id in messages.creative.platform) {
@@ -33,24 +29,12 @@ export function actionLabel(action: string): string {
   return messages.creative.releaseAction[action as CreativeReleaseAction] || action;
 }
 
-export function dimensionLabel(key: string): string {
-  return messages.creative.reviewDimension[key as CreativeReviewDimension] || key;
-}
-
 export function navLabel(page: keyof typeof messages.nav): string {
   return messages.nav[page];
 }
 
 /** @deprecated 使用 contentKindLabel()；保留供 inbox filter 派生。 */
-export const CONTENT_KIND_LABELS = {
-  article: messages.contentKind.article,
-  post: messages.contentKind.post,
-  summary: messages.contentKind.summary,
-  topic: messages.contentKind.topic,
-  reddit: messages.contentKind.reddit,
-  html: messages.contentKind.html,
-  unknown: messages.contentKind.unknown
-} satisfies Record<ContentKind, string>;
+
 
 export function buildPlatformOptions() {
   return CREATIVE_PLATFORMS.map((platform) => ({

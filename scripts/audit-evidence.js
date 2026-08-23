@@ -9,9 +9,9 @@ check("app-owned design evidence is present", countFiles(path.join(appRoot, "des
   count: countFiles(path.join(appRoot, "design-qa"))
 });
 
-check("renderer routes are lazy loaded", includes("renderer/src/app/route-registry.tsx", "const SourcesPage = lazy(") && includes("renderer/src/app/route-registry.tsx", "const AiWorkbench = lazy("));
+check("renderer routes are lazy loaded", includes("renderer/src/app/route-registry.tsx", "const OnboardingPage = lazy(") && includes("renderer/src/app/route-registry.tsx", "const AiWorkbench = lazy(") && includes("renderer/src/app/route-registry.tsx", "const ROUTE_LAZY"));
 check("renderer chunks are manually split", includes("vite.config.ts", "manualChunks(id)") && includes("vite.config.ts", "vendor-markdown"));
-check("large collections remain virtualized or paginated", includes("renderer/src/features/ai-console/AiWorkbench.tsx", "<VirtualList") && includes("electron/product/content-index.ts", "query.cursor + query.limit"));
+check("large collections remain virtualized or paginated", includes("renderer/src/features/ai-console/AiWorkbench.tsx", "<VirtualList") && includes("electron/ai/rollout.ts", "ordered.slice(offset, offset + params.limit)"));
 check("chat markdown cache is bounded and hash keyed", includes("renderer/src/features/ai-console/message.tsx", "MARKDOWN_CACHE_LIMIT") && includes("renderer/src/features/ai-console/message.tsx", "markdownCacheKey"));
 check("focus and reduced motion styles are present", anyIncludes(["renderer/src/styles.css", "renderer/src/styles/base.css", "renderer/src/styles/tokens.css"], ":focus-visible") && anyIncludes(["renderer/src/styles.css", "renderer/src/styles/base.css"], "prefers-reduced-motion"));
 
@@ -41,27 +41,25 @@ check("SBOM, license and provenance evidence is generated", Boolean(
 
 checkLineBudget("CreativePage is below the complex-page budget", "renderer/src/features/creative/CreativePage.tsx", 500);
 check("CreativePage has independent panels and history/release modules", exists("renderer/src/features/creative/panels.tsx") && exists("renderer/src/features/creative/history-release.tsx"));
-checkLineBudget("SourcesPage is below the complex-page budget", "renderer/src/features/sources/SourcesPage.tsx", 600);
-check("source discovery and persistence stay outside the page", exists("electron/product/source-registry.ts") && exists("electron/ai/skill-discovery.ts") && exists("shared/skill-frontmatter.ts"));
+check("legacy SourcesPage is removed and source management uses the settings route", !exists("renderer/src/features/sources/SourcesPage.tsx") && includes("renderer/src/app/route-registry.tsx", 'page: "sources"') && includes("renderer/src/app/route-registry.tsx", "<SettingsPage"));
+check("source discovery and persistence stay outside the page", exists("electron/product/source-registry.ts") && exists("electron/skills/skill-source-service.ts") && exists("shared/skill-frontmatter.ts"));
 checkLineBudget("ProductService remains a bounded domain facade", "electron/product/product-service.ts", 420);
-check("Product domain is split into content state/index/source/brief/dashboard", [
-  "electron/product/content-state.ts",
+check("Product domain keeps active content indexing and source services split", [
   "electron/product/content-index.ts",
-  "electron/product/source-registry.ts",
-  "electron/product/brief-service.ts",
-  "electron/product/dashboard-service.ts"
-].every(exists));
+  "electron/product/source-registry.ts"
+].every(exists) && !exists("electron/product/content-state.ts") && !exists("electron/product/brief-service.ts") && !exists("electron/product/dashboard-service.ts"));
 checkLineBudget("RunScheduler is below the scheduler budget", "electron/ai/scheduler.ts", 460);
-check("RunScheduler delegates paths, skills and change application", [
+check("RunScheduler delegates paths, installed Skills and execution lifecycle", [
   "electron/ai/scheduler-paths.ts",
-  "electron/ai/manual-skill-controller.ts",
-  "electron/ai/change-application.ts",
-  "electron/ai/change-patches.ts",
+  "electron/ai/skill-tool-registry.ts",
+  "electron/ai/scheduler-execution.ts",
   "electron/ai/scheduler-lifecycle.ts",
   "electron/ai/scheduler-prompts.ts",
   "electron/ai/scheduler-images.ts"
-].every(exists));
-check("legacy isolated worktree creation is absent", !includes("electron/ai/workspace-manager.ts", "git worktree add") && !includes("electron/ai/scheduler.ts", ".create(run)"));
+].every(exists) && includes("electron/ai/scheduler.ts", "SkillToolRegistry") && includes("electron/ai/scheduler.ts", "scheduler-execution"));
+check("legacy isolated worktree creation is absent", !collectSourceFiles(path.join(appRoot, "electron", "ai")).some((filePath) => {
+  try { return fs.readFileSync(filePath, "utf8").includes("git worktree add"); } catch { return false; }
+}) && !includes("electron/ai/scheduler.ts", ".create(run)"));
 
 check("project file selection/export paths are boundary checked", includes("electron/ipc-handlers.ts", "channel: C.selectFiles") && includes("electron/ipc-handlers.ts", "channel: C.exportText") && occurrences("electron/ipc-handlers.ts", "ensureInsideRepo") >= 4);
 check("AI cwd and context paths are normalized inside project", includes("electron/ai/scheduler-paths.ts", "assertInsideProject") && includes("electron/ai/scheduler.ts", "normalizeContextReferences"));

@@ -1,25 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ContentKind } from "./contracts";
 import {
   CONTENT_DATE_ROOTS,
   CONTENT_FILE_ROOTS,
-  CONTENT_KIND_INITIALS,
-  INBOX_FILTER_KIND_ORDER,
   LEGACY_CONTENT_DATE_DIRECTORY_KINDS,
   LEGACY_CONTENT_FILE_ROOT_KINDS,
   LEGACY_GET_CONTENT_ALL_KINDS,
   LEGACY_KIND_MATCHERS
 } from "./content-kinds";
-
-const ALL_KINDS: ContentKind[] = ["article", "post", "summary", "topic", "reddit", "html", "unknown"];
-
-describe("CONTENT_KIND_INITIALS", () => {
-  it("maps every ContentKind to a single character", () => {
-    for (const kind of ALL_KINDS) {
-      expect(CONTENT_KIND_INITIALS[kind]).toHaveLength(1);
-    }
-  });
-});
 
 describe("LEGACY_KIND_MATCHERS", () => {
   it("covers the five legacy content types with substring rules", () => {
@@ -42,14 +29,6 @@ describe("content roots", () => {
   });
   it("CONTENT_FILE_ROOTS are date-in-filename roots", () => {
     expect(CONTENT_FILE_ROOTS).toEqual(["openmind/daily-summary", "openmind/daily-topic"]);
-  });
-});
-
-describe("INBOX_FILTER_KIND_ORDER", () => {
-  it("excludes html and unknown and lists the user-facing kinds", () => {
-    expect(INBOX_FILTER_KIND_ORDER).toEqual(["article", "summary", "topic", "post", "reddit"]);
-    expect(INBOX_FILTER_KIND_ORDER).not.toContain("html");
-    expect(INBOX_FILTER_KIND_ORDER).not.toContain("unknown");
   });
 });
 

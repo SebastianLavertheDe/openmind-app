@@ -5,15 +5,6 @@ import type { ContentKind } from "./contracts";
  * 展示文案见 shared/messages/zh-CN.ts + display-labels.contentKindLabel()。
  */
 
-export const CONTENT_KIND_INITIALS: Record<ContentKind, string> = {
-  article: "A",
-  post: "X",
-  summary: "S",
-  topic: "T",
-  reddit: "R",
-  html: "H",
-  unknown: "F"
-};
 
 // normalizeContentKind 的模糊匹配规则：按顺序 includes 命中即归类，
 // 处理遗留复数名（"articles"→article）与大小写差异。
@@ -30,7 +21,6 @@ export const CONTENT_DATE_ROOTS = ["openmind/article", "openmind/post", "openmin
 export const CONTENT_FILE_ROOTS = ["openmind/daily-summary", "openmind/daily-topic"] as const;
 
 // inbox 过滤栏的展示顺序（不含 html/unknown）。
-export const INBOX_FILTER_KIND_ORDER: ReadonlyArray<ContentKind> = ["article", "summary", "topic", "post", "reddit"];
 
 /** getContent("all") 展开的 legacy 复数 kind 名（IPC 契约，勿改为单数）。 */
 export const LEGACY_GET_CONTENT_ALL_KINDS = ["articles", "reddit", "posts", "summaries", "topics"] as const;

@@ -19,8 +19,6 @@
  * directory not in this list.
  */
 
-export const OPENMIND_LAYOUT_VERSION = "openmind-layout-v1" as const;
-
 /** Top-level openmind entries that are part of the content contract. */
 export type OpenmindEntryCategory =
   | "initialize-required"
@@ -59,35 +57,3 @@ export const OPENMIND_LAYOUT_V1: readonly OpenmindLayoutEntry[] = [
   { logicalPath: ".claudian", category: "optional-preserve-only", owner: "(tool)", note: "May exist; never created by app" },
   { logicalPath: ".obsidian", category: "optional-preserve-only", owner: "(tool)", note: "May exist; never created by app" }
 ] as const;
-
-/** All logical paths in the contract (normalised forward-slash form). */
-export const OPENMIND_LAYOUT_PATHS: readonly string[] = OPENMIND_LAYOUT_V1.map((e) => e.logicalPath);
-
-/** Top-level directory names that the contract allows to be created. */
-export const OPENMIND_ALLOWED_TOP_LEVEL_DIRS: ReadonlySet<string> = new Set(
-  OPENMIND_LAYOUT_V1.map((e) => e.logicalPath.split("/")[0])
-);
-
-/** Top-level dirs that bind() health classifies as "missing create-if-needed". */
-export const OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V1
-  .filter((e) => e.category === "create-if-needed" && !e.logicalPath.includes("/"))
-  .map((e) => e.logicalPath);
-
-/** Top-level dirs that bind() classifies as "optional observed". */
-export const OPENMIND_OPTIONAL_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V1
-  .filter((e) => e.category === "optional-preserve-only" && !e.logicalPath.includes("/"))
-  .map((e) => e.logicalPath);
-
-/** Look up an entry by logical path (exact match). */
-export function findLayoutEntry(logicalPath: string): OpenmindLayoutEntry | undefined {
-  return OPENMIND_LAYOUT_V1.find((e) => e.logicalPath === logicalPath);
-}
-
-/**
- * Returns the top-level name for a logical path, e.g.
- * `article/20260805/x.md` → `article`. Returns `null` for empty/root.
- */
-export function topLevelOf(logicalPath: string): string | null {
-  const head = logicalPath.split("/")[0];
-  return head && head.length > 0 ? head : null;
-}

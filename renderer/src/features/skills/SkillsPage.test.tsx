@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView } from "@shared/contracts";
+import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView, SourceDefinition } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/execution-contracts";
 import { SkillsPage } from "./SkillsPage";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
@@ -50,6 +50,7 @@ const installedSkill: InstalledSkillView = {
 };
 
 const skills: SkillDefinition[] = [{ id: "legacy-demo", title: "旧版 Demo", description: "旧发现链能力", cwd: sourcePath, command: "python", group: "测试" }];
+const demoRunCreatedAt = new Date().toISOString();
 const demoRun = BrokerRunRecordSchema.parse({
   schemaVersion: EXECUTION_SCHEMA_VERSION,
   id: "demo-run-1",
@@ -59,9 +60,9 @@ const demoRun = BrokerRunRecordSchema.parse({
   rootGeneration: 1,
   skillDigest: digest,
   runtime: null,
-  createdAt: "2026-08-09T08:00:00.000Z",
-  startedAt: "2026-08-09T08:00:01.000Z",
-  completedAt: "2026-08-09T08:00:02.000Z",
+  createdAt: demoRunCreatedAt,
+  startedAt: demoRunCreatedAt,
+  completedAt: demoRunCreatedAt,
   terminalState: "succeeded",
   error: null,
   processPid: null,
@@ -74,6 +75,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     listInstalledSkills: async () => [installedSkill],
     setInstalledSkillEnabled: async (_key: string, _digest: string, enabled: boolean) => ({ ...installedSkill, enabled }),
     listSkillRuns: async () => [demoRun],
+    listSources: async () => [],
     onAiEvent: () => () => undefined,
     ...overrides
   } as unknown as DesktopApi;
@@ -98,6 +100,7 @@ describe("SkillsPage", () => {
     expect(screen.getByRole("heading", { name: "运行记录" })).toBeTruthy();
     expect(screen.getByText("demo-run-1", { exact: false })).toBeTruthy();
     expect(screen.getByText("成功")).toBeTruthy();
+    expect(screen.getByText("近 5 天 · 1 条")).toBeTruthy();
     expect(screen.getByText("包体已验证")).toBeTruthy();
     expect(screen.getByText("后续可用性")).toBeTruthy();
     expect(screen.getByText("更改不会修改已有会话，也不会取消已排队或正在运行的任务。")).toBeTruthy();
@@ -108,6 +111,235 @@ describe("SkillsPage", () => {
     expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索 Skills" }), { target: { value: "Demo" } });
     expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+  });
+
+  it("keeps the Skill catalog usable when run history is unavailable", async () => {
+    renderPage({
+      listSkillRuns: async () => {
+        throw new Error("Error invoking remote method 'skill:run-list': setup gate failed");
+      }
+    });
+
+    expect(await screen.findByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+    expect(screen.getByText("运行记录暂时不可用，Skill 列表和配置仍可正常管理。")).toBeTruthy();
+    expect(screen.queryByText(/Error invoking remote method/)).toBeNull();
+  });
+
+  it("shows only runs created within the last five days", async () => {
+    const now = Date.now();
+    const recentRun = BrokerRunRecordSchema.parse({
+      ...demoRun,
+      id: "recent-run",
+      createdAt: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
+    });
+    const expiredRun = BrokerRunRecordSchema.parse({
+      ...demoRun,
+      id: "expired-run",
+      createdAt: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString()
+    });
+    renderPage({ listSkillRuns: async () => [expiredRun, recentRun] });
+
+    expect(await screen.findByText("recent-run", { exact: false })).toBeTruthy();
+    expect(screen.queryByText("expired-run", { exact: false })).toBeNull();
+    expect(screen.getByText("近 5 天 · 1 条")).toBeTruthy();
+  });
+
+  it("keeps RSS subscriptions inside their owning Skill and supports source actions", async () => {
+    const rssInstalled: InstalledSkillView = { ...installedSkill, key: "cctools/rss-article-saver", id: "rss-article-saver" };
+    const rssInspection: SkillPackageInspectionView = {
+      ...inspection,
+      manifest: {
+        ...manifest,
+        id: "rss-article-saver",
+        display: { name: "RSS 文章采集", description: "采集订阅内容。", group: "采集" }
+      }
+    };
+    const source: SourceDefinition = {
+      schemaVersion: 1,
+      id: "rss-1",
+      name: "少数派",
+      kind: "rss",
+      url: "https://sspai.com/feed",
+      skillId: "rss-article-saver",
+      enabled: true,
+      frequency: "每日流水线",
+      tags: ["产品"],
+      lastRunAt: null,
+      lastSuccessAt: null,
+      successRate: null,
+      status: "idle",
+      recentError: null,
+      itemCount: 0
+    };
+    const listSources = vi.fn(async () => [source]);
+    const updateSource = vi.fn(async (_id: string, patch: { enabled?: boolean }) => ({ ...source, enabled: patch.enabled ?? source.enabled }));
+    const importOpml = vi.fn(async () => 2);
+    renderPage({
+      listInstalledSkills: async () => [rssInstalled],
+      inspectInstalledSkill: async () => rssInspection,
+      listSources,
+      updateSource,
+      importOpml
+    });
+
+    expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
+    expect(screen.getByRole("heading", { name: "RSS 文章采集的订阅源" })).toBeTruthy();
+    expect(screen.getByText("这些订阅只属于当前 Skill，仓库整体更新不会覆盖。", { exact: false })).toBeTruthy();
+    expect(screen.getByText("https://sspai.com/feed")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("switch", { name: "停用 少数派" }));
+    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("rss-1", { enabled: false }));
+
+    fireEvent.click(screen.getByRole("button", { name: "导入 OPML" }));
+    await waitFor(() => expect(importOpml).toHaveBeenCalled());
+    expect(await screen.findByText("已导入 2 个订阅。")).toBeTruthy();
+    expect(listSources).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows X as a curl request configuration instead of an account source", async () => {
+    const xInstalled: InstalledSkillView = { ...installedSkill, key: "cctools/x-following-fetcher", id: "x-following-fetcher" };
+    const xInspection: SkillPackageInspectionView = {
+      ...inspection,
+      manifest: {
+        ...manifest,
+        id: "x-following-fetcher",
+        display: { name: "X Following 抓取", description: "抓取关注时间线。", group: "采集" }
+      }
+    };
+    const source: SourceDefinition = {
+      schemaVersion: 1,
+      id: "source-x",
+      name: "X 请求",
+      kind: "x",
+      url: null,
+      skillId: "x-following-fetcher",
+      enabled: true,
+      frequency: "每日流水线",
+      tags: ["动态"],
+      lastRunAt: null,
+      lastSuccessAt: null,
+      successRate: null,
+      status: "idle",
+      recentError: null,
+      itemCount: 0
+    };
+    const curl = "curl 'https://x.com/i/api/graphql/HomeLatestTimeline' -H 'authorization: Bearer local-token'";
+    const writeContent = vi.fn(async (path: string, content: string) => ({ path, name: "curl.txt", content, truncated: false }));
+    const updateSource = vi.fn(async (_id: string, patch: { enabled?: boolean }) => ({ ...source, enabled: patch.enabled ?? source.enabled }));
+    renderPage({
+      listInstalledSkills: async () => [xInstalled],
+      inspectInstalledSkill: async () => xInspection,
+      listSources: async () => [source],
+      readContent: async () => ({ path: ".claude/skills/x-following-fetcher/curl.txt", name: "curl.txt", content: curl, truncated: false }),
+      writeContent,
+      updateSource
+    });
+
+    expect(await screen.findByRole("heading", { name: "X Following 抓取" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "请求配置" }));
+    expect(await screen.findByRole("heading", { name: "X Following 抓取的请求配置" })).toBeTruthy();
+    expect(screen.queryByText("账号来源", { exact: false })).toBeNull();
+    expect(await screen.findByText("已配置 · 请求内容已隐藏")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑 cURL" }));
+    const textarea = screen.getByRole("textbox", { name: "完整 cURL" }) as HTMLTextAreaElement;
+    expect(textarea.value).toBe(curl);
+    fireEvent.change(textarea, { target: { value: "not a curl" } });
+    fireEvent.click(screen.getByRole("button", { name: "覆盖保存" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("请粘贴以 curl 开头的完整请求。");
+    fireEvent.change(textarea, { target: { value: "curl 'https://x.com/new-request'" } });
+    fireEvent.click(screen.getByRole("button", { name: "覆盖保存" }));
+    await waitFor(() => expect(writeContent).toHaveBeenCalledWith(
+      ".claude/skills/x-following-fetcher/curl.txt",
+      "curl 'https://x.com/new-request'\n"
+    ));
+
+    fireEvent.click(screen.getByRole("switch", { name: "停用 X Following 抓取" }));
+    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("source-x", { enabled: false }));
+  });
+
+  it("checks and updates every Skill from the selected Git source", async () => {
+    const locator = "https://github.com/example/demo-skills.git";
+    const source = { type: "git" as const, locator, ref: "main" };
+    const gitInstalled: InstalledSkillView = {
+      ...installedSkill,
+      sourcePath: locator,
+      sourceType: "git",
+      sourceLocator: locator,
+      sourceRef: "main",
+      sourcePackageRef: ".",
+      sourceRevision: "1".repeat(40)
+    };
+    const updatedInspection: SkillPackageInspectionView = {
+      ...inspection,
+      sourcePath: locator,
+      sourceKind: "git",
+      packageRef: ".",
+      digest: "b".repeat(64),
+      manifest: { ...manifest, version: "2.0.0" }
+    };
+    let currentRecord = gitInstalled;
+    let currentInspection: SkillPackageInspectionView = { ...inspection, sourcePath: locator, sourceKind: "git", packageRef: "." };
+    const inspectSkillSource = vi.fn().mockResolvedValue({ source, packages: [updatedInspection] });
+    const installSkillSource = vi.fn().mockImplementation(async () => {
+      currentRecord = { ...gitInstalled, version: "2.0.0", digest: updatedInspection.digest, sourceRevision: "2".repeat(40) };
+      currentInspection = updatedInspection;
+      return [currentRecord];
+    });
+    const onInstallationChange = vi.fn();
+    const onAvailabilityChange = vi.fn();
+    renderPage({
+      listInstalledSkills: async () => [currentRecord],
+      inspectInstalledSkill: async () => currentInspection,
+      inspectSkillSource,
+      installSkillSource
+    }, undefined, false, onInstallationChange, onAvailabilityChange);
+
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    const checkButton = screen.getByRole("button", { name: "检查更新" });
+    const updateButton = screen.getByRole("button", { name: "更新" }) as HTMLButtonElement;
+    expect(checkButton.closest(".skills-source-group")).toBeTruthy();
+    expect(checkButton.closest(".skills-detail")).toBeNull();
+    expect(updateButton.closest(".skills-source-group")).toBeTruthy();
+    expect(updateButton.disabled).toBe(true);
+    fireEvent.click(checkButton);
+
+    await waitFor(() => expect(inspectSkillSource).toHaveBeenCalledWith(source, expect.stringMatching(/^skill-update-/)));
+    expect(await screen.findByText("有可用更新。")).toBeTruthy();
+    expect(updateButton.disabled).toBe(false);
+    fireEvent.click(updateButton);
+
+    await waitFor(() => expect(installSkillSource).toHaveBeenCalledWith(source));
+    expect(await screen.findByText("更新完成。")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+    expect(screen.getByText("v2.0.0")).toBeTruthy();
+    expect(onInstallationChange).toHaveBeenCalledOnce();
+    expect(onAvailabilityChange).toHaveBeenCalledOnce();
+  });
+
+  it("does not mislabel an inaccessible valid Git source as an invalid URL", async () => {
+    const locator = "https://github.com/example/private-skills.git";
+    const gitInstalled: InstalledSkillView = {
+      ...installedSkill,
+      sourcePath: locator,
+      sourceType: "git",
+      sourceLocator: locator,
+      sourcePackageRef: "."
+    };
+    renderPage({
+      listInstalledSkills: async () => [gitInstalled],
+      inspectSkillSource: vi.fn().mockRejectedValue(new Error(
+        "Error invoking remote method 'skill-source:inspect': SkillSourceError: Git 仓库需要登录或当前账号无权访问。"
+      )),
+      installSkillSource: vi.fn()
+    });
+
+    await screen.findByRole("heading", { name: "Demo Skill" });
+    fireEvent.click(screen.getByRole("button", { name: "检查更新" }));
+
+    expect(await screen.findByText(/更新失败：Git 仓库需要登录或当前账号无权访问/)).toBeTruthy();
+    expect(screen.queryByText(/来源输入不合法/)).toBeNull();
   });
 
   it("surfaces an unusable installed package without relying on lifecycle labels", async () => {
@@ -325,7 +557,12 @@ describe("SkillsPage", () => {
       listSkillRuns: async () => [demoRun, otherRun]
     });
     const demoButton = await screen.findByRole("button", { name: /Demo Skill/ });
+    const firstDetail = document.querySelector<HTMLElement>(".skills-detail-content");
+    expect(firstDetail?.dataset.skillDetailId).toContain("local/demo-skill");
     fireEvent.keyDown(demoButton, { key: "ArrowDown" });
+    const nextDetail = document.querySelector<HTMLElement>(".skills-detail-content");
+    expect(nextDetail).not.toBe(firstDetail);
+    expect(nextDetail?.dataset.skillDetailId).toContain("local/other-skill");
     expect(screen.getByText("other-run-1", { exact: false })).toBeTruthy();
     expect(screen.queryByText("demo-run-1", { exact: false })).toBeNull();
   });

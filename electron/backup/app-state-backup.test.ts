@@ -104,4 +104,40 @@ describe("AppStateBackupService", () => {
     fs.symlinkSync(outside, path.join(paths.state, "linked"), "junction");
     expect(() => service.exportToFile(path.join(path.dirname(paths.userData), "symlink.zip"))).toThrow(/符号链接/);
   });
+
+  it("restores a verified snapshot left by an interrupted commit on startup", () => {
+    const { paths } = fixture();
+    write(paths.settingsFile, "partially-applied");
+    const transaction = path.join(paths.staging, "state-backup-restore-recovery");
+    write(path.join(transaction, "previous", "settings", "settings.json"), "before-crash");
+    write(path.join(transaction, "marker.json"), JSON.stringify({
+      kind: "openmind-app-state-backup",
+      schemaVersion: 1,
+      phase: "committing"
+    }));
+
+    new AppStateBackupService(paths);
+
+    expect(fs.readFileSync(paths.settingsFile, "utf8")).toBe("before-crash");
+    expect(fs.existsSync(transaction)).toBe(false);
+  });
+
+  it("rejects an unsafe rollback snapshot before changing live state", () => {
+    const { root, paths } = fixture();
+    write(paths.settingsFile, "live-state");
+    const outside = path.join(root, "outside");
+    write(path.join(outside, "settings.json"), "forged-state");
+    const transaction = path.join(paths.staging, "state-backup-restore-unsafe");
+    fs.mkdirSync(path.join(transaction, "previous"), { recursive: true });
+    fs.symlinkSync(outside, path.join(transaction, "previous", "settings"), "junction");
+    write(path.join(transaction, "marker.json"), JSON.stringify({
+      kind: "openmind-app-state-backup",
+      schemaVersion: 1,
+      phase: "committing"
+    }));
+
+    expect(() => new AppStateBackupService(paths)).toThrow(/未授权条目/);
+    expect(fs.readFileSync(paths.settingsFile, "utf8")).toBe("live-state");
+    expect(fs.existsSync(transaction)).toBe(true);
+  });
 });

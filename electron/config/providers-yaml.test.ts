@@ -165,18 +165,6 @@ describe("config/providers.yaml file repository", () => {
       .toThrow("为避免把旧会话发送到不同服务，请新建会话");
   });
 
-  it("clears only the matching CLI binding when a provider is deleted", () => {
-    config.saveProvidersFromInput(providerDocument());
-
-    const afterClaudeDelete = config.deleteProviderEntry("claude-primary");
-    expect(afterClaudeDelete.cli).toEqual({ claude: null, codex: "codex-primary" });
-    expect(afterClaudeDelete.providers.map((provider) => provider.id)).not.toContain("claude-primary");
-
-    const afterCodexDelete = config.deleteProviderEntry("codex-primary");
-    expect(afterCodexDelete.cli).toEqual({ claude: null, codex: null });
-    expect(config.readProvidersYaml()?.cli).toEqual({ claude: null, codex: null });
-  });
-
   it("reports explicit errors for missing or protocol-incompatible session provider ids", () => {
     expect(() => config.resolveCliProvider("claude", "missing-session-provider"))
       .toThrow("claude 会话缺少 Provider 配置指纹");
@@ -228,21 +216,5 @@ describe("config/providers.yaml file repository", () => {
 
     expect(config.saveProvidersFromInput(providerDocument()).providers).toHaveLength(4);
     expect(config.readProvidersYaml()?.default).toBe("general-chat");
-  });
-
-  it("does not delete the only enabled default provider", () => {
-    config.saveProvidersFromInput({
-      schemaVersion: 1,
-      default: "enabled-default",
-      cli: { claude: null, codex: null },
-      providers: [
-        entry("enabled-default", "openai-chat"),
-        entry("disabled-backup", "openai-chat", "secret-disabled", { enabled: false })
-      ]
-    });
-
-    expect(() => config.deleteProviderEntry("enabled-default"))
-      .toThrow("删除后将没有可用的默认 Provider");
-    expect(config.readProvidersYaml()?.default).toBe("enabled-default");
   });
 });

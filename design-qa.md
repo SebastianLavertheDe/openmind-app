@@ -43,6 +43,205 @@ final result: passed
 
 ---
 
+# Provider 折叠与扁平化配置 QA — 2026-08-23
+
+## 对照基准
+
+- Source visual truth: `C:\Users\say\.codex\generated_images\01a02d88-6997-7461-9f75-ec4bc99cd94f\exec-e880f256-6471-4a08-a697-79df27699e17.png`。
+- Implementation expanded screenshot: `D:\work\openmind-app\design-qa\settings-unified\reference-provider-list-expanded.png`。
+- Implementation default-collapsed screenshot: `D:\work\openmind-app\design-qa\settings-unified\reference-provider-list-collapsed.png`。
+- Focused implementation evidence: `D:\work\openmind-app\design-qa\settings-unified\reference-provider-card-expanded.png` and `reference-provider-card-collapsed.png`。
+- Full-view combined comparison: `D:\work\openmind-app\design-qa\settings-unified\provider-expanded-comparison-normalized.png`。
+- Focused combined comparison: `D:\work\openmind-app\design-qa\settings-unified\provider-card-comparison.png`。
+- Viewport and density: the source is 1577 × 997 physical pixels. The Electron BrowserWindow was set to 1577 × 997 CSS px; Windows display density produced a 2345 × 1401 full capture, which was bicubically normalized to 1577 × 997 before the full-view comparison. The focused Provider card was captured from its DOM rectangle and normalized to its 980 CSS px width.
+- State: light theme, two configured Providers, first Provider expanded for visual comparison with one invisible trailing-space draft so the dirty/save state matches the source. The additional initial-state evidence has both Providers collapsed, per the final user requirement.
+
+## Findings
+
+- No actionable P0/P1/P2 visual finding remains.
+- Fonts and typography: the existing settings font stack, 13px Provider names, mono protocol/model metadata, muted helper copy and compact status text remain consistent with adjacent Settings surfaces. Long model metadata truncates without colliding with switches or menus.
+- Spacing and layout rhythm: the Provider list is a flat grouped surface. Only the divider between Provider rows remains; the expanded body uses a subtle filled plane, inputs use fill rather than strokes, Advanced Settings is borderless, and the save strip has no outline. The implementation is intentionally slightly more compact than the mock and preserves the product's established centered 980px Settings axis.
+- Colors and visual tokens: existing panel, muted, surface, success, warning and focus tokens are reused. No new hard-coded palette or shadow treatment was introduced.
+- Image quality and assets: this surface contains no raster product assets. Existing Lucide controls remain vector-sharp; no custom SVG, placeholder art or generated image is shipped in the application.
+- Copy and content: Provider names, protocol/model metadata, API Key status, field labels, Advanced Settings copy, dirty count and save/discard actions match the approved direction. The default Provider switch remains disabled and therefore visually muted, preserving the existing rule that the active default cannot be turned off directly.
+- Accessibility and interaction: Provider summaries expose `aria-expanded` and `aria-controls`; only one body is mounted at a time. Toggle labels include the Provider name, the overflow action exposes menu/menuitem semantics, Advanced Settings has its own disclosure state, and visible focus rings are retained.
+- Responsive behavior: the 1744 × 1255, 2048 × 1152, 1280 × 800 and 900 × 720 settings matrix reported zero page-level or document-level horizontal overflow. At the compact breakpoint, form and advanced grids collapse to one column and save actions share the available width.
+
+## Comparison history
+
+1. The rejected visual direction used nested card, field, Advanced Settings and footer outlines, producing excessive line density.
+2. The approved source removed those outlines in favor of whitespace and subtle filled surfaces. The implementation follows that source while retaining the existing Settings width and disabled-default-provider safety behavior.
+3. The first coded comparison found no actionable P0/P1/P2 mismatch. The focused comparison confirms the same information hierarchy, single divider, filled input treatment, compact collapsed row and borderless save strip; no visual fix loop was required.
+
+## Primary interactions verified
+
+- Initial render contains two Provider rows, zero expanded cards and zero mounted configuration bodies.
+- Expanding the first Provider mounts exactly one body; opening the second closes the first; clicking the open summary again returns to zero expanded cards.
+- Adding a Provider opens the new draft, while discarding restores the persisted document and returns the list to the collapsed state.
+- Dirty tracking enables Save and reports the number of modified Providers; removing a draft Provider keeps unrelated unsaved field and API Key edits.
+- The Electron visual matrix captured all ten Settings categories at four viewport sizes, reported no renderer console errors and passed its overflow gate.
+- `npm run build` passed, including TypeScript, repository-root audit, all 16 formal Skill manifests, renderer production build and Electron/preload build.
+- `npx vitest run renderer/src/features/settings/SettingsPage.test.tsx`: 28/28 passed.
+
+final result: passed
+
+---
+
+# Automation 紧凑控件与运行记录 QA — 2026-08-23
+
+## 对照基准
+
+- Source visual truth: `C:\Users\say\AppData\Local\Temp\codex-clipboard-c31c681d-2cd9-40ce-810d-5d91fd3affcc.png`
+- Implementation screenshot: `D:\work\openmind-app\.build\automation-layout-after-desktop.png`
+- Combined comparison evidence: `D:\work\openmind-app\.build\automation-layout-comparison-desktop.png`
+- Focused implementation evidence: `D:\work\openmind-app\.build\automation-target-clip.png` and `D:\work\openmind-app\.build\automation-trigger-clip.png`
+- Viewport and density normalization: 参考图是 2463 × 1553 px，其中顶部 32 px 是 Electron/Windows 窗口边框；对照时裁掉边框，并将 2463 × 1521 px 应用内容归一化为 1979 × 1225 px。浏览器使用 1979 × 1241 CSS px 视口、device scale 1.5，输出应用截图 1979 × 1225 px。
+- State: 浅色主题，选中 `RSS 抓取与每日总结`，触发方式为“每小时”。参考图使用真实失败历史，浏览器 Preview 使用同一规则的空历史固定数据；因此历史行不做像素对位，按钮移除由失败状态组件测试和浏览器 DOM 计数共同验证。
+
+## Full-view and focused evidence
+
+参考图与实现截图在同一并排比较图中检查。完整视图显示两个原本被红框标记的控件已不再占满网格轨道；细节截图确认文字、图标、下拉箭头和控件内边距都未被裁切。浏览器几何测量为：执行目标文字约 142 px，控件约 188 px；触发方式文字约 71 px，控件 112 px。
+
+## Findings
+
+- No actionable P0/P1/P2 finding remains.
+- Fonts and typography: 继续使用现有 system font stack、字重和小号字段标签；收紧宽度没有改变字号、行高或文字截断策略。
+- Spacing and layout rhythm: 执行目标使用 `fit-content`，触发选择器使用 112 px 紧凑宽度；两者保留原来的 34 px 高度、6 px 字段间距和网格对齐。运行历史行从六列改为五列，错误文本获得原操作列的空间。
+- Colors and visual tokens: 未改变颜色、边框、背景、圆角或阴影 token。
+- Image quality and assets: 该区域无光栅图像；目标与调度图标仍使用项目已有 Lucide 图标，没有新增或近似替代资产。
+- Copy and content: 现有“执行目标”、“触发方式”和运行错误文案保留；仅移除失败/阻塞历史行的“重试”按钮。
+- Interaction and accessibility: 触发方式仍为共享 `Select` 语义控件，键盘和 ARIA 行为未变。实时 Preview DOM 中名为“重试”的按钮计数为 0；失败运行回归测试也确认不渲染该操作。
+- Responsive behavior: 980、720 和 520 CSS px 宽度均无水平溢出。520 px 下两字段分行，控件保持内容宽度。
+
+## Comparison history and verification
+
+1. Initial source evidence identified two P2 density issues: the read-only target background and trigger selector retained large unused widths. It also identified the unwanted repeated retry action in failed history rows.
+2. The target display was changed to content width with ellipsis protection, the trigger selector to a compact 112 px content-sized control, and the retry prop/button/helper path was removed from run history.
+3. Post-fix browser evidence measured the compact geometry, found zero horizontal overflow at all tested widths, and reported no console warning/error entries. No post-fix P0/P1/P2 issue remains.
+4. Automation page tests: 18/18 passed. TypeScript checks, production renderer build, and `git diff --check` passed.
+
+final result: passed
+
+---
+
+# Skills 极简双栏重构设计 QA — 2026-08-22
+
+## 对照基准
+
+- 用户原始界面：`C:\Users\say\AppData\Local\Temp\codex-clipboard-0f27f095-f573-4a86-9582-2f6bb1a21c77.png`
+- 其他设置 Tab 配色基准：`C:\Users\say\AppData\Local\Temp\codex-clipboard-d79b02fc-ef4e-4be2-9a53-46b74cfc3c70.png`
+- 用户确认后的最终视觉目标：`C:\Users\say\.codex\generated_images\01a028e8-1319-7c53-8b8d-0a654ea370cc\exec-077e07a4-2748-4024-b534-71d9fa3183fb.png`
+- 实现截图：`D:\work\openmind-app\design-qa\skills-redesign-20260822-pass3\reference-04-Skills.png`
+- 响应式截图：同目录下 `2048x1152-04-Skills.png`、`1280x800-04-Skills.png`、`900x720-04-Skills.png`
+- 视口与像素密度：主验收视口为 1744 × 1255 CSS px，Electron 内容截图为 2595 × 1788 px，device scale 约 1.5；目标图为 1536 × 1024 px。判断以设置内容区的 CSS 构图和组件关系归一化，不把应用侧栏与窗口 chrome 计为目标图偏差。
+- 状态：浅色主题，cctools Git 来源展开，兴趣标记整理被选中，Skill 已启用，运行记录为空。
+
+## 完整视图与对照证据
+
+最终视觉目标与实现截图已在同一个比较输入中并排检查。完整视图可清楚辨认标题、添加来源按钮、双栏比例、选中行、详情元数据、可用性开关和运行记录空态，因此无需额外裁剪。实现使用 9 条隔离的视觉测试数据，目标图使用 16 条；数量差异不影响视觉结构判断。
+
+## Findings
+
+- 未发现可执行的 P0、P1 或 P2 问题。
+- 字体与层级：Skills 页显式复用主界面的 `--font-sans-default` 系统字体栈；标题、正文、元数据与其他设置 Tab 的字号、字重和灰阶一致。
+- 间距与布局：保留紧凑双栏，但移除多余卡片套层和阴影。左栏承担搜索、来源和 Skill 列表，右栏形成标题、元数据、来源路径、可用性与运行记录的顺序阅读流。
+- 选中态与图标：选中 Skill 仅使用现有 `--list-selected-bg` 暖灰底和适度加粗，不再显示蓝色左轨；列表内重复方块图标已全部移除，只在详情标题保留一次语义图标。
+- 配色与 token：背景、分隔线、选中态、开关和按钮全部复用其他设置 Tab 的中性色 token；绿色只用于“包体已验证”成功状态，焦点态复用产品已有薄荷品牌色，不引入新的蓝色体系。
+- 文案与内容：现有产品文案、安装状态、运行记录语义和来源信息未改变；“添加其他来源”改用更直接的加号动作图标。
+- 可访问性与响应式：键盘导航、搜索、开关状态和来源弹窗语义保持；1744、2048、1280、900 四个视口均无横向溢出，窄屏时双栏按既有断点纵向排列且内容可滚动。
+
+## 比较历史与验证
+
+1. 第一轮视觉方案减少线框和卡片层级；用户确认选择方案 1。
+2. 按用户复核移除选中行蓝色左轨、左栏重复方块图标，并切回主界面字体。
+3. 依据“权限与安全”Tab 把蓝色强调和偏冷表面替换为现有暖中性 token，保留成功绿和品牌焦点色。
+4. Electron 首轮截图发现窄屏自动滚动导致验收画面偏移，并暴露视觉夹具缺少 Provider API 产生的错误提示；修正隔离夹具后重新生成 40 张截图。
+5. 最终截图控制台 error 为 0，所有视口 horizontal overflow 为 0；目标图与实现图并排复核后无 P0/P1/P2 问题。
+6. `npm run typecheck` 通过；Skills 单元测试 16/16 通过；renderer 与 Electron 生产构建通过；相关文件 `git diff --check` 通过。完整 `npm run build` 仍会被独立 Skill 仓库中 16 个既有 apiVersion manifest 校验错误阻断，与本次 UI 改动无关。
+
+final result: passed
+
+---
+
+# Skills 来源摘要与交互动效修正 QA — 2026-08-22
+
+## 对照基准
+
+- 用户标注的问题截图：`C:\Users\say\AppData\Local\Temp\codex-clipboard-ed820c06-9615-429e-81f3-db727e3999f5.png`
+- 修正后的实现截图：`D:\work\openmind-app\design-qa\skills-redesign-20260822-motion-pass4\reference-04-Skills.png`
+- 响应式实现截图：同目录下 `2048x1152-04-Skills.png`、`1280x800-04-Skills.png` 与 `900x720-04-Skills.png`
+- 视口与密度：主实现视口为 1744 × 1255 CSS px，Electron 内容截图为 2595 × 1788 px，device scale 约 1.5。用户截图为 3840 × 2088 px，包含窗口 chrome；比较时按 Skills 内容区与用户红框中的来源摘要做密度归一化，不把不同 Skill 数据和外围窗口尺寸列为偏差。
+- 状态：浅色主题，Git 来源展开，列表有选中 Skill，详情可用性开关开启。
+
+## 对照证据
+
+用户标注截图与修正后的 Electron 实现截图已在同一个比较输入中打开。用户红框本身已经形成清楚的聚焦区域；实现截图的同一区域在完整分辨率下可读，并由 Electron DOM 几何补充确认，因此无需再生成二次裁剪。
+
+## Findings
+
+- 先前 P2 已消除：通用 `.ui-disclosure-trigger` 的后置 `display: block` 覆盖了 Skills 来源摘要网格，导致图标、名称、URL、计数和箭头向下堆叠。现在来源摘要计算样式为四列 `grid`，四个子元素的垂直中心差为 `0px`，全部处于同一条紧凑横向摘要中。
+- 未发现新的 P0、P1 或 P2 问题。
+- 字体与层级：继续使用主界面系统字体栈；来源标题、URL、计数和箭头保持清楚的主次关系，没有额外加粗或新字号体系。
+- 间距与布局：来源摘要最小高度从 58px 收至 52px，使用 18px 图标列、弹性文本列、计数列和 16px 箭头列；1744、2048、1280、900 四个视口的横向溢出均为 0。
+- 色彩与 token：沿用现有中性色、暖灰选中底和薄荷焦点色；没有恢复蓝色左轨，也没有新增独立色值。
+- 动效：来源展开/收起为 200ms 高度与透明度过渡并带箭头旋转；选择不同 Skill 会重挂详情内容并触发 200ms `skills-detail-enter` 淡入/横移；列表按下时文字轻移 2px；动作与图标按钮复用现有 action/icon 按压反馈；开关保留滑块过渡并增加按压缩放。Electron 实际点击另一条 Skill 后检测到详情节点已替换，`skills-detail-enter` 处于 `running`，时长 200ms。
+- 无障碍：键盘上下键选择、折叠按钮 `aria-expanded`、开关 `role=switch` 与反馈区 live region 均保留；`prefers-reduced-motion: reduce` 仍由全局规则将动画时长归零。
+- 图像与素材：本轮不涉及光栅内容资产或新图标，继续使用项目现有 Lucide 图标。
+- 文案与内容：未修改 Skill 标题、描述、来源、状态或运行记录文案。
+
+## 比较历史与验证
+
+1. 用户截图暴露 P2：来源摘要被错误拆成多行，计数和箭头落到左下角；同时 Skill 选择与按钮点击缺少可感知反馈。
+2. 提高 Skills 来源触发器选择器的明确度，恢复紧凑网格；为详情切换、列表按压、来源折叠、来源弹窗按钮、开关和反馈消息补齐 120–200ms 的语义动效。
+3. 修正后重新生成 40 张 Electron 设置页截图。所有 Skills 视口 horizontal overflow 与 document overflow 均为 0，控制台 error 为 0。
+4. Electron 交互证据：四个视口均记录 `selectionChanged=true`；详情动画 `skills-detail-enter: 200ms` 正在运行；来源摘要 `display=grid`、子元素中心差 `0px`；折叠内容 transition duration 为 `0.2s`。
+5. `npm run typecheck`、Skills 单元测试 16/16、renderer production build 与相关文件 `git diff --check` 均通过。
+
+final result: passed
+
+---
+
+# 工作台顶部与左侧 Chrome 统一设计 QA（2026-08-22）
+
+## 对照基准
+
+- 视觉目标（图 2 设置页左侧）：`C:\Users\say\AppData\Local\Temp\codex-clipboard-d14d67fa-3c34-4cd6-a399-ad53650be01a.png`
+- 问题证据（图 1 工作台）：`C:\Users\say\AppData\Local\Temp\codex-clipboard-fd7322ac-cbef-476c-a3b2-ff689c59b64a.png`
+- 用户复核问题（设置页右侧浮层被压平）：`C:\Users\say\AppData\Local\Temp\codex-clipboard-b50305cd-7612-4296-98c5-bf0aa5159380.png`
+- 更新后实现：`C:\Users\say\.codex\visualizations\2026\08\22\01a028b3-82a5-7b12-aca6-90278943789e\openmind-chrome-after-final.png`
+- 浮层修正后实现：`C:\Users\say\.codex\visualizations\2026\08\22\01a028b3-82a5-7b12-aca6-90278943789e\settings-floating-panel-after.png`
+- 视口：1992 × 1248 CSS px；浏览器 devicePixelRatio 1.5；实现截图为 1992 × 1248 px。目标截图为 2421 × 1517 px，与实现保持相同桌面宽高比后按区域比较。
+- 状态：浅色主题；目标为设置页，实现在每日简报页。两者页面内容不同是有意的，本轮只以应用顶部和左侧 chrome 为视觉真值。
+
+## 对照证据
+
+目标截图与更新后的实现截图已在同一个比较输入中打开。完整视图用于检查外壳与白色内容画布的层次；顶部栏和左侧栏在全图中足够清楚，因此不需要额外裁剪。浏览器计算样式同时确认 `.global-toolbar` 使用 `--app-chrome-bg`，`.app-nav` 透出同一个 shell 背景，`.main-area` 保持独立的 `#fbfcfb` 内容底色。
+
+## Findings
+
+- 未发现可执行的 P0、P1 或 P2 问题。
+- 字体与排版：未改动字体、字号、字重、行高、截断或导航密度；图 1 的信息层级保持不变。
+- 间距与布局节奏：未改变导航宽度、48 px 顶栏、工作台 inset、圆角或内容列宽；不存在新增溢出或控件裁切。
+- 色彩与 token：Windows 标题区、左侧导航和全局顶部栏统一使用图 2 已有的 `--app-chrome-bg` 浅青绿渐变；移除 Mica 引入的冷蓝灰偏色。顶部栏只保留一条低对比 hairline，与白色内容画布分层。
+- 图像与资产：本轮没有新增或替换图像资产；现有 Lucide 图标和品牌文字保持原样。
+- 文案与内容：未改动任何产品文案或数据内容。
+- 交互：在同一预览中实际切换“每日简报”导航，页面正常加载；hover、active 和 focus 样式仍沿用现有设计系统。浏览器控制台 error 日志为空。
+- 响应式与主题：确认 Windows 缩放可能令 CSS 视口进入 `max-width: 1280px` 断点。设置页右侧画布现在固定保留 6 px inset、13 px 圆角、细边框与双层轻阴影，不再被工作台的“零 inset / 零圆角”断点压平；深色主题仍沿用现有背景 token。
+
+## 比较历史
+
+1. 初始问题证据显示 Windows Mica 透明外壳把工作台左侧和顶边染成冷蓝灰，与设置页的浅青绿 chrome 不一致（P2）。
+2. 将 Windows 外壳、导航和全局顶栏绑定到现有 `--app-chrome-bg`，并增加低对比顶栏分隔线；未引入新的独立色板。
+3. 以 1992 × 1248 桌面视口重新截图。更新后的左侧栏与顶部栏共享浅青绿渐变，白色阅读画布仍清晰独立，先前 P2 已消除。
+4. `npm run typecheck` 通过；每日简报导航交互通过；控制台无 error。
+5. 用户复核指出设置页右侧白色画布在其系统缩放下失去悬浮层次（P2）。计算样式确认 `max-width: 1280px` 将全局 `--workspace-inset` 和 `--workspace-radius` 清零。
+6. 设置页右侧画布改为独立保留 6 px 留白、13 px 圆角、细边框和两层轻阴影；左侧与顶部继续共享同一 `--app-chrome-bg`。在 2560 × 1392 桌面比例及 1142 px CSS 宽度断点状态分别验证，P2 均已消除。
+7. 修正后 `npm run typecheck`、`npm run build:renderer`、`git diff --check` 全部通过；Skills 页浏览器控制台 error 日志为空。
+
+final result: passed
+
+---
+
 ## 设置中心统一视觉语言 — 2026-08-09
 
 - Source visual truth:
@@ -1101,5 +1300,50 @@ final result: passed
 2. 将 Setup 路由和临时 AI Provider 稳定在同一棵组件树中，并用回归测试确认第 1→2→3 步的 track DOM identity 不变；同时更新 OpenMind/RSS 文案并移除 onboarding 导入入口。
 3. 浏览器重新完成“选择文件夹 → 确认绑定 → 安装 RSS 源 → Provider”流程：第 2 步和第 3 步标题均正确获得焦点，“打开导入入口”按钮计数始终为 0，控制台 error 日志为空。
 4. TypeScript 检查通过；Onboarding、App 与浏览器预览相关测试共 37 项通过；生产构建在本轮最终代码上通过。
+
+final result: passed
+
+---
+
+# Skill 内嵌来源配置交互 QA — 2026-08-22
+
+## 对照基准
+
+- Source visual truth: `C:\Users\say\.codex\generated_images\01a028e8-1319-7c53-8b8d-0a654ea370cc\exec-3b80d2cb-2797-43ba-8603-1d514ee59816.png`
+- Implementation screenshot: `D:\work\openmind-app\artifacts\design-qa\skills-source-implementation-final.png`
+- Combined comparison evidence: `D:\work\openmind-app\artifacts\design-qa\skills-source-comparison-final.png`
+- Earlier implementation evidence: `D:\work\openmind-app\artifacts\design-qa\skills-source-implementation-pass1.png` and `skills-source-implementation-pass2.png`
+- Viewport and density: source and implementation are both 1487 × 1058 physical pixels at a 1487 × 1058 CSS viewport and device scale 1. They were placed side by side without resampling, so no density normalization was required.
+- State: light theme, cctools Git group expanded, RSS 文章采集 selected, 订阅源 tab active, three representative subscriptions visible.
+
+## Full-view and focused evidence
+
+The source and final browser capture were opened in one side-by-side comparison input. The full view keeps the settings shell, catalog, detail header, tabs, toolbar, source rows, switches, and default rule strip readable. A separate crop was not needed because the implementation intentionally preserves the established Settings header and centered 980 px content axis; browser DOM inspection supplemented the compact row and interaction checks.
+
+## Findings
+
+- No actionable P0/P1/P2 finding remains.
+- Fonts and typography: the implementation keeps the same system font stack, weights, muted metadata scale, and title hierarchy as the other Settings tabs. Source names and URLs truncate predictably and the source-owned heading remains one line at the tested detail width.
+- Spacing and layout rhythm: the Skill details remain inside the existing centered Settings frame rather than adopting the mock's edge-to-edge workspace. This is an intentional product constraint. Within that frame, the metadata, tabs, source heading, toolbar, list, and rules strip keep a compact sequential rhythm. A 720 px detail-container query prevents the actions and search field from squeezing the source heading.
+- Colors and tokens: neutral panel, selected-row, border, hover, focus, and text tokens are reused from the current Settings UI. Only semantic success/warning/failure indicators use color; no new blue selection rail was introduced.
+- Image quality and assets: the target contains no raster artwork. The repeated package cube was removed from the detail heading, and the remaining action icons use the existing Lucide icon family.
+- Copy and content: ownership is explicit in `RSS 文章采集的订阅源` and the helper states that the configuration belongs only to the current Skill and is not overwritten by repository updates. Reddit and X use corresponding `社区配置` and `请求配置` ownership labels.
+- Accessibility and behavior: the three tabs expose tablist/tab/tabpanel semantics and keyboard arrow navigation. Search, add, edit, OPML import, source toggles, close-on-Escape, and Skill availability controls are real semantic controls. Panel entry, selection, press, hover, switch, and modal transitions use existing duration/easing tokens and respect the global reduced-motion rule.
+- Responsive behavior: the detail container query stacks the ownership heading above the action/search toolbar before text can wrap into a narrow column; existing Settings breakpoints still collapse the catalog/detail layout for smaller windows.
+
+## Comparison history
+
+1. Pass 1 exposed a P1 visual defect: the generic `muted` class enlarged the disabled source status dot from 7 px to 30 px. The source tone class was renamed to the isolated `idle` state; the final capture shows the correct 7 px marker.
+2. Pass 2 exposed a P2 layout defect: placing two actions plus search beside the ownership heading squeezed the title and helper into several lines in the current 540 px detail width. A detail-container query now moves the toolbar to its own row below 720 px while retaining the mock's single toolbar grouping at wider widths.
+3. The final combined comparison shows the corrected status marker, readable heading, neutral palette, compact table-like rows, and source-owned tab hierarchy. The remaining full-frame proportion difference is expected because the implementation preserves the already approved Settings header and centered content axis.
+
+## Primary interactions verified
+
+- Search filtered three RSS subscriptions down to one matching row.
+- Disabled-source switch changed state successfully.
+- Edit dialog opened and closed; add dialog accepted a name and valid RSS URL and increased the source count from 3 to 4.
+- Reddit and X catalog selections exposed `Reddit 内容抓取的社区配置` and `X Following 抓取的请求配置` under their own tabs.
+- Browser console warnings/errors: none.
+- TypeScript checks passed. Skills and browser preview focused tests: 34/34 passed.
 
 final result: passed

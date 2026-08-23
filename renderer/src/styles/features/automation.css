@@ -680,7 +680,7 @@
 .automation-editor-grid {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -701,11 +701,13 @@
 }
 
 .automation-target-field {
-  max-width: 720px;
+  max-width: 100%;
+  justify-self: start;
 }
 
 .automation-editor-grid > .automation-field:not(.automation-target-field) {
-  width: min(100%, 220px);
+  width: max-content;
+  max-width: 100%;
   justify-self: end;
 }
 
@@ -769,6 +771,8 @@
 
 /* Read-only target display: bound skill of the selected rule, not editable here. */
 .automation-target-readonly .automation-target-display {
+  width: fit-content;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -779,6 +783,19 @@
   color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 500;
+}
+
+.automation-target-readonly .automation-target-display > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-field .ui-select.automation-trigger-select {
+  width: max-content;
+  max-width: 100%;
+  min-width: 112px;
 }
 
 .automation-field .ui-select.rect .ui-select-trigger {
@@ -961,7 +978,7 @@
 
 .automation-history-row {
   display: grid;
-  grid-template-columns: auto auto auto minmax(80px, 1fr) minmax(0, 2fr) auto;
+  grid-template-columns: auto auto auto minmax(80px, 1fr) minmax(0, 2fr);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -980,7 +997,6 @@
 }
 
 .automation-history-row code { color: var(--accent-fg); }
-.automation-history-row button { color: var(--accent-fg); }
 
 @container automation-rule-detail (max-width: 760px) {
   .automation-editor-grid {

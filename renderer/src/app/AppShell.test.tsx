@@ -254,31 +254,6 @@ describe("AppShell", () => {
     }
   });
 
-  it("places the conversation module between core nav and settings on the AI page", () => {
-    render(
-      <AppShell
-        page="ai"
-        navigate={vi.fn()}
-        onOpenSearch={vi.fn()}
-        navCollapsed={false}
-        setNavCollapsed={vi.fn()}
-        repoRoot="/repo"
-        runtime="linux"
-        environment={{ mode: "desktop", platform: "linux" }}
-        pendingApprovals={0}
-        aiMode="default"
-        aiNavigation={<div>会话记录模块</div>}
-      >
-        <div>AI</div>
-      </AppShell>
-    );
-
-    const settings = screen.getByRole("button", { name: "设置" });
-    const conversations = screen.getByText("会话记录模块");
-    // 设置在上、会话沉底：设置应在会话之前（文档顺序）
-    expect(conversations.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-  });
-
   it("does not mark New Task active while an existing AI session is open", () => {
     render(
       <AppShell

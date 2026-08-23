@@ -33,8 +33,6 @@
 
 import { OPENMIND_LAYOUT_V1 } from "./openmind-layout-v1";
 
-export const OPENMIND_LAYOUT_VERSION = "openmind-layout-v2" as const;
-
 /** Top-level openmind entries that are part of the content contract. */
 export type OpenmindEntryCategory =
   | "initialize-required"
@@ -58,53 +56,3 @@ export const OPENMIND_LAYOUT_V2: readonly OpenmindLayoutEntry[] = [
   { logicalPath: ".agent/skills", category: "app-managed", owner: "desktop-app SkillStore", note: "Installed Skill packages + registry.json; managed by the app, never by skills" },
   { logicalPath: ".agent/skill-data", category: "app-managed", owner: "skill runtime (OPENMIND_SKILL_DATA_DIR)", note: "Persistent per-skill runtime state (dedup caches, login state, data dirs) injected by the Execution Broker / cron; preserved verbatim by relocation, never written via openmind.write patterns" }
 ] as const;
-
-/** All logical paths in the contract (normalised forward-slash form). */
-export const OPENMIND_LAYOUT_PATHS: readonly string[] = OPENMIND_LAYOUT_V2.map((e) => e.logicalPath);
-
-/** Top-level directory names the layout knows about (any category). */
-export const OPENMIND_ALLOWED_TOP_LEVEL_DIRS: ReadonlySet<string> = new Set(
-  OPENMIND_LAYOUT_V2.map((e) => e.logicalPath.split("/")[0])
-);
-
-/**
- * Top-level dirs a skill write may create or write into: content-contract
- * entries only. App-managed and optional-preserve-only tops are excluded so
- * the skill store and tool-private dirs stay outside skill reach.
- */
-export const OPENMIND_WRITABLE_TOP_LEVEL_DIRS: ReadonlySet<string> = new Set(
-  OPENMIND_LAYOUT_V2
-    .filter((e) => e.category === "initialize-required" || e.category === "create-if-needed")
-    .map((e) => e.logicalPath.split("/")[0])
-);
-
-/** Top-level dirs that bind() health classifies as "missing create-if-needed". */
-export const OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V2
-  .filter((e) => e.category === "create-if-needed" && !e.logicalPath.includes("/"))
-  .map((e) => e.logicalPath);
-
-/** Top-level dirs that bind() classifies as "optional observed". */
-export const OPENMIND_OPTIONAL_TOP_LEVEL: readonly string[] = OPENMIND_LAYOUT_V2
-  .filter((e) => e.category === "optional-preserve-only" && !e.logicalPath.includes("/"))
-  .map((e) => e.logicalPath);
-
-/** Top-level dirs owned by the app (informational for health reporting). */
-export const OPENMIND_APP_MANAGED_TOP_LEVEL: readonly string[] = [...new Set(
-  OPENMIND_LAYOUT_V2
-    .filter((e) => e.category === "app-managed")
-    .map((e) => e.logicalPath.split("/")[0])
-)];
-
-/** Look up an entry by logical path (exact match). */
-export function findLayoutEntry(logicalPath: string): OpenmindLayoutEntry | undefined {
-  return OPENMIND_LAYOUT_V2.find((e) => e.logicalPath === logicalPath);
-}
-
-/**
- * Returns the top-level name for a logical path, e.g.
- * `article/20260805/x.md` → `article`. Returns `null` for empty/root.
- */
-export function topLevelOf(logicalPath: string): string | null {
-  const head = logicalPath.split("/")[0];
-  return head && head.length > 0 ? head : null;
-}

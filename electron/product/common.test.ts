@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import { ContentItemSchema, type ContentItem } from "../../shared/contracts";
 import {
   collectOutlines,
   collectPrefixedOutlines,
@@ -14,7 +13,6 @@ import {
   inferSource,
   lastMeaningfulLine,
   normalizeContentKind,
-  normalizeTags,
   normalizeUrl,
   parseArray,
   parseCompactDate,
@@ -22,7 +20,6 @@ import {
   readJson,
   readJsonArray,
   readText,
-  relatedContent,
   shortenSource,
   stableContentId,
   stableId,
@@ -207,54 +204,6 @@ describe("shortenSource", () => {
   });
 });
 
-// ---- related content -------------------------------------------------------
-
-describe("relatedContent", () => {
-  function item(overrides: Partial<ContentItem>): ContentItem {
-    return ContentItemSchema.parse({
-      schemaVersion: 1,
-      id: "id",
-      path: "p",
-      name: "n",
-      title: "title",
-      kind: "article",
-      source: "src",
-      author: null,
-      originalUrl: null,
-      publishedAt: null,
-      capturedAt: "2026-07-07T00:00:00.000Z",
-      modifiedAt: "2026-07-07T00:00:00.000Z",
-      size: 0,
-      excerpt: "",
-      state: { read: false, starred: false, score: null, tags: [], lastViewedAt: null },
-      ...overrides
-    });
-  }
-
-  it("scores items by shared terms and sorts descending", () => {
-    const items = [
-      item({ id: "a", title: "machine learning intro", excerpt: "neural networks", source: "s" }),
-      item({ id: "b", title: "cooking recipes", excerpt: "pasta and sauce", source: "s" }),
-      item({ id: "c", title: "deep learning networks", excerpt: "neural nets", source: "s" })
-    ];
-    const related = relatedContent("machine learning", "neural networks are great", items);
-    const ids = related.map((i) => i.id);
-    expect(ids).toContain("a");
-    expect(ids).toContain("c");
-    expect(ids).not.toContain("b");
-    // a matches more terms (machine, learning, neural, networks) than c (learning, networks, neural)
-    expect(ids[0]).toBe("a");
-  });
-
-  it("returns empty when no terms are long enough", () => {
-    expect(relatedContent("a", "b", [item({ id: "x" })])).toEqual([]);
-  });
-
-  it("returns empty when nothing matches", () => {
-    expect(relatedContent("quantum physics", "astrophysics", [item({ id: "x", title: "cooking", excerpt: "pasta", source: "s" })])).toEqual([]);
-  });
-});
-
 // ---- kind / tag normalization ---------------------------------------------
 
 describe("normalizeContentKind", () => {
@@ -271,14 +220,6 @@ describe("normalizeContentKind", () => {
   it("returns unknown when nothing matches", () => {
     expect(normalizeContentKind("garbage", "note.md")).toBe("unknown");
     expect(normalizeContentKind(undefined, "note.md")).toBe("unknown");
-  });
-});
-
-describe("normalizeTags", () => {
-  it("trims, dedupes, drops empties, and caps at 30", () => {
-    expect(normalizeTags([" a ", "a", "", "b", "c"])).toEqual(["a", "b", "c"]);
-    const many = Array.from({ length: 40 }, (_, i) => `t${i}`);
-    expect(normalizeTags(many)).toHaveLength(30);
   });
 });
 

@@ -38,13 +38,11 @@ export const AutomationTriggerSchema = z.discriminatedUnion("type", [
     context.addIssue({ code: "custom", message: "Run 完成触发器只能选择 Skill 或 Workflow 之一。" });
   }
 });
-export type AutomationTrigger = z.infer<typeof AutomationTriggerSchema>;
 
 export const AutomationRetryPolicySchema = z.object({
   maxAttempts: z.number().int().min(0).max(10).default(0),
   backoffMs: z.number().int().min(0).max(3_600_000).default(0)
 }).strict();
-export type AutomationRetryPolicy = z.infer<typeof AutomationRetryPolicySchema>;
 
 const AutomationRuleFields = {
   id: AutomationIdSchema,
@@ -100,7 +98,6 @@ export const AutomationRuleInputSchema = z.object({
 export type AutomationRuleInput = z.infer<typeof AutomationRuleInputSchema>;
 
 export const AutomationRunStateSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "skipped", "blocked"]);
-export type AutomationRunState = z.infer<typeof AutomationRunStateSchema>;
 
 export const AutomationRunRecordSchema = z.object({
   schemaVersion: z.literal(AUTOMATION_SCHEMA_VERSION),
@@ -125,7 +122,3 @@ export const AutomationScheduleSnapshotSchema = z.object({
   blockedReason: z.string().max(500).nullable()
 }).strict();
 export type AutomationScheduleSnapshot = z.infer<typeof AutomationScheduleSnapshotSchema>;
-
-export function cloneAutomation<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}

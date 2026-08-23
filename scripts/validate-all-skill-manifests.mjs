@@ -97,30 +97,19 @@ if (failures.length > 0) {
 }
 console.log("✓ all formal manifests validate against SkillManifestSchema");
 
+// Mirrors skill-package-service.ts: `cctools.skill.yaml` shares the internal
+// vocabulary; only its apiVersion differs, so translate that at the read
+// boundary and leave legacy `openmind.skill.yaml` untouched. The old-brand
+// `mymind` vocabulary is rejected outright.
 function normalizeManifestDocument(value, manifestFile) {
   if (manifestFile !== primaryManifestFile || !isRecord(value)) return value;
   const capabilities = value.capabilities;
   if (value.apiVersion !== "cctools.dev/skill/v1"
     || !isRecord(capabilities)
-    || !Object.prototype.hasOwnProperty.call(capabilities, "mymind")
-    || Object.prototype.hasOwnProperty.call(capabilities, "openmind")) {
+    || Object.prototype.hasOwnProperty.call(capabilities, "mymind")) {
     return { ...value, apiVersion: "invalid-cctools-manifest-dialect" };
   }
-  const normalized = {
-    ...value,
-    apiVersion: "openmind.dev/skill/v1"
-  };
-  const { mymind, ...otherCapabilities } = capabilities;
-  normalized.capabilities = { ...otherCapabilities, openmind: mymind };
-  if (isRecord(value.config)) {
-    normalized.config = Object.fromEntries(Object.entries(value.config).map(([name, field]) => [
-      name,
-      isRecord(field) && field.type === "path-mymind"
-        ? { ...field, type: "path-openmind" }
-        : field
-    ]));
-  }
-  return normalized;
+  return { ...value, apiVersion: "openmind.dev/skill/v1" };
 }
 
 function isRecord(value) {

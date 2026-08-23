@@ -1,61 +1,17 @@
 /** 页面级 UI 文案：inbox / sources / brief / projects / settings / automation / design-system。 */
 export const featureMessages = {
   inbox: {
-    filterRail: "筛选",
-    listRail: "内容",
-    searchPlaceholder: "在收集箱里搜索...",
-    kindSection: "来源类型",
-    topicSection: "主题",
-    noTopics: "暂无主题标签",
-    listTitle: "资料收集箱",
-    listCount: (summary: string, total: number) => `${summary} · ${total} 条`,
     sort: { aria: "内容排序", newest: "最新收录", oldest: "最早收录", source: "来源", title: "标题" },
     splitter: { filter: "筛选栏宽度", list: "内容栏宽度" },
-    loading: "正在读取资料",
     empty: { title: "没有匹配的资料", description: "切换日期或筛选条件后重试。" },
-    listAria: "资料列表",
     context: { open: "打开", addContext: "加入 AI 上下文", copyPath: "复制路径", reveal: "文件夹中显示" },
     batch: {
-      toolbar: "批量操作",
-      selected: (n: number) => `${n} 选中`,
-      selectAll: "全选",
-      star: "收藏",
-      addTags: "加标签",
-      clearState: "清除标记",
-      clearSelection: "取消选择",
-      tagInput: "批量标签",
-      tagPlaceholder: "逗号分隔多个标签",
       apply: "应用"
     },
     notify: {
-      contextAdded: "已加入 AI 上下文",
-      draftCreated: "已创建草稿项目",
-      topicAdded: "已加入当日选题",
-      imported: (count: number) => (count ? `已导入 ${count} 个 RSS 来源` : "未导入新来源"),
-      rssAdded: "已添加 RSS 来源",
-      rssFormIncomplete: "请填写名称和订阅地址",
-      collectionStarted: "已开始采集当日资料，完成后请刷新。",
-      batchUpdated: (count: number) => `已更新 ${count} 条资料`,
-      batchTagged: (count: number) => `已为 ${count} 条资料加标签`,
       tagRequired: "请输入至少一个标签"
     },
     reader: {
-      emptyTitle: "选择一份内容",
-      emptyDescription: "Markdown、HTML 和原文信息会在这里展示。",
-      loading: "正在打开内容",
-      published: (date: string) => `发布 ${date}`,
-      collected: (date: string) => `收录 ${date}`,
-      author: (name: string) => `作者 ${name}`,
-      addToAi: "加入 AI",
-      star: "收藏",
-      unstar: "取消收藏",
-      more: "更多",
-      viewOriginal: "查看原文",
-      revealFolder: "所在文件夹",
-      addToTopic: "加入选题",
-      createDraft: "创建草稿",
-      tags: "标签",
-      editTagsAria: "编辑标签，逗号分隔",
       noTags: "暂无标签"
     }
   },
@@ -65,40 +21,19 @@ export const featureMessages = {
     page: { title: "资料来源", description: "管理 RSS、文件夹和 API 源。抓取的内容进入资料收集箱，按主题和标签归类。" },
     actions: { runAll: "立即全部抓取", add: "添加源", disable: "停用", enable: "启用", stop: "停止", fetch: "抓取", more: "更多" },
     metrics: {
-      total: "源总数",
-      active: (n: number) => `${n} 活跃`,
-      anomaly: "异常",
-      needsAttention: "需处理",
       noAnomaly: "无异常"
     },
     toolbar: { tabsAria: "数据源分类", searchPlaceholder: "筛选源..." },
-    loading: "正在读取数据源",
     table: { name: "名称", type: "类型", status: "状态", lastRun: "最近抓取", items: "条目", actions: "操作", notRun: "尚未运行" },
     pagination: { prev: "上一页", next: "下一页", summary: (page: number, totalPages: number, count: number) => `${page} / ${totalPages} · 共 ${count} 个`, loadMore: (remaining: number) => `加载更多(剩 ${remaining} 个)`, allLoaded: "已全部加载" },
     empty: { title: "还没有添加数据源", description: "添加 RSS 订阅、本地文件夹或 API 端点来开始收集资料。", action: "添加第一个源" },
     add: {
-      collapse: "收起添加源",
-      expand: "+ 添加新源",
-      name: "名称",
-      type: "类型",
-      url: "订阅地址 / 路径",
-      tags: "归类标签",
-      frequency: "抓取间隔",
       frequencyOptions: { m15: "每 15 分钟", hourly: "每小时", daily: "每天", pipeline: "每日流水线" },
-      placeholderName: "例如：AI 周刊",
-      placeholderTags: "逗号分隔",
-      submit: "添加并抓取",
-      saving: "保存中",
       importOpml: "导入 OPML"
     },
     kind: { rss: "RSS", web: "文件夹", x: "X", reddit: "Reddit", manual: "手动导入", api: "API" },
     status: { pending: "待运行", running: "运行中", ok: "正常", attention: "需关注", failed: "失败", disabled: "已停用" },
     notify: {
-      enabled: "数据源已启用",
-      disabled: "数据源已停用",
-      noRunnable: "没有可立即抓取的数据源",
-      runAllSubmitted: (count: number) => `已提交 ${count} 个数据源抓取`,
-      added: (kind: string) => `${kind} 数据源已添加`,
       opmlImported: (count: number) => (count ? `已导入 ${count} 个 RSS 数据源` : "没有新增数据源")
     }
   },
@@ -107,10 +42,6 @@ export const featureMessages = {
     eyebrow: "SKILL CENTER",
     title: "Skills",
     description: "安装、检查和管理本地 Skill 包；包代码必须通过静态检查并完成 Runtime 就绪后才能运行。",
-    refresh: "刷新列表",
-    refreshing: "刷新中…",
-    migrate: "同步工作区 Skill",
-    migrating: "同步中…",
     sourcePicker: {
       open: "添加其他来源",
       close: "收起来源选择",
@@ -140,9 +71,11 @@ export const featureMessages = {
       sourceErrors: {
         "git-unavailable": "本机没有可用的 Git，无法检查 Git 来源。",
         "git-command-failed": "Git 克隆或检查失败，请确认仓库地址可公开访问。",
+        "git-auth-required": "Git 仓库需要登录或当前账号无权访问。",
         "git-timeout": "Git 来源检查超时，请稍后重试。",
         "git-cancelled": "已取消 Git 来源检查。",
         "git-package-missing": "仓库中没有找到 Skill 包（需要 cctools.skill.yaml，兼容 openmind.skill.yaml 或 SKILL.md）。",
+        "git-package-selection-invalid": "请选择仓库中存在且通过静态检查的 Skill 包。",
         invalid: "来源输入不合法：Git 地址必须是有效的 HTTPS URL。",
         unknown: "来源检查失败。"
       } as Record<string, string>
@@ -161,19 +94,21 @@ export const featureMessages = {
     detailEmpty: "选择一个 Skill 查看包状态、来源和宿主机执行边界。",
     source: "来源",
     sourcePath: "来源路径",
+    sourceUpdate: {
+      check: "检查更新",
+      checking: "检查中…",
+      apply: "更新",
+      updating: "更新中…",
+      current: "已是最新版本。",
+      available: "有可用更新。",
+      updated: "更新完成。",
+      invalid: "Git 来源中有未通过静态检查的 Skill，已停止更新。",
+      failed: (detail: string) => `更新失败${detail ? `：${detail}` : "。"}`
+    },
     overviewAria: "Skill 基本信息",
-    package: "安装包",
     publisher: "发布者",
     version: "版本",
     kind: "类型",
-    digest: "Digest",
-    size: "体积",
-    files: "文件",
-    signature: "签名状态",
-    review: "审查状态",
-    unsigned: "unsigned（本项目不做发布签名）",
-    unreviewed: "未记录",
-    workspace: "工作区",
     installed: "已安装",
     available: "包体已验证",
     unusable: "包体异常",
@@ -190,14 +125,8 @@ export const featureMessages = {
       updateFailed: (detail: string) => `更新 Skill 可用性失败${detail ? `：${detail}` : "。"}`
     },
     actions: {
-      openSource: "打开来源目录",
-      inspect: "查看扫描结果",
-      rollback: "回滚",
       uninstall: "卸载"
     },
-    scanFailed: "Skill 扫描失败",
-    actionFailed: "Skill 包操作失败",
-    actionComplete: "Skill 包状态已更新",
     disabledByBoundary: "这个 Skill 安装失败或文件已变化，请重新安装。"
   },
 
@@ -209,8 +138,6 @@ export const featureMessages = {
     progressLabel: "首次启动设置进度",
     previousStep: "上一步",
     nextStep: "下一步",
-    riskTitle: "本地代码执行边界",
-    riskBody: "已安装 Skill 未来会以当前用户权限运行在宿主机；没有 OS 级沙箱。只有完成静态检查、Runtime 就绪和本次运行确认后才允许执行。",
     rootTitle: "选择 OpenMind 私人数据仓库",
     rootBody: "选择保存全部 OpenMind 数据的私人仓库。config、article、daily-summary、.agent 等目录都将直接位于这个目录下。",
     rootPathLabel: "OpenMind 私人数据仓库路径",
@@ -223,13 +150,9 @@ export const featureMessages = {
     skillBody: "安装 RSS 采集所需的官方组件，让工作台可以订阅、抓取并整理内容。",
     skillSourceLabel: "RSS 采集组件来源",
     skillSafety: "仅从公开 HTTPS 官方仓库安装",
-    importSkill: "打开导入入口",
-    skipSkill: "跳过 Skill",
     installSkillsRepo: "安装 RSS 源",
     installingSkillsRepo: "正在安装 RSS 源…",
     skillReady: "RSS 采集能力已安装",
-    skillMissing: "尚未安装 RSS 采集能力",
-    skillSkipped: "已跳过 Skill 导入",
     providerTitle: "连接 AI Provider",
     providerBody: "连接已安装的 Claude Code 或 Codex CLI，让 OpenMind 可以开始 AI 会话。",
     providerStatusLabel: "AI Provider 状态",
@@ -237,8 +160,6 @@ export const featureMessages = {
     installProvider: "打开 Provider 设置",
     skipProvider: "稍后配置",
     providerSkipped: "已跳过 Provider 配置",
-    pending: "待处理",
-    completed: "已完成",
     finishTitle: "准备完成",
     finishBody: "本地工作台已经可以使用。进入主界面后，仍可随时调整所有可选设置。",
     finishSummaryLabel: "首次设置摘要",
@@ -246,32 +167,14 @@ export const featureMessages = {
     finish: "进入工作台",
     providerReady: "AI Provider 已就绪",
     providerPending: "AI Provider 未就绪",
-    providerHint: "在设置的「AI 与模型」中一键安装 Claude Code / Codex CLI 并登录。",
-    openSettings: "打开设置",
-    continueApp: "进入工作台",
     selecting: "选择中…"
   },
 
   brief: {
-    loading: "正在读取每日简报原文",
-    title: (date: string) => `${date} · 今日动态`,
-    intro: (count: number, generatedAtSuffix: string) => `基于过去 24 小时新增的 ${count} 条资料生成${generatedAtSuffix}。可把选题转成草稿。`,
-    introGeneratedAt: (datetime: string) => `，生成于 ${datetime}`,
-    datePickerAria: "选择简报日期",
     metrics: {
-      newContent: "新增资料",
-      unread: (n: number) => `未读 ${n}`,
-      draftSuggestions: "转草稿建议",
-      highPotential: "高潜力",
-      important: "高相关条目",
-      watchlist: (n: number) => `关注 ${n}`,
-      topics: "关注主题",
       topicCandidates: (n: number) => `${n} 个候选`
     },
     source: {
-      title: (date: string) => `${date} 简报原文`,
-      openFile: "打开文件",
-      openDir: "打开目录",
       export: "导出"
     },
     empty: { title: "没有每日摘要文件", description: "该日期没有可展示的 Markdown 原文。" },
@@ -280,134 +183,50 @@ export const featureMessages = {
 
   projects: {
     filters: {
-      active: "活跃",
-      archived: "归档",
-      stageAll: "全部阶段",
-      platformAll: "全部平台",
-      tagAll: "全部标签",
-      date: "日期",
-      stageAria: "阶段筛选",
-      platformAria: "平台筛选",
-      tagAria: "标签筛选",
-      mainFiltersAria: "项目主筛选",
       projectViewAria: "项目视图"
     },
-    loading: "正在读取创作项目",
-    title: "项目",
-    description: "跨日期查看创作项目、阶段、文件和完成进度。",
     actions: { newEmpty: "新建空项目", fromTemplate: "从模板创建", backToCreative: "返回创作", openDir: "打开目录" },
-    searchPlaceholder: "搜索项目",
     dateMode: { label: "日期口径", date: "项目日期", updatedAt: "更新时间" },
     view: { cards: "卡片视图", table: "表格视图" },
     empty: { title: "没有匹配的项目", description: "切换筛选或搜索条件后重试。" },
     detail: {
-      emptyTitle: "选择一个项目",
-      emptyDescription: "基本信息、资料、草稿、审核、发布和 AI 会话会显示在这里。",
-      completion: "完成度",
       unconfiguredPlatform: "未配置平台"
     },
     sections: {
-      basicInfo: "基本信息",
-      materials: "资料",
-      draft: "草稿",
-      review: "审核",
-      publish: "发布",
-      aiSessions: "AI 会话",
-      manifest: "项目清单",
       manage: "项目管理"
     },
     manifest: {
-      workflow: "工作流",
-      workflowDesc: "阶段、进度与负责人",
-      materials: "资料与文件",
-      materialsDesc: "来源、标签、素材和稿件文件",
-      publish: "发布配置",
-      publishDesc: "平台、导出与排期状态",
-      ai: "AI 与审核",
-      aiDesc: "关联会话、审核报告和备注",
-      sourceTopicId: "来源选题",
-      sourceCount: "来源数量",
-      fileCount: "文件数量",
-      draftFile: "主草稿",
-      assetCollection: "素材包",
-      publishStatus: "发布状态",
-      scheduledAt: "排期",
-      exportedPath: "导出文件",
-      publishedUrl: "发布链接",
-      aiSessions: "AI 会话数",
-      reviewScore: "审核得分",
-      reviewStatus: "审核状态",
-      notesLength: "备注长度",
-      createdAt: "创建时间",
-      rawSummary: (count: number) => `查看原始 manifest（${count} 个字段）`,
       emptyRaw: "没有额外字段"
     },
     fields: {
-      date: "项目日期",
-      stage: "阶段",
-      owner: "负责人",
-      platform: "平台",
-      tags: "标签",
       updatedAt: "更新时间"
     },
     values: {
-      localUser: "本地用户",
-      unconfigured: "未配置",
       none: "无"
     },
     materials: { empty: "该项目暂未挂载资料文件。" },
     draft: { noBody: "草稿还没有正文内容。", noFile: "该项目还没有草稿文件。" },
     review: {
-      noIssues: "未发现需要修改的问题。",
-      notGenerated: "尚未生成审核报告，可在创作中心运行审核后查看维度得分与问题清单。",
       status: { pending: "待处理", changesRequested: "需修改", approved: "已通过" }
     },
     publish: {
-      platformUnset: "未选择",
-      unscheduled: "未排期",
-      notExported: "未导出",
-      notPublished: "未发布",
-      empty: "尚未配置发布，平台阅读、点赞与互动数据未接入，因此不展示。",
       status: { draft: "草稿", scheduled: "已排期", exported: "已导出", cancelled: "已取消" },
       fields: { scheduledAt: "计划时间", exportedPath: "导出文件", publishedUrl: "发布链接" }
     },
     ai: {
-      noSessions: "该项目目录暂无关联的 AI 会话记录。",
-      newSession: "新建 AI 会话",
-      binding: "绑定中",
       bindCurrent: "绑定当前会话"
     },
     manage: {
-      copying: "复制中",
-      copy: "复制项目",
-      restoring: "恢复中",
-      restore: "恢复",
-      archiving: "归档中",
-      archive: "归档",
-      deleting: "删除中",
       delete: "删除项目"
     },
     notify: {
-      copied: "已复制项目",
-      archived: "项目已归档",
-      restored: "项目已从归档恢复到制作中",
-      needSession: "请先在 AI 工作台创建或打开一个会话",
-      sessionBound: "已绑定 AI 会话",
-      createdFromTemplate: "已从模板创建项目",
-      createdEmpty: "已创建空项目",
       deleted: "项目已删除"
     },
     delete: {
-      confirmText: "永久删除",
-      emptyDir: "（目录为空）",
-      title: (topic: string) => `删除项目「${topic}」`,
       body: (dir: string, fileLines: string) =>
         `将永久删除项目目录「${dir}」及其下全部本地内容：\n${fileLines}\n\n包括正文、历史版本、审核报告与发布记录，操作不可撤销。确定继续吗？`
     },
     create: {
-      templateTitle: (datetime: string) => `模板项目 ${datetime}`,
-      emptyTitle: (datetime: string) => `未命名项目 ${datetime}`,
-      templatePlatform: "公众号",
       copySuffix: "（副本）"
     }
   },
@@ -420,7 +239,6 @@ export const featureMessages = {
     navigation: {
       label: "设置分类",
       back: "返回应用",
-      all: "所有设置",
       searchPlaceholder: "搜索设置…",
       noResults: "没有匹配的设置",
       groups: {
@@ -458,8 +276,6 @@ export const featureMessages = {
       description: "阅读区与列表的基准字号。"
     },
     provider: {
-      add: "添加",
-      addHint: "Provider 会从本地 CLI 状态读取，添加入口会在下一轮设置扩展中接入。",
       configuredModel: "配置模型",
       configuredModelAria: (label: string) => `${label} 配置模型`,
       modelNotConfigured: "配置未指定，运行时由 Provider 决定",
@@ -469,20 +285,13 @@ export const featureMessages = {
       unavailable: "不可用",
       setDefault: (label: string) => `将 ${label} 设为默认`,
       empty: "当前没有检测到可用 Provider。请确认 Claude Code 或 Codex CLI 已安装并可在本机执行。",
-      lockedNote: "Provider 在会话创建后锁定，不可中途切换。",
       loggedIn: "已登录",
       notLoggedIn: "未登录或协议不可用",
       install: "一键安装",
       installing: "安装中…",
-      installHint: "安装到应用私有目录，不影响系统环境。",
       installFailed: "一键安装失败：",
       installProgress: "安装进度",
       retryInstall: "重试安装",
-      manualStepsTitle: "查看手动安装步骤",
-      claudeManual: "Claude Code：执行官方安装命令后，回到这里重新检测。",
-      codexManual: "Codex CLI：使用 Node/npm 安装后，回到这里重新检测。",
-      claudeManualCommand: "curl -fsSL https://claude.ai/install.sh | bash",
-      codexManualCommand: "npm install -g @openai/codex",
       openLogin: "打开终端登录",
       recheck: "我已完成登录，重新检测",
       loginHint: "在终端完成 CLI 登录后回到这里重新检测。",
@@ -524,15 +333,6 @@ export const featureMessages = {
       copySuccess: (id: string) => `已复制 /${id}`,
       copyFailed: "复制调用命令失败",
       openFailed: "无法打开 Skill 目录",
-      packageTitle: "本地 Skill 包",
-      packageDescription: "已安装 Skill 统一由技能中心从 Git/ZIP/目录来源安装到 .agent/skills 并管理。",
-      packageUninstall: "卸载",
-      packageUninstallConfirm: "确定卸载这个 Skill 吗？安装目录与记录将被删除。",
-      packageActionComplete: "Skill 包状态已更新",
-      packageUninstallFailed: "Skill 包卸载失败",
-      packageEmpty: "还没有安装任何 Skill；在技能中心「添加其他来源」安装。",
-      packageInstalled: "包体已验证",
-      packageUnusable: "包体异常",
       mcpSearchPlaceholder: "搜索服务、工具、后端或输入输出",
       mcpSearchAria: "搜索 MCP 服务和工具",
       mcpListAria: "MCP 服务",
@@ -551,7 +351,6 @@ export const featureMessages = {
       mcpNoMatchDescription: "尝试搜索服务名、工具名或后端。"
     },
     browser: {
-      title: "写作证据截图",
       scope: "Playwright MCP · Chrome",
       enabled: "允许 AI 自主获取原文截图",
       enabledDescription: "仅在关键事实、引用或数据需要原文佐证时触发，并在同一轮继续写作。",
@@ -579,37 +378,6 @@ export const featureMessages = {
       tokenFailed: "浏览器扩展令牌保存失败"
     },
     credentials: {
-      title: "安全凭据",
-      scope: "系统安全存储",
-      available: "安全存储可用",
-      unavailable: "安全存储不可用",
-      notLoaded: "状态未读取",
-      availableDescription: "凭据只保存在应用私有目录的加密文件中；设置页不会读取或显示明文。",
-      unavailableDescription: "当前系统无法提供安全存储，应用会拒绝保存新的凭据。",
-      profileCount: (count: number) => `${count} 个 Process Skill Provider Profile`,
-      credentialCount: (count: number) => `${count} 个凭据元数据`,
-      credentialLabel: "凭据名称",
-      credentialKind: "凭据类型",
-      credentialSecret: "Secret",
-      credentialSecretPlaceholder: "只在保存/替换时输入，不会回显",
-      credentialSave: "安全保存",
-      credentialDelete: "删除副本",
-      credentialEmpty: "尚未保存凭据元数据",
-      profileTitle: "Process Skill Provider Profile",
-      profileId: "Profile ID",
-      profileName: "显示名称",
-      profileProtocol: "协议",
-      profileCredential: "绑定 Credential",
-      profileBaseUrl: "Base URL",
-      profileModel: "Model",
-      profileSave: "保存 Profile",
-      profileTest: "测试连接",
-      profileTesting: "测试中…",
-      profileDelete: "删除 Profile",
-      profileEmpty: "尚未配置 Process Skill Provider Profile",
-      profileNoCredential: "不绑定 Credential",
-      profileTestNever: "尚未测试",
-      profileTestSuccess: "连接成功",
       profileTestFailed: "连接失败"
     },
     permissions: {
@@ -656,8 +424,6 @@ export const featureMessages = {
       workflowReset: "工作流规则已恢复默认值"
     },
     workflow: {
-      title: "工作流规则",
-      description: "查看创作阶段定义，配置自动保存、审核门禁和自动化触发。改动即时生效。",
       stagesTitle: "阶段定义与进入条件",
       stagesDescription: "创作项目从选题到发布的阶段流转规则（只读）。",
       stageToday: "今日推荐",
@@ -665,7 +431,6 @@ export const featureMessages = {
       stageReview: "待审核",
       stageReady: "待发布",
       stagePublished: "已发布",
-      stageArchived: "已归档",
       entryNone: "无前置门禁",
       entryReview: "审核通过后可进入待发布",
       entryPublish: "导出或发布完成后进入已发布",
@@ -679,8 +444,6 @@ export const featureMessages = {
       publishCheckDesc: "待发布阶段检查平台、标题、摘要、标签和封面是否填写。",
       autoArchiveTitle: "自动归档已发布项目",
       autoArchiveDesc: "已发布超过指定天数后自动归档到归档目录。",
-      autoBriefTitle: "来源完成后生成简报",
-      autoBriefDesc: "数据源运行完成后自动触发每日简报生成。",
       resetToDefaults: "恢复默认值",
       resetConfirm: "确定要将所有工作流规则恢复为默认值吗？"
     }
@@ -692,8 +455,6 @@ export const featureMessages = {
     enableRule: (title: string) => `启用 ${title}`,
     rules: {
       dailyBrief: {
-        title: "每日简报生成",
-        description: "每天早晨汇总过去 24 小时的资料，按主题聚类后生成 Markdown 简报。",
         steps: [
           { title: "拉取资料", detail: "过去 24h 新增，按关注主题过滤" },
           { title: "主题聚类", detail: "按标签与内容相似度分组" },
@@ -702,8 +463,6 @@ export const featureMessages = {
         ]
       },
       classify: {
-        title: "新资料自动归类",
-        description: "采集完成后扫描新增资料，抽取主题、标签和可继续创作的候选方向。",
         steps: [
           { title: "读取新增资料", detail: "只处理本次采集产生的条目" },
           { title: "补齐标签", detail: "映射到现有主题和来源类型" },
@@ -711,8 +470,6 @@ export const featureMessages = {
         ]
       },
       rss: {
-        title: "RSS 定时抓取",
-        description: "按固定频率拉取订阅源、提取正文并保存到本地资料库。",
         steps: [
           { title: "读取订阅", detail: "解析 subscriptions.opml" },
           { title: "抓取正文", detail: "trafilatura 优先，必要时降级" },
@@ -725,36 +482,21 @@ export const featureMessages = {
     actions: { stop: "停止运行", run: "立即运行" },
     status: {
       running: "运行中",
-      needsAttention: "需要处理",
-      lastSuccess: "上次成功",
       ready: "就绪",
       lastFailed: "最近失败",
       lastSucceeded: "最近一次成功"
     },
     enabled: "已启用",
-    disabled: "已停用",
-    lastRun: (time: string) => `最近运行 ${time}`,
     neverRun: "尚未运行",
     manifestMissing: "Skill manifest 未找到，仍可尝试触发",
     sections: { trigger: "触发条件", steps: "动作步骤" },
-    edit: "编辑",
-    readonlyRule: "本地规则模板",
     stepState: { ready: "就绪", running: "运行中", approval: "需审批" },
     console: { title: "运行日志", copied: "已复制" },
     log: {
-      waiting: (title: string) => `[--:--:--] 等待触发：${title}`,
-      placeholder: "[--:--:--] 运行后 stdout、stderr、阶段和失败原因会显示在这里。",
-      triggered: (time: string, title: string) => `[${time}] 触发：${title}`,
-      processing: (time: string, count: number) => `[${time}] 处理条目 ${count}`,
       ended: (time: string, status: string) => `[${time}] 结束：${status}`
     },
     runHistory: {
-      emptyTitle: "尚无运行记录",
-      emptyDescription: "运行该 Skill 后，状态、耗时和退出码会持久化并显示在这里。",
-      tableAria: "运行历史",
       columns: { status: "状态", startedAt: "开始时间", duration: "耗时", exitCode: "退出码", items: "条目", actions: "操作" },
-      rerun: "重跑",
-      rerunAria: "使用相同日期重跑",
       status: { running: "运行中", success: "成功", failed: "失败", stopped: "已停止", timedOut: "超时" }
     }
   },
@@ -766,21 +508,16 @@ export const featureMessages = {
     search: "搜索",
     searching: "检索中",
     clearSearch: "清空搜索",
-    pickDate: "选择日期",
     noData: "没有数据",
     loadingTable: "正在加载",
     paginationPrev: "上一页",
     paginationNext: "下一页",
-    toolbar: "页面工具栏",
-    filterBar: "筛选条件",
     expand: (label: string) => `展开${label}`,
     closeMenu: "关闭菜单",
     dismissToast: "关闭提示",
     confirm: "确认",
     selectLabel: "选择",
     selectButton: "下拉菜单",
-    selectPlaceholder: "请选择",
-    loadingSkeleton: "正在加载",
     logViewer: "运行日志",
     logViewerEmpty: "暂无日志输出"
   },

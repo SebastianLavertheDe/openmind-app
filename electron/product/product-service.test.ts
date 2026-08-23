@@ -77,192 +77,10 @@ describe("ProductService", () => {
     );
   }
 
-  it("lists indexed content and persists local reading state", () => {
-    const service = createService();
-    const page = service.listInbox({ date: "2026-06-15", kinds: [], search: "example", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    expect(page.total).toBe(1);
-    expect(page.items[0]).toMatchObject({ title: "Example Article", source: "Example", originalUrl: "https://example.com/post" });
-
-    const updated = service.updateContentState(page.items[0].id, page.items[0].path, { read: true, starred: true, tags: ["AI", "AI"] });
-    expect(updated.state).toMatchObject({ read: true, starred: true, tags: ["AI"] });
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "content-state.json"), "utf8"))[page.items[0].id].read).toBe(true);
-  });
-
-  it("keeps content state when a URL-backed file moves to a new path", () => {
-    const service = createService();
-    const page = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    service.updateContentState(page.items[0].id, page.items[0].path, { read: true, starred: true, tags: ["moved"] });
-
-    const movedPath = "openmind/article/20260615/moved-example.md";
-    records[movedPath] = records[entries[0].path as string];
-    delete records[entries[0].path as string];
-    entries[0] = { ...entries[0], path: movedPath, name: "moved-example.md", modifiedAt: "2026-06-15T11:00:00.000Z" };
-
-    const moved = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    expect(moved.items[0].id).toBe(page.items[0].id);
-    expect(moved.items[0].state).toMatchObject({ read: true, starred: true, tags: ["moved"] });
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "content-state.json"), "utf8"))[page.items[0].path]).toBeUndefined();
-  });
-
-  it("builds source, brief and dashboard data from local facts", () => {
-    entries.push(
-      {
-        path: "openmind/post/20260615/x-demo.md",
-        name: "x-demo.md",
-        kind: "posts",
-        size: 256,
-        modifiedAt: "2026-06-15T10:30:00.000Z"
-      },
-      {
-        path: "openmind/reddit/20260615/reddit-demo.md",
-        name: "reddit-demo.md",
-        kind: "reddit",
-        size: 256,
-        modifiedAt: "2026-06-15T10:45:00.000Z"
-      }
-    );
-    records["openmind/post/20260615/x-demo.md"] = "# Example X\n\n- 来源: X\n\n一条 X 动态。";
-    records["openmind/reddit/20260615/reddit-demo.md"] = "# Example Reddit\n\n- 来源: Reddit\n\n一条 Reddit 动态。";
-
+  it("builds the source list from local facts", () => {
     const service = createService();
     const sources = service.listSources();
     expect(sources.some((source) => source.kind === "rss" && source.name === "Example")).toBe(true);
-
-    const brief = service.getDailyBrief("2026-06-15");
-    expect(brief.counts).toMatchObject({ content: 3, unread: 3, articles: 1, posts: 1, reddit: 1, topics: 1 });
-    expect(brief.signals).toContain("核心信号");
-
-    const dashboard = service.getDashboard("2026-06-15", 0);
-    expect(dashboard.metrics.collected).toBe(3);
-    expect(dashboard.metrics.articles).toBe(1);
-    expect(dashboard.metrics.posts).toBe(1);
-    expect(dashboard.metrics.reddit).toBe(1);
-    expect(dashboard.sourceCounts).toEqual({ articles: 1, posts: 1, reddit: 1 });
-    expect(dashboard.metrics.drafting).toBe(1);
-    expect(dashboard.recommendedTopics[0].title).toBe("AI 工作台");
-  });
-
-  it("persists an editable daily brief watchlist across reads", () => {
-    const service = createService();
-    const page = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    const itemPath = page.items[0].path;
-
-    const afterAdd = service.updateBriefWatchlist("2026-06-15", itemPath, true);
-    expect(afterAdd.watchlist.some((item) => item.path === itemPath)).toBe(true);
-
-    const reloaded = createService().getDailyBrief("2026-06-15");
-    expect(reloaded.watchlist.some((item) => item.path === itemPath)).toBe(true);
-
-    const afterRemove = service.updateBriefWatchlist("2026-06-15", itemPath, false);
-    expect(afterRemove.watchlist.some((item) => item.path === itemPath)).toBe(false);
-  });
-
-  it("updates only changed index entries and removes deleted files", () => {
-    const service = createService();
-    expect(service.listInbox({ date: "20260615", kinds: [], search: "正文摘要", tags: [], sort: "newest", cursor: 0, limit: 50 }).total).toBe(1);
-    expect(reads).toBe(1);
-
-    service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    expect(reads).toBe(1);
-
-    records[entries[0].path as string] = "# Changed Title\n\n新的全文关键词";
-    entries[0].modifiedAt = "2026-06-15T11:00:00.000Z";
-    const changed = service.listInbox({ date: "20260615", kinds: [], search: "全文关键词", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    expect(reads).toBe(2);
-    expect(changed.items[0].title).toBe("Changed Title");
-
-    entries = [];
-    expect(service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 }).total).toBe(0);
-  });
-
-  it("quarantines a corrupt index and rebuilds it", () => {
-    fs.mkdirSync(path.join(root, ".openmind"), { recursive: true });
-    fs.writeFileSync(path.join(root, ".openmind", "content-index.json"), "{not-json", "utf8");
-    const page = createService().listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    expect(page.total).toBe(1);
-    expect(fs.readdirSync(path.join(root, ".openmind")).some((name) => name.startsWith("content-index.json.corrupt-"))).toBe(true);
-  });
-
-  it("rebuilds the content index on demand", () => {
-    const report = createService().rebuildContentIndex();
-    expect(report.indexedDates).toContain("20260615");
-    expect(report.itemCount).toBeGreaterThan(0);
-    expect(report.indexPath).toBe(".openmind/content-index.json");
-  });
-
-  it("paginates by cursor instead of a hard 500 cap and rejects invalid queries", () => {
-    const service = createService();
-    const multi = Array.from({ length: 3 }, (_, index) => ({
-      path: `openmind/article/20260615/item-${index}.md`,
-      name: `item-${index}.md`,
-      kind: "articles",
-      size: 256,
-      modifiedAt: `2026-06-15T10:0${index}:00.000Z`
-    }));
-    entries.push(...multi);
-    for (const entry of multi) {
-      records[entry.path] = `# ${entry.name}\n\n- 来源: Test\n\n正文内容 ${entry.name}。`;
-    }
-    const first = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 2 });
-    expect(first.items).toHaveLength(2);
-    expect(first.nextCursor).toBe(2);
-    const second = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 2, limit: 2 });
-    expect(second.items).toHaveLength(2);
-    expect(second.nextCursor).toBeNull();
-    expect(() => service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 9999 } as never))
-      .toThrow();
-    expect(() => service.listInbox({ date: "not-a-date", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 } as never))
-      .toThrow();
-  });
-
-  it("filters by minimum score and sorts by source", () => {
-    const service = createService();
-    const extra = [
-      { path: "openmind/article/20260615/beta.md", name: "beta.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T09:00:00.000Z" },
-      { path: "openmind/article/20260615/gamma.md", name: "gamma.md", kind: "articles", size: 128, modifiedAt: "2026-06-15T12:00:00.000Z" }
-    ];
-    entries.push(...extra);
-    records["openmind/article/20260615/beta.md"] = "# Beta\n\n- 来源: Beta\n\n正文。";
-    records["openmind/article/20260615/gamma.md"] = "# Gamma\n\n- 来源: Gamma\n\n正文。";
-    const seed = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 50 });
-    const find = (title: string) => seed.items.find((item) => item.title === title)!;
-    service.updateContentState(find("Example Article").id, find("Example Article").path, { score: 100 });
-    service.updateContentState(find("Beta").id, find("Beta").path, { score: 40 });
-    service.updateContentState(find("Gamma").id, find("Gamma").path, { score: 80 });
-    const high = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], minScore: 80, sort: "newest", cursor: 0, limit: 50 });
-    expect(high.items.map((item) => item.title).sort()).toEqual(["Example Article", "Gamma"]);
-    const bySource = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "source", cursor: 0, limit: 50 });
-    const sources = bySource.items.map((item) => item.source);
-    expect(sources).toEqual([...sources].sort((left, right) => left.localeCompare(right, "zh-CN")));
-  });
-
-  it("returns inbox facet counts without returning a second full item page", () => {
-    const service = createService();
-    const page = service.listInbox({ date: "20260615", kinds: [], search: "", tags: [], sort: "newest", cursor: 0, limit: 100 });
-    service.updateContentState(page.items[0].id, page.items[0].path, { tags: ["AI", "local"] });
-
-    expect(service.getInboxFacets({ date: "20260615", search: "", tags: [] })).toEqual({
-      total: 1,
-      kindCounts: { article: 1 },
-      tags: [{ tag: "AI", count: 1 }, { tag: "local", count: 1 }]
-    });
-    expect(service.getInboxFacets({ date: "20260615", search: "missing", tags: [] }).total).toBe(0);
-  });
-
-  it("keeps dashboard content caches across skill output and refreshes once at terminal status", () => {
-    const service = createService();
-    service.getDashboard("20260615", 0);
-    expect(topicReads).toBe(1);
-
-    service.recordSkillEvent({ skillId: "reddit-fetcher", invocationId: "run-dashboard", type: "status", state: "running" });
-    service.recordSkillEvent({ skillId: "reddit-fetcher", invocationId: "run-dashboard", type: "output", stream: "stdout", text: "line one" });
-    service.recordSkillEvent({ skillId: "reddit-fetcher", invocationId: "run-dashboard", type: "output", stream: "stdout", text: "line two" });
-    service.getDashboard("20260615", 0);
-    expect(topicReads).toBe(1);
-
-    service.recordSkillEvent({ skillId: "reddit-fetcher", invocationId: "run-dashboard", type: "status", state: "success" });
-    service.getDashboard("20260615", 0);
-    expect(topicReads).toBe(2);
   });
 
   it("adds, disables and imports RSS sources with persisted structured runs", () => {
@@ -287,12 +105,12 @@ describe("ProductService", () => {
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "status", state: "running", timestamp: "2026-06-15T10:00:00.000Z" });
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "output", stream: "stdout", text: "Fetched one item\n", timestamp: "2026-06-15T10:00:01.000Z" });
     service.recordSkillEvent({ skillId: "rss-article-saver", sourceId: added.id, invocationId: "run-1", type: "status", state: "success", code: 0, durationMs: 1200, timestamp: "2026-06-15T10:00:02.000Z" });
-    expect(service.listSourceRuns(added.id)[0]).toMatchObject({ id: "run-1", status: "success", code: 0, durationMs: 1200 });
-    expect(service.listSourceRuns(added.id)[0].logs[0].text).toContain("Fetched one item");
-    expect(JSON.parse(fs.readFileSync(path.join(root, ".openmind", "source-runs.json"), "utf8"))[0].status).toBe("success");
+    const persistedRuns = JSON.parse(fs.readFileSync(path.join(root, ".openmind", "source-runs.json"), "utf8"));
+    expect(persistedRuns[0]).toMatchObject({ id: "run-1", status: "success", code: 0, durationMs: 1200 });
+    expect(persistedRuns[0].logs[0].text).toContain("Fetched one item");
   });
 
-  it("batches frequent skill output writes while exposing live logs from memory", () => {
+  it("batches frequent skill output writes to disk", () => {
     vi.useFakeTimers();
     const service = createService();
     const runsPath = path.join(root, ".openmind", "source-runs.json");
@@ -308,7 +126,6 @@ describe("ProductService", () => {
       });
     }
 
-    expect(service.listSourceRuns("reddit-fetcher")[0].logs).toHaveLength(20);
     expect(fs.existsSync(runsPath)).toBe(false);
     vi.advanceTimersByTime(249);
     expect(fs.existsSync(runsPath)).toBe(false);
@@ -375,20 +192,13 @@ describe("ProductService 创作委托方法", () => {
       saveCreativeFile: vi.fn(() => ({ dir: "creative/demo", files: { "draft.md": "new" }, manifest: {} })),
       advanceProjectStage: vi.fn(() => ({ dir: "creative/demo", stage: "review" })),
       updateCreativeManifest: vi.fn(() => ({ dir: "creative/demo", manifest: {} })),
-      reviewCreativeProject: vi.fn(() => ({ dir: "creative/demo" })),
-      setCreativeReviewStatus: vi.fn(() => ({ dir: "creative/demo" })),
       listCreativeVersions: vi.fn(() => []),
       readCreativeVersion: vi.fn(() => ({ content: "old" })),
       restoreCreativeVersion: vi.fn(() => ({ dir: "creative/demo" })),
       getCreativeReleaseLog: vi.fn(() => []),
       copyCreativeProject: vi.fn(() => ({ dir: "creative/demo-copy" })),
       archiveCreativeProject: vi.fn(() => ({ dir: "creative/demo" })),
-      restoreCreativeProject: vi.fn(() => ({ dir: "creative/demo" })),
-      deleteCreativeProject: vi.fn(() => true),
       getCreativeAnalytics: vi.fn(() => ({ total: 0, averageCompletion: 0, averageCycleHours: null, stages: [], platforms: [], stageDurations: [] })),
-      bindCreativeSession: vi.fn(() => ({ dir: "creative/demo" })),
-      addManualTopic: vi.fn(() => ({})),
-      updateCreativeTopicState: vi.fn(() => ({})),
       ...creativeOverrides
     };
     const content = {
@@ -455,14 +265,6 @@ describe("ProductService 创作委托方法", () => {
     expect(creative.updateCreativeManifest).toHaveBeenCalled();
   });
 
-  it("review/setReviewStatus 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.reviewCreativeProject("creative/demo");
-    service.setCreativeReviewStatus("creative/demo", "approved");
-    expect(creative.reviewCreativeProject).toHaveBeenCalledWith("creative/demo");
-    expect(creative.setCreativeReviewStatus).toHaveBeenCalledWith("creative/demo", "approved");
-  });
-
   it("listCreativeVersions / readCreativeVersion / restoreCreativeVersion 委托", () => {
     const { service, creative } = createServiceWithCreativeSpy();
     service.listCreativeVersions("creative/demo", "draft.md");
@@ -479,36 +281,18 @@ describe("ProductService 创作委托方法", () => {
     expect(creative.getCreativeReleaseLog).toHaveBeenCalledWith("creative/demo");
   });
 
-  it("copy/archive/restore/delete 委托", () => {
+  it("copy/archive 委托", () => {
     const { service, creative } = createServiceWithCreativeSpy();
     service.copyCreativeProject("creative/demo");
     service.archiveCreativeProject("creative/demo");
-    service.restoreCreativeProject("creative/demo");
-    service.deleteCreativeProject("creative/demo");
     expect(creative.copyCreativeProject).toHaveBeenCalledWith("creative/demo");
     expect(creative.archiveCreativeProject).toHaveBeenCalledWith("creative/demo");
-    expect(creative.restoreCreativeProject).toHaveBeenCalledWith("creative/demo");
-    expect(creative.deleteCreativeProject).toHaveBeenCalledWith("creative/demo");
   });
 
-  it("getCreativeAnalytics / bindCreativeSession 委托", () => {
+  it("getCreativeAnalytics 委托", () => {
     const { service, creative } = createServiceWithCreativeSpy();
     service.getCreativeAnalytics();
-    service.bindCreativeSession("creative/demo", "sess-1");
     expect(creative.getCreativeAnalytics).toHaveBeenCalled();
-    expect(creative.bindCreativeSession).toHaveBeenCalledWith("creative/demo", "sess-1");
-  });
-
-  it("addCreativeTopic 去横杠 date", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.addCreativeTopic({ date: "2026-07-08", title: "T" } as never);
-    expect(creative.addManualTopic).toHaveBeenCalledWith("20260708", expect.objectContaining({ title: "T" }));
-  });
-
-  it("updateCreativeTopicState 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.updateCreativeTopicState("20260708", "topic-1", { score: 90 } as never);
-    expect(creative.updateCreativeTopicState).toHaveBeenCalledWith("20260708", "topic-1", { score: 90 });
   });
 
   it("writeContent 带日期时刷新当天索引", () => {
@@ -523,9 +307,8 @@ describe("ProductService 创作委托方法", () => {
     expect(result).toBeDefined();
   });
 
-  it("listSources / listSourceRuns 委托", () => {
+  it("listSources 委托", () => {
     const { service } = createServiceWithCreativeSpy();
     expect(Array.isArray(service.listSources())).toBe(true);
-    expect(Array.isArray(service.listSourceRuns())).toBe(true);
   });
 });

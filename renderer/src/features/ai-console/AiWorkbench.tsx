@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Archive, Eye, FileText, History, MoreHorizontal, Pencil, Pin, Save, Trash2, X } from "lucide-react";
+import { Eye, FileText, History, Pencil, Save, X } from "lucide-react";
 import type { AiSession, ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { AUTO_MODEL, effectiveModelInfo } from "@shared/model-catalog";
@@ -408,7 +408,6 @@ export function AiWorkbench({
     </FilePreviewProvider>
   );
 }
-
 function sessionStatusTone(status: AiSession["status"]): "neutral" | "success" | "warning" | "danger" {
   const tones: Record<AiSession["status"], "neutral" | "success" | "warning" | "danger"> = {
     idle: "neutral",
@@ -513,113 +512,4 @@ function relativeSessionTime(value: string): string {
   if (delta < 3_600_000) return m.common.minutesAgo(Math.floor(delta / 60_000));
   if (delta < 86_400_000) return m.common.hoursAgo(Math.floor(delta / 3_600_000));
   return m.common.daysAgo(Math.floor(delta / 86_400_000));
-}
-
-/**
- * P1-SES-3: session actions overflow 菜单 —— 默认只露 pin + ⋯,收纳 rename/archive/delete。
- */
-function SessionOverflowMenu({
-  renaming,
-  onRename,
-  archived,
-  onArchive,
-  onDelete,
-  busy
-}: {
-  renaming: boolean;
-  onRename: () => void;
-  archived: boolean;
-  onArchive: () => void;
-  onDelete: () => void;
-  busy: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuPresence = useExitPresence(open, 160);
-
-  const updatePosition = useCallback(() => {
-    const button = buttonRef.current;
-    if (!button) return;
-    const rect = button.getBoundingClientRect();
-    const menuWidth = menuRef.current?.offsetWidth || 160;
-    const menuHeight = menuRef.current?.offsetHeight || 132;
-    const viewportPadding = 8;
-    const gap = 6;
-    const maxLeft = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
-    const left = Math.min(maxLeft, Math.max(viewportPadding, rect.right - menuWidth));
-    let top = rect.bottom + gap;
-    if (top + menuHeight > window.innerHeight - viewportPadding) {
-      top = Math.max(viewportPadding, rect.top - menuHeight - gap);
-    }
-    setPosition({ left, top });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    updatePosition();
-  }, [open, updatePosition]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    const onPositionChange = () => updatePosition();
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", onPositionChange);
-    window.addEventListener("scroll", onPositionChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", onPositionChange);
-      window.removeEventListener("scroll", onPositionChange, true);
-    };
-  }, [open, updatePosition]);
-  return (
-    <div className="session-overflow" ref={ref}>
-      <button
-        data-motion="icon"
-        ref={buttonRef}
-        aria-label={m.ai.session.moreActions}
-        title={m.ai.session.moreActions}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={busy}
-        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}
-      >
-        <MoreHorizontal size={12} />
-      </button>
-      {menuPresence.visible ? createPortal(
-        <div
-          ref={menuRef}
-          className="session-overflow-menu"
-          data-leaving={menuPresence.leaving || undefined}
-          role="menu"
-          style={position ? { left: position.left, top: position.top } : undefined}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button data-motion="action" role="menuitem" disabled={busy || renaming} onClick={() => { onRename(); setOpen(false); }}><Pencil size={12} />{m.ai.session.rename}</button>
-          <button data-motion="action" role="menuitem" disabled={busy} onClick={() => { onArchive(); setOpen(false); }}><Archive size={12} />{archived ? m.ai.session.unarchive : m.ai.session.archive}</button>
-          <button role="menuitem" className="danger-icon" disabled={busy} onClick={() => { onDelete(); setOpen(false); }}><Trash2 size={12} />{m.ai.session.delete}</button>
-        </div>,
-        document.body
-      ) : null}
-    </div>
-  );
-}
-
-function updateLabel(patch: { pinned?: boolean; archived?: boolean; title?: string }): string {
-  if (patch.title) return m.ai.session.renamed;
-  if (patch.archived !== undefined) return patch.archived ? m.ai.session.archived : m.ai.session.unarchived;
-  if (patch.pinned !== undefined) return patch.pinned ? m.ai.session.pinned : m.ai.session.unpinned;
-  return m.ai.session.updated;
 }

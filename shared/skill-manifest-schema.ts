@@ -108,13 +108,11 @@ export type PlatformTarget = z.infer<typeof PlatformTargetSchema>;
 export const ArtifactTypeSchema = z.enum([
   "markdown", "json", "image", "video", "audio", "directory", "other"
 ]);
-export type ArtifactType = z.infer<typeof ArtifactTypeSchema>;
 
 export const PublisherSchema = z.object({
   id: SkillIdSchema,
   displayName: z.string().min(1).max(200)
 });
-export type Publisher = z.infer<typeof PublisherSchema>;
 
 export const SkillDisplaySchema = z.object({
   name: z.string().min(1).max(200),
@@ -122,7 +120,6 @@ export const SkillDisplaySchema = z.object({
   group: z.string().max(80).default("general"),
   icon: z.string().max(200).optional()
 });
-export type SkillDisplay = z.infer<typeof SkillDisplaySchema>;
 
 export const EntrypointSchema = z.object({
   runtime: RuntimeKindSchema,
@@ -131,7 +128,6 @@ export const EntrypointSchema = z.object({
   /** Templated values resolved by Broker at prepare time. */
   env: z.record(EnvNameSchema, z.string().max(4000)).optional()
 });
-export type SkillEntrypoint = z.infer<typeof EntrypointSchema>;
 
 export const RuntimeSpecSchema = z.object({
   version: z.string().max(80).refine((v) => SEMVER_RE.test(v) || isSemverRangeExpression(v), "invalid version/range"),
@@ -139,7 +135,6 @@ export const RuntimeSpecSchema = z.object({
   lockFile: RelativePackagePathSchema.optional(),
   packs: z.array(z.string().min(1).max(80)).default([])
 });
-export type RuntimeSpec = z.infer<typeof RuntimeSpecSchema>;
 
 /** JSON-Schema-like input descriptor (subset used to render run forms). */
 export const JsonSchemaFragmentSchema = z.object({
@@ -151,7 +146,6 @@ export const JsonSchemaFragmentSchema = z.object({
   default: z.unknown().optional(),
   enum: z.array(z.unknown()).optional()
 }).passthrough();
-export type JsonSchemaFragment = z.infer<typeof JsonSchemaFragmentSchema>;
 
 export const ConfigFieldSchema = z.object({
   // `provider-profile` and `secret-ref` are retained for non-provider skills
@@ -166,19 +160,16 @@ export const ConfigFieldSchema = z.object({
   enum: z.array(z.string().max(200)).optional(),
   secretRef: z.string().max(120).optional()
 }).passthrough();
-export type ConfigField = z.infer<typeof ConfigFieldSchema>;
 
 export const OpenmindCapabilitiesSchema = z.object({
   read: z.array(OpenmindPatternSchema).default([]),
   write: z.array(OpenmindPatternSchema).default([])
 });
-export type OpenmindCapabilities = z.infer<typeof OpenmindCapabilitiesSchema>;
 
 export const NetworkCapabilitiesSchema = z.object({
   required: z.boolean().default(false),
   hosts: z.array(NetworkHostSchema).default([])
 });
-export type NetworkCapabilities = z.infer<typeof NetworkCapabilitiesSchema>;
 
 export const CapabilitiesSchema = z.object({
   openmind: OpenmindCapabilitiesSchema.default({ read: [], write: [] }),
@@ -188,56 +179,6 @@ export const CapabilitiesSchema = z.object({
   clipboard: z.boolean().default(false),
   notification: z.boolean().default(false)
 }).passthrough();
-export type SkillCapabilities = z.infer<typeof CapabilitiesSchema>;
-
-export type SkillCapabilityDiff = {
-  added: string[];
-  removed: string[];
-  changed: boolean;
-};
-
-/**
- * Produce a human-readable, deterministic diff for the capability section of
- * two manifests. This is an explanation surface for install/update review;
- * it does not gate execution.
- */
-export function diffSkillCapabilities(previousManifest: unknown, nextManifest: unknown): SkillCapabilityDiff {
-  const previous = capabilityEntries(extractCapabilities(previousManifest));
-  const next = capabilityEntries(extractCapabilities(nextManifest));
-  return {
-    added: [...next].filter((entry) => !previous.has(entry)).sort(),
-    removed: [...previous].filter((entry) => !next.has(entry)).sort(),
-    changed: !setsEqual(previous, next)
-  };
-}
-
-function extractCapabilities(value: unknown): unknown {
-  if (!value || typeof value !== "object") return {};
-  const record = value as Record<string, unknown>;
-  return record.capabilities && typeof record.capabilities === "object" ? record.capabilities : value;
-}
-
-function capabilityEntries(value: unknown, prefix = "capabilities"): Set<string> {
-  if (value === null || typeof value !== "object") return new Set([`${prefix}=${stableCapabilityValue(value)}`]);
-  if (Array.isArray(value)) return new Set(value.map((entry) => `${prefix}[]=${stableCapabilityValue(entry)}`));
-  const entries = new Set<string>();
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    for (const entry of capabilityEntries((value as Record<string, unknown>)[key], `${prefix}.${key}`)) entries.add(entry);
-  }
-  return entries;
-}
-
-function stableCapabilityValue(value: unknown): string {
-  if (value === undefined) return "undefined";
-  if (typeof value === "string") return value;
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableCapabilityValue).sort().join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableCapabilityValue((value as Record<string, unknown>)[key])}`).join(",")}}`;
-}
-
-function setsEqual(left: Set<string>, right: Set<string>): boolean {
-  return left.size === right.size && [...left].every((entry) => right.has(entry));
-}
 
 export const ArtifactSchema = z.object({
   id: z.string().min(1).max(120),
@@ -246,7 +187,6 @@ export const ArtifactSchema = z.object({
   path: z.string().min(1).max(1024).optional(),
   externalExportId: z.string().min(1).max(120).optional()
 });
-export type SkillArtifact = z.infer<typeof ArtifactSchema>;
 
 export const ExecutionSchema = z.object({
   concurrency: z.object({
@@ -262,13 +202,11 @@ export const ExecutionSchema = z.object({
   gracefulStopSeconds: 10,
   retry: { maxAttempts: 0 }
 });
-export type SkillExecution = z.infer<typeof ExecutionSchema>;
 
 export const CompatibilitySchema = z.object({
   minAppVersion: z.string().max(80).refine((v) => SEMVER_RE.test(v), "minAppVersion must be semver"),
   minRuntimeVersion: z.string().max(80).optional()
 });
-export type SkillCompatibility = z.infer<typeof CompatibilitySchema>;
 
 export const WorkflowStepSchema = z.object({
   id: z.string().min(1).max(120),
@@ -283,12 +221,10 @@ export const WorkflowStepSchema = z.object({
     backoffMs: z.number().int().min(0).max(3_600_000).default(0)
   }).default({ maxAttempts: 0, backoffMs: 0 })
 });
-export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
 export const WorkflowSpecSchema = z.object({
   steps: z.array(WorkflowStepSchema).min(1)
 });
-export type WorkflowSpec = z.infer<typeof WorkflowSpecSchema>;
 
 // --- top-level manifest -----------------------------------------------------
 

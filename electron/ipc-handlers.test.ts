@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(152);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(152);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(152);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(90);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(90);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(90);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -97,10 +97,8 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
       listInstalledRunnableViews: () => [],
       toInstalledView: (record: Record<string, unknown>) => ({ ...record, enabled: true, usable: true })
     }) as never,
-    ensureSkillSourceService: () => ({ hasCompleteInstallation: () => false }) as never,
-    ensureExportLocationService: () => ({ list: () => [], create: () => ({}), get: () => undefined, relink: () => ({}), revoke: () => false, resolve: () => ({}) }) as never,
-    ensureRuntimePackService: () => ({ listReadiness: () => [], getReadiness: () => undefined, activate: () => ({}), rollback: () => ({}), remove: () => false }) as never,
-    analyzeEnvFile: () => ({ path: ".env", variables: [], ignoredLines: 0, warnings: [], containsPotentialSecrets: false }),
+    ensureSkillSourceService: () => ({ hasInstallation: () => false }) as never,
+    hasRequiredStartupConfiguration: () => true,
     getActiveRunCount: async () => 0,
     restartAiWorker: vi.fn(),
     getBrowserAutomationStatus: () => ({
@@ -199,30 +197,9 @@ describe("handler forwarding — 内容类", () => {
     const ctx = makeCtx();
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.writeContent, "x.md", "x".repeat(5 * 1024 * 1024 + 1))).toThrow();
   });
-
-  it("getDashboard 转发 date 到 product().getDashboard", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.getDashboard, "2026-07-08");
-    expect(spy).toHaveBeenCalledWith("getDashboard", "20260708", 0);
-  });
-
-  it("getDailyBrief 转发 date", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.getDailyBrief, "2026-07-08");
-    expect(spy).toHaveBeenCalledWith("getDailyBrief", "20260708");
-  });
 });
 
 describe("handler forwarding — 创作类", () => {
-  it("getCreativeTopics 转发 date", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.getCreativeTopics, "2026-07-08");
-    expect(spy).toHaveBeenCalledWith("getCreativeTopics", "20260708");
-  });
-
   it("getCreativeProject 转发 filePath", () => {
     const { product, spy } = makeProductSpy();
     const ctx = makeCtx({ ensureProductService: () => product as never });
@@ -262,30 +239,11 @@ describe("handler forwarding — AI 透传类", () => {
     expect(ai.call).toHaveBeenCalledWith("cancel", "run-123");
   });
 
-  it("aiSearchSessions 校验 query 长度(超 500 抛错)", () => {
-    const ctx = makeCtx();
-    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.aiSearchSessions, "x".repeat(501))).toThrow();
-  });
-
   it("aiListTurns 转发 sessionId + params", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiListTurns, "sess-1", { limit: 10 });
     expect(ai.call).toHaveBeenCalledWith("turns", "sess-1", expect.objectContaining({ limit: 10 }));
-  });
-
-  it("runSkill 转发 skillId + date", async () => {
-    const ai = makeAiSpy();
-    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.runSkill, "rss-article-saver", "2026-07-08");
-    expect(ai.call).toHaveBeenCalledWith("run-skill", "rss-article-saver", "20260708");
-  });
-
-  it("stopSkill 转发 skillId", async () => {
-    const ai = makeAiSpy();
-    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.stopSkill, "rss-article-saver");
-    expect(ai.call).toHaveBeenCalledWith("stop-skill", "rss-article-saver");
   });
 
   it("通用 Skill Run 查询和取消转发到 worker", async () => {
@@ -326,85 +284,19 @@ describe("handler forwarding — AI 透传类", () => {
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setSharedPythonRuntimeEnabled, "true") as Promise<unknown>).rejects.toThrow();
   });
 
-  it("Runtime Pack IPC exposes readiness without leaking package paths", async () => {
-    const service = {
-      listReadiness: vi.fn(() => [{ packId: "python-core", target: "linux-x64", version: "1.0.0", digest: "a".repeat(64), status: "active", verifiedAt: "2026-08-06T00:00:00.000Z", license: "PSF-2.0", sbom: { format: "spdx", digest: "b".repeat(64) }, integrity: "verified", inUse: false, ready: true, reason: "ok" }]),
-      getReadiness: vi.fn((packId: string, target: string) => ({ packId, target, version: "1.0.0", digest: "a".repeat(64), status: "candidate", verifiedAt: "2026-08-06T00:00:00.000Z", license: "PSF-2.0", sbom: { format: "spdx", digest: "b".repeat(64) }, integrity: "verified", inUse: false, ready: false, reason: "Runtime Pack 尚未激活。" })),
-      install: vi.fn(() => ({ packId: "python-core", target: "linux-x64" })),
-      repair: vi.fn(() => ({ packId: "python-core", target: "linux-x64" })),
-      activate: vi.fn(() => ({ active: {} })),
-      rollback: vi.fn(() => ({ active: {}, previous: {} })),
-      remove: vi.fn(() => true),
-      garbageCollect: vi.fn(() => [])
-    };
-    const ctx = makeCtx({ ensureRuntimePackService: () => service as never });
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.listRuntimePacks)).toEqual(expect.arrayContaining([expect.objectContaining({ packId: "python-core", ready: true })]));
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.getRuntimePackReadiness, "python-core", "linux-x64")).toEqual(expect.objectContaining({ packId: "python-core" }));
-    const metadata = { packId: "python-core" };
-    const bytes = new Uint8Array([1, 2, 3]);
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.importRuntimePack)).toBeNull();
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.repairRuntimePackFromFile, "python-core", "linux-x64", "a".repeat(64))).toBeNull();
-    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.installRuntimePack, metadata, "not-bytes")).toThrow();
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.installRuntimePack, metadata, bytes)).toEqual(expect.objectContaining({ packId: "python-core" }));
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.repairRuntimePack, metadata, bytes)).toEqual(expect.objectContaining({ packId: "python-core" }));
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.activateRuntimePack, "python-core", "linux-x64", "a".repeat(64));
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.rollbackRuntimePack, "python-core", "linux-x64");
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRuntimePack, "python-core", "linux-x64", "a".repeat(64))).toBe(true);
-    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.garbageCollectRuntimePacks)).toEqual([]);
-    expect(service.activate).toHaveBeenCalledWith("python-core", "linux-x64", "a".repeat(64));
-    expect(service.install).toHaveBeenCalledWith(metadata, bytes);
-    expect(service.repair).toHaveBeenCalledWith(metadata, bytes);
-    expect(service.rollback).toHaveBeenCalledWith("python-core", "linux-x64");
-    expect(service.remove).toHaveBeenCalledWith("python-core", "linux-x64", "a".repeat(64));
-    expect(service.garbageCollect).toHaveBeenCalledOnce();
-  });
-
   it("Workflow Run 校验并转发生命周期操作到 worker", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.startWorkflowRun, {
-      skillId: "daily-workflow",
-      inputs: { date: "20260805" },
-      rootGeneration: 2
-    });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.listWorkflowRuns);
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.getWorkflowRun, "workflow-1");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.resumeWorkflowRun, { runId: "workflow-1", inputs: { date: "20260805" }, rootGeneration: 2 });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.cancelWorkflowRun, "workflow-1");
     expect(ai.call.mock.calls).toEqual([
-      ["workflow-run-start", { skillId: "daily-workflow", inputs: { date: "20260805" }, providerBindings: {}, rootGeneration: 2 }],
       ["workflow-run-list"],
       ["workflow-run-get", "workflow-1"],
       ["workflow-run-resume", { runId: "workflow-1", inputs: { date: "20260805" }, providerBindings: {}, rootGeneration: 2 }],
       ["workflow-run-cancel", "workflow-1"]
     ]);
-    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.startWorkflowRun, {
-      skillId: "daily-workflow",
-      executable: "/bin/sh",
-      rootGeneration: 2
-    })).toThrow();
-  });
-
-  it("Export Location 只能由 Main 的目录选择器创建并可撤销", async () => {
-    const service = {
-      list: vi.fn(() => [{ id: "export-1" }]),
-      create: vi.fn(() => ({ id: "export-1" })),
-      get: vi.fn(() => undefined),
-      relink: vi.fn(() => ({ id: "videoExportDir", canonicalPath: "/tmp/new-export" })),
-      revoke: vi.fn(() => true)
-    };
-    const ctx = makeCtx({ ensureExportLocationService: () => service as never });
-    electronMock.dialogResult = { canceled: false, filePaths: ["/tmp/export-dir"] };
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectExportLocation, "视频")).resolves.toEqual({ id: "export-1" });
-    expect(service.create).toHaveBeenCalledWith("视频", "/tmp/export-dir");
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listExportLocations)).toEqual([{ id: "export-1" }]);
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.revokeExportLocation, "export-1")).toBe(true);
-    expect(service.revoke).toHaveBeenCalledWith("export-1");
-    service.get.mockReturnValue({ id: "videoExportDir" });
-    electronMock.dialogResult = { canceled: false, filePaths: ["/tmp/new-export"] };
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectExportLocation, "视频", "videoExportDir")).resolves.toEqual({ id: "videoExportDir", canonicalPath: "/tmp/new-export" });
-    expect(service.relink).toHaveBeenCalledWith("videoExportDir", "/tmp/new-export");
-    electronMock.dialogResult = { canceled: true, filePaths: [] };
   });
 
   it("Automation Rule 与运行查询只转发经过 Schema 校验的结构", async () => {
@@ -508,32 +400,6 @@ describe("handler forwarding — searchWorkspace", () => {
   });
 });
 
-describe("handler forwarding — runSource 复合逻辑", () => {
-  it("源不存在时抛 notFound", async () => {
-    const { product } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => ({ listSources: () => [] }) as never });
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.runSource, "missing-src")).rejects.toThrow();
-  });
-
-  it("源 enabled 但无 skillId 时抛 noSkill", async () => {
-    const ctx = makeCtx({
-      ensureProductService: () => ({
-        listSources: () => [{ id: "src-1", enabled: true, skillId: null }]
-      }) as never
-    });
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.runSource, "src-1")).rejects.toThrow();
-  });
-
-  it("源 disabled 时抛 disabled", async () => {
-    const ctx = makeCtx({
-      ensureProductService: () => ({
-        listSources: () => [{ id: "src-1", enabled: false, skillId: "rss" }]
-      }) as never
-    });
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.runSource, "src-1")).rejects.toThrow();
-  });
-});
-
 describe("handler forwarding — Skill package installation", () => {
   it("inspect/migrate/list endpoints stay static and use the selected workspace", async () => {
     const settings = await import("./lib/settings");
@@ -555,9 +421,7 @@ describe("handler forwarding — Skill package installation", () => {
       listInstalled: vi.fn(() => []),
       listInstalledViews: vi.fn(() => []),
       listInstalledRunnableViews: vi.fn(() => [{ id: "installed", kind: "process", title: "Installed", enabled: true }]),
-      toInstalledView: vi.fn((record) => ({ ...record, usable: true })),
-      install: vi.fn(() => ({ key: "openmind/installed", digest: "digest-installed" })),
-      uninstall: vi.fn(() => true)
+      toInstalledView: vi.fn((record) => ({ ...record, usable: true }))
     };
     const ctx = makeCtx({ ensureSkillPackageService: () => service as never });
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
@@ -567,12 +431,8 @@ describe("handler forwarding — Skill package installation", () => {
     expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.listInstalledRunnableSkills)).toEqual([
       expect.objectContaining({ id: "installed", kind: "process", title: "Installed", enabled: true })
     ]);
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.installSkillPackage, "/tmp/skill")).toEqual(expect.objectContaining({ digest: "digest-installed" }));
-    expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.uninstallSkillPackage, "openmind/installed", "digest-installed")).toBe(true);
     expect(service.getInstalled).toHaveBeenCalledWith("openmind/installed", "digest-installed");
     expect(service.inspect).toHaveBeenCalledWith("/userData/skills/openmind/installed/1.0.0");
-    expect(service.install).toHaveBeenCalledWith("/tmp/skill");
-    expect(service.uninstall).toHaveBeenCalledWith("openmind/installed", "digest-installed");
     vi.restoreAllMocks();
   });
 
@@ -678,7 +538,7 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never,
       ensureProductService: () => product as never,
-      ensureSkillSourceService: () => ({ hasCompleteInstallation: () => true }) as never
+      ensureSkillSourceService: () => ({ hasInstallation: () => true }) as never
     });
     const settings = await import("./lib/settings");
     vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
@@ -708,11 +568,11 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(result.ai.providers).toEqual([]);
   });
 
-  it("已绑定 openmindRoot 但官方来源安装不完整时仍停在启动门禁且不调 ai", async () => {
+  it("已绑定 openmindRoot 但官方来源未安装时仍停在启动门禁且不调 ai", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never,
-      ensureSkillSourceService: () => ({ hasCompleteInstallation: () => false }) as never
+      ensureSkillSourceService: () => ({ hasInstallation: () => false }) as never
     });
     const settings = await import("./lib/settings");
     vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
@@ -782,43 +642,6 @@ describe("handler forwarding — exportText 复合逻辑", () => {
   });
 });
 
-describe("handler forwarding — app state backup", () => {
-  afterEach(() => {
-    electronMock.dialogResult = { canceled: true, filePaths: [] };
-    electronMock.saveResult = { canceled: true, filePath: undefined };
-  });
-
-  it("uses Main dialogs and blocks backup/restore while a Run is active", async () => {
-    const report = {
-      schemaVersion: 1,
-      kind: "openmind-app-state-backup",
-      operation: "export" as const,
-      createdAt: "2026-08-06T00:00:00.000Z",
-      fileCount: 2,
-      byteCount: 12,
-      excludedAreas: ["credentials/**"]
-    };
-    const backup = {
-      exportToFile: vi.fn(() => report),
-      importFromFile: vi.fn(() => ({ ...report, operation: "import" as const }))
-    };
-    const outFile = path.join(os.tmpdir(), "openmind-state-backup-ipc.zip");
-    electronMock.saveResult = { canceled: false, filePath: outFile };
-    const restartAiWorker = vi.fn();
-    const ctx = makeCtx({ ensureAppStateBackupService: () => backup as never, restartAiWorker });
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.exportAppStateBackup)).resolves.toEqual(report);
-    expect(backup.exportToFile).toHaveBeenCalledWith(outFile);
-
-    electronMock.dialogResult = { canceled: false, filePaths: [outFile] };
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.importAppStateBackup)).resolves.toEqual({ ...report, operation: "import" });
-    expect(backup.importFromFile).toHaveBeenCalledWith(outFile);
-    expect(restartAiWorker).toHaveBeenCalledTimes(1);
-
-    const blocked = makeCtx({ ensureAppStateBackupService: () => backup as never, getActiveRunCount: async () => 1 });
-    await expect(invokeHandler(blocked, IPC_METHOD_CHANNELS.exportAppStateBackup)).rejects.toThrow("不能备份应用状态");
-  });
-});
-
 describe("handler forwarding — openmind root switching", () => {
   it("keeps directory selection read-only until preview and explicit commit", async () => {
     const settings = await import("./lib/settings");
@@ -857,55 +680,6 @@ describe("handler forwarding — openmind root switching", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps content relocation behind preview and explicit commit", async () => {
-    const settings = await import("./lib/settings");
-    const relocation = await import("./paths/openmind-relocation-service");
-    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/old-openmind");
-    const preview = vi.spyOn(relocation, "previewOpenmindRelocation").mockReturnValue({
-      schemaVersion: 1,
-      sourceDirectory: "/old-openmind",
-      targetDirectory: "/new-openmind",
-      sourceRootId: "source",
-      sourceFileCount: 2,
-      sourceDirectoryCount: 1,
-      sourceBytes: 20,
-      sourceDigest: "tree",
-      targetState: "empty",
-      targetFileCount: 0,
-      targetDirectoryCount: 0,
-      targetBytes: 0,
-      pendingTransaction: false,
-      canCommit: true,
-      blockingReasons: []
-    });
-    const relocate = vi.spyOn(relocation, "relocateOpenmind").mockReturnValue({
-      schemaVersion: 1,
-      status: "committed",
-      sourceDirectory: "/old-openmind",
-      targetDirectory: "/new-openmind",
-      sourceRootId: "source",
-      targetRootId: "target",
-      copiedFileCount: 2,
-      copiedDirectoryCount: 1,
-      copiedBytes: 20,
-      treeDigest: "tree",
-      sourcePreserved: true,
-      verified: true,
-      completedAt: "2026-08-06T00:00:00.000Z"
-    });
-    const setOpenmindRoot = vi.spyOn(settings, "setOpenmindRoot").mockReturnValue("/new-openmind");
-    const restartAiWorker = vi.fn();
-    const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 0 });
-
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.previewOpenmindRelocation, "/new-openmind")).resolves.toMatchObject({ canCommit: true });
-    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-openmind", targetDirectory: "/new-openmind" }));
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.relocateOpenmind, "/new-openmind")).resolves.toMatchObject({ status: "committed" });
-    expect(relocate).toHaveBeenCalledWith(expect.objectContaining({ sourceDirectory: "/old-openmind", targetDirectory: "/new-openmind" }));
-    expect(setOpenmindRoot).toHaveBeenCalledWith("/new-openmind");
-    expect(restartAiWorker).toHaveBeenCalledTimes(1);
-    vi.restoreAllMocks();
-  });
-
   it("blocks root switching while the AI worker reports active work", async () => {
     const settings = await import("./lib/settings");
     const setOpenmindRoot = vi.spyOn(settings, "setOpenmindRoot").mockReturnValue("/new-openmind");
@@ -918,15 +692,11 @@ describe("handler forwarding — openmind root switching", () => {
     vi.restoreAllMocks();
   });
 
-  it("blocks direct and selected workspace switching while the AI worker reports active work", async () => {
+  it("blocks selected workspace switching while the AI worker reports active work", async () => {
     const settings = await import("./lib/settings");
     const setWorkspaceRoot = vi.spyOn(settings, "setWorkspaceRoot").mockReturnValue("/new-workspace");
     const restartAiWorker = vi.fn();
     const ctx = makeCtx({ restartAiWorker, getActiveRunCount: async () => 1 });
-
-    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.setWorkspaceRoot, "/new-workspace")).rejects.toThrow("不能切换 AI/代码工作区");
-    expect(setWorkspaceRoot).not.toHaveBeenCalled();
-    expect(restartAiWorker).not.toHaveBeenCalled();
 
     electronMock.dialogResult = { canceled: false, filePaths: ["/selected-workspace"] };
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.selectWorkspaceRoot)).rejects.toThrow("不能切换 AI/代码工作区");
@@ -945,13 +715,16 @@ describe("handler forwarding — preferences 类", () => {
     expect(settings.getPreferences).toHaveBeenCalled();
   });
 
-  it("updatePreferences 委托 settings.updatePreferences", async () => {
+  it("updatePreferences 只转发显式偏好字段并拒绝目录字段", async () => {
     const settings = await import("./lib/settings");
-    vi.spyOn(settings, "updatePreferences").mockReturnValue({} as never);
+    const update = vi.spyOn(settings, "updatePreferences").mockReturnValue({} as never);
     const ctx = makeCtx();
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, {});
-    expect(settings.updatePreferences).toHaveBeenCalled();
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { browserAutomationEnabled: true });
+    expect(update).toHaveBeenCalledWith({ browserAutomationEnabled: true });
     expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { openmindRoot: "" })).toThrow();
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { workspaceRoot: "" })).toThrow();
+    vi.restoreAllMocks();
   });
 
   it("resetPreferences 委托 settings.resetPreferences", async () => {
@@ -987,13 +760,6 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     expect(spy).toHaveBeenCalledWith("updateCreativeManifest", "p.md", expect.any(Object));
   });
 
-  it("setCreativeReviewStatus 解析 status 枚举", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.setCreativeReviewStatus, "p.md", "approved");
-    expect(spy).toHaveBeenCalledWith("setCreativeReviewStatus", "p.md", "approved");
-  });
-
   it("listCreativeVersions 转发 filePath + file", () => {
     const { product, spy } = makeProductSpy();
     const ctx = makeCtx({ ensureProductService: () => product as never });
@@ -1001,17 +767,13 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     expect(spy).toHaveBeenCalledWith("listCreativeVersions", "p.md", "draft.md");
   });
 
-  it("copy/archive/restore/deleteCreativeProject 各转发 filePath", () => {
+  it("copy/archive CreativeProject 各转发 filePath", () => {
     const { product, spy } = makeProductSpy();
     const ctx = makeCtx({ ensureProductService: () => product as never });
     invokeHandler(ctx, IPC_METHOD_CHANNELS.copyCreativeProject, "p.md");
     invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveCreativeProject, "p.md");
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.restoreCreativeProject, "p.md");
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.deleteCreativeProject, "p.md");
     expect(spy).toHaveBeenCalledWith("copyCreativeProject", "p.md");
     expect(spy).toHaveBeenCalledWith("archiveCreativeProject", "p.md");
-    expect(spy).toHaveBeenCalledWith("restoreCreativeProject", "p.md");
-    expect(spy).toHaveBeenCalledWith("deleteCreativeProject", "p.md");
   });
 
   it("getCreativeAnalytics 无参调用", () => {
@@ -1019,20 +781,6 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     const ctx = makeCtx({ ensureProductService: () => product as never });
     invokeHandler(ctx, IPC_METHOD_CHANNELS.getCreativeAnalytics);
     expect(spy).toHaveBeenCalledWith("getCreativeAnalytics");
-  });
-
-  it("bindCreativeSession 转发 filePath + sessionId", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.bindCreativeSession, "p.md", "sess-1");
-    expect(spy).toHaveBeenCalledWith("bindCreativeSession", "p.md", "sess-1");
-  });
-
-  it("addCreativeTopic 解析 AddCreativeTopicInput", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.addCreativeTopic, { date: "2026-07-08", title: "新选题" });
-    expect(spy).toHaveBeenCalledWith("addCreativeTopic", expect.objectContaining({ title: "新选题" }));
   });
 
   it("updateSource 解析 SourcePatch", () => {
@@ -1048,35 +796,10 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     invokeHandler(ctx, IPC_METHOD_CHANNELS.addRssSource, { name: "Feed", url: "https://example.com/rss" });
     expect(spy).toHaveBeenCalledWith("addRssSource", expect.objectContaining({ name: "Feed" }));
   });
-
-  it("updateContentState 解析 patch", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.updateContentState, "id-1", "path.md", { starred: true });
-    expect(spy).toHaveBeenCalledWith("updateContentState", "id-1", "path.md", expect.objectContaining({ starred: true }));
-  });
-
-  it("updateBriefWatchlist 解析 input", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.updateBriefWatchlist, { date: "2026-07-08", path: "p.md", add: true });
-    expect(spy).toHaveBeenCalledWith("updateBriefWatchlist", "2026-07-08", "p.md", true);
-  });
-
-  it("rebuildContentIndex 委托 product", () => {
-    // rebuildContentIndex 的返回值要经 ContentIndexMaintenanceSchema.parse,
-    // 用一个真实结构而非 Proxy spy
-    const call = vi.fn(() => ({
-      schemaVersion: 1, indexedDates: [], itemCount: 0, indexPath: "/i", statePath: "/s", rebuiltAt: "now"
-    }));
-    const ctx = makeCtx({ ensureProductService: () => ({ rebuildContentIndex: call }) as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.rebuildContentIndex);
-    expect(call).toHaveBeenCalled();
-  });
 });
 
 describe("handler forwarding — 剩余 AI passthrough", () => {
-  it("aiRefreshProviders / aiPrewarm / aiSearchSessions 转发", async () => {
+  it("aiRefreshProviders / aiPrewarm 转发", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
     const settings = await import("./lib/settings");
@@ -1084,57 +807,50 @@ describe("handler forwarding — 剩余 AI passthrough", () => {
     try {
       await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiRefreshProviders);
       await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiPrewarm, "sess-1");
-      await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiSearchSessions, "query");
       expect(ai.call).toHaveBeenCalledWith("refresh-providers");
       expect(ai.call).toHaveBeenCalledWith("prewarm", "sess-1");
-      expect(ai.call).toHaveBeenCalledWith("search", "query");
     } finally {
       vi.restoreAllMocks();
     }
   });
 
-  it("aiUpdateSession / aiDeleteSession / aiGetEvents 转发", async () => {
+  it("AI 配置未就绪时 aiPrewarm 安静返回 false", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({
+      ensureAiWorker: () => ai as never,
+      hasRequiredStartupConfiguration: () => false
+    });
+    const settings = await import("./lib/settings");
+    vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
+    try {
+      expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.aiPrewarm)).toBe(false);
+      expect(ai.call).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("aiUpdateSession / aiGetEvents 转发", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiUpdateSession, "s1", { title: "t" });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiDeleteSession, "s1");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiGetEvents, "s1");
     expect(ai.call).toHaveBeenCalledWith("update-session", "s1", expect.any(Object));
-    expect(ai.call).toHaveBeenCalledWith("delete-session", "s1");
     expect(ai.call).toHaveBeenCalledWith("events", "s1");
   });
 
-  it("aiGetContextState / aiForkSession / aiRollbackTurns 转发", async () => {
+  it("aiForkSession 转发", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiGetContextState, "s1");
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiForkSession, "s1", "run-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiRollbackTurns, "s1", 3);
-    expect(ai.call).toHaveBeenCalledWith("context-state", "s1");
     expect(ai.call).toHaveBeenCalledWith("fork-session", "s1", "run-1");
-    expect(ai.call).toHaveBeenCalledWith("rollback-turns", "s1", 3);
   });
 
-  it("aiResolveApproval / aiGetChangeSet / aiApplyChange 转发", async () => {
+  it("aiResolveApproval 转发", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiResolveApproval, "apr-1", "accept");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiGetChangeSet, "run-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiApplyChange, "run-1", "patch-1");
     expect(ai.call).toHaveBeenCalledWith("resolve-approval", "apr-1", "accept");
-    expect(ai.call).toHaveBeenCalledWith("change-set", "run-1");
-    expect(ai.call).toHaveBeenCalledWith("apply-change", "run-1", "patch-1");
-  });
-
-  it("aiRevertChange / aiDiscardChange / aiDiscardRun 转发", async () => {
-    const ai = makeAiSpy();
-    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiRevertChange, "run-1", "patch-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiDiscardChange, "run-1", "patch-1");
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiDiscardRun, "run-1");
-    expect(ai.call).toHaveBeenCalledWith("revert-change", "run-1", "patch-1");
-    expect(ai.call).toHaveBeenCalledWith("discard-change", "run-1", "patch-1");
-    expect(ai.call).toHaveBeenCalledWith("discard-run", "run-1");
   });
 
   it("aiStartRun 解析 StartRunInput", async () => {

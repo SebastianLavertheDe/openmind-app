@@ -202,30 +202,6 @@ export function saveProvidersFromInput(input: ProvidersYamlInput): ProvidersYaml
 }
 
 /** Remove a provider by id; if it was the default, repoint default to the first enabled survivor. */
-export function deleteProviderEntry(id: string): ProvidersYaml {
-  const current = readProvidersYaml();
-  if (!current) throw new Error("config/providers.yaml 尚未创建，无法删除 provider。");
-  const survivors = current.providers.filter((provider) => provider.id !== id);
-  if (survivors.length === current.providers.length) return current;
-  if (survivors.length === 0) throw new Error("config/providers.yaml 至少需要保留一个 provider。");
-  let nextDefault = current.default;
-  if (nextDefault === id) {
-    const firstEnabled = survivors.find((provider) => provider.enabled);
-    if (!firstEnabled) throw new Error("删除后将没有可用的默认 Provider；请先启用另一个 Provider。");
-    nextDefault = firstEnabled.id;
-  }
-  const document: ProvidersYaml = {
-    schemaVersion: PROVIDERS_YAML_SCHEMA_VERSION,
-    default: nextDefault,
-    cli: {
-      claude: current.cli.claude === id ? null : current.cli.claude,
-      codex: current.cli.codex === id ? null : current.cli.codex
-    },
-    providers: survivors
-  };
-  writeProvidersYaml(document);
-  return document;
-}
 
 /** Return a UI-safe view (apiKey replaced by `apiKeySet`). Empty document when no file exists. */
 export function listProvidersForUi(): ProvidersYamlView {

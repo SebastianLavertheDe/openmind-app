@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, InstalledSkillView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, RuntimePackDownloadDescriptor, RuntimePackDownloadJob, RuntimePackReadiness, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
+import { Archive, ChevronDown, Copy, Download, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -39,9 +39,6 @@ const AUTO_SAVE_OPTIONS = [5_000, 15_000, 30_000, 60_000].map((value) => ({
   label: value < 60_000 ? `${value / 1000} 秒` : "1 分钟"
 }));
 const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), label: `${value} 天` }));
-const CACHE_SIZE_OPTIONS = [250, 500, 1000, 2000, 5000].map((value) => ({ value: String(value), label: value >= 1000 ? `${value / 1000} GB` : `${value} MB` }));
-const LOG_RETENTION_OPTIONS = [7, 14, 30, 60, 90].map((value) => ({ value: String(value), label: `${value} 天` }));
-const NOTIFICATION_HISTORY_OPTIONS = [50, 100, 200, 500].map((value) => ({ value: String(value), label: `${value} 条` }));
 
 export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   return (
@@ -151,10 +148,10 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   </span>
                 </div>
                 {canLogin ? <div className="settings-provider-install">
-                  <button type="button" className="settings-provider-install-button" onClick={() => void window.openmind.openCliLogin(provider.provider as "claude" | "codex")}>
+                  <button type="button" className="settings-provider-install-button" data-motion="action" onClick={() => void window.openmind.openCliLogin(provider.provider as "claude" | "codex")}>
                     {m.settings.provider.openLogin}
                   </button>
-                  <button type="button" className="settings-provider-recheck" onClick={() => void window.openmind.aiRefreshProviders()}>
+                  <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void window.openmind.aiRefreshProviders()}>
                     {m.settings.provider.recheck}
                   </button>
                   <small>{m.settings.provider.loginHint}</small>
@@ -162,8 +159,8 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                 {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
                   <summary>{m.settings.provider.wslStepsTitle}</summary>
                   <ol>
-                    <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
-                    <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
+                    <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
+                    <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
                     <li>{m.settings.provider.wslStepsRecheck}</li>
                   </ol>
                 </details> : null}
@@ -173,30 +170,30 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
                     <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
                     <small>{installProgress?.message || m.settings.provider.installing}</small>
-                    <button type="button" className="settings-provider-recheck" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
-                  </div> : <button type="button" className="settings-provider-install-button" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
+                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
+                  </div> : <button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
                     {m.settings.provider.install}
                   </button>}
                   {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
                     <span>{m.settings.provider.installFailed}{installError.message}</span>
-                    <button type="button" className="settings-provider-recheck" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
+                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
                   </div> : null}
                 </div> : null}
                 {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
                   <span className="settings-provider-version">v{provider.version}</span>
-                  {versionCheck?.updateAvailable && versionCheck.canUpgrade ? <button type="button" className="settings-provider-upgrade" disabled={upgrading || versionCheckBusy !== null} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
+                  {versionCheck?.updateAvailable && versionCheck.canUpgrade ? <button type="button" className="settings-provider-upgrade" data-motion="action" disabled={upgrading || versionCheckBusy !== null} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
                     {upgrading ? "更新中…" : "一键更新"}
                   </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
                     {versionCheck.updateAvailable ? `发现新版本 ${versionCheck.latestVersion}，请手动更新` : versionCheck.latestVersion && versionCheck.currentVersion ? "已是最新" : "暂无法确认最新版本"}
-                  </small> : <button type="button" className="settings-provider-recheck" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
+                  </small> : <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
                     {versionCheckBusy === provider.provider ? "检查中…" : "检查更新"}
                   </button>}
-                  {versionCheck ? <button type="button" className="settings-provider-recheck" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
+                  {versionCheck ? <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
                     {versionCheckBusy === provider.provider ? "检查中…" : "重新检查"}
                   </button> : null}
                   {versionError?.cli === provider.provider ? <div className="settings-provider-version-error" role="alert">
                     <span>版本检测失败：{versionError.message}</span>
-                    <button type="button" className="settings-provider-recheck" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>重试检测</button>
+                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>重试检测</button>
                   </div> : null}
                 </div> : null}
                 {!canInstall ? <>
@@ -244,114 +241,8 @@ export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }
       </div>
       <footer className="settings-panel-footer">
         <p className="settings-note">关闭不会删除已安装的 Python 和依赖；重新开启时可以直接复用。</p>
-        <button type="button" className="settings-subtle-action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />刷新状态</button>
+        <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />刷新状态</button>
       </footer>
-    </SettingsPanel>
-  );
-}
-
-export function RuntimeSettingsSection({ packs, downloads, downloadCandidate, busy, onRefresh, onImport, onSelectDownloadManifest, onStartDownload, onClearDownloadCandidate, onPauseDownload, onResumeDownload, onRemoveDownload, onGarbageCollect, onRepair, onActivate, onRollback, onRemove }: {
-  packs: RuntimePackReadiness[];
-  downloads: RuntimePackDownloadJob[];
-  downloadCandidate: RuntimePackDownloadDescriptor | null;
-  busy: string | null;
-  onRefresh(): void;
-  onImport(): void;
-  onSelectDownloadManifest(): void;
-  onStartDownload(): void;
-  onClearDownloadCandidate(): void;
-  onPauseDownload(job: RuntimePackDownloadJob): void;
-  onResumeDownload(job: RuntimePackDownloadJob): void;
-  onRemoveDownload(job: RuntimePackDownloadJob): void;
-  onGarbageCollect(): void;
-  onRepair(pack: RuntimePackReadiness): void;
-  onActivate(pack: RuntimePackReadiness): void;
-  onRollback(pack: RuntimePackReadiness): void;
-  onRemove(pack: RuntimePackReadiness): void;
-}) {
-  const hasPrevious = (pack: RuntimePackReadiness) => packs.some((item) => item.packId === pack.packId && item.target === pack.target && item.status === "previous");
-  const downloadStatus = (job: RuntimePackDownloadJob): { label: string; tone: "info" | "success" | "warning" | "danger" } => {
-    if (job.status === "installed") return { label: "已安装候选", tone: "success" };
-    if (job.status === "failed") return { label: "下载失败", tone: "danger" };
-    if (job.status === "paused") return { label: "已暂停", tone: "warning" };
-    if (job.status === "verifying") return { label: "校验中", tone: "info" };
-    if (job.status === "queued") return { label: "排队中", tone: "info" };
-    return { label: "下载中", tone: "info" };
-  };
-  const formatBytes = (value: number): string => {
-    if (value < 1024) return `${value} B`;
-    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
-    if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
-    return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
-  };
-  return (
-    <SettingsPanel
-      title="Runtime Packs"
-      scope={`${packs.length} 个包 · ${downloads.length} 个下载`}
-      action={<div className="settings-runtime-header-actions"><button type="button" className="settings-subtle-action" data-motion="action" disabled={busy !== null} onClick={onSelectDownloadManifest}><Download size={13} aria-hidden />添加可选包</button><button type="button" className="settings-subtle-action" data-motion="action" disabled={busy !== null} onClick={onImport}><Package size={13} aria-hidden />导入离线包</button><button type="button" className="settings-subtle-action" data-motion="action" disabled={busy !== null} onClick={onGarbageCollect}><Trash2 size={13} aria-hidden />清理候选包</button><button type="button" className="settings-subtle-action" data-motion="action" disabled={busy !== null} onClick={onRefresh}><RefreshCw size={13} className={busy === "refresh" ? "spin" : ""} aria-hidden />刷新状态</button></div>}
-    >
-      <p className="settings-note">只显示 Main 已验证的 Runtime Pack 状态；包路径和签名材料不会暴露给 Renderer。可选包必须由用户选择 Manifest，使用 HTTPS 下载，完成后仍会经过签名、hash、版本和 SBOM 校验。</p>
-      {downloadCandidate ? (
-        <article className="settings-runtime-download-candidate" aria-label="Runtime Pack 下载确认">
-          <div className="settings-runtime-main">
-            <div><strong>确认下载 {downloadCandidate.metadata.packId}</strong><small>{downloadCandidate.metadata.target} · v{downloadCandidate.metadata.version}</small></div>
-            <button type="button" className="settings-runtime-icon-action" data-motion="action" aria-label="取消下载确认" onClick={onClearDownloadCandidate}><X size={14} aria-hidden /></button>
-          </div>
-          <div className="settings-runtime-meta"><span>下载 {formatBytes(downloadCandidate.downloadSize)}</span><span>安装后约 {formatBytes(downloadCandidate.installSize)}</span><span>License: {downloadCandidate.license}</span></div>
-          <p>来源：{downloadCandidate.sourceUrl}</p>
-          {downloadCandidate.conditions.length ? <ul className="settings-runtime-conditions">{downloadCandidate.conditions.map((condition) => <li key={condition}>{condition}</li>)}</ul> : <p>此 Manifest 未声明额外安装条件。</p>}
-          <div className="settings-runtime-actions"><button type="button" data-motion="action" disabled={busy !== null} onClick={onStartDownload}><Download size={13} aria-hidden />开始下载</button><button type="button" data-motion="action" disabled={busy !== null} onClick={onClearDownloadCandidate}>取消</button></div>
-        </article>
-      ) : null}
-      {downloads.length ? (
-        <div className="settings-runtime-download-list" aria-label="Runtime Pack 下载列表">
-          {downloads.map((job) => {
-            const status = downloadStatus(job);
-            const progress = job.totalBytes ? Math.min(100, Math.round((job.bytesDownloaded / job.totalBytes) * 100)) : 0;
-            return (
-              <article className="settings-runtime-card" key={job.id}>
-                <div className="settings-runtime-main"><div><strong>{job.metadata.packId}</strong><small>{job.metadata.target} · v{job.metadata.version} · {formatBytes(job.bytesDownloaded)} / {formatBytes(job.totalBytes)}</small></div><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div>
-                <progress className="settings-runtime-progress" max={100} value={progress} aria-label={`${job.metadata.packId} 下载进度`} />
-                <p>{job.error || (job.status === "installed" ? "已下载并通过 Main 校验，当前为候选版本；请在上方 Runtime Pack 列表中激活。" : `${progress}% · License: ${job.metadata.license}`)}</p>
-                <div className="settings-runtime-actions">
-                  {job.status === "downloading" || job.status === "queued" ? <button type="button" data-motion="action" disabled={busy !== null} onClick={() => onPauseDownload(job)}><Pause size={13} aria-hidden />暂停</button> : null}
-                  {job.status === "paused" || job.status === "failed" ? <button type="button" data-motion="action" disabled={busy !== null} onClick={() => onResumeDownload(job)}><Play size={13} aria-hidden />继续</button> : null}
-                  <button type="button" data-motion="action" disabled={busy !== null || job.status === "verifying"} onClick={() => onRemoveDownload(job)}><Trash2 size={13} aria-hidden />删除下载记录</button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : null}
-      {packs.length ? (
-        <div className="settings-runtime-list" aria-label="Runtime Pack 列表">
-          {packs.map((pack) => {
-            const tone = pack.ready ? "success" : pack.integrity === "tampered" || pack.integrity === "invalid" ? "danger" : "warning";
-            const label = pack.ready ? "Ready" : pack.integrity === "missing" || pack.integrity === "tampered" ? "Needs Repair" : pack.status;
-            return (
-              <article className="settings-runtime-card" key={`${pack.packId}:${pack.target}:${pack.digest}`}>
-                <div className="settings-runtime-main">
-                  <div>
-                    <strong>{pack.packId}</strong>
-                    <small>{pack.target} · v{pack.version}</small>
-                  </div>
-                  <StatusBadge tone={tone}>{label}</StatusBadge>
-                </div>
-                <p>{pack.reason}</p>
-                <div className="settings-runtime-meta"><code>{pack.digest.slice(0, 16)}…</code><span>{pack.license}</span><span>{pack.status}</span>{pack.inUse ? <StatusBadge tone="info">使用中</StatusBadge> : null}</div>
-                <div className="settings-runtime-actions">
-                  {pack.integrity !== "verified" ? <button type="button" data-motion="action" disabled={busy !== null || pack.inUse} onClick={() => onRepair(pack)}><Wrench size={13} aria-hidden />修复</button> : null}
-                  {pack.status !== "active" && pack.integrity === "verified" ? <button type="button" data-motion="action" disabled={busy !== null || pack.inUse} onClick={() => onActivate(pack)}>激活</button> : null}
-                  {pack.status === "active" && hasPrevious(pack) ? <button type="button" data-motion="action" disabled={busy !== null || pack.inUse} onClick={() => onRollback(pack)}>回滚</button> : null}
-                  {pack.status !== "active" ? <button type="button" data-motion="action" disabled={busy !== null || pack.inUse} onClick={() => onRemove(pack)}><Trash2 size={13} aria-hidden />移除</button> : null}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="settings-skill-empty" role="status"><Package size={19} aria-hidden /><div><strong>暂无 Runtime Pack</strong><span>当前发行包尚未导入可验证的运行时。</span></div></div>
-      )}
     </SettingsPanel>
   );
 }
@@ -364,10 +255,7 @@ export function SkillSettingsSection({
   onRefresh,
   onCopy,
   onOpenDirectory,
-  onOpenMcpSettings,
-  installedSkills,
-  packageBusy,
-  onUninstallPackage
+  onOpenMcpSettings
 }: {
   mode?: "skills" | "mcp";
   skills: SkillDefinition[];
@@ -377,9 +265,6 @@ export function SkillSettingsSection({
   onCopy(skillId: string): void;
   onOpenDirectory(path: string): void;
   onOpenMcpSettings(): void;
-  installedSkills: InstalledSkillView[];
-  packageBusy: "uninstall" | null;
-  onUninstallPackage(key: string, digest: string): void;
 }) {
   const [catalog, setCatalog] = useState<"skills" | "mcp">(mode || "skills");
   const [query, setQuery] = useState("");
@@ -415,7 +300,7 @@ export function SkillSettingsSection({
     <SettingsPanel
       title={m.settings.skills.title}
       scope={m.settings.skills.scope(skills.length, mcpServers.length)}
-      variant={mode === "mcp" ? "resource" : "standard"}
+      variant={mode === "mcp" ? "mcp" : "standard"}
       action={(
         <button type="button" className="settings-subtle-action" data-motion="action" disabled={refreshing} aria-busy={refreshing || undefined} onClick={onRefresh}>
           <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden />
@@ -524,7 +409,7 @@ export function SkillSettingsSection({
               const expanded = expandedMcpId === server.id || Boolean(mcpQuery.trim());
               return (
               <article className="settings-mcp-server" data-expanded={expanded || undefined} key={server.id}>
-                <button type="button" className="settings-mcp-server-header" aria-expanded={expanded} onClick={() => setExpandedMcpId((current) => current === server.id ? null : server.id)}>
+                <button type="button" className="settings-mcp-server-header" data-motion="disclosure" aria-expanded={expanded} onClick={() => setExpandedMcpId((current) => current === server.id ? null : server.id)}>
                   <span className="settings-skill-icon" aria-hidden><Server size={16} /></span>
                   <span className="settings-mcp-identity">
                     <span><strong>{server.title}</strong><code>{server.id}</code></span>
@@ -577,49 +462,7 @@ export function SkillSettingsSection({
           </div>
         )}
       </>}
-
-      <SkillPackagePanel
-        installed={installedSkills}
-        busy={packageBusy}
-        onUninstall={onUninstallPackage}
-      />
     </SettingsPanel>
-  );
-}
-
-function SkillPackagePanel({
-  installed,
-  busy,
-  onUninstall
-}: {
-  installed: InstalledSkillView[];
-  busy: "uninstall" | null;
-  onUninstall(key: string, digest: string): void;
-}) {
-  return (
-    <section className="settings-skill-packages" aria-label={m.settings.skills.packageTitle}>
-      <header className="settings-skill-packages-header">
-        <div>
-          <h3>{m.settings.skills.packageTitle}</h3>
-          <p>{m.settings.skills.packageDescription}</p>
-        </div>
-      </header>
-      {installed.length ? (
-        <div className="settings-skill-package-installed" aria-label="已安装 Skill">
-          {installed.map((record) => (
-            <div className="settings-skill-package-meta" key={`${record.key}:${record.digest}`}>
-              <span><strong>{record.key}@{record.version}</strong></span>
-              <StatusBadge tone={record.usable ? "success" : "danger"}>{record.usable ? m.settings.skills.packageInstalled : m.settings.skills.packageUnusable}</StatusBadge>
-              <div className="settings-skill-actions">
-                <button type="button" data-motion="action" disabled={Boolean(busy)} onClick={() => onUninstall(record.key, record.digest)}>{busy === "uninstall" ? "卸载中…" : m.settings.skills.packageUninstall}</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="settings-skill-package-empty">{m.settings.skills.packageEmpty}</p>
-      )}
-    </section>
   );
 }
 
@@ -806,23 +649,6 @@ export function ArchivedSessionsSettingsSection({
   );
 }
 
-export function DataRetentionSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
-  return (
-    <SettingsPanel title="数据保留" scope="本地偏好">
-      <PreferenceRow title="缓存容量上限" description="记录期望的本地缓存容量，供诊断与后续清理策略使用。">
-        <Select ariaLabel="缓存容量上限" size="rect" value={String(prefs.cacheMaxSizeMB)} options={CACHE_SIZE_OPTIONS} onChange={(value) => void save({ cacheMaxSizeMB: Number(value) })} />
-      </PreferenceRow>
-      <PreferenceRow title="日志保留天数" description="记录期望的日志保留周期，不会在后台静默删除现有日志。">
-        <Select ariaLabel="日志保留天数" size="rect" value={String(prefs.logRetentionDays)} options={LOG_RETENTION_OPTIONS} onChange={(value) => void save({ logRetentionDays: Number(value) })} />
-      </PreferenceRow>
-      <PreferenceRow title="通知历史上限" description="记录通知历史的期望条数，不会自动清理当前历史记录。">
-        <Select ariaLabel="通知历史上限" size="rect" value={String(prefs.maxNotificationHistory)} options={NOTIFICATION_HISTORY_OPTIONS} onChange={(value) => void save({ maxNotificationHistory: Number(value) })} />
-      </PreferenceRow>
-      <p className="settings-note" role="note">这些值是本地偏好记录，暂不自动清理文件或历史；执行清理前必须提供可预览、可确认的后台策略。</p>
-    </SettingsPanel>
-  );
-}
-
 export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserPreferences; save: SavePreferences; onReset(): void }) {
   return (
     <>
@@ -901,6 +727,9 @@ export function AiProvidersSettingsSection({
   const [presetId, setPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? "custom");
   const [adding, setAdding] = useState(false);
   const [newProvider, setNewProvider] = useState<ProviderYamlInputEntry | null>(null);
+  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [advancedProviderId, setAdvancedProviderId] = useState<string | null>(null);
+  const [openProviderMenuId, setOpenProviderMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!view) return;
@@ -913,7 +742,52 @@ export function AiProvidersSettingsSection({
     setCliBindings(view.cli || { claude: null, codex: null });
     setApiKeyKeys({});
     setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
+    setExpandedProviderId((current) => current && view.providers.some((provider) => provider.id === current) ? current : null);
+    setAdvancedProviderId((current) => current && view.providers.some((provider) => provider.id === current) ? current : null);
+    setOpenProviderMenuId(null);
   }, [view]);
+
+  const dirtyProviderCount = useMemo(() => {
+    if (!view) return 0;
+    const currentIds = new Set(draft.map((entry) => entry.id));
+    let changed = view.providers.filter((provider) => !currentIds.has(provider.id)).length;
+    for (const entry of draft) {
+      const original = view.providers.find((provider) => provider.id === entry.id);
+      const apiKeyChanged = Boolean((apiKeyKeys[entry.id] ?? "").trim());
+      if (!original
+        || original.name !== entry.name
+        || original.enabled !== entry.enabled
+        || original.protocol !== entry.protocol
+        || (original.authMode || "bearer") !== entry.authMode
+        || original.baseUrl !== entry.baseUrl
+        || original.model !== entry.model
+        || original.proxyUrl !== entry.proxyUrl
+        || original.proxyPolicy !== entry.proxyPolicy
+        || original.tlsPolicy !== entry.tlsPolicy
+        || apiKeyChanged) changed += 1;
+    }
+    const originalCli = view.cli || { claude: null, codex: null };
+    if (defaultId !== view.default || originalCli.claude !== cliBindings.claude || originalCli.codex !== cliBindings.codex) {
+      changed = Math.max(changed, 1);
+    }
+    return changed;
+  }, [apiKeyKeys, cliBindings, defaultId, draft, view]);
+
+  const discardChanges = () => {
+    if (!view) return;
+    setDraft(view.providers.map((provider) => ({
+      id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol, authMode: provider.authMode || "bearer",
+      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, proxyUrl: provider.proxyUrl,
+      proxyPolicy: provider.proxyPolicy, tlsPolicy: provider.tlsPolicy
+    })));
+    setDefaultId(view.default);
+    setCliBindings(view.cli || { claude: null, codex: null });
+    setApiKeyKeys({});
+    setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
+    setExpandedProviderId(null);
+    setAdvancedProviderId(null);
+    setOpenProviderMenuId(null);
+  };
 
   const update = (id: string, patch: Partial<ProviderYamlInputEntry>) => {
     const currentEntry = draft.find((entry) => entry.id === id);
@@ -968,6 +842,8 @@ export function AiProvidersSettingsSection({
     setApiKeyKeys((current) => ({ ...current, [entry.id]: entry.apiKey }));
     setApiKeySetMap((current) => ({ ...current, [entry.id]: false }));
     if (!defaultId) setDefaultId(entry.id);
+    setExpandedProviderId(entry.id);
+    setAdvancedProviderId(null);
     setAdding(false);
     setNewProvider(null);
   };
@@ -980,6 +856,15 @@ export function AiProvidersSettingsSection({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [adding]);
+
+  useEffect(() => {
+    if (!openProviderMenuId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenProviderMenuId(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [openProviderMenuId]);
 
   const remove = (id: string) => {
     if (draft.length <= 1) { notify("至少需要保留一个 Provider", "info"); return; }
@@ -997,11 +882,20 @@ export function AiProvidersSettingsSection({
     }));
     setApiKeyKeys((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
     setApiKeySetMap((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+    setExpandedProviderId((current) => current === id ? null : current);
+    setAdvancedProviderId((current) => current === id ? null : current);
+    setOpenProviderMenuId(null);
   };
 
   const submit = () => {
     if (!draft.length) { notify("至少需要一个 Provider", "info"); return; }
     if (!draft.some((entry) => entry.id === defaultId)) { notify("默认 Provider 不存在", "info"); return; }
+    const incomplete = draft.find((entry) => !entry.name.trim() || !entry.baseUrl.trim() || !entry.model.trim());
+    if (incomplete) {
+      setExpandedProviderId(incomplete.id);
+      notify(`请完善 ${incomplete.name || incomplete.id} 的必填配置`, "info");
+      return;
+    }
     const providers = draft.map((entry) => ({ ...entry, apiKey: apiKeyKeys[entry.id] ?? "" }));
     void onSave({ schemaVersion: 1, default: defaultId, cli: cliBindings, providers });
   };
@@ -1009,31 +903,65 @@ export function AiProvidersSettingsSection({
   return (
     <>
       <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
-        action={<button type="button" className="settings-provider-add-button" data-motion="icon" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider" title="添加 Provider"><Plus size={17} /></button>}>
+        action={<button type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider"><Plus size={15} aria-hidden />添加 Provider</button>}>
         <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml，不会在界面中回显；请仅在受信任的本地项目中使用。</p>
-        <div className="settings-stack">
+        <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
-          {draft.map((entry) => (
-            <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
+          {draft.map((entry) => {
+            const expanded = expandedProviderId === entry.id;
+            const advanced = advancedProviderId === entry.id;
+            const displayName = entry.name || entry.id;
+            const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
+            const apiKeyStatus = apiKeyDrafted ? "API Key 待保存" : apiKeySetMap[entry.id] ? "API Key 已配置" : "API Key 未配置";
+            const bodyId = `provider-config-${entry.id}`;
+            const advancedId = `provider-advanced-${entry.id}`;
+            return (
+            <article key={entry.id} className="settings-provider-config-card" data-expanded={expanded || undefined} data-entrance-item>
               <header className="settings-provider-config-header">
-                <div>
-                  <strong>{entry.name || entry.id}</strong>
-                  <p>{entry.protocol} · {entry.model || "未设置模型"}</p>
-                </div>
+                <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-expanded={expanded} aria-controls={bodyId}
+                  aria-label={expanded ? `收起 ${displayName} 配置` : `展开 ${displayName} 配置`}
+                  onClick={() => {
+                    setExpandedProviderId((current) => current === entry.id ? null : entry.id);
+                    setAdvancedProviderId(null);
+                    setOpenProviderMenuId(null);
+                  }}>
+                  <span className="settings-provider-config-identity">
+                    <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}</span>
+                    <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyDrafted ? "pending" : apiKeySetMap[entry.id] ? "set" : "missing"}>{apiKeyStatus}</span></span>
+                  </span>
+                  <ChevronDown className="settings-provider-config-chevron" size={16} aria-hidden />
+                </button>
                 <div className="settings-provider-config-actions">
-                  {entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}
-                  <StatusBadge tone={entry.enabled ? "success" : "neutral"}>{entry.enabled ? "启用" : "停用"}</StatusBadge>
-                  <ToggleSwitch checked={entry.enabled} disabled={entry.id === defaultId} label={`启用 ${entry.name || entry.id}`} onChange={(checked) => update(entry.id, { enabled: checked })} />
-                  <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => setDefaultId(entry.id)} disabled={entry.id === defaultId || !entry.enabled}>设为默认</button>
-                  <button type="button" className="settings-subtle-action settings-provider-delete" data-motion="icon" onClick={() => remove(entry.id)} aria-label={`删除 ${entry.id}`}><Trash2 size={14} /></button>
+                  <ToggleSwitch checked={entry.enabled} disabled={entry.id === defaultId} label={`启用 ${displayName}`} onChange={(checked) => update(entry.id, { enabled: checked })} />
+                  <div className="settings-provider-menu" onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setOpenProviderMenuId(null);
+                  }}>
+                    <button type="button" className="settings-provider-menu-trigger" data-motion="icon" aria-haspopup="menu" aria-expanded={openProviderMenuId === entry.id}
+                      aria-label={`更多 ${entry.id}`} onClick={() => setOpenProviderMenuId((current) => current === entry.id ? null : entry.id)}><MoreHorizontal size={17} aria-hidden /></button>
+                    {openProviderMenuId === entry.id ? <div className="settings-provider-menu-popover" role="menu" aria-label={`${displayName} 操作`}>
+                      <button type="button" role="menuitem" data-motion="selection" aria-label={`将 ${entry.id} 设为默认`} onClick={() => { setDefaultId(entry.id); setOpenProviderMenuId(null); }} disabled={entry.id === defaultId || !entry.enabled}>设为默认</button>
+                      <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={`删除 ${entry.id}`} onClick={() => remove(entry.id)}>删除</button>
+                    </div> : null}
+                  </div>
                 </div>
               </header>
-              <div className="settings-provider-config-body">
+              {expanded ? <div className="settings-provider-config-body" id={bodyId}>
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={entry.id} readOnly title="Provider ID 添加后不可修改" /></label>
                   <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={entry.name} onChange={(event) => update(entry.id, { name: event.target.value })} /></label>
-                  <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" value={entry.baseUrl} onChange={(event) => update(entry.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
                   <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={entry.model} onChange={(event) => update(entry.id, { model: event.target.value })} /></label>
+                  <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" value={entry.baseUrl} onChange={(event) => update(entry.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
+                  <label className="settings-field settings-field--wide"><span>API Key</span>
+                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[entry.id] ?? ""}
+                      placeholder={apiKeySetMap[entry.id] ? "已设置（留空保留）" : "未设置"}
+                      onChange={(event) => updateKey(entry.id, event.target.value)} />
+                  </label>
+                </div>
+                <button type="button" className="settings-provider-advanced-trigger" data-motion="disclosure" aria-expanded={advanced} aria-controls={advancedId}
+                  onClick={() => setAdvancedProviderId((current) => current === entry.id ? null : entry.id)}>
+                  <span><strong>高级设置</strong><small>ID、协议与认证方式</small></span><ChevronDown size={16} aria-hidden />
+                </button>
+                {advanced ? <div className="settings-provider-advanced-grid" id={advancedId}>
+                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={entry.id} readOnly title="Provider ID 添加后不可修改" /></label>
                   <label className="settings-field"><span>协议</span>
                     <select className="settings-select" value={entry.protocol} onChange={(event) => update(entry.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>
@@ -1047,19 +975,17 @@ export function AiProvidersSettingsSection({
                       <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>API Key</span>
-                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[entry.id] ?? ""}
-                      placeholder={apiKeySetMap[entry.id] ? "已设置（留空保留）" : "未设置"}
-                      onChange={(event) => updateKey(entry.id, event.target.value)} />
-                  </label>
-                </div>
-              </div>
+                </div> : null}
+              </div> : null}
             </article>
-          ))}
+          );})}
         </div>
-        <div className="settings-panel-footer settings-provider-save-row">
-          <p className="settings-note">修改只会在点击保存后写入本地配置。</p>
-          <button type="button" className="primary-button" data-motion="action" onClick={submit} disabled={busy}>{busy ? "保存中…" : "保存配置"}</button>
+        <div className="settings-panel-footer settings-provider-save-row" data-dirty={dirtyProviderCount > 0 || undefined}>
+          <p className="settings-note" role="status" aria-live="polite">{dirtyProviderCount > 0 ? `已修改 ${dirtyProviderCount} 个 Provider` : "尚无未保存修改"}</p>
+          <div className="settings-provider-save-actions">
+            <button type="button" className="settings-provider-discard-button" data-motion="action" onClick={discardChanges} disabled={busy || dirtyProviderCount === 0}>放弃修改</button>
+            <button type="button" className="primary-button" data-motion="action" onClick={submit} disabled={busy || dirtyProviderCount === 0}>{busy ? "保存中…" : "保存配置"}</button>
+          </div>
         </div>
       </SettingsPanel>
 
@@ -1100,7 +1026,7 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input" type="password" value={newProvider.apiKey} required placeholder="请输入 API Key" onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
               </div>
-              <footer><button type="button" className="settings-subtle-action" onClick={() => setAdding(false)}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
+              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => setAdding(false)}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
             </form>
           </section>
         </div>,
@@ -1110,7 +1036,7 @@ export function AiProvidersSettingsSection({
   );
 }
 
-function SettingsPanel({ title, scope, action, variant = "standard", children }: { title: string; scope: string; action?: ReactNode; variant?: "standard" | "resource"; children: ReactNode }) {
+function SettingsPanel({ title, scope, action, variant = "standard", children }: { title: string; scope: string; action?: ReactNode; variant?: "standard" | "resource" | "mcp"; children: ReactNode }) {
   return <section className={`settings-card settings-card--${variant}`} data-entrance-item><header><div className="settings-card-title"><h2>{title}</h2><span>{scope}</span></div>{action}</header><div className="settings-card-body">{children}</div></section>;
 }
 

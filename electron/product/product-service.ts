@@ -1,32 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  AddCreativeTopicInput,
   AddRssSourceInput,
-  ContentIndexMaintenance,
-  ContentFacets,
-  ContentFacetsQuery,
-  ContentItem,
-  ContentPage,
-  ContentQuery,
-  ContentStatePatch,
   CreativeAnalytics,
   CreativeCreateInput,
   CreativeManifestPatch,
   CreativeSaveInput,
   CreativeTopicDay,
-  CreativeTopicStatePatch,
-  DailyBrief,
-  DashboardData,
   GlobalSearchResult,
   SourceDefinition,
   SourcePatch,
-  SourceRun,
   UserPreferences
 } from "../../shared/contracts";
-import { BriefService } from "./brief-service";
 import { ContentIndexStore } from "./content-index";
-import { DashboardService } from "./dashboard-service";
 import { SourceRegistry } from "./source-registry";
 import type { ContentServiceApi, CreativeServiceApi, LegacyCreativeProject } from "./common";
 import { getPreferences } from "../lib/settings";
@@ -42,8 +28,6 @@ export class ProductService {
   private readonly creative: CreativeServiceApi;
   private readonly contentIndex: ContentIndexStore;
   private readonly sources: SourceRegistry;
-  private readonly briefs: BriefService;
-  private readonly dashboard: DashboardService;
   // getOverview / listContent 按 date 缓存，按当天内容根目录 mtime 指纹失效。
   // 避免每次 IPC（含冷启动 getBootstrap）都裸 readdirSync+statSync 重扫当天文件。
   // 粒度权衡：指纹取目录 mtimeMs，捕捉新增/删除；app 内编辑走 writeContent→refreshContentDate 显式失效。
@@ -67,29 +51,6 @@ export class ProductService {
     this.contentIndex = new ContentIndexStore(openmindRoot, content, opts.stateRoot);
     // Skill-backed sources are read from the installed store under the root.
     this.sources = new SourceRegistry(openmindRoot, content, opts.stateRoot);
-    this.briefs = new BriefService(openmindRoot, this.contentIndex, creative, opts.stateRoot);
-    this.dashboard = new DashboardService(creative, this.briefs, this.sources);
-  }
-
-  listInbox(query: ContentQuery): ContentPage {
-    return this.contentIndex.listInbox(query);
-  }
-
-  getInboxFacets(query: ContentFacetsQuery): ContentFacets {
-    return this.contentIndex.getInboxFacets(query);
-  }
-
-  updateContentState(id: string, relativePath: string, patch: ContentStatePatch): ContentItem {
-    const item = this.contentIndex.updateContentState(id, relativePath, patch);
-    this.dashboard.invalidate("content", relativePath.match(/(\d{8})/)?.[1]);
-    return item;
-  }
-
-  rebuildContentIndex(): ContentIndexMaintenance {
-    const result = this.contentIndex.rebuildContentIndex();
-    this.dateCache.clear();
-    this.dashboard.invalidate("content");
-    return result;
   }
 
   private overviewFingerprint(date: string): string {
@@ -160,11 +121,6 @@ export class ProductService {
   private refreshContentDate(date: string): void {
     this.contentIndex.refreshDate(date);
     this.dateCache.delete(date);
-    this.dashboard.invalidate("content", date);
-  }
-
-  private invalidateContentDashboard(date?: string): void {
-    this.dashboard.invalidate("content", date);
   }
 
   listSources(): SourceDefinition[] {
@@ -173,50 +129,21 @@ export class ProductService {
 
   updateSource(id: string, patch: SourcePatch): SourceDefinition {
     const source = this.sources.updateSource(id, patch);
-    this.dashboard.invalidate("sources");
     return source;
-  }
-
-  deleteSource(id: string): boolean {
-    const deleted = this.sources.deleteSource(id);
-    this.dashboard.invalidate("sources");
-    return deleted;
   }
 
   addRssSource(input: AddRssSourceInput): SourceDefinition {
     const source = this.sources.addRssSource(input);
-    this.dashboard.invalidate("sources");
     return source;
   }
 
   importOpml(filePath: string): number {
     const count = this.sources.importOpml(filePath);
-    this.dashboard.invalidate("sources");
     return count;
-  }
-
-  listSourceRuns(sourceId?: string): SourceRun[] {
-    return this.sources.listSourceRuns(sourceId);
   }
 
   recordSkillEvent(event: Record<string, unknown>): void {
     this.sources.recordSkillEvent(event);
-    if (event.type !== "status") return;
-    this.dashboard.invalidate("sources");
-    if (event.state && event.state !== "running") this.dashboard.invalidate("content");
-  }
-
-  getDailyBrief(date: string): DailyBrief {
-    return this.briefs.getDailyBrief(date);
-  }
-
-  updateBriefWatchlist(date: string, relativePath: string, add: boolean): DailyBrief {
-    const brief = this.briefs.updateBriefWatchlist(date, relativePath, add);
-    return brief;
-  }
-
-  getDashboard(date: string, pendingApprovals: number): DashboardData {
-    return this.dashboard.getDashboard(date, pendingApprovals);
   }
 
   /** 保存内容并刷新所属日期索引（dashboard 自失效，C4：main 不再手动 refresh）。 */
@@ -284,7 +211,6 @@ export class ProductService {
       archived = true;
     }
     if (!archived) return projects;
-    this.invalidateContentDashboard();
     return this.creative.listCreativeProjects();
   }
 
@@ -292,25 +218,8 @@ export class ProductService {
     return this.creative.getCreativeProject(projectDir);
   }
 
-  /** 新增选题并刷新 dashboard（C4：main 不再手动 invalidate）。 */
-  addCreativeTopic(input: AddCreativeTopicInput): unknown {
-    const date = input.date.replaceAll("-", "");
-    const result = this.creative.addManualTopic(date, input);
-    this.invalidateContentDashboard(date);
-    return result;
-  }
-
-  /** 更新选题状态并刷新 dashboard（C4）。 */
-  updateCreativeTopicState(date: string, topicId: string, patch: CreativeTopicStatePatch): unknown {
-    const result = this.creative.updateCreativeTopicState(date, topicId, patch);
-    this.invalidateContentDashboard(date);
-    return result;
-  }
-
   createCreativeProject(input: CreativeCreateInput) {
-    const result = this.creative.createCreativeProject(input);
-    this.invalidateContentDashboard(input.date.replaceAll("-", ""));
-    return result;
+    return this.creative.createCreativeProject(input);
   }
 
   saveCreativeFile(input: CreativeSaveInput) {
@@ -326,25 +235,11 @@ export class ProductService {
       reviewRequiredForReady: preferences.workflowReviewRequiredForReady,
       publishChecklistEnabled: preferences.workflowPublishChecklistEnabled
     });
-    this.invalidateContentDashboard();
     return result;
   }
 
   updateCreativeManifest(projectDir: string, patch: CreativeManifestPatch) {
     const result = this.creative.updateCreativeManifest(projectDir, patch);
-    this.invalidateContentDashboard();
-    return result;
-  }
-
-  reviewCreativeProject(projectDir: string) {
-    const result = this.creative.reviewCreativeProject(projectDir);
-    this.invalidateContentDashboard();
-    return result;
-  }
-
-  setCreativeReviewStatus(projectDir: string, status: "pending" | "changes-requested" | "approved") {
-    const result = this.creative.setCreativeReviewStatus(projectDir, status);
-    this.invalidateContentDashboard();
     return result;
   }
 
@@ -366,25 +261,11 @@ export class ProductService {
 
   copyCreativeProject(projectDir: string) {
     const result = this.creative.copyCreativeProject(projectDir);
-    this.invalidateContentDashboard();
     return result;
   }
 
   archiveCreativeProject(projectDir: string) {
     const result = this.creative.archiveCreativeProject(projectDir);
-    this.invalidateContentDashboard();
-    return result;
-  }
-
-  restoreCreativeProject(projectDir: string) {
-    const result = this.creative.restoreCreativeProject(projectDir);
-    this.invalidateContentDashboard();
-    return result;
-  }
-
-  deleteCreativeProject(projectDir: string) {
-    const result = this.creative.deleteCreativeProject(projectDir);
-    this.invalidateContentDashboard();
     return result;
   }
 
@@ -392,7 +273,4 @@ export class ProductService {
     return this.creative.getCreativeAnalytics();
   }
 
-  bindCreativeSession(projectDir: string, sessionId: string) {
-    return this.creative.bindCreativeSession(projectDir, sessionId);
-  }
 }

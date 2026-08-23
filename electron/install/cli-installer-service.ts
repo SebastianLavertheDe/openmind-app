@@ -660,9 +660,3 @@ function parseTar(bytes: Uint8Array): Record<string, Uint8Array> {
   }
   return entries;
 }
-
-/** Only official Claude installer endpoints are accepted by the native path. */
-export const CLI_INSTALL_SOURCES = Object.freeze({
-  claude: CLAUDE_INSTALL_SCRIPT,
-  codex: GITHUB_RELEASE_FALLBACK
-});

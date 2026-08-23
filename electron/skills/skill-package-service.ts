@@ -10,6 +10,7 @@ import {
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
+import { moveDirectoryWithFallback } from "../lib/fs-utils";
 import {
   INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
   InstalledSkillRepository,
@@ -129,7 +130,8 @@ export type LegacySkillSuggestion = {
 
 export type SkillPackageInspection = {
   sourcePath: string;
-  sourceKind: "directory" | "legacy-claude" | "zip" | "git";
+  sourceKind: "directory" | "zip" | "git";
+
   /** Git 多包仓库内的包路径（"." 为仓库根包）。 */
   packageRef?: string;
   valid: boolean;
@@ -376,7 +378,9 @@ export class SkillPackageService {
       copyCleanPackage(packageSource, stagingRoot, inspection.files);
       if (fs.existsSync(destination)) {
         replacedTrash = path.join(this.paths.staging, `skill-replaced-${inspection.digest.slice(0, 16)}-${Date.now()}`);
-        fs.renameSync(destination, replacedTrash);
+        // The store lives under the bound content root (often another volume
+        // than userData), so renames must fall back to copy+delete.
+        moveDirectoryWithFallback(destination, replacedTrash);
       }
       if (compatibilityIdentity && compatibilityIdentity.packagePath !== destination) {
         this.assertManagedPackagePath(compatibilityIdentity.packagePath);
@@ -385,11 +389,11 @@ export class SkillPackageService {
             this.paths.staging,
             `skill-identity-${inspection.digest.slice(0, 16)}-${Date.now()}`
           );
-          fs.renameSync(compatibilityIdentity.packagePath, compatibilityTrash);
+          moveDirectoryWithFallback(compatibilityIdentity.packagePath, compatibilityTrash);
         }
       }
       fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.renameSync(stagingRoot, destination);
+      moveDirectoryWithFallback(stagingRoot, destination);
       candidatePromoted = true;
 
       const record: InstalledSkillRecord = {
@@ -437,13 +441,13 @@ export class SkillPackageService {
         fs.rmSync(destination, { recursive: true, force: true });
       }
       if (replacedTrash && fs.existsSync(replacedTrash)) {
-        fs.renameSync(replacedTrash, destination);
+        moveDirectoryWithFallback(replacedTrash, destination);
       }
       if (compatibilityTrash && compatibilityIdentity
         && !fs.existsSync(compatibilityIdentity.packagePath)
         && fs.existsSync(compatibilityTrash)) {
         fs.mkdirSync(path.dirname(compatibilityIdentity.packagePath), { recursive: true });
-        fs.renameSync(compatibilityTrash, compatibilityIdentity.packagePath);
+        moveDirectoryWithFallback(compatibilityTrash, compatibilityIdentity.packagePath);
       }
       throw error;
     } finally {
@@ -575,7 +579,7 @@ export class SkillPackageService {
     const removeNativeAlias = nativeAlias !== target.packagePath
       && isDirectoryLinkTo(nativeAlias, target.packagePath);
     const moved = fs.existsSync(target.packagePath);
-    if (moved) fs.renameSync(target.packagePath, trashPath);
+    if (moved) moveDirectoryWithFallback(target.packagePath, trashPath);
     try {
       const removed = this.repository.remove(key, target.digest);
       if (!removed) throw new Error(`卸载时 registry 记录已消失：${key}@${target.digest}`);
@@ -587,7 +591,7 @@ export class SkillPackageService {
       return true;
     } catch (error) {
       if (moved && !fs.existsSync(target.packagePath) && fs.existsSync(trashPath)) {
-        fs.renameSync(trashPath, target.packagePath);
+        moveDirectoryWithFallback(trashPath, target.packagePath);
       }
       throw error;
     }
@@ -797,13 +801,6 @@ function isWritableLayoutCategory(category: OpenmindEntryCategory): boolean {
   return category === "initialize-required" || category === "create-if-needed";
 }
 
-function hasSkillDescriptor(sourcePath: string): boolean {
-  return [...MANIFEST_FILES, SKILL_FILE].some((name) => {
-    const candidate = path.join(sourcePath, name);
-    return isRegularFile(candidate);
-  });
-}
-
 /**
  * `cctools.skill.yaml` is the public source contract and shares the internal
  * vocabulary; only its apiVersion differs, so translate that at the read
@@ -827,10 +824,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isRegularFile(candidate: string): boolean {
   try { return fs.statSync(candidate).isFile(); } catch { return false; }
-}
-
-function realpathOrSelf(candidate: string): string {
-  try { return fs.realpathSync(candidate); } catch { return path.resolve(candidate); }
 }
 
 function isDirectoryLinkTo(candidate: string, target: string): boolean {

@@ -30,12 +30,7 @@ import { ensureClaudeAgentLink, ensureClaudeSkillAliases } from "./paths/claude-
 import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
-import { EnvFileAnalyzer } from "./security/env-file-analyzer";
-import { ExportLocationService } from "./execution/export-location-service";
-import { RuntimePackService } from "./runtime/runtime-pack-service";
-import { loadRuntimeTrustRoots } from "./runtime/runtime-pack-trust";
 import { AppStateBackupService } from "./backup/app-state-backup";
-import { RuntimePackDownloadService } from "./runtime/runtime-pack-download-service";
 import { CliInstallerService, resolveNpmCliPath, type ManagedNodeRuntime } from "./install/cli-installer-service";
 import { RuntimeManager } from "./runtime/runtime-manager";
 import { detectRuntimeTarget } from "../shared/runtime-targets";
@@ -73,34 +68,7 @@ let openmindFileSearchRoot = "";
 let skillPackageService: SkillPackageService | null = null;
 let skillSourceService: SkillSourceService | null = null;
 let browserTokenStore: BrowserExtensionTokenStore | null = null;
-let exportLocationService: ExportLocationService | null = null;
-let runtimePackService: RuntimePackService | null = null;
-let runtimePackDownloadService: RuntimePackDownloadService | null = null;
 let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
-let appStateBackupService: AppStateBackupService | null = null;
-const envFileAnalyzer = new EnvFileAnalyzer();
-
-function ensureRuntimePackService(): RuntimePackService {
-  ensureAppPaths(getAppPaths());
-  // The packaged release channel supplies this resource. Development builds
-  // intentionally have no key and therefore fail closed on pack import.
-  const resourcesRoot = app.isPackaged ? process.resourcesPath : path.join(APP_ROOT, "resources");
-  runtimePackService ||= new RuntimePackService(
-    getAppPaths(),
-    loadRuntimeTrustRoots(path.join(resourcesRoot, "runtime-trust-roots.json"))
-  );
-  return runtimePackService;
-}
-
-function ensureRuntimePackDownloadService(): RuntimePackDownloadService {
-  ensureAppPaths(getAppPaths());
-  runtimePackDownloadService ||= new RuntimePackDownloadService(
-    getAppPaths(),
-    ensureRuntimePackService(),
-    (job) => sendToRenderer(IPC.APP_RUNTIME_PACK_DOWNLOAD_EVENT, job)
-  );
-  return runtimePackDownloadService;
-}
 
 let cliInstallerService: CliInstallerService | null = null;
 
@@ -139,16 +107,6 @@ function ensureSharedPythonRuntimeService(): SharedPythonRuntimeService {
     projects: () => listInstalledPythonProjects(ensureSkillPackageService())
   });
   return sharedPythonRuntimeService;
-}
-
-function ensureAppStateBackupService(): AppStateBackupService {
-  ensureAppPaths(getAppPaths());
-  appStateBackupService ||= new AppStateBackupService(getAppPaths());
-  return appStateBackupService;
-}
-
-function analyzeEnvFile(filePath: string) {
-  return envFileAnalyzer.analyze(settings.ensureInsideRepo(filePath));
 }
 
 function ensureBrowserTokenStore(): BrowserExtensionTokenStore {
@@ -276,7 +234,7 @@ class AiWorkerClient {
 function ensureAiWorker(): AiWorkerClient {
   if (aiWorker) return aiWorker;
   if (!hasRequiredStartupConfiguration()) {
-    throw new Error("请先配置 openmind 保存目录并完整安装官方 cctools-skills 仓库。");
+    throw new Error("请先配置 openmind 保存目录并安装官方 cctools-skills。");
   }
   // Workspace defaults to the bound content root (settings.resolveWorkspaceRoot),
   // so reaching here without a project root means no content root is bound.
@@ -343,25 +301,16 @@ function ensureSkillSourceService(): SkillSourceService {
   return skillSourceService;
 }
 
-/** Startup/runtime gate. This is offline and fails closed on registry, receipt,
- * manifest, path, or digest errors; it never reaches the remote Git source. */
+/** Startup gate checks installation presence only and never reaches Git.
+ * Package integrity remains enforced when a Skill is inspected or executed. */
 function hasRequiredStartupConfiguration(): boolean {
   const openmindRoot = settings.resolveOpenmindRoot();
   if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) return false;
   try {
-    return ensureSkillSourceService().hasCompleteInstallation(OPENMIND_SKILLS_REPO_URL);
+    return ensureSkillSourceService().hasInstallation(OPENMIND_SKILLS_REPO_URL);
   } catch {
     return false;
   }
-}
-
-function ensureExportLocationService(): ExportLocationService {
-  ensureAppPaths(getAppPaths());
-  exportLocationService ||= new ExportLocationService(
-    path.join(getAppPaths().settings, "export-bindings.json"),
-    () => [getAppPaths().userData, ...(settings.resolveOpenmindRoot() ? [settings.resolveOpenmindRoot()!] : [])]
-  );
-  return exportLocationService;
 }
 
 /** Ensure a directory exists (idempotent). */
@@ -461,12 +410,8 @@ function registerIpc(): void {
       ensureCliInstallerService,
       ensureSkillPackageService,
       ensureSkillSourceService,
-      ensureExportLocationService,
-      ensureRuntimePackService,
-      ensureRuntimePackDownloadService,
       ensureSharedPythonRuntimeService,
-      ensureAppStateBackupService,
-      analyzeEnvFile,
+      hasRequiredStartupConfiguration,
       getActiveRunCount: () => aiWorker?.activeRunCount() || Promise.resolve(0),
       restartAiWorker,
       getBrowserAutomationStatus,
@@ -624,7 +569,8 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       const bootstrap = await api.getBootstrap();
       const preferences = await api.getPreferences();
       const articles = await api.listContent("articles", ${JSON.stringify(date)});
-      const index = await api.rebuildContentIndex();
+      const article = articles[0] ? await api.readContent(articles[0].path) : null;
+      const fileSearch = await api.searchOpenmindFiles("desktop-e2e", 10);
       const browser = await api.getBrowserAutomationStatus();
       return {
         documentReady: document.readyState,
@@ -632,7 +578,8 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
         validRepo: bootstrap.validRepo,
         openmindRoot: bootstrap.openmindRoot,
         articleCount: Array.isArray(articles) ? articles.length : 0,
-        indexPath: index.indexPath,
+        articleReadable: Boolean(article?.content?.includes("real Electron preload and IPC bridge")),
+        fileSearchCount: Array.isArray(fileSearch?.items) ? fileSearch.items.length : 0,
         themeMode: preferences.themeMode,
         browserStatus: browser?.state || null
       };
@@ -642,11 +589,12 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       validRepo?: boolean;
       openmindRoot?: string;
       articleCount?: number;
-      indexPath?: string;
+      articleReadable?: boolean;
+      fileSearchCount?: number;
     };
     if (result.documentReady !== "complete" || !result.rootMounted) throw new Error("renderer did not mount");
     if (!result.validRepo || !result.openmindRoot) throw new Error("bootstrap did not resolve the E2E openmind root");
-    if (!result.articleCount || result.indexPath !== ".openmind/content-index.json") {
+    if (!result.articleCount || !result.articleReadable || !result.fileSearchCount) {
       throw new Error(`IPC content contract failed: ${JSON.stringify(result)}`);
     }
     clearTimeout(timeout);
@@ -663,6 +611,9 @@ app.whenReady().then(() => {
   // ADR-001: ensure all app-private directories under userData exist before
   // any service reads or writes them. Idempotent.
   ensureAppPaths(getAppPaths());
+  // The backup UI/IPC surface is retired, but a restore transaction created
+  // by an older release may still need one final startup rollback.
+  new AppStateBackupService(getAppPaths());
   Menu.setApplicationMenu(null);
   registerIpc();
   createWindow();

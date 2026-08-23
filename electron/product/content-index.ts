@@ -1,30 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { GlobalSearchResult } from "../../shared/contracts";
 import {
-  ContentIndexMaintenanceSchema,
-  ContentFacetsQuerySchema,
-  ContentItemSchema,
-  ContentQuerySchema,
-  type ContentFacets,
-  type ContentFacetsQuery,
-  type ContentIndexMaintenance,
-  type ContentItem,
-  type ContentPage,
-  type ContentQuery,
-  type ContentState,
-  type ContentStatePatch,
-  type GlobalSearchResult
-} from "../../shared/contracts";
-import {
-  CONTENT_STATE_DEFAULT,
   compactDate,
   contentKindLabel,
-  contentSorter,
+  IndexedContentSchema,
   normalizeContentKind,
   parseMetadata,
   safeStat,
   stableContentId,
-  stateForRecord,
   stripMetadata,
   writeJsonAtomic,
   type ContentIndexFile,
@@ -32,12 +16,10 @@ import {
   type ContentApi,
   type LegacyContentEntry
 } from "./common";
-import { ContentStateStore } from "./content-state";
 import { CONTENT_DATE_ROOTS, CONTENT_FILE_ROOTS } from "../../shared/content-kinds";
 import { quarantineCorruptState, statePath } from "./state-directory";
 
 export class ContentIndexStore {
-  private readonly state: ContentStateStore;
   private readonly contentIndexPath: string;
   // readContentIndex 解析结果按索引文件 mtime 缓存，避免每次 IPC/搜索按键都 readFileSync+逐条 Zod。
   private indexCache: ContentIndexFile | null = null;
@@ -45,9 +27,6 @@ export class ContentIndexStore {
   // availableContentDates 按 5 个内容根目录的 mtime 指纹缓存，避免每次都 readdir 5 个目录。
   private datesCache: string[] | null = null;
   private datesFingerprint = "";
-
-  /** ADR-001: parent dir of `.openmind` (state root). Used for relative paths in maintenance reports. */
-  private readonly stateBaseDir: string;
 
   constructor(
     private readonly repoRoot: string,
@@ -58,122 +37,24 @@ export class ContentIndexStore {
      */
     stateRoot?: string
   ) {
-    this.stateBaseDir = stateRoot ?? repoRoot;
-    this.state = new ContentStateStore(this.stateBaseDir);
-    this.contentIndexPath = statePath(this.stateBaseDir, "content-index.json");
-  }
-
-  listInbox(rawQuery: ContentQuery): ContentPage {
-    const query = ContentQuerySchema.parse(rawQuery);
-    const indexed = this.ensureDateIndexed(compactDate(query.date));
-    const state = this.state.readFor(indexed);
-    const items: ContentItem[] = [];
-
-    for (const record of indexed) {
-      const item = this.toContentItem(record, stateForRecord(record, state));
-      if (query.kinds.length && !query.kinds.includes(item.kind)) continue;
-      if (query.source && item.source !== query.source) continue;
-      if (query.minScore !== undefined && (item.state.score || 0) < query.minScore) continue;
-      if (query.tags.length && !query.tags.every((tag) => item.state.tags.includes(tag))) continue;
-      if (query.search) {
-        const searchText = `${record.searchText} ${item.state.tags.join(" ").toLocaleLowerCase()}`;
-        if (!searchText.includes(query.search.trim().toLocaleLowerCase())) continue;
-      }
-      items.push(item);
-    }
-
-    const sorted = items.sort(contentSorter(query.sort));
-    const page = sorted.slice(query.cursor, query.cursor + query.limit);
-    const nextCursor = query.cursor + page.length < sorted.length ? query.cursor + page.length : null;
-    return { items: page, total: sorted.length, nextCursor };
-  }
-
-  getInboxFacets(rawQuery: ContentFacetsQuery): ContentFacets {
-    const query = ContentFacetsQuerySchema.parse(rawQuery);
-    const indexed = this.ensureDateIndexed(compactDate(query.date));
-    const state = this.state.readFor(indexed);
-    const kindCounts: Record<string, number> = {};
-    const tagCounts = new Map<string, number>();
-    const needle = query.search.trim().toLocaleLowerCase();
-    let total = 0;
-
-    for (const record of indexed) {
-      const itemState = stateForRecord(record, state) || CONTENT_STATE_DEFAULT;
-      if (query.tags.length && !query.tags.every((tag) => itemState.tags.includes(tag))) continue;
-      if (needle && !`${record.searchText} ${itemState.tags.join(" ").toLocaleLowerCase()}`.includes(needle)) continue;
-      total++;
-      kindCounts[record.kind] = (kindCounts[record.kind] || 0) + 1;
-      for (const tag of itemState.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-    }
-
-    return {
-      total,
-      kindCounts,
-      tags: [...tagCounts.entries()]
-        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "zh-CN"))
-        .map(([tag, count]) => ({ tag, count }))
-    };
-  }
-
-  updateContentState(id: string, relativePath: string, rawPatch: ContentStatePatch): ContentItem {
-    const item = this.findContent(relativePath, CONTENT_STATE_DEFAULT);
-    if (item.id !== id) throw new Error("内容标识与路径不匹配，请刷新后重试。");
-    const state = this.state.update(id, relativePath, rawPatch);
-    return this.findContent(relativePath, state);
-  }
-
-  rebuildContentIndex(): ContentIndexMaintenance {
-    try { fs.rmSync(this.contentIndexPath, { force: true }); } catch { /* best effort */ }
-    this.indexCache = null;
-    this.indexCacheMtime = 0;
-    const dates = this.availableContentDates();
-    let itemCount = 0;
-    for (const date of dates) itemCount += this.ensureDateIndexed(date).length;
-    this.state.readFor(Object.values(this.readContentIndex().items));
-    return ContentIndexMaintenanceSchema.parse({
-      schemaVersion: 1,
-      indexedDates: dates,
-      itemCount,
-      // ADR-001: report state paths relative to the state base dir (which
-      // may be userData rather than openmindRoot), so the logical `.openmind/...`
-      // path stays stable regardless of where state is stored.
-      // These are logical state paths exposed over IPC. Do not leak the host
-      // separator into the renderer contract on Windows.
-      indexPath: path.relative(this.stateBaseDir, this.contentIndexPath).split(path.sep).join("/"),
-      statePath: path.relative(this.stateBaseDir, this.state.statePath).split(path.sep).join("/"),
-      rebuiltAt: new Date().toISOString()
-    });
+    this.contentIndexPath = statePath(stateRoot ?? repoRoot, "content-index.json");
   }
 
   /**
    * 单天刷新：ensureDateIndexed 按 modifiedAt/size 自检过期，只重建传入的那一天。
-   * 供内容保存后调用，替代曾经每次保存都跑一遍的全量 rebuildContentIndex。
    */
   refreshDate(date: string): void {
     this.ensureDateIndexed(compactDate(date));
   }
 
-  listItemsForDate(rawDate: string): ContentItem[] {
-    const indexed = this.ensureDateIndexed(compactDate(rawDate));
-    const state = this.state.readFor(indexed);
-    return indexed.map((record) => this.toContentItem(record, stateForRecord(record, state)));
-  }
-
   searchContent(rawQuery: string, limit = 20): GlobalSearchResult[] {
     const query = rawQuery.trim();
     if (!query) return [];
+    const normalizedQuery = query.toLocaleLowerCase();
     const results: GlobalSearchResult[] = [];
     for (const date of this.availableContentDates()) {
-      const page = this.listInbox({
-        date,
-        kinds: [],
-        search: query,
-        tags: [],
-        sort: "newest",
-        cursor: 0,
-        limit: Math.min(50, limit)
-      });
-      for (const item of page.items) {
+      for (const item of this.ensureDateIndexed(date)) {
+        if (!item.searchText.includes(normalizedQuery)) continue;
         results.push({
           id: `content:${item.id}`,
           kind: "content",
@@ -223,20 +104,12 @@ export class ContentIndexStore {
     return this.datesCache;
   }
 
-  private findContent(relativePath: string, itemState: ContentState): ContentItem {
-    const dateMatch = relativePath.match(/(?:^|[\\/])(\d{8})(?:[\\/]|_)/);
-    const date = dateMatch?.[1] || compactDate(new Date().toISOString().slice(0, 10));
-    const record = this.ensureDateIndexed(date).find((candidate) => candidate.path === relativePath);
-    if (!record) throw new Error("内容文件已不存在或不属于当前日期。");
-    return this.toContentItem(record, itemState);
-  }
-
   private indexContent(entry: LegacyContentEntry, date: string): IndexedContent {
     const record = this.content.readContent(entry.path);
     const raw = record.content || "";
     const metadata = parseMetadata(raw, entry.name || path.basename(entry.path));
     const modifiedAt = entry.modifiedAt || safeStat(path.join(this.repoRoot, entry.path))?.mtime.toISOString() || new Date(0).toISOString();
-    const item = ContentItemSchema.parse({
+    return IndexedContentSchema.parse({
       schemaVersion: 1,
       id: stableContentId(entry.path, metadata, raw),
       path: entry.path,
@@ -251,25 +124,15 @@ export class ContentIndexStore {
       modifiedAt,
       size: entry.size || Buffer.byteLength(raw, "utf8"),
       excerpt: metadata.excerpt,
-      state: CONTENT_STATE_DEFAULT
-    });
-    const { state: _state, ...withoutState } = item;
-    return {
-      ...withoutState,
       date,
       searchText: [
-        item.title,
-        item.source,
-        item.author,
-        item.excerpt,
+        metadata.title,
+        metadata.source,
+        metadata.author,
+        metadata.excerpt,
         stripMetadata(raw).slice(0, 32_000)
       ].filter(Boolean).join(" ").toLocaleLowerCase()
-    };
-  }
-
-  private toContentItem(record: IndexedContent, itemState?: ContentState): ContentItem {
-    const { date: _date, searchText: _searchText, ...item } = record;
-    return ContentItemSchema.parse({ ...item, state: itemState || CONTENT_STATE_DEFAULT });
+    });
   }
 
   private ensureDateIndexed(date: string): IndexedContent[] {
@@ -324,15 +187,8 @@ export class ContentIndexStore {
         }
         const items: Record<string, IndexedContent> = {};
         for (const [relativePath, value] of Object.entries(raw.items as Record<string, unknown>)) {
-          const candidate = value as Partial<IndexedContent>;
-          const parsed = ContentItemSchema.safeParse({ ...candidate, state: CONTENT_STATE_DEFAULT });
-          if (!parsed.success || typeof candidate.date !== "string" || typeof candidate.searchText !== "string") continue;
-          const { state: _state, ...withoutState } = parsed.data;
-          items[relativePath] = {
-            ...withoutState,
-            date: candidate.date,
-            searchText: candidate.searchText
-          };
+          const parsed = IndexedContentSchema.safeParse(value);
+          if (parsed.success) items[relativePath] = parsed.data;
         }
         result = {
           schemaVersion: 1,

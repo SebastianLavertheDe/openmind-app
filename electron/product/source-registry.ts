@@ -170,21 +170,6 @@ export class SourceRegistry {
     return updated;
   }
 
-  deleteSource(id: string): boolean {
-    const existing = this.listSources().find((source) => source.id === id);
-    if (!existing) return false;
-    if (existing.kind === "rss" && existing.url) {
-      this.removeRssOutline(existing.url);
-    } else if (existing.skillId) {
-      throw new Error("系统数据源不能删除，可以将其停用");
-    }
-    const settings = this.readSourceSettings();
-    settings.customSources = settings.customSources.filter((source) => source.id !== id);
-    settings.disabledUrls = settings.disabledUrls.filter((url) => url !== existing.url);
-    delete settings.sources[id];
-    writeJsonAtomic(this.sourceSettingsPath, settings);
-    return true;
-  }
 
   addRssSource(rawInput: AddRssSourceInput): SourceDefinition {
     const input = AddRssSourceInputSchema.parse(rawInput);

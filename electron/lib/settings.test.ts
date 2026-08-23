@@ -18,13 +18,13 @@ import {
   ensureInsideRepo,
   findRepoRoot,
   getPreferences,
+  setOpenmindRoot,
+  setWorkspaceRoot,
   updatePreferences,
-  importPreferences,
   resetPreferences,
   settingsFile,
   getOnboardingState,
-  updateOnboardingState,
-  DEFAULT_PREFERENCES
+  updateOnboardingState
 } from "./settings";
 
 describe("settings path handling", () => {
@@ -74,7 +74,6 @@ describe("settings path handling", () => {
   it("preferences API surfaces are callable and return valid defaults", () => {
     const prefs = getPreferences();
     expect(prefs.themeMode).toBe("light");
-    expect(prefs.accentColor).toBe("#2563eb");
     expect(prefs.destructiveOpsRequireApproval).toBe(true);
     expect(prefs.riskScanEnabled).toBe(true);
     expect(prefs.notesDir).toBe("openmind");
@@ -91,26 +90,29 @@ describe("settings path handling", () => {
     expect(updated.userTags).toEqual(["AI"]);
   });
 
+  it("never lets an ordinary preference update clear bound directories", () => {
+    const canonical = fs.realpathSync(repo);
+    setOpenmindRoot(repo);
+    setWorkspaceRoot(repo);
+
+    const updated = updatePreferences({ browserAutomationEnabled: true });
+    const persisted = JSON.parse(fs.readFileSync(settingsFile(), "utf8"));
+
+    expect(updated.openmindRoot).toBe(canonical);
+    expect(updated.workspaceRoot).toBe(canonical);
+    expect(persisted.openmindRoot).toBe(canonical);
+    expect(persisted.workspaceRoot).toBe(canonical);
+    expect(() => updatePreferences({ openmindRoot: "" } as never)).toThrow("保存目录只能通过专用的目录选择操作修改");
+  });
+
   it("validates, persists and resets workflow preferences as one group", () => {
-    const updated = updatePreferences({ autoSaveIntervalMs: 15_000, archiveAfterDays: 30, workflowReviewRequiredForReady: false, workflowAutoBriefOnSourceComplete: true });
+    const updated = updatePreferences({ autoSaveIntervalMs: 15_000, archiveAfterDays: 30, workflowReviewRequiredForReady: false });
     expect(updated.workflowReviewRequiredForReady).toBe(false);
-    expect(updated.workflowAutoBriefOnSourceComplete).toBe(true);
     expect(() => updatePreferences({ workflowAutoSaveDraft: "yes" as never })).toThrow("workflowAutoSaveDraft");
     const reset = resetPreferences("workflow");
     expect(reset.autoSaveIntervalMs).toBe(30_000);
     expect(reset.archiveAfterDays).toBe(90);
     expect(reset.workflowReviewRequiredForReady).toBe(true);
-    expect(reset.workflowAutoBriefOnSourceComplete).toBe(false);
-  });
-
-  it("imports validated preferences from a selected json file", () => {
-    const file = path.join(os.tmpdir(), `prefs-${Date.now()}.json`);
-    fs.writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFERENCES, themeMode: "light", openmindRoot: path.join(repo, "openmind") }), "utf8");
-    const result = importPreferences(file);
-    expect(result.imported).toBe(true);
-    expect(result.preferences.themeMode).toBe("light");
-    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).themeMode).toBe("light");
-    fs.rmSync(file, { force: true });
   });
 
   it("persists the first-run onboarding state in app-private settings", () => {

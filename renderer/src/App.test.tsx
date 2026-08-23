@@ -13,15 +13,14 @@ const overview: AppOverview = { repoRoot: "/project", metrics: {}, recent: [] };
 const skills: SkillDefinition[] = [];
 const LAZY_ROUTE_TIMEOUT_MS = 10_000;
 const preferences: UserPreferences = {
-  schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light", accentColor: "#2563eb", density: "default", fontSize: "default",
+  schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
-  markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" }, defaultPermissionProfile: "edit",
-  defaultWorkDir: "", notesDir: "openmind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
+  markReadOnOpen: true, defaultProvider: "", defaultPermissionProfile: "edit",
+  notesDir: "openmind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
   browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
-  defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [], notificationsEnabled: true,
-  dndStartHour: 22, dndEndHour: 8, maxNotificationHistory: 100, cacheMaxSizeMB: 500, logRetentionDays: 30,
+  defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [],
   workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true, workflowReviewRequiredForReady: true,
-  workflowPublishChecklistEnabled: true, workflowAutoArchiveEnabled: false, workflowAutoBriefOnSourceComplete: false
+  workflowPublishChecklistEnabled: true, workflowAutoArchiveEnabled: false
 };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {

@@ -12,8 +12,6 @@ export const RuntimeTargetSchema = z.enum([
 ]);
 export type RuntimeTarget = z.infer<typeof RuntimeTargetSchema>;
 
-export const RuntimeModeSchema = z.enum(["managed", "system", "custom"]);
-export type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
 
 export const RuntimePackIdSchema = z.enum([
   "python-core",
@@ -56,43 +54,7 @@ export const RuntimePackMetadataSchema = z.object({
 });
 export type RuntimePackMetadata = z.infer<typeof RuntimePackMetadataSchema>;
 
-export const RuntimePackDownloadStatusSchema = z.enum([
-  "queued",
-  "downloading",
-  "paused",
-  "verifying",
-  "installed",
-  "failed"
-]);
-export type RuntimePackDownloadStatus = z.infer<typeof RuntimePackDownloadStatusSchema>;
-
-/** Renderer-safe preview for a user-initiated HTTPS Runtime Pack download. */
-export const RuntimePackDownloadDescriptorSchema = z.object({
-  metadata: RuntimePackMetadataSchema,
-  downloadSize: z.number().int().nonnegative(),
-  installSize: z.number().int().nonnegative(),
-  license: z.string().max(240),
-  conditions: z.array(z.string().max(240)).max(20),
-  sourceUrl: z.string().url().startsWith("https://")
-}).strict();
-export type RuntimePackDownloadDescriptor = z.infer<typeof RuntimePackDownloadDescriptorSchema>;
-
-/** Renderer-safe persisted state for an optional Runtime Pack download. */
-export const RuntimePackDownloadJobSchema = z.object({
-  id: z.string().uuid(),
-  metadata: RuntimePackMetadataSchema,
-  status: RuntimePackDownloadStatusSchema,
-  bytesDownloaded: z.number().int().nonnegative(),
-  totalBytes: z.number().int().nonnegative(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  error: z.string().max(240).nullable(),
-  completedAt: z.string().datetime().nullable()
-}).strict();
-export type RuntimePackDownloadJob = z.infer<typeof RuntimePackDownloadJobSchema>;
-
 export const RuntimePackIntegritySchema = z.enum(["verified", "missing", "tampered", "invalid"]);
-export type RuntimePackIntegrity = z.infer<typeof RuntimePackIntegritySchema>;
 
 /** Renderer-safe Runtime Pack state; package paths are intentionally omitted. */
 export const RuntimePackReadinessSchema = z.object({

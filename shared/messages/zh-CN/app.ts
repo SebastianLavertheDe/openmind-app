@@ -12,7 +12,6 @@ export const appMessages = {
     navCollapse: "收起导航",
     navMenu: "打开导航菜单",
     navMain: "主导航",
-    globalActions: "全局操作",
     moreActions: "更多全局操作",
     searchPlaceholder: "搜索资料、创作和会话",
     searchShort: "搜索",
@@ -23,9 +22,7 @@ export const appMessages = {
     notificationsShort: "通知",
     help: "打开帮助",
     helpShort: "帮助",
-    recentTasks: "最近任务",
     recentTasksAria: "最近任务列表",
-    recentEmpty: "暂无任务，新建任务后会显示在这里",
     recentOpen: "打开任务"
   },
 

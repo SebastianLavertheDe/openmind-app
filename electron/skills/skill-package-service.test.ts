@@ -289,6 +289,40 @@ describe("SkillPackageService", () => {
     expect(installed.packagePath).toBe(path.join(paths.skills!, "native-skill"));
   });
 
+  it("replaces and uninstalls across volumes when rename hits EXDEV", () => {
+    const source = createPackage(tempRoot, "cross-volume-skill");
+    fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: cross-volume-skill\ndescription: First\n---\n# Standard\n");
+    service.install(source);
+    const skillsRoot = paths.skills!;
+    const originalRename = fs.renameSync;
+    // The store often lives on another volume than userData/staging (e.g. a D:
+    // content root vs C: userData); simulate the OS refusing cross-device
+    // renames for exactly those moves.
+    const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      const f = String(from);
+      const t = String(to);
+      const crosses = (f.startsWith(skillsRoot) && t.startsWith(paths.staging))
+        || (f.startsWith(paths.staging) && t.startsWith(skillsRoot));
+      if (crosses) throw Object.assign(new Error("cross-device link not permitted"), { code: "EXDEV" });
+      return originalRename(from, to);
+    }) as typeof fs.renameSync);
+    try {
+      fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: cross-volume-skill\ndescription: Second\n---\n# Standard\n");
+      const replaced = service.install(source);
+      expect(replaced.id).toBe("cross-volume-skill");
+      const installedFile = path.join(skillsRoot, "cross-volume-skill", "SKILL.md");
+      expect(fs.existsSync(installedFile)).toBe(true);
+      expect(fs.readFileSync(installedFile, "utf8")).toContain("Second");
+      expect(service.listInstalled()).toHaveLength(1);
+
+      expect(service.uninstall("agent-skills/cross-volume-skill", replaced.digest)).toBe(true);
+      expect(fs.existsSync(path.join(skillsRoot, "cross-volume-skill"))).toBe(false);
+      expect(service.listInstalled()).toHaveLength(0);
+    } finally {
+      renameSpy.mockRestore();
+    }
+  });
+
   realSkillIt("recognizes the formal packages from the independent Skills repository", () => {
     const skillsRoot = EXTERNAL_SKILLS_ROOT;
     const expected = [
@@ -313,8 +347,10 @@ describe("SkillPackageService", () => {
     expect(inspections.map((inspection) => inspection.manifest?.id)).toEqual(expected);
     expect(inspections.every((inspection) => inspection.legacy === undefined)).toBe(true);
     const xInspection = inspections.find((inspection) => inspection.manifest?.id === "x-following-fetcher");
-    expect(xInspection?.excludedPaths).toEqual(expect.arrayContaining(["curl.txt", "curl_foryou.txt", "x_curl.txt"]));
-    expect(xInspection?.files.some((file) => ["curl.txt", "curl_foryou.txt", "x_curl.txt"].includes(file.path))).toBe(false);
+    // Runtime droppings committed in the skills repository must never enter an
+    // installed package (the file names track the current repo contents).
+    expect(xInspection?.excludedPaths).toEqual(expect.arrayContaining(["external_article_fetch.log", "posted_ids.json"]));
+    expect(xInspection?.files.some((file) => ["external_article_fetch.log", "posted_ids.json"].includes(file.path))).toBe(false);
     const packagedAiFiles: Record<string, string> = {
       "daily-article-summarizer": "src/ai_client.py",
       "rss-article-saver": "src/ai_client.py",
@@ -408,7 +444,7 @@ describe("SkillPackageService", () => {
     expect(sharedProject).toContain('version = "1.0.0"');
     expect(fs.existsSync(path.join(sharedRoot, "cctools.skill.yaml"))).toBe(false);
     expect(installed.some((record) => record.id === "_shared")).toBe(false);
-  });
+  }, 30_000);
 
   it("rejects writes to an unknown openmind top-level", () => {
     const source = createPackage(tempRoot);

@@ -20,6 +20,8 @@ import {
 
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_BUFFER = 4 * 1024 * 1024;
+const GIT_CHECKOUT_CLEANUP_MAX_RETRIES = 5;
+const GIT_CHECKOUT_CLEANUP_RETRY_DELAY_MS = 200;
 
 export type GitCommandOptions = {
   cwd: string;
@@ -36,6 +38,7 @@ export type GitCommandRunner = (
 export type SkillSourceErrorCode =
   | "git-unavailable"
   | "git-command-failed"
+  | "git-auth-required"
   | "git-timeout"
   | "git-cancelled"
   | "git-package-missing"
@@ -189,6 +192,33 @@ export class SkillSourceService {
   }
 
   /**
+   * Presence-only startup check for a Git source.
+   *
+   * Onboarding answers only whether the source has been installed. Receipt,
+   * revision and digest disagreements belong to Skill Center diagnostics and
+   * the execution-time integrity gate; they must not force an existing user
+   * back through setup. A registry record whose package directory is gone is
+   * not considered installed.
+   */
+  hasInstallation(sourceLocator: string): boolean {
+    const normalizedSource = normalizeGitSourceLocator(sourceLocator);
+    if (!normalizedSource) return false;
+    try {
+      return this.packages.listInstalled().some((record) => {
+        const installedSource = normalizeGitSourceLocator(record.sourceLocator || record.sourcePath);
+        if (record.sourceType !== "git" || installedSource !== normalizedSource) return false;
+        if (isCctoolsSkillsSourceLocator(sourceLocator)
+          && !isSupportedOfficialIdentity(record.key, record.publisherId, record.id)) {
+          return false;
+        }
+        return isDirectory(record.packagePath);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Offline startup gate for a previously completed Git-source installation.
    * The receipt captures the complete checkout at install time; every package
    * must still have matching provenance, metadata and installed bytes.
@@ -264,7 +294,7 @@ export class SkillSourceService {
       throw new SkillSourceError("git-command-failed", `Git 来源检查失败：${redactGitError(message)}`);
     } finally {
       if (requestId && this.activeGitInspections.get(requestId) === controller) this.activeGitInspections.delete(requestId);
-      fs.rmSync(stagingRoot, { recursive: true, force: true });
+      await removeGitCheckout(stagingRoot);
     }
   }
 
@@ -283,6 +313,23 @@ export class SkillSourceService {
       // installation from older or restricted Git clients.
       return undefined;
     }
+  }
+}
+
+async function removeGitCheckout(stagingRoot: string): Promise<void> {
+  try {
+    await fs.promises.rm(stagingRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: GIT_CHECKOUT_CLEANUP_MAX_RETRIES,
+      retryDelay: GIT_CHECKOUT_CLEANUP_RETRY_DELAY_MS
+    });
+  } catch (error) {
+    // Windows can briefly retain handles to freshly-created Git pack files.
+    // Cleanup must remain best-effort: a staging deletion failure must not
+    // replace a successful inspection/install result or its actual error.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`Unable to remove temporary Git checkout: ${redactGitError(detail)}`);
   }
 }
 
@@ -398,7 +445,12 @@ function runGitCommand(args: string[], options: GitCommandOptions): Promise<{ st
           reject(new SkillSourceError("git-timeout", "Git 来源下载超时，已清理临时 checkout。"));
           return;
         }
-        reject(new SkillSourceError("git-command-failed", `Git 来源下载失败：${redactGitError(String(stderr || error.message))}`));
+        const detail = String(stderr || error.message);
+        if (/could not read Username|Authentication failed|Repository not found|terminal prompts disabled|disabled-askpass/i.test(detail)) {
+          reject(new SkillSourceError("git-auth-required", "Git 仓库需要登录或当前账号无权访问；Skill 来源更新目前只支持无需登录的 HTTPS 仓库。"));
+          return;
+        }
+        reject(new SkillSourceError("git-command-failed", `Git 来源下载失败：${redactGitError(detail)}`));
         return;
       }
       resolve({ stdout: String(stdout), stderr: String(stderr) });

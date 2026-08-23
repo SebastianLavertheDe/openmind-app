@@ -15,9 +15,10 @@
   digest, while Runtime preparation remains an execution-time check.
 - Complete Git-source installs now write an atomic local receipt containing the
   normalized repository, resolved revision and full package snapshot. Startup
-  stays in onboarding unless an explicit openmind save root and a complete,
-  intact official `cctools-skills` installation are available; startup never
-  contacts Git.
+  stays in onboarding only while the openmind save root or an installed
+  official `cctools-skills` package is absent; receipt, revision and digest
+  disagreements are reported by Skill Center and enforced at execution rather
+  than forcing an existing user back through setup. Startup never contacts Git.
 - Installed Skills can now be enabled or disabled from Skill Center. The
   root-scoped preference controls future AI conversations and new execution
   submissions; each conversation persists its exact Skill definition and

@@ -3,7 +3,6 @@ import { CalendarClock, Check, Clock3, Play, Save, Square, Target } from "lucide
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, InstalledRunnableSkillView, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import { matchesSemverRange } from "@shared/skill-manifest-schema";
-import type { Navigate } from "../../app/routes";
 import { messages } from "@shared/messages";
 import { LogViewer, Select, ToggleSwitch } from "../../design-system/components";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
@@ -14,8 +13,7 @@ type RuntimeState = { running: boolean; state: string };
 type TriggerType = "daily" | "weekly" | "hourly" | "interval";
 type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
-export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string; go: Navigate }) {
-  void go;
+export function AutomationPage({ initialSkillId }: { initialSkillId?: string }) {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [skillCatalog, setSkillCatalog] = useState<InstalledRunnableSkillView[]>([]);
   const [schedules, setSchedules] = useState<AutomationScheduleSnapshot[]>([]);
@@ -236,7 +234,7 @@ export function AutomationPage({ initialSkillId, go }: { initialSkillId?: string
 
             <div className="rule-section">
               <h2>最近运行与产物</h2>
-              <RunHistory runs={selectedRuns} artifacts={childRun?.artifacts || []} onRetry={() => void retryRule(selected, load, setError)} />
+              <RunHistory runs={selectedRuns} artifacts={childRun?.artifacts || []} />
             </div>
           </section>
 
@@ -314,7 +312,7 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
           </div>
           <label className="automation-field">
             <span>触发方式</span>
-            <Select<TriggerType> value={triggerType} options={triggerOptions} onChange={setTriggerType} ariaLabel="触发类型" size="rect" />
+            <Select<TriggerType> value={triggerType} options={triggerOptions} onChange={setTriggerType} ariaLabel="触发类型" size="rect" className="automation-trigger-select" />
           </label>
         </div>
 
@@ -362,12 +360,12 @@ function skillKindLabel(kind: InstalledRunnableSkillView["kind"]): string {
 
 const RECENT_RUN_DAYS = 3;
 
-function RunHistory({ runs, artifacts, onRetry }: { runs: AutomationRunRecord[]; artifacts: RunArtifact[]; onRetry: () => void }) {
+function RunHistory({ runs, artifacts }: { runs: AutomationRunRecord[]; artifacts: RunArtifact[] }) {
   if (!runs.length) return <p className="automation-params-hint">尚无运行记录。运行会持久化状态、重试次数和子 Run ID。</p>;
   const recentRuns = runs.filter((run) => isWithinRecentDays(run.createdAt, RECENT_RUN_DAYS));
   if (!recentRuns.length) return <p className="automation-params-hint">最近 {RECENT_RUN_DAYS} 天暂无运行记录，更早的记录已隐藏。</p>;
   return <div className="automation-history-list">
-    {recentRuns.map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.state === "queued" ? `上次尝试失败，等待重试：${run.error}` : run.error}</small> : null}{["failed", "blocked"].includes(run.state) ? <button type="button" data-motion="action" onClick={onRetry}>重试</button> : null}</div>)}
+    {recentRuns.map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>attempt {run.attempt}</span><code>{run.childRunId || "未提交"}</code>{run.error ? <small>{run.state === "queued" ? `上次尝试失败，等待重试：${run.error}` : run.error}</small> : null}</div>)}
     {artifacts.length ? <div className="automation-artifacts"><strong>Artifacts</strong>{artifacts.map((artifact) => <div className="automation-artifact" key={artifact.id}><span className="automation-artifact-name"><span>{artifact.logicalPath || artifact.externalPathRef || artifact.id}</span></span><small>{artifact.type} · {artifact.size ?? 0} bytes · {artifact.declared ? "declared" : "undeclared"}</small></div>)}</div> : <small className="automation-artifacts-note">最近子 Run 尚未产生 Artifact。</small>}
   </div>;
 }
@@ -375,11 +373,6 @@ function RunHistory({ runs, artifacts, onRetry }: { runs: AutomationRunRecord[];
 async function toggleRuleFor(rule: AutomationRule, enabled: boolean, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
   try { await window.openmind.saveAutomationRule(toRuleInput({ ...rule, enabled })); await load(); }
   catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); await load(); }
-}
-
-async function retryRule(rule: AutomationRule, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
-  try { await window.openmind.runAutomationNow(rule.id); await load(); }
-  catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
 }
 
 async function deleteRule(rule: AutomationRule, load: () => Promise<void>, setError: (message: string | null) => void): Promise<void> {
@@ -474,6 +467,7 @@ const MAX_RUNTIME_LOG_LINES = 160;
 type RuntimeLogEntry = { timestamp: string; text: string };
 
 function runtimeStateText(state: string, reason?: string): string {
+  if (state === "pending") return "等待上一步";
   if (state === "queued") return "等待执行";
   if (state === "inspecting") return "检查 Skill";
   if (state === "waiting_execution_consent") return "等待运行许可";
@@ -489,7 +483,7 @@ function runtimeStateText(state: string, reason?: string): string {
 
 function isRuntimeProgressLine(line: string, stream?: BrokerRunEvent["stream"]): boolean {
   if (stream === "stderr") return true;
-  return /^(Loaded config:|Loaded \d+ RSS feeds|RSS Article Monitor|Feed:|Entries:|New articles:|Processing:|Extracting content|Saved to:|缓存文件|Found existing files|📅 Date:|Scanning articles|Found |🤖 Summarizing|Summarizing \d+ articles|Successfully summarized:|✅ (Saved to|Final article count)|✅ Done!|⏰ Finished at:|Post filter:|X posts:|Primary client failed|Error:|Warning:|开始|正在|处理中|抓取|提取|总结|生成)/i.test(line)
+  return /^(Loaded config:|Loaded \d+ RSS feeds|RSS Article Monitor|Restored counter state:|Feed:|Entries:|New articles:|Fetching URL to check content type|Processing nested OPML feeds|Skipping duplicate feed source|Processing:|Extracting content|Saved to:|Done!|Artifact 登记失败|缓存文件|Found existing files|📅 Date:|Scanning articles|Found |🤖 Summarizing|Summarizing \d+ articles|Successfully summarized:|✅ (Saved to|Final article count)|✅ Done!|⏰ Finished at:|Post filter:|X posts:|Primary client failed|Error:|Warning:|开始|正在|处理中|抓取|提取|总结|生成)/i.test(line)
     || /(unknown url type|AI API request failed|No topic entries parsed|Workflow Step .* failed)/i.test(line);
 }
 
@@ -523,10 +517,31 @@ function runtimeEntriesFor(label: string, events: BrokerRunEvent[]): RuntimeLogE
       : [{ timestamp: event.timestamp, text: `${label} · ${runtimeStateText(event.state, event.reason)}` }];
     seenStates.add(event.state);
     if (event.stream === "stdout" || event.stream === "stderr") return [...stateEntries, ...runtimeOutputEntries(label, event)];
-    const detail = event.error ? runtimeOutputEntries(label, { ...event, stream: "stderr", text: event.error }) : [];
+    const detailText = event.text || event.error || "";
+    const detail = detailText
+      ? runtimeOutputEntries(label, { ...event, ...(event.error && !event.text ? { stream: "stderr" as const } : {}), text: detailText })
+      : [];
     return detail.length ? [...stateEntries, ...detail] : stateEntries;
   });
-  return compactRuntimeEntries(entries);
+  const progress = label === "rss-article-saver" ? rssProgressEntry(label, events) : null;
+  return compactRuntimeEntries(progress ? [...entries, progress] : entries);
+}
+
+function rssProgressEntry(label: string, events: BrokerRunEvent[]): RuntimeLogEntry | null {
+  const stdout = events.filter((event) => event.stream === "stdout" && event.text).map((event) => event.text).join("");
+  const feedNames = [...stdout.matchAll(/^\s*Feed:\s*(.+)$/gim)].map((match) => match[1].trim());
+  if (!feedNames.length) return null;
+  const loaded = stdout.match(/Loaded\s+(\d+)\s+RSS feeds/i)?.[1];
+  const discovered = [...stdout.matchAll(/^\s*New articles:\s*(\d+)\s*$/gim)]
+    .reduce((total, match) => total + Number(match[1]), 0);
+  const saved = [...stdout.matchAll(/^\s*Saved to:\s*.+$/gim)].length;
+  const completed = events.some((event) => event.state === "succeeded");
+  const timestamp = events.at(-1)?.timestamp || new Date(0).toISOString();
+  const initial = loaded ? `（初始订阅 ${loaded}，嵌套源另计）` : "";
+  return {
+    timestamp,
+    text: `${label} · RSS 进度：${completed ? "已完成" : "已开始"}检查 ${feedNames.length} 个源${initial} · 发现新增 ${discovered} 篇 · 已保存 ${saved} 篇 · 当前 ${feedNames.at(-1)}`
+  };
 }
 
 function formatRuntimeEntries(entries: RuntimeLogEntry[]): string {
@@ -541,20 +556,18 @@ function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, 
     : "";
   if (workflow) {
     const progressEntries = compactRuntimeEntries(workflowSteps
-      .flatMap(({ step, events: stepEvents }) => {
-        const entries = runtimeEntriesFor(step.skillId, stepEvents);
-        return entries.length
-          ? entries
-          : [{ timestamp: workflow.completedAt || run.createdAt, text: `${step.skillId} · ${runtimeStateText(step.state)}` }];
-      })
+      .flatMap(({ step, events: stepEvents }) => runtimeEntriesFor(step.skillId, stepEvents))
       .sort((left, right) => left.timestamp.localeCompare(right.timestamp)));
+    const stepStatus = workflow.stepRuns.map((step, index) =>
+      `\n[${start}] 步骤 ${index + 1}/${workflow.stepRuns.length} · ${step.skillId} · ${runtimeStateText(step.state)}`
+    ).join("");
     const workflowEnd = workflow.completedAt
       ? `\n[${formatLogTime(workflow.completedAt)}] Workflow 结束：${workflow.state}`
       : `\n[${start}] Workflow 状态：${workflow.state}`;
     const workflowError = workflow.error
       ? `\n[${workflow.completedAt ? formatLogTime(workflow.completedAt) : start}] Workflow 失败：${workflow.error}`
       : "";
-    return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${formatRuntimeEntries(progressEntries)}${workflowEnd}${workflowError}${automationError}`;
+    return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${stepStatus}${formatRuntimeEntries(progressEntries)}${workflowEnd}${workflowError}${automationError}`;
   }
   const end = run.completedAt ? `\n[${formatLogTime(run.completedAt)}] 结束：${run.state}` : "";
   const childState = child ? `\n[${start}] 子 Run 状态：${automationStateLabel(child.state, true)}` : "";

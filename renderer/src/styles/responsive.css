@@ -1,18 +1,5 @@
 
 @media (max-width: 1380px) {
-  .dashboard-grid,
-  .brief-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .brief-grid .span-3 {
-    grid-column: span 2;
-  }
-
-  .dashboard-metrics {
-    grid-template-columns: repeat(3, minmax(130px, 1fr));
-  }
-
   .automation-main {
     grid-template-columns: 1fr;
   }
@@ -23,32 +10,6 @@
 }
 
 @media (max-width: 1080px) {
-  .dashboard-grid,
-  .brief-grid,
-  .projects-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-grid .span-2,
-  .brief-grid .span-2,
-  .brief-grid .span-3 {
-    grid-column: span 1;
-  }
-
-  .source-metrics,
-  .brief-metrics,
-  .dashboard-metrics {
-    grid-template-columns: repeat(2, minmax(130px, 1fr));
-  }
-
-  .quick-actions {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .projects-layout {
-    min-height: 0;
-  }
-
   .automation-layout {
     grid-template-columns: 280px minmax(0, 1fr);
   }
@@ -127,8 +88,7 @@
 
   .creative-list-pane > header,
   .creative-search,
-  .pane-head,
-  .source-toolbar {
+  .pane-head {
     padding-inline: 10px;
   }
 

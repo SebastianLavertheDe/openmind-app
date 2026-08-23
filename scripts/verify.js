@@ -11,9 +11,9 @@ const requiredFiles = [
   ".build/renderer/index.html",
   "shared/contracts.ts",
   "electron/ai/session-store.ts",
-  "electron/ai/workspace-manager.ts",
+  "electron/ai/scheduler-execution.ts",
   "renderer/src/App.tsx",
-  "renderer/src/components/AiWorkbench.tsx"
+  "renderer/src/features/ai-console/AiWorkbench.tsx"
 ];
 
 for (const file of requiredFiles) {

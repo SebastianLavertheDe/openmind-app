@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, RuntimePackDownloadDescriptor, RuntimePackReadiness, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
@@ -57,20 +57,18 @@ const mcpServers: McpServerDefinition[] = [{
 }];
 
 const defaultPrefs: UserPreferences = {
-  schemaVersion: 1, openmindRoot: "/repo", workspaceRoot: "/repo", themeMode: "light", accentColor: "#2563eb",
+  schemaVersion: 1, openmindRoot: "/repo", workspaceRoot: "/repo", themeMode: "light",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
-  markReadOnOpen: true, defaultProvider: "", providerModels: { codex: "auto", claude: "auto" },
+  markReadOnOpen: true, defaultProvider: "",
   defaultPermissionProfile: "edit",
-  defaultWorkDir: "", notesDir: "openmind", browserAutomationEnabled: false,
+  notesDir: "openmind", browserAutomationEnabled: false,
   browserReuseExistingTabs: true, browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
   defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
-  notificationsEnabled: true, dndStartHour: 22, dndEndHour: 8,
-  maxNotificationHistory: 100, cacheMaxSizeMB: 500, logRetentionDays: 30,
   workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true,
   workflowReviewRequiredForReady: true, workflowPublishChecklistEnabled: true,
-  workflowAutoArchiveEnabled: false, workflowAutoBriefOnSourceComplete: false
+  workflowAutoArchiveEnabled: false
 };
 
 const archivedSession: AiSession = {
@@ -384,6 +382,50 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "添加 Provider" })).toBeTruthy();
   });
 
+  it("keeps all Provider editors collapsed by default and opens only one at a time", async () => {
+    const providerEntry = (id: string, name: string, model: string) => ({
+      id, name, enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
+      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
+      proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+    });
+    const providerView = {
+      schemaVersion: 1 as const,
+      default: "first",
+      cli: { claude: null, codex: null },
+      providers: [
+        providerEntry("first", "第一 Provider", "first-model"),
+        providerEntry("second", "第二 Provider", "second-model")
+      ]
+    };
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+
+    const first = await screen.findByRole("button", { name: "展开 第一 Provider 配置" });
+    expect(first.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByDisplayValue("first-model")).toBeNull();
+    expect(screen.queryByDisplayValue("second-model")).toBeNull();
+
+    fireEvent.click(first);
+    expect(screen.getByDisplayValue("first-model")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开 第二 Provider 配置" }));
+    expect(screen.queryByDisplayValue("first-model")).toBeNull();
+    expect(screen.getByDisplayValue("second-model")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起 第二 Provider 配置" }));
+    expect(screen.queryByDisplayValue("second-model")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开 第一 Provider 配置" }));
+    fireEvent.change(screen.getByDisplayValue("first-model"), { target: { value: "changed-model" } });
+    expect(screen.getByText("已修改 1 个 Provider")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "放弃修改" }));
+    expect(screen.queryByDisplayValue("changed-model")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "展开 第一 Provider 配置" }));
+    expect(screen.getByDisplayValue("first-model")).toBeTruthy();
+  });
+
   it("keeps unsaved edits when a Provider is removed from the draft", async () => {
     const providerEntry = (id: string, name: string, model: string) => ({
       id, name, enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
@@ -401,18 +443,18 @@ describe("SettingsPage", () => {
     };
     const getProviders = vi.fn().mockResolvedValue(providerView);
     const saveProviders = vi.fn().mockResolvedValue(providerView);
-    const deleteProvider = vi.fn().mockResolvedValue(providerView);
-    window.openmind = makeApi({ getProviders, saveProviders, deleteProvider });
+    window.openmind = makeApi({ getProviders, saveProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    const model = await screen.findByDisplayValue("model-before");
+    fireEvent.click(await screen.findByRole("button", { name: "展开 保留 Provider 配置" }));
+    const model = screen.getByDisplayValue("model-before");
     fireEvent.change(model, { target: { value: "model-after" } });
     fireEvent.change(screen.getAllByLabelText("API Key")[0], { target: { value: "sk-unsaved" } });
-    fireEvent.click(screen.getByRole("button", { name: "删除 remove" }));
+    fireEvent.click(screen.getByRole("button", { name: "更多 remove" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "删除 remove" }));
 
-    expect(deleteProvider).not.toHaveBeenCalled();
     expect(screen.queryByText("删除 Provider")).toBeNull();
     expect((screen.getByDisplayValue("model-after") as HTMLInputElement).value).toBe("model-after");
 
@@ -447,7 +489,8 @@ describe("SettingsPage", () => {
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    fireEvent.click(await screen.findByRole("button", { name: "删除 enabled" }));
+    fireEvent.click(await screen.findByRole("button", { name: "更多 enabled" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "删除 enabled" }));
 
     expect(await screen.findByText("请先启用另一个 Provider，再删除当前默认 Provider")).toBeTruthy();
     expect(screen.getByText("启用项")).toBeTruthy();
@@ -478,9 +521,9 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "紧凑" }));
     fireEvent.click(screen.getByRole("button", { name: "大" }));
 
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ themeMode: "dark", accentColor: "#2563eb" })));
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ density: "compact", accentColor: "#2563eb" })));
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ fontSize: "large", accentColor: "#2563eb" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ themeMode: "dark" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ density: "compact" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ fontSize: "large" })));
   });
 
   it("switches the default provider without changing the screen structure", async () => {
@@ -493,7 +536,7 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: "将 Claude Code 设为默认" }));
 
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultProvider: "claude-preview", accentColor: "#2563eb" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultProvider: "claude-preview" })));
     expect(screen.getAllByText("可用").length).toBe(2);
   });
 
@@ -536,35 +579,6 @@ describe("SettingsPage", () => {
     expect(screen.getByText("截取原文证据")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "前往浏览器设置" }));
     expect(screen.getByRole("heading", { name: "浏览器" })).toBeTruthy();
-  });
-
-  it("列出已安装 Skill 包且不暴露导入入口", async () => {
-    const listInstalledSkills = vi.fn().mockResolvedValue([{
-      schemaVersion: 1,
-      key: "local/packaged",
-      id: "packaged",
-      publisherId: "local",
-      version: "1.0.0",
-      digest: "abcdef1234567890abcdef1234567890",
-      sourcePath: "/root/.agent/skills/packaged",
-      packagePath: "/root/.agent/skills/packaged",
-      usable: true,
-      enabled: true,
-      signatureStatus: "unsigned",
-      reviewStatus: "unreviewed",
-      skillUpdatePolicy: "manual",
-      installedAt: "2026-08-21T00:00:00.000Z"
-    }]);
-    window.openmind = makeApi({ listInstalledSkills, listSkillRuns: vi.fn().mockResolvedValue([]) });
-    renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("Skills");
-
-    expect(await screen.findByRole("button", { name: /packaged/ })).toBeTruthy();
-    expect(document.getElementById("settings-detail-panel")?.classList.contains("settings-detail--wide")).toBe(false);
-    expect(document.querySelector(".settings-stack")?.classList.contains("settings-stack--wide")).toBe(false);
-    expect(screen.queryByRole("button", { name: "导入正式 Manifest" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "静态检查 workspace" })).toBeNull();
   });
 
   it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {
@@ -611,8 +625,8 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText("新会话默认权限"), { target: { value: "read-only" } });
     fireEvent.click(screen.getByRole("switch", { name: "风险扫描" }));
 
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultPermissionProfile: "read-only", accentColor: "#2563eb" })));
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ riskScanEnabled: false, accentColor: "#2563eb" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultPermissionProfile: "read-only" })));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ riskScanEnabled: false })));
   });
 
   it("keeps project path actions connected to the desktop API", async () => {
@@ -663,17 +677,6 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ workflowReviewRequiredForReady: false })));
     fireEvent.change(screen.getByLabelText("自动保存间隔"), { target: { value: "15000" } });
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ autoSaveIntervalMs: 15000 })));
-  });
-
-  it("labels retention values as non-destructive local preferences", async () => {
-    const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.openmind = makeApi({ updatePreferences });
-    renderSettings();
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("数据与存储");
-    expect(await screen.findByText(/暂不自动清理文件或历史/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("日志保留天数"), { target: { value: "60" } });
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ logRetentionDays: 60 })));
   });
 
   it("resets only the workflow preference group after confirmation", async () => {
