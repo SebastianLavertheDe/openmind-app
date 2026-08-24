@@ -56,6 +56,7 @@ describe("ExecutionBroker", () => {
       OPENMIND_SKILL_HOME: packageRoot,
       OPENMIND_SKILL_DATA_DIR: path.join(openmindRoot, ".agent", "skill-data", "example-skill"),
       OPENMIND_RUN_DIR: path.join(paths.runs, run.id, "work"),
+      OPENMIND_ARTIFACT_REPORT_PATH: path.join(paths.runs, run.id, "work", "artifacts.json"),
       OPENMIND_ROOT: openmindRoot,
       OPENMIND_ROOT_GENERATION: "1",
       OPENMIND_MANAGED_RUN: "1",
@@ -74,9 +75,11 @@ describe("ExecutionBroker", () => {
   });
 
   it("does not fail a successful process when optional Artifact registration exceeds its limit", async () => {
+    const output = path.join(openmindRoot, "daily-summary", "out.md");
+    const legacyScript = `const fs=require('fs');fs.mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});fs.writeFileSync(${JSON.stringify(output)},'done')`;
     const limitedBroker = new ExecutionBroker(
       paths,
-      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId)),
+      (_request, runId) => Promise.resolve(plan(packageRoot, openmindRoot, digest, runId, { script: legacyScript })),
       undefined,
       { maxConcurrentRuns: 1, artifactCollector: new ArtifactCollector(1) }
     );
@@ -217,7 +220,7 @@ function plan(
   const { script: overrideScript, acquireRuntime, releaseRuntime, ...processOverrides } = overrides;
   const script = overrideScript || (processOverrides.args
     ? String(processOverrides.args[1])
-    : `const fs=require('fs');fs.mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});fs.writeFileSync(${JSON.stringify(output)},'done');fs.writeFileSync(${JSON.stringify(environmentOutput)},JSON.stringify(process.env));console.log('api-key=sk-secret')`);
+    : `const fs=require('fs');fs.mkdirSync(${JSON.stringify(path.dirname(output))},{recursive:true});fs.writeFileSync(${JSON.stringify(output)},'done');fs.writeFileSync(${JSON.stringify(environmentOutput)},JSON.stringify(process.env));fs.writeFileSync(process.env.OPENMIND_ARTIFACT_REPORT_PATH,JSON.stringify({schemaVersion:1,artifacts:[{declarationId:'summary',logicalPath:'daily-summary/out.md'}]}));console.log('api-key=sk-secret')`);
   return {
     skillId: "example-skill",
     version: "1.0.0",

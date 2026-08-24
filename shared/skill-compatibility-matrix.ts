@@ -178,7 +178,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     legacyIssues: ["shared-ai-client-relative"],
     batch: "B",
     primaryArtifact: "post/<YYYYMMDD>/ and article/.../x_*.md",
-    notes: "Broker-managed structured credential JSON; Python HTTP client; config schema; cache→userData."
+    notes: "Skill-data-scoped curl credentials parsed without shell execution; Python HTTP client; config schema; cache→Skill data."
   },
 
   // --- Batch C: media, agent, workflow ---

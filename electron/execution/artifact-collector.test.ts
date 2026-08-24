@@ -11,6 +11,33 @@ afterEach(() => {
 });
 
 describe("ArtifactCollector", () => {
+  it("validates an exact child report without scanning a large historical tree", () => {
+    const root = makeRoot();
+    const openmind = path.join(root, "openmind");
+    const history = path.join(openmind, "article", "history");
+    const output = path.join(openmind, "daily-summary", "out.md");
+    fs.mkdirSync(history, { recursive: true });
+    fs.mkdirSync(path.dirname(output), { recursive: true });
+    for (let index = 0; index < 20; index += 1) fs.writeFileSync(path.join(history, `${index}.md`), "old");
+    fs.writeFileSync(output, "summary");
+    const reportPath = writeReport(root, [
+      { declarationId: "summary", logicalPath: "daily-summary/out.md" }
+    ]);
+
+    // A legacy scan would fail immediately at this limit. Report collection
+    // stats and hashes only the exact path named by the child.
+    const result = new ArtifactCollector(1).collect({
+      runId: "run-reported",
+      skillId: "daily-article-summarizer",
+      openmindRoot: openmind,
+      declarations: [{ id: "summary", type: "markdown", logicalPath: "daily-summary/*.md" }],
+      reportPath
+    });
+
+    expect(result.artifacts.map((artifact) => artifact.logicalPath)).toEqual(["openmind/daily-summary/out.md"]);
+    expect(result.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it("collects only declared openmind artifacts without auditing sibling writes", () => {
     const root = makeRoot();
     const openmind = path.join(root, "openmind");
@@ -106,10 +133,65 @@ describe("ArtifactCollector", () => {
 
     expect(result.artifacts).toEqual([]);
   });
+
+  it("rejects undeclared, mismatched, missing and wrong-kind report entries", () => {
+    const root = makeRoot();
+    const openmind = path.join(root, "openmind");
+    fs.mkdirSync(path.join(openmind, "post", "20260824"), { recursive: true });
+    fs.writeFileSync(path.join(openmind, "post", "20260824", "posts.json"), "{}");
+    const collector = new ArtifactCollector();
+    const base = {
+      runId: "run-invalid-report",
+      skillId: "x-following-fetcher",
+      openmindRoot: openmind,
+      declarations: [{ id: "x-posts", type: "directory" as const, logicalPath: "post/**" }]
+    };
+
+    expect(() => collector.collect({
+      ...base,
+      reportPath: writeReport(root, [{ declarationId: "unknown", logicalPath: "post/20260824" }])
+    })).toThrow(/未声明/);
+    expect(() => collector.collect({
+      ...base,
+      reportPath: writeReport(root, [{ declarationId: "x-posts", logicalPath: "article/20260824" }])
+    })).toThrow(/不存在或越出|不匹配声明/);
+    expect(() => collector.collect({
+      ...base,
+      reportPath: writeReport(root, [{ declarationId: "x-posts", logicalPath: "post/20260824/posts.json" }])
+    })).toThrow(/声明为目录/);
+    expect(() => collector.collect({
+      ...base,
+      reportPath: writeReport(root, [{ declarationId: "x-posts", logicalPath: "../outside" }])
+    })).toThrow(/路径无效/);
+  });
+
+  it("does not legacy-scan a failed run when its report is absent", () => {
+    const root = makeRoot();
+    const openmind = path.join(root, "openmind");
+    fs.mkdirSync(path.join(openmind, "article"), { recursive: true });
+    for (let index = 0; index < 20; index += 1) fs.writeFileSync(path.join(openmind, "article", `${index}.md`), "old");
+
+    const result = new ArtifactCollector(1).collect({
+      runId: "run-failed",
+      skillId: "legacy-skill",
+      openmindRoot: openmind,
+      declarations: [{ id: "articles", type: "markdown", logicalPath: "article/**" }],
+      reportPath: path.join(root, "missing-report.json"),
+      allowLegacyScan: false
+    });
+
+    expect(result.artifacts).toEqual([]);
+  });
 });
 
 function makeRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-artifact-"));
   roots.push(root);
   return root;
+}
+
+function writeReport(root: string, artifacts: Array<{ declarationId: string; logicalPath: string }>): string {
+  const reportPath = path.join(root, "artifact-report.json");
+  fs.writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, artifacts }));
+  return reportPath;
 }

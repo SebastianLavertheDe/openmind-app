@@ -141,12 +141,12 @@ compatibility:
 
 ### 5. Templating
 
-`{{ inputs.* }}`, `{{ providers.<binding>.<baseUrl|model|protocol|profileId> }}`
-and `{{ run.* }}` are the allowed execution template namespaces. A
-`config.<name>` field with `type: provider-profile` is bound by the request's
-`providerBindings[name]`. A `secret-ref` may use `secretRef:
-provider:<binding>` to resolve the selected Profile's Credential while still
-enforcing the exact publisher/Skill/version/digest scope in CredentialVault.
+`{{ inputs.* }}` and `{{ exports.* }}` are the supported Process execution
+template namespaces. Legacy `provider-profile` and `secret-ref` fields remain
+parseable during Manifest migration, but their old template namespaces are
+not resolved and fail closed before process startup. Non-provider private
+runtime files belong under `OPENMIND_SKILL_DATA_DIR` and must be parsed as data,
+never executed as shell commands.
 For Python content Skills, the Broker-injected neutral environment names are
 `OPENMIND_PROVIDER_PROTOCOL`, `OPENMIND_PROVIDER_BASE_URL`,
 `OPENMIND_PROVIDER_MODEL`, and `OPENMIND_PROVIDER_API_KEY`; the last one is a
@@ -161,6 +161,30 @@ Process execution. They are not an Agent host selection mechanism. An Agent
 uses the authentication and model configuration of the Claude Code or Codex
 CLI selected for its AI session; the Agent bridge does not resolve a Provider
 Profile, inject its Credential, or load a Skill `.env` provider fallback.
+
+### 5a. Process Artifact report
+
+The Broker injects `OPENMIND_ARTIFACT_REPORT_PATH`, an absolute path inside the
+private Run directory. After all content writes complete, a Process Skill may
+atomically write this versioned JSON report:
+
+```json
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    { "declarationId": "summary", "logicalPath": "daily-summary/20260805.md" }
+  ]
+}
+```
+
+`declarationId` must reference the Skill Manifest's `artifacts[].id`, and every
+`logicalPath` is relative to the bound openmind root. The Broker rejects
+absolute/traversing paths, symlinks, missing paths, declaration-pattern
+mismatches, kind mismatches, oversized reports and excessive entry counts. It
+derives type, hash, Run identity and timestamps itself. When a valid report is
+present the Broker validates only the listed paths and does not scan historical
+content. Successful legacy Skills without a report temporarily use the bounded
+pattern scanner; failed or cancelled Skills never trigger that fallback.
 
 ### 6. Legacy adapter
 

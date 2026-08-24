@@ -68,6 +68,23 @@ export const RunArtifactSchema = z.object({
 }).strict();
 export type RunArtifact = z.infer<typeof RunArtifactSchema>;
 
+/**
+ * Process Skills write this report into their private Run directory after all
+ * content writes complete. Entries reference Manifest Artifact declarations;
+ * the Broker derives type and trust metadata and never accepts those fields
+ * from the child process.
+ */
+export const SKILL_ARTIFACT_REPORT_SCHEMA_VERSION = 1 as const;
+export const SkillArtifactReportEntrySchema = z.object({
+  declarationId: z.string().trim().min(1).max(120),
+  logicalPath: z.string().trim().min(1).max(1024)
+}).strict();
+export const SkillArtifactReportSchema = z.object({
+  schemaVersion: z.literal(SKILL_ARTIFACT_REPORT_SCHEMA_VERSION),
+  artifacts: z.array(SkillArtifactReportEntrySchema).max(2_000)
+}).strict();
+export type SkillArtifactReport = z.infer<typeof SkillArtifactReportSchema>;
+
 export const RunUsageSchema = z.object({
   model: z.string().max(200).optional(),
   inputTokens: z.number().int().nonnegative().optional(),

@@ -9,6 +9,7 @@ import { zipSync } from "fflate";
 import { SkillRunRequestSchema } from "../../shared/execution-contracts";
 import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
 import { buildAppPaths, ensureAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
+import { ArtifactCollector } from "../execution/artifact-collector";
 import { ExecutionBroker } from "../execution/execution-broker";
 import { RuntimeManager } from "../runtime/runtime-manager";
 import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
@@ -38,6 +39,13 @@ describe("InstalledSkillExecutionResolver", () => {
     const request = runRequest(fixture.digest);
     const plan = await resolver.resolve(request, "run-1");
     expect(plan).toBeTruthy();
+  });
+
+  it("rejects legacy secrets.* templates instead of passing placeholders to the child", async () => {
+    const fixture = createFixture(false, "python", { legacySecretTemplate: true });
+
+    await expect(fixture.resolver.resolve(runRequest(fixture.digest), "run-secret-template"))
+      .rejects.toThrow(/不支持或未解析.*secrets\.session/);
   });
 
   it("lists only usable Installed Skill metadata without exposing executable paths", () => {
@@ -926,7 +934,7 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  linuxRealSkillIt("executes the real x-following-fetcher package with managed JSON credentials", async () => {
+  linuxRealSkillIt("executes the real x-following-fetcher package with Skill-data credentials", async () => {
     const python = resolveSkillPython("x-following-fetcher");
     expect(python).toBeTruthy();
 
@@ -1023,24 +1031,22 @@ describe("InstalledSkillExecutionResolver", () => {
           json: { variables: { count: 1 } }
         }]
       });
+      const skillDataDir = path.join(openmindRoot, ".agent", "skill-data", "x-following-fetcher");
+      fs.mkdirSync(skillDataDir, { recursive: true });
+      fs.writeFileSync(path.join(skillDataDir, "curl.txt"), credential, "utf8");
       const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
-      const sourceCopy = path.join(paths.staging, "x-source-overlay");
-      copyTree(skillSourcePath("x-following-fetcher"), sourceCopy);
-      const sourceManifest = path.join(sourceCopy, "cctools.skill.yaml");
-      fs.writeFileSync(
-        sourceManifest,
-        fs.readFileSync(sourceManifest, "utf8").replace(
-          'X_FETCHER_CREDENTIAL_JSON: "{{ secrets.session }}"',
-          `X_FETCHER_CREDENTIAL_JSON: '${credential}'`
-        )
-      );
-      const installed = packages.install(sourceCopy);
+      const installed = packages.install(skillSourcePath("x-following-fetcher"));
 
       const broker = new ExecutionBroker(
         paths,
         (request, runId) => resolver.resolve(request, runId),
         undefined,
-        { maxConcurrentRuns: 1 }
+        {
+          maxConcurrentRuns: 1,
+          // The exact child report must bypass legacy tree scanning. A scan of
+          // the post directory would exceed this deliberately tiny limit.
+          artifactCollector: new ArtifactCollector(1)
+        }
       );
       const run = broker.submit(SkillRunRequestSchema.parse({
         skillId: "x-following-fetcher",
@@ -1074,6 +1080,7 @@ describe("InstalledSkillExecutionResolver", () => {
       expect(completed.artifacts.some(
         (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("openmind/post/")
       )).toBe(true);
+      expect(broker.events(run.id).some((event) => event.text?.includes("Artifact 登记失败"))).toBe(false);
       expect(completed.runtime?.packId).toBe("python-core");
     } finally {
       server.close();
@@ -1304,7 +1311,13 @@ describe("InstalledSkillExecutionResolver", () => {
 function createFixture(
   withProvider = false,
   runtimeKind: "python" | "node" = "python",
-  options: { managedRuntime?: boolean; credentialFile?: boolean; externalExport?: boolean; agent?: boolean } = {}
+  options: {
+    managedRuntime?: boolean;
+    credentialFile?: boolean;
+    externalExport?: boolean;
+    agent?: boolean;
+    legacySecretTemplate?: boolean;
+  } = {}
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-installed-resolver-"));
   roots.push(root);
@@ -1338,7 +1351,9 @@ function createFixture(
   }
   fs.writeFileSync(
     path.join(source, "openmind.skill.yaml"),
-    options.agent ? agentManifestYaml() : manifestYaml(withProvider, runtimeKind, options.externalExport)
+    options.agent
+      ? agentManifestYaml()
+      : manifestYaml(withProvider, runtimeKind, options.externalExport, options.legacySecretTemplate)
   );
   const packages = new SkillPackageService(paths);
   const installed = packages.install(source);
@@ -1559,7 +1574,12 @@ function runRequest(digest: string, providerBindings: Record<string, string> = {
   });
 }
 
-function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "python", externalExport = false): string {
+function manifestYaml(
+  withProvider = false,
+  runtimeKind: "python" | "node" = "python",
+  externalExport = false,
+  legacySecretTemplate = false
+): string {
   const isNode = runtimeKind === "node";
   return [
     "apiVersion: openmind.dev/skill/v1",
@@ -1575,6 +1595,10 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
     "entrypoint:",
     `  runtime: ${runtimeKind}`,
     `  script: ${isNode ? "main.js" : "main.py"}`,
+    ...(legacySecretTemplate ? [
+      "  env:",
+      "    FIXTURE_SECRET: '{{ secrets.session }}'"
+    ] : []),
     "  args:",
     "    - --date",
     "    - '{{ inputs.date }}'",
@@ -1593,6 +1617,12 @@ function manifestYaml(withProvider = false, runtimeKind: "python" | "node" = "py
     "    optionalName:",
     "      type: string",
     "      default: fallback",
+    ...(legacySecretTemplate ? [
+      "config:",
+      "  session:",
+      "    type: secret-ref",
+      "    secretRef: credential:fixture-session"
+    ] : []),
     "capabilities:",
     "  openmind:",
     "    read: []",

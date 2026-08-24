@@ -432,12 +432,17 @@ function resolveTemplate(
     if (!binding) throw new InstalledSkillExecutionError(`模板引用的 Export Location Binding 未绑定：${bindingId}`);
     return binding.canonicalPath;
   });
-  return withExports.replace(/\{\{\s*inputs\.([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key: string) => {
+  const resolved = withExports.replace(/\{\{\s*inputs\.([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key: string) => {
     const resolved = inputs[key];
     if (resolved === undefined || resolved === null) throw new InstalledSkillExecutionError(`模板引用的输入不存在：${key}`);
     if (typeof resolved === "object") throw new InstalledSkillExecutionError(`模板输入不能是 object：${key}`);
     return String(resolved);
   });
+  const unsupported = resolved.match(/\{\{\s*([^{}]+?)\s*\}\}/);
+  if (unsupported) {
+    throw new InstalledSkillExecutionError(`Manifest 使用不支持或未解析的模板：{{ ${unsupported[1].trim()} }}`);
+  }
+  return resolved;
 }
 
 function canonicalDirectory(candidate: string): string {

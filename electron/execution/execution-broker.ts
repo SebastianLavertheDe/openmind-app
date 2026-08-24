@@ -253,11 +253,13 @@ export class ExecutionBroker {
     const active = this.active.get(entry.runId);
     if (!active) return;
     const runDir = path.join(this.paths.runs, entry.runId, "work");
+    const artifactReportPath = path.join(runDir, "artifacts.json");
     // Dedup caches, browser state and other Skill-owned state must survive a
     // single Run. Keep it beside the installed packages in the bound private
     // openmind root; only RUN_DIR remains ephemeral and run-scoped.
     const skillDataDir = path.join(entry.plan.openmindRoot, ".agent", "skill-data", entry.plan.skillId);
     fs.mkdirSync(skillDataDir, { recursive: true });
+    fs.mkdirSync(runDir, { recursive: true });
     let runtimeAcquired = false;
     try {
       if (usesCredential(entry.plan, this.revokedCredentialIds)) {
@@ -278,6 +280,8 @@ export class ExecutionBroker {
       }
       let process: ProcessResult | null = null;
       while (!process) {
+        // A retry must never inherit a partial/stale report from its previous attempt.
+        fs.rmSync(artifactReportPath, { force: true });
         this.store.transition(entry.runId, "running", { reason: "process-started" });
         this.store.beginAttempt(entry.runId);
         this.emitLatest(entry.runId);
@@ -311,7 +315,7 @@ export class ExecutionBroker {
       if (entry.plan.cleanupRuntime) {
         try { await entry.plan.cleanupRuntime(); } catch { /* transient credential cleanup is best effort */ }
       }
-      await this.finish(entry, process);
+      await this.finish(entry, process, artifactReportPath);
     } catch (error) {
       const current = this.store.get(entry.runId);
       if (current.processPid) this.store.clearProcessPid(entry.runId);
@@ -332,14 +336,18 @@ export class ExecutionBroker {
     }
   }
 
-  private async finish(entry: QueuedExecution, process: ProcessResult): Promise<void> {
+  private async finish(entry: QueuedExecution, process: ProcessResult, artifactReportPath: string): Promise<void> {
     try {
       const collection = this.artifacts.collect({
         runId: entry.runId,
         skillId: entry.plan.skillId,
         openmindRoot: entry.plan.openmindRoot,
         declarations: entry.plan.artifacts || [],
-        externalBindings: entry.plan.externalBindings
+        externalBindings: entry.plan.externalBindings,
+        reportPath: artifactReportPath,
+        // Failed/cancelled Skills may have left arbitrary partial content. Only
+        // an explicit report is eligible; never recursively scan after failure.
+        allowLegacyScan: process.outcome === "succeeded"
       });
       this.store.attachArtifacts(entry.runId, collection.artifacts);
     } catch (error) {
@@ -415,6 +423,7 @@ function buildMinimalEnvironment(paths: AppPaths, runId: string, plan: Execution
     OPENMIND_ROOT: plan.openmindRoot,
     OPENMIND_ROOT_GENERATION: String(plan.rootGeneration),
     OPENMIND_ARTIFACT_MANIFEST: JSON.stringify(plan.artifacts || []),
+    OPENMIND_ARTIFACT_REPORT_PATH: path.join(runDir, "artifacts.json"),
     OPENMIND_MANAGED_RUN: "1"
   };
   return {
