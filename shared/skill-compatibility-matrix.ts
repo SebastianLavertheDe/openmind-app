@@ -16,7 +16,6 @@
  */
 
 import type { SkillKind } from "./skill-manifest-schema";
-import type { PlatformTarget } from "./skill-manifest-schema";
 
 export type MigrationBatch = "A" | "B" | "C";
 

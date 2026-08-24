@@ -36,7 +36,7 @@ port.on("message", ({ data }) => {
 });
 
 async function dispatch(request: WorkerRequest): Promise<unknown> {
-  const [first, second, third] = request.args;
+  const [first, second] = request.args;
   switch (request.method) {
     case "snapshot": return scheduler.snapshot();
     case "refresh-providers": return scheduler.refreshProviders();

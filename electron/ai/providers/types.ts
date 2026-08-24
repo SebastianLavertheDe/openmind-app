@@ -1,6 +1,5 @@
 import path from "node:path";
 import type { ApprovalDecision, AiContextState, AiEvent, AiRun, AiSession, ProviderCapabilities } from "../../../shared/contracts";
-import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { BrowserAutomationConfig } from "../browser-evidence";
 import type { ProviderSkillBridge } from "./skill-bridge";
 

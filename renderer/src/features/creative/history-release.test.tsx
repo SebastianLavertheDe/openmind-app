@@ -73,7 +73,7 @@ describe("HistoryView", () => {
   it("renders the version comparison diff when two versions are selected", async () => {
     const user = userEvent.setup();
     const versions: CreativeVersion[] = [{ id: "v1", file: "draft.md", path: "p1", createdAt: "2026-07-07T00:00:00.000Z", note: "v1", size: 100 }];
-    const { rerender } = render(<AiProvider initial={snapshot}><HistoryView detail={detail} selectedProject={selectedProject} activeFile="draft.md" versions={versions} files={["draft.md"]} chooseFile={vi.fn()} onVersionsChange={vi.fn()} onRestored={vi.fn()} /></AiProvider>);
+    render(<AiProvider initial={snapshot}><HistoryView detail={detail} selectedProject={selectedProject} activeFile="draft.md" versions={versions} files={["draft.md"]} chooseFile={vi.fn()} onVersionsChange={vi.fn()} onRestored={vi.fn()} /></AiProvider>);
     const selects = screen.getAllByRole("combobox");
     // pick the same version in both A and B to load content (A=current, B=v1 → diff)
     await user.selectOptions(selects[1], "v1");

@@ -68,7 +68,6 @@ export function resolveWslLoginExecutable(cwd: string, command: string): WslLogi
 export async function execInProject(projectRoot: string, command: string, args: string[], options: ExecFileOptions & { input?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   if (options.input !== undefined) {
     const input = options.input;
-    const { input: _input, ...spawnOptions } = options;
     const child = spawnInDirectory(projectRoot, command, args);
     let stdout = "";
     let stderr = "";

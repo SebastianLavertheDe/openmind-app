@@ -123,7 +123,6 @@ type CliInstallManifest = {
 };
 
 const CLI_IDS: readonly CliToolId[] = ["claude", "codex"];
-const GITHUB_RELEASE_FALLBACK = "https://github.com/openai/codex/releases/latest";
 const CLAUDE_INSTALL_SCRIPT = {
   darwin: "https://claude.ai/install.sh",
   win32: "https://claude.ai/install.ps1"
@@ -236,7 +235,7 @@ export class CliInstallerService {
     try {
       emit({ cli, phase: "resolving", message: "正在准备官方安装来源…" });
       const result = cli === "claude"
-        ? await this.installClaudeNative(cli, platform, stagingRoot, controller.signal, emit)
+        ? await this.installClaudeNative(cli, stagingRoot, controller.signal, emit)
         : await this.installCodexNpm(cli, platform, stagingRoot, controller.signal, emit);
       emit({ cli, phase: "done", version: result.version, message: "安装完成。" });
       return this.status(cli);
@@ -313,7 +312,6 @@ export class CliInstallerService {
 
   private async installClaudeNative(
     cli: CliToolId,
-    platform: CliToolPlatform,
     stagingRoot: string,
     signal: AbortSignal,
     emit: (progress: CliInstallProgress) => void

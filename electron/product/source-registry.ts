@@ -389,32 +389,6 @@ export class SourceRegistry {
     writeTextAtomic(opmlPath, `<?xml version="1.0" encoding="UTF-8"?>\n${builder.build(parsed)}\n`);
   }
 
-  private removeRssOutline(url: string): void {
-    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
-    const parser = new XMLParser({ ignoreAttributes: false });
-    const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
-    const parsed = parser.parse(readText(opmlPath)) as Record<string, unknown>;
-    let removed = false;
-    const prune = (value: unknown): unknown => {
-      if (Array.isArray(value)) return value.map(prune).filter((item) => item !== undefined);
-      if (!value || typeof value !== "object") return value;
-      const record = value as Record<string, unknown>;
-      if (record["@_xmlUrl"] === url) {
-        removed = true;
-        return undefined;
-      }
-      for (const key of Object.keys(record)) {
-        const next = prune(record[key]);
-        if (next === undefined) delete record[key];
-        else record[key] = next;
-      }
-      return record;
-    };
-    prune(parsed);
-    if (!removed) throw new Error(messages.errors.source.opmlEntryMissing);
-    writeTextAtomic(opmlPath, `<?xml version="1.0" encoding="UTF-8"?>\n${builder.build(parsed)}\n`);
-  }
-
   private skillBackedSource(
     id: string,
     name: string,

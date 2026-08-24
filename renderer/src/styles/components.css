@@ -173,107 +173,6 @@
   grid-template-columns: minmax(240px, 340px) minmax(0, 1fr) minmax(260px, 360px);
 }
 
-.ui-resizable-pane {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-}
-
-.ui-resize-handle {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  cursor: col-resize;
-}
-
-.ui-resize-handle.right { right: -4px; }
-.ui-resize-handle.left { left: -4px; }
-
-.ui-resize-handle:hover,
-.ui-resize-handle:focus-visible {
-  background: var(--accent-tint);
-  outline: none;
-}
-
-.ui-collapsed-pane {
-  width: 44px;
-  min-height: 160px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-right: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--muted);
-}
-
-.ui-collapsed-pane span {
-  writing-mode: vertical-rl;
-  letter-spacing: .12em;
-}
-
-.ui-data-table {
-  min-width: 0;
-  overflow: auto;
-}
-
-.ui-data-row {
-  min-width: 720px;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 1fr);
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-}
-
-.ui-data-row > span {
-  min-width: 0;
-  padding: 10px 12px;
-}
-
-.ui-data-head {
-  color: var(--muted-2);
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-}
-
-.ui-data-sort-button {
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-transform: inherit;
-}
-
-.ui-data-sort-button small {
-  color: var(--text);
-  font-size: 11px;
-}
-
-.ui-data-state {
-  min-height: 120px;
-  display: grid;
-  place-items: center;
-  color: var(--muted-2);
-  border-bottom: 1px solid var(--border);
-}
-
-.ui-data-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 12px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .ui-dropdown {
   position: relative;
 }
@@ -287,8 +186,7 @@
   display: none;
 }
 
-.ui-dropdown > div,
-.ui-context-menu {
+.ui-dropdown > div {
   z-index: var(--z-dropdown);
   min-width: 180px;
   padding: 5px;
@@ -307,19 +205,6 @@
 }
 @keyframes ui-dropdown-in { from { opacity: 0; transform: scale(.95) translateY(-3px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
-.ui-context-dismiss {
-  position: fixed;
-  inset: 0;
-  z-index: 98;
-  border: 0;
-  background: transparent;
-}
-
-.ui-context-menu {
-  position: fixed;
-}
-
-.ui-context-menu button,
 .ui-dropdown [role="menuitem"] {
   width: 100%;
   min-height: 32px;
@@ -333,7 +218,6 @@
   text-align: left;
 }
 
-.ui-context-menu button:hover,
 .ui-dropdown [role="menuitem"]:hover {
   background: var(--hover);
   color: var(--text);

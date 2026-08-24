@@ -1,11 +1,11 @@
-import { isValidElement, memo, useMemo, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
+import { isValidElement, useMemo, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import { CheckCircle2, ChevronDown, Copy, GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
+import { CheckCircle2, Copy, GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
 import type { AiEvent, ContextReference } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDateTime } from "../../ai-utils";

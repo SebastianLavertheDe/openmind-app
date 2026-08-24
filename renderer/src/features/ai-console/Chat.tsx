@@ -34,16 +34,12 @@ import {
   technicalEventText,
   toolCategory,
   toolEventFailed,
-  toolOperationSummary,
   type TraceStep
 } from "./timeline";
 
 export {
   buildTraceSteps,
   compactEvents,
-  deriveRunActivity,
-  formatElapsedSeconds,
-  groupConversation,
   groupTimeline,
   selectRenderableTimelineEvents,
   toolOperationSummary

@@ -3,12 +3,9 @@ import type { AiEvent, AiRun, ChangeSet } from "@shared/contracts";
 import {
   changePaths,
   compactEvents,
-  deriveRunActivity,
   firstLine,
-  formatElapsedSeconds,
   numeric,
   scalar,
-  summarizeTrace,
   toolCategory,
   toolCategoryLabel,
   toolEventFailed,
@@ -16,7 +13,6 @@ import {
   toolOperationSummary,
   toolValueText,
   traceStepEvents,
-  traceSummaryText,
   type TraceStep
 } from "./timeline";
 
@@ -230,67 +226,6 @@ describe("traceStepEvents", () => {
   });
 });
 
-describe("summarizeTrace + traceSummaryText", () => {
-  it("counts each step type, computes changedFiles, writeTools, and failures", () => {
-    const run = makeRun();
-    const steps: TraceStep[] = [
-      { type: "reasoning", key: "r1", events: [evt({ id: "r1" })] } as TraceStep,
-      { type: "tool", key: "t1", events: [evt({ id: "t1", payload: { tool: "Write" } })] } as TraceStep,
-      { type: "tool", key: "t2", events: [evt({ id: "t2", kind: "tool-complete", payload: { tool: "Read" } })] } as TraceStep,
-      { type: "approval", key: "a1", events: [evt({ id: "a1" })] } as TraceStep,
-      { type: "error", key: "e1", event: evt({ id: "e1" }) } as TraceStep
-    ];
-    const summary = summarizeTrace(run, steps);
-    expect(summary.reasoning).toBe(1);
-    expect(summary.tools).toBe(2);
-    expect(summary.approvals).toBe(1);
-    expect(summary.changeOperations).toBe(1); // one Write tool
-    expect(summary.failures).toBe(1);
-  });
-
-  it("traceSummaryText renders a non-empty localized summary", () => {
-    const text = traceSummaryText({ reasoning: 1, tools: 2, approvals: 0, changedFiles: 3, changeOperations: 0, failures: 0 });
-    expect(text.length).toBeGreaterThan(0);
-  });
-
-  it("traceSummaryText falls back to the no-tools message for an empty summary", () => {
-    const text = traceSummaryText({ reasoning: 0, tools: 0, approvals: 0, changedFiles: 0, changeOperations: 0, failures: 0 });
-    expect(text.length).toBeGreaterThan(0);
-  });
-});
-
-// ---- deriveRunActivity -----------------------------------------------------
-
-describe("deriveRunActivity", () => {
-  it("returns the waiting-approval activity when the run is waiting for approval", () => {
-    const out = deriveRunActivity(makeRun({ status: "waiting-approval" }), []);
-    expect(out.tone).toBe("approval");
-    expect(out.label.length).toBeGreaterThan(0);
-  });
-
-  it("returns the applying activity when the run is applying changes", () => {
-    const out = deriveRunActivity(makeRun({ status: "applying" }), []);
-    expect(out.tone).toBe("working");
-  });
-
-  it("describes the active tool when a tool-start has no matching tool-complete", () => {
-    const events = [evt({ kind: "tool-start", payload: { tool: "Bash", itemId: "x", command: "ls" } })];
-    const out = deriveRunActivity(makeRun(), events);
-    expect(out.tone).toBe("working");
-    expect(out.label).toContain("Bash");
-  });
-
-  it("reports idle when no events arrive for 10+ seconds", () => {
-    const out = deriveRunActivity(makeRun(), [], 5, 12);
-    expect(out.idle).toBe(true);
-  });
-
-  it("uses long-running detail past 30s elapsed", () => {
-    const out = deriveRunActivity(makeRun(), [], 45, 0);
-    expect(out.detail.length).toBeGreaterThan(0);
-  });
-});
-
 // ---- compactEvents ---------------------------------------------------------
 
 describe("compactEvents", () => {
@@ -305,18 +240,5 @@ describe("compactEvents", () => {
     expect(ids).not.toContain("d1");
     expect(ids).not.toContain("d2");
     expect(ids).toContain("k1");
-  });
-});
-
-// ---- formatElapsedSeconds --------------------------------------------------
-
-describe("formatElapsedSeconds", () => {
-  it("formats seconds under 60 as a localized seconds string", () => {
-    expect(formatElapsedSeconds(5).length).toBeGreaterThan(0);
-  });
-  it("formats 60s+ as M:SS", () => {
-    expect(formatElapsedSeconds(65)).toBe("1:05");
-    expect(formatElapsedSeconds(125)).toBe("2:05");
-    expect(formatElapsedSeconds(0)).toBe(formatElapsedSeconds(0)); // stable
   });
 });

@@ -32,7 +32,6 @@ import { type PlatformOption, type Stage, type WorkspaceView, nextStage, platfor
 export function CreativeDetailPane({
   view,
   stage,
-  date,
   detail,
   selectedProject,
   selectedTopic,
@@ -78,7 +77,6 @@ export function CreativeDetailPane({
 }: {
   view: WorkspaceView;
   stage: Stage;
-  date: string;
   detail: CreativeProjectDetail | null;
   selectedProject: CreativeProjectSummary | null;
   selectedTopic: CreativeTopic | null;

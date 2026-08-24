@@ -128,7 +128,7 @@ export function copyDirectoryRecursively(source: string, target: string, options
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
     copyDirectoryEntry(path.join(source, entry.name), path.join(target, entry.name), options);
   }
-  if (options.preserveTimestamps) preserveDirectoryTimestamps(source, target, sourceStat);
+  if (options.preserveTimestamps) preserveDirectoryTimestamps(target, sourceStat);
 }
 
 function copyDirectoryEntry(source: string, target: string, options: CopyDirectoryOptions): void {
@@ -170,7 +170,7 @@ function lstatIfExists(filePath: string): fs.Stats | null {
   }
 }
 
-function preserveDirectoryTimestamps(source: string, target: string, sourceStat: fs.Stats): void {
+function preserveDirectoryTimestamps(target: string, sourceStat: fs.Stats): void {
   try { fs.utimesSync(target, sourceStat.atime, sourceStat.mtime); } catch { /* Timestamp preservation is best effort on Windows. */ }
 }
 

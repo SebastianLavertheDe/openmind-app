@@ -1,33 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { LoaderCircle, Search, X } from "lucide-react";
-import { messages as m } from "@shared/messages";
-import { Tooltip } from "./Tooltip";
-import { useExitPresence } from "./use-exit-presence";
-
-export function SearchField({
-  value,
-  onChange,
-  placeholder = m.designSystem.search,
-  label = m.designSystem.search,
-  shortcut,
-  loading = false
-}: {
-  value: string;
-  onChange(value: string): void;
-  placeholder?: string;
-  label?: string;
-  shortcut?: string;
-  loading?: boolean;
-}) {
-  return (
-    <label className="search-field">
-      <Search size={15} />
-      <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      {loading ? <LoaderCircle className="spin" size={13} aria-label={m.designSystem.searching} /> : null}
-      {value ? <Tooltip content={m.designSystem.clearSearch}><button data-motion="icon" type="button" aria-label={m.designSystem.clearSearch} onClick={() => onChange("")}><X size={13} /></button></Tooltip> : shortcut ? <kbd>{shortcut}</kbd> : null}
-    </label>
-  );
-}
+import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 export function SegmentedControl<T extends string>({
   value,
@@ -105,66 +76,6 @@ export function ToggleSwitch({
   );
 }
 
-export function DataTable<T>({
-  rows,
-  columns,
-  rowKey,
-  label,
-  loading = false,
-  emptyTitle = m.designSystem.noData,
-  pageSize,
-  initialSort
-}: {
-  rows: T[];
-  columns: Array<{ key: string; header: string; cell(row: T): ReactNode; sortable?: boolean; sortValue?(row: T): string | number | null | undefined }>;
-  rowKey(row: T): string;
-  label: string;
-  loading?: boolean;
-  emptyTitle?: string;
-  pageSize?: number;
-  initialSort?: { key: string; direction: "asc" | "desc" };
-}) {
-  const [sort, setSort] = useState(initialSort || null);
-  const [page, setPage] = useState(0);
-  const sortedRows = useMemo(() => {
-    if (!sort) return rows;
-    const column = columns.find((item) => item.key === sort.key);
-    if (!column?.sortValue) return rows;
-    return [...rows].sort((left, right) => {
-      const leftValue = column.sortValue?.(left);
-      const rightValue = column.sortValue?.(right);
-      const result = compareSortValues(leftValue, rightValue);
-      return sort.direction === "asc" ? result : -result;
-    });
-  }, [columns, rows, sort]);
-  const pages = pageSize ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
-  const safePage = Math.min(page, pages - 1);
-  const visibleRows = pageSize ? sortedRows.slice(safePage * pageSize, safePage * pageSize + pageSize) : sortedRows;
-  const toggleSort = (key: string) => {
-    setPage(0);
-    setSort((current) => current?.key === key
-      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
-      : { key, direction: "asc" });
-  };
-  return (
-    <div className="ui-data-table" role="table" aria-label={label} aria-busy={loading || undefined}>
-      <div className="ui-data-row ui-data-head" role="row">{columns.map((column) => (
-        <span role="columnheader" key={column.key} aria-sort={sort?.key === column.key ? sort.direction === "asc" ? "ascending" : "descending" : undefined}>
-          {column.sortValue || column.sortable ? <button data-motion="icon" className="ui-data-sort-button" type="button" onClick={() => column.sortValue ? toggleSort(column.key) : undefined}>{column.header}{sort?.key === column.key ? <small>{sort.direction === "asc" ? "↑" : "↓"}</small> : null}</button> : column.header}
-        </span>
-      ))}</div>
-      {loading ? <div className="ui-data-state" role="status">{m.designSystem.loadingTable}</div> : !visibleRows.length ? <div className="ui-data-state">{emptyTitle}</div> : visibleRows.map((row) => <div className="ui-data-row" role="row" key={rowKey(row)}>{columns.map((column) => <span role="cell" key={column.key}>{column.cell(row)}</span>)}</div>)}
-      {pageSize && rows.length > pageSize ? (
-        <footer className="ui-data-pagination">
-          <button data-motion="icon" disabled={safePage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>{m.designSystem.paginationPrev}</button>
-          <span>{safePage + 1} / {pages}</span>
-          <button data-motion="icon" disabled={safePage >= pages - 1} onClick={() => setPage((value) => Math.min(pages - 1, value + 1))}>{m.designSystem.paginationNext}</button>
-        </footer>
-      ) : null}
-    </div>
-  );
-}
-
 function handleRovingKeys<T extends string>(
   event: KeyboardEvent<HTMLDivElement>,
   values: T[],
@@ -190,14 +101,6 @@ function handleRovingKeys<T extends string>(
       .find((button) => button.dataset.value === next)
       ?.focus();
   });
-}
-
-function compareSortValues(left: string | number | null | undefined, right: string | number | null | undefined): number {
-  if (left == null && right == null) return 0;
-  if (left == null) return 1;
-  if (right == null) return -1;
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  return String(left).localeCompare(String(right), "zh-CN", { numeric: true });
 }
 
 export function DropdownMenu({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -268,31 +171,4 @@ function getEnabledMenuItems(menu: HTMLElement): HTMLElement[] {
 
 function isMenuItemDisabled(item: HTMLElement): boolean {
   return item.getAttribute("aria-disabled") === "true" || (item instanceof HTMLButtonElement && item.disabled);
-}
-
-export function ContextMenu({
-  open,
-  x,
-  y,
-  children,
-  onClose
-}: {
-  open: boolean;
-  x: number;
-  y: number;
-  children: ReactNode;
-  onClose(): void;
-}) {
-  const previousFocus = useRef<HTMLElement | null>(null);
-  const { visible, leaving } = useExitPresence(open, 140);
-  useEffect(() => {
-    if (!open) return;
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    return () => {
-      previousFocus.current?.focus();
-      previousFocus.current = null;
-    };
-  }, [open]);
-  if (!visible) return null;
-  return <><button className="ui-context-dismiss" aria-label={m.designSystem.closeMenu} onClick={onClose} /><div className="ui-context-menu ui-overlay" data-leaving={leaving || undefined} role="menu" style={{ left: x, top: y }}>{children}</div></>;
 }

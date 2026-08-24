@@ -4,7 +4,6 @@ import {
   normalizePlatformId,
   type CreativePlatformId,
   type CreativeReleaseAction,
-  type CreativeReviewDimension,
   type CreativeStageId
 } from "./creative-registry";
 import { messages } from "./messages";

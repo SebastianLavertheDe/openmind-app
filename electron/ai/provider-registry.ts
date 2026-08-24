@@ -10,7 +10,6 @@ import { resolveCliProvider } from "../config/providers-yaml";
 import type { ProviderYamlEntry } from "../../shared/providers-yaml";
 import { runProviderCommand as runCommand } from "./provider-command-runner";
 import { detectCliToolPlatform, resolveAppToolExecutable } from "../install/cli-installer-service";
-import { getAppPaths } from "../paths/app-paths-service";
 
 interface ProbeResult {
   version: string | null;

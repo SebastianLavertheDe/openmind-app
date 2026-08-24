@@ -21,7 +21,6 @@ import {
   bucketForStage,
   displayDate,
   formatRelative,
-  nextStage,
   normalizeDate,
   platformLabel,
   preferredFile,
@@ -434,7 +433,6 @@ export function CreativeWorkspacePage({
               <CreativeDetailPane
                 view={view}
                 stage={stage}
-                date={date}
                 detail={detail}
                 selectedProject={selectedProject}
                 selectedTopic={selectedTopic}

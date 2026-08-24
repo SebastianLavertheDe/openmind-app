@@ -4,18 +4,9 @@ import { asRecord } from "@shared/utils";
 import { selectRecentTurnEvents } from "../../ai-utils";
 export { asRecord };
 
-const activity = m.ai.activity;
-const trace = m.ai.trace;
 const eventsMsg = m.ai.events;
 const statusMsg = m.ai.status;
 const toolMsg = m.ai.tool;
-
-export type RunActivity = {
-  label: string;
-  detail: string;
-  tone: "working" | "approval";
-  idle?: boolean;
-};
 
 export type TraceStep =
   | { type: "commentary"; key: string; events: AiEvent[] }
@@ -35,98 +26,7 @@ export type TimelineItem =
 
 export type AssistantPhase = "commentary" | "final" | "unknown";
 
-export type ConversationItem =
-  | { type: "user"; key: string; event: AiEvent; run: AiRun | null }
-  | { type: "assistant"; key: string; event: AiEvent; run: AiRun | null; phase: AssistantPhase }
-  | { type: "thought"; key: string; events: AiEvent[]; run: AiRun | null }
-  | { type: "tool"; key: string; events: AiEvent[]; run: AiRun | null }
-  | { type: "approval"; key: string; events: AiEvent[]; run: AiRun | null }
-  | { type: "changes"; key: string; event: AiEvent; run: AiRun | null }
-  | { type: "error"; key: string; event: AiEvent; run: AiRun | null }
-  | { type: "risk"; key: string; event: AiEvent; run: AiRun | null };
-
-export type TraceSummary = {
-  reasoning: number;
-  tools: number;
-  approvals: number;
-  changedFiles: number;
-  changeOperations: number;
-  failures: number;
-};
-
 export type ToolCategory = "command" | "search" | "read" | "write" | "network" | "skill" | "generic";
-
-export function deriveRunActivity(run: AiRun, events: AiEvent[], elapsedSeconds = 0, idleSeconds = 0): RunActivity {
-  if (run.status === "waiting-approval") {
-    return { label: activity.waitingApproval, detail: activity.waitingApprovalDetail, tone: "approval" };
-  }
-  if (run.status === "applying") {
-    return { label: activity.applyingChanges, detail: activity.applyingChangesDetail, tone: "working" };
-  }
-
-  const runEvents = events.filter((event) => event.runId === run.id);
-  const openTools = new Map<string, AiEvent>();
-  for (const event of runEvents) {
-    if (event.kind === "tool-start") {
-      openTools.set(toolEventIdentity(event), event);
-    } else if (event.kind === "tool-complete") {
-      openTools.delete(toolEventIdentity(event));
-    }
-  }
-  const activeTool = [...openTools.values()].at(-1);
-  if (activeTool) {
-    const tool = String(activeTool.payload.tool || activeTool.payload.command || activeTool.payload.skillId || toolMsg.fallbackName);
-    const input = activeTool.payload.input || activeTool.payload.command || activeTool.payload;
-    return { label: activity.executingTool(tool), detail: toolOperationSummary(tool, input), tone: "working" };
-  }
-
-  const last = runEvents.at(-1);
-  if (last?.kind === "tool-complete") {
-    return { label: activity.continuing, detail: activity.continuingDetail, tone: "working" };
-  }
-  if (last?.kind === "reasoning-summary") {
-    return { label: activity.decidingNext, detail: activity.decidingNextDetail, tone: "working" };
-  }
-  if (last?.kind === "system" && String(last.payload.subtype || "") === "init") {
-    return { label: activity.ready, detail: activity.readyDetail, tone: "working" };
-  }
-
-  const provider = run.provider === "claude" ? "Claude Code" : "Codex";
-  if (idleSeconds >= 10) {
-    return { label: activity.stillWaiting, detail: activity.stillWaitingDetail, tone: "working", idle: true };
-  }
-  const detail = elapsedSeconds >= 30
-    ? activity.longRunning
-    : elapsedSeconds >= 8
-      ? activity.firstBoot
-      : activity.starting;
-  return { label: activity.startingProvider(provider), detail, tone: "working" };
-}
-
-export function summarizeTrace(run: AiRun, steps: TraceStep[]): TraceSummary {
-  const toolSteps = steps.filter((step): step is Extract<TraceStep, { type: "tool" }> => step.type === "tool");
-  const changedFiles = changePaths(run, steps.flatMap(traceStepEvents)).length;
-  const writeTools = toolSteps.filter((step) => toolCategory(String(step.events[0]?.payload.tool || "")) === "write").length;
-  return {
-    reasoning: steps.filter((step) => step.type === "reasoning").length,
-    tools: toolSteps.length,
-    approvals: steps.filter((step) => step.type === "approval").length,
-    changedFiles,
-    changeOperations: steps.filter((step) => step.type === "changes").length + writeTools,
-    failures: steps.filter((step) => step.type === "error").length + toolSteps.filter((step) => toolEventsFailed(step.events)).length
-  };
-}
-
-export function traceSummaryText(summary: TraceSummary): string {
-  const parts: string[] = [];
-  if (summary.reasoning) parts.push(trace.reasoningCount(summary.reasoning));
-  if (summary.tools) parts.push(trace.toolCount(summary.tools));
-  if (summary.changedFiles) parts.push(trace.filesChanged(summary.changedFiles));
-  else if (summary.changeOperations) parts.push(trace.fileOps(summary.changeOperations));
-  if (summary.approvals) parts.push(trace.approvals(summary.approvals));
-  if (summary.failures) parts.push(trace.failures(summary.failures));
-  return parts.join(" · ") || trace.noTools;
-}
 
 export function traceStepEvents(step: TraceStep): AiEvent[] {
   if ("events" in step) return step.events;
@@ -260,79 +160,6 @@ export function groupTimeline(events: AiEvent[], runs: AiRun[]): TimelineItem[] 
         continue;
       }
       if (groupedEvents.has(event.id)) continue;
-    }
-  }
-  return result;
-}
-
-export function groupConversation(events: AiEvent[], runs: AiRun[]): ConversationItem[] {
-  const result: ConversationItem[] = [];
-  const semanticEvents = selectRenderableTimelineEvents(events, runs)
-    .filter((event) => !["assistant-delta", "reasoning-delta", "usage"].includes(event.kind))
-    .slice();
-  const runOrder = orderedRunIds(semanticEvents, runs);
-
-  for (const runId of runOrder) {
-    const runEvents = semanticEvents.filter((event) => event.runId === runId).sort((a, b) => a.seq - b.seq);
-    const run = runs.find((item) => item.id === runId) || null;
-    const tools = new Map<string, Extract<ConversationItem, { type: "tool" }>>();
-    const approvals = new Map<string, Extract<ConversationItem, { type: "approval" }>>();
-    let reasoningIndex = 0;
-    let previousThought: Extract<ConversationItem, { type: "thought" }> | null = null;
-
-    for (const event of runEvents) {
-      if (event.kind === "user-message") {
-        result.push({ type: "user", key: `user:${event.id}`, event, run });
-        previousThought = null;
-        continue;
-      }
-      if (event.kind === "assistant-message") {
-        result.push({ type: "assistant", key: `assistant:${event.id}`, event, run, phase: assistantPhase(event) });
-        previousThought = null;
-        continue;
-      }
-      if (event.kind === "reasoning-summary") {
-        if (previousThought) previousThought.events.push(event);
-        else {
-          previousThought = { type: "thought", key: `thought:${event.runId}:${reasoningIndex++}`, events: [event], run };
-          result.push(previousThought);
-        }
-        continue;
-      }
-      previousThought = null;
-      if (["tool-start", "tool-output", "tool-complete"].includes(event.kind)) {
-        const identity = toolEventIdentity(event);
-        const existing = tools.get(identity);
-        if (existing) existing.events.push(event);
-        else if (event.kind !== "tool-output") {
-          const item: Extract<ConversationItem, { type: "tool" }> = { type: "tool", key: `tool:${event.runId}:${identity}`, events: [event], run };
-          tools.set(identity, item);
-          result.push(item);
-        }
-        continue;
-      }
-      if (event.kind === "approval-request" || event.kind === "approval-decision") {
-        const identity = approvalEventIdentity(event);
-        const existing = approvals.get(identity);
-        if (existing) existing.events.push(event);
-        else {
-          const item: Extract<ConversationItem, { type: "approval" }> = { type: "approval", key: `approval:${event.runId}:${identity}`, events: [event], run };
-          approvals.set(identity, item);
-          result.push(item);
-        }
-        continue;
-      }
-      if (event.kind === "changes") {
-        result.push({ type: "changes", key: `changes:${event.id}`, event, run });
-        continue;
-      }
-      if (event.kind === "error") {
-        result.push({ type: "error", key: `error:${event.id}`, event, run });
-        continue;
-      }
-      if (event.kind === "risk") {
-        result.push({ type: "risk", key: `risk:${event.id}`, event, run });
-      }
     }
   }
   return result;
@@ -582,10 +409,6 @@ export function toolEventFailed(event: AiEvent): boolean {
     || event.payload.is_error === true;
 }
 
-function toolEventsFailed(events: AiEvent[]): boolean {
-  return events.some(toolEventFailed);
-}
-
 export function changePaths(run: AiRun, events: AiEvent[]): string[] {
   const paths = new Set(run.changeSet?.files.map((file) => file.path) || []);
   for (const event of events) {
@@ -626,10 +449,4 @@ function collectUnifiedDiffPaths(patch: string, paths: Set<string>): void {
     const path = match[2] === "/dev/null" ? match[1] : match[2];
     if (path && path !== "/dev/null") paths.add(path.replace(/^"|"$/g, ""));
   }
-}
-
-export function formatElapsedSeconds(seconds: number): string {
-  if (seconds < 60) return m.ai.time.seconds(seconds);
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }

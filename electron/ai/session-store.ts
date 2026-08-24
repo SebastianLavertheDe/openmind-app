@@ -4,7 +4,6 @@ import path from "node:path";
 import {
   AiEventSchema,
   AiProjectSchema,
-  AiRolloutLineSchema,
   AiRunSchema,
   AiSessionSchema,
   SCHEMA_VERSION,
@@ -26,10 +25,8 @@ import { writeJsonAtomic } from "../lib/fs-utils";
 import {
   buildCompactionCheckpoint,
   makeRolloutLine,
-  paginateTurns,
   reconstructRollout,
   responseItemForEvent,
-  rollbackItem,
   rolloutItemsForEvent,
   sessionMetaItem,
   turnAbortedItem,
@@ -527,10 +524,6 @@ export class SessionStore {
 
   private queueRolloutLines(file: string, lines: AiRolloutLine[]): void {
     this.journal.append(file, lines, false);
-  }
-
-  private discardPendingRollout(file: string): void {
-    this.journal.discard(file);
   }
 
   private writeRolloutFile(sessionId: string, lines: AiRolloutLine[]): void {

@@ -1,8 +1,6 @@
 import type { BrokerRunRecord, BrokerRunEvent, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
 import {
   AutomationRuleInputSchema,
-  AutomationRuleSchema,
-  AutomationRunRecordSchema,
   type AutomationRule,
   type AutomationRuleInput,
   type AutomationRunRecord,

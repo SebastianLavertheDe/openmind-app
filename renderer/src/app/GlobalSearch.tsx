@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Search, Sparkles, X } from "lucide-react";
+import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } from "lucide-react";
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import type { Navigate } from "./routes";

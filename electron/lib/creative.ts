@@ -22,10 +22,8 @@ import type {
   CreativeProjectManifest,
   CreativeProjectSummary,
   CreativeReleaseEvent,
-  CreativeReviewIssue,
   CreativeReviewReport,
   CreativeTopic,
-  CreativeTopicsPayload,
   CreativeVersion
 } from "../../shared/contracts";
 
@@ -860,11 +858,6 @@ function publishAction(status: string): string {
 
 function moveDirectory(source: string, target: string): void {
   moveDirectoryWithFallback(source, target);
-}
-
-function isInside(root: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return Boolean(relative && !relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function averageCycle(projects: CreativeProjectEntry[]): number | null {

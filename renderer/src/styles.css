@@ -295,8 +295,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .collapsed-rail { width: 100%; height: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 0; border: 0; background: var(--panel-muted); color: var(--muted); writing-mode: vertical-rl; letter-spacing: .12em; }
 .collapsed-rail:hover { background: var(--panel); color: var(--text); }
 .session-pane { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px; padding: 12px; background: var(--panel); }
-.search-field { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--muted); }
-.search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); }
 .session-filters { display: flex; flex-wrap: wrap; gap: 3px; }
 .session-filters button { flex: 1 1 auto; min-width: 52px; }
 .session-filters button { text-align: center; }

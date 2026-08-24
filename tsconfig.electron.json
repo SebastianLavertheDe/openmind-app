@@ -14,5 +14,12 @@
     ,"ignoreDeprecations": "6.0"
   },
   "include": ["electron/**/*.ts", "shared/**/*.ts"],
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "electron/paths/malicious-skill-fixtures.ts",
+    "electron/paths/openmind-fixture.ts"
+  ]
 }

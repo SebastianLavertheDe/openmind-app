@@ -10,7 +10,6 @@ import {
   type AiTurnListParams,
   type AiTurnPage,
   type ApprovalDecision,
-  type ChangeSet,
   type SessionPatch,
   type StartRunInput
 } from "../../shared/contracts";
@@ -31,7 +30,7 @@ import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-life
 import { titleFromPrompt } from "./scheduler-prompts";
 import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { type BrowserAutomationConfig } from "./browser-evidence";
-import { WorkflowResumeRequestSchema, WorkflowStartRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord, type WorkflowStartRequest } from "../../shared/execution-contracts";
+import { WorkflowResumeRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
 import { buildAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
@@ -44,7 +43,7 @@ import { AutomationRepository } from "../automation/automation-repository";
 import { AutomationScheduler } from "../automation/automation-scheduler";
 import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
-import { appendScheduledEvent, cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
+import { cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
 import { providerConfigurationRevision, resolveCliProvider } from "../config/providers-yaml";
 
 export class RunScheduler {
@@ -322,10 +321,6 @@ export class RunScheduler {
   async resolveApproval(id: string, rawDecision: ApprovalDecision): Promise<boolean> {
     const decision = ApprovalDecisionSchema.parse(rawDecision);
     return resolveScheduledApproval(this.executionHost(), id, decision);
-  }
-
-  private async append(run: AiRun, kind: AiEvent["kind"], payload: Record<string, unknown>): Promise<void> {
-    return appendScheduledEvent(this.executionHost(), run, kind, payload);
   }
 
   private executionHost(): SchedulerExecutionHost {

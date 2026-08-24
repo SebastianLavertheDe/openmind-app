@@ -1,5 +1,5 @@
 import type { AppPaths } from "../paths/app-paths-service";
-import { RuntimePackMetadataSchema, RuntimePackReadinessSchema, type RuntimePackMetadata, type RuntimePackId, type RuntimePackReadiness, type RuntimeTarget } from "../../shared/runtime-targets";
+import { RuntimePackMetadataSchema, RuntimePackReadinessSchema, type RuntimePackId, type RuntimePackReadiness, type RuntimeTarget } from "../../shared/runtime-targets";
 import { RuntimePackRepository, type RuntimePackRecord } from "./runtime-pack-repository";
 import { compareRuntimeVersions, RuntimePackVerifier, type RuntimeTrustRoots } from "./runtime-pack-verifier";
 import { RuntimePackUsageRegistry } from "./runtime-pack-usage";

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, SkillPackageInspectionView, UserPreferences } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";

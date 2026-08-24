@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import type { AiEvent } from "../../../shared/contracts";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";

@@ -19,7 +19,6 @@ describe("useExitPresence (MOTION-QA-005)", () => {
     act(() => {
       result.current; // touch
     });
-    let rerender: (props: { initial: boolean }) => void;
     const utils = renderHook(({ initial }) => useExitPresence(initial, 160), { initialProps: { initial: true } });
     expect(utils.result.current.visible).toBe(true);
     expect(utils.result.current.leaving).toBe(false);

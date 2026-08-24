@@ -34,12 +34,10 @@ export type SuggestionMenuProps =
   };
 
 export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
-  const items = props.kind === "mention" ? props.files : props.skills;
   // P2-INT-3: active item 滚出视口时键盘选不到——scrollIntoView({block:'nearest'})
   const activeItemRef = (el: HTMLElement | null) => {
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
   };
-  const activeId = `composer-suggestion-${props.activeIndex}`;
   return (
     <section className="composer-suggestion-menu" aria-label={props.kind === "mention" ? m.ai.suggestions.mentionAria : "Skills"}>
       <header>

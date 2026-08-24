@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, AiTurn, ApprovalRequest, ChangeSet, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi, useAiStreaming } from "../ai-context";
-import { buildTraceSteps, Chat, compactEvents, deriveRunActivity, formatElapsedSeconds, groupTimeline, selectRenderableTimelineEvents, ToolCallCard, toolOperationSummary } from "./Chat";
+import { buildTraceSteps, Chat, compactEvents, groupTimeline, selectRenderableTimelineEvents, ToolCallCard, toolOperationSummary } from "./Chat";
 import { ChatComposer } from "../features/ai-console/composer";
 import { FilePreviewProvider } from "../features/ai-console/file-preview-context";
 import { CommandGroup } from "../features/ai-console/tool";
@@ -366,38 +366,6 @@ describe("Chat composer", () => {
 });
 
 describe("chat timeline", () => {
-  it("describes the actual waiting phase without inventing progress", () => {
-    const run = makeRun();
-    expect(deriveRunActivity(run, [], 2)).toMatchObject({
-      label: "正在启动 Codex",
-      detail: "正在启动本地进程并建立会话。"
-    });
-    expect(deriveRunActivity(run, [], 9).detail).toContain("首次启动");
-    expect(deriveRunActivity(run, [], 31).detail).toContain("后续消息会进入队列");
-
-    const toolStart = makeEvent("tool-start", "tool-start", {
-      itemId: "tool-1",
-      tool: "Bash",
-      input: { command: "npm test" }
-    });
-    expect(deriveRunActivity(run, [toolStart], 12)).toMatchObject({
-      label: "正在执行 Bash",
-      detail: "npm test"
-    });
-
-    const toolComplete = makeEvent("tool-complete", "tool-complete", { itemId: "tool-1" });
-    expect(deriveRunActivity(run, [toolStart, toolComplete], 13).label).toBe("正在继续下一步");
-    expect(deriveRunActivity({ ...run, status: "waiting-approval" }, [], 13)).toMatchObject({
-      label: "等待你的批准",
-      tone: "approval"
-    });
-  });
-
-  it("formats a real elapsed duration for long waits", () => {
-    expect(formatElapsedSeconds(7)).toBe("7 秒");
-    expect(formatElapsedSeconds(65)).toBe("1:05");
-  });
-
   it("shows only the final assistant message for a completed run", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
     window.openmind.aiGetEvents = async () => [
@@ -1777,14 +1745,6 @@ describe("chat timeline", () => {
 });
 
 describe("run waiting and queue", () => {
-  it("surfaces a still-waiting state once a run goes idle (AI-T05)", () => {
-    const run = makeRun();
-    expect(deriveRunActivity(run, [], 4, 4).idle).toBeUndefined();
-    const idle = deriveRunActivity(run, [], 12, 12);
-    expect(idle.idle).toBe(true);
-    expect(idle.label).toBe("仍在等待响应");
-  });
-
   it("reports the scheduler worker exiting and clears in-flight streaming (AI-T05)", async () => {
     window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);

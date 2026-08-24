@@ -152,7 +152,6 @@ describe("OverflowBox", () => {
     fireEvent.change(screen.getByPlaceholderText("搜索…"), { target: { value: "alpha" } });
     await waitFor(() => expect(screen.getByText(/1 \/ 2/)).toBeTruthy());
 
-    const buttons = screen.getAllByRole("button");
     const nextBtn = screen.getByRole("button", { name: "下一个" });
     fireEvent.click(nextBtn);
     await waitFor(() => expect(screen.getByText(/2 \/ 2/)).toBeTruthy());

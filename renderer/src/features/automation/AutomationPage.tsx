@@ -30,7 +30,6 @@ export function AutomationPage({ initialSkillId }: { initialSkillId?: string }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const copyTimer = useRef<number>(0);
-  const dateParam = todayCompact();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -430,8 +429,8 @@ function triggerLabel(rule: AutomationRule): string { const trigger = rule.trigg
 function runTone(state: AutomationRunRecord["state"] | undefined): string { if (state === "running" || state === "queued") return "running"; if (state === "succeeded") return "completed"; if (state === "failed" || state === "blocked") return "failed"; return ""; }
 function runtimeTone(state: string): "ok" | "warn" | "muted" { return state === "succeeded" ? "ok" : ["failed", "blocked", "cancelled"].includes(state) ? "warn" : isActiveRunState(state) ? "warn" : "muted"; }
 function runListStatus(run: AutomationRunRecord | undefined): string { return run ? automationStateLabel(run.state) : m.automation.status.ready; }
-function detailStatus(state: string): string { return automationStateLabel(state, true); }
-function automationStateLabel(state: string, detailed = false): string {
+function detailStatus(state: string): string { return automationStateLabel(state); }
+function automationStateLabel(state: string): string {
   if (state === "running") return m.automation.status.running;
   if (state === "queued") return "排队中";
   if (state === "inspecting") return "检查中";
@@ -570,7 +569,7 @@ function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, 
     return `[${start}] 触发：${rule.name}\n[${start}] Workflow Run：${run.childRunId || "未提交"}${stepStatus}${formatRuntimeEntries(progressEntries)}${workflowEnd}${workflowError}${automationError}`;
   }
   const end = run.completedAt ? `\n[${formatLogTime(run.completedAt)}] 结束：${run.state}` : "";
-  const childState = child ? `\n[${start}] 子 Run 状态：${automationStateLabel(child.state, true)}` : "";
+  const childState = child ? `\n[${start}] 子 Run 状态：${automationStateLabel(child.state)}` : "";
   const childError = child?.error ? `\n[${child.completedAt ? formatLogTime(child.completedAt) : start}] 子 Run 失败：${child.error}` : "";
   const artifacts = child?.artifacts.length ? `\n产物：${child.artifacts.map((item) => item.logicalPath || item.externalPathRef || item.id).join(", ")}` : "";
   const label = child?.request.skillId || rule.target.id;
@@ -586,4 +585,3 @@ function isWithinRecentDays(isoTime: string, days: number): boolean {
   return created >= startOfToday.getTime() - (days - 1) * 86_400_000;
 }
 function formatLogTime(value: string): string { return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }
-function todayCompact(): string { return new Date().toISOString().slice(0, 10).replaceAll("-", ""); }

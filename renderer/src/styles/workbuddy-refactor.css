@@ -1019,7 +1019,6 @@ select:focus-visible,
   color: var(--text);
 }
 
-.search-field,
 .creative-search,
 .session-search,
 .ui-page-actions input,
@@ -1035,7 +1034,6 @@ select:focus-visible,
   color: var(--text);
 }
 
-.search-field:focus-within,
 .creative-search:focus-within,
 .session-search:focus-within,
 .publish-field input:focus,
@@ -1061,8 +1059,7 @@ select:focus-visible,
 
 .ui-select-menu,
 .chip-select-menu,
-.ui-dropdown > div,
-.ui-context-menu {
+.ui-dropdown > div {
   border-color: var(--border);
   border-radius: 8px;
   background: var(--panel);

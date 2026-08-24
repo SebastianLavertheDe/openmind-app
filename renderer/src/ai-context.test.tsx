@@ -386,10 +386,9 @@ describe("AiProvider streaming store via event pump", () => {
   });
 
   it("replaces snapshot when a snapshot message arrives", async () => {
-    let refreshed = false;
     window.openmind = {
       ...window.openmind,
-      aiRefresh: async () => { refreshed = true; return snapshot; }
+      aiRefresh: async () => snapshot
     } as unknown as DesktopApi;
 
     render(
