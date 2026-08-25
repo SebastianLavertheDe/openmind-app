@@ -6,7 +6,7 @@ import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
 import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
-import { StatusBadge } from "../../design-system/components";
+import { StatusBadge, useModalFocusScope } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
 
 const m = messages.skillCenter;
@@ -391,6 +391,9 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const [busy, setBusy] = useState<"inspect" | "install" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const inspectRequestId = useRef<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useModalFocusScope({ open, containerRef: dialogRef, onDismiss: onToggle, layer: "global" });
 
   const inspectSource = useCallback(async (source: SkillPackageSourceInput) => {
     const requestId = `skill-source-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -490,23 +493,24 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
       <span>{open ? picker.close : picker.open}</span>
     </button>
     {open && typeof document !== "undefined" ? createPortal(
-      <div className="modal-scrim skills-source-dialog-scrim ui-overlay" onMouseDown={onToggle}>
-        <section className="skills-source-dialog" role="dialog" aria-modal="true" aria-labelledby="skills-source-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-          <header className="skills-source-dialog-header">
-            <div><span className="eyebrow">SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
-            <button type="button" className="skills-source-dialog-close" data-motion="icon" aria-label="关闭添加 Skill 来源" onClick={onToggle}><X size={17} aria-hidden /></button>
+      <div ref={dialogRef} className="modal-scrim settings-provider-dialog-scrim skills-source-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={onToggle}>
+        <section className="settings-provider-dialog skills-source-dialog" role="dialog" aria-modal="true" aria-labelledby="skills-source-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+          <header>
+            <div><span>SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
+            <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Skill 来源" onClick={onToggle}><X size={16} aria-hidden /></button>
           </header>
-          <div className="skills-source-picker-body">
-            <div className="skills-source-picker-row">
-              <button type="button" className="skills-source-picker-local" data-motion="action" disabled={busy !== null} onClick={() => void selectLocal()}>
-                <FolderOpen size={15} aria-hidden />
-                <span>{picker.local}</span>
+          <div className="settings-provider-dialog-body skills-source-picker-body">
+            <div className="skills-source-picker-local-option">
+              <div className="skills-source-picker-local-copy"><strong>本地来源</strong><small>选择本地目录或 ZIP，系统会先完成静态检查。</small></div>
+              <button type="button" className="settings-subtle-action skills-source-picker-local" data-motion="action" disabled={busy !== null} onClick={() => void selectLocal()}>
+                <FolderOpen size={15} aria-hidden />{picker.local}
               </button>
             </div>
-            <div className="skills-source-picker-row">
-              <label className="skills-source-picker-git">
+            <div className="settings-grid-2 skills-source-picker-git">
+              <label className="settings-field settings-field--wide">
                 <span>{picker.git}</span>
                 <input
+                  className="settings-browser-path-input"
                   type="url"
                   inputMode="url"
                   placeholder={picker.gitPlaceholder}
@@ -514,16 +518,16 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
                   onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
                   onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
                 />
+              </label>
+              <label className="settings-field">
+                <span>分支或 tag（可选）</span>
                 <input
+                  className="settings-browser-path-input"
                   type="text"
                   placeholder={picker.refPlaceholder}
                   value={gitRef}
                   onChange={(event) => { setGitRef(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
                 />
-                <button type="button" data-motion="action" disabled={busy !== null} onClick={() => void inspectGit()}>
-                  {busy === "inspect" ? picker.inspecting : picker.inspect}
-                </button>
-                {busy === "inspect" ? <button type="button" className="skills-source-picker-cancel" data-motion="action" onClick={() => void cancelInspect()}>{picker.cancel}</button> : null}
               </label>
             </div>
             {candidate ? <div className="skills-source-picker-candidate">
@@ -557,12 +561,17 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
               {selectedPackages.flatMap((item) => item.issues).length ? <ul className="skills-source-picker-issues">
                 {selectedPackages.flatMap((item) => item.issues).slice(0, 5).map((issue, index) => <li key={index}>{issue.message}</li>)}
               </ul> : null}
-              <button type="button" className="skills-source-picker-install" data-motion="action" disabled={busy !== null || !installationReady} onClick={() => void install()}>
-                {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? `${picker.import} ${selectedPackageRefs.length} 个` : picker.import}
-              </button>
             </div> : null}
             {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
           </div>
+          <footer>
+            <button type="button" className="settings-subtle-action" data-motion="action" onClick={onToggle}>取消</button>
+            {busy === "inspect" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void cancelInspect()}>{picker.cancel}</button>
+              : candidate && inspection ? <button type="button" className="primary-button skills-source-picker-install" data-motion="action" disabled={busy !== null || !installationReady} onClick={() => void install()}>
+                {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? `${picker.import} ${selectedPackageRefs.length} 个` : picker.import}
+              </button>
+                : <button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => void inspectGit()}>{picker.inspect}</button>}
+          </footer>
         </section>
       </div>,
       document.body

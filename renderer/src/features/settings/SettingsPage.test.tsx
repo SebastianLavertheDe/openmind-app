@@ -345,9 +345,6 @@ describe("SettingsPage", () => {
     fireEvent.change(within(dialog).getByLabelText("API Key"), { target: { value: "sk-new-provider" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "添加到列表" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "添加 Provider" })).toBeNull());
-    expect(screen.getByText("DeepSeek")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
     await waitFor(() => expect(saveProviders).toHaveBeenCalled());
     expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
       cli: { claude: null, codex: null },
@@ -356,6 +353,9 @@ describe("SettingsPage", () => {
         expect.objectContaining({ id: "deepseek", apiKey: "sk-new-provider", proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify" })
       ])
     }));
+    expect(screen.queryByText("尚无未保存修改")).toBeNull();
+    expect(screen.queryByRole("button", { name: "放弃修改" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "保存配置" })).toBeNull();
   });
 
   it("keeps CLI binding controls out of the compact Provider list", async () => {
@@ -382,10 +382,10 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "添加 Provider" })).toBeTruthy();
   });
 
-  it("keeps all Provider editors collapsed by default and opens only one at a time", async () => {
+  it("opens Provider configuration in a dialog, cancels local edits, and saves from the dialog", async () => {
     const providerEntry = (id: string, name: string, model: string) => ({
       id, name, enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
-      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
+      baseUrl: "https://" + id + ".example.com/v1", model, apiKeySet: true,
       proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
     });
     const providerView = {
@@ -397,39 +397,43 @@ describe("SettingsPage", () => {
         providerEntry("second", "第二 Provider", "second-model")
       ]
     };
-    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    const saveProviders = vi.fn().mockResolvedValue(providerView);
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), saveProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    const first = await screen.findByRole("button", { name: "展开 第一 Provider 配置" });
-    expect(first.getAttribute("aria-expanded")).toBe("false");
+    const first = await screen.findByRole("button", { name: "编辑 第一 Provider 配置" });
+    expect(first.getAttribute("aria-haspopup")).toBe("dialog");
     expect(screen.queryByDisplayValue("first-model")).toBeNull();
     expect(screen.queryByDisplayValue("second-model")).toBeNull();
 
     fireEvent.click(first);
-    expect(screen.getByDisplayValue("first-model")).toBeTruthy();
+    const firstDialog = await screen.findByRole("dialog", { name: "编辑 第一 Provider" });
+    expect(within(firstDialog).getByDisplayValue("first-model")).toBeTruthy();
+    expect(within(firstDialog).getByLabelText("API Key")).toBeTruthy();
+    fireEvent.change(within(firstDialog).getByDisplayValue("first-model"), { target: { value: "changed-model" } });
+    fireEvent.click(within(firstDialog).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "编辑 第一 Provider" })).toBeNull());
 
-    fireEvent.click(screen.getByRole("button", { name: "展开 第二 Provider 配置" }));
-    expect(screen.queryByDisplayValue("first-model")).toBeNull();
-    expect(screen.getByDisplayValue("second-model")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "收起 第二 Provider 配置" }));
-    expect(screen.queryByDisplayValue("second-model")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "展开 第一 Provider 配置" }));
-    fireEvent.change(screen.getByDisplayValue("first-model"), { target: { value: "changed-model" } });
-    expect(screen.getByText("已修改 1 个 Provider")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "放弃修改" }));
-    expect(screen.queryByDisplayValue("changed-model")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "展开 第一 Provider 配置" }));
-    expect(screen.getByDisplayValue("first-model")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "编辑 第一 Provider 配置" }));
+    const reopenedFirst = await screen.findByRole("dialog", { name: "编辑 第一 Provider" });
+    expect(within(reopenedFirst).getByDisplayValue("first-model")).toBeTruthy();
+    fireEvent.click(within(reopenedFirst).getByRole("button", { name: /高级设置/ }));
+    expect(within(reopenedFirst).getByDisplayValue("first")).toBeTruthy();
+    fireEvent.change(within(reopenedFirst).getByDisplayValue("first-model"), { target: { value: "saved-model" } });
+    fireEvent.click(within(reopenedFirst).getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      providers: expect.arrayContaining([expect.objectContaining({ id: "first", model: "saved-model" })])
+    })));
+    expect(screen.queryByText("尚无未保存修改")).toBeNull();
+    expect(screen.queryByRole("button", { name: "放弃修改" })).toBeNull();
   });
 
-  it("keeps unsaved edits when a Provider is removed from the draft", async () => {
+  it("saves a Provider removal immediately", async () => {
     const providerEntry = (id: string, name: string, model: string) => ({
       id, name, enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
-      baseUrl: `https://${id}.example.com/v1`, model, apiKeySet: true,
+      baseUrl: "https://" + id + ".example.com/v1", model, apiKeySet: true,
       proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
     });
     const providerView = {
@@ -448,21 +452,14 @@ describe("SettingsPage", () => {
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    fireEvent.click(await screen.findByRole("button", { name: "展开 保留 Provider 配置" }));
-    const model = screen.getByDisplayValue("model-before");
-    fireEvent.change(model, { target: { value: "model-after" } });
-    fireEvent.change(screen.getAllByLabelText("API Key")[0], { target: { value: "sk-unsaved" } });
-    fireEvent.click(screen.getByRole("button", { name: "更多 remove" }));
+    fireEvent.click(await screen.findByRole("button", { name: "更多 remove" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "删除 remove" }));
 
     expect(screen.queryByText("删除 Provider")).toBeNull();
-    expect((screen.getByDisplayValue("model-after") as HTMLInputElement).value).toBe("model-after");
-
-    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
     await waitFor(() => expect(saveProviders).toHaveBeenCalled());
     expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
       default: "keep",
-      providers: [expect.objectContaining({ id: "keep", model: "model-after", apiKey: "sk-unsaved" })]
+      providers: [expect.objectContaining({ id: "keep", model: "model-before", apiKey: "" })]
     }));
   });
 

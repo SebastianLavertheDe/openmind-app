@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView, SourceDefinition } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/execution-contracts";
@@ -450,8 +450,10 @@ describe("SkillsPage", () => {
   it("opens the import entry when reached from onboarding", async () => {
     renderPage({ inspectSkillSource: vi.fn(), installSkillSource: vi.fn() }, undefined, true);
     await screen.findByRole("heading", { name: "Demo Skill" });
-    expect(screen.getByRole("button", { name: "收起来源选择" }).getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByPlaceholderText("https://github.com/org/skill.git")).toBeTruthy();
+    const dialog = screen.getByRole("dialog", { name: "添加 Skill 来源" });
+    expect(within(dialog).getByPlaceholderText("https://github.com/org/skill.git")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "检查 Git 来源" })).toBeTruthy();
   });
 
   it("inspects a local directory or ZIP before enabling install", async () => {

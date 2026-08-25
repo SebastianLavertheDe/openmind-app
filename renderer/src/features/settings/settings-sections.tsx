@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
-import { SegmentedControl, Select, StatusBadge, ToggleSwitch } from "../../design-system/components";
+import { SegmentedControl, Select, StatusBadge, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
 
 const m = messages;
 
@@ -727,9 +727,40 @@ export function AiProvidersSettingsSection({
   const [presetId, setPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? "custom");
   const [adding, setAdding] = useState(false);
   const [newProvider, setNewProvider] = useState<ProviderYamlInputEntry | null>(null);
-  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [editingSnapshot, setEditingSnapshot] = useState<{ entry: ProviderYamlInputEntry; apiKey: string; cliBindings: CliProviderBindings } | null>(null);
   const [advancedProviderId, setAdvancedProviderId] = useState<string | null>(null);
   const [openProviderMenuId, setOpenProviderMenuId] = useState<string | null>(null);
+  const addDialogRef = useRef<HTMLDivElement | null>(null);
+  const editDialogRef = useRef<HTMLDivElement | null>(null);
+
+  const closeAddDialog = () => {
+    setAdding(false);
+    setNewProvider(null);
+  };
+
+  const dismissEditDialog = () => {
+    setEditingProviderId(null);
+    setEditingSnapshot(null);
+    setAdvancedProviderId(null);
+  };
+
+  const cancelEditDialog = () => {
+    if (editingSnapshot) {
+      setDraft((current) => current.map((entry) => entry.id === editingSnapshot.entry.id ? editingSnapshot.entry : entry));
+      setApiKeyKeys((current) => {
+        const next = { ...current };
+        if (editingSnapshot.apiKey) next[editingSnapshot.entry.id] = editingSnapshot.apiKey;
+        else delete next[editingSnapshot.entry.id];
+        return next;
+      });
+      setCliBindings(editingSnapshot.cliBindings);
+    }
+    dismissEditDialog();
+  };
+
+  useModalFocusScope({ open: adding, containerRef: addDialogRef, onDismiss: closeAddDialog, layer: "global" });
+  useModalFocusScope({ open: Boolean(editingProviderId), containerRef: editDialogRef, onDismiss: cancelEditDialog, layer: "global" });
 
   useEffect(() => {
     if (!view) return;
@@ -742,52 +773,11 @@ export function AiProvidersSettingsSection({
     setCliBindings(view.cli || { claude: null, codex: null });
     setApiKeyKeys({});
     setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
-    setExpandedProviderId((current) => current && view.providers.some((provider) => provider.id === current) ? current : null);
-    setAdvancedProviderId((current) => current && view.providers.some((provider) => provider.id === current) ? current : null);
-    setOpenProviderMenuId(null);
-  }, [view]);
-
-  const dirtyProviderCount = useMemo(() => {
-    if (!view) return 0;
-    const currentIds = new Set(draft.map((entry) => entry.id));
-    let changed = view.providers.filter((provider) => !currentIds.has(provider.id)).length;
-    for (const entry of draft) {
-      const original = view.providers.find((provider) => provider.id === entry.id);
-      const apiKeyChanged = Boolean((apiKeyKeys[entry.id] ?? "").trim());
-      if (!original
-        || original.name !== entry.name
-        || original.enabled !== entry.enabled
-        || original.protocol !== entry.protocol
-        || (original.authMode || "bearer") !== entry.authMode
-        || original.baseUrl !== entry.baseUrl
-        || original.model !== entry.model
-        || original.proxyUrl !== entry.proxyUrl
-        || original.proxyPolicy !== entry.proxyPolicy
-        || original.tlsPolicy !== entry.tlsPolicy
-        || apiKeyChanged) changed += 1;
-    }
-    const originalCli = view.cli || { claude: null, codex: null };
-    if (defaultId !== view.default || originalCli.claude !== cliBindings.claude || originalCli.codex !== cliBindings.codex) {
-      changed = Math.max(changed, 1);
-    }
-    return changed;
-  }, [apiKeyKeys, cliBindings, defaultId, draft, view]);
-
-  const discardChanges = () => {
-    if (!view) return;
-    setDraft(view.providers.map((provider) => ({
-      id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol, authMode: provider.authMode || "bearer",
-      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, proxyUrl: provider.proxyUrl,
-      proxyPolicy: provider.proxyPolicy, tlsPolicy: provider.tlsPolicy
-    })));
-    setDefaultId(view.default);
-    setCliBindings(view.cli || { claude: null, codex: null });
-    setApiKeyKeys({});
-    setApiKeySetMap(Object.fromEntries(view.providers.map((provider) => [provider.id, provider.apiKeySet])));
-    setExpandedProviderId(null);
+    setEditingProviderId(null);
+    setEditingSnapshot(null);
     setAdvancedProviderId(null);
     setOpenProviderMenuId(null);
-  };
+  }, [view]);
 
   const update = (id: string, patch: Partial<ProviderYamlInputEntry>) => {
     const currentEntry = draft.find((entry) => entry.id === id);
@@ -802,6 +792,45 @@ export function AiProvidersSettingsSection({
   };
   const updateKey = (id: string, value: string) => {
     setApiKeyKeys((current) => ({ ...current, [id]: value }));
+  };
+
+  const saveDraft = (
+    nextDraft: ProviderYamlInputEntry[] = draft,
+    nextDefaultId = defaultId,
+    nextCliBindings: CliProviderBindings = cliBindings,
+    nextApiKeyKeys: Record<string, string> = apiKeyKeys
+  ): boolean => {
+    if (busy) return false;
+    if (!nextDraft.length) { notify("至少需要一个 Provider", "info"); return false; }
+    if (!nextDraft.some((entry) => entry.id === nextDefaultId)) { notify("默认 Provider 不存在", "info"); return false; }
+    const incomplete = nextDraft.find((entry) => !entry.name.trim() || !entry.baseUrl.trim() || !entry.model.trim());
+    if (incomplete) {
+      notify(`请完善 ${incomplete.name || incomplete.id} 的必填配置`, "info");
+      return false;
+    }
+    const providers = nextDraft.map((entry) => ({ ...entry, apiKey: nextApiKeyKeys[entry.id] ?? "" }));
+    void onSave({ schemaVersion: 1, default: nextDefaultId, cli: nextCliBindings, providers });
+    return true;
+  };
+
+  const setProviderEnabled = (id: string, enabled: boolean) => {
+    const currentEntry = draft.find((entry) => entry.id === id);
+    if (!currentEntry) return;
+    const nextEntry = { ...currentEntry, enabled };
+    const nextDraft = draft.map((entry) => entry.id === id ? nextEntry : entry);
+    const nextCliBindings = {
+      claude: cliBindings.claude === id && (!enabled || !supportsCliProvider("claude", nextEntry.protocol)) ? null : cliBindings.claude,
+      codex: cliBindings.codex === id && (!enabled || !supportsCliProvider("codex", nextEntry.protocol)) ? null : cliBindings.codex
+    };
+    setDraft(nextDraft);
+    setCliBindings(nextCliBindings);
+    saveDraft(nextDraft, defaultId, nextCliBindings, apiKeyKeys);
+  };
+
+  const setProviderAsDefault = (id: string) => {
+    setDefaultId(id);
+    setOpenProviderMenuId(null);
+    saveDraft(draft, id, cliBindings, apiKeyKeys);
   };
 
   const providerFromPreset = (nextPresetId: string): ProviderYamlInputEntry => {
@@ -821,6 +850,13 @@ export function AiProvidersSettingsSection({
     setAdding(true);
   };
 
+  const openEditDialog = (entry: ProviderYamlInputEntry) => {
+    setEditingSnapshot({ entry: { ...entry }, apiKey: apiKeyKeys[entry.id] ?? "", cliBindings: { ...cliBindings } });
+    setEditingProviderId(entry.id);
+    setAdvancedProviderId(null);
+    setOpenProviderMenuId(null);
+  };
+
   const changePreset = (nextPresetId: string) => {
     setPresetId(nextPresetId);
     setNewProvider(providerFromPreset(nextPresetId));
@@ -838,24 +874,15 @@ export function AiProvidersSettingsSection({
       notify("Provider ID 已存在，请换一个 ID", "info");
       return;
     }
-    setDraft((current) => [...current, { ...entry, apiKey: "" }]);
-    setApiKeyKeys((current) => ({ ...current, [entry.id]: entry.apiKey }));
+    const nextDraft = [...draft, { ...entry, apiKey: "" }];
+    const nextApiKeyKeys = { ...apiKeyKeys, [entry.id]: entry.apiKey };
+    const nextDefaultId = defaultId || entry.id;
+    setDraft(nextDraft);
+    setApiKeyKeys(nextApiKeyKeys);
     setApiKeySetMap((current) => ({ ...current, [entry.id]: false }));
-    if (!defaultId) setDefaultId(entry.id);
-    setExpandedProviderId(entry.id);
-    setAdvancedProviderId(null);
-    setAdding(false);
-    setNewProvider(null);
+    setDefaultId(nextDefaultId);
+    if (saveDraft(nextDraft, nextDefaultId, cliBindings, nextApiKeyKeys)) closeAddDialog();
   };
-
-  useEffect(() => {
-    if (!adding) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setAdding(false);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [adding]);
 
   useEffect(() => {
     if (!openProviderMenuId) return;
@@ -867,6 +894,7 @@ export function AiProvidersSettingsSection({
   }, [openProviderMenuId]);
 
   const remove = (id: string) => {
+    if (busy) return;
     if (draft.length <= 1) { notify("至少需要保留一个 Provider", "info"); return; }
     const survivors = draft.filter((entry) => entry.id !== id);
     const nextEnabledDefault = survivors.find((entry) => entry.enabled);
@@ -874,31 +902,28 @@ export function AiProvidersSettingsSection({
       notify("请先启用另一个 Provider，再删除当前默认 Provider", "info");
       return;
     }
+    const nextDefaultId = defaultId === id ? nextEnabledDefault!.id : defaultId;
+    const nextCliBindings = {
+      claude: cliBindings.claude === id ? null : cliBindings.claude,
+      codex: cliBindings.codex === id ? null : cliBindings.codex
+    };
+    const nextApiKeyKeys = Object.fromEntries(Object.entries(apiKeyKeys).filter(([key]) => key !== id));
     setDraft(survivors);
-    if (defaultId === id) setDefaultId(nextEnabledDefault!.id);
-    setCliBindings((current) => ({
-      claude: current.claude === id ? null : current.claude,
-      codex: current.codex === id ? null : current.codex
-    }));
-    setApiKeyKeys((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+    setDefaultId(nextDefaultId);
+    setCliBindings(nextCliBindings);
+    setApiKeyKeys(nextApiKeyKeys);
     setApiKeySetMap((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
-    setExpandedProviderId((current) => current === id ? null : current);
-    setAdvancedProviderId((current) => current === id ? null : current);
+    if (editingProviderId === id) dismissEditDialog();
     setOpenProviderMenuId(null);
+    saveDraft(survivors, nextDefaultId, nextCliBindings, nextApiKeyKeys);
   };
 
-  const submit = () => {
-    if (!draft.length) { notify("至少需要一个 Provider", "info"); return; }
-    if (!draft.some((entry) => entry.id === defaultId)) { notify("默认 Provider 不存在", "info"); return; }
-    const incomplete = draft.find((entry) => !entry.name.trim() || !entry.baseUrl.trim() || !entry.model.trim());
-    if (incomplete) {
-      setExpandedProviderId(incomplete.id);
-      notify(`请完善 ${incomplete.name || incomplete.id} 的必填配置`, "info");
-      return;
-    }
-    const providers = draft.map((entry) => ({ ...entry, apiKey: apiKeyKeys[entry.id] ?? "" }));
-    void onSave({ schemaVersion: 1, default: defaultId, cli: cliBindings, providers });
+  const saveEditingProvider = () => {
+    if (saveDraft()) dismissEditDialog();
   };
+
+  const editingProvider = editingProviderId ? draft.find((entry) => entry.id === editingProviderId) ?? null : null;
+  const editingAdvanced = Boolean(editingProvider && advancedProviderId === editingProvider.id);
 
   return (
     <>
@@ -908,93 +933,46 @@ export function AiProvidersSettingsSection({
         <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
           {draft.map((entry) => {
-            const expanded = expandedProviderId === entry.id;
-            const advanced = advancedProviderId === entry.id;
             const displayName = entry.name || entry.id;
             const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
             const apiKeyStatus = apiKeyDrafted ? "API Key 待保存" : apiKeySetMap[entry.id] ? "API Key 已配置" : "API Key 未配置";
-            const bodyId = `provider-config-${entry.id}`;
-            const advancedId = `provider-advanced-${entry.id}`;
             return (
-            <article key={entry.id} className="settings-provider-config-card" data-expanded={expanded || undefined} data-entrance-item>
-              <header className="settings-provider-config-header">
-                <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-expanded={expanded} aria-controls={bodyId}
-                  aria-label={expanded ? `收起 ${displayName} 配置` : `展开 ${displayName} 配置`}
-                  onClick={() => {
-                    setExpandedProviderId((current) => current === entry.id ? null : entry.id);
-                    setAdvancedProviderId(null);
-                    setOpenProviderMenuId(null);
-                  }}>
-                  <span className="settings-provider-config-identity">
-                    <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}</span>
-                    <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyDrafted ? "pending" : apiKeySetMap[entry.id] ? "set" : "missing"}>{apiKeyStatus}</span></span>
-                  </span>
-                  <ChevronDown className="settings-provider-config-chevron" size={16} aria-hidden />
-                </button>
-                <div className="settings-provider-config-actions">
-                  <ToggleSwitch checked={entry.enabled} disabled={entry.id === defaultId} label={`启用 ${displayName}`} onChange={(checked) => update(entry.id, { enabled: checked })} />
-                  <div className="settings-provider-menu" onBlur={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget)) setOpenProviderMenuId(null);
-                  }}>
-                    <button type="button" className="settings-provider-menu-trigger" data-motion="icon" aria-haspopup="menu" aria-expanded={openProviderMenuId === entry.id}
-                      aria-label={`更多 ${entry.id}`} onClick={() => setOpenProviderMenuId((current) => current === entry.id ? null : entry.id)}><MoreHorizontal size={17} aria-hidden /></button>
-                    {openProviderMenuId === entry.id ? <div className="settings-provider-menu-popover" role="menu" aria-label={`${displayName} 操作`}>
-                      <button type="button" role="menuitem" data-motion="selection" aria-label={`将 ${entry.id} 设为默认`} onClick={() => { setDefaultId(entry.id); setOpenProviderMenuId(null); }} disabled={entry.id === defaultId || !entry.enabled}>设为默认</button>
-                      <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={`删除 ${entry.id}`} onClick={() => remove(entry.id)}>删除</button>
-                    </div> : null}
+              <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
+                <header className="settings-provider-config-header">
+                  <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
+                    aria-label={`编辑 ${displayName} 配置`} onClick={() => openEditDialog(entry)} disabled={busy}>
+                    <span className="settings-provider-config-identity">
+                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}</span>
+                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyDrafted ? "pending" : apiKeySetMap[entry.id] ? "set" : "missing"}>{apiKeyStatus}</span></span>
+                    </span>
+                    <ChevronRight className="settings-provider-config-chevron" size={16} aria-hidden />
+                  </button>
+                  <div className="settings-provider-config-actions">
+                    <ToggleSwitch checked={entry.enabled} disabled={busy || entry.id === defaultId} label={`启用 ${displayName}`} onChange={(checked) => setProviderEnabled(entry.id, checked)} />
+                    <div className="settings-provider-menu" onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) setOpenProviderMenuId(null);
+                    }}>
+                      <button type="button" className="settings-provider-menu-trigger" data-motion="icon" aria-haspopup="menu" aria-expanded={openProviderMenuId === entry.id}
+                        aria-label={`更多 ${entry.id}`} onClick={() => setOpenProviderMenuId((current) => current === entry.id ? null : entry.id)} disabled={busy}><MoreHorizontal size={17} aria-hidden /></button>
+                      {openProviderMenuId === entry.id ? <div className="settings-provider-menu-popover" role="menu" aria-label={`${displayName} 操作`}>
+                        <button type="button" role="menuitem" data-motion="selection" aria-label={`将 ${entry.id} 设为默认`} onClick={() => setProviderAsDefault(entry.id)} disabled={busy || entry.id === defaultId || !entry.enabled}>设为默认</button>
+                        <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={`删除 ${entry.id}`} onClick={() => remove(entry.id)} disabled={busy}>删除</button>
+                      </div> : null}
+                    </div>
                   </div>
-                </div>
-              </header>
-              {expanded ? <div className="settings-provider-config-body" id={bodyId}>
-                <div className="settings-grid-2">
-                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={entry.name} onChange={(event) => update(entry.id, { name: event.target.value })} /></label>
-                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={entry.model} onChange={(event) => update(entry.id, { model: event.target.value })} /></label>
-                  <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" value={entry.baseUrl} onChange={(event) => update(entry.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
-                  <label className="settings-field settings-field--wide"><span>API Key</span>
-                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[entry.id] ?? ""}
-                      placeholder={apiKeySetMap[entry.id] ? "已设置（留空保留）" : "未设置"}
-                      onChange={(event) => updateKey(entry.id, event.target.value)} />
-                  </label>
-                </div>
-                <button type="button" className="settings-provider-advanced-trigger" data-motion="disclosure" aria-expanded={advanced} aria-controls={advancedId}
-                  onClick={() => setAdvancedProviderId((current) => current === entry.id ? null : entry.id)}>
-                  <span><strong>高级设置</strong><small>ID、协议与认证方式</small></span><ChevronDown size={16} aria-hidden />
-                </button>
-                {advanced ? <div className="settings-provider-advanced-grid" id={advancedId}>
-                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={entry.id} readOnly title="Provider ID 添加后不可修改" /></label>
-                  <label className="settings-field"><span>协议</span>
-                    <select className="settings-select" value={entry.protocol} onChange={(event) => update(entry.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
-                      <option value="anthropic-messages">anthropic-messages</option>
-                      <option value="openai-chat">openai-chat</option>
-                      <option value="openai-responses">openai-responses</option>
-                    </select>
-                  </label>
-                  <label className="settings-field"><span>认证方式</span>
-                    <select className="settings-select" value={entry.authMode} onChange={(event) => update(entry.id, { authMode: event.target.value as ProviderAuthMode })}>
-                      <option value="bearer">Bearer Token</option>
-                      <option value="x-api-key">X-API-Key</option>
-                    </select>
-                  </label>
-                </div> : null}
-              </div> : null}
-            </article>
-          );})}
-        </div>
-        <div className="settings-panel-footer settings-provider-save-row" data-dirty={dirtyProviderCount > 0 || undefined}>
-          <p className="settings-note" role="status" aria-live="polite">{dirtyProviderCount > 0 ? `已修改 ${dirtyProviderCount} 个 Provider` : "尚无未保存修改"}</p>
-          <div className="settings-provider-save-actions">
-            <button type="button" className="settings-provider-discard-button" data-motion="action" onClick={discardChanges} disabled={busy || dirtyProviderCount === 0}>放弃修改</button>
-            <button type="button" className="primary-button" data-motion="action" onClick={submit} disabled={busy || dirtyProviderCount === 0}>{busy ? "保存中…" : "保存配置"}</button>
-          </div>
+                </header>
+              </article>
+            );
+          })}
         </div>
       </SettingsPanel>
 
       {adding && newProvider && typeof document !== "undefined" ? createPortal(
-        <div className="modal-scrim settings-provider-dialog-scrim ui-overlay" onMouseDown={() => setAdding(false)}>
-          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div ref={addDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={closeAddDialog}>
+          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
               <div><span>AI Provider</span><h2 id="add-provider-title">添加 Provider</h2><p>选择预设并确认连接信息，添加后仍可在列表中修改。</p></div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Provider 弹窗" onClick={() => setAdding(false)}><X size={16} /></button>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Provider 弹窗" onClick={closeAddDialog}><X size={16} /></button>
             </header>
             <form onSubmit={addProvider}>
               <div className="settings-provider-dialog-body">
@@ -1026,7 +1004,57 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input" type="password" value={newProvider.apiKey} required placeholder="请输入 API Key" onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
               </div>
-              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => setAdding(false)}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
+              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
+            </form>
+          </section>
+        </div>,
+        document.body
+      ) : null}
+
+      {editingProvider && typeof document !== "undefined" ? createPortal(
+        <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={cancelEditDialog}>
+          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><span>AI Provider</span><h2 id="edit-provider-title">编辑 {editingProvider.name || editingProvider.id}</h2><p>修改连接信息与高级设置；取消不会保存改动，API Key 留空会保留原有值。</p></div>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={`取消 ${editingProvider.name || editingProvider.id} 配置编辑`} onClick={cancelEditDialog}><X size={16} /></button>
+            </header>
+            <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
+              <div className="settings-provider-dialog-body">
+                <div className="settings-grid-2">
+                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
+                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
+                  <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
+                  <label className="settings-field settings-field--wide"><span>API Key</span>
+                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[editingProvider.id] ?? ""}
+                      placeholder={apiKeySetMap[editingProvider.id] ? "已设置（留空保留）" : "未设置"}
+                      onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
+                  </label>
+                </div>
+                <button type="button" className="settings-provider-advanced-trigger" data-motion="disclosure" aria-expanded={editingAdvanced} aria-controls={`provider-advanced-${editingProvider.id}`}
+                  onClick={() => setAdvancedProviderId((current) => current === editingProvider.id ? null : editingProvider.id)}>
+                  <span><strong>高级设置</strong><small>ID、协议与认证方式</small></span><ChevronDown size={16} aria-hidden />
+                </button>
+                {editingAdvanced ? <div className="settings-provider-advanced-grid" id={`provider-advanced-${editingProvider.id}`}>
+                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={editingProvider.id} readOnly title="Provider ID 添加后不可修改" /></label>
+                  <label className="settings-field"><span>协议</span>
+                    <select className="settings-select" value={editingProvider.protocol} onChange={(event) => update(editingProvider.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
+                      <option value="anthropic-messages">anthropic-messages</option>
+                      <option value="openai-chat">openai-chat</option>
+                      <option value="openai-responses">openai-responses</option>
+                    </select>
+                  </label>
+                  <label className="settings-field"><span>认证方式</span>
+                    <select className="settings-select" value={editingProvider.authMode} onChange={(event) => update(editingProvider.id, { authMode: event.target.value as ProviderAuthMode })}>
+                      <option value="bearer">Bearer Token</option>
+                      <option value="x-api-key">X-API-Key</option>
+                    </select>
+                  </label>
+                </div> : null}
+              </div>
+              <footer>
+                <button type="button" className="settings-subtle-action" data-motion="action" onClick={cancelEditDialog}>取消</button>
+                <button type="submit" className="primary-button" disabled={busy}>{busy ? "保存中…" : "保存配置"}</button>
+              </footer>
             </form>
           </section>
         </div>,

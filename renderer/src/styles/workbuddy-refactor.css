@@ -45,10 +45,13 @@
   --shadow-card: none;
   --shadow-card-hover: none;
   --shadow-overlay: var(--shadow-3);
-  --workspace-inset: 6px;
-  --workspace-radius: 13px;
-  --workspace-border: color-mix(in srgb, var(--border-subtle) 62%, transparent);
-  --workspace-shadow: 0 1px 2px rgba(20, 20, 20, .025), 0 8px 24px rgba(20, 20, 20, .045);
+  /* Keep the white workspaces visibly raised above the soft app chrome.
+     The close shadow defines the edge; the wider shadow supplies the calm,
+     Codex-like lift without turning the whole workspace into a heavy card. */
+  --workspace-inset: 8px;
+  --workspace-radius: 14px;
+  --workspace-border: color-mix(in srgb, var(--border-subtle) 82%, transparent);
+  --workspace-shadow: 0 1px 2px rgba(20, 20, 20, .055), 0 10px 28px rgba(20, 20, 20, .10);
   --gradient-accent: var(--accent);
   --gradient-codex: #383836;
   --gradient-claude: #5c5c59;
@@ -681,9 +684,9 @@ select:focus-visible,
   padding: 0 12px;
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 52%, transparent);
-  /* Repeat the chrome wash instead of falling back to a neutral panel tint,
-   * so the top bar and left rail read as one continuous application frame. */
-  background: var(--app-chrome-bg);
+  /* Keep the header part of the raised workspace rather than repeating the
+   * application chrome inside it. */
+  background: var(--page-bg);
   box-shadow: none;
 }
 

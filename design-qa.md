@@ -43,6 +43,44 @@ final result: passed
 
 ---
 
+# Provider 全局保存条移除 QA — 2026-08-25
+
+## 对照基准
+
+- Source visual truth：`C:\Users\say\AppData\Local\Temp\codex-clipboard-f87ca934-8176-434f-9118-14d2dad094dc.png`。源图为 3840 × 2088 物理像素；截图未提供 CSS 尺寸或 device scale 元数据。
+- Implementation full-view：`D:\work\openmind-app\design-qa\provider-dialog-no-save-20260825\2048x1152-02-AI-与模型.png`。Electron 在 2048 × 1152 逻辑窗口下捕获，生成 3051 × 1634 物理像素截图；同次运行的聚焦列表图为 `reference-provider-list-collapsed.png`（2345 × 1401，1577 × 997 逻辑窗口）。
+- Focused implementation：`D:\work\openmind-app\design-qa\provider-dialog-no-save-20260825\reference-provider-dialog-focused.png`（680 × 474）及 `900x720-provider-dialog.png`（680 × 473）。
+- Density normalization：将源图与 2048 × 1152 实现图在同一比较输入中按 2048 px 宽显示（分别为 2048 × 1114 与 2048 × 1097）；由于源截图没有可用 CSS/density 元数据，只评估应用内容区及用户标出的底部区域，不将窗口边框或设备缩放差异计为偏差。
+- State：浅色主题、Provider 配置弹窗关闭。源图含 3 个 Provider 与被红框标出的全局“未保存修改 / 放弃修改 / 保存配置”条；实现用视觉 QA fixture 呈现 2 个 Provider，列表下方没有该条。Provider 数量是 fixture 差异，不影响本次目标区域判断。
+
+## 完整与聚焦对照证据
+
+源图与 `2048x1152-02-AI-与模型.png` 已在同一个视觉比较输入中打开；完整视图确认 Provider 列表卡片后的留白恢复为正常页面留白，没有残留背景、边框、提示文案或操作按钮。`reference-provider-dialog-focused.png` 与窄屏截图用于确认保存动作仍只存在于编辑弹窗的页脚，而不是回流到列表底部。
+
+## Findings
+
+- 迭代前 [P1]：Provider 列表下方存在一整条全局保存操作区，与用户标注的“不需要”元素一致；它会额外占用页面纵向空间，并让列表修改与弹窗修改的保存入口并存。
+  - Fix：删除全局保存条及其样式；列表中的启用、设为默认、添加、删除改为立即保存，连接信息继续由 Provider 编辑弹窗内的“取消 / 保存配置”收口。
+  - Post-fix evidence：`2048x1152-02-AI-与模型.png` 与 `reference-provider-list-collapsed.png` 均没有 `.settings-provider-save-row` 对应的可见区域；Electron 交互断言 `globalSaveRowRemoved: true`。
+- 未发现遗留的 P0、P1 或 P2 偏差。
+- 字体与层级：列表标题、数量徽标、Provider 名称、协议/模型元数据和 API Key 状态继续使用现有 Settings 字体、权重及层级；移除操作条后没有残留的弱提示或无归属按钮。
+- 间距与布局节奏：列表卡片在最后一个 Provider 后自然结束，整体留白与 Settings 主内容轴保持一致；弹窗内仍保留双列字段、全宽 Base URL/API Key 与固定页脚。
+- 色彩与 token：没有引入新颜色、阴影或边框；列表和弹窗继续复用现有 `Settings` 面板、正文、弱文本、焦点与主按钮 token。
+- 图像、图标与文案：目标区域不含图像资产；箭头、更多和关闭图标仍来自既有 Lucide 图标体系。列表不再显示“尚无未保存修改 / 放弃修改 / 保存配置”；弹窗保留清晰的“取消 / 保存配置”文案。
+- 可访问性与交互：Provider 编辑对话框仍具有 `role="dialog"`、`aria-modal`、已关联标题、焦点范围与 Escape/遮罩取消；取消会恢复编辑前的字段、API Key 草稿和 CLI 绑定。列表即时操作不会遗留无法保存的草稿状态。
+- 响应式：900 × 720 截图中的弹窗宽 680 px、横向溢出为 0；底部仅为弹窗自身的取消/保存操作，不出现全局保存条。
+
+## 验证与比较历史
+
+1. 以用户的红框截图为首轮证据，记录全局保存条为 P1 目标偏差。
+2. 移除该条及相关 CSS，并将保存语义收口为“列表立即保存 + 弹窗确认保存”；补充取消时还原 CLI 绑定的保护，避免弹窗取消留下隐性草稿。
+3. 重新运行 Electron 视觉 QA：36 张截图、0 个 renderer console error，覆盖 reference、2048 × 1152、1280 × 800、900 × 720；Provider 交互验证了初始无弹窗、打开单个 Provider、取消恢复模型、再次打开及无全局保存条。
+4. 本地预览打开 AI 与模型页时也没有全局保存条；预览控制台 error 日志为空。`SettingsPage` 聚焦测试 27/27 通过，生产构建通过（TypeScript、边界审计、manifest 校验、renderer 和 Electron preload）。
+
+final result: passed
+
+---
+
 # Provider 折叠与扁平化配置 QA — 2026-08-23
 
 ## 对照基准
@@ -1345,5 +1383,88 @@ The source and final browser capture were opened in one side-by-side comparison 
 - Reddit and X catalog selections exposed `Reddit 内容抓取的社区配置` and `X Following 抓取的请求配置` under their own tabs.
 - Browser console warnings/errors: none.
 - TypeScript checks passed. Skills and browser preview focused tests: 34/34 passed.
+
+final result: passed
+
+---
+
+# Provider 配置弹窗 QA — 2026-08-25
+
+## 对照与状态
+
+- Source visual truth: `C:\Users\say\AppData\Local\Temp\codex-clipboard-671e2386-db37-4458-8dc8-fae10fa2ddd8.png`（2088 × 1185；用户标注的 Provider 配置字段）。
+- Implementation full-view: `D:\work\openmind-app\design-qa\provider-dialog-20260825\reference-provider-dialog.png`（2345 × 1401；1577 × 997 CSS 窗口、Electron 默认缩放）。
+- Focused implementation: `D:\work\openmind-app\design-qa\provider-dialog-20260825\reference-provider-dialog-focused.png`（680 × 474）。Narrow-width evidence: `D:\work\openmind-app\design-qa\provider-dialog-20260825\900x720-provider-dialog.png`。
+- State: 点击列表中已有 Provider 后的配置弹窗；字段、API Key 占位提示和高级设置收起。原图呈现的是内联配置，用户已明确更正为弹窗，因此布局变化是预期交互变化，而不是视觉偏差。
+
+## Full-view and focused evidence
+
+The source image and final full-view capture were opened together for comparison; the focused capture verifies the modal surface itself. The Provider list stays in its existing Settings card, while the configuration is moved into the app's existing modal pattern: dimmed backdrop, centered neutral panel, 14 px radius, existing shadow token, header separator, scrollable form body, and footer actions.
+
+## Findings
+
+- No actionable P0/P1/P2 finding remains.
+- Fonts and typography: the dialog reuses the Settings system stack, compact eyebrow, 18 px heading, muted explanatory text, field labels, and monospace URL/model inputs without introducing a new type scale.
+- Spacing and layout rhythm: name/model retain the two-column desktop arrangement; Base URL and API Key span the modal; advanced settings and footer preserve the existing vertical rhythm. The focused 680 px dialog has no cropped controls.
+- Colors and visual tokens: backdrop, panel, borders, shadow, focus ring, muted copy, and primary/secondary actions reuse existing Settings tokens. The visible focus treatment is the project's standard keyboard-focus state.
+- Image quality and assets: the source contains no raster assets. The close/disclosure icons remain from the existing Lucide family.
+- Copy and content: all original configuration fields are preserved, with the explicit "关闭" and "保存配置" actions. API Key remains masked and uses the established "已设置（留空保留）" behavior.
+- Accessibility and behavior: the modal uses `role="dialog"`, `aria-modal`, labelled headings, Escape/backdrop dismissal, focus containment/restoration, and a semantic form. Clicking another Provider closes the prior dialog before opening the next one.
+- Responsive behavior: the 900 × 720 capture shows a 680 px-wide dialog with zero horizontal overflow; fields remain readable and the form body can scroll if needed.
+
+## Comparison history
+
+1. The initial interpretation implemented connection probing, which did not match the user's clarified requirement. That flow and its IPC/backend surface were removed.
+2. The final pass moves the same configuration fields into the established Provider dialog style and captures the corrected open state at desktop and narrow window sizes.
+
+## Functional verification
+
+- In-app preview: added a synthetic preview Provider, clicked its list row, and confirmed that `编辑 DeepSeek` opens a labelled configuration dialog with all fields and advanced settings. No real credential was used.
+- Settings focused tests: 27/27 passed, including dialog opening, per-Provider draft preservation, discard, advanced settings, save, and removal behavior.
+- Production build passed, including type checks, repository-boundary audit, manifest validation, renderer build, and Electron preload build.
+- Electron visual QA passed with 36 screenshots, zero renderer console errors, and zero horizontal overflow across reference, 2048 × 1152, 1280 × 800, and 900 × 720 viewports.
+
+final result: passed
+
+---
+
+# Skill 来源弹窗统一样式 QA — 2026-08-25
+
+## 对照基准
+
+- Source visual truth: `C:\Users\say\AppData\Local\Temp\codex-clipboard-5d20f689-b41e-45c4-a2b0-509141006a2a.png`（3840 × 2088；改造前的“添加 Skill 来源”弹窗）。
+- Project-style target: `D:\work\openmind-app\design-qa\skill-source-dialog-provider-style-20260825\reference-provider-dialog-focused.png`（680 × 474；项目现有“添加 Provider”弹窗）。用户明确要求向此弹窗样式收敛。
+- Implementation full-view: `D:\work\openmind-app\design-qa\skill-source-dialog-provider-style-20260825\reference-skill-source-dialog.png`（2345 × 1401；Electron 1577 × 997 CSS 参考窗口）。
+- Focused implementation: `D:\work\openmind-app\design-qa\skill-source-dialog-provider-style-20260825\reference-skill-source-dialog-focused.png`（680 × 426）。Narrow-width evidence: `D:\work\openmind-app\design-qa\skill-source-dialog-provider-style-20260825\900x720-skill-source-dialog.png`（1329 × 986；900 × 720 CSS 窗口）。
+- Density normalization: 源图是带应用外框的 3840 × 2088 截图，最终目标是复用项目中的 Provider 弹窗而非保持原弹窗尺寸；因此未对整屏图做像素缩放。源图、新 Skill 弹窗聚焦图、Provider 聚焦图及窄窗口图在同一视觉输入中并列检查，判断集中在弹窗表面、控件和交互状态。
+- State: 浅色主题；Skill Center 的“添加 Skill 来源”打开，Git 地址与分支为空，本地来源可选；Provider 图仅作为同项目视觉基准。
+
+## Full-view and focused evidence
+
+全视图确认背景设置页、居中位置、遮罩密度与弹窗层级；聚焦图逐项确认标题区、关闭按钮、字段、按钮和 footer。新 Skill 弹窗与 Provider 弹窗均使用 680 px 宽的相同 dialog shell；900 × 720 状态未出现水平溢出。
+
+## Findings
+
+- No actionable P0/P1/P2 finding remains.
+- Fonts and typography: 复用 Settings 系统字体、紧凑 eyebrow、标题层级、字段标签和辅助说明；本地来源说明与 Git 标签的字号/权重符合 Provider 弹窗，未出现截断或拥挤换行。
+- Spacing and layout rhythm: 标题、分隔线、20 px 内容区节奏、字段间距、14 px 圆角和底部操作栏均复用 Provider 弹窗。原先紧凑的一行来源/输入布局已改为可扫读的本地来源区域和两列 Git 字段。
+- Colors and visual tokens: 遮罩、面板、描边、阴影、输入焦点、次要动作和主按钮均使用现有 Settings token；没有保留旧弹窗的独立蓝色按钮或自定义弹层外观。
+- Image quality and assets: 目标区域没有栅格资产；文件夹、关闭等图标继续使用项目已有的 Lucide 图标族，没有新增替代性绘制资产。
+- Copy and content: 保留“添加 Skill 来源”、本地目录/ZIP、Git HTTPS 地址、分支或 tag、检查与安装等既有任务文案；将操作明确归入 footer 的“取消 / 检查 Git 来源 / 安装”流程。
+- Accessibility and behavior: 弹窗具备 `role="dialog"`、`aria-modal`、标题关联、关闭 aria-label、Escape/遮罩关闭及焦点约束/恢复；本地选择、Git 检查、取消检查和安装仍使用原有真实业务逻辑。
+- Responsive behavior: 900 × 720 CSS 窗口下表面完整、footer 可用，自动化断言的水平 overflow 为 0。
+
+## Comparison history
+
+1. 初始对比发现 P1：旧“添加 Skill 来源”使用独立的紧凑弹窗壳和单行输入布局，缺少与 Provider 一致的标题层级、内容区节奏和底部操作栏，和用户指定的项目样式不一致。
+2. 修复：组件改为复用 `settings-provider-dialog`、标准 body/footer、次要动作和字段样式；本地来源改为与表单节奏匹配的说明区域，原有检查/安装逻辑不变。
+3. 修复后证据：上述全视图、聚焦图和 900 × 720 窄窗口图与 Provider 基准图在同一视觉输入中比较；未发现剩余可操作的 P0/P1/P2 差异。
+
+## Implementation checklist
+
+- [x] 统一弹窗外壳、header、body 和 footer。
+- [x] 保留本地来源、Git 检查、取消检查和安装交互。
+- [x] 覆盖聚焦、Escape、遮罩关闭及窄窗口溢出状态。
+- [x] 通过 Skills focused tests（22/22）、生产构建和 Electron visual QA（36 张截图、renderer console errors 为 0）。
 
 final result: passed

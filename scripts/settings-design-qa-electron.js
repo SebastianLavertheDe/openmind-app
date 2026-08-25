@@ -6,7 +6,7 @@ const appRoot = path.resolve(__dirname, "..");
 const rendererIndex = path.join(appRoot, ".build", "renderer", "index.html");
 const preload = path.join(__dirname, "visual-snapshot-preload.js");
 const outputRoot = path.resolve(process.env.OPENMIND_SETTINGS_QA_OUTPUT || path.join(appRoot, "design-qa", "settings-unified"));
-const sections = ["常规", "AI 与模型", "内置运行时", "Skills", "MCP 服务", "浏览器", "权限与安全", "内容工作流", "数据与存储", "会话归档"];
+const sections = ["常规", "AI 与模型", "内置运行时", "Skills", "MCP 服务", "浏览器", "权限与安全", "内容工作流", "会话归档"];
 const viewports = [
   { id: "reference", width: 1744, height: 1255 },
   { id: "2048x1152", width: 2048, height: 1152 },
@@ -49,6 +49,13 @@ app.whenReady().then(async () => {
         interaction = await inspectSkillsInteraction(win);
         await clickSkillByTitle(win, "兴趣标记整理");
         await resetSettingsDetailScroll(win);
+        if (viewport.id === "reference") {
+          interaction = { ...interaction, ...(await captureSkillSourceDialog(win, outputRoot, viewport, "reference")) };
+          await resetSettingsDetailScroll(win);
+        } else if (viewport.id === "900x720") {
+          interaction = { ...interaction, ...(await captureSkillSourceDialog(win, outputRoot, viewport, "900x720")) };
+          await resetSettingsDetailScroll(win);
+        }
       }
       await settle();
       const geometry = await win.webContents.executeJavaScript(`(() => {
@@ -70,6 +77,9 @@ app.whenReady().then(async () => {
       fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG());
       if (section === "AI 与模型" && viewport.id === "reference") {
         interaction = await captureProviderEvidence(win, outputRoot, viewport);
+        await resetSettingsDetailScroll(win);
+      } else if (section === "AI 与模型" && viewport.id === "900x720") {
+        interaction = await captureNarrowProviderEvidence(win, outputRoot);
         await resetSettingsDetailScroll(win);
       }
       report.push({ viewport: viewport.id, section, file: path.relative(appRoot, file), interaction, ...geometry });
@@ -149,16 +159,73 @@ async function inspectSkillsInteraction(win) {
   })`);
 }
 
+async function captureSkillSourceDialog(win, outputRoot, restoreViewport, viewportId) {
+  if (viewportId === "reference") {
+    win.setSize(1577, 997);
+    await settle();
+  }
+  const opened = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('.skills-source-picker-toggle');
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  })()`);
+  if (!opened) throw new Error("Could not open the Skill source dialog.");
+  await settle();
+  const metrics = await win.webContents.executeJavaScript(`(() => {
+    const dialog = document.querySelector('.skills-source-dialog');
+    if (!(dialog instanceof HTMLElement)) return null;
+    const box = dialog.getBoundingClientRect();
+    return {
+      hasProviderDialogShell: dialog.classList.contains('settings-provider-dialog'),
+      hasProviderDialogBody: Boolean(dialog.querySelector('.settings-provider-dialog-body')),
+      hasFooter: Boolean(dialog.querySelector('footer')),
+      width: box.width,
+      height: box.height,
+      overflow: dialog.scrollWidth - dialog.clientWidth
+    };
+  })()`);
+  if (!metrics || !metrics.hasProviderDialogShell || !metrics.hasProviderDialogBody || !metrics.hasFooter || metrics.overflow > 2) {
+    throw new Error(`Skill source dialog did not match the Provider dialog shell: ${JSON.stringify(metrics)}`);
+  }
+  const fullFile = path.join(outputRoot, `${viewportId}-skill-source-dialog.png`);
+  fs.writeFileSync(fullFile, (await win.webContents.capturePage()).toPNG());
+  let focusedFile = null;
+  if (viewportId === "reference") {
+    focusedFile = path.join(outputRoot, "reference-skill-source-dialog-focused.png");
+    await captureSkillSourceDialogSurface(win, focusedFile);
+  }
+  const closed = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('.skills-source-dialog header button[aria-label="关闭添加 Skill 来源"]');
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  })()`);
+  if (!closed) throw new Error("Could not close the Skill source dialog.");
+  await settle();
+  if (await win.webContents.executeJavaScript(`Boolean(document.querySelector('.skills-source-dialog'))`)) {
+    throw new Error("Skill source dialog remained open after closing.");
+  }
+  win.setSize(restoreViewport.width, restoreViewport.height);
+  await settle();
+  return {
+    skillSourceDialogUsesProviderShell: true,
+    skillSourceDialogFile: path.relative(appRoot, fullFile),
+    ...(focusedFile ? { skillSourceDialogFocusedFile: path.relative(appRoot, focusedFile) } : {}),
+    ...metrics
+  };
+}
+
 async function captureProviderEvidence(win, outputRoot, restoreViewport) {
   win.setSize(1577, 997);
   await settle();
   const initial = await win.webContents.executeJavaScript(`(() => ({
-    expandedCount: document.querySelectorAll('.settings-provider-config-card[data-expanded]').length,
-    bodyCount: document.querySelectorAll('.settings-provider-config-body').length,
-    providerCount: document.querySelectorAll('.settings-provider-config-card').length
+    dialogCount: document.querySelectorAll('.settings-provider-dialog').length,
+    providerCount: document.querySelectorAll('.settings-provider-config-card').length,
+    hasGlobalSaveRow: Boolean(document.querySelector('.settings-provider-save-row'))
   }))()`);
-  if (initial.providerCount < 2 || initial.expandedCount !== 0 || initial.bodyCount !== 0) {
-    throw new Error(`Provider list must start fully collapsed: ${JSON.stringify(initial)}`);
+  if (initial.providerCount < 2 || initial.dialogCount !== 0 || initial.hasGlobalSaveRow) {
+    throw new Error(`Provider list must start without an open dialog: ${JSON.stringify(initial)}`);
   }
   await scrollToProviderList(win);
   const collapsedFile = path.join(outputRoot, "reference-provider-list-collapsed.png");
@@ -166,72 +233,139 @@ async function captureProviderEvidence(win, outputRoot, restoreViewport) {
   const collapsedCardFile = path.join(outputRoot, "reference-provider-card-collapsed.png");
   await captureProviderCard(win, collapsedCardFile);
 
-  const firstExpanded = await win.webContents.executeJavaScript(`(() => {
+  const firstOpened = await win.webContents.executeJavaScript(`(() => {
     const trigger = document.querySelector('.settings-provider-config-summary');
     if (!(trigger instanceof HTMLButtonElement)) return false;
     trigger.click();
     return true;
   })()`);
-  if (!firstExpanded) throw new Error("Could not expand the first Provider.");
+  if (!firstOpened) throw new Error("Could not open the first Provider dialog.");
   await settle();
-  await scrollToProviderList(win);
-  const expandedState = await win.webContents.executeJavaScript(`(() => ({
-    expandedCount: document.querySelectorAll('.settings-provider-config-card[data-expanded]').length,
-    bodyCount: document.querySelectorAll('.settings-provider-config-body').length,
-    firstExpanded: document.querySelector('.settings-provider-config-summary')?.getAttribute('aria-expanded') === 'true'
+  const dialogState = await win.webContents.executeJavaScript(`(() => ({
+    dialogCount: document.querySelectorAll('.settings-provider-dialog').length,
+    title: document.querySelector('#edit-provider-title')?.textContent?.trim() || null,
+    fields: document.querySelectorAll('.settings-provider-dialog .settings-field').length
   }))()`);
-  if (expandedState.expandedCount !== 1 || expandedState.bodyCount !== 1 || !expandedState.firstExpanded) {
-    throw new Error(`Provider accordion did not open exactly one row: ${JSON.stringify(expandedState)}`);
+  if (dialogState.dialogCount !== 1 || !dialogState.title || dialogState.fields < 4) {
+    throw new Error(`Provider configuration dialog did not open: ${JSON.stringify(dialogState)}`);
   }
-  await markProviderDirty(win);
-  const expandedFile = path.join(outputRoot, "reference-provider-list-expanded.png");
-  fs.writeFileSync(expandedFile, (await win.webContents.capturePage()).toPNG());
-  const expandedCardFile = path.join(outputRoot, "reference-provider-card-expanded.png");
-  await captureProviderCard(win, expandedCardFile);
+  const dialogFile = path.join(outputRoot, "reference-provider-dialog.png");
+  fs.writeFileSync(dialogFile, (await win.webContents.capturePage()).toPNG());
+  const dialogFocusedFile = path.join(outputRoot, "reference-provider-dialog-focused.png");
+  await captureProviderDialog(win, dialogFocusedFile);
+  const originalModel = await markProviderDirty(win);
 
-  const switched = await win.webContents.executeJavaScript(`new Promise((resolve) => {
-    const triggers = [...document.querySelectorAll('.settings-provider-config-summary')];
-    if (!(triggers[1] instanceof HTMLButtonElement)) {
-      resolve(null);
-      return;
-    }
-    triggers[1].click();
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve({
-      expandedCount: document.querySelectorAll('.settings-provider-config-card[data-expanded]').length,
-      firstExpanded: triggers[0]?.getAttribute('aria-expanded') === 'true',
-      secondExpanded: triggers[1]?.getAttribute('aria-expanded') === 'true'
-    })));
-  })`);
-  if (!switched || switched.expandedCount !== 1 || switched.firstExpanded || !switched.secondExpanded) {
-    throw new Error(`Provider accordion did not switch cleanly: ${JSON.stringify(switched)}`);
+  const firstClosed = await closeProviderDialog(win);
+  if (!firstClosed) throw new Error("Could not close the first Provider dialog.");
+  const firstReopened = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('.settings-provider-config-summary');
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  })()`);
+  if (!firstReopened) throw new Error("Could not reopen the first Provider dialog.");
+  await settle();
+  const restoredModel = await win.webContents.executeJavaScript(`(() => {
+    const label = [...document.querySelectorAll('.settings-provider-dialog label')].find((item) => item.querySelector('span')?.textContent?.trim() === '模型');
+    const input = label?.querySelector('input');
+    return input instanceof HTMLInputElement ? input.value : null;
+  })()`);
+  if (restoredModel !== originalModel) throw new Error(`Provider cancel did not restore the model: ${JSON.stringify({ originalModel, restoredModel })}`);
+  await closeProviderDialog(win);
+  const secondOpened = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelectorAll('.settings-provider-config-summary')[1];
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  })()`);
+  if (!secondOpened) throw new Error("Could not open the second Provider dialog.");
+  await settle();
+  const secondState = await win.webContents.executeJavaScript(`(() => ({
+    dialogCount: document.querySelectorAll('.settings-provider-dialog').length,
+    title: document.querySelector('#edit-provider-title')?.textContent?.trim() || null
+  }))()`);
+  if (secondState.dialogCount !== 1 || !secondState.title) {
+    throw new Error(`Second Provider dialog did not open cleanly: ${JSON.stringify(secondState)}`);
   }
+  await closeProviderDialog(win);
+  await settle();
 
   win.setSize(restoreViewport.width, restoreViewport.height);
   await settle();
   return {
-    defaultCollapsed: true,
-    singleOpen: true,
+    defaultDialogClosed: true,
+    dialogOpensOneProvider: true,
+    cancelRestoresLocalChanges: true,
+    globalSaveRowRemoved: true,
     collapsedFile: path.relative(appRoot, collapsedFile),
     collapsedCardFile: path.relative(appRoot, collapsedCardFile),
-    expandedFile: path.relative(appRoot, expandedFile),
-    expandedCardFile: path.relative(appRoot, expandedCardFile)
+    dialogFile: path.relative(appRoot, dialogFile),
+    dialogFocusedFile: path.relative(appRoot, dialogFocusedFile)
+  };
+}
+
+async function captureNarrowProviderEvidence(win, outputRoot) {
+  await scrollToProviderList(win);
+  const opened = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('.settings-provider-config-summary');
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
+    return true;
+  })()`);
+  if (!opened) throw new Error("Could not open the narrow Provider dialog.");
+  await settle();
+  const file = path.join(outputRoot, "900x720-provider-dialog.png");
+  await captureProviderDialog(win, file);
+  const metrics = await win.webContents.executeJavaScript(`(() => {
+    const dialog = document.querySelector('.settings-provider-dialog');
+    if (!(dialog instanceof HTMLElement)) return null;
+    return {
+      width: dialog.getBoundingClientRect().width,
+      height: dialog.getBoundingClientRect().height,
+      overflow: dialog.scrollWidth - dialog.clientWidth
+    };
+  })()`);
+  if (!metrics || metrics.overflow > 2) {
+    throw new Error("Narrow Provider dialog overflow: " + JSON.stringify(metrics));
+  }
+  if (!(await closeProviderDialog(win))) throw new Error("Could not close the narrow Provider dialog.");
+  await settle();
+  return {
+    dialogAtNarrowWidth: true,
+    dialogFile: path.relative(appRoot, file),
+    ...metrics
   };
 }
 
 async function markProviderDirty(win) {
-  const changed = await win.webContents.executeJavaScript(`(() => {
-    const input = document.querySelector('.settings-provider-config-body input[aria-label="模型"], .settings-provider-config-body label:nth-child(2) input');
-    if (!(input instanceof HTMLInputElement)) return false;
+  const originalModel = await win.webContents.executeJavaScript(`(() => {
+    const label = [...document.querySelectorAll('.settings-provider-dialog label')].find((item) => item.querySelector('span')?.textContent?.trim() === '模型');
+    const input = label?.querySelector('input');
+    if (!(input instanceof HTMLInputElement)) return null;
+    const original = input.value;
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     setValue?.call(input, input.value + ' ');
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    return original;
+  })()`);
+  if (!originalModel) throw new Error("Could not create the Provider dirty-state evidence.");
+  await settle();
+  const saveEnabled = await win.webContents.executeJavaScript(`!document.querySelector('.settings-provider-dialog footer .primary-button')?.disabled`);
+  if (!saveEnabled) throw new Error("Provider dirty-state did not enable save controls.");
+  return originalModel;
+}
+
+async function closeProviderDialog(win) {
+  const closed = await win.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('.settings-provider-dialog header button[aria-label^="取消"]');
+    if (!(trigger instanceof HTMLButtonElement)) return false;
+    trigger.click();
     return true;
   })()`);
-  if (!changed) throw new Error("Could not create the Provider dirty-state evidence.");
+  if (!closed) return false;
   await settle();
-  const saveEnabled = await win.webContents.executeJavaScript(`!document.querySelector('.settings-provider-save-row .primary-button')?.disabled`);
-  if (!saveEnabled) throw new Error("Provider dirty-state did not enable save controls.");
+  return await win.webContents.executeJavaScript(`!document.querySelector('.settings-provider-dialog')`);
 }
 
 async function captureProviderCard(win, file) {
@@ -243,6 +377,30 @@ async function captureProviderCard(win, file) {
     return { x: Math.max(0, Math.floor(box.x)), y: Math.max(0, Math.floor(box.y)), width: Math.ceil(box.width), height: Math.ceil(box.height) };
   })()`);
   if (!rect) throw new Error("Provider card was not found for focused evidence.");
+  const image = await win.webContents.capturePage(rect);
+  fs.writeFileSync(file, image.resize({ width: rect.width, height: rect.height, quality: "best" }).toPNG());
+}
+
+async function captureProviderDialog(win, file) {
+  const rect = await win.webContents.executeJavaScript(`(() => {
+    const dialog = document.querySelector('.settings-provider-dialog');
+    if (!(dialog instanceof HTMLElement)) return null;
+    const box = dialog.getBoundingClientRect();
+    return { x: Math.max(0, Math.floor(box.x)), y: Math.max(0, Math.floor(box.y)), width: Math.ceil(box.width), height: Math.ceil(box.height) };
+  })()`);
+  if (!rect) throw new Error("Provider dialog was not found for focused evidence.");
+  const image = await win.webContents.capturePage(rect);
+  fs.writeFileSync(file, image.resize({ width: rect.width, height: rect.height, quality: "best" }).toPNG());
+}
+
+async function captureSkillSourceDialogSurface(win, file) {
+  const rect = await win.webContents.executeJavaScript(`(() => {
+    const dialog = document.querySelector('.skills-source-dialog');
+    if (!(dialog instanceof HTMLElement)) return null;
+    const box = dialog.getBoundingClientRect();
+    return { x: Math.max(0, Math.floor(box.x)), y: Math.max(0, Math.floor(box.y)), width: Math.ceil(box.width), height: Math.ceil(box.height) };
+  })()`);
+  if (!rect) throw new Error("Skill source dialog was not found for focused evidence.");
   const image = await win.webContents.capturePage(rect);
   fs.writeFileSync(file, image.resize({ width: rect.width, height: rect.height, quality: "best" }).toPNG());
 }
