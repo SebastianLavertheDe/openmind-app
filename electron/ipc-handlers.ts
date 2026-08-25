@@ -33,7 +33,7 @@ import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
-import { listProvidersForUi, saveProvidersFromInput } from "./config/providers-yaml";
+import { listProvidersForUi, readProviderApiKeyForUi, saveProvidersFromInput } from "./config/providers-yaml";
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { normalizeOpenmindSelection } from "./openmind-file-search";
 import * as settings from "./lib/settings";
@@ -379,6 +379,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.getProviders,
       handler: () => ProvidersYamlViewSchema.parse(listProvidersForUi())
+    },
+    {
+      channel: C.getProviderApiKey,
+      handler: (id) => readProviderApiKeyForUi(IdentifierArgSchema.parse(id))
     },
     {
       channel: C.saveProviders,

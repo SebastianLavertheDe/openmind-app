@@ -135,6 +135,13 @@ describe("config/providers.yaml file repository", () => {
     expect(serialized).not.toContain("secret-codex-primary");
   });
 
+  it("returns the original key only for an explicitly requested Provider editor", () => {
+    config.saveProvidersFromInput(providerDocument());
+
+    expect(config.readProviderApiKeyForUi("claude-primary")).toBe("secret-claude-primary");
+    expect(() => config.readProviderApiKeyForUi("missing")).toThrow("未找到 Provider");
+  });
+
   it("resolves current CLI bindings and a provider id frozen into an existing session", () => {
     config.saveProvidersFromInput(providerDocument());
 

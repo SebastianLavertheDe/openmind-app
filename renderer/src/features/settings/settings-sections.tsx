@@ -705,8 +705,8 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
 /**
  * Manages the plaintext `config/providers.yaml` — the single source of truth
  * for the AI provider used by both desktop runs and crontab Python runs. The
- * apiKey is never read back from main; the UI only knows whether one is set,
- * and an empty password field means "keep the existing key".
+ * Provider list reads stay key-free. The original key is fetched only after a
+ * user explicitly opens that Provider's trusted local editor.
  */
 export function AiProvidersSettingsSection({
   view,
@@ -850,8 +850,18 @@ export function AiProvidersSettingsSection({
     setAdding(true);
   };
 
-  const openEditDialog = (entry: ProviderYamlInputEntry) => {
-    setEditingSnapshot({ entry: { ...entry }, apiKey: apiKeyKeys[entry.id] ?? "", cliBindings: { ...cliBindings } });
+  const openEditDialog = async (entry: ProviderYamlInputEntry) => {
+    let apiKey = apiKeyKeys[entry.id];
+    if (apiKey === undefined) {
+      try {
+        apiKey = await window.openmind.getProviderApiKey(entry.id);
+      } catch {
+        notify("无法读取当前 Provider 的 API Key", "error");
+        return;
+      }
+    }
+    setApiKeyKeys((current) => ({ ...current, [entry.id]: apiKey }));
+    setEditingSnapshot({ entry: { ...entry }, apiKey, cliBindings: { ...cliBindings } });
     setEditingProviderId(entry.id);
     setAdvancedProviderId(null);
     setOpenProviderMenuId(null);
@@ -929,21 +939,22 @@ export function AiProvidersSettingsSection({
     <>
       <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
         action={<button type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider"><Plus size={15} aria-hidden />添加 Provider</button>}>
-        <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml，不会在界面中回显；请仅在受信任的本地项目中使用。</p>
+        <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml；编辑 Provider 时会在受信任的本地界面中回显。</p>
         <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
           {draft.map((entry) => {
             const displayName = entry.name || entry.id;
             const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
-            const apiKeyStatus = apiKeyDrafted ? "API Key 待保存" : apiKeySetMap[entry.id] ? "API Key 已配置" : "API Key 未配置";
+            const apiKeyStatus = apiKeySetMap[entry.id] ? "API Key 已配置" : apiKeyDrafted ? "API Key 待保存" : "API Key 未配置";
+            const apiKeyState = apiKeySetMap[entry.id] ? "set" : apiKeyDrafted ? "pending" : "missing";
             return (
               <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
                 <header className="settings-provider-config-header">
                   <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
-                    aria-label={`编辑 ${displayName} 配置`} onClick={() => openEditDialog(entry)} disabled={busy}>
+                    aria-label={`编辑 ${displayName} 配置`} onClick={() => void openEditDialog(entry)} disabled={busy}>
                     <span className="settings-provider-config-identity">
                       <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}</span>
-                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyDrafted ? "pending" : apiKeySetMap[entry.id] ? "set" : "missing"}>{apiKeyStatus}</span></span>
+                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
                     </span>
                     <ChevronRight className="settings-provider-config-chevron" size={16} aria-hidden />
                   </button>
@@ -1001,7 +1012,7 @@ export function AiProvidersSettingsSection({
                       <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input" type="password" value={newProvider.apiKey} required placeholder="请输入 API Key" onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
+                  <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder="请输入 API Key" autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
               </div>
               <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
@@ -1015,7 +1026,7 @@ export function AiProvidersSettingsSection({
         <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={cancelEditDialog}>
           <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
-              <div><span>AI Provider</span><h2 id="edit-provider-title">编辑 {editingProvider.name || editingProvider.id}</h2><p>修改连接信息与高级设置；取消不会保存改动，API Key 留空会保留原有值。</p></div>
+              <div><span>AI Provider</span><h2 id="edit-provider-title">编辑 {editingProvider.name || editingProvider.id}</h2><p>修改连接信息与高级设置；API Key 会回显原有值，留空保存仍会保留原有值。</p></div>
               <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={`取消 ${editingProvider.name || editingProvider.id} 配置编辑`} onClick={cancelEditDialog}><X size={16} /></button>
             </header>
             <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
@@ -1025,8 +1036,8 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
                   <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
                   <label className="settings-field settings-field--wide"><span>API Key</span>
-                    <input className="settings-browser-path-input" type="password" value={apiKeyKeys[editingProvider.id] ?? ""}
-                      placeholder={apiKeySetMap[editingProvider.id] ? "已设置（留空保留）" : "未设置"}
+                    <input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={apiKeyKeys[editingProvider.id] ?? ""}
+                      placeholder="未设置" autoComplete="off" spellCheck={false}
                       onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
                   </label>
                 </div>

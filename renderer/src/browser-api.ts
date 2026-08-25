@@ -426,6 +426,7 @@ export function installBrowserPreviewApi(): boolean {
       packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
     }),
     getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
+    getProviderApiKey: async (): Promise<string> => "",
     saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "windows-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.10" : null, uvVersion: enabled ? "0.8.15" : null, managedSkills: enabled ? 3 : 0, ready: enabled, lastError: null }),

@@ -2500,6 +2500,14 @@
 .settings-field .settings-browser-path-input[readonly] { background: var(--panel-muted); color: var(--muted); cursor: default; }
 .settings-field--wide { grid-column: 1 / -1; }
 
+/* Keep API Key selection neutral instead of applying the bright accent ring. */
+.settings-provider-dialog .settings-provider-api-key-input:focus,
+.settings-provider-dialog .settings-provider-api-key-input:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: none;
+  outline: none;
+}
+
 .settings-provider-advanced-trigger {
   min-height: 42px;
   display: flex;

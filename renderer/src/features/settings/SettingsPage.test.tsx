@@ -105,6 +105,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
       diagnostic: "AI 写作取证已关闭。"
     }),
     getMcpServers: async () => mcpServers,
+    getProviderApiKey: async (id: string) => `sk-existing-${id}`,
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
     setSharedPythonRuntimeEnabled: async (enabled: boolean) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "linux-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 2 : 0, ready: enabled, lastError: null }),
     setOpenmindRoot: async (root: string) => root,
@@ -398,7 +399,8 @@ describe("SettingsPage", () => {
       ]
     };
     const saveProviders = vi.fn().mockResolvedValue(providerView);
-    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), saveProviders });
+    const getProviderApiKey = vi.fn(async (id: string) => `sk-original-${id}`);
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), getProviderApiKey, saveProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -411,10 +413,14 @@ describe("SettingsPage", () => {
     fireEvent.click(first);
     const firstDialog = await screen.findByRole("dialog", { name: "编辑 第一 Provider" });
     expect(within(firstDialog).getByDisplayValue("first-model")).toBeTruthy();
-    expect(within(firstDialog).getByLabelText("API Key")).toBeTruthy();
+    const apiKeyInput = within(firstDialog).getByLabelText("API Key") as HTMLInputElement;
+    expect(getProviderApiKey).toHaveBeenCalledWith("first");
+    expect(apiKeyInput.value).toBe("sk-original-first");
+    expect(apiKeyInput.type).toBe("text");
     fireEvent.change(within(firstDialog).getByDisplayValue("first-model"), { target: { value: "changed-model" } });
     fireEvent.click(within(firstDialog).getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "编辑 第一 Provider" })).toBeNull());
+    expect(screen.getAllByText("API Key 已配置")[0]?.getAttribute("data-state")).toBe("set");
 
     fireEvent.click(screen.getByRole("button", { name: "编辑 第一 Provider 配置" }));
     const reopenedFirst = await screen.findByRole("dialog", { name: "编辑 第一 Provider" });
@@ -424,7 +430,7 @@ describe("SettingsPage", () => {
     fireEvent.change(within(reopenedFirst).getByDisplayValue("first-model"), { target: { value: "saved-model" } });
     fireEvent.click(within(reopenedFirst).getByRole("button", { name: "保存配置" }));
     await waitFor(() => expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
-      providers: expect.arrayContaining([expect.objectContaining({ id: "first", model: "saved-model" })])
+      providers: expect.arrayContaining([expect.objectContaining({ id: "first", model: "saved-model", apiKey: "sk-original-first" })])
     })));
     expect(screen.queryByText("尚无未保存修改")).toBeNull();
     expect(screen.queryByRole("button", { name: "放弃修改" })).toBeNull();

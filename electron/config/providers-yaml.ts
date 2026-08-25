@@ -203,6 +203,18 @@ export function saveProvidersFromInput(input: ProvidersYamlInput): ProvidersYaml
 
 /** Remove a provider by id; if it was the default, repoint default to the first enabled survivor. */
 
+/**
+ * Return the original key for one Provider editor that the user explicitly
+ * opened. List views remain key-free so a catalog refresh never transfers all
+ * credentials into the renderer.
+ */
+export function readProviderApiKeyForUi(providerId: string): string {
+  const current = readProvidersYaml();
+  const provider = current?.providers.find((entry) => entry.id === providerId);
+  if (!provider) throw new Error(`未找到 Provider：${providerId}`);
+  return provider.apiKey;
+}
+
 /** Return a UI-safe view (apiKey replaced by `apiKeySet`). Empty document when no file exists. */
 export function listProvidersForUi(): ProvidersYamlView {
   const current = readProvidersYaml();

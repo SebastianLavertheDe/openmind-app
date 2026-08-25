@@ -45,6 +45,7 @@ export const IPC = {
   APP_BROWSER_EXTENSION_TOKEN_SAVE: "app:browser-extension-token-save",
   APP_BROWSER_EXTENSION_TOKEN_CLEAR: "app:browser-extension-token-clear",
   APP_PROVIDERS_GET: "app:providers-get",
+  APP_PROVIDER_API_KEY_GET: "app:provider-api-key-get",
   APP_PROVIDERS_SAVE: "app:providers-save",
   APP_SHARED_PYTHON_STATUS: "app:shared-python-status",
   APP_SHARED_PYTHON_ENABLE: "app:shared-python-enable",

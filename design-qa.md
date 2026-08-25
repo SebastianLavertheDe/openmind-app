@@ -1468,3 +1468,45 @@ final result: passed
 - [x] 通过 Skills focused tests（22/22）、生产构建和 Electron visual QA（36 张截图、renderer console errors 为 0）。
 
 final result: passed
+
+---
+
+# Provider API Key 回显与焦点 QA — 2026-08-25
+
+## 对照基准
+
+- Source visual truth: `C:\Users\say\AppData\Local\Temp\codex-clipboard-94fb6283-2521-4cdb-9127-772bafc59030.png`（2499 × 1589；原 API Key 占位文案与绿色焦点环）。
+- Implementation full-view: `D:\work\openmind-app\design-qa\provider-key-plain-neutral-20260825\reference-provider-dialog.png`（2345 × 1401；Electron 1577 × 997 CSS 参考窗口）。
+- Focused implementation: `D:\work\openmind-app\design-qa\provider-key-plain-neutral-20260825\reference-provider-api-key-focused.png`（680 × 474；API Key 真实聚焦状态）。Narrow-width evidence: `D:\work\openmind-app\design-qa\provider-key-plain-neutral-20260825\900x720-provider-dialog.png`（680 × 474；900 × 720 CSS 窗口）。
+- Density normalization: 源图是带应用外框和红色标注的 2499 × 1589 问题截图；实现图由 Electron 夹具以 1:1 dialog crop 输出。没有按整屏像素尺寸进行缩放；源图、聚焦实现图和窄窗口实现图在同一视觉输入中比较，判断集中在 API Key 字段的可见值、焦点状态和周边布局。
+- State: 浅色主题、编辑既有 Provider。实现使用非生产测试 Key，未读取、记录或截图任何真实 API Key。
+
+## Full-view and focused evidence
+
+全视图确认 Provider 弹窗的位置、标题、字段节奏和 footer 不变；聚焦图确认 API Key 以普通文本显示且没有绿色外环。自动化同时断言输入为 `type="text"`、回显夹具原值、`box-shadow: none`、`outline: none`。900 × 720 CSS 状态下 dialog 宽 680 px、水平 overflow 为 0。
+
+## Findings
+
+- No actionable P0/P1/P2 finding remains.
+- Fonts and typography: API Key 继续使用项目的等宽输入字体与 12 px 字段文本，原有 Provider 标题、标签和说明层级没有改变。
+- Spacing and layout rhythm: 字段尺寸、边距、圆角、两列布局和 footer 保持 Provider 弹窗既有节奏；回显后的长 Key 在单行输入内正常横向编辑，不挤压相邻字段。
+- Colors and visual tokens: 移除了高饱和绿色 border/ring，焦点保留中性 `border-strong` 与输入光标，不再呈现突兀的状态色。
+- Image quality and assets: 该区域没有图像资产；原有 Lucide 图标和弹窗表面未被替换。
+- Copy and content: 帮助文案改为如实说明“API Key 会回显原有值”，与用户指定的本地受信任界面行为一致。
+- Accessibility and behavior: API Key 仍是有标签的可编辑文本框；点击具体 Provider 后才经专用 typed IPC 读取该 Provider 的 Key，列表获取接口仍不返回任何 Key。取消会恢复编辑前值，保存会提交当前字段值。
+- Responsive behavior: 900 × 720 CSS 窗口下表单和操作栏完整可用，未发现裁切或水平溢出。
+
+## Comparison history
+
+1. 初始对比发现 P1：编辑弹窗只显示“已设置（留空保留）”，并为 API Key 焦点添加绿色双层外框；这与用户要求的原 Key 回显和中性选中状态不一致。
+2. 修复：增加只在明确打开该 Provider 编辑弹窗时读取单个 Key 的 typed IPC；输入改为普通文本回显，并以中性 border 替换绿色 focus ring。
+3. 修复后证据：聚焦图显示夹具 Key 为可见文本且无绿色外环；窄窗口图无溢出，视觉与字段周边节奏一致。
+
+## Implementation checklist
+
+- [x] 在编辑弹窗中回显当前 Provider 的原 Key，不把所有 Key 放入 Provider 列表视图。
+- [x] 移除 API Key 的绿色焦点外环，保留中性输入边界。
+- [x] 覆盖保存、取消与真实聚焦状态的自动化断言。
+- [x] 通过 97 项相关测试、生产构建与 Electron visual QA（36 张截图、0 console errors、0 horizontal overflow）。
+
+final result: passed

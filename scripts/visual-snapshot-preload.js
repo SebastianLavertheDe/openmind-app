@@ -269,6 +269,11 @@ let visualProviders = {
   ]
 };
 
+const visualProviderKeys = {
+  glm: "glm-demo-key-local",
+  doubao: "doubao-demo-key-local"
+};
+
 const visualSkillSource = "https://github.com/SebastianLavertheDe/cctools-skills";
 const visualSkillDefinitions = [
   ["creative-writing", "多平台内容生产助手", "串联素材、写作与多平台内容生产。"],
@@ -417,15 +422,19 @@ const api = {
   updatePreferences: async (patch) => ({ ...preferences, ...patch }),
   resetPreferences: async () => preferences,
   getProviders: async () => visualProviders,
+  getProviderApiKey: async (id) => visualProviderKeys[id] || "",
   saveProviders: async (input) => {
     visualProviders = {
       schemaVersion: 1,
       default: input.default,
       cli: input.cli || { claude: null, codex: null },
-      providers: input.providers.map(({ apiKey, ...provider }) => ({
-        ...provider,
-        apiKeySet: Boolean(apiKey) || Boolean(visualProviders.providers.find((entry) => entry.id === provider.id)?.apiKeySet)
-      }))
+      providers: input.providers.map(({ apiKey, ...provider }) => {
+        if (apiKey) visualProviderKeys[provider.id] = apiKey;
+        return {
+          ...provider,
+          apiKeySet: Boolean(apiKey) || Boolean(visualProviders.providers.find((entry) => entry.id === provider.id)?.apiKeySet)
+        };
+      })
     };
     return visualProviders;
   },

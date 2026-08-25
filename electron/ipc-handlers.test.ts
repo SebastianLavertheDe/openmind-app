@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(90);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(90);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(90);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(91);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(91);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(91);
   });
 
   it("builds preload bridge entries from the registry", async () => {

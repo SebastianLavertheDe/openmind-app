@@ -1170,6 +1170,8 @@ export interface DesktopApi {
   saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
   clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
   getProviders(): Promise<ProvidersYamlView>;
+  /** Read one existing Provider key only when its trusted local editor is opened. */
+  getProviderApiKey(id: string): Promise<string>;
   saveProviders(input: ProvidersYamlInput): Promise<ProvidersYamlView>;
   getSharedPythonRuntimeStatus(): Promise<SharedPythonRuntimeStatus>;
   setSharedPythonRuntimeEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus>;

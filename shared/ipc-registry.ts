@@ -48,6 +48,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "saveBrowserExtensionToken", channel: IPC.APP_BROWSER_EXTENSION_TOKEN_SAVE },
   { method: "clearBrowserExtensionToken", channel: IPC.APP_BROWSER_EXTENSION_TOKEN_CLEAR },
   { method: "getProviders", channel: IPC.APP_PROVIDERS_GET },
+  { method: "getProviderApiKey", channel: IPC.APP_PROVIDER_API_KEY_GET },
   { method: "saveProviders", channel: IPC.APP_PROVIDERS_SAVE },
   { method: "getSharedPythonRuntimeStatus", channel: IPC.APP_SHARED_PYTHON_STATUS },
   { method: "setSharedPythonRuntimeEnabled", channel: IPC.APP_SHARED_PYTHON_ENABLE },

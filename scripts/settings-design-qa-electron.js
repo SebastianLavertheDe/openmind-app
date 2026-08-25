@@ -253,6 +253,20 @@ async function captureProviderEvidence(win, outputRoot, restoreViewport) {
   fs.writeFileSync(dialogFile, (await win.webContents.capturePage()).toPNG());
   const dialogFocusedFile = path.join(outputRoot, "reference-provider-dialog-focused.png");
   await captureProviderDialog(win, dialogFocusedFile);
+  const apiKeyState = await win.webContents.executeJavaScript(`(() => {
+    const label = [...document.querySelectorAll('.settings-provider-dialog label')].find((item) => item.querySelector('span')?.textContent?.trim() === 'API Key');
+    const input = label?.querySelector('input');
+    if (!(input instanceof HTMLInputElement)) return null;
+    input.focus();
+    const style = getComputedStyle(input);
+    return { type: input.type, value: input.value, boxShadow: style.boxShadow, outline: style.outlineStyle };
+  })()`);
+  if (!apiKeyState || apiKeyState.type !== "text" || apiKeyState.value !== "glm-demo-key-local" || apiKeyState.boxShadow !== "none" || apiKeyState.outline !== "none") {
+    throw new Error(`Provider API Key reveal/focus state is incorrect: ${JSON.stringify(apiKeyState)}`);
+  }
+  await settle();
+  const apiKeyFocusedFile = path.join(outputRoot, "reference-provider-api-key-focused.png");
+  await captureProviderDialog(win, apiKeyFocusedFile);
   const originalModel = await markProviderDirty(win);
 
   const firstClosed = await closeProviderDialog(win);
@@ -300,7 +314,10 @@ async function captureProviderEvidence(win, outputRoot, restoreViewport) {
     collapsedFile: path.relative(appRoot, collapsedFile),
     collapsedCardFile: path.relative(appRoot, collapsedCardFile),
     dialogFile: path.relative(appRoot, dialogFile),
-    dialogFocusedFile: path.relative(appRoot, dialogFocusedFile)
+    dialogFocusedFile: path.relative(appRoot, dialogFocusedFile),
+    apiKeyPlaintextVisible: true,
+    apiKeyFocusNeutral: true,
+    apiKeyFocusedFile: path.relative(appRoot, apiKeyFocusedFile)
   };
 }
 
