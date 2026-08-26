@@ -168,7 +168,12 @@ body :is(.eyebrow, .session-list-heading, .message-meta, .run-boundary, .tool-ev
   padding: 16px;
 }
 
-.ai-sidebar .chat-thread,
+.ai-sidebar .chat-thread {
+  width: min(100%, var(--ai-flow-width));
+  max-width: var(--ai-flow-width);
+  margin-inline: auto;
+}
+
 .ai-sidebar .chat-thread > .message,
 .ai-sidebar .chat-thread > .completed-process,
 .ai-sidebar .chat-thread > .load-history,
@@ -194,7 +199,12 @@ body :is(.eyebrow, .session-list-heading, .message-meta, .run-boundary, .tool-ev
   padding: 10px 12px 12px;
 }
 
-.ai-sidebar .composer-flow,
+.ai-sidebar .composer-flow {
+  width: min(100%, var(--ai-flow-width));
+  max-width: var(--ai-flow-width);
+  margin-inline: auto;
+}
+
 .ai-sidebar .composer-flow > :is(.new-session-controls, .context-tray, .queue-tray, .composer-error, textarea, .composer-footer) {
   width: 100%;
   max-width: none;

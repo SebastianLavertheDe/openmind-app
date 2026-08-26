@@ -102,7 +102,7 @@
   --fs-lg: 16px;   /* 区块标题 */
   --fs-xl: 18px;   /* 空状态标题 */
   --fs-2xl: 22px;  /* 大标题 */
-  --ai-sidebar-width: 420px;
+  --ai-sidebar-width: 33.333vw;
   --reader-header-h: 84px;
   --dur-instant: 80ms;
   --dur-fast: 140ms;

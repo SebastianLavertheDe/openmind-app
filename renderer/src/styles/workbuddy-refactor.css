@@ -76,7 +76,10 @@
   --reader-link: #2479c8;
   --chat-body-size: 14px;
   --chat-body-line-height: 1.62;
-  --ai-sidebar-width: 430px;
+  /* Startup fallback only; React replaces it with the persisted container ratio
+     before paint. It deliberately scales with the viewport instead of pinning
+     a fixed desktop width. */
+  --ai-sidebar-width: 33.333vw;
   /* 侧边栏导航项语义变量（WorkBuddy 化改造，集中管控字号/行高/圆角）*/
   --nav-item-height: 30px;
   --nav-item-radius: 8px;

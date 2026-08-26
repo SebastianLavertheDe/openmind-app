@@ -39,10 +39,30 @@ const WIDE_LAYOUT: ResponsiveLayout = {
 
 export type LayoutComposition = {
   viewportWidth: number;
+  /** Measured navigation track; it reflects a user-collapsed rail as well. */
+  navigationInlineSize?: number;
   companionWidth: number;
   companionMinWidth?: number;
   workspaceMinWidth?: number;
 };
+
+/**
+ * Measured from the application shell rather than from the browser viewport.
+ * Split panes consume this one value so maximized, restored, and high-DPI
+ * windows cannot follow independent width calculations.
+ */
+export type ShellLayoutMetrics = {
+  inlineSize: number;
+  navigationInlineSize: number;
+  measured: boolean;
+};
+
+const EMPTY_SHELL_LAYOUT_METRICS: ShellLayoutMetrics = {
+  inlineSize: 0,
+  navigationInlineSize: 0,
+  measured: false
+};
+
 type ResponsiveLayoutContextValue = {
   layout: ResponsiveLayout;
   reportComposition(composition: LayoutComposition): void;
@@ -50,6 +70,15 @@ type ResponsiveLayoutContextValue = {
 };
 
 const ResponsiveLayoutContext = createContext<ResponsiveLayoutContextValue | null>(null);
+const ShellLayoutMetricsContext = createContext<ShellLayoutMetrics>(EMPTY_SHELL_LAYOUT_METRICS);
+
+export function ShellLayoutMetricsProvider({ value, children }: { value: ShellLayoutMetrics; children: ReactNode }) {
+  return <ShellLayoutMetricsContext.Provider value={value}>{children}</ShellLayoutMetricsContext.Provider>;
+}
+
+export function useShellLayoutMetrics(): ShellLayoutMetrics {
+  return useContext(ShellLayoutMetricsContext);
+}
 
 function currentViewportWidth(): number {
   return window.visualViewport?.width || document.documentElement.clientWidth || window.innerWidth;
@@ -66,11 +95,16 @@ function readLayout(media: Record<keyof typeof RESPONSIVE_LAYOUT_QUERIES, MediaQ
     : expandedWorkspaceWidth < workspaceMinWidth
       ? "rail"
       : "expanded";
-  const navigationWidth = shell === "expanded"
+  const fallbackNavigationWidth = shell === "expanded"
     ? RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth
     : shell === "rail"
       ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
       : 0;
+  const navigationWidth = shell === "drawer"
+    ? 0
+    : composition.navigationInlineSize && composition.navigationInlineSize > 0
+      ? composition.navigationInlineSize
+      : fallbackNavigationWidth;
   const companionMinWidth = composition.companionWidth > 0
     ? Math.max(0, composition.companionMinWidth ?? RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth)
     : 0;
@@ -111,6 +145,7 @@ export function ResponsiveLayoutProvider({ children }: { children: ReactNode }) 
   }), []);
   const [composition, setComposition] = useState<LayoutComposition>(() => ({
     viewportWidth: currentViewportWidth(),
+    navigationInlineSize: undefined,
     companionWidth: 0,
     companionMinWidth: 0,
     workspaceMinWidth: RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
@@ -120,6 +155,7 @@ export function ResponsiveLayoutProvider({ children }: { children: ReactNode }) 
     setComposition((current) => {
       const merged = { ...current, ...next };
       return current.viewportWidth === merged.viewportWidth
+        && current.navigationInlineSize === merged.navigationInlineSize
         && current.companionWidth === merged.companionWidth
         && current.companionMinWidth === merged.companionMinWidth
         && current.workspaceMinWidth === merged.workspaceMinWidth

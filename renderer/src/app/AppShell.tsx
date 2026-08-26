@@ -12,7 +12,7 @@ import type { AppPage, Navigate } from "./routes";
 import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
-import { useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
+import { ShellLayoutMetricsProvider, useResponsiveCompositionReporter, useResponsiveLayout, type ShellLayoutMetrics } from "./responsive-layout";
 import packageJson from "../../../package.json";
 
 export function AppShell({
@@ -64,6 +64,11 @@ export function AppShell({
   const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const [shellLayoutMetrics, setShellLayoutMetrics] = useState<ShellLayoutMetrics>({
+    inlineSize: 0,
+    navigationInlineSize: 0,
+    measured: false
+  });
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
   const effectiveNavCollapsed = !compactShell && (railShell || navCollapsed);
   useEffect(() => {
@@ -82,17 +87,22 @@ export function AppShell({
     if (!shell) return;
     const measure = () => {
       const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
-      const preferredWidth = Number(companion?.dataset.layoutWidth);
       const minimumWidth = Number(companion?.dataset.layoutMinWidth);
       const companionVisible = aiMode === "default" || aiMode === "wide";
+      const inlineSize = shell.getBoundingClientRect().width || window.innerWidth;
+      const navigationInlineSize = navRef.current?.getBoundingClientRect().width || 0;
+      setShellLayoutMetrics((current) => current.inlineSize === inlineSize
+        && current.navigationInlineSize === navigationInlineSize
+        && current.measured
+        ? current
+        : { inlineSize, navigationInlineSize, measured: true });
       reportComposition({
-        viewportWidth: shell.getBoundingClientRect().width || window.innerWidth,
+        viewportWidth: inlineSize,
+        navigationInlineSize,
         // Fullscreen and collapsed modes do not consume a grid column. The
-        // preferred width is retained for rendering, while the minimum width
-        // alone decides whether the companion can remain attached.
-        companionWidth: companionVisible
-          ? Number.isFinite(preferredWidth) && preferredWidth > 0 ? preferredWidth : 0
-          : 0,
+        // sidebar's ratio is a rendering preference; only its semantic
+        // minimum decides whether it can remain attached.
+        companionWidth: companionVisible ? 1 : 0,
         companionMinWidth: companionVisible
           ? Number.isFinite(minimumWidth) && minimumWidth > 0 ? minimumWidth : 0
           : 0
@@ -101,10 +111,9 @@ export function AppShell({
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(shell);
-    const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
-    if (companion) observer?.observe(companion);
+    if (navRef.current) observer?.observe(navRef.current);
     return () => observer?.disconnect();
-  }, [aiMode, aiSidebar, reportComposition, responsiveLayout.companion]);
+  }, [aiMode, aiSidebar, compactShell, effectiveNavCollapsed, reportComposition, responsiveLayout.companion]);
   const navigateFromNav = useCallback<Navigate>((nextPage, state) => {
     setMobileNavOpen(false);
     if (state === undefined) navigate(nextPage);
@@ -155,7 +164,8 @@ export function AppShell({
     }
   ];
   return (
-    <div
+    <ShellLayoutMetricsProvider value={shellLayoutMetrics}>
+      <div
       ref={shellRef}
       className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""}${onboardingMode ? " onboarding-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
       style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
@@ -261,7 +271,8 @@ export function AppShell({
         <main className="main-area">{children}</main>
       </section>
       {showAiSidebar ? aiSidebar : null}
-    </div>
+      </div>
+    </ShellLayoutMetricsProvider>
   );
 }
 

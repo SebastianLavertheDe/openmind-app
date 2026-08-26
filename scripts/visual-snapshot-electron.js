@@ -260,7 +260,12 @@ async function captureCompanionLayoutContracts(win, report) {
     {
       expandedShell: expandedGeometry.shellClass.includes("layout-shell-expanded"),
       expandedNavigation: Boolean(expandedGeometry.nav && Math.abs(expandedGeometry.nav.width - 260) <= 2),
-      defaultCompanionWidth: expandedGeometry.layoutWidth === 420 && expandedGeometry.separatorValue === 420
+      defaultCompanionPreference: Boolean(
+        expandedGeometry.layoutWidth
+        && expandedGeometry.layoutWidth === expandedGeometry.separatorValue
+        && expandedGeometry.layoutRatio !== null
+        && Math.abs(expandedGeometry.layoutRatio - 1 / 3) < .001
+      )
     }
   );
 
@@ -275,6 +280,32 @@ async function captureCompanionLayoutContracts(win, report) {
   );
   await clickCompanionAction(win, "退出全屏");
   await settle();
+
+  // Regression coverage for the original fullscreen complaint: the wide
+  // companion must be able to exceed the former 960 CSS-pixel ceiling while
+  // the primary workspace remains in flow.
+  win.setSize(2560, 1440);
+  await settle();
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
+  await clickCompanionAction(win, "切换宽屏");
+  await settle();
+  const ultraWideGeometry = await inspectCompanionGeometry(win);
+  await captureCompanionGeometryState(
+    win,
+    report,
+    "companion-wide-2560",
+    "docked",
+    "Wide AI companion grows past the former fullscreen pixel ceiling without shrinking the workspace below its contract",
+    {
+      expandedShell: ultraWideGeometry.shellClass.includes("layout-shell-expanded"),
+      widePreferencePreserved: ultraWideGeometry.layoutRatio !== null && Math.abs(ultraWideGeometry.layoutRatio - 1 / 2) < .001,
+      exceedsLegacyPixelCeiling: Boolean(ultraWideGeometry.separatorValue && ultraWideGeometry.separatorValue > 960),
+      workspacePreserved: ultraWideGeometry.stageTrackWidth >= 759.5
+    }
+  );
+  await ensureDefaultCompanion(win);
+  await resetCompanionWidth(win);
 
   win.setSize(1280, 800);
   await settle();
@@ -306,10 +337,10 @@ async function captureCompanionLayoutContracts(win, report) {
     report,
     "companion-wide-clamped-1280",
     "overlay",
-    "Wide AI preference remains a bounded overlay while preserving the workspace",
+    "Wide AI preference remains a proportional overlay while preserving the workspace",
     {
       overlayPresentation: wideGeometry.sidebarClass.includes("layout-companion-overlay"),
-      widePreferencePreserved: wideGeometry.layoutWidth === 760,
+      widePreferencePreserved: wideGeometry.layoutRatio !== null && Math.abs(wideGeometry.layoutRatio - 1 / 2) < .001,
       wideWidthWithinViewport: Boolean(wideGeometry.sidebar && wideGeometry.sidebar.right <= wideGeometry.viewport.width + 2),
       workspacePreserved: wideGeometry.stageTrackWidth >= 759.5
     }
@@ -330,11 +361,11 @@ async function captureCompanionLayoutContracts(win, report) {
     report,
     "companion-wide-2048-zoom150",
     "overlay",
-    "A visually large 150% window keeps the workspace beside a bounded wide AI overlay",
+    "A visually large 150% window keeps the workspace beside a proportional wide AI overlay",
     {
       overlayPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
-      widePreferencePreserved: highDpiWideGeometry.layoutWidth === 760,
+      widePreferencePreserved: highDpiWideGeometry.layoutRatio !== null && Math.abs(highDpiWideGeometry.layoutRatio - 1 / 2) < .001,
       wideWidthWithinViewport: Boolean(highDpiWideGeometry.sidebar && highDpiWideGeometry.sidebar.right <= highDpiWideGeometry.viewport.width + 2),
       workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
       requestedZoom: win.webContents.getZoomFactor()
@@ -604,7 +635,7 @@ async function ensureDefaultCompanion(win) {
 }
 
 async function resetCompanionWidth(win) {
-  const reset = await win.webContents.executeJavaScript(`
+  const resetActiveMode = async () => win.webContents.executeJavaScript(`
     (() => {
       const splitter = document.querySelector('.ai-sidebar-resizer');
       if (!(splitter instanceof HTMLElement)) return false;
@@ -612,20 +643,32 @@ async function resetCompanionWidth(win) {
       return true;
     })()
   `);
-  if (!reset) throw new Error("Docked AI companion splitter was not available for reset.");
+  if (!await resetActiveMode()) throw new Error("Docked AI companion splitter was not available for reset.");
   await settle();
+
+  // The two presentation modes keep independent user preferences. Reset both
+  // before each visual audit so an earlier pointer test cannot make wide mode
+  // look like a layout regression in a later viewport.
+  await clickCompanionAction(win, "切换宽屏");
+  await settle();
+  if (!await resetActiveMode()) throw new Error("Wide AI companion splitter was not available for reset.");
+  await settle();
+  await clickCompanionAction(win, "切换宽屏");
+  await settle();
+
   const widths = await win.webContents.executeJavaScript(`
     (() => {
       const sidebar = document.querySelector('.ai-sidebar');
       const splitter = sidebar?.querySelector('.ai-sidebar-resizer');
       return {
         layout: Number(sidebar?.getAttribute('data-layout-width')),
+        ratio: Number(sidebar?.getAttribute('data-layout-ratio')),
         separator: Number(splitter?.getAttribute('aria-valuenow'))
       };
     })()
   `);
-  if (widths.layout !== 420 || widths.separator !== 420) {
-    throw new Error(`AI companion reset did not restore the 420px default width: ${JSON.stringify(widths)}.`);
+  if (!Number.isFinite(widths.layout) || widths.layout <= 0 || widths.layout !== widths.separator || Math.abs(widths.ratio - 1 / 3) >= .001) {
+    throw new Error(`AI companion reset did not restore its adaptive default width: ${JSON.stringify(widths)}.`);
   }
 }
 
@@ -713,6 +756,7 @@ async function inspectCompanionGeometry(win) {
         sidebar: rect(sidebar),
         workspaceInset: Number.parseFloat(getComputedStyle(root).getPropertyValue('--workspace-inset')) || 0,
         layoutWidth: numberAttribute(sidebar, 'data-layout-width'),
+        layoutRatio: numberAttribute(sidebar, 'data-layout-ratio'),
         separatorValue: numberAttribute(splitter, 'aria-valuenow'),
         splitterVisible: visible(splitter),
         sidebarPosition: sidebar instanceof Element ? getComputedStyle(sidebar).position : null,

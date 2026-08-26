@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
-import { ResponsiveLayoutProvider, RESPONSIVE_LAYOUT_QUERIES, useResponsiveCompositionReporter, useResponsiveLayout, useResponsiveWorkspaceMinimum } from "./responsive-layout";
+import { ResponsiveLayoutProvider, RESPONSIVE_LAYOUT_QUERIES, useResponsiveCompositionReporter, useResponsiveLayout, useResponsiveWorkspaceMinimum, type LayoutComposition } from "./responsive-layout";
 
 type MutableQuery = MediaQueryList & { setMatches(value: boolean): void };
 
@@ -76,7 +76,7 @@ function installViewportQueries(initialWidth: number) {
   };
 }
 
-function LayoutProbe({ composition }: { composition?: { viewportWidth: number; companionWidth: number; companionMinWidth?: number } }) {
+function LayoutProbe({ composition }: { composition?: LayoutComposition }) {
   const layout = useResponsiveLayout();
   const reportComposition = useResponsiveCompositionReporter();
   useLayoutEffect(() => {
@@ -215,6 +215,22 @@ describe("ResponsiveLayoutProvider", () => {
       expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
       rerender(<ResponsiveLayoutProvider><LayoutProbe composition={{ viewportWidth: 1356, companionWidth: 0 }} /></ResponsiveLayoutProvider>);
       expect(screen.getByLabelText("layout").textContent).toContain("expanded/");
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("uses the measured navigation track when deciding whether the companion still fits", () => {
+    const viewport = installViewportQueries(1_356);
+    try {
+      render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_356, navigationInlineSize: 60, companionWidth: 1, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      // A user-collapsed rail returns 200px to the workspace, so this stays
+      // attached instead of applying the expanded-navigation overlay bound.
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/compact/single/comfortable/full");
     } finally {
       viewport.restore();
     }
