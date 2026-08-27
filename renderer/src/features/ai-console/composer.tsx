@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Sparkles, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
+import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { ComposerSuggestionMenu } from "./composer-suggestion-menu";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import {
@@ -20,6 +22,50 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const COMPRESS_THRESHOLD = 512 * 1024;
 const COMPRESS_MAX_EDGE = 1568;
 const LIGHTBOX_EXIT_MS = 160;
+
+type ComposerCaretAnchor = { left: number; top: number; height: number; width: number };
+
+function measureTextareaCaret(textarea: HTMLTextAreaElement): ComposerCaretAnchor {
+  const style = getComputedStyle(textarea);
+  const textareaBox = textarea.getBoundingClientRect();
+  const mirror = document.createElement("div");
+  const copiedProperties = [
+    "box-sizing", "border-left-width", "border-right-width", "border-top-width", "border-bottom-width",
+    "padding-left", "padding-right", "padding-top", "padding-bottom", "font-family", "font-size",
+    "font-style", "font-weight", "letter-spacing", "line-height", "text-align", "text-indent",
+    "text-transform", "tab-size", "word-break", "overflow-wrap"
+  ];
+  for (const property of copiedProperties) mirror.style.setProperty(property, style.getPropertyValue(property));
+  Object.assign(mirror.style, {
+    position: "fixed",
+    visibility: "hidden",
+    pointerEvents: "none",
+    left: `${textareaBox.left - textarea.scrollLeft}px`,
+    top: `${textareaBox.top - textarea.scrollTop}px`,
+    width: `${textareaBox.width}px`,
+    height: "auto",
+    overflow: "hidden",
+    whiteSpace: "pre-wrap"
+  });
+  mirror.textContent = textarea.value.slice(0, textarea.selectionStart ?? textarea.value.length);
+  if (mirror.textContent.endsWith("\n")) mirror.appendChild(document.createTextNode("\u200b"));
+  const marker = document.createElement("span");
+  marker.textContent = "\u200b";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const markerBox = marker.getBoundingClientRect();
+  mirror.remove();
+
+  const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.4 || 20;
+  const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
+  const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
+  return {
+    left: Math.max(textareaBox.left, Math.min(markerBox.left, textareaBox.right - 1)),
+    top: Math.max(textareaBox.top + borderTop, Math.min(markerBox.top, textareaBox.bottom - borderBottom - lineHeight)),
+    height: lineHeight,
+    width: textareaBox.width
+  };
+}
 
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -103,6 +149,9 @@ export function ChatComposer() {
   const [queueOpen, setQueueOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLElement>(null);
+  const suggestionAnchorRef = useRef<HTMLSpanElement>(null);
+  const suggestionMenuRef = useRef<HTMLDivElement>(null);
+  const [suggestionAnchor, setSuggestionAnchor] = useState<ComposerCaretAnchor>({ left: 0, top: 0, height: 20, width: 0 });
   const searchRequest = useRef(0);
   const menuSnapRef = useRef(false);
   const menuStashRef = useRef<ReactNode>(null);
@@ -165,7 +214,8 @@ export function ChatComposer() {
   useEffect(() => {
     if (!trigger) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!composerRef.current?.contains(event.target as Node)) setTrigger(null);
+      const target = event.target as Node;
+      if (!composerRef.current?.contains(target) && !suggestionMenuRef.current?.contains(target)) setTrigger(null);
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -290,6 +340,44 @@ export function ChatComposer() {
   if (menuOpen) { menuSnapRef.current = false; menuStashRef.current = menuElement; }
   const { visible: menuVisible, leaving: menuLeaving } = useExitPresence(menuOpen, 140);
   const showMenu = menuVisible && !menuSnapRef.current;
+  const suggestionPopover = useAnchoredPopover({
+    open: showMenu,
+    anchorRef: suggestionAnchorRef,
+    floatingRef: suggestionMenuRef,
+    preferredSide: "top",
+    align: "start"
+  });
+  const updateSuggestionAnchor = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const next = measureTextareaCaret(textarea);
+    setSuggestionAnchor((current) => current.left === next.left && current.top === next.top && current.height === next.height && current.width === next.width ? current : next);
+  }, []);
+  useLayoutEffect(() => {
+    if (!showMenu) return;
+    updateSuggestionAnchor();
+    const frame = window.requestAnimationFrame(updateSuggestionAnchor);
+    const textarea = textareaRef.current;
+    const observer = typeof ResizeObserver === "undefined" || !textarea ? null : new ResizeObserver(updateSuggestionAnchor);
+    if (textarea) {
+      observer?.observe(textarea);
+      textarea.addEventListener("scroll", updateSuggestionAnchor, { passive: true });
+    }
+    window.addEventListener("resize", updateSuggestionAnchor);
+    window.visualViewport?.addEventListener("resize", updateSuggestionAnchor);
+    window.visualViewport?.addEventListener("scroll", updateSuggestionAnchor);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      textarea?.removeEventListener("scroll", updateSuggestionAnchor);
+      window.removeEventListener("resize", updateSuggestionAnchor);
+      window.visualViewport?.removeEventListener("resize", updateSuggestionAnchor);
+      window.visualViewport?.removeEventListener("scroll", updateSuggestionAnchor);
+    };
+  }, [ai.draft, showMenu, trigger?.end, updateSuggestionAnchor]);
+  useLayoutEffect(() => {
+    if (showMenu) suggestionPopover.updatePosition();
+  }, [showMenu, suggestionAnchor, suggestionPopover.updatePosition]);
 
   return (
     <footer className="composer" ref={composerRef}>
@@ -358,9 +446,26 @@ export function ChatComposer() {
           {/* P2-CMP-2: 空状态 prompt 提示 chip —— 空 draft 时显示快捷入口 */}
           {/* P2-CMP-3: textarea 到底渐变遮罩 —— 由 CSS 控制 */}
           {showMenu && menuStashRef.current ? (
-            <div className="ui-overlay" data-leaving={menuLeaving || undefined}>
-              {menuStashRef.current}
-            </div>
+            <>
+              <span
+                ref={suggestionAnchorRef}
+                className="composer-suggestion-caret-anchor"
+                aria-hidden="true"
+                style={{ left: suggestionAnchor.left, top: suggestionAnchor.top, height: suggestionAnchor.height } as CSSProperties}
+              />
+              {createPortal(
+                <div
+                  ref={suggestionMenuRef}
+                  className="composer-suggestion-popover ui-overlay"
+                  data-leaving={menuLeaving || undefined}
+                  data-side={suggestionPopover.side}
+                  style={{ ...suggestionPopover.style, width: suggestionAnchor.width } as CSSProperties}
+                >
+                  {menuStashRef.current}
+                </div>,
+                document.body
+              )}
+            </>
           ) : null}
           <div className="composer-editor-actions">
             <button
@@ -453,6 +558,7 @@ function ComposerSendIcon({ loading }: { loading: boolean }) {
 export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   const ai = useAi();
   const [dragId, setDragId] = useState<string | null>(null);
+  const [chipOverflow, setChipOverflow] = useState({ start: false, end: false });
   const [enlargedId, setEnlargedId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   // Horizontal slide track state: dragX is the live finger offset (px) while
@@ -465,6 +571,29 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+
+  const updateChipOverflow = useCallback(() => {
+    const chips = chipsRef.current;
+    if (!chips) return;
+    const next = {
+      start: chips.scrollLeft > 1,
+      end: chips.scrollLeft + chips.clientWidth < chips.scrollWidth - 1
+    };
+    setChipOverflow((current) => current.start === next.start && current.end === next.end ? current : next);
+  }, []);
+
+  useEffect(() => {
+    const chips = chipsRef.current;
+    if (!chips) return;
+    const frame = window.requestAnimationFrame(updateChipOverflow);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateChipOverflow);
+    observer?.observe(chips);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [contexts, updateChipOverflow]);
 
   const images = contexts.filter((c) => c.kind === "image" && Boolean(c.content));
   const imagesRef = useRef(images);
@@ -538,7 +667,14 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   return (
     <div className="context-tray" role="group" aria-label={m.ai.context.count(contexts.length)}>
       <span className="context-tray-count" aria-live="polite">{m.ai.context.count(contexts.length)}</span>
-      <div className="context-chips" data-count={contexts.length || undefined}>
+      <div
+        ref={chipsRef}
+        className="context-chips"
+        data-count={contexts.length || undefined}
+        data-overflow-start={chipOverflow.start || undefined}
+        data-overflow-end={chipOverflow.end || undefined}
+        onScroll={updateChipOverflow}
+      >
         {contexts.map((context, index) =>
           context.kind === "image" ? (
             <div className="context-chip image-chip" key={context.id} title={context.label}>
@@ -680,6 +816,38 @@ function ContextReferenceChip({
 }) {
   const ai = useAi();
   const [open, setOpen] = useState(false);
+  const detailId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const presence = useExitPresence(open, 140);
+  const popover = useAnchoredPopover({
+    open: presence.visible,
+    anchorRef: triggerRef,
+    floatingRef: detailRef,
+    preferredSide: "top"
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || detailRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   return (
     <div
       className="context-chip-drag"
@@ -689,23 +857,43 @@ function ContextReferenceChip({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
-      <AnimatedDisclosure
-        className={`context-chip${dragging ? " dragging" : ""}`}
-        open={open}
-        onOpenChange={setOpen}
-        triggerAriaLabel={context.path || context.label}
-        summary={<>{context.kind === "file" ? <FilePlus2 size={12} /> : <Quote size={12} />}<span title={context.path || context.label}>{context.label}</span></>}
-      >
-        <div>
-          <strong>{context.kind === "selection" ? "引用内容" : context.kind}</strong>
-          <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
-          {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
-          <footer>
-            <button data-motion="icon" disabled={index === 0} onClick={() => ai.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
-            <button data-motion="icon" disabled={index === total - 1} onClick={() => ai.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
-          </footer>
-        </div>
-      </AnimatedDisclosure>
+      <div className={`context-chip${dragging ? " dragging" : ""}`} data-open={open || undefined}>
+        <button
+          ref={triggerRef}
+          type="button"
+          className="ui-disclosure-trigger"
+          aria-label={context.path || context.label}
+          aria-expanded={open}
+          aria-controls={detailId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {context.kind === "file" ? <FilePlus2 size={12} /> : <Quote size={12} />}
+          <span title={context.path || context.label}>{context.label}</span>
+        </button>
+        {presence.visible ? createPortal(
+          <div
+            ref={detailRef}
+            id={detailId}
+            className="context-chip-popover"
+            role="dialog"
+            aria-label={`${context.label} 详情`}
+            data-leaving={presence.leaving || undefined}
+            data-side={popover.side}
+            style={popover.style}
+          >
+            <div className="context-chip-detail">
+              <strong>{context.kind === "selection" ? "引用内容" : context.kind}</strong>
+              <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
+              {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
+              <footer>
+                <button data-motion="icon" disabled={index === 0} onClick={() => ai.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
+                <button data-motion="icon" disabled={index === total - 1} onClick={() => ai.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
+              </footer>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
       <button
         type="button"
         className="context-chip-remove"

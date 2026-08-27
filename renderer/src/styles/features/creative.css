@@ -971,11 +971,6 @@
   display: none;
 }
 
-.creative-page-header .funnel-bar {
-  min-height: 44px;
-  padding: 6px 12px;
-}
-
 .creative-workspace {
   grid-template-columns: var(--list-detail-columns, 280px 3px minmax(0, 1fr));
 }
@@ -1047,6 +1042,30 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--page-bg);
+}
+
+.creative-detail-transition.stage-ready {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.creative-detail-transition.stage-ready > .creative-editor {
+  min-height: clamp(360px, 58vh, 680px);
+  flex: 0 0 auto;
+}
+
+.creative-warn {
+  margin: 10px 16px 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--orange) 9%, var(--panel));
+  color: color-mix(in srgb, var(--orange) 82%, var(--text));
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .editor-toolbar {

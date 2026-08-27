@@ -274,53 +274,6 @@ select:focus-visible,
   overflow-y: auto;
 }
 
-.nav-section-divider { display: none; }
-
-.nav-session-history {
-  min-height: 0;
-  max-height: min(36vh, 330px);
-  margin: 0;
-  overflow: hidden;
-}
-
-.nav-conversation-module {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  margin-top: auto;
-  overflow: hidden;
-}
-
-.nav-session-history .app-session-navigation {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-}
-
-.nav-session-history .app-session-navigation > header { min-height: 26px; padding: 0 8px; }
-.nav-session-history .app-session-navigation > header strong,
-.nav-session-history .session-list-heading strong { color: var(--muted-2); font-size: 11px; font-weight: 600; }
-.nav-session-history .app-session-navigation > header strong span { font-weight: 400; }
-.nav-session-history .session-list { min-height: 0; max-height: min(24vh, 220px); flex: 1 1 auto; overflow-y: auto; }
-.nav-session-history .session-item.compact { min-height: 38px; margin-bottom: 1px; padding: 4px 7px 4px 8px; border-radius: 7px; }
-.nav-session-history .session-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
-.nav-session-history .session-summary strong { font-size: 12px; font-weight: 500; }
-.nav-session-history .session-inline-time { color: var(--muted-2); font-size: 10px; font-weight: 400; white-space: nowrap; }
-.nav-session-history .session-compact-meta { font-size: 9px; line-height: 13px; }
-.nav-session-history .session-item.compact.active { border-color: transparent; background: transparent; box-shadow: none; }
-.nav-session-history .session-item.compact:hover,
-.nav-session-history .session-item.compact:focus-within { border-color: transparent; background: var(--control-hover); }
-.nav-session-history .session-item.compact.active:not(:hover):not(:focus-within) .compact-actions { opacity: 0; pointer-events: none; }
-.nav-session-history .session-provider-stripe { display: none; }
-.app-nav.collapsed .nav-conversation-module,
-.app-nav.collapsed .nav-session-history,
-.app-nav.collapsed .nav-section-divider { display: none; }
-
 .app-nav nav button {
   min-height: var(--nav-item-height);
   gap: var(--nav-gap);
@@ -524,6 +477,26 @@ select:focus-visible,
   stroke-width: 1.8;
 }
 
+@media (hover: none), (pointer: coarse) {
+  .nav-recent-row > .nav-recent-item {
+    min-height: 48px;
+    padding-right: 92px;
+  }
+
+  .app-nav nav .nav-recent-actions {
+    right: 4px;
+    gap: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-nav nav .nav-recent-action {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+}
+
 .app-nav nav .nav-recent-action:hover {
   background: var(--control-hover);
   color: var(--accent-fg);
@@ -710,7 +683,6 @@ select:focus-visible,
 
 .eyebrow,
 .ui-data-head,
-.session-list-heading,
 .brand-copy span { text-transform: none; }
 
 .eyebrow {
@@ -1026,7 +998,6 @@ select:focus-visible,
 }
 
 .creative-search,
-.session-search,
 .ui-page-actions input,
 .ui-page-actions select,
 .settings-select,
@@ -1041,7 +1012,6 @@ select:focus-visible,
 }
 
 .creative-search:focus-within,
-.session-search:focus-within,
 .publish-field input:focus,
 .publish-field textarea:focus,
 .publish-field select:focus {
@@ -1101,14 +1071,12 @@ select:focus-visible,
   background: var(--panel-muted);
 }
 
-.filter-tabs button,
-.session-filters button {
+.filter-tabs button {
   min-height: 33px;
   border-radius: 6px;
 }
 
-.filter-tabs button.active,
-.session-filters button.active {
+.filter-tabs button.active {
   border-color: transparent;
   background: var(--control-hover);
   color: var(--text);
@@ -1694,14 +1662,11 @@ select:focus-visible,
   border-color: color-mix(in srgb, var(--brand-accent) 50%, transparent);
 }
 
-.ai-sidebar .sidebar-session-select .ui-select-menu {
-  left: auto;
-  right: 0;
-  width: max(100%, 240px);
+.sidebar-session-select-menu {
   min-width: 240px;
 }
 
-.ai-sidebar .sidebar-session-select .ui-select-option {
+.sidebar-session-select-menu .ui-select-option {
   width: 100%;
   height: auto;
   min-height: 32px;
@@ -1712,7 +1677,7 @@ select:focus-visible,
   white-space: nowrap;
 }
 
-.ai-sidebar .sidebar-session-select .ui-select-option-label {
+.sidebar-session-select-menu .ui-select-option-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1771,8 +1736,6 @@ select:focus-visible,
 
 .ai-workbench { border-color: var(--border); }
 .app-session-navigation { border-top-color: var(--border); }
-.session-search { background: var(--panel); }
-
 .session-list [role="option"],
 .session-list button { border-radius: 7px; }
 
@@ -2113,8 +2076,7 @@ select:focus-visible,
 
 .message-actions button,
 .conversation-header button,
-.ai-sidebar > header button,
-.session-actions button {
+.ai-sidebar > header button {
   border-color: transparent;
   border-radius: 6px;
   background: transparent;
@@ -2123,8 +2085,7 @@ select:focus-visible,
 
 .message-actions button:hover,
 .conversation-header button:hover,
-.ai-sidebar > header button:hover,
-.session-actions button:hover { background: var(--control-hover); }
+.ai-sidebar > header button:hover { background: var(--control-hover); }
 
 .composer {
   container: chat-composer / inline-size;
@@ -2292,12 +2253,6 @@ select:focus-visible,
 
 @media (max-width: 1240px) {
   .feature-page { padding-inline: 28px; }
-}
-
-@media (min-width: 921px) and (max-width: 1380px) {
-  .creative-workspace {
-    grid-template-columns: var(--list-detail-columns, 280px 3px minmax(0, 1fr)) !important;
-  }
 }
 
 @media (max-width: 980px) {
@@ -3164,7 +3119,6 @@ select:focus-visible,
 
   .layout-shell-drawer .conversation-header { padding-left: 58px; }
   .layout-shell-drawer .conversation-header .provider-segmented { white-space: nowrap; }
-  .layout-shell-drawer .creative-page-header .funnel-bar { padding-left: 52px; }
   .layout-shell-drawer .document-library-list > header { padding-left: 58px; }
   .layout-shell-drawer .feature-page > .ui-page-header { padding-left: 42px; }
 

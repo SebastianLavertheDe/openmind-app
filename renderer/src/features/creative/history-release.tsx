@@ -85,7 +85,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
             {versions.length ? versions.map((version) => (
               <div key={version.id} className="version-row">
                 <FileClock size={14} />
-                <div><strong>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")} · {Math.round(version.size / 1024)} KB</small></div>
+                <div><strong title={version.note}>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")} · {Math.round(version.size / 1024)} KB</small></div>
                 <button data-motion="icon" onClick={() => window.openmind.openPath(version.path)}>{m.common.open}</button>
                 <button className="primary-button" onClick={() => void restore(version)}>{m.creativeUi.history.restoreAsNew}</button>
               </div>
@@ -139,7 +139,7 @@ export function AnalyticsView({ analytics, loading }: { analytics: CreativeAnaly
       </div>
       <div className="analytics-grid">
         <article><h3>{m.creativeUi.analytics.stageDistribution}<small>{m.creativeUi.analytics.stageDistributionHint}</small></h3>{analytics.stages.map((item) => <div key={item.stage}><span>{stageLabel(item.stage)}</span><div><i style={{ width: `${item.count / stageMax * 100}%` }} /></div><strong>{item.count}</strong></div>)}</article>
-        <article><h3>{m.creativeUi.analytics.platformDistribution}<small>{m.creativeUi.analytics.platformDistributionHint}</small></h3>{analytics.platforms.length ? analytics.platforms.map((item) => <div key={item.platform}><span>{platformLabel(item.platform)}</span><div><i style={{ width: `${item.count / platformMax * 100}%` }} /></div><strong>{item.count}</strong></div>) : <p className="review-empty">{m.creativeUi.analytics.noPlatform}</p>}</article>
+        <article><h3>{m.creativeUi.analytics.platformDistribution}<small>{m.creativeUi.analytics.platformDistributionHint}</small></h3>{analytics.platforms.length ? analytics.platforms.map((item) => <div key={item.platform}><span title={platformLabel(item.platform)}>{platformLabel(item.platform)}</span><div><i style={{ width: `${item.count / platformMax * 100}%` }} /></div><strong>{item.count}</strong></div>) : <p className="review-empty">{m.creativeUi.analytics.noPlatform}</p>}</article>
         <article><h3>{m.creativeUi.analytics.stageDuration}<small>{m.creativeUi.analytics.stageDurationHint}</small></h3>{(analytics.stageDurations || []).map((item) => <div key={item.stage}><span>{stageLabel(item.stage)}</span><strong>{item.averageHours != null ? m.common.hours(item.averageHours) : "—"}</strong></div>)}</article>
       </div>
     </section>

@@ -16,20 +16,6 @@
 }
 
 @media (max-width: 920px) {
-  .creative-workspace > .column-splitter {
-    display: none;
-  }
-
-  .creative-list-pane {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .creative-main-pane {
-    min-height: 0;
-    border-right: 0;
-  }
-
   .creative-document-header {
     min-height: 84px;
     align-items: flex-start;
@@ -46,15 +32,6 @@
     padding-inline: clamp(18px, 5vw, 36px);
   }
 
-  .automation-rules-layout,
-  .automation-layout {
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .automation-rule-list {
-    max-height: 36vh;
-  }
 }
 
 @media (max-width: 820px) {

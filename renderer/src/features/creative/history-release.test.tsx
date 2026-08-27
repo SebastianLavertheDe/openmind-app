@@ -96,6 +96,13 @@ describe("HistoryView", () => {
     await user.click(confirmBtn);
     await waitFor(() => expect(onRestored).toHaveBeenCalled());
   });
+
+  it("keeps a long version note available in a narrow history container", () => {
+    const longNote = "这是一条用于验证窄容器的超长版本备注并且不应丢失用户输入的任何内容";
+    const versions: CreativeVersion[] = [{ id: "v-long", file: "draft.md", path: "p-long", createdAt: "2026-07-07T00:00:00.000Z", note: longNote, size: 100 }];
+    render(<div style={{ width: 320 }}><AiProvider initial={snapshot}><HistoryView detail={detail} selectedProject={selectedProject} activeFile="draft.md" versions={versions} files={["draft.md"]} chooseFile={vi.fn()} onVersionsChange={vi.fn()} onRestored={vi.fn()} /></AiProvider></div>);
+    expect(screen.getAllByText(longNote).length).toBeGreaterThan(0);
+  });
 });
 
 describe("ReleaseLogView", () => {
@@ -141,5 +148,19 @@ describe("AnalyticsView", () => {
     // bar widths are derived from counts
     const bars = document.querySelectorAll(".analytics-grid i");
     expect(bars.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a long platform label available in the compact analytics track", () => {
+    const longPlatform = "enterprise-content-distribution-platform-with-a-very-long-name";
+    const analytics: CreativeAnalytics = {
+      total: 1,
+      stages: [],
+      platforms: [{ platform: longPlatform, count: 1 }],
+      averageCompletion: 100,
+      averageCycleHours: 1,
+      stageDurations: []
+    } as CreativeAnalytics;
+    render(<div style={{ width: 360 }}><AnalyticsView analytics={analytics} loading={false} /></div>);
+    expect(screen.getByText(longPlatform)).toBeTruthy();
   });
 });

@@ -39,6 +39,17 @@ function ConfirmHarness() {
       >
         普通操作
       </button>
+      <button
+        onClick={() => {
+          void ai.confirm({
+            title: `长标题${"标题".repeat(80)}`,
+            body: Array.from({ length: 80 }, (_, index) => `第 ${index + 1} 行确认内容`).join("\n"),
+            confirmText: "继续"
+          });
+        }}
+      >
+        长内容操作
+      </button>
       <button onClick={() => ai.notify("Skill 执行失败", "error")}>错误提示</button>
       <FeedbackHost />
     </div>
@@ -105,6 +116,17 @@ describe("FeedbackHost confirmation dialog", () => {
     expect(await screen.findByText("可在自动化或数据源运行日志中查看详情，并使用重试/重新运行。")).toBeTruthy();
     const log = JSON.parse(window.localStorage.getItem("openmind.feedback.log.v1") || "[]");
     expect(log.at(-1)).toMatchObject({ text: "Skill 执行失败", tone: "error" });
+  });
+
+  it("keeps long confirmation content and actions in separate regions", async () => {
+    const user = userEvent.setup();
+    render(<AiProvider initial={snapshot}><ConfirmHarness /></AiProvider>);
+
+    await user.click(screen.getByRole("button", { name: "长内容操作" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.querySelector("p")?.textContent).toContain("第 80 行确认内容");
+    expect(within(dialog).getByRole("button", { name: "取消" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "继续" })).toBeTruthy();
   });
 });
 

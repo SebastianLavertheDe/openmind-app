@@ -23,11 +23,11 @@ const viewports = [
 
 const pages = [
   { id: "ai", label: "新建任务", minTextLength: 90, requiredSelector: ".ai-workbench" },
-  { id: "brief", label: "每日简报", requiredSelector: ".document-library-page" },
+  { id: "brief", label: "每日简报", requiredSelector: ".document-library-page", expectedCompanionSelector: ".ai-sidebar" },
   // Compact master/detail shows one meaningful pane at a time, so semantic
   // readiness is stronger here than an arbitrary desktop-sized text budget.
-  { id: "creative", label: "创作", minTextLength: 100, requiredSelector: ".creative-workspace-page" },
-  { id: "automation", label: "自动化", requiredSelector: ".automation-page" },
+  { id: "creative", label: "创作", minTextLength: 100, requiredSelector: ".creative-workspace-page", expectedCompanionSelector: ".ai-sidebar" },
+  { id: "automation", label: "自动化", requiredSelector: ".automation-page", expectedCompanionSelector: ".ai-sidebar" },
   { id: "settings", label: "设置", requiredSelector: ".settings-page", settingsMode: true }
 ];
 
@@ -77,6 +77,19 @@ async function run() {
   await win.loadFile(rendererIndex);
   await waitForReady(win, "新建任务", { minTextLength: 90, allowActiveSession: true });
 
+  if (process.env.OPENMIND_VISUAL_RESPONSIVE_ONLY === "1") {
+    await captureResponsiveGapContracts(win, report);
+    win.destroy();
+    const reportPath = path.join(appRoot, ".build", "visual-snapshot-report.json");
+    fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    if (report.failures.length) {
+      throw new Error(`Responsive visual audit failed:\n${report.failures.map((item) => `- ${item.id}: ${item.reason}`).join("\n")}`);
+    }
+    console.log(`Responsive visual snapshots passed: ${report.stateSnapshots.length} state screenshots.`);
+    app.quit();
+    return;
+  }
+
   for (const viewport of viewports) {
     win.setSize(viewport.width, viewport.height);
     win.webContents.setZoomFactor(viewport.zoom);
@@ -89,12 +102,14 @@ async function run() {
       await waitForReady(win, page.label, {
         minTextLength: page.minTextLength,
         requiredSelector: page.requiredSelector,
+        expectedCompanionSelector: page.expectedCompanionSelector,
         settingsMode: page.settingsMode
       });
       await settle();
       const audit = await inspectPage(win, page.label, {
         minTextLength: page.minTextLength,
         requiredSelector: page.requiredSelector,
+        expectedCompanionSelector: page.expectedCompanionSelector,
         settingsMode: page.settingsMode
       });
       if (page.id === "brief" && !audit.briefMasterDetailGeometry?.sideBySide) {
@@ -115,6 +130,9 @@ async function run() {
       };
       report.snapshots.push(item);
       if (!audit.ok) report.failures.push(item);
+      if (audit.expectedCompanionReady && !audit.semanticTargetReady) {
+        await captureControlledPageSnapshot(win, report, viewport, page);
+      }
     }
 
     const settingsReturnPage = pages[pages.length - 2];
@@ -128,6 +146,7 @@ async function run() {
   await captureCompanionLayoutContracts(win, report);
   await captureGlobalSearchLayerContract(win, report);
   await captureCreativeReaderLayout(win, report);
+  await captureResponsiveGapContracts(win, report);
 
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
@@ -859,6 +878,866 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
   return item;
 }
 
+async function captureControlledPageSnapshot(win, report, viewport, page) {
+  const collapsed = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!collapsed) throw new Error(`Unable to reveal the controlled ${page.label} page snapshot.`);
+  await waitForReady(win, page.label, {
+    minTextLength: page.minTextLength,
+    requiredSelector: page.requiredSelector,
+    settingsMode: page.settingsMode
+  });
+  await settle();
+  const audit = await inspectPage(win, page.label, {
+    minTextLength: page.minTextLength,
+    requiredSelector: page.requiredSelector,
+    settingsMode: page.settingsMode
+  });
+  const file = path.join(outputRoot, `${viewport.id}-${page.id}-controlled-page.png`);
+  const image = await win.webContents.capturePage();
+  fs.writeFileSync(file, image.toPNG());
+  const item = {
+    id: `${viewport.id}-${page.id}-controlled-page`,
+    label: page.label,
+    description: "Page layout with the AI companion explicitly collapsed; paired with the product-state canvas snapshot.",
+    file: path.relative(appRoot, file),
+    width: viewport.width,
+    height: viewport.height,
+    zoom: viewport.zoom,
+    ...audit
+  };
+  report.stateSnapshots.push(item);
+  if (!audit.ok) report.failures.push(item);
+}
+
+async function captureResponsiveGapContracts(win, report) {
+  win.webContents.setZoomFactor(1);
+  await setCssViewportWidth(win, 720, 720);
+  await clickNav(win, "设置");
+  await waitForReady(win, "设置", { requiredSelector: ".settings-page", settingsMode: true });
+  await clickSettingsSection(win, "浏览器");
+  await waitForText(win, "浏览器连接");
+  await win.webContents.executeJavaScript("document.querySelector('.settings-browser-token')?.scrollIntoView({ block: 'center' })");
+  await waitForSelector(win, ".settings-browser-token");
+
+  for (const width of [720, 840, 900, 1020]) {
+    await setCssViewportWidth(win, width, 720);
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const token = document.querySelector('.settings-browser-token');
+        const card = token?.closest('.settings-card');
+        const detail = document.querySelector('.settings-detail');
+        const controls = token?.querySelector('.settings-browser-token-controls');
+        const rect = (element) => element instanceof Element ? Object.fromEntries(['left','top','right','bottom','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+        const inside = (inner, outer) => Boolean(inner && outer && inner.left >= outer.left - 1 && inner.right <= outer.right + 1);
+        const controlRects = controls ? [...controls.children].filter((element) => getComputedStyle(element).display !== 'none').map(rect) : [];
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          token: rect(token),
+          card: rect(card),
+          detail: rect(detail),
+          controls: rect(controls),
+          controlRects,
+          tokenColumns: token instanceof Element ? getComputedStyle(token).gridTemplateColumns : null,
+          documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          detailOverflow: detail instanceof HTMLElement ? detail.scrollWidth - detail.clientWidth : null,
+          tokenOverflow: token instanceof HTMLElement ? token.scrollWidth - token.clientWidth : null,
+          tokenInsideCard: inside(rect(token), rect(card)),
+          controlsInsideToken: controlRects.every((item) => inside(item, rect(token)))
+        };
+      })()
+    `);
+    await recordContractState(win, report, `settings-browser-token-${width}`, "设置", `Browser Token controls stay inside their component at ${width}px`, geometry, {
+      tokenVisible: Boolean(geometry.token && geometry.token.width > 0 && geometry.token.height > 0),
+      tokenInsideCard: geometry.tokenInsideCard,
+      controlsInsideToken: geometry.controlsInsideToken,
+      noDocumentOverflow: geometry.documentOverflow <= 2,
+      noDetailOverflow: geometry.detailOverflow <= 2,
+      noTokenOverflow: geometry.tokenOverflow <= 2
+    });
+  }
+
+  const settingsResizeSamples = [];
+  for (const width of Array.from({ length: 16 }, (_, index) => 1020 - index * 20)) {
+    await setCssViewportWidth(win, width, 720);
+    const sample = await win.webContents.executeJavaScript(`
+      (() => {
+        const token = document.querySelector('.settings-browser-token');
+        const card = token?.closest('.settings-card');
+        const controls = token?.querySelector('.settings-browser-token-controls');
+        const tokenBox = token?.getBoundingClientRect();
+        const cardBox = card?.getBoundingClientRect();
+        const columns = token instanceof Element ? getComputedStyle(token).gridTemplateColumns.split(/\\s+/).filter((value) => value && value !== 'none').length : 0;
+        return {
+          width: window.innerWidth,
+          columns,
+          contained: Boolean(tokenBox && cardBox && tokenBox.left >= cardBox.left - 1 && tokenBox.right <= cardBox.right + 1),
+          noDocumentOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2,
+          noTokenOverflow: token instanceof HTMLElement && token.scrollWidth <= token.clientWidth + 2,
+          controlsContained: controls instanceof HTMLElement && [...controls.children].every((element) => {
+            const box = element.getBoundingClientRect();
+            return box.left >= tokenBox.left - 1 && box.right <= tokenBox.right + 1;
+          })
+        };
+      })()
+    `);
+    settingsResizeSamples.push(sample);
+  }
+  const settingsColumnTransitions = settingsResizeSamples.slice(1).filter((sample, index) => sample.columns !== settingsResizeSamples[index].columns).length;
+  const settingsColumnsSimplifyOnly = settingsResizeSamples.slice(1).every((sample, index) => sample.columns <= settingsResizeSamples[index].columns);
+  const settingsResizeGeometry = {
+    viewport: { width: settingsResizeSamples.at(-1)?.width, height: 720 },
+    samples: settingsResizeSamples,
+    transitions: settingsColumnTransitions
+  };
+  await recordContractState(win, report, "settings-browser-token-continuous-resize", "设置", "Browser Token only simplifies while resizing continuously from 1020px to 720px", settingsResizeGeometry, {
+    allSamplesMeasured: settingsResizeSamples.length === 16 && settingsResizeSamples.every((sample) => sample.columns > 0),
+    simplifyOnly: settingsColumnsSimplifyOnly,
+    stableTransition: settingsColumnTransitions <= 1,
+    allContained: settingsResizeSamples.every((sample) => sample.contained && sample.controlsContained),
+    noTransientOverflow: settingsResizeSamples.every((sample) => sample.noDocumentOverflow && sample.noTokenOverflow)
+  });
+
+  await exitSettings(win);
+  await setCssViewportWidth(win, 720, 600);
+  await clickNav(win, "创作");
+  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
+  const compactListReopened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('button[aria-label="展开内容列表"]');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (compactListReopened) await settle();
+  const projectOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.creative-item-row')].find((item) => item.textContent.includes('Windows/WSL'));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!projectOpened) throw new Error("Creative ready visual fixture was not found.");
+  await waitForSelectorExists(win, ".creative-detail-transition.stage-ready .creative-editor");
+
+  for (const width of [720, 900, 1280]) {
+    await setCssViewportWidth(win, width, 600);
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const flow = document.querySelector('.creative-detail-transition.stage-ready');
+        const publish = flow?.querySelector('.publish-form');
+        const exportButton = [...(flow?.querySelectorAll('button') || [])].find((button) => button.textContent.includes('立即导出'));
+        const editor = flow?.querySelector('.creative-editor');
+        const editorInput = flow?.querySelector('[aria-label="Markdown 草稿编辑器"]');
+        const stats = flow?.querySelector('.writing-stats');
+        const focusable = flow ? [...flow.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]')].filter((element) => element.tabIndex >= 0 && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden') : [];
+        const intersects = (element) => {
+          if (!(element instanceof Element) || !(flow instanceof Element)) return false;
+          const box = element.getBoundingClientRect();
+          const owner = flow.getBoundingClientRect();
+          return box.bottom > owner.top + 1 && box.top < owner.bottom - 1;
+        };
+        const reach = (element) => {
+          if (!(element instanceof Element)) return false;
+          element.scrollIntoView({ block: 'center' });
+          return intersects(element);
+        };
+        const publishReachable = reach(publish);
+        const exportReachable = reach(exportButton);
+        const editorReachable = reach(editorInput || editor);
+        const statsReachable = reach(stats);
+        const nestedScrollOwners = flow ? [...flow.querySelectorAll('*')].filter((element) => {
+          if (!(element instanceof HTMLElement) || element instanceof HTMLTextAreaElement) return false;
+          const style = getComputedStyle(element);
+          return ['auto', 'scroll'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 2;
+        }).map((element) => element.className || element.tagName) : [];
+        const rect = (element) => element instanceof Element ? Object.fromEntries(['top','right','bottom','left','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          flow: rect(flow),
+          publish: rect(publish),
+          editor: rect(editor),
+          stats: rect(stats),
+          flowClientHeight: flow instanceof HTMLElement ? flow.clientHeight : 0,
+          flowScrollHeight: flow instanceof HTMLElement ? flow.scrollHeight : 0,
+          flowOverflowY: flow instanceof Element ? getComputedStyle(flow).overflowY : null,
+          nestedScrollOwners,
+          focusableCount: focusable.length,
+          publishReachable,
+          exportReachable,
+          editorReachable,
+          statsReachable
+        };
+      })()
+    `);
+    const tabFocusAudit = await auditTabFocusReachability(win, ".creative-detail-transition.stage-ready");
+    geometry.tabFocusAudit = tabFocusAudit;
+    await recordContractState(win, report, `creative-ready-${width}x600`, "创作", `Ready-stage publish form, editor, and stats share one reachable flow at ${width}x600`, geometry, {
+      editorHasHeight: Boolean(geometry.editor && geometry.editor.height > 0),
+      explicitScrollOwner: ["auto", "scroll"].includes(geometry.flowOverflowY),
+      noNestedScrollTrap: geometry.nestedScrollOwners.length === 0,
+      focusTargetsPresent: geometry.focusableCount > 0,
+      tabFocusReachable: tabFocusAudit.allReachable && tabFocusAudit.exitedOwner && tabFocusAudit.visited >= Math.min(8, geometry.focusableCount),
+      publishReachable: geometry.publishReachable,
+      exportReachable: geometry.exportReachable,
+      editorReachable: geometry.editorReachable,
+      statsReachable: geometry.statsReachable
+    });
+  }
+
+  for (const [width, expectedMode] of [[1480, "single"], [1481, "split"]]) {
+    await setCssViewportWidth(win, width, 720);
+    await settle();
+    const breakpointGeometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const workspace = document.querySelector('.creative-workspace');
+        const list = workspace?.querySelector(':scope > .creative-list-pane');
+        const splitter = workspace?.querySelector(':scope > .column-splitter');
+        const detail = workspace?.querySelector(':scope > .creative-main-pane');
+        const visible = (element) => element instanceof Element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          classes: workspace?.className || '',
+          columns: workspace instanceof Element ? getComputedStyle(workspace).gridTemplateColumns : null,
+          listVisible: visible(list),
+          splitterVisible: visible(splitter),
+          detailVisible: visible(detail)
+        };
+      })()
+    `);
+    await recordContractState(win, report, `creative-workspace-boundary-${width}`, "创作", `Creative workspace follows the shared ${expectedMode} state at ${width}px`, breakpointGeometry, expectedMode === "single" ? {
+      compactClassOwnedByReact: breakpointGeometry.classes.includes("compact-detail-open"),
+      listReplaced: !breakpointGeometry.listVisible,
+      splitterRemoved: !breakpointGeometry.splitterVisible,
+      detailVisible: breakpointGeometry.detailVisible
+    } : {
+      noCompactClass: !breakpointGeometry.classes.includes("compact-"),
+      listVisible: breakpointGeometry.listVisible,
+      splitterVisible: breakpointGeometry.splitterVisible,
+      detailVisible: breakpointGeometry.detailVisible
+    });
+  }
+
+  await setCssViewportWidth(win, 720, 600);
+  const analyticsOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')].find((element) => element.textContent?.trim() === '数据分析');
+      if (!(tab instanceof HTMLButtonElement)) return false;
+      tab.click();
+      return true;
+    })()
+  `);
+  if (!analyticsOpened) throw new Error("Creative analytics tab was not reachable.");
+  await waitForSelector(win, ".creative-analytics");
+  const analyticsGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const section = document.querySelector('.creative-analytics');
+      const rows = [...document.querySelectorAll('.analytics-grid article > div')];
+      const labels = rows.map((row) => row.querySelector(':scope > span')).filter(Boolean);
+      const last = rows.at(-1);
+      last?.scrollIntoView({ block: 'end' });
+      const sectionBox = section?.getBoundingClientRect();
+      const lastBox = last?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        sectionClientWidth: section instanceof HTMLElement ? section.clientWidth : 0,
+        sectionScrollWidth: section instanceof HTMLElement ? section.scrollWidth : 0,
+        rowsContained: rows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2),
+        labelsContained: labels.every((label) => {
+          if (!(label instanceof HTMLElement)) return false;
+          const row = label.parentElement?.getBoundingClientRect();
+          const box = label.getBoundingClientRect();
+          const style = getComputedStyle(label);
+          return Boolean(row && box.left >= row.left - 1 && box.right <= row.right + 1 && style.overflow === 'hidden' && style.textOverflow === 'ellipsis');
+        }),
+        longLabelEllipsized: labels.some((label) => label instanceof HTMLElement && (label.getAttribute('title') || '').includes('enterprise-content-distribution') && label.scrollWidth > label.clientWidth && getComputedStyle(label).textOverflow === 'ellipsis'),
+        lastRowReachable: Boolean(sectionBox && lastBox && lastBox.bottom > sectionBox.top && lastBox.top < sectionBox.bottom)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "creative-analytics-long-platform-720x600", "创作", "Analytics ellipsizes a long platform label while preserving its full title at 720x600", analyticsGeometry, {
+    sectionRendered: analyticsGeometry.sectionClientWidth > 0,
+    sectionContained: analyticsGeometry.sectionScrollWidth <= analyticsGeometry.sectionClientWidth + 2,
+    rowsContained: analyticsGeometry.rowsContained,
+    labelsContained: analyticsGeometry.labelsContained,
+    fullLabelAvailable: analyticsGeometry.longLabelEllipsized,
+    lastRowReachable: analyticsGeometry.lastRowReachable
+  });
+
+  const historyViewOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')].find((element) => element.textContent?.trim() === '版本历史');
+      if (!(tab instanceof HTMLButtonElement)) return false;
+      tab.click();
+      return true;
+    })()
+  `);
+  if (!historyViewOpened) throw new Error("Creative history tab was not reachable.");
+  await waitForSelector(win, ".creative-workspace .creative-item-row");
+  const historyProjectOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.creative-item-row')].find((element) => element.textContent?.includes('Windows/WSL'));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!historyProjectOpened) throw new Error("Creative history project fixture was not reachable.");
+  await waitForSelector(win, ".creative-history .version-row");
+  const historyGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const section = document.querySelector('.creative-history');
+      const compare = document.querySelector('.history-compare');
+      const row = document.querySelector('.creative-history .version-row');
+      const note = row?.querySelector('strong');
+      row?.scrollIntoView({ block: 'end' });
+      const sectionBox = section?.getBoundingClientRect();
+      const rowBox = row?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        sectionClientWidth: section instanceof HTMLElement ? section.clientWidth : 0,
+        sectionScrollWidth: section instanceof HTMLElement ? section.scrollWidth : 0,
+        compareContained: compare instanceof HTMLElement && compare.scrollWidth <= compare.clientWidth + 2,
+        rowContained: row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2,
+        rowReachable: Boolean(sectionBox && rowBox && rowBox.bottom > sectionBox.top && rowBox.top < sectionBox.bottom),
+        fullNoteAvailable: Boolean(note?.getAttribute('title')?.includes('long-version-note-')),
+        actionCount: row?.querySelectorAll('button').length || 0
+      };
+    })()
+  `);
+  await recordContractState(win, report, "creative-history-long-note-720x600", "创作", "History keeps long version notes and actions contained and reachable at 720x600", historyGeometry, {
+    sectionRendered: historyGeometry.sectionClientWidth > 0,
+    sectionContained: historyGeometry.sectionScrollWidth <= historyGeometry.sectionClientWidth + 2,
+    compareContained: historyGeometry.compareContained,
+    rowContained: historyGeometry.rowContained,
+    rowReachable: historyGeometry.rowReachable,
+    fullNoteAvailable: historyGeometry.fullNoteAvailable,
+    actionsReachable: historyGeometry.actionCount === 2
+  });
+
+  await setCssViewportWidth(win, 841, 720);
+  await clickNav(win, "新建任务");
+  await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+  const historyOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.history-toggle');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!historyOpened) throw new Error("AI history toggle was not reachable at 841px.");
+  await waitForSelector(win, ".history-flyout");
+
+  for (const width of [841, 850, 900, 940, 1000, 1019]) {
+    await setCssViewportWidth(win, width, 720);
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const flyout = document.querySelector('.history-flyout');
+        const button = document.querySelector('.history-toggle');
+        const list = flyout?.querySelector('.session-list');
+        const items = list ? [...list.querySelectorAll('button')] : [];
+        const rect = (element) => element instanceof Element ? Object.fromEntries(['top','right','bottom','left','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+        const box = rect(flyout);
+        if (items[0] instanceof Element) items[0].scrollIntoView({ block: 'start' });
+        if (items.at(-1) instanceof Element) items.at(-1).scrollIntoView({ block: 'end' });
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          flyout: box,
+          button: rect(button),
+          side: flyout?.getAttribute('data-side'),
+          visibility: flyout instanceof Element ? getComputedStyle(flyout).visibility : null,
+          listClientHeight: list instanceof HTMLElement ? list.clientHeight : 0,
+          listScrollHeight: list instanceof HTMLElement ? list.scrollHeight : 0,
+          insideViewport: Boolean(box && box.left >= 8 - 1 && box.top >= 8 - 1 && box.right <= window.innerWidth - 8 + 1 && box.bottom <= window.innerHeight - 8 + 1)
+        };
+      })()
+    `);
+    await recordContractState(win, report, `ai-history-${width}`, "新建任务", `History flyout remains anchored after resizing to ${width}px`, geometry, {
+      visible: geometry.visibility === "visible" && Boolean(geometry.flyout?.width && geometry.flyout?.height),
+      insideViewport: geometry.insideViewport,
+      longListScrollable: geometry.listScrollHeight > geometry.listClientHeight
+    });
+  }
+
+  await setCssViewportWidth(win, 840, 720);
+  await waitForSelectorToDisappear(win, ".history-flyout");
+  const historyClosedAtDrawer = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.history-toggle');
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        buttonDisplay: button instanceof Element ? getComputedStyle(button).display : null,
+        expanded: button?.getAttribute('aria-expanded'),
+        flyoutPresent: Boolean(document.querySelector('.history-flyout'))
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-history-cross-840", "新建任务", "History closes when the 840px drawer state hides its anchor", historyClosedAtDrawer, {
+    anchorHidden: historyClosedAtDrawer.buttonDisplay === "none",
+    stateClosed: historyClosedAtDrawer.expanded === "false",
+    flyoutRemoved: !historyClosedAtDrawer.flyoutPresent
+  });
+
+  await setCssViewportWidth(win, 841, 720);
+  await settle();
+  const historyClosedAfterDrawer = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.history-toggle');
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        buttonVisible: button instanceof Element && getComputedStyle(button).display !== 'none' && button.getBoundingClientRect().width > 0,
+        expanded: button?.getAttribute('aria-expanded'),
+        flyoutPresent: Boolean(document.querySelector('.history-flyout'))
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-history-cross-back-841", "新建任务", "History stays closed after returning from drawer to rail navigation", historyClosedAfterDrawer, {
+    anchorVisible: historyClosedAfterDrawer.buttonVisible,
+    stateClosed: historyClosedAfterDrawer.expanded === "false",
+    flyoutRemoved: !historyClosedAfterDrawer.flyoutPresent
+  });
+  const historyReopened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.history-toggle');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!historyReopened) throw new Error("AI history could not be reopened before the 1020px crossing check.");
+  await waitForSelector(win, ".history-flyout");
+  await setCssViewportWidth(win, 1020, 720);
+  await waitForSelectorToDisappear(win, ".history-flyout");
+  const historyClosedAtExpandedNav = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = document.querySelector('.history-toggle');
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        buttonDisplay: button instanceof Element ? getComputedStyle(button).display : null,
+        expanded: button?.getAttribute('aria-expanded'),
+        flyoutPresent: Boolean(document.querySelector('.history-flyout'))
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-history-cross-1020", "新建任务", "History closes when expanded navigation hides its anchor at 1020px", historyClosedAtExpandedNav, {
+    anchorHidden: historyClosedAtExpandedNav.buttonDisplay === "none",
+    stateClosed: historyClosedAtExpandedNav.expanded === "false",
+    flyoutRemoved: !historyClosedAtExpandedNav.flyoutPresent
+  });
+  await win.webContents.executeJavaScript("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
+  await waitForSelectorToDisappear(win, ".history-flyout");
+
+  await setCssViewportWidth(win, 720, 600);
+  const openedCompletedSession = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.nav-recent-item')].find((item) => item.textContent.includes('长会话性能验证'));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!openedCompletedSession) throw new Error("Long-message session fixture was not found.");
+  await waitForText(win, "长 URL");
+  const longMessageGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const markdown = [...document.querySelectorAll('.assistant-message .chat-markdown')].at(-1);
+      const userText = [...document.querySelectorAll('.user-message p')].at(-1);
+      const pre = markdown?.querySelector('pre');
+      const inlineCode = markdown ? [...markdown.querySelectorAll('code')].find((element) => !element.closest('pre')) : null;
+      const markdownBox = markdown?.getBoundingClientRect();
+      const inlineCodeRects = inlineCode ? [...inlineCode.getClientRects()].map((box) => ({ left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height })) : [];
+      const chat = document.querySelector('.chat-scroll');
+      const reachable = (element) => {
+        if (!(element instanceof Element) || !(chat instanceof Element)) return false;
+        element.scrollIntoView({ block: 'center' });
+        const box = element.getBoundingClientRect();
+        const owner = chat.getBoundingClientRect();
+        return box.bottom > owner.top + 1 && box.top < owner.bottom - 1;
+      };
+      const userReachable = reachable(userText);
+      const assistantReachable = reachable(markdown);
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        markdownClientWidth: markdown instanceof HTMLElement ? markdown.clientWidth : 0,
+        markdownScrollWidth: markdown instanceof HTMLElement ? markdown.scrollWidth : 0,
+        userClientWidth: userText instanceof HTMLElement ? userText.clientWidth : 0,
+        userScrollWidth: userText instanceof HTMLElement ? userText.scrollWidth : 0,
+        inlineCodeClientWidth: inlineCode instanceof HTMLElement ? inlineCode.clientWidth : 0,
+        inlineCodeScrollWidth: inlineCode instanceof HTMLElement ? inlineCode.scrollWidth : 0,
+        inlineCodeRects,
+        inlineCodeContained: Boolean(markdownBox && inlineCodeRects.length && inlineCodeRects.every((box) => box.width > 0 && box.height > 0 && box.left >= markdownBox.left - 1 && box.right <= markdownBox.right + 1)),
+        codeBlockExists: pre instanceof HTMLElement,
+        codeBlockOverflowPreserved: pre instanceof HTMLElement && getComputedStyle(pre).overflowX === 'auto',
+        userReachable,
+        assistantReachable
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-long-unbroken-content-720x600", "新建任务", "Long user/assistant URL, UNC path, hash, inline base64, and code block stay inside the chat flow", longMessageGeometry, {
+    assistantRendered: longMessageGeometry.markdownClientWidth > 0,
+    markdownContained: longMessageGeometry.markdownScrollWidth <= longMessageGeometry.markdownClientWidth + 2,
+    userRendered: longMessageGeometry.userClientWidth > 0,
+    userContained: longMessageGeometry.userScrollWidth <= longMessageGeometry.userClientWidth + 2,
+    inlineCodeRendered: longMessageGeometry.inlineCodeRects.length > 0 && longMessageGeometry.inlineCodeRects.every((box) => box.width > 0 && box.height > 0),
+    inlineCodeContained: longMessageGeometry.inlineCodeContained,
+    codeBlockRendered: longMessageGeometry.codeBlockExists,
+    codeBlockOverflowPreserved: longMessageGeometry.codeBlockOverflowPreserved,
+    userReachable: longMessageGeometry.userReachable,
+    assistantReachable: longMessageGeometry.assistantReachable
+  });
+
+  await captureCoarsePointerRecentActions(win, report);
+
+  await clickNav(win, "自动化");
+  await waitForReady(win, "自动化", { requiredSelector: ".automation-page" });
+  for (const width of [720, 840, 900]) {
+    await setCssViewportWidth(win, width, 600);
+    await settle();
+    const automationGeometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const page = document.querySelector('.automation-page');
+        const layout = document.querySelector('.automation-rules-layout');
+        const list = document.querySelector('.automation-rule-list');
+        const firstRule = list?.querySelector('.rule-item');
+        const detail = document.querySelector('.automation-detail-pane');
+        const runButton = detail?.querySelector('.primary-button, .danger-button');
+        const consoleBox = document.querySelector('.automation-console-box');
+        const intersects = (element) => {
+          if (!(element instanceof Element)) return false;
+          const box = element.getBoundingClientRect();
+          return box.bottom > 0 && box.top < window.innerHeight;
+        };
+        const reach = (element) => {
+          if (!(element instanceof Element)) return false;
+          element.scrollIntoView({ block: 'center' });
+          return intersects(element);
+        };
+        const listReachable = reach(firstRule);
+        const detailReachable = reach(runButton);
+        const consoleReachable = reach(consoleBox);
+        const rect = (element) => element instanceof Element ? Object.fromEntries(['top','right','bottom','left','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          page: rect(page),
+          layout: rect(layout),
+          list: rect(list),
+          detail: rect(detail),
+          console: rect(consoleBox),
+          pageClientHeight: page instanceof HTMLElement ? page.clientHeight : 0,
+          pageScrollHeight: page instanceof HTMLElement ? page.scrollHeight : 0,
+          layoutOverflow: layout instanceof Element ? getComputedStyle(layout).overflow : null,
+          listReachable,
+          detailReachable,
+          consoleReachable
+        };
+      })()
+    `);
+    await recordContractState(win, report, `automation-${width}x600`, "自动化", `Rule list, detail actions, run history, and console remain reachable at ${width}x600`, automationGeometry, {
+      listHasHeight: Boolean(automationGeometry.list && automationGeometry.list.height > 0),
+      layoutDoesNotClip: automationGeometry.layoutOverflow !== "hidden",
+      pageOwnsScroll: automationGeometry.pageScrollHeight > automationGeometry.pageClientHeight,
+      listReachable: automationGeometry.listReachable,
+      detailReachable: automationGeometry.detailReachable,
+      consoleReachable: automationGeometry.consoleReachable
+    });
+  }
+
+  await setCssViewportWidth(win, 720, 600);
+
+  const selectOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const root = document.querySelector('.automation-trigger-select');
+      const trigger = root?.querySelector('.ui-select-trigger');
+      if (!(root instanceof HTMLElement) || !(trigger instanceof HTMLButtonElement)) return false;
+      root.dataset.visualEdgeFixture = 'true';
+      Object.assign(root.style, { position: 'fixed', right: '8px', bottom: '8px', zIndex: '999' });
+      trigger.click();
+      return true;
+    })()
+  `);
+  if (!selectOpened) throw new Error("Automation Select fixture was not reachable.");
+  await waitForSelector(win, ".automation-trigger-select-menu");
+  const selectGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const menu = document.querySelector('.automation-trigger-select-menu');
+      const box = menu?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        menu: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
+        side: menu?.getAttribute('data-side'),
+        portaled: menu?.parentElement === document.body,
+        insideViewport: Boolean(box && box.left >= 7 && box.top >= 7 && box.right <= window.innerWidth - 7 && box.bottom <= window.innerHeight - 7)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "select-bottom-edge-720x600", "自动化", "Shared Select portals, flips, and clamps near the bottom-right viewport edge", selectGeometry, {
+    portaled: selectGeometry.portaled,
+    flippedAbove: selectGeometry.side === "top",
+    insideViewport: selectGeometry.insideViewport
+  });
+  await win.webContents.executeJavaScript(`
+    (() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      const root = document.querySelector('[data-visual-edge-fixture]');
+      if (root instanceof HTMLElement) { root.removeAttribute('data-visual-edge-fixture'); root.removeAttribute('style'); }
+    })()
+  `);
+
+  await clickNav(win, "设置");
+  await waitForReady(win, "设置", { requiredSelector: ".settings-page", settingsMode: true });
+  await clickSettingsSection(win, "工作流");
+  const confirmOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.settings-card button')].find((item) => item.textContent.includes('恢复默认值'));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!confirmOpened) throw new Error("Workflow confirmation fixture was not reachable.");
+  await waitForSelector(win, ".modal-card");
+  const confirmGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const card = document.querySelector('.modal-card');
+      const title = card?.querySelector('strong');
+      const body = card?.querySelector('p');
+      if (title) title.textContent = '长标题' + '标题内容'.repeat(100);
+      if (body) body.textContent = Array.from({ length: 100 }, (_, index) => '第 ' + (index + 1) + ' 行确认内容').join('\\n');
+      const actions = card?.querySelector('.modal-actions');
+      const box = card?.getBoundingClientRect();
+      const actionBox = actions?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        card: box ? { top: box.top, right: box.right, bottom: box.bottom, left: box.left, width: box.width, height: box.height } : null,
+        bodyClientHeight: body instanceof HTMLElement ? body.clientHeight : 0,
+        bodyScrollHeight: body instanceof HTMLElement ? body.scrollHeight : 0,
+        actionsVisible: Boolean(actionBox && actionBox.top >= box.top && actionBox.bottom <= box.bottom && actionBox.bottom <= window.innerHeight),
+        cardInsideViewport: Boolean(box && box.top >= 0 && box.bottom <= window.innerHeight)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "confirm-long-content-720x600", "设置", "Long confirmation title/body scroll while actions remain visible", confirmGeometry, {
+    cardInsideViewport: confirmGeometry.cardInsideViewport,
+    bodyScrollable: confirmGeometry.bodyScrollHeight > confirmGeometry.bodyClientHeight,
+    actionsVisible: confirmGeometry.actionsVisible
+  });
+  await win.webContents.executeJavaScript(`document.querySelector('.modal-actions button')?.click()`);
+  await waitForSelectorToDisappear(win, ".modal-card");
+
+  await clickSettingsSection(win, "Skills");
+  await waitForSelector(win, ".skills-page");
+  const curlSkillSelected = await win.webContents.executeJavaScript(`
+    (() => {
+      const skill = [...document.querySelectorAll('button')].find((item) => item.textContent.includes('X Following'));
+      if (!(skill instanceof HTMLButtonElement)) return false;
+      skill.click();
+      return true;
+    })()
+  `);
+  if (!curlSkillSelected) throw new Error("X Following Skill visual fixture was not found.");
+  await settle();
+  const curlConfigTabSelected = await win.webContents.executeJavaScript(`
+    (() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')].find((item) => item.textContent.includes('请求配置'));
+      if (!(tab instanceof HTMLButtonElement)) return false;
+      tab.click();
+      return true;
+    })()
+  `);
+  if (!curlConfigTabSelected) throw new Error("X Following request configuration tab was not found.");
+  await settle();
+  const curlOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const edit = [...document.querySelectorAll('button')].find((item) => /填写 cURL|编辑 cURL/.test(item.textContent || ''));
+      if (!(edit instanceof HTMLButtonElement)) return false;
+      edit.click();
+      return true;
+    })()
+  `);
+  if (curlOpened) {
+    await waitForSelector(win, ".skills-x-curl-editor");
+    const curlGeometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const dialog = document.querySelector('.skills-x-curl-editor');
+        const textarea = dialog?.querySelector('textarea');
+        if (textarea instanceof HTMLTextAreaElement) {
+          textarea.value = 'curl https://example.com ' + '-H header '.repeat(180);
+          textarea.style.height = '520px';
+        }
+        const footer = dialog?.querySelector('footer');
+        footer?.scrollIntoView({ block: 'end' });
+        const box = dialog?.getBoundingClientRect();
+        const footerBox = footer?.getBoundingClientRect();
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          dialog: box ? { top: box.top, right: box.right, bottom: box.bottom, left: box.left, width: box.width, height: box.height } : null,
+          textareaHeight: textarea?.getBoundingClientRect().height || 0,
+          footerVisible: Boolean(box && footerBox && footerBox.top >= box.top && footerBox.bottom <= box.bottom && footerBox.bottom <= window.innerHeight),
+          dialogInsideViewport: Boolean(box && box.top >= 0 && box.bottom <= window.innerHeight)
+        };
+      })()
+    `);
+    await recordContractState(win, report, "skills-curl-long-editor-720x600", "设置", "Resized cURL input keeps cancel/save actions reachable", curlGeometry, {
+      dialogInsideViewport: curlGeometry.dialogInsideViewport,
+      textareaClamped: curlGeometry.textareaHeight <= 360.5,
+      footerVisible: curlGeometry.footerVisible
+    });
+    await win.webContents.executeJavaScript(`document.querySelector('.skills-x-curl-editor button[aria-label="关闭"]')?.click()`);
+  } else {
+    throw new Error("Skills cURL visual fixture was not reachable.");
+  }
+  await exitSettings(win);
+}
+
+async function captureCoarsePointerRecentActions(win, report) {
+  const debuggerApi = win.webContents.debugger;
+  let attachedHere = false;
+  try {
+    if (!debuggerApi.isAttached()) {
+      debuggerApi.attach("1.3");
+      attachedHere = true;
+    }
+    await debuggerApi.sendCommand("Emulation.setEmulatedMedia", {
+      media: "screen",
+      features: [
+        { name: "hover", value: "none" },
+        { name: "pointer", value: "coarse" }
+      ]
+    });
+    await debuggerApi.sendCommand("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    await setCssViewportWidth(win, 1280, 720);
+    await clickNav(win, "新建任务");
+    await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const row = document.querySelector('.app-nav .nav-recent-row');
+        const actions = row?.querySelector('.nav-recent-actions');
+        const buttons = actions ? [...actions.querySelectorAll('button')] : [];
+        const actionStyle = actions instanceof Element ? getComputedStyle(actions) : null;
+        const buttonRects = buttons.map((button) => {
+          const box = button.getBoundingClientRect();
+          return { width: box.width, height: box.height, label: button.getAttribute('aria-label') };
+        });
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          coarsePointer: matchMedia('(pointer: coarse)').matches,
+          noHover: matchMedia('(hover: none)').matches,
+          rowVisible: row instanceof Element && row.getBoundingClientRect().height > 0,
+          opacity: actionStyle?.opacity,
+          pointerEvents: actionStyle?.pointerEvents,
+          buttonRects
+        };
+      })()
+    `);
+    await recordContractState(win, report, "recent-actions-coarse-pointer", "新建任务", "Recent-session actions stay visible with named 44px targets for coarse pointers", geometry, {
+      coarsePointerEmulated: geometry.coarsePointer && geometry.noHover,
+      recentRowVisible: geometry.rowVisible,
+      actionsVisible: geometry.opacity === "1" && geometry.pointerEvents === "auto",
+      actionsPresent: geometry.buttonRects.length > 0,
+      namedTargets: geometry.buttonRects.every((button) => Boolean(button.label)),
+      targetSize: geometry.buttonRects.every((button) => button.width >= 44 && button.height >= 44)
+    });
+  } finally {
+    if (debuggerApi.isAttached()) {
+      await debuggerApi.sendCommand("Emulation.setTouchEmulationEnabled", { enabled: false, maxTouchPoints: 1 }).catch(() => {});
+      await debuggerApi.sendCommand("Emulation.setEmulatedMedia", { media: "", features: [] }).catch(() => {});
+      if (attachedHere) debuggerApi.detach();
+    }
+  }
+}
+
+async function clickSettingsSection(win, label) {
+  const clicked = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.settings-nav-button')].find((item) => item.textContent.includes(${JSON.stringify(label)}));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!clicked) throw new Error(`Settings section not found: ${label}`);
+  await settle();
+}
+
+async function recordContractState(win, report, id, label, description, geometry, checks) {
+  const ok = Object.values(checks).every(Boolean);
+  const file = path.join(outputRoot, `state-${id}.png`);
+  const image = await win.webContents.capturePage();
+  fs.writeFileSync(file, image.toPNG());
+  const item = {
+    id,
+    label,
+    description,
+    file: path.relative(appRoot, file),
+    width: geometry.viewport?.width,
+    height: geometry.viewport?.height,
+    zoom: win.webContents.getZoomFactor(),
+    ok,
+    reason: ok ? null : `responsive contract failed: ${Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(', ')}`,
+    checks,
+    geometry
+  };
+  report.stateSnapshots.push(item);
+  if (!ok) report.failures.push(item);
+  return item;
+}
+
+async function auditTabFocusReachability(win, ownerSelector) {
+  const initialized = await win.webContents.executeJavaScript(`
+    (() => {
+      const owner = document.querySelector(${JSON.stringify(ownerSelector)});
+      const focusable = owner ? [...owner.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]')].filter((element) => element.tabIndex >= 0 && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden') : [];
+      focusable[0]?.focus();
+      return focusable.length;
+    })()
+  `);
+  const states = [];
+  let exitedOwner = false;
+  for (let index = 0; index <= initialized; index++) {
+    const state = await win.webContents.executeJavaScript(`
+      (() => {
+        const owner = document.querySelector(${JSON.stringify(ownerSelector)});
+        const active = document.activeElement;
+        if (!(owner instanceof Element) || !(active instanceof HTMLElement) || !owner.contains(active)) return { inside: false, reachable: false, label: active?.getAttribute?.('aria-label') || active?.textContent?.trim()?.slice(0, 40) || '' };
+        const box = active.getBoundingClientRect();
+        const ownerBox = owner.getBoundingClientRect();
+        return {
+          inside: true,
+          reachable: box.width > 0 && box.height > 0 && box.bottom > ownerBox.top + 1 && box.top < ownerBox.bottom - 1,
+          label: active.getAttribute('aria-label') || active.textContent?.trim()?.slice(0, 40) || active.tagName
+        };
+      })()
+    `);
+    if (!state.inside) {
+      exitedOwner = true;
+      break;
+    }
+    states.push(state);
+    win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
+    win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+    await delay(40);
+  }
+  return {
+    expected: initialized,
+    visited: states.length,
+    exitedOwner,
+    allReachable: states.length > 0 && states.every((state) => state.reachable),
+    states
+  };
+}
+
 async function clickNav(win, label) {
   const clicked = await win.webContents.executeJavaScript(`
     (() => {
@@ -887,6 +1766,7 @@ async function exitSettings(win) {
 async function waitForReady(win, label, options = {}) {
   const minTextLength = options.minTextLength ?? 200;
   const requiredSelector = options.requiredSelector || "body";
+  const expectedCompanionSelector = options.expectedCompanionSelector || null;
   const expectedSettingsMode = options.settingsMode === true;
   let lastState = null;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -894,9 +1774,21 @@ async function waitForReady(win, label, options = {}) {
       (() => {
         const visible = (element) => {
           if (!(element instanceof Element)) return false;
-          const style = getComputedStyle(element);
           const rect = element.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+          if (rect.width <= 0 || rect.height <= 0 || rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false;
+          for (let current = element; current instanceof Element; current = current.parentElement) {
+            const style = getComputedStyle(current);
+            if (style.display === 'none' || style.visibility === 'hidden' || current.hasAttribute('inert') || current.getAttribute('aria-hidden') === 'true') return false;
+          }
+          return true;
+        };
+        const unobscured = (element) => {
+          if (!(element instanceof Element)) return false;
+          const rect = element.getBoundingClientRect();
+          const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2));
+          const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2));
+          const hit = document.elementFromPoint(x, y);
+          return Boolean(hit && element.contains(hit));
         };
         const active = document.querySelector('nav button[aria-current="page"]')?.getAttribute('aria-label') || "";
         const activeSession = Boolean(document.querySelector('.nav-recent-item[aria-current="true"]'));
@@ -904,7 +1796,22 @@ async function waitForReady(win, label, options = {}) {
         const loading = Boolean(document.querySelector('.splash,.route-loading,.settings-page .settings-load-state[role="status"]'));
         const fatal = document.querySelector('.fatal')?.textContent || "";
         const textLength = (document.body?.innerText || "").trim().length;
-        const semanticReady = Boolean(document.querySelector(${JSON.stringify(requiredSelector)}));
+        const semanticTarget = document.querySelector(${JSON.stringify(requiredSelector)});
+        const expectedCompanion = ${JSON.stringify(expectedCompanionSelector)} ? document.querySelector(${JSON.stringify(expectedCompanionSelector)}) : null;
+        const semanticTargetReady = visible(semanticTarget) && unobscured(semanticTarget);
+        const expectedCompanionReady = visible(expectedCompanion) && unobscured(expectedCompanion);
+        const semanticReady = semanticTargetReady || expectedCompanionReady;
+        const semanticRect = semanticTarget instanceof Element ? semanticTarget.getBoundingClientRect() : null;
+        const semanticHit = semanticRect ? document.elementFromPoint(
+          Math.min(window.innerWidth - 1, Math.max(0, semanticRect.left + semanticRect.width / 2)),
+          Math.min(window.innerHeight - 1, Math.max(0, semanticRect.top + semanticRect.height / 2))
+        ) : null;
+        const semanticDebug = semanticTarget instanceof Element ? {
+          rect: semanticRect ? { left: semanticRect.left, top: semanticRect.top, right: semanticRect.right, bottom: semanticRect.bottom, width: semanticRect.width, height: semanticRect.height } : null,
+          hit: semanticHit ? semanticHit.tagName + '.' + String(semanticHit.className || '').replace(/\s+/g, '.') : null,
+          hitInside: Boolean(semanticHit && semanticTarget.contains(semanticHit)),
+          blockedAncestor: [...function* () { for (let current = semanticTarget; current instanceof Element; current = current.parentElement) { const style = getComputedStyle(current); if (style.display === 'none' || style.visibility === 'hidden' || current.hasAttribute('inert') || current.getAttribute('aria-hidden') === 'true') yield current.tagName + '.' + String(current.className || '').replace(/\s+/g, '.'); } }()]
+        } : null;
         const settingsMode = Boolean(document.querySelector('.settings-page'));
         const settingsNavigation = document.querySelector('.settings-navigation');
         const settingsActive = document.querySelector('.settings-nav-button[aria-current="page"]');
@@ -925,6 +1832,9 @@ async function waitForReady(win, label, options = {}) {
           fatal,
           textLength,
           semanticReady,
+          semanticTargetReady,
+          expectedCompanionReady,
+          semanticDebug,
           settingsMode,
           settingsNavigationVisible,
           settingsActiveVisible,
@@ -954,6 +1864,7 @@ async function waitForReady(win, label, options = {}) {
 async function inspectPage(win, label, options = {}) {
   const minTextLength = options.minTextLength ?? 200;
   const requiredSelector = options.requiredSelector || "body";
+  const expectedCompanionSelector = options.expectedCompanionSelector || null;
   const expectError = options.expectError === true;
   const expectedSettingsMode = options.settingsMode === true;
   return win.webContents.executeJavaScript(`
@@ -964,9 +1875,21 @@ async function inspectPage(win, label, options = {}) {
       const horizontalOverflow = Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth);
       const visible = (element) => {
         if (!(element instanceof Element)) return false;
-        const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        if (rect.width <= 0 || rect.height <= 0 || rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return false;
+        for (let current = element; current instanceof Element; current = current.parentElement) {
+          const style = getComputedStyle(current);
+          if (style.display === 'none' || style.visibility === 'hidden' || current.hasAttribute('inert') || current.getAttribute('aria-hidden') === 'true') return false;
+        }
+        return true;
+      };
+      const unobscured = (element) => {
+        if (!(element instanceof Element)) return false;
+        const rect = element.getBoundingClientRect();
+        const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2));
+        const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2));
+        const hit = document.elementFromPoint(x, y);
+        return Boolean(hit && element.contains(hit));
       };
       const settingsMode = Boolean(document.querySelector('.settings-page'));
       const settingsNavigation = document.querySelector('.settings-navigation');
@@ -990,7 +1913,11 @@ async function inspectPage(win, label, options = {}) {
         ? settingsActiveVisible
         : document.querySelector('nav button[aria-current="page"]')?.getAttribute('aria-label') === ${JSON.stringify(label)}
           || (${JSON.stringify(label)} === "新建任务" && Boolean(document.querySelector('.app-shell.ai-page')));
-      const semanticReady = Boolean(document.querySelector(${JSON.stringify(requiredSelector)}));
+      const semanticTarget = document.querySelector(${JSON.stringify(requiredSelector)});
+      const expectedCompanion = ${JSON.stringify(expectedCompanionSelector)} ? document.querySelector(${JSON.stringify(expectedCompanionSelector)}) : null;
+      const semanticTargetReady = visible(semanticTarget) && unobscured(semanticTarget);
+      const expectedCompanionReady = visible(expectedCompanion) && unobscured(expectedCompanion);
+      const semanticReady = semanticTargetReady || expectedCompanionReady;
       const shell = document.querySelector('.app-shell');
       const shellState = settingsMode ? 'settings'
         : shell?.classList.contains('layout-shell-drawer') ? 'drawer'
@@ -1009,7 +1936,7 @@ async function inspectPage(win, label, options = {}) {
         : [];
       const drawerToggleVisible = ${expectedSettingsMode}
         ? settingsChromeIsolated
-        : root.clientWidth > 840 || visible(document.querySelector('.responsive-nav-toggle'));
+        : expectedCompanionReady || root.clientWidth > 840 || visible(document.querySelector('.responsive-nav-toggle'));
       const unexpectedError = [...document.querySelectorAll('.ui-error-state')].find(visible)?.textContent?.replace(/\\s+/g, ' ').trim() || null;
       const errorStateMatches = ${expectError} ? Boolean(unexpectedError) : !unexpectedError;
       const criticalContextMissing = [];
@@ -1102,6 +2029,8 @@ async function inspectPage(win, label, options = {}) {
         reason: ok ? null : \`text=\${text.length}, semantic=\${semanticReady}, settingsMode=\${settingsMode}/expected:${expectedSettingsMode}, settingsNav=\${settingsNavigationVisible}, settingsActive=\${settingsActiveVisible}, settingsScrollTop=\${settingsDetail instanceof HTMLElement ? settingsDetail.scrollTop : 'missing'}, settingsSelectFocused=\${settingsSelectFocused}, settingsChromeIsolated=\${settingsChromeIsolated}, nav=\${navVisible}, active=\${activeVisible}, drawerToggle=\${drawerToggleVisible}, error=\${unexpectedError || 'none'}, errorExpected=${expectError}, context=\${criticalContextMissing.join(',') || 'complete'}, titleOccluded=\${conversationTitleOccluded}, briefSideBySide=\${briefMasterDetailValid}, targets=\${undersizedResponsiveTargets.length}, overflow=\${horizontalOverflow}\`,
         textLength: text.length,
         semanticReady,
+        semanticTargetReady,
+        expectedCompanionReady,
         shellState,
         settingsMode,
         settingsNavigationVisible,
@@ -1202,6 +2131,39 @@ async function captureComposerSuggestions(win, report) {
   await captureState(win, report, "ai-composer-file-context", pages[0].label, "Selected long file remains compact and readable in the composer", {
     requiredSelector: ".context-tray"
   });
+  const contextPopoverOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const chips = document.querySelector('.context-tray .context-chips');
+      if (!(chips instanceof HTMLElement)) return false;
+      chips.scrollLeft = chips.scrollWidth;
+      chips.dispatchEvent(new Event('scroll'));
+      const triggers = [...chips.querySelectorAll('.context-chip > .ui-disclosure-trigger')];
+      const trigger = triggers.at(-1);
+      if (!(trigger instanceof HTMLButtonElement)) return false;
+      trigger.click();
+      return true;
+    })()
+  `);
+  if (!contextPopoverOpened) throw new Error("Right-edge context detail fixture was not reachable.");
+  await waitForSelector(win, ".context-chip-popover");
+  const contextPopoverGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const popover = document.querySelector('.context-chip-popover');
+      const box = popover?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        popover: box ? { top: box.top, right: box.right, bottom: box.bottom, left: box.left, width: box.width, height: box.height } : null,
+        portaled: popover?.parentElement === document.body,
+        insideViewport: Boolean(box && box.left >= 7 && box.top >= 7 && box.right <= window.innerWidth - 7 && box.bottom <= window.innerHeight - 7)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-context-detail-right-edge", pages[0].label, "Right-most context detail is portaled and clamped inside the viewport", contextPopoverGeometry, {
+    portaled: contextPopoverGeometry.portaled,
+    insideViewport: contextPopoverGeometry.insideViewport
+  });
+  await win.webContents.executeJavaScript("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
+  await waitForSelectorToDisappear(win, ".context-chip-popover");
   const clearedContext = await win.webContents.executeJavaScript(`
     (() => {
       const button = document.querySelector('.context-tray-clear');
@@ -1213,9 +2175,39 @@ async function captureComposerSuggestions(win, report) {
   if (!clearedContext) throw new Error("Composer clear-context button was not reachable.");
   await waitForSelectorToDisappear(win, ".context-tray");
 
-  await setComposerValue(win, "/");
+  await setComposerValue(win, " \n \n/");
   await waitForText(win, "选择要运行的真实工作流");
-  await captureState(win, report, "ai-skill-menu", "新建任务", "Registered skill suggestion menu");
+  await waitForSelector(win, ".composer-suggestion-popover");
+  const caretMenuGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const textarea = document.querySelector('textarea[aria-label="AI 消息"]');
+      const anchor = document.querySelector('.composer-suggestion-caret-anchor');
+      const popover = document.querySelector('.composer-suggestion-popover');
+      const menu = popover?.querySelector('.composer-suggestion-menu');
+      const rect = (element) => element instanceof Element ? Object.fromEntries(['top','right','bottom','left','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+      const textareaBox = rect(textarea);
+      const anchorBox = rect(anchor);
+      const popoverBox = rect(popover);
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        textarea: textareaBox,
+        anchor: anchorBox,
+        popover: popoverBox,
+        side: popover?.getAttribute('data-side'),
+        portaled: popover?.parentElement === document.body,
+        menuWidth: menu?.getBoundingClientRect().width || 0,
+        insideViewport: Boolean(popoverBox && popoverBox.left >= 7 && popoverBox.top >= 7 && popoverBox.right <= window.innerWidth - 7 && popoverBox.bottom <= window.innerHeight - 7)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "ai-skill-menu-caret", "新建任务", "Slash suggestions follow the caret on a later textarea line and remain portaled inside the viewport", caretMenuGeometry, {
+    anchorInsideTextarea: Boolean(caretMenuGeometry.anchor && caretMenuGeometry.textarea && caretMenuGeometry.anchor.left >= caretMenuGeometry.textarea.left && caretMenuGeometry.anchor.right <= caretMenuGeometry.textarea.right && caretMenuGeometry.anchor.top > caretMenuGeometry.textarea.top + 20 && caretMenuGeometry.anchor.bottom <= caretMenuGeometry.textarea.bottom + 1),
+    menuAboveCaret: caretMenuGeometry.side === "top" && Boolean(caretMenuGeometry.popover && caretMenuGeometry.anchor && caretMenuGeometry.popover.bottom <= caretMenuGeometry.anchor.top),
+    widthTracksEditor: Boolean(caretMenuGeometry.textarea && Math.abs(caretMenuGeometry.menuWidth - caretMenuGeometry.textarea.width) <= 2),
+    portaled: caretMenuGeometry.portaled,
+    insideViewport: caretMenuGeometry.insideViewport
+  });
+  await captureState(win, report, "ai-skill-menu", "新建任务", "Registered skill suggestion menu follows the active textarea caret");
 
   await setComposerValue(win, "@composer");
   await waitForText(win, "composer-workflow.md");
@@ -1300,13 +2292,14 @@ async function assertComposerContextGeometry(win) {
         compactSingleRow: boxes.tray.height >= 30 && boxes.tray.height <= 44 && Math.max(...centers) - Math.min(...centers) <= 3,
         chipsNoWrap: css.chips.flexWrap === 'nowrap',
         countNoWrap: css.count.whiteSpace === 'nowrap',
-        maskRemoved: (!css.chips.maskImage || css.chips.maskImage === 'none')
-          && (!css.chips.webkitMaskImage || css.chips.webkitMaskImage === 'none'),
+        overflowAffordance: overflow(chips) <= 2
+          ? (!css.chips.maskImage || css.chips.maskImage === 'none')
+          : Boolean((css.chips.maskImage && css.chips.maskImage !== 'none') || (css.chips.webkitMaskImage && css.chips.webkitMaskImage !== 'none')),
         noNestedDoubleFrame: borderLayers <= 1 && !bordered(trigger),
         noPageOverflow: document.documentElement.scrollWidth - window.innerWidth <= 2,
         noFlowOverflow: overflow(flow) <= 2,
         noTrayOverflow: overflow(tray) <= 2,
-        noChipsOverflow: overflow(chips) <= 2,
+        chipsScrollableWhenNeeded: overflow(chips) <= 2 || ['auto', 'scroll'].includes(css.chips.overflowX),
         chipBounded: boxes.chip.width <= 260.5 && boxes.chip.width <= boxes.chips.width + 1,
         longLabelEllipsized: css.label.whiteSpace === 'nowrap'
           && ['hidden', 'clip'].includes(css.label.overflowX)
@@ -1512,6 +2505,7 @@ async function captureCompletedAiResponse(win, report) {
   }
   const commandGroupSnapshot = await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped tool history");
 
+  await scrollDisclosureTriggerIntoView(win, ".completed-process .command-group .tool-event", 1);
   await waitForDisclosureState(win, ".completed-process .command-group .tool-event", false, 1);
   await expandDisclosure(win, ".completed-process .command-group .tool-event", 1);
   const terminalSelector = ".completed-process .command-group .tool-event[data-open] .command-terminal";
@@ -1561,6 +2555,7 @@ async function setComposerValue(win, value) {
 async function captureState(win, report, id, label, description, options = {}) {
   await settle();
   const audit = await inspectPage(win, label, options);
+  const viewport = await win.webContents.executeJavaScript("({ width: window.innerWidth, height: window.innerHeight })");
   const file = path.join(outputRoot, `state-${id}.png`);
   const image = await win.webContents.capturePage();
   const png = image.toPNG();
@@ -1571,9 +2566,9 @@ async function captureState(win, report, id, label, description, options = {}) {
     label,
     description,
     file: path.relative(appRoot, file),
-    width: 1366,
-    height: 768,
-    zoom: 1,
+    width: viewport.width,
+    height: viewport.height,
+    zoom: win.webContents.getZoomFactor(),
     pixelHash,
     ...audit
   };
@@ -1615,6 +2610,15 @@ async function waitForSelector(win, selector) {
     await delay(80);
   }
   throw new Error(`Timed out waiting for visible selector: ${selector}`);
+}
+
+async function waitForSelectorExists(win, selector) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const found = await win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+    if (found) return;
+    await delay(80);
+  }
+  throw new Error(`Timed out waiting for selector: ${selector}`);
 }
 
 async function waitForSelectorToDisappear(win, selector) {

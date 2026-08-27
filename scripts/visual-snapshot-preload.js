@@ -151,13 +151,32 @@ const projectDetail = {
 
 const sessions = [
   { schemaVersion: 1, id: "session-1", projectId: "visual", projectRoot: repoRoot, title: "真实 Provider E2E 验收：Claude/Codex 权限与审批", provider: "claude", providerId: "claude:wsl", providerSessionId: null, cwd: ".", permissionProfile: "edit", status: "waiting-approval", pinned: true, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-1" },
-  { schemaVersion: 1, id: "session-2", projectId: "visual", projectRoot: repoRoot, title: "长会话性能验证 10000 events", provider: "codex", providerId: "codex:native", providerSessionId: null, cwd: ".", permissionProfile: "read-only", status: "idle", pinned: false, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-2" }
+  { schemaVersion: 1, id: "session-2", projectId: "visual", projectRoot: repoRoot, title: "长会话性能验证 10000 events", provider: "codex", providerId: "codex:native", providerSessionId: null, cwd: ".", permissionProfile: "read-only", status: "idle", pinned: false, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-2" },
+  ...Array.from({ length: 24 }, (_, index) => ({
+    schemaVersion: 1,
+    id: `session-history-${index + 1}`,
+    projectId: "visual",
+    projectRoot: repoRoot,
+    title: `响应式历史会话 ${index + 1}：超长标题与窗口重定位验证`,
+    provider: "codex",
+    providerId: "codex:native",
+    providerSessionId: null,
+    cwd: ".",
+    permissionProfile: "read-only",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastRunId: null
+  }))
 ];
 
 const changePatch = "diff --git a/todo.md b/todo.md\n--- a/todo.md\n+++ b/todo.md\n@@ -1,2 +1,2 @@\n- pending\n+ visual evidence\n";
+const longUserPrompt = `请总结规模验证报告，并核对这个长 URL：https://example.com/${"user-segment-".repeat(30)}end、这个 UNC 路径：\\\\wsl.localhost\\Ubuntu\\${"user-long-directory\\".repeat(20)}input.md，以及标识 ${"USER0123456789".repeat(24)}。`;
 const runs = [
   { schemaVersion: 1, id: "run-ai-1", sessionId: "session-1", projectId: "visual", provider: "claude", providerId: "claude:wsl", permissionProfile: "edit", status: "waiting-approval", prompt: "验证删除操作必须暂停审批", contexts: [{ id: "content-long", kind: "content", label: contentItems[0].title, path: contentItems[0].path, content: contentItems[0].excerpt }], workspacePath: null, baseCommit: null, startedAt: now, completedAt: null, error: null, changeSet: { id: "change-1", runId: "run-ai-1", baseCommit: "abc123", files: [{ path: "todo.md", status: "modified", additions: 1, deletions: 1, patch: changePatch }], patch: changePatch, createdAt: now, status: "pending", appliedPatches: [], appliedFiles: [] }, risks: [] },
-  { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: "总结规模验证报告", contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
+  { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: longUserPrompt, contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
 const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md`, "/fixtures/openmind-data/post/20260617/posts.json"], createdAt: now, status: "pending" };
@@ -171,7 +190,7 @@ const aiEvents = [
   event("e4", 4, "session-1", "run-ai-1", "approval-request", { approval }),
   event("e5", 5, "session-1", "run-ai-1", "changes", { changeSet: runs[0].changeSet }),
   event("e6", 6, "session-1", "run-ai-1", "assistant-message", { text: "危险操作已暂停，等待用户审批。下方变更区展示将修改的文件。" }),
-  event("e7", 1, "session-2", "run-ai-2", "user-message", { text: "总结规模验证报告" }),
+  event("e7", 1, "session-2", "run-ai-2", "user-message", { text: longUserPrompt }),
   event("e8", 2, "session-2", "run-ai-2", "reasoning-summary", { text: "我会先核对会话、事件与输出重组指标，再运行对应测试，确认长会话在桌面端仍然保持稳定。" }),
   event("tools-1-start", 3, "session-2", "run-ai-2", "tool-start", { itemId: "source-files", tool: "Glob", input: { pattern: "renderer/src/**/*.tsx", path: "desktop-app" } }),
   event("tools-1-done", 4, "session-2", "run-ai-2", "tool-complete", { itemId: "source-files", output: "renderer/src/features/ai-console/Chat.tsx" }),
@@ -199,7 +218,7 @@ const aiEvents = [
   event("e15", 26, "session-2", "run-ai-2", "tool-start", { itemId: "package", tool: "PowerShell", input: { command: "Get-ChildItem dist | Select-Object Name,Length" } }),
   event("e16", 27, "session-2", "run-ai-2", "tool-complete", { itemId: "package", output: "OpenMind-Portable-1.0.22-x64.exe 141388687" }),
   event("e16b", 28, "session-2", "run-ai-2", "reasoning-summary", { text: "视觉矩阵与 Windows 产物均正常，最后汇总规模验证结果，并保留命令明细供需要时展开核对。" }),
-  event("e17", 29, "session-2", "run-ai-2", "assistant-message", { text: "规模验证通过：1000 sessions、10000 events、1 MiB 输出重组正常。" })
+  event("e17", 29, "session-2", "run-ai-2", "assistant-message", { text: `规模验证通过：1000 sessions、10000 events、1 MiB 输出重组正常。\n\n长 URL：https://example.com/${"responsive-segment-".repeat(28)}end\n\nUNC 路径：\\\\wsl.localhost\\Ubuntu\\${"very-long-directory\\".repeat(24)}report.md\n\n长哈希：${"abcdef0123456789".repeat(20)}\n\n行内代码：\`${"data:image/png;base64," + "A".repeat(420)}\`\n\n\`\`\`text\n${"CODE_BLOCK_WITHOUT_BREAKS_".repeat(40)}\n\`\`\`` })
 ];
 
 const preferences = {
@@ -284,7 +303,8 @@ const visualSkillDefinitions = [
   ["video-download", "视频下载", "下载视频与相关元数据。"],
   ["asset-collector", "素材收集器", "收集并整理创作所需的本地素材。"],
   ["daily-writing-orchestrator", "写作素材包", "组织每日写作流程需要的素材与步骤。"],
-  ["collect-interest-markers", "兴趣标记整理", "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"]
+  ["collect-interest-markers", "兴趣标记整理", "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"],
+  ["x-following-fetcher", "X Following 抓取", "使用本地 cURL 配置抓取 X Following 时间线。"]
 ];
 let visualInstalledSkills = visualSkillDefinitions.map(([id], index) => ({
   schemaVersion: 1,
@@ -384,15 +404,22 @@ const api = {
   saveCreativeFile: async () => projectDetail,
   advanceCreativeProject: async (_path, stage) => ({ ...projectDetail, stage, manifest: { ...projectDetail.manifest, stage } }),
   updateCreativeManifest: async (_path, patch) => ({ ...projectDetail, manifest: { ...projectDetail.manifest, ...patch } }),
-  listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "openmind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: "视觉验收版本", size: 2048 }],
+  listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "openmind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: `视觉验收版本-${"long-version-note-".repeat(12)}end`, size: 2048 }],
   readCreativeVersion: async () => ({ path: "versions/draft-v1.md", content: projectDetail.files["draft.md"] }),
   restoreCreativeVersion: async () => projectDetail,
   getCreativeReleaseLog: async () => projectDetail.releaseLog,
   copyCreativeProject: async () => projectDetail,
   archiveCreativeProject: async () => projectDetail,
-  getCreativeAnalytics: async () => ({ total: 2, stages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 68, averageCycleHours: 18, stageDurations: [{ stage: "drafting", averageHours: 10 }, { stage: "review", averageHours: 4 }] }),
+  getCreativeAnalytics: async () => ({ total: 2, stages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }], platforms: [{ platform: `enterprise-content-distribution-${"platform".repeat(12)}`, count: 1 }], averageCompletion: 68, averageCycleHours: 18, stageDurations: [{ stage: "drafting", averageHours: 10 }, { stage: "review", averageHours: 4 }] }),
   selectFiles: async () => [longPath],
-  selectOpenmindFiles: async () => ["openmind/daily-summary/20260625_daily_summary.md"],
+  selectOpenmindFiles: async () => [
+    "openmind/daily-summary/20260625_daily_summary.md",
+    "openmind/creative/01-内容生产/文稿库/composer-workflow.md",
+    "openmind/wiki/concepts/responsive-layout-and-anchored-popover-contract.md",
+    "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md",
+    "openmind/automation/history/20260617-visual-snapshot-report.md",
+    "openmind/skills/browser/README-with-a-very-long-filename-for-overflow-validation.md"
+  ],
   searchOpenmindFiles: async (query, limit = 40) => {
     const files = [
       "openmind/daily-summary/20260625_daily_summary.md",

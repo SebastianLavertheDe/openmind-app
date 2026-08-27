@@ -1,134 +1,3 @@
-.session-pane:not(.collapsed) {
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-}
-
-.session-search {
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--muted);
-}
-
-.session-search:focus-within {
-  border-color: var(--accent);
-}
-
-.session-search input {
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 11px;
-}
-
-.session-filter-row {
-  display: flex;
-  gap: 3px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.session-filter-row button {
-  min-width: max-content;
-  height: 27px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-2);
-  font-size: var(--fs-xs);
-}
-
-.session-filter-row button:hover {
-  color: var(--text-dim);
-  background: var(--panel-2);
-}
-
-.session-filter-row button.active {
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-  background: var(--accent-tint);
-  color: var(--text);
-}
-
-.session-item.compact {
-  position: relative;
-  min-height: 72px;
-  padding-bottom: 8px;
-}
-
-.session-item.compact .session-summary {
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 10px 10px 3px;
-}
-
-.session-compact-meta {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  color: var(--muted-2);
-  font-size: var(--fs-xs);
-}
-
-.session-compact-meta time {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-compact-meta em {
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--surface);
-  color: var(--muted);
-  font-style: normal;
-}
-
-.session-compact-meta em.approval {
-  background: color-mix(in srgb, var(--orange) 10%, transparent);
-  color: var(--orange);
-}
-
-.session-compact-meta em.running {
-  background: color-mix(in srgb, var(--green) 12%, transparent);
-  color: var(--green);
-}
-
-.session-compact-meta em.failed {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  color: var(--red);
-}
-
-.compact-actions {
-  position: static;
-  display: flex;
-  gap: 2px;
-  margin: 0;
-  opacity: 0;
-  transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.session-item.compact:hover .compact-actions,
-.session-item.compact:focus-within .compact-actions,
-.session-item.compact.active .compact-actions {
-  opacity: 1;
-}
-
-.compact-actions button {
-  width: 23px;
-  height: 23px;
-}
-
 .conversation-header small {
   display: block;
   max-width: min(560px, 52vw);
@@ -191,64 +60,6 @@
 /* Phase 3 mockup alignment */
 .ai-workbench {
   grid-template-columns: var(--workbench-columns, 260px 8px minmax(0, 1fr));
-}
-
-.session-pane:not(.collapsed) {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-}
-
-.session-search {
-  margin: 0 12px;
-}
-
-.session-list-heading {
-  padding-inline: 14px;
-}
-
-.session-filter-row {
-  display: none;
-}
-
-.session-item.compact {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "summary actions"
-    "meta actions"
-    "error error";
-  column-gap: 6px;
-  align-items: center;
-  min-height: 66px;
-  padding: 9px 8px 9px 10px;
-  border-radius: var(--radius-sm);
-}
-
-.session-item.compact .session-summary {
-  grid-area: summary;
-  padding: 0;
-}
-
-.session-item.compact.active {
-  border-color: transparent;
-  background: var(--list-selected-bg, var(--control-hover));
-  box-shadow: none;
-}
-
-.session-compact-meta {
-  grid-area: meta;
-  padding: 0;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.session-item.compact .compact-actions {
-  grid-area: actions;
-  align-self: center;
-}
-
-.session-item.compact .inline-error {
-  grid-area: error;
-  margin-top: 4px;
 }
 
 .conversation-pane {
@@ -318,6 +129,9 @@
 }
 
 .chat-thread .assistant-message .chat-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: var(--text);
   font-size: inherit;
   line-height: inherit;
@@ -350,12 +164,20 @@
 }
 
 .chat-thread .assistant-message .chat-markdown :not(pre) > code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
   padding: 2px 7px;
   border: 0;
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--text) 8%, var(--page-bg));
   color: var(--text);
   font-size: 0.88em;
+}
+
+.chat-thread .assistant-message .chat-markdown pre,
+.chat-thread .assistant-message .chat-markdown pre code {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .chat-thread .assistant-message,
@@ -1111,12 +933,22 @@
 /* P0-CMP-1/2/3: textarea 浮动卡片化 + 发送按钮内嵌 + ChipSelect
    —— 详见文件末尾的统一样式块。这里保留 position:relative 以承接旧规则。 */
 
+.composer-suggestion-caret-anchor {
+  position: fixed;
+  z-index: -1;
+  width: 1px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.composer-suggestion-popover {
+  position: fixed;
+  z-index: var(--z-topmost);
+  max-width: calc(100vw - 16px);
+}
+
 .composer-suggestion-menu {
-  position: absolute;
-  z-index: 30;
-  right: 0;
-  bottom: calc(100% + 8px);
-  left: 0;
+  width: 100%;
   max-height: min(430px, 55vh);
   overflow: hidden;
   border: 1px solid var(--border-strong);
@@ -1402,18 +1234,6 @@
 }
 
 @media (max-width: 1180px) {
-  .ai-workbench {
-    grid-template-columns: 48px 8px minmax(0, 1fr) !important;
-  }
-
-  .ai-workbench .session-pane:not(.collapsed) {
-    overflow: hidden;
-  }
-
-  .ai-workbench .session-pane:not(.collapsed) > :not(.collapsed-rail) {
-    display: none;
-  }
-
   .conversation-pane {
     --chat-side-gutter: clamp(14px, 3vw, 32px);
   }
@@ -1424,15 +1244,6 @@
 }
 
 @media (max-width: 780px) {
-  .ai-workbench {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .ai-workbench > .session-pane,
-  .ai-workbench > .column-splitter {
-    display: none;
-  }
-
   .conversation-header {
     min-height: 58px;
     padding-inline: 14px;
@@ -1457,8 +1268,6 @@
   }
 
   .composer-suggestion-menu {
-    right: -4px;
-    left: -4px;
     max-height: min(420px, 62vh);
   }
 
@@ -1712,30 +1521,8 @@
   color: var(--text);
 }
 
-.app-session-navigation .session-search {
-  margin: 0;
-  background: var(--panel);
-}
-
-.app-session-navigation .session-list-heading {
-  padding-inline: 4px;
-}
-
 .app-session-navigation .session-list {
   padding-right: 2px;
-}
-
-.app-session-navigation .session-item.compact {
-  min-height: 58px;
-  padding: 8px 7px 8px 9px;
-}
-
-.app-session-navigation .session-summary strong {
-  font-size: 11px;
-}
-
-.app-session-navigation .session-compact-meta {
-  font-size: var(--fs-xs);
 }
 
 .ai-file-preview {
@@ -2331,6 +2118,21 @@
   scrollbar-width: none;
 }
 
+.context-tray .context-chips[data-overflow-end]:not([data-overflow-start]) {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 22px), transparent 100%);
+}
+
+.context-tray .context-chips[data-overflow-start]:not([data-overflow-end]) {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 100%);
+}
+
+.context-tray .context-chips[data-overflow-start][data-overflow-end] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+
 .context-tray .context-chips::-webkit-scrollbar {
   display: none;
 }
@@ -2538,6 +2340,7 @@
   animation: history-flyout-in var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both;
 }
 .history-flyout[data-leaving] { animation: history-flyout-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
+.history-flyout[data-side="top"] { transform-origin: bottom right; }
 @keyframes history-flyout-in { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 @keyframes history-flyout-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.97) translateY(-4px); } }
 

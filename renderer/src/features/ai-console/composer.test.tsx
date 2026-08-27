@@ -69,6 +69,20 @@ describe("ChatComposer permissions", () => {
 
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("auto");
   });
+
+  it("portals slash suggestions from a caret anchor while preserving combobox semantics", async () => {
+    render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
+
+    const input = screen.getByRole("combobox", { name: "AI 消息" });
+    fireEvent.change(input, { target: { value: " \n \n/", selectionStart: 5, selectionEnd: 5 } });
+
+    const menu = await screen.findByLabelText("Skills");
+    const popover = menu.closest(".composer-suggestion-popover");
+    expect(popover?.parentElement).toBe(document.body);
+    expect(document.querySelector(".composer-suggestion-caret-anchor")).toBeTruthy();
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    expect(input.getAttribute("aria-controls")).toBe("composer-suggestions");
+  });
 });
 
 describe("ContextTray selection references", () => {
@@ -84,6 +98,37 @@ describe("ContextTray selection references", () => {
 
     await waitFor(() => expect(screen.queryByText("引用一")).toBeNull());
     expect(screen.getByText("引用二")).toBeTruthy();
+  });
+
+  it("opens selection details from the keyboard and restores trigger focus on Escape", async () => {
+    const user = userEvent.setup();
+    const reference = selectionContext("first", "引用一");
+    render(<AiProvider initial={snapshot}><ContextTray contexts={[reference]} /></AiProvider>);
+
+    const trigger = screen.getByRole("button", { name: reference.path });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    const dialog = await screen.findByRole("dialog", { name: "引用一 详情" });
+    expect(within(dialog).getByText(reference.content!)).toBeTruthy();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "引用一 详情" })).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("opens selection details through a coarse touch pointer sequence", async () => {
+    const reference = selectionContext("touch", "触屏引用");
+    render(<AiProvider initial={snapshot}><ContextTray contexts={[reference]} /></AiProvider>);
+
+    const trigger = screen.getByRole("button", { name: reference.path });
+    fireEvent.pointerDown(trigger, { pointerId: 1, pointerType: "touch", isPrimary: true });
+    fireEvent.pointerUp(trigger, { pointerId: 1, pointerType: "touch", isPrimary: true });
+    fireEvent.click(trigger);
+
+    expect(await screen.findByRole("dialog", { name: "触屏引用 详情" })).toBeTruthy();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
   });
 });
 

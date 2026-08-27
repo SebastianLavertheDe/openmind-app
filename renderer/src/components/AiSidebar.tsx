@@ -234,6 +234,7 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
           <Select
             className="sidebar-session-select"
             size="rect"
+            menuAlign="end"
             ariaLabel={m.ai.sidebar.switchSession}
             value={ai.activeSession?.id || ""}
             onChange={(value) => void ai.setActiveSession(value || null)}

@@ -857,12 +857,10 @@ button.ui-metric-card:hover {
 }
 
 .ui-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   z-index: var(--z-overlay);
-  min-width: 100%;
   max-height: min(320px, 60vh);
+  max-width: calc(100vw - 16px);
   overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--border);
@@ -884,6 +882,10 @@ button.ui-metric-card:hover {
 @keyframes ui-select-out {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-2px); }
+}
+
+.ui-select-menu[data-side="top"] {
+  transform-origin: bottom center;
 }
 
 .ui-select-option {

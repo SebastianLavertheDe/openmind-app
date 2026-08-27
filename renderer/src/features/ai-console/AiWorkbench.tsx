@@ -9,6 +9,7 @@ import { useAi } from "../../ai-context";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { ResponsiveActionBar, ResponsiveContextBadge, VirtualList, type ResponsiveAction } from "../../design-system/components";
 import { useResponsiveLayout } from "../../app/responsive-layout";
+import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { ContentPreview } from "../../components/ContentPreview";
 import { Chat } from "./Chat";
@@ -59,8 +60,14 @@ export function AiWorkbench({
   const [previewActive, setPreviewActive] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement>(null);
-  const [historyPosition, setHistoryPosition] = useState<{ left: number; top: number } | null>(null);
+  const historyFlyoutRef = useRef<HTMLDivElement>(null);
   const historyPresence = useExitPresence(historyOpen, 160);
+  const historyPopover = useAnchoredPopover({
+    open: historyPresence.visible,
+    anchorRef: historyButtonRef,
+    floatingRef: historyFlyoutRef,
+    align: "end"
+  });
   const workbenchRef = useRef<HTMLDivElement>(null);
   const previewRatioRef = useRef(previewRatio);
   const previewResizeStartRatio = useRef(previewRatio);
@@ -158,30 +165,64 @@ export function AiWorkbench({
     setPreviewResizing(false);
   }, [canLeavePreview, onPreviewPathChange]);
 
-  const toggleHistory = useCallback(() => {
-    setHistoryOpen((current) => {
-      if (!current) {
-        const button = historyButtonRef.current;
-        if (button) {
-          const rect = button.getBoundingClientRect();
-          setHistoryPosition({ left: rect.left, top: rect.bottom + 6 });
+  const toggleHistory = useCallback(() => setHistoryOpen((current) => !current), []);
+
+  useLayoutEffect(() => {
+    if (!historyOpen) return;
+    const button = historyButtonRef.current;
+    if (!button) {
+      setHistoryOpen(false);
+      return;
+    }
+
+    let frame = 0;
+    const closeWhenAnchorIsUnavailable = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const rect = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) {
+          setHistoryOpen(false);
         }
-      }
-      return !current;
-    });
-  }, []);
+      });
+    };
+    closeWhenAnchorIsUnavailable();
+
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(closeWhenAnchorIsUnavailable);
+    resizeObserver?.observe(button);
+    const shell = button.closest(".app-shell");
+    const mutationObserver = shell && typeof MutationObserver !== "undefined"
+      ? new MutationObserver(closeWhenAnchorIsUnavailable)
+      : null;
+    if (shell) mutationObserver?.observe(shell, { attributes: true, subtree: true, attributeFilter: ["class", "style", "hidden"] });
+    window.addEventListener("resize", closeWhenAnchorIsUnavailable);
+    window.visualViewport?.addEventListener("resize", closeWhenAnchorIsUnavailable);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener("resize", closeWhenAnchorIsUnavailable);
+      window.visualViewport?.removeEventListener("resize", closeWhenAnchorIsUnavailable);
+    };
+  }, [historyOpen, responsiveLayout.shell]);
 
   useEffect(() => {
     if (!historyOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       const button = historyButtonRef.current;
-      const menu = document.querySelector(".history-flyout");
+      const menu = historyFlyoutRef.current;
       if (button?.contains(target) || menu?.contains(target)) return;
       setHistoryOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setHistoryOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setHistoryOpen(false);
+        historyButtonRef.current?.focus();
+      }
     };
     document.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
@@ -326,11 +367,13 @@ export function AiWorkbench({
         </main>
         {historyPresence.visible ? createPortal(
           <div
+            ref={historyFlyoutRef}
             className="history-flyout"
             data-leaving={historyPresence.leaving || undefined}
+            data-side={historyPopover.side}
             role="menu"
             aria-label={m.ai.session.recent}
-            style={historyPosition ? { left: historyPosition.left, top: historyPosition.top } : undefined}
+            style={historyPopover.style}
           >
             <AiSessionNavigation />
           </div>,

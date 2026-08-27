@@ -4,7 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Select } from "./Select";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 type Opts = Array<{ value: "a" | "b" | "c"; label: string }>;
 
@@ -122,4 +125,40 @@ describe("Select (custom dropdown)", () => {
     const selected = within(listbox).getByRole("option", { name: "Beta" });
     expect(selected.getAttribute("aria-selected")).toBe("true");
   });
+
+  it("portals, flips, and clamps the menu near the viewport edge", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 240 });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("ui-select-trigger")) return domRect(280, 200, 40, 32);
+      if (this.classList.contains("ui-select-menu")) return domRect(0, 0, 180, 150);
+      return domRect(0, 0, 0, 0);
+    });
+
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(getTrigger());
+    const listbox = screen.getByRole("listbox", { name: "排序" });
+
+    await waitFor(() => expect(listbox.style.visibility).toBe("visible"));
+    expect(listbox.closest(".ui-select")).toBeNull();
+    expect(listbox.parentElement).toBe(document.body);
+    expect(listbox.getAttribute("data-side")).toBe("top");
+    expect(listbox.style.left).toBe("132px");
+    expect(listbox.style.top).toBe("44px");
+  });
 });
+
+function domRect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({})
+  } as DOMRect;
+}

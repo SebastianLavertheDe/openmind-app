@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 import { messages as m } from "@shared/messages";
+import { useAnchoredPopover, type AnchoredPopoverAlign } from "./use-anchored-popover";
 import { useExitPresence } from "./use-exit-presence";
 
 /**
@@ -26,7 +28,8 @@ export function Select<T extends string>({
   leadingIcon,
   disabled = false,
   ariaLabel,
-  className
+  className,
+  menuAlign = "start"
 }: {
   value: T | "";
   options: Array<{ value: T; label: string; disabled?: boolean }>;
@@ -41,6 +44,8 @@ export function Select<T extends string>({
   ariaLabel?: string;
   /** 附加到根节点的 class(用于页面级定制宽度/对齐) */
   className?: string;
+  /** 浮层相对触发器的横向对齐方式。 */
+  menuAlign?: AnchoredPopoverAlign;
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -51,6 +56,13 @@ export function Select<T extends string>({
   const focusFrameRef = useRef<number | null>(null);
   const shouldRestoreFocusRef = useRef(false);
   const { visible, leaving } = useExitPresence(menuMounted, 140);
+  const popover = useAnchoredPopover({
+    open: visible,
+    anchorRef: triggerRef,
+    floatingRef: listRef,
+    align: menuAlign,
+    matchAnchorWidth: true
+  });
 
   const selectedIndex = useMemo(
     () => Math.max(0, options.findIndex((option) => option.value === value)),
@@ -89,7 +101,8 @@ export function Select<T extends string>({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const targetNode = event.target as Node;
+      if (!rootRef.current?.contains(targetNode) && !listRef.current?.contains(targetNode)) {
         shouldRestoreFocusRef.current = false;
         if (focusFrameRef.current !== null) {
           cancelAnimationFrame(focusFrameRef.current);
@@ -159,8 +172,11 @@ export function Select<T extends string>({
       choose(options[activeIndex]);
       return;
     } else if (event.key === "Tab") {
+      event.preventDefault();
       shouldRestoreFocusRef.current = false;
       setOpen(false);
+      if (event.shiftKey) triggerRef.current?.focus();
+      else focusAfterTrigger(triggerRef.current);
       return;
     }
     if (nextIndex === null) return;
@@ -207,14 +223,16 @@ export function Select<T extends string>({
         <span className="ui-select-value">{selected?.label || placeholder || "\u00A0"}</span>
         <ChevronDown size={14} className="ui-select-chevron" />
       </button>
-      {visible ? (
+      {visible ? createPortal(
         <div
           ref={listRef}
-          className="ui-select-menu"
+          className={`ui-select-menu${className ? ` ${className.split(/\s+/).filter(Boolean).map((token) => `${token}-menu`).join(" ")}` : ""}`}
           role="listbox"
           aria-label={accessibleName}
           data-leaving={leaving || undefined}
           data-open={open || undefined}
+          data-side={popover.side}
+          style={popover.style}
           onKeyDown={onKeyDownList}
         >
           {options.map((option, index) => (
@@ -234,10 +252,20 @@ export function Select<T extends string>({
               {option.value === value ? <Check size={13} className="ui-select-check" /> : null}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );
+}
+
+function focusAfterTrigger(trigger: HTMLButtonElement | null): void {
+  if (!trigger) return;
+  const tabbable = Array.from(document.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest(".ui-select-menu") && !element.classList.contains("ui-select-native-proxy"));
+  const triggerIndex = tabbable.indexOf(trigger);
+  tabbable[triggerIndex + 1]?.focus();
 }
 
 /** 在 enabled 选项中按 direction 步进,跳过 disabled。 */

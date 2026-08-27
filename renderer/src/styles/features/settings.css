@@ -10,42 +10,13 @@
   background: var(--app-chrome-bg);
 }
 
-.settings-shared-runtime-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
-.settings-shared-runtime-header,
-.settings-shared-runtime-tool,
-.settings-shared-runtime-card footer { display: grid; align-items: center; }
-.settings-shared-runtime-header { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); padding: 18px 20px; }
-.settings-shared-runtime-heading { min-width: 0; display: flex; align-items: center; gap: 12px; }
-.settings-shared-runtime-heading > div,
-.settings-shared-runtime-tool > div { min-width: 0; }
-.settings-shared-runtime-heading strong,
-.settings-shared-runtime-heading small,
-.settings-shared-runtime-tool strong,
-.settings-shared-runtime-tool small { display: block; }
-.settings-shared-runtime-heading strong { color: var(--text); font-size: 15px; }
-.settings-shared-runtime-heading small,
-.settings-shared-runtime-tool small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .settings-shared-runtime-shield { width: 32px; height: 32px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 10px; background: color-mix(in srgb, #10b981 12%, var(--surface)); color: #10b981; }
-.settings-shared-runtime-columns { display: grid; grid-template-columns: minmax(170px, .45fr) minmax(260px, 1fr) auto; gap: 16px; padding: 10px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 400; }
-.settings-shared-runtime-columns span:last-child { text-align: right; }
-.settings-shared-runtime-tool { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; margin: 0 12px 12px; padding: 14px; border-radius: var(--radius-md); background: var(--panel-muted); }
-.settings-python-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, #3776ab 13%, var(--surface)); color: #3776ab; font-size: 12px; font-weight: 750; }
-.settings-shared-runtime-tool strong { color: var(--text-dim); font-size: 13px; }
-.settings-shared-runtime-state { display: flex; align-items: center; gap: 12px; }
 .settings-shared-runtime-progress,
 .settings-shared-runtime-error { margin: 0 20px 14px; padding: 10px 12px; border-radius: var(--radius-sm); font-size: 11px; line-height: 1.5; }
 .settings-shared-runtime-progress { display: flex; align-items: center; gap: 9px; background: color-mix(in srgb, var(--accent-fg) 7%, var(--panel-muted)); color: var(--text-dim); }
 .settings-shared-runtime-progress .spin { width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid color-mix(in srgb, var(--accent-fg) 25%, transparent); border-top-color: var(--accent-fg); border-radius: 50%; }
 .settings-shared-runtime-progress p { margin: 0; }
 .settings-shared-runtime-error { background: color-mix(in srgb, var(--danger) 9%, var(--panel-muted)); color: var(--danger); }
-.settings-shared-runtime-card footer { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }
-
-@media (max-width: 760px) {
-  .settings-shared-runtime-columns { display: none; }
-  .settings-shared-runtime-tool { margin-top: 0; }
-  .settings-shared-runtime-state { grid-column: 2; justify-content: space-between; }
-}
-
 .app-shell.settings-mode > .app-stage {
   width: 100%;
   height: 100%;
@@ -423,149 +394,6 @@
   padding-top: var(--space-3);
 }
 
-.settings-runtime-list {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-}
-
-.settings-runtime-download-list {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-}
-
-.settings-runtime-download-candidate {
-  display: grid;
-  gap: 8px;
-  margin-top: var(--space-3);
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-fg) 42%, var(--border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent-fg) 7%, var(--panel-muted));
-}
-
-.settings-runtime-download-candidate p,
-.settings-runtime-conditions {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.settings-runtime-conditions {
-  padding-left: 18px;
-}
-
-.settings-runtime-icon-action {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.settings-runtime-progress {
-  width: 100%;
-  height: 5px;
-  accent-color: var(--accent-fg);
-}
-
-.settings-runtime-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.settings-runtime-card {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-muted);
-}
-
-.settings-runtime-main,
-.settings-runtime-meta,
-.settings-runtime-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-.settings-runtime-main {
-  justify-content: space-between;
-}
-
-.settings-runtime-main > div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.settings-runtime-main strong,
-.settings-runtime-main small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-runtime-main strong {
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-.settings-runtime-main small,
-.settings-runtime-meta {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.settings-runtime-card p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.settings-runtime-meta code {
-  color: var(--text-dim);
-  font: inherit;
-}
-
-.settings-runtime-actions {
-  justify-content: flex-end;
-}
-
-.settings-runtime-actions button {
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-dim);
-  font-size: 11px;
-}
-
-.settings-runtime-actions button:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--accent-fg);
-}
-
-.settings-runtime-actions button:disabled {
-  cursor: not-allowed;
-  opacity: .45;
-}
-
 .settings-provider-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(220px, auto);
@@ -743,113 +571,6 @@
 .settings-provider-upgrade:hover:not(:disabled) {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-}
-
-.settings-config-stack {
-  display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-}
-
-.settings-config-form {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--panel-muted);
-}
-
-.settings-config-heading {
-  display: grid;
-  gap: 3px;
-}
-
-.settings-config-heading strong {
-  color: var(--text);
-  font-size: var(--fs-sm);
-}
-
-.settings-config-heading small {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.settings-config-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.settings-config-grid label {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  color: var(--text-dim);
-  font-size: 11px;
-}
-
-.settings-config-grid input,
-.settings-config-grid select {
-  min-width: 0;
-  min-height: 32px;
-  padding: 0 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--control-bg);
-  color: var(--text);
-  font: inherit;
-}
-
-.settings-config-grid input:focus,
-.settings-config-grid select:focus {
-  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  outline-offset: 1px;
-}
-
-.settings-config-wide {
-  grid-column: 1 / -1;
-}
-
-.settings-config-list {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.settings-config-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-}
-
-.settings-config-row > div {
-  min-width: 0;
-}
-
-.settings-config-row strong,
-.settings-config-row small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-config-row strong {
-  color: var(--text);
-  font-size: 12px;
-}
-
-.settings-config-row small {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .settings-skill-toolbar {
@@ -1086,81 +807,6 @@
   gap: var(--space-2);
 }
 
-.settings-skill-context-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 4px 0 var(--space-3);
-}
-
-.settings-skill-context-grid > section {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.settings-skill-context-grid header,
-.settings-skill-context-grid header > span,
-.settings-skill-context-grid li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.settings-skill-context-grid header {
-  justify-content: space-between;
-}
-
-.settings-skill-context-grid header small,
-.settings-skill-context-grid p,
-.settings-skill-context-grid time {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.settings-skill-context-grid p {
-  margin: 0;
-  min-height: 28px;
-}
-
-.settings-skill-context-grid ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.settings-skill-context-grid li span:nth-child(2) {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-dim);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-skill-context-grid li time {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-.settings-skill-context-grid > section > button {
-  justify-self: start;
-  min-height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-muted);
-  color: var(--accent-fg);
-  font-size: 11px;
-}
-
 .settings-skill-actions button {
   min-height: 30px;
   display: inline-flex;
@@ -1207,179 +853,6 @@
 }
 
 .settings-skill-empty span {
-  font-size: 11px;
-}
-
-.settings-skill-packages {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-}
-
-.settings-skill-packages-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.settings-skill-packages-header h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 600;
-}
-
-.settings-skill-packages-header p {
-  max-width: 680px;
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.settings-skill-package-summary {
-  color: var(--muted);
-  font: 11px/1.4 var(--font-mono);
-}
-
-.settings-skill-package-list {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.settings-skill-package-item {
-  display: grid;
-  gap: 7px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-muted);
-}
-
-.settings-skill-package-main {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-}
-
-.settings-skill-package-main > div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.settings-skill-package-main strong,
-.settings-skill-package-main small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-skill-package-main strong {
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-.settings-skill-package-main small {
-  color: var(--muted);
-  font: 10px/1.4 var(--font-mono);
-}
-
-.settings-skill-package-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.settings-skill-package-dot.is-valid {
-  background: var(--success, #16a34a);
-}
-
-.settings-skill-package-dot.is-invalid {
-  background: var(--danger, #dc2626);
-}
-
-.settings-skill-package-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px 14px;
-  padding-left: 17px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.settings-skill-package-meta code {
-  color: var(--text-dim);
-  font: inherit;
-}
-
-.settings-skill-package-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 2px 0 0 17px;
-}
-
-.settings-skill-package-context button {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  color: var(--text-dim);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.settings-skill-package-context button:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.settings-skill-package-context button strong {
-  min-width: 18px;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--panel-muted);
-  color: var(--text);
-  font: 500 10px/1.5 var(--font-mono);
-  text-align: center;
-}
-
-.settings-skill-package-context button small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.settings-skill-package-context button small.danger { color: var(--danger, #dc2626); }
-.settings-skill-package-context button small.success { color: var(--success, #16a34a); }
-.settings-skill-package-context button small.running { color: var(--accent); }
-
-.settings-skill-package-meta .is-invalid,
-.settings-skill-package-issues {
-  color: var(--danger, #dc2626);
-}
-
-.settings-skill-package-issues {
-  margin: 0;
-  padding-left: 34px;
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.settings-skill-package-empty {
-  margin: 0;
-  padding: 8px 0 0;
-  color: var(--muted);
   font-size: 11px;
 }
 
@@ -1688,7 +1161,6 @@
 }
 
 /* ── SET-WF-001~005: 工作流规则面板 ── */
-.settings-workflow-desc { margin: 0 0 var(--space-3); color: var(--muted); font-size: 12px; line-height: 1.5; }
 .settings-workflow-subtitle { display: block; font-size: var(--fs-sm); font-weight: 500; color: var(--text); }
 .settings-workflow-hint { margin: 4px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .settings-inline-controls { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
@@ -1801,6 +1273,16 @@
 .settings-browser-boundary p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .settings-browser-boundary button { flex: 0 0 auto; }
 
+@container (max-width: 560px) {
+  .settings-browser-token {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-browser-token-controls {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 820px) {
   .settings-page {
     grid-template-columns: 210px minmax(0, 1fr);
@@ -1853,14 +1335,6 @@
     justify-self: end;
   }
 
-  .settings-config-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .settings-config-wide {
-    grid-column: auto;
-  }
-
   .settings-skill-toolbar {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1911,7 +1385,6 @@
 }
 
 @media (max-width: 720px) {
-  .settings-skill-context-grid { grid-template-columns: 1fr; }
   .settings-page {
     grid-template-columns: 184px minmax(0, 1fr);
   }
@@ -1984,6 +1457,7 @@
 
 .settings-card-body {
   padding: 0 20px 18px;
+  container-type: inline-size;
 }
 
 .settings-preference-row {
@@ -2726,10 +2200,6 @@
 .settings-provider-install-progress { display: flex; align-items: center; gap: 8px; min-width: min(360px, 100%); }
 .settings-provider-install-progress progress { width: 150px; height: 7px; accent-color: var(--accent); }
 .settings-provider-install-failure { display: flex; align-items: center; gap: 8px; color: var(--danger-600); font-size: 11px; flex-wrap: wrap; }
-.settings-provider-manual-steps { flex-basis: 100%; margin-top: 2px; font-size: 11px; }
-.settings-provider-manual-steps summary { cursor: pointer; color: var(--muted); }
-.settings-provider-manual-steps p { margin: 6px 0; color: var(--muted-2); }
-.settings-provider-manual-steps code { display: block; padding: 6px 8px; overflow-wrap: anywhere; border-radius: 6px; background: var(--panel-muted); color: var(--text); }
 .settings-provider-recheck {
   padding: 5px 12px; font-size: 12px; cursor: pointer;
   border: 1px solid var(--border, #d0d5dd); border-radius: 8px; background: none;

@@ -1200,13 +1200,38 @@
 }
 
 @media (max-width: 980px) {
+  .automation-rules-page {
+    align-content: start;
+  }
+
   .automation-rules-page .automation-rules-layout {
+    height: max-content;
+    min-height: 0;
+    align-self: start;
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+
+  .automation-rules-page .automation-rule-list {
+    height: clamp(180px, 32vh, 260px);
+    max-height: none;
   }
 
   .automation-rules-page .automation-detail-pane {
+    min-height: max-content;
+    grid-template-rows: auto auto;
+    overflow: visible;
     border-top: 1px solid var(--hairline);
     border-left: 0;
+  }
+
+  .automation-rules-page .automation-console-box {
+    min-height: 260px;
+  }
+
+  .automation-rules-page .rule-detail {
+    overflow: visible;
   }
 
   .rule-detail > header {

@@ -83,7 +83,7 @@ export function CreativeWorkspacePage({
   useEffect(() => {
     if (!compactWorkspace) return;
     setCompactListOpen(!hasCompactDetail);
-  }, [compactWorkspace, hasCompactDetail]);
+  }, [compactWorkspace, hasCompactDetail, selectedProject?.dir, selectedTopic?.id, selectedTopic?.title, selectedTopicFilePath]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,7 +123,9 @@ export function CreativeWorkspacePage({
     }).catch(() => { /* 保留安全默认值；设置页会展示持久化错误。 */ });
     return () => { active = false; };
   }, []);
-  useEffect(() => {
+  const selectView = useCallback((nextView: WorkspaceView) => {
+    if (nextView === view) return;
+    setView(nextView);
     setSelectedProject(null);
     setDetail(null);
     setSelectedTopic(null);
@@ -131,7 +133,8 @@ export function CreativeWorkspacePage({
     setActiveFile("");
     setDraft("");
     setDirty(false);
-  }, [view, resetTopicFile]);
+    setVersions([]);
+  }, [resetTopicFile, view]);
 
   const activeProjects = useMemo(() => projects.filter((project) => !project.archived && project.stage !== "archived"), [projects]);
   const funnelCounts = useMemo(() => {
@@ -142,6 +145,7 @@ export function CreativeWorkspacePage({
   }, [topics, activeProjects]);
 
   const openProject = useCallback(async (project: CreativeProjectSummary) => {
+    if (compactWorkspace) setCompactListOpen(false);
     setSelectedTopic(null);
     resetTopicFile();
     setSelectedProject(project);
@@ -159,7 +163,7 @@ export function CreativeWorkspacePage({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [stage, view, resetTopicFile]);
+  }, [compactWorkspace, stage, view, resetTopicFile]);
 
   useEffect(() => {
     if (!initialProjectDir || !projects.length) return;
@@ -359,6 +363,23 @@ export function CreativeWorkspacePage({
           description={analytics ? `${topics.length} 个选题 · ${analytics.total} 篇稿件 · 平均完成度 ${analytics.averageCompletion}%` : "全部选题、创作中、待发布和已发布内容。"}
           actions={<button data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />刷新</button>}
         />
+        <nav className="creative-view-tabs" role="tablist" aria-label="创作视图">
+          {([
+            ["workflow", "工作台"],
+            ["history", "版本历史"],
+            ["release", "发布记录"],
+            ["analytics", "数据分析"]
+          ] as const).map(([nextView, label]) => (
+            <button
+              key={nextView}
+              type="button"
+              role="tab"
+              aria-selected={view === nextView}
+              className={view === nextView ? "active" : ""}
+              onClick={() => selectView(nextView)}
+            >{label}</button>
+          ))}
+        </nav>
         {view === "workflow" ? (
           <FunnelBar counts={funnelCounts} active={streamFilter} onSelect={setStreamFilter} />
         ) : null}
@@ -385,8 +406,8 @@ export function CreativeWorkspacePage({
                       selectedTopic={selectedTopic}
                       selectedProject={selectedProject}
                       selectedTopicFile={selectedTopicFilePath}
-                      onOpenTopic={(topic) => { resetTopicFile(); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); }}
-                      onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
+                      onOpenTopic={(topic) => { if (compactWorkspace) setCompactListOpen(false); resetTopicFile(); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); }}
+                      onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
                       onOpenProject={(project) => void openProject(project)}
                     />
                   )
@@ -429,7 +450,7 @@ export function CreativeWorkspacePage({
                 onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
               ><PanelLeftOpen size={17} /></button>
             ) : null}
-            <div key={creativeDetailMotionKey} className="creative-detail-transition">
+            <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}`} data-stage={stage}>
               <CreativeDetailPane
                 view={view}
                 stage={stage}

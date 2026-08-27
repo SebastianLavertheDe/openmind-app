@@ -271,6 +271,10 @@ describe("CreativeWorkspacePage", () => {
       fireEvent.click(screen.getByRole("button", { name: "展开内容列表" }));
       await waitFor(() => expect(workspace?.classList.contains("compact-list-open")).toBe(true));
       expect(await screen.findByPlaceholderText("搜索选题或稿件")).toBeTruthy();
+
+      fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
+      await waitFor(() => expect(workspace?.classList.contains("compact-detail-open")).toBe(true));
+      expect(screen.queryByPlaceholderText("搜索选题或稿件")).toBeNull();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
@@ -292,8 +296,12 @@ describe("CreativeWorkspacePage", () => {
       })
     });
 
-    renderCreative(api, { initialStage: "ready" });
+    const { container } = renderCreative(api, { initialStage: "ready" });
     fireEvent.click(await screen.findByRole("button", { name: /发布稿件/ }));
+
+    const detailTransition = container.querySelector(".creative-detail-transition");
+    expect(detailTransition?.classList.contains("stage-ready")).toBe(true);
+    expect(detailTransition?.getAttribute("data-stage")).toBe("ready");
 
     const exportButton = await screen.findByRole("button", { name: /立即导出/ });
     expect((exportButton as HTMLButtonElement).disabled).toBe(true);
@@ -345,14 +353,10 @@ describe("CreativeWorkspacePage", () => {
   it("switches to the analytics view and renders the analytics panel", async () => {
     const api = makeApi();
     renderCreative(api);
-    // wait for the workspace to load, then open the analytics view tab
     await screen.findByRole("button", { name: /自动保存稿件|创作中/ });
-    const analyticsTab = screen.queryByRole("tab", { name: /数据|分析|analytics/i }) || screen.queryByRole("button", { name: /数据|分析/ });
-    if (analyticsTab) {
-      fireEvent.click(analyticsTab);
-      // analytics panel renders metrics (total projects)
-      await waitFor(() => expect(screen.getByText("1")).toBeTruthy());
-    }
+    fireEvent.click(screen.getByRole("tab", { name: "数据分析" }));
+    await waitFor(() => expect(screen.getByText("稿件总数").parentElement?.querySelector("strong")?.textContent).toBe("1"));
+    expect(screen.getByRole("tab", { name: "数据分析" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("opens the history view for a selected project and lists file tabs", async () => {
@@ -360,26 +364,21 @@ describe("CreativeWorkspacePage", () => {
       listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "p", createdAt: "2026-06-16T00:00:00.000Z", note: "自动保存", size: 128 }]
     });
     renderCreative(api);
-    fireEvent.click(await screen.findByRole("button", { name: /创作中/ }));
+    await screen.findByRole("button", { name: /自动保存稿件/ });
+    fireEvent.click(screen.getByRole("tab", { name: "版本历史" }));
     fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    const historyTab = screen.queryByRole("tab", { name: /历史|版本/i }) || screen.queryByRole("button", { name: /历史|版本/ });
-    if (historyTab) {
-      fireEvent.click(historyTab);
-      // file tab present
-      await waitFor(() => expect(screen.getByText("draft.md")).toBeTruthy());
-    }
+    await waitFor(() => expect(screen.getByText("draft.md")).toBeTruthy());
+    expect(screen.getByRole("tab", { name: "版本历史" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("opens the release log view and renders the timeline", async () => {
     const api = makeApi({ getCreativeReleaseLog: async () => [{ id: "e1", createdAt: "2026-06-16T00:00:00.000Z", action: "content_exported", stage: "ready", status: "exported", detail: "导出 Markdown" }] });
     renderCreative(api);
-    fireEvent.click(await screen.findByRole("button", { name: /创作中/ }));
+    await screen.findByRole("button", { name: /自动保存稿件/ });
+    fireEvent.click(screen.getByRole("tab", { name: "发布记录" }));
     fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    const releaseTab = screen.queryByRole("button", { name: /^发布记录$/ }) || screen.queryByRole("tab", { name: /^发布记录$/ });
-    if (releaseTab) {
-      fireEvent.click(releaseTab);
-      await waitFor(() => expect(screen.getByRole("list")).toBeTruthy());
-    }
+    await waitFor(() => expect(screen.getByRole("list")).toBeTruthy());
+    expect(screen.getByRole("tab", { name: "发布记录" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("advance 推进阶段 drafting → review", async () => {
