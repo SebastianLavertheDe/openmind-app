@@ -38,7 +38,8 @@ type ToastAction = { label: string; onClick: () => void };
 type Toast = { id: number; text: string; tone: ToastTone; recovery: string | null; action?: ToastAction };
 type FeedbackLogEntry = { timestamp: string; text: string; tone: ToastTone; recovery: string | null; sessionId: string | null };
 type NotifyOptions = { action?: ToastAction; durationMs?: number };
-type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean };
+export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean };
+export type ConfirmAction = (options: ConfirmOptions) => Promise<boolean>;
 type SendOptions = {
   providerId?: string;
   permissionProfile?: PermissionProfile;
@@ -88,7 +89,7 @@ interface AiController {
   notify(text: string, tone?: ToastTone, options?: NotifyOptions): void;
   dismissToast(id: number): void;
   confirmState: ConfirmOptions | null;
-  confirm(options: ConfirmOptions): Promise<boolean>;
+  confirm: ConfirmAction;
   resolveConfirm(value: boolean): void;
 }
 

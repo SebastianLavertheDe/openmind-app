@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Sparkles, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
@@ -109,7 +109,7 @@ async function ingestPastedImage(
   onError: (message: string) => void
 ): Promise<void> {
   if (file.size > MAX_IMAGE_BYTES) {
-    onError(`图片过大（${(file.size / 1024 / 1024).toFixed(1)}MB），上限 2MB。`);
+    onError(m.ai.composer.imageTooLarge((file.size / 1024 / 1024).toFixed(1)));
     return;
   }
   const mediaType = file.type || "image/png";
@@ -129,7 +129,7 @@ async function ingestPastedImage(
       byteSize: file.size
     });
   } catch {
-    onError("图片读取失败。");
+    onError(m.ai.composer.imageReadFailed);
   }
 }
 
@@ -715,7 +715,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
           className="image-lightbox"
           role="dialog"
           aria-modal="true"
-          aria-label="图片预览"
+          aria-label={m.ai.composer.imagePreview}
           data-leaving={leaving || undefined}
           data-dragging={dragging || undefined}
           data-multiple={hasMultiple || undefined}
@@ -761,7 +761,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
             data-motion="icon"
             ref={closeBtnRef}
             className="lightbox-close-btn"
-            aria-label="关闭预览"
+            aria-label={m.ai.composer.closePreview}
             onClick={(event) => { event.stopPropagation(); close(); }}
           >
             <X size={18} />
@@ -771,7 +771,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
               <button
                 data-motion="icon"
                 className="lightbox-nav-btn prev"
-                aria-label="上一张"
+                aria-label={m.ai.composer.previousImage}
                 onClick={(event) => { event.stopPropagation(); stepImage(-1); }}
               >
                 <ChevronLeft size={22} />
@@ -779,7 +779,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
               <button
                 data-motion="icon"
                 className="lightbox-nav-btn next"
-                aria-label="下一张"
+                aria-label={m.ai.composer.nextImage}
                 onClick={(event) => { event.stopPropagation(); stepImage(1); }}
               >
                 <ChevronRight size={22} />
@@ -876,13 +876,13 @@ function ContextReferenceChip({
             id={detailId}
             className="context-chip-popover"
             role="dialog"
-            aria-label={`${context.label} 详情`}
+            aria-label={m.ai.context.detail(context.label)}
             data-leaving={presence.leaving || undefined}
             data-side={popover.side}
             style={popover.style}
           >
             <div className="context-chip-detail">
-              <strong>{context.kind === "selection" ? "引用内容" : context.kind}</strong>
+              <strong>{context.kind === "selection" ? m.ai.context.selection : context.kind}</strong>
               <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
               {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
               <footer>
@@ -898,8 +898,8 @@ function ContextReferenceChip({
         type="button"
         className="context-chip-remove"
         data-motion="icon"
-        aria-label={`删除引用：${context.label}`}
-        title="删除此引用"
+        aria-label={m.ai.context.removeNamed(context.label)}
+        title={m.ai.context.removeThis}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
@@ -926,19 +926,71 @@ function ChipSelect({ className = "", icon, label, value, options, onChange }: {
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value);
   const menuPresence = useExitPresence(open, 160);
+  const popover = useAnchoredPopover({
+    open: menuPresence.visible,
+    anchorRef: triggerRef,
+    floatingRef: menuRef,
+    preferredSide: "top",
+    align: "end"
+  });
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
     };
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=option]") ?? [])
+        .find((item) => item.dataset.value === value)
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, value]);
+
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=option]") ?? []);
+    if (!items.length || !["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "Tab") {
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? current < 0 || current === items.length - 1 ? 0 : current + 1
+          : current <= 0 ? items.length - 1 : current - 1;
+    items[next]?.focus();
+  };
+
   return (
     <div className={`chip-select ${className}`.trim()} ref={ref} data-open={open || undefined} data-value={value}>
       <button
+        ref={triggerRef}
         type="button"
         className="chip-select-trigger"
         aria-label={`${label}：${selected?.label || value}`}
@@ -953,8 +1005,17 @@ function ChipSelect({ className = "", icon, label, value, options, onChange }: {
         <span className="chip-select-value">{selected?.label || value}</span>
         <ChevronDown size={12} className="chip-select-chevron" />
       </button>
-      {menuPresence.visible ? (
-        <div className="chip-select-menu" role="listbox" data-leaving={menuPresence.leaving || undefined}>
+      {menuPresence.visible && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={menuRef}
+          className="chip-select-menu"
+          role="listbox"
+          aria-label={label}
+          data-side={popover.side}
+          data-leaving={menuPresence.leaving || undefined}
+          style={popover.style}
+          onKeyDown={onMenuKeyDown}
+        >
           {options.map((option) => (
             <button
               key={option.value}
@@ -964,12 +1025,13 @@ function ChipSelect({ className = "", icon, label, value, options, onChange }: {
               className={`chip-select-option${option.value === value ? " active" : ""}`}
               data-value={option.value}
               data-motion="selection"
-              onClick={() => { onChange(option.value); setOpen(false); }}
+              onClick={() => { onChange(option.value); setOpen(false); triggerRef.current?.focus(); }}
             >
               {option.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );

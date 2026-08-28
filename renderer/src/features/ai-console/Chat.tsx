@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -72,7 +72,7 @@ type ChatScrollRestore = {
 const CHAT_BOTTOM_THRESHOLD = 90;
 const CHAT_SCROLL_UP_EPSILON = 1;
 
-export function Chat({ compact = false }: { compact?: boolean }) {
+export const Chat = memo(function Chat({ compact = false }: { compact?: boolean }) {
   const ai = useAi();
   const [nearBottom, setNearBottom] = useState(true);
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
@@ -356,7 +356,7 @@ export function Chat({ compact = false }: { compact?: boolean }) {
       </div>
     </section>
   );
-}
+});
 
 const TIMELINE_EXIT_MS = 240;
 

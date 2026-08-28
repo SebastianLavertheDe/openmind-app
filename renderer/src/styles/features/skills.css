@@ -37,10 +37,9 @@
 .skills-error { margin: 0; color: var(--danger-600); }
 
 .skills-layout {
-  height: clamp(520px, calc(100vh - 250px), 760px);
+  flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
   gap: 18px;
   overflow: hidden;
   border: 0;
@@ -48,6 +47,32 @@
   background: transparent;
   box-shadow: none;
 }
+
+.skills-layout[data-layout="split"] {
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+}
+
+.skills-layout[data-layout="stacked"] {
+  height: auto;
+  flex-basis: auto;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  overflow: visible;
+}
+
+.skills-layout[data-layout="stacked"] .skills-catalog {
+  min-height: 320px;
+  max-height: 380px;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.skills-layout[data-layout="stacked"] .skills-detail {
+  min-height: 420px;
+  overflow: visible;
+}
+
+.skills-layout[data-layout="stacked"] .skills-detail-header { position: static; }
 
 .skills-page--embedded .skills-layout { padding: 0; background: transparent; }
 .skills-page .skills-catalog,
@@ -771,13 +796,6 @@
 @media (max-width: 1360px) {
   .skills-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .skills-overview-grid > div:nth-child(-n + 2) { margin: 0; padding: 0; border-bottom: 0; }
-}
-
-@media (max-width: 1100px) {
-  .skills-layout { height: auto; grid-template-columns: 1fr; gap: 14px; overflow: visible; }
-  .skills-catalog { min-height: 320px; max-height: 380px; border-right: 0 !important; border-bottom: 0 !important; }
-  .skills-detail { min-height: 420px; overflow: visible; }
-  .skills-page .skills-detail-header { position: static; }
 }
 
 @media (max-width: 760px) {

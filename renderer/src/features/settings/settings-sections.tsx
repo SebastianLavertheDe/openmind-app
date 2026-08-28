@@ -5,7 +5,7 @@ import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProvide
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
-import { SegmentedControl, Select, StatusBadge, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
+import { DropdownMenu, SegmentedControl, Select, StatusBadge, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
 
 const m = messages;
 
@@ -36,13 +36,13 @@ const PERMISSION_OPTIONS: Array<{ value: UserPreferences["defaultPermissionProfi
 
 const AUTO_SAVE_OPTIONS = [5_000, 15_000, 30_000, 60_000].map((value) => ({
   value: String(value),
-  label: value < 60_000 ? `${value / 1000} 秒` : "1 分钟"
+  label: value < 60_000 ? m.settings.duration.seconds(value / 1000) : m.settings.duration.oneMinute
 }));
-const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), label: `${value} 天` }));
+const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), label: m.settings.duration.days(value) }));
 
 export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   return (
-    <SettingsPanel title={m.settings.appearance.title} scope="本地偏好">
+    <SettingsPanel title={m.settings.appearance.title} scope={m.settings.scopes.localPreference}>
       <PreferenceRow title={m.settings.appearance.theme} description={m.settings.theme.description}>
         <SegmentedControl value={prefs.themeMode} options={THEME_OPTIONS} label={m.settings.appearance.theme} onChange={(themeMode) => void save({ themeMode })} />
       </PreferenceRow>
@@ -72,7 +72,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
 
   const installCli = async (cli: "claude" | "codex") => {
     setInstallError(null);
-    setInstallProgress({ cli, phase: "resolving", message: "正在准备安装…" });
+    setInstallProgress({ cli, phase: "resolving", message: m.settings.provider.preparingInstall });
     setInstallingCli(cli);
     try {
       await window.openmind.installCliTool(cli);
@@ -106,7 +106,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   const upgradeCli = async (cli: "claude" | "codex") => {
     if (upgradingCli || installingCli || versionCheckBusy) return;
     setInstallError(null);
-    setInstallProgress({ cli, phase: "resolving", message: "正在准备升级…" });
+    setInstallProgress({ cli, phase: "resolving", message: m.settings.provider.preparingUpgrade });
     setUpgradingCli(cli);
     try {
       await window.openmind.upgradeCliTool(cli);
@@ -120,8 +120,8 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   };
 
   return (
-    <SettingsPanel title="模型提供方" scope="新会话行为">
-      <div className="settings-provider-list" role="radiogroup" aria-label="默认 Provider">
+    <SettingsPanel title={m.settings.provider.title} scope={m.settings.scopes.newSession}>
+      <div className="settings-provider-list" role="radiogroup" aria-label={m.settings.provider.defaultAria}>
         {providers.length ? providers.map((provider) => {
           const active = provider.id === defaultProviderId;
           const canInstall = provider.runtime === "native" && provider.installable && !provider.available && provider.version === null
@@ -170,7 +170,7 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
                     <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
                     <small>{installProgress?.message || m.settings.provider.installing}</small>
-                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>取消安装</button>
+                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>{m.settings.provider.cancelInstall}</button>
                   </div> : <button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
                     {m.settings.provider.install}
                   </button>}
@@ -182,25 +182,25 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                 {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
                   <span className="settings-provider-version">v{provider.version}</span>
                   {versionCheck?.updateAvailable && versionCheck.canUpgrade ? <button type="button" className="settings-provider-upgrade" data-motion="action" disabled={upgrading || versionCheckBusy !== null} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
-                    {upgrading ? "更新中…" : "一键更新"}
+                    {upgrading ? m.settings.provider.updating : m.settings.provider.upgrade}
                   </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
-                    {versionCheck.updateAvailable ? `发现新版本 ${versionCheck.latestVersion}，请手动更新` : versionCheck.latestVersion && versionCheck.currentVersion ? "已是最新" : "暂无法确认最新版本"}
+                    {versionCheck.updateAvailable ? m.settings.provider.manualUpdate(versionCheck.latestVersion) : versionCheck.latestVersion && versionCheck.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown}
                   </small> : <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
-                    {versionCheckBusy === provider.provider ? "检查中…" : "检查更新"}
+                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : m.settings.provider.checkUpdate}
                   </button>}
                   {versionCheck ? <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
-                    {versionCheckBusy === provider.provider ? "检查中…" : "重新检查"}
+                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : m.settings.provider.recheckUpdate}
                   </button> : null}
                   {versionError?.cli === provider.provider ? <div className="settings-provider-version-error" role="alert">
-                    <span>版本检测失败：{versionError.message}</span>
-                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>重试检测</button>
+                    <span>{m.settings.provider.versionFailed(versionError.message)}</span>
+                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>{m.settings.provider.retryVersion}</button>
                   </div> : null}
                 </div> : null}
                 {!canInstall ? <>
                   <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
                   <label className="settings-provider-default">
                     <input type="radio" name="default-provider" checked={active} disabled={!provider.available} aria-label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
-                    <span>{active ? "默认" : "设为默认"}</span>
+                    <span>{active ? m.settings.provider.default : m.settings.provider.setAsDefault}</span>
                   </label>
                 </> : null}
               </div>
@@ -220,28 +220,28 @@ export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }
 }) {
   const enabled = status?.enabled ?? false;
   const tone = status?.ready ? "success" : status?.phase === "error" ? "danger" : enabled ? "warning" : "neutral";
-  const label = busy ? (enabled ? "正在更新" : "正在安装") : status?.ready ? "可用" : status?.phase === "error" ? "需要处理" : enabled ? "准备中" : "未开启";
+  const label = busy ? (enabled ? m.settings.pythonRuntime.status.updating : m.settings.pythonRuntime.status.installing) : status?.ready ? m.settings.pythonRuntime.status.available : status?.phase === "error" ? m.settings.pythonRuntime.status.needsAction : enabled ? m.settings.pythonRuntime.status.preparing : m.settings.pythonRuntime.status.disabled;
   return (
-    <SettingsPanel title="Python 运行时" scope={status?.ready ? `Python ${status.pythonVersion || "3.12"}` : "应用共享环境"} variant="resource">
+    <SettingsPanel title={m.settings.pythonRuntime.title} scope={status?.ready ? `Python ${status.pythonVersion || "3.12"}` : m.settings.pythonRuntime.sharedScope} variant="resource">
       <article className="settings-resource-row settings-runtime-resource">
         <span className="settings-resource-icon settings-shared-runtime-shield"><ShieldCheck size={18} aria-hidden /></span>
         <div className="settings-resource-copy">
-          <strong>内置 Python</strong>
-          <p>由 OpenMind 安装和维护，供所有 Python Skill 与自动化任务共同使用，依赖由 uv 统一管理。</p>
-          <small>{status?.target || "当前平台"}{status?.uvVersion ? ` · uv ${status.uvVersion}` : ""}{status?.managedSkills ? ` · ${status.managedSkills} 个 Skill` : ""}</small>
+          <strong>{m.settings.pythonRuntime.builtIn}</strong>
+          <p>{m.settings.pythonRuntime.description}</p>
+          <small>{status?.target || m.settings.pythonRuntime.currentPlatform}{status?.uvVersion ? ` · uv ${status.uvVersion}` : ""}{status?.managedSkills ? ` · ${m.settings.pythonRuntime.managedSkills(status.managedSkills)}` : ""}</small>
         </div>
         <div className="settings-resource-actions">
           <StatusBadge tone={tone}>{label}</StatusBadge>
-          <ToggleSwitch checked={enabled} disabled={busy || !status} label="启用内置 Python 运行时" onChange={onToggle} />
+          <ToggleSwitch checked={enabled} disabled={busy || !status} label={m.settings.pythonRuntime.toggle} onChange={onToggle} />
         </div>
       </article>
       <div className="settings-runtime-feedback">
-        {busy ? <div className="settings-shared-runtime-progress" role="status"><span className="spin" /><p>正在校验内置 Python，并通过 uv 合并所有已安装 Skill 的依赖。首次初始化可能需要几分钟。</p></div> : null}
+        {busy ? <div className="settings-shared-runtime-progress" role="status"><span className="spin" /><p>{m.settings.pythonRuntime.progress}</p></div> : null}
         {status?.lastError ? <p className="settings-shared-runtime-error" role="alert">{status.lastError}</p> : null}
       </div>
       <footer className="settings-panel-footer">
-        <p className="settings-note">关闭不会删除已安装的 Python 和依赖；重新开启时可以直接复用。</p>
-        <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />刷新状态</button>
+        <p className="settings-note">{m.settings.pythonRuntime.disabledHint}</p>
+        <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />{m.settings.pythonRuntime.refresh}</button>
       </footer>
     </SettingsPanel>
   );
@@ -472,7 +472,7 @@ function SkillDetail({ label, value }: { label: string; value: string }) {
 
 export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   return (
-    <SettingsPanel title={m.settings.permissions.title} scope="运行规则">
+    <SettingsPanel title={m.settings.permissions.title} scope={m.settings.scopes.runtimeRules}>
       <PreferenceRow title={m.settings.permissions.defaultLabel} description={m.settings.permissions.defaultDescription}>
         <Select className="settings-select" size="rect" ariaLabel={m.settings.permissions.defaultLabel} value={prefs.defaultPermissionProfile} onChange={(value) => void save({ defaultPermissionProfile: value as UserPreferences["defaultPermissionProfile"] })} options={PERMISSION_OPTIONS} />
       </PreferenceRow>
@@ -524,7 +524,7 @@ export function BrowserSettingsSection({
 
   return (
     <>
-    <SettingsPanel title="浏览器连接" scope={m.settings.browser.scope} variant="resource">
+    <SettingsPanel title={m.settings.browser.connectionTitle} scope={m.settings.browser.scope} variant="resource">
       <div className="settings-resource-row settings-browser-backend">
         <span className="settings-browser-icon" aria-hidden><Globe size={18} /></span>
         <div className="settings-browser-backend-copy">
@@ -542,7 +542,7 @@ export function BrowserSettingsSection({
         <ToggleSwitch checked={prefs.browserReuseExistingTabs} label={m.settings.browser.reuseTabs} onChange={(checked) => void save({ browserReuseExistingTabs: checked })} />
       </PreferenceRow>
     </SettingsPanel>
-    <SettingsPanel title="证据与授权" scope="本地安全">
+    <SettingsPanel title={m.settings.browser.evidenceTitle} scope={m.settings.scopes.localSecurity}>
       <PreferenceRow title={m.settings.browser.evidenceDir} description={m.settings.browser.evidenceDirDescription}>
         <input
           className="settings-browser-path-input"
@@ -594,7 +594,7 @@ export function BrowserSettingsSection({
 
 export function PathSettingsSection({ openmind, workspace, notes, onSelectOpenmind, onSelectWorkspace, onOpenNotes }: { openmind: string; workspace: string; notes: string; onSelectOpenmind(): void; onSelectWorkspace(): void; onOpenNotes(): void }) {
   return (
-    <SettingsPanel title={m.settings.paths.title} scope="本地项目">
+    <SettingsPanel title={m.settings.paths.title} scope={m.settings.scopes.localProject}>
       <div className="settings-path-list">
         <PathRow label={m.settings.paths.workspace} path={workspace} buttonLabel={m.settings.paths.browse} onClick={onSelectWorkspace} />
         <PathRow label={m.settings.paths.notes} path={notes} buttonLabel={m.settings.paths.browse} onClick={onOpenNotes} />
@@ -642,7 +642,7 @@ export function ArchivedSessionsSettingsSection({
       ) : (
         <div className="settings-archived-empty">
           <Archive size={18} aria-hidden />
-          <div><strong>{m.settings.archivedSessions.empty}</strong><span>归档后的会话会显示在这里，可随时打开或恢复到最近会话。</span></div>
+          <div><strong>{m.settings.archivedSessions.empty}</strong><span>{m.settings.archivedSessions.emptyDescription}</span></div>
         </div>
       )}
     </SettingsPanel>
@@ -652,7 +652,7 @@ export function ArchivedSessionsSettingsSection({
 export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserPreferences; save: SavePreferences; onReset(): void }) {
   return (
     <>
-    <SettingsPanel title="阶段规则" scope="内容流程" action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
+    <SettingsPanel title={m.settings.workflow.panels.stages} scope={m.settings.scopes.contentFlow} action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
       <div className="settings-workflow-stages">
         <strong className="settings-workflow-subtitle">{m.settings.workflow.stagesTitle}</strong>
         <p className="settings-workflow-hint">{m.settings.workflow.stagesDescription}</p>
@@ -665,10 +665,10 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
         </ol>
       </div>
     </SettingsPanel>
-    <SettingsPanel title="草稿与版本" scope="编辑行为">
+    <SettingsPanel title={m.settings.workflow.panels.drafts} scope={m.settings.scopes.editBehavior}>
       <PreferenceRow title={m.settings.workflow.autoSaveTitle} description={m.settings.workflow.autoSaveDesc}>
         <div className="settings-inline-controls">
-          <Select ariaLabel="自动保存间隔" size="rect" value={String(prefs.autoSaveIntervalMs)} options={AUTO_SAVE_OPTIONS} onChange={(value) => void save({ autoSaveIntervalMs: Number(value) })} />
+          <Select ariaLabel={m.settings.workflow.autoSaveAria} size="rect" value={String(prefs.autoSaveIntervalMs)} options={AUTO_SAVE_OPTIONS} onChange={(value) => void save({ autoSaveIntervalMs: Number(value) })} />
           <ToggleSwitch checked={prefs.workflowAutoSaveDraft} label={m.settings.workflow.autoSaveTitle} onChange={(checked) => void save({ workflowAutoSaveDraft: checked })} />
         </div>
       </PreferenceRow>
@@ -676,24 +676,24 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
         <ToggleSwitch checked={prefs.workflowAutoVersionOnStageChange} label={m.settings.workflow.autoVersionTitle} onChange={(checked) => void save({ workflowAutoVersionOnStageChange: checked })} />
       </PreferenceRow>
     </SettingsPanel>
-    <SettingsPanel title="审核与发布" scope="发布门禁">
+    <SettingsPanel title={m.settings.workflow.panels.review} scope={m.settings.scopes.publishGate}>
       <PreferenceRow title={m.settings.workflow.reviewGateTitle} description={m.settings.workflow.reviewGateDesc}>
         <ToggleSwitch checked={prefs.workflowReviewRequiredForReady} label={m.settings.workflow.reviewGateTitle} onChange={(checked) => void save({ workflowReviewRequiredForReady: checked })} />
       </PreferenceRow>
       <PreferenceRow title={m.settings.workflow.publishCheckTitle} description={m.settings.workflow.publishCheckDesc}>
         <ToggleSwitch checked={prefs.workflowPublishChecklistEnabled} label={m.settings.workflow.publishCheckTitle} onChange={(checked) => void save({ workflowPublishChecklistEnabled: checked })} />
       </PreferenceRow>
-      <div className="settings-workflow-preview" role="status" aria-label="工作流规则预览">
-        <strong>当前规则预览</strong>
-        <span>草稿：{prefs.workflowAutoSaveDraft ? `每 ${formatInterval(prefs.autoSaveIntervalMs)}自动保存` : "仅手动保存"}</span>
-        <span>推进：{prefs.workflowAutoVersionOnStageChange ? "创建版本快照" : "不创建自动版本"}；{prefs.workflowReviewRequiredForReady ? "审核通过后进入待发布" : "允许跳过审核门禁"}</span>
-        <span>发布：{prefs.workflowPublishChecklistEnabled ? "校验标题、摘要、标签、封面、平台与正文" : "仅校验可导出的正文与平台"}</span>
+      <div className="settings-workflow-preview" role="status" aria-label={m.settings.workflow.preview.aria}>
+        <strong>{m.settings.workflow.preview.title}</strong>
+        <span>{prefs.workflowAutoSaveDraft ? m.settings.workflow.preview.draftAuto(formatInterval(prefs.autoSaveIntervalMs)) : m.settings.workflow.preview.draftManual}</span>
+        <span>{m.settings.workflow.preview.advance(prefs.workflowAutoVersionOnStageChange, prefs.workflowReviewRequiredForReady)}</span>
+        <span>{prefs.workflowPublishChecklistEnabled ? m.settings.workflow.preview.publishFull : m.settings.workflow.preview.publishBasic}</span>
       </div>
     </SettingsPanel>
-    <SettingsPanel title="自动归档" scope="内容生命周期">
+    <SettingsPanel title={m.settings.workflow.panels.archive} scope={m.settings.scopes.contentLifecycle}>
       <PreferenceRow title={m.settings.workflow.autoArchiveTitle} description={m.settings.workflow.autoArchiveDesc}>
         <div className="settings-inline-controls">
-          <Select ariaLabel="自动归档期限" size="rect" value={String(prefs.archiveAfterDays)} options={AUTO_ARCHIVE_OPTIONS} onChange={(value) => void save({ archiveAfterDays: Number(value) })} />
+          <Select ariaLabel={m.settings.workflow.archiveAria} size="rect" value={String(prefs.archiveAfterDays)} options={AUTO_ARCHIVE_OPTIONS} onChange={(value) => void save({ archiveAfterDays: Number(value) })} />
           <ToggleSwitch checked={prefs.workflowAutoArchiveEnabled} label={m.settings.workflow.autoArchiveTitle} onChange={(checked) => void save({ workflowAutoArchiveEnabled: checked })} />
         </div>
       </PreferenceRow>
@@ -730,7 +730,6 @@ export function AiProvidersSettingsSection({
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<{ entry: ProviderYamlInputEntry; apiKey: string; cliBindings: CliProviderBindings } | null>(null);
   const [advancedProviderId, setAdvancedProviderId] = useState<string | null>(null);
-  const [openProviderMenuId, setOpenProviderMenuId] = useState<string | null>(null);
   const addDialogRef = useRef<HTMLDivElement | null>(null);
   const editDialogRef = useRef<HTMLDivElement | null>(null);
 
@@ -776,7 +775,6 @@ export function AiProvidersSettingsSection({
     setEditingProviderId(null);
     setEditingSnapshot(null);
     setAdvancedProviderId(null);
-    setOpenProviderMenuId(null);
   }, [view]);
 
   const update = (id: string, patch: Partial<ProviderYamlInputEntry>) => {
@@ -801,11 +799,11 @@ export function AiProvidersSettingsSection({
     nextApiKeyKeys: Record<string, string> = apiKeyKeys
   ): boolean => {
     if (busy) return false;
-    if (!nextDraft.length) { notify("至少需要一个 Provider", "info"); return false; }
-    if (!nextDraft.some((entry) => entry.id === nextDefaultId)) { notify("默认 Provider 不存在", "info"); return false; }
+    if (!nextDraft.length) { notify(m.settings.providerConfig.validation.atLeastOne, "info"); return false; }
+    if (!nextDraft.some((entry) => entry.id === nextDefaultId)) { notify(m.settings.providerConfig.validation.defaultMissing, "info"); return false; }
     const incomplete = nextDraft.find((entry) => !entry.name.trim() || !entry.baseUrl.trim() || !entry.model.trim());
     if (incomplete) {
-      notify(`请完善 ${incomplete.name || incomplete.id} 的必填配置`, "info");
+      notify(m.settings.providerConfig.validation.incomplete(incomplete.name || incomplete.id), "info");
       return false;
     }
     const providers = nextDraft.map((entry) => ({ ...entry, apiKey: nextApiKeyKeys[entry.id] ?? "" }));
@@ -829,13 +827,12 @@ export function AiProvidersSettingsSection({
 
   const setProviderAsDefault = (id: string) => {
     setDefaultId(id);
-    setOpenProviderMenuId(null);
     saveDraft(draft, id, cliBindings, apiKeyKeys);
   };
 
   const providerFromPreset = (nextPresetId: string): ProviderYamlInputEntry => {
     const preset = PROVIDER_PRESETS.find((item) => item.id === nextPresetId);
-    const base = preset ?? { id: "custom", name: "自定义", protocol: "openai-chat" as ProviderProtocol, authMode: "bearer" as ProviderAuthMode, baseUrl: "", model: "" };
+    const base = preset ?? { id: "custom", name: m.settings.providerConfig.custom, protocol: "openai-chat" as ProviderProtocol, authMode: "bearer" as ProviderAuthMode, baseUrl: "", model: "" };
     let counter = 0;
     let id = base.id;
     while (draft.some((entry) => entry.id === id)) id = `${base.id}-${++counter}`;
@@ -856,7 +853,7 @@ export function AiProvidersSettingsSection({
       try {
         apiKey = await window.openmind.getProviderApiKey(entry.id);
       } catch {
-        notify("无法读取当前 Provider 的 API Key", "error");
+        notify(m.settings.providerConfig.validation.apiKeyReadFailed, "error");
         return;
       }
     }
@@ -864,7 +861,6 @@ export function AiProvidersSettingsSection({
     setEditingSnapshot({ entry: { ...entry }, apiKey, cliBindings: { ...cliBindings } });
     setEditingProviderId(entry.id);
     setAdvancedProviderId(null);
-    setOpenProviderMenuId(null);
   };
 
   const changePreset = (nextPresetId: string) => {
@@ -877,11 +873,11 @@ export function AiProvidersSettingsSection({
     if (!newProvider) return;
     const entry = { ...newProvider, id: newProvider.id.trim(), name: newProvider.name.trim(), baseUrl: newProvider.baseUrl.trim(), model: newProvider.model.trim() };
     if (!entry.id || !entry.name || !entry.baseUrl || !entry.model || !entry.apiKey) {
-      notify("请填写所有必填项", "info");
+      notify(m.settings.providerConfig.validation.required, "info");
       return;
     }
     if (draft.some((item) => item.id === entry.id)) {
-      notify("Provider ID 已存在，请换一个 ID", "info");
+      notify(m.settings.providerConfig.validation.duplicateId, "info");
       return;
     }
     const nextDraft = [...draft, { ...entry, apiKey: "" }];
@@ -894,22 +890,13 @@ export function AiProvidersSettingsSection({
     if (saveDraft(nextDraft, nextDefaultId, cliBindings, nextApiKeyKeys)) closeAddDialog();
   };
 
-  useEffect(() => {
-    if (!openProviderMenuId) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenProviderMenuId(null);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [openProviderMenuId]);
-
   const remove = (id: string) => {
     if (busy) return;
-    if (draft.length <= 1) { notify("至少需要保留一个 Provider", "info"); return; }
+    if (draft.length <= 1) { notify(m.settings.providerConfig.validation.keepOne, "info"); return; }
     const survivors = draft.filter((entry) => entry.id !== id);
     const nextEnabledDefault = survivors.find((entry) => entry.enabled);
     if (defaultId === id && !nextEnabledDefault) {
-      notify("请先启用另一个 Provider，再删除当前默认 Provider", "info");
+      notify(m.settings.providerConfig.validation.enableAnother, "info");
       return;
     }
     const nextDefaultId = defaultId === id ? nextEnabledDefault!.id : defaultId;
@@ -924,7 +911,6 @@ export function AiProvidersSettingsSection({
     setApiKeyKeys(nextApiKeyKeys);
     setApiKeySetMap((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
     if (editingProviderId === id) dismissEditDialog();
-    setOpenProviderMenuId(null);
     saveDraft(survivors, nextDefaultId, nextCliBindings, nextApiKeyKeys);
   };
 
@@ -937,38 +923,39 @@ export function AiProvidersSettingsSection({
 
   return (
     <>
-      <SettingsPanel title="Provider 列表" scope={`${draft.length} 个`} variant="standard"
-        action={<button type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label="添加 Provider"><Plus size={15} aria-hidden />添加 Provider</button>}>
-        <p className="settings-note settings-provider-list-note">桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml；编辑 Provider 时会在受信任的本地界面中回显。</p>
+      <SettingsPanel title={m.settings.providerConfig.title} scope={m.settings.providerConfig.count(draft.length)} variant="standard"
+        action={<button type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
+        <p className="settings-note settings-provider-list-note">{m.settings.providerConfig.note}</p>
         <div className="settings-provider-config-list">
-          {draft.length === 0 ? <p className="settings-note">尚未配置 Provider。点击上方「添加」开始。</p> : null}
+          {draft.length === 0 ? <p className="settings-note">{m.settings.providerConfig.empty}</p> : null}
           {draft.map((entry) => {
             const displayName = entry.name || entry.id;
             const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
-            const apiKeyStatus = apiKeySetMap[entry.id] ? "API Key 已配置" : apiKeyDrafted ? "API Key 待保存" : "API Key 未配置";
+            const apiKeyStatus = apiKeySetMap[entry.id] ? m.settings.providerConfig.apiKey.set : apiKeyDrafted ? m.settings.providerConfig.apiKey.pending : m.settings.providerConfig.apiKey.missing;
             const apiKeyState = apiKeySetMap[entry.id] ? "set" : apiKeyDrafted ? "pending" : "missing";
             return (
               <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
                 <header className="settings-provider-config-header">
                   <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
-                    aria-label={`编辑 ${displayName} 配置`} onClick={() => void openEditDialog(entry)} disabled={busy}>
+                    aria-label={m.settings.providerConfig.editAria(displayName)} onClick={() => void openEditDialog(entry)} disabled={busy}>
                     <span className="settings-provider-config-identity">
-                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">默认</StatusBadge> : null}</span>
-                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || "未设置模型"}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
+                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}</span>
+                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || m.settings.providerConfig.noModel}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
                     </span>
                     <ChevronRight className="settings-provider-config-chevron" size={16} aria-hidden />
                   </button>
                   <div className="settings-provider-config-actions">
-                    <ToggleSwitch checked={entry.enabled} disabled={busy || entry.id === defaultId} label={`启用 ${displayName}`} onChange={(checked) => setProviderEnabled(entry.id, checked)} />
-                    <div className="settings-provider-menu" onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) setOpenProviderMenuId(null);
-                    }}>
-                      <button type="button" className="settings-provider-menu-trigger" data-motion="icon" aria-haspopup="menu" aria-expanded={openProviderMenuId === entry.id}
-                        aria-label={`更多 ${entry.id}`} onClick={() => setOpenProviderMenuId((current) => current === entry.id ? null : entry.id)} disabled={busy}><MoreHorizontal size={17} aria-hidden /></button>
-                      {openProviderMenuId === entry.id ? <div className="settings-provider-menu-popover" role="menu" aria-label={`${displayName} 操作`}>
-                        <button type="button" role="menuitem" data-motion="selection" aria-label={`将 ${entry.id} 设为默认`} onClick={() => setProviderAsDefault(entry.id)} disabled={busy || entry.id === defaultId || !entry.enabled}>设为默认</button>
-                        <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={`删除 ${entry.id}`} onClick={() => remove(entry.id)} disabled={busy}>删除</button>
-                      </div> : null}
+                    <ToggleSwitch checked={entry.enabled} disabled={busy || entry.id === defaultId} label={m.settings.providerConfig.enable(displayName)} onChange={(checked) => setProviderEnabled(entry.id, checked)} />
+                    <div className="settings-provider-menu">
+                      <DropdownMenu
+                        ariaLabel={m.settings.providerConfig.more(entry.id)}
+                        menuLabel={m.settings.providerConfig.menu(displayName)}
+                        disabled={busy}
+                        label={<span className="settings-provider-menu-trigger" data-motion="icon"><MoreHorizontal size={17} aria-hidden /></span>}
+                      >
+                        <button type="button" role="menuitem" data-motion="selection" aria-label={m.settings.providerConfig.setDefaultAria(entry.id)} onClick={() => setProviderAsDefault(entry.id)} disabled={busy || entry.id === defaultId || !entry.enabled}>{m.settings.providerConfig.setDefault}</button>
+                        <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={m.settings.providerConfig.deleteAria(entry.id)} onClick={() => remove(entry.id)} disabled={busy}>{m.settings.providerConfig.delete}</button>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </header>
@@ -982,40 +969,40 @@ export function AiProvidersSettingsSection({
         <div ref={addDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={closeAddDialog}>
           <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
-              <div><span>AI Provider</span><h2 id="add-provider-title">添加 Provider</h2><p>选择预设并确认连接信息，添加后仍可在列表中修改。</p></div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Provider 弹窗" onClick={closeAddDialog}><X size={16} /></button>
+              <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="add-provider-title">{m.settings.providerConfig.addTitle}</h2><p>{m.settings.providerConfig.addDescription}</p></div>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.providerConfig.closeAdd} onClick={closeAddDialog}><X size={16} /></button>
             </header>
             <form onSubmit={addProvider}>
               <div className="settings-provider-dialog-body">
-                <label className="settings-field settings-field--wide"><span>Provider 预设</span>
-                  <select className="settings-select" value={presetId} aria-label="Provider 预设" onChange={(event) => changePreset(event.target.value)} autoFocus data-motion="selection">
+                <label className="settings-field settings-field--wide"><span>{m.settings.providerConfig.preset}</span>
+                  <select className="settings-select" value={presetId} aria-label={m.settings.providerConfig.preset} onChange={(event) => changePreset(event.target.value)} autoFocus data-motion="selection">
                     {PROVIDER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-                    <option value="custom">自定义</option>
+                    <option value="custom">{m.settings.providerConfig.custom}</option>
                   </select>
-                  <small>预设会自动填写协议、Base URL 和推荐模型。</small>
+                  <small>{m.settings.providerConfig.presetHint}</small>
                 </label>
                 <div className="settings-grid-2">
                   <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
-                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
                   <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
-                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder="例如：deepseek-v4-flash" onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
-                  <label className="settings-field"><span>协议</span>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
                     <select className="settings-select" value={newProvider.protocol} onChange={(event) => setNewProvider({ ...newProvider, protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>
                       <option value="openai-chat">openai-chat</option>
                       <option value="openai-responses">openai-responses</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>认证方式</span>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
                     <select className="settings-select" value={newProvider.authMode} onChange={(event) => setNewProvider({ ...newProvider, authMode: event.target.value as ProviderAuthMode })}>
                       <option value="bearer">Bearer Token</option>
                       <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>API Key</span><input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder="请输入 API Key" autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
               </div>
-              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>取消</button><button type="submit" className="primary-button"><Plus size={14} />添加到列表</button></footer>
+              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>{m.settings.providerConfig.cancel}</button><button type="submit" className="primary-button"><Plus size={14} />{m.settings.providerConfig.addToList}</button></footer>
             </form>
           </section>
         </div>,
@@ -1026,35 +1013,35 @@ export function AiProvidersSettingsSection({
         <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={cancelEditDialog}>
           <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
-              <div><span>AI Provider</span><h2 id="edit-provider-title">编辑 {editingProvider.name || editingProvider.id}</h2><p>修改连接信息与高级设置；API Key 会回显原有值，留空保存仍会保留原有值。</p></div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={`取消 ${editingProvider.name || editingProvider.id} 配置编辑`} onClick={cancelEditDialog}><X size={16} /></button>
+              <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="edit-provider-title">{m.settings.providerConfig.editTitle(editingProvider.name || editingProvider.id)}</h2><p>{m.settings.providerConfig.editDescription}</p></div>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.providerConfig.cancelEdit(editingProvider.name || editingProvider.id)} onClick={cancelEditDialog}><X size={16} /></button>
             </header>
             <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
               <div className="settings-provider-dialog-body">
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>名称</span><input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
-                  <label className="settings-field"><span>模型</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
                   <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
                   <label className="settings-field settings-field--wide"><span>API Key</span>
                     <input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={apiKeyKeys[editingProvider.id] ?? ""}
-                      placeholder="未设置" autoComplete="off" spellCheck={false}
+                      placeholder={m.settings.providerConfig.unset} autoComplete="off" spellCheck={false}
                       onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
                   </label>
                 </div>
                 <button type="button" className="settings-provider-advanced-trigger" data-motion="disclosure" aria-expanded={editingAdvanced} aria-controls={`provider-advanced-${editingProvider.id}`}
                   onClick={() => setAdvancedProviderId((current) => current === editingProvider.id ? null : editingProvider.id)}>
-                  <span><strong>高级设置</strong><small>ID、协议与认证方式</small></span><ChevronDown size={16} aria-hidden />
+                  <span><strong>{m.settings.providerConfig.advanced}</strong><small>{m.settings.providerConfig.advancedDescription}</small></span><ChevronDown size={16} aria-hidden />
                 </button>
                 {editingAdvanced ? <div className="settings-provider-advanced-grid" id={`provider-advanced-${editingProvider.id}`}>
-                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={editingProvider.id} readOnly title="Provider ID 添加后不可修改" /></label>
-                  <label className="settings-field"><span>协议</span>
+                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
                     <select className="settings-select" value={editingProvider.protocol} onChange={(event) => update(editingProvider.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>
                       <option value="openai-chat">openai-chat</option>
                       <option value="openai-responses">openai-responses</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>认证方式</span>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
                     <select className="settings-select" value={editingProvider.authMode} onChange={(event) => update(editingProvider.id, { authMode: event.target.value as ProviderAuthMode })}>
                       <option value="bearer">Bearer Token</option>
                       <option value="x-api-key">X-API-Key</option>
@@ -1063,8 +1050,8 @@ export function AiProvidersSettingsSection({
                 </div> : null}
               </div>
               <footer>
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={cancelEditDialog}>取消</button>
-                <button type="submit" className="primary-button" disabled={busy}>{busy ? "保存中…" : "保存配置"}</button>
+                <button type="button" className="settings-subtle-action" data-motion="action" onClick={cancelEditDialog}>{m.settings.providerConfig.cancel}</button>
+                <button type="submit" className="primary-button" disabled={busy}>{busy ? m.settings.providerConfig.saving : m.settings.providerConfig.save}</button>
               </footer>
             </form>
           </section>
@@ -1104,11 +1091,11 @@ function skillGroup(skill: SkillDefinition): string {
 }
 
 function formatSkillTimeout(value: number): string {
-  if (value < 60_000) return `${Math.round(value / 1000)} 秒`;
+  if (value < 60_000) return m.settings.duration.seconds(Math.round(value / 1000));
   const minutes = value / 60_000;
-  return Number.isInteger(minutes) ? `${minutes} 分钟` : `${minutes.toFixed(1)} 分钟`;
+  return m.settings.duration.minutes(Number.isInteger(minutes) ? minutes : minutes.toFixed(1));
 }
 
 function formatInterval(value: number): string {
-  return value < 60_000 ? `${value / 1000} 秒` : `${value / 60_000} 分钟`;
+  return value < 60_000 ? m.settings.duration.seconds(value / 1000) : m.settings.duration.minutes(value / 60_000);
 }

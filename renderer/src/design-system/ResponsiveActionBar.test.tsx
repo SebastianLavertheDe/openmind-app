@@ -26,19 +26,20 @@ describe("ResponsiveActionBar", () => {
     const onHelp = vi.fn();
     const { container } = render(<ResponsiveActionBar actions={actions(onHelp)} presentation="compact" overflowLabel="更多" />);
     expect(container.querySelector('[aria-label="搜索全部内容"]')?.textContent).toContain("搜索");
-    const overflowItem = container.querySelector('.ui-dropdown [role="menuitem"]') as HTMLButtonElement;
+    fireEvent.click(container.querySelector(".ui-dropdown-trigger") as HTMLElement);
+    const overflowItem = document.querySelector('.ui-dropdown-menu [role="menuitem"]') as HTMLButtonElement;
     expect(overflowItem.textContent).toContain("帮助");
     expect(overflowItem.dataset.motion).toBe("action");
-    fireEvent.click(container.querySelector(".ui-dropdown > summary") as HTMLElement);
     fireEvent.click(overflowItem);
     expect(onHelp).toHaveBeenCalledOnce();
-    expect((container.querySelector(".ui-dropdown") as HTMLDetailsElement).open).toBe(false);
+    expect(container.querySelector(".ui-dropdown")?.hasAttribute("data-open")).toBe(false);
   });
 
   it("keeps only essential actions visible in minimal presentation", () => {
     const { container } = render(<ResponsiveActionBar actions={actions()} presentation="minimal" />);
     expect(container.querySelectorAll(":scope > .ui-responsive-actions > .ui-responsive-action")).toHaveLength(1);
-    expect(container.querySelectorAll('.ui-dropdown [role="menuitem"]')).toHaveLength(2);
+    fireEvent.click(container.querySelector(".ui-dropdown-trigger") as HTMLElement);
+    expect(document.querySelectorAll('.ui-dropdown-menu [role="menuitem"]')).toHaveLength(2);
   });
 
   it("keeps warning context visible while hiding secondary healthy context", () => {

@@ -221,7 +221,8 @@ export function installBrowserPreviewApi(): boolean {
     { schemaVersion: 1, id: "source-rss-anthropic", name: "Anthropic Blog", kind: "rss", url: "https://www.anthropic.com/rss.xml", skillId: "rss-article-saver", enabled: true, frequency: "每日流水线", tags: ["AI"], lastRunAt: "2026-08-22T10:18:00.000Z", lastSuccessAt: "2026-08-22T10:18:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 12 },
     { schemaVersion: 1, id: "source-rss-sspai", name: "少数派", kind: "rss", url: "https://sspai.com/feed", skillId: "rss-article-saver", enabled: true, frequency: "每日流水线", tags: ["产品"], lastRunAt: "2026-08-22T09:30:00.000Z", lastSuccessAt: "2026-08-22T09:30:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 8 },
     { schemaVersion: 1, id: "source-rss-hackernews", name: "Hacker News", kind: "rss", url: "https://hnrss.org/frontpage", skillId: "rss-article-saver", enabled: false, frequency: "每日流水线", tags: ["技术"], lastRunAt: null, lastSuccessAt: null, successRate: null, status: "disabled", recentError: null, itemCount: 0 },
-    { schemaVersion: 1, id: "source-reddit", name: "Reddit 社区", kind: "reddit", url: null, skillId: "reddit-fetcher", enabled: true, frequency: "每日流水线", tags: ["社区"], lastRunAt: "2026-08-22T08:45:00.000Z", lastSuccessAt: "2026-08-22T08:45:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 18 },
+    { schemaVersion: 1, id: "source-reddit-local-llama", name: "r/LocalLLaMA", kind: "reddit", url: "https://www.reddit.com/r/LocalLLaMA/hot.json", skillId: "reddit-fetcher", enabled: true, frequency: "每日流水线", tags: ["AI", "社区"], lastRunAt: "2026-08-22T08:45:00.000Z", lastSuccessAt: "2026-08-22T08:45:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 18 },
+    { schemaVersion: 1, id: "source-reddit-claude-ai", name: "r/ClaudeAI", kind: "reddit", url: "https://www.reddit.com/r/ClaudeAI/hot.json", skillId: "reddit-fetcher", enabled: true, frequency: "每日流水线", tags: ["AI", "社区"], lastRunAt: "2026-08-22T08:45:00.000Z", lastSuccessAt: "2026-08-22T08:45:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 18 },
     { schemaVersion: 1, id: "source-x", name: "X 关注账号", kind: "x", url: null, skillId: "x-following-fetcher", enabled: true, frequency: "每日流水线", tags: ["动态"], lastRunAt: "2026-08-22T08:15:00.000Z", lastSuccessAt: "2026-08-22T08:15:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 24 }
   ];
   const previewAutomationRules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.map((input, index) => ({
@@ -278,7 +279,9 @@ export function installBrowserPreviewApi(): boolean {
       return updated;
     },
     addRssSource: async (input) => {
-      const source: SourceDefinition = { schemaVersion: 1, id: `rss:${input.url}`, name: input.name, kind: input.kind || "rss", url: input.url, skillId: (input.kind || "rss") === "rss" ? "rss-article-saver" : null, enabled: true, frequency: input.frequency || "每日流水线", tags: input.tags || [], lastRunAt: null, lastSuccessAt: null, successRate: null, status: "idle", recentError: null, itemCount: 0 };
+      const kind = input.kind || "rss";
+      const skillId = kind === "rss" ? "rss-article-saver" : kind === "reddit" ? "reddit-fetcher" : null;
+      const source: SourceDefinition = { schemaVersion: 1, id: `${kind}:${input.url}`, name: input.name, kind, url: input.url, skillId, enabled: true, frequency: input.frequency || "每日流水线", tags: input.tags || [], lastRunAt: null, lastSuccessAt: null, successRate: null, status: "idle", recentError: null, itemCount: 0 };
       previewSources = [...previewSources, source];
       return source;
     },

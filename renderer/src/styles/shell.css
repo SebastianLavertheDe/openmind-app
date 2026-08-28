@@ -1,17 +1,30 @@
 .app-shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: var(--nav-width, 236px) minmax(0, 1fr);
+  grid-template-columns: var(--nav-width, var(--layout-nav-expanded-width)) minmax(0, 1fr);
   background: var(--bg);
 }
 
 .app-shell.with-ai-default,
 .app-shell.with-ai-wide {
-  grid-template-columns: var(--nav-width, 236px) minmax(0, 1fr) var(--ai-sidebar-width);
+  --ai-sidebar-max-width: max(
+    0px,
+    calc(100% - var(--nav-width, var(--layout-nav-expanded-width)) - var(--ai-workspace-min-width, var(--layout-workspace-min-width)))
+  );
+  --ai-sidebar-effective-min-width: min(
+    var(--ai-sidebar-min-width, var(--layout-companion-min-width)),
+    var(--ai-sidebar-max-width)
+  );
+  --ai-sidebar-width: clamp(
+    var(--ai-sidebar-effective-min-width),
+    var(--ai-sidebar-preferred-width, calc(33.333% - var(--nav-preferred-ratio-offset))),
+    var(--ai-sidebar-max-width)
+  );
+  grid-template-columns: var(--nav-width, var(--layout-nav-expanded-width)) minmax(0, 1fr) var(--ai-sidebar-width);
 }
 
 .app-shell.with-ai-full {
-  grid-template-columns: var(--nav-width, 236px) minmax(0, 1fr);
+  grid-template-columns: var(--nav-width, var(--layout-nav-expanded-width)) minmax(0, 1fr);
 }
 
 .app-nav {
@@ -415,51 +428,4 @@
 
 .global-search-action-error {
   color: var(--red) !important;
-}
-
-@media (max-width: 1280px) {
-  .app-shell.with-ai-full {
-    grid-template-columns: var(--nav-width, 68px) minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 820px) {
-  .app-shell,
-  .app-shell.with-ai-default,
-  .app-shell.with-ai-wide,
-  .app-shell.with-ai-full {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-
-  .app-nav {
-    padding-inline: 8px;
-  }
-
-  .app-nav .app-brand {
-    display: grid;
-    justify-items: center;
-    padding-inline: 0;
-  }
-
-  .app-nav .brand-copy,
-  .app-nav nav span,
-  .app-nav .app-project-status div {
-    display: none;
-  }
-
-  .app-nav .nav-collapse-button {
-    margin: 5px 0 0;
-  }
-
-  .app-nav nav button,
-  .app-nav .app-project-status {
-    justify-content: center;
-    padding-inline: 0;
-  }
-
-  .global-toolbar {
-    gap: 8px;
-    padding-inline: 12px;
-  }
-
 }

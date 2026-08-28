@@ -241,13 +241,13 @@ function CreativeDocumentEditor({
   return (
     <>
       <header className="creative-document-header">
-        <div><div className="document-status"><StatusBadge tone={published ? "success" : "info"}>{stageLabel(stage)}</StatusBadge><span>{dirty ? "编辑中…" : autoSaveStatus === "saving" ? "自动保存中…" : autoSaveStatus === "failed" ? "自动保存失败，可重试保存" : autoSaveStatus === "saved" ? "已自动保存" : "已保存"}</span></div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
+        <div><div className="document-status"><StatusBadge tone={published ? "success" : "info"}>{stageLabel(stage)}</StatusBadge><span>{dirty ? m.creativeUi.editor.status.editing : autoSaveStatus === "saving" ? m.creativeUi.editor.status.autoSaving : autoSaveStatus === "failed" ? m.creativeUi.editor.status.autoSaveFailed : autoSaveStatus === "saved" ? m.creativeUi.editor.status.autoSaved : m.creativeUi.editor.status.saved}</span></div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
         <div>
           <button data-motion="action" onClick={() => window.openmind.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</button>
-          <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? "保存中" : "保存版本"}</button>
-          {published ? <button data-motion="action" onClick={() => void copyProject()}><Copy size={14} />复制</button> : null}
-          {published || stage === "ready" ? <button data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />归档</button> : null}
-          {!published ? <button className="primary-button" data-motion="action" onClick={() => void advance()}><Check size={14} />进入{stageLabel(nextStage(stage))}</button> : null}
+          <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? m.creativeUi.editor.savingVersion : m.creativeUi.editor.saveVersion}</button>
+          {published ? <button data-motion="action" onClick={() => void copyProject()}><Copy size={14} />{m.creativeUi.editor.copy}</button> : null}
+          {published || stage === "ready" ? <button data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />{m.creativeUi.editor.archive}</button> : null}
+          {!published ? <button className="primary-button" data-motion="action" onClick={() => void advance()}><Check size={14} />{m.creativeUi.editor.enterStage(stageLabel(nextStage(stage)))}</button> : null}
         </div>
       </header>
       <nav className="document-tabs">{Object.keys(detail.files || {}).map((file) => <button data-motion="selection" key={file} className={activeFile === file ? "active" : ""} onClick={() => void chooseFile(file)}>{file}</button>)}</nav>

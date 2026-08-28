@@ -35,7 +35,7 @@ type SettingsSectionDefinition = {
 const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
   { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
-  { id: "runtime", group: "ai", icon: Cpu, title: "内置运行时", description: "统一管理供 Skill 与自动化任务使用的共享 Python 环境。" },
+  { id: "runtime", group: "ai", icon: Cpu, ...m.settings.navigation.sections.runtime },
   { id: "skills", group: "ai", icon: Package, ...m.settings.navigation.sections.skills },
   { id: "mcp", group: "ai", icon: Server, ...m.settings.navigation.sections.mcp },
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
@@ -110,7 +110,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try { setProvidersYaml(await window.openmind.getProviders()); }
     catch (error) {
       setProvidersYaml({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] });
-      ai.notify(error instanceof Error ? error.message : "config/providers.yaml 读取失败", "error");
+      ai.notify(error instanceof Error ? error.message : m.settings.notify.providersLoadFailed, "error");
     }
   }, [ai]);
 
@@ -123,9 +123,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setProvidersYamlBusy(true);
     try {
       setProvidersYaml(await window.openmind.saveProviders(input));
-      ai.notify("AI Provider 配置已保存", "success");
+      ai.notify(m.settings.notify.providersSaved, "success");
     } catch (error) {
-      ai.notify(error instanceof Error ? error.message : "AI Provider 配置保存失败", "error");
+      ai.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
       await loadProvidersYaml();
     } finally {
       setProvidersYamlBusy(false);
@@ -141,10 +141,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setRuntimeBusy(enabled ? "shared-python-enable" : "shared-python-disable");
     try {
       setSharedPythonRuntime(await window.openmind.setSharedPythonRuntimeEnabled(enabled));
-      ai.notify(enabled ? "内置 Python 运行时已就绪" : "内置 Python 运行时已关闭", "success");
+      ai.notify(enabled ? m.settings.notify.pythonEnabled : m.settings.notify.pythonDisabled, "success");
     } catch {
       await loadSharedPythonRuntime();
-      ai.notify(enabled ? "内置 Python 初始化失败，请检查发行包资源或依赖冲突" : "内置 Python 运行时关闭失败", "error");
+      ai.notify(enabled ? m.settings.notify.pythonEnableFailed : m.settings.notify.pythonDisableFailed, "error");
     } finally {
       setRuntimeBusy(null);
     }
@@ -204,13 +204,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       if (!root) return;
       const preview = await window.openmind.previewOpenmindRoot(root);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: "确认绑定 OpenMind 私人数据仓库", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      if (!await ai.confirm({ title: m.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: m.openmindRoot.confirm })) return;
       await window.openmind.setOpenmindRoot(root);
       await onRepo(root);
       await loadPrefs();
-      ai.notify("OpenMind 私人数据仓库已更新", "success");
+      ai.notify(m.settings.notify.openmindRootUpdated, "success");
     } catch {
-      ai.notify("选择 OpenMind 私人数据仓库失败", "error");
+      ai.notify(m.settings.notify.openmindRootSelectFailed, "error");
     }
   };
 

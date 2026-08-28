@@ -113,6 +113,22 @@ describe("App bootstrap", () => {
     });
   });
 
+  it("opens a content search result in the final workspace preview", async () => {
+    const readContent = vi.fn(async (path: string) => ({ path, name: "result.md", content: "# Search destination", type: "markdown" as const }));
+    installApi({
+      searchWorkspace: async () => [{ id: "content:result", kind: "content", title: "Search Result", subtitle: "资料", path: "openmind/article/result.md", date: null, status: null, targetId: "result" }],
+      readContent
+    });
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByLabelText("说一句话或搜索资料、创作、会话和自动化");
+    fireEvent.change(input, { target: { value: "Search Result" } });
+    fireEvent.click(await screen.findByText("Search Result", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
+    await waitFor(() => expect(readContent).toHaveBeenCalledWith("openmind/article/result.md"));
+    expect(await screen.findByRole("heading", { name: "Search destination" })).toBeTruthy();
+  });
+
   it("Cmd+N navigates to a new AI session without throwing (after bootstrap)", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());

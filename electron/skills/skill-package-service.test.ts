@@ -50,6 +50,12 @@ const CCTOOLS_MANIFEST = MANIFEST
   .replace("apiVersion: openmind.dev/skill/v1", "apiVersion: cctools.dev/skill/v1")
   .replace("  id: openmind\n  displayName: openmind", "  id: cctools\n  displayName: cctools");
 
+function cctoolsManifest(id: string, version = "1.0.0"): string {
+  return CCTOOLS_MANIFEST
+    .replace("id: example-skill", `id: ${id}`)
+    .replace("version: 1.0.0", `version: ${version}`);
+}
+
 const AGENT_MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: catalog-agent
 version: 1.0.0
@@ -522,6 +528,47 @@ describe("SkillPackageService", () => {
     expect(fs.readFileSync(path.join(second.packagePath, "run.sh"), "utf8")).toBe("echo v2\n");
 
     expect(service.getInstalled(second.key)?.digest).toBe(second.digest);
+  });
+
+  it("preserves legacy RSS subscriptions in persistent Skill data before replacement", () => {
+    const source = createPackage(tempRoot, "rss-source");
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), cctoolsManifest("rss-article-saver"));
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='rss'\n");
+    fs.writeFileSync(path.join(source, "subscriptions.opml"), "<opml><body><outline xmlUrl=\"https://default-v1.example/rss\"/></body></opml>\n");
+    fs.writeFileSync(path.join(source, "subscriptions.wechat.opml"), "<opml><body><outline xmlUrl=\"https://wechat.example/rss\"/></body></opml>\n");
+    const first = service.install(source);
+    fs.writeFileSync(path.join(first.packagePath, "subscriptions.opml"), "<opml><body><outline xmlUrl=\"https://user.example/rss\"/></body></opml>\n");
+
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), cctoolsManifest("rss-article-saver", "2.0.0"));
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
+    fs.writeFileSync(path.join(source, "subscriptions.opml"), "<opml><body><outline xmlUrl=\"https://default-v2.example/rss\"/></body></opml>\n");
+    const replacement = service.install(source);
+    const dataRoot = path.join(tempRoot, "openmind", ".agent", "skill-data", "rss-article-saver");
+
+    expect(fs.readFileSync(path.join(dataRoot, "subscriptions.opml"), "utf8")).toContain("https://user.example/rss");
+    expect(fs.readFileSync(path.join(dataRoot, "subscriptions.wechat.opml"), "utf8")).toContain("https://wechat.example/rss");
+    expect(fs.readFileSync(path.join(replacement.packagePath, "subscriptions.opml"), "utf8")).toContain("https://default-v2.example/rss");
+  });
+
+  it("preserves legacy Reddit communities separately from the updated package config", () => {
+    const source = createPackage(tempRoot, "reddit-source");
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), cctoolsManifest("reddit-fetcher"));
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v1\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='reddit'\n");
+    fs.writeFileSync(path.join(source, "config.yaml"), "fetch:\n  timeout_seconds: 30\n  sources:\n    - https://reddit.com/r/default-v1/hot.json\n");
+    const first = service.install(source);
+    fs.writeFileSync(path.join(first.packagePath, "config.yaml"), "fetch:\n  timeout_seconds: 45\n  sources:\n    - https://reddit.com/r/user-community/hot.json\n");
+
+    fs.writeFileSync(path.join(source, "cctools.skill.yaml"), cctoolsManifest("reddit-fetcher", "2.0.0"));
+    fs.writeFileSync(path.join(source, "run.sh"), "echo v2\n");
+    fs.writeFileSync(path.join(source, "config.yaml"), "fetch:\n  timeout_seconds: 60\n  sources:\n    - https://reddit.com/r/default-v2/hot.json\n");
+    const replacement = service.install(source);
+    const persistentSources = path.join(tempRoot, "openmind", ".agent", "skill-data", "reddit-fetcher", "user-sources.yaml");
+
+    expect(fs.readFileSync(persistentSources, "utf8")).toContain("https://reddit.com/r/user-community/hot.json");
+    expect(fs.readFileSync(path.join(replacement.packagePath, "config.yaml"), "utf8")).toContain("timeout_seconds: 60");
+    expect(fs.readFileSync(path.join(replacement.packagePath, "config.yaml"), "utf8")).toContain("default-v2");
   });
 
   it("migrates the official installed identity from openmind to cctools", () => {

@@ -1,5 +1,19 @@
 /** 页面级 UI 文案：inbox / sources / brief / projects / settings / automation / design-system。 */
 export const featureMessages = {
+  openmindRoot: {
+    unresolved: "未解析",
+    root: (path: string) => `私人数据仓库（内容根）：${path}`,
+    status: (canBind: boolean) => `状态：${canBind ? "可绑定" : "不可绑定"}`,
+    missing: (count: number) => `缺少的内容目录会按需创建：${count} 项`,
+    structureReady: "内容目录结构可用",
+    unknown: (count: number) => `未知目录/文件将保留：${count} 项`,
+    noUnknown: "未发现需要迁移或删除的未知内容",
+    blockers: (reasons: string) => `阻止原因：${reasons}`,
+    cannotBind: "候选 openmind 根目录无法绑定。",
+    confirmTitle: "确认绑定 OpenMind 私人数据仓库",
+    confirm: "确认绑定"
+  },
+
   inbox: {
     sort: { aria: "内容排序", newest: "最新收录", oldest: "最早收录", source: "来源", title: "标题" },
     splitter: { filter: "筛选栏宽度", list: "内容栏宽度" },
@@ -42,6 +56,7 @@ export const featureMessages = {
     eyebrow: "SKILL CENTER",
     title: "Skills",
     description: "安装、检查和管理本地 Skill 包；包代码必须通过静态检查并完成 Runtime 就绪后才能运行。",
+    common: { close: "关闭", cancel: "取消", saving: "保存中…" },
     sourcePicker: {
       open: "添加其他来源",
       close: "收起来源选择",
@@ -67,6 +82,14 @@ export const featureMessages = {
       filesLabel: "文件",
       digest: "内容摘要",
       files: (count: number) => `${count} 个文件`,
+      closeAria: "关闭添加 Skill 来源",
+      localTitle: "本地来源",
+      localDescription: "选择本地目录或 ZIP，系统会先完成静态检查。",
+      refLabel: "分支或 tag（可选）",
+      packageCount: (count: number) => `${count} 个 Skill 包`,
+      selectedCount: (count: number) => `已选择 ${count} 个`,
+      selectPackage: (name: string) => `选择 ${name}`,
+      importSelected: (count: number) => `安装 ${count} 个`,
       issues: "静态检查问题",
       sourceErrors: {
         "git-unavailable": "本机没有可用的 Git，无法检查 Git 来源。",
@@ -92,6 +115,9 @@ export const featureMessages = {
     noMatch: "没有匹配的 Skill",
     noMatchDescription: "试试名称、ID 或发布者中的其他关键词。",
     detailEmpty: "选择一个 Skill 查看包状态、来源和宿主机执行边界。",
+    fallback: { untitled: "未命名 Skill", undeclared: "未声明", localHistory: "目录、ZIP 与历史安装", localSource: "本地来源" },
+    groupToggle: (open: boolean, title: string) => `${open ? "收起" : "展开"} ${title}`,
+    detailTabs: { overview: "概览", runs: (count: number) => `运行记录${count ? ` ${count}` : ""}`, aria: "Skill 详情" },
     source: "来源",
     sourcePath: "来源路径",
     sourceUpdate: {
@@ -127,7 +153,69 @@ export const featureMessages = {
     actions: {
       uninstall: "卸载"
     },
-    disabledByBoundary: "这个 Skill 安装失败或文件已变化，请重新安装。"
+    disabledByBoundary: "这个 Skill 安装失败或文件已变化，请重新安装。",
+    ownedSources: {
+      importSuccess: (count: number) => count ? `已导入 ${count} 个订阅。` : "没有发现新的订阅。",
+      addRss: "添加订阅",
+      addReddit: "添加社区",
+      importOpml: "导入 OPML",
+      noMatch: "没有匹配的配置。",
+      addFirst: (reddit: boolean) => `添加第一个${reddit ? "社区" : "订阅"}`,
+      nameAndAddress: (reddit: boolean) => `名称与${reddit ? "社区地址" : "订阅地址"}`,
+      statusAndLastRun: "状态与最近抓取",
+      operation: "操作",
+      edit: (name: string) => `编辑 ${name}`,
+      toggle: (enabled: boolean, name: string) => `${enabled ? "停用" : "启用"} ${name}`,
+      rssRules: { title: "默认抓取规则", summary: "每个订阅最多 1 篇 · 最近 7 天 · 提取图片", detail: "订阅级地址和启停状态保存在应用数据中；抓取数量、时间范围与图片提取规则由当前 Skill 的运行配置统一管理。" },
+      redditRules: { title: "社区抓取规则", summary: "逐条保存 · 仅抓取已启用社区 · Skill 更新不覆盖", detail: "社区名称、JSON 地址和启停状态保存在当前 Skill 的持久化数据目录；超时、评论和重试规则仍随官方 Skill 更新。" },
+      showRules: "查看规则",
+      hideRules: "收起规则",
+      saved: (reddit: boolean, added: boolean) => `${reddit ? "社区" : "订阅"}已${added ? "添加" : "更新"}。`,
+      frequency: "每日流水线"
+    },
+    xCurl: {
+      title: "X 请求 cURL",
+      loading: "正在检查配置…",
+      configured: "已配置 · 请求内容已隐藏",
+      missing: "未配置 · 抓取前需要填写完整 cURL",
+      securitySummary: "包含登录凭据，仅保存在本地；请勿截图或分享原始内容。",
+      edit: "编辑 cURL",
+      fill: "填写 cURL",
+      helpTitle: "如何获取",
+      helpSteps: ["在浏览器登录 X，并打开 Following 时间线。", "在开发者工具的 Network 中找到时间线请求。", "右键请求并选择 Copy as cURL，然后粘贴到这里。"],
+      invalid: "请粘贴以 curl 开头的完整请求。",
+      editorTitle: "编辑 X 请求 cURL",
+      editorDescription: "保存后会覆盖当前 X Following 抓取请求。",
+      fullCurl: "完整 cURL",
+      securityDetail: "cURL 通常包含 Cookie 和授权信息。内容只写入本地配置，不会显示在来源列表中。",
+      overwrite: "覆盖保存"
+    },
+    sourceEditor: {
+      title: (editing: boolean, reddit: boolean) => `${editing ? "编辑" : "添加"}${reddit ? "社区" : "订阅"}`,
+      description: (reddit: boolean) => `这条配置只供当前 ${reddit ? "Reddit 内容抓取" : "RSS 文章采集"} Skill 使用。`,
+      name: (reddit: boolean) => reddit ? "社区名称" : "订阅名称",
+      namePlaceholder: (reddit: boolean) => reddit ? "例如：r/LocalLLaMA" : "例如：少数派",
+      url: (reddit: boolean) => reddit ? "Reddit JSON 地址" : "RSS 地址",
+      tags: "标签（可选）",
+      tagsPlaceholder: (reddit: boolean) => reddit ? "AI, 社区" : "科技, 产品",
+      saveChanges: "保存修改",
+      add: (reddit: boolean) => `添加${reddit ? "社区" : "订阅"}`
+    },
+    runHistory: {
+      title: "运行记录",
+      summary: (days: number, count: number) => `近 ${days} 天 · ${count} 条`,
+      unavailable: "运行记录暂时不可用，Skill 列表和配置仍可正常管理。",
+      empty: (days: number) => `这个 Skill 最近 ${days} 天没有运行记录。`
+    },
+    sourceTab: { rss: (count: number) => `订阅源 ${count}`, reddit: (count: number) => `社区源 ${count}`, x: "请求配置", other: (count: number) => `来源配置 ${count}` },
+    sourceCopy: {
+      rss: { title: (name: string) => `${name}的订阅源`, description: (count: number) => `共 ${count} 个订阅。这些订阅只属于当前 Skill，仓库整体更新不会覆盖。`, search: "搜索订阅名称或地址…", empty: "还没有为这个 Skill 添加订阅。" },
+      reddit: { title: (name: string) => `${name}的社区源`, description: (count: number) => `共 ${count} 个社区。这里展示实际抓取地址，仓库整体更新不会覆盖。`, search: "搜索社区名称或地址…", empty: "还没有为这个 Skill 添加社区。" },
+      x: { title: (name: string) => `${name}的请求配置`, description: "通过浏览器复制的完整 cURL 配置 X 请求。配置只供当前 Skill 使用，仓库整体更新不会覆盖。", search: "搜索抓取配置…", empty: "这个 Skill 还没有可用的抓取配置。" }
+    },
+    sourceStatus: { disabled: "已停用", idle: "等待运行", running: "运行中", success: "正常", warning: "需关注", failed: "失败", never: "尚未运行", last: (time: string) => `上次 ${time}` },
+    kindLabel: { process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" },
+    runState: { succeeded: "成功", failed: "失败", timedOut: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", preparing: "准备运行环境", running: "运行中", cancelling: "取消中" }
   },
 
   onboarding: {
@@ -167,10 +255,48 @@ export const featureMessages = {
     finish: "进入工作台",
     providerReady: "AI Provider 已就绪",
     providerPending: "AI Provider 未就绪",
-    selecting: "选择中…"
+    selecting: "选择中…",
+    errors: {
+      root: "根目录选择失败，请返回设置检查目录配置。",
+      installUnsupported: "当前构建不支持在线安装 RSS 采集组件。",
+      installFailed: "RSS 采集组件安装失败，请检查网络后重试。"
+    },
+    checkingRoot: "正在检查数据仓库…",
+    checkingSkills: "正在检查 RSS 采集组件…",
+    saving: "正在保存…"
   },
 
   brief: {
+    library: {
+      eyebrow: "每日简报",
+      title: "简报文件",
+      refresh: "刷新简报",
+      search: "搜索简报文件",
+      allFiles: "全部文件",
+      loading: "正在加载简报",
+      emptyTitle: "暂无每日简报",
+      emptyDescription: "运行每日文章总结后，生成的文件会显示在这里。",
+      switchTitle: "切换简报",
+      switchBody: "当前简报有未保存的修改，确定放弃并切换吗？",
+      switchConfirm: "放弃并切换",
+      saved: "每日简报已保存",
+      saving: "保存中",
+      save: "保存",
+      openFile: "打开文件",
+      open: "打开",
+      previewMode: "预览模式",
+      editingDirty: "编辑中 · 未保存",
+      editMode: "编辑模式",
+      viewMode: "查看模式",
+      preview: "预览",
+      edit: "编辑",
+      fileActions: "文件操作",
+      truncated: "文件过大，仅展示前 1 MB 内容，无法在应用内保存。",
+      editAria: "编辑每日简报",
+      selectTitle: "选择一份简报",
+      selectDescription: "点击左侧文件后，可在右侧预览或编辑具体内容。",
+      fileLabel: (date: string) => `${date} 每日简报`
+    },
     metrics: {
       topicCandidates: (n: number) => `${n} 个候选`
     },
@@ -257,10 +383,13 @@ export const featureMessages = {
         workflow: { title: "内容工作流", description: "配置创作阶段、自动保存、审核和归档规则。" },
         sources: { title: "资料来源", description: "管理可供 Skills 复用的 RSS、文件夹、API 和其他输入来源。" },
         storage: { title: "数据与存储", description: "记录缓存、日志和通知历史的本地保留策略。" },
-        sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" }
+        sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" },
+        runtime: { title: "内置运行时", description: "统一管理供 Skill 与自动化任务使用的共享 Python 环境。" }
       }
     },
     saveStatus: { saving: "正在保存…", saved: "改动会即时保存在本地" },
+    scopes: { localPreference: "本地偏好", newSession: "新会话行为", runtimeRules: "运行规则", localSecurity: "本地安全", localProject: "本地项目", contentFlow: "内容流程", editBehavior: "编辑行为", publishGate: "发布门禁", contentLifecycle: "内容生命周期" },
+    duration: { seconds: (value: number) => `${value} 秒`, oneMinute: "1 分钟", minutes: (value: number | string) => `${value} 分钟`, days: (value: number) => `${value} 天` },
     appearance: { title: "外观", theme: "主题", density: "密度", fontSize: "正文字号" },
     theme: { light: "浅色", dark: "深色", description: "浅色适合白天，深色适合长时间阅读。" },
     density: {
@@ -276,6 +405,10 @@ export const featureMessages = {
       description: "阅读区与列表的基准字号。"
     },
     provider: {
+      title: "模型提供方",
+      defaultAria: "默认 Provider",
+      preparingInstall: "正在准备安装…",
+      preparingUpgrade: "正在准备升级…",
       configuredModel: "配置模型",
       configuredModelAria: (label: string) => `${label} 配置模型`,
       modelNotConfigured: "配置未指定，运行时由 Provider 决定",
@@ -292,12 +425,38 @@ export const featureMessages = {
       installFailed: "一键安装失败：",
       installProgress: "安装进度",
       retryInstall: "重试安装",
+      cancelInstall: "取消安装",
+      updating: "更新中…",
+      upgrade: "一键更新",
+      manualUpdate: (version: string | null) => `发现新版本 ${version || ""}，请手动更新`,
+      latest: "已是最新",
+      latestUnknown: "暂无法确认最新版本",
+      checking: "检查中…",
+      checkUpdate: "检查更新",
+      recheckUpdate: "重新检查",
+      versionFailed: (detail: string) => `版本检测失败：${detail}`,
+      retryVersion: "重试检测",
+      default: "默认",
+      setAsDefault: "设为默认",
       openLogin: "打开终端登录",
       recheck: "我已完成登录，重新检测",
       loginHint: "在终端完成 CLI 登录后回到这里重新检测。",
       wslStepsTitle: "查看 WSL 手动安装步骤",
       copyCommand: "复制命令",
       wslStepsRecheck: "在 WSL 内完成安装与登录后，回到这里重新检测。"
+    },
+    pythonRuntime: {
+      title: "Python 运行时",
+      sharedScope: "应用共享环境",
+      status: { updating: "正在更新", installing: "正在安装", available: "可用", needsAction: "需要处理", preparing: "准备中", disabled: "未开启" },
+      builtIn: "内置 Python",
+      description: "由 OpenMind 安装和维护，供所有 Python Skill 与自动化任务共同使用，依赖由 uv 统一管理。",
+      currentPlatform: "当前平台",
+      managedSkills: (count: number) => `${count} 个 Skill`,
+      toggle: "启用内置 Python 运行时",
+      progress: "正在校验内置 Python，并通过 uv 合并所有已安装 Skill 的依赖。首次初始化可能需要几分钟。",
+      disabledHint: "关闭不会删除已安装的 Python 和依赖；重新开启时可以直接复用。",
+      refresh: "刷新状态"
     },
     skills: {
       title: "已支持的能力",
@@ -352,6 +511,8 @@ export const featureMessages = {
     },
     browser: {
       scope: "Playwright MCP · Chrome",
+      connectionTitle: "浏览器连接",
+      evidenceTitle: "证据与授权",
       enabled: "允许 AI 自主获取原文截图",
       enabledDescription: "仅在关键事实、引用或数据需要原文佐证时触发，并在同一轮继续写作。",
       reuseTabs: "复用已打开的目标标签页",
@@ -412,7 +573,8 @@ export const featureMessages = {
       restore: "恢复",
       restoring: "恢复中",
       openNamed: (title: string) => `打开归档会话：${title}`,
-      restoreNamed: (title: string) => `恢复归档会话：${title}`
+      restoreNamed: (title: string) => `恢复归档会话：${title}`,
+      emptyDescription: "归档后的会话会显示在这里，可随时打开或恢复到最近会话。"
     },
     notify: {
       saveFailed: "设置保存失败",
@@ -421,9 +583,30 @@ export const featureMessages = {
       notesOpenFailed: "无法打开笔记目录",
       sessionOpenFailed: "无法打开归档会话",
       sessionRestoreFailed: "恢复归档会话失败",
-      workflowReset: "工作流规则已恢复默认值"
+      workflowReset: "工作流规则已恢复默认值",
+      providersLoadFailed: "config/providers.yaml 读取失败",
+      providersSaved: "AI Provider 配置已保存",
+      providersSaveFailed: "AI Provider 配置保存失败",
+      pythonEnabled: "内置 Python 运行时已就绪",
+      pythonDisabled: "内置 Python 运行时已关闭",
+      pythonEnableFailed: "内置 Python 初始化失败，请检查发行包资源或依赖冲突",
+      pythonDisableFailed: "内置 Python 运行时关闭失败",
+      openmindRootUpdated: "OpenMind 私人数据仓库已更新",
+      openmindRootSelectFailed: "选择 OpenMind 私人数据仓库失败"
     },
     workflow: {
+      panels: { stages: "阶段规则", drafts: "草稿与版本", review: "审核与发布", archive: "自动归档" },
+      autoSaveAria: "自动保存间隔",
+      archiveAria: "自动归档期限",
+      preview: {
+        aria: "工作流规则预览",
+        title: "当前规则预览",
+        draftAuto: (interval: string) => `草稿：每 ${interval}自动保存`,
+        draftManual: "草稿：仅手动保存",
+        advance: (autoVersion: boolean, reviewRequired: boolean) => `推进：${autoVersion ? "创建版本快照" : "不创建自动版本"}；${reviewRequired ? "审核通过后进入待发布" : "允许跳过审核门禁"}`,
+        publishFull: "发布：校验标题、摘要、标签、封面、平台与正文",
+        publishBasic: "发布：仅校验可导出的正文与平台"
+      },
       stagesTitle: "阶段定义与进入条件",
       stagesDescription: "创作项目从选题到发布的阶段流转规则（只读）。",
       stageToday: "今日推荐",
@@ -446,13 +629,76 @@ export const featureMessages = {
       autoArchiveDesc: "已发布超过指定天数后自动归档到归档目录。",
       resetToDefaults: "恢复默认值",
       resetConfirm: "确定要将所有工作流规则恢复为默认值吗？"
+    },
+    providerConfig: {
+      validation: {
+        atLeastOne: "至少需要一个 Provider",
+        defaultMissing: "默认 Provider 不存在",
+        incomplete: (name: string) => `请完善 ${name} 的必填配置`,
+        apiKeyReadFailed: "无法读取当前 Provider 的 API Key",
+        required: "请填写所有必填项",
+        duplicateId: "Provider ID 已存在，请换一个 ID",
+        keepOne: "至少需要保留一个 Provider",
+        enableAnother: "请先启用另一个 Provider，再删除当前默认 Provider"
+      },
+      custom: "自定义",
+      title: "Provider 列表",
+      count: (count: number) => `${count} 个`,
+      add: "添加 Provider",
+      note: "桌面运行、Claude Code、Codex CLI 与定时任务共用此配置。API Key 明文保存在项目内的 config/providers.yaml；编辑 Provider 时会在受信任的本地界面中回显。",
+      empty: "尚未配置 Provider。点击上方「添加」开始。",
+      apiKey: { set: "API Key 已配置", pending: "API Key 待保存", missing: "API Key 未配置" },
+      editAria: (name: string) => `编辑 ${name} 配置`,
+      default: "默认",
+      noModel: "未设置模型",
+      enable: (name: string) => `启用 ${name}`,
+      more: (id: string) => `更多 ${id}`,
+      menu: (name: string) => `${name} 操作`,
+      setDefaultAria: (id: string) => `将 ${id} 设为默认`,
+      setDefault: "设为默认",
+      deleteAria: (id: string) => `删除 ${id}`,
+      delete: "删除",
+      dialogEyebrow: "AI Provider",
+      addTitle: "添加 Provider",
+      addDescription: "选择预设并确认连接信息，添加后仍可在列表中修改。",
+      closeAdd: "关闭添加 Provider 弹窗",
+      preset: "Provider 预设",
+      presetHint: "预设会自动填写协议、Base URL 和推荐模型。",
+      fields: { name: "名称", model: "模型", protocol: "协议", authMode: "认证方式", apiKey: "API Key" },
+      modelPlaceholder: "例如：deepseek-v4-flash",
+      apiKeyPlaceholder: "请输入 API Key",
+      cancel: "取消",
+      addToList: "添加到列表",
+      editTitle: (name: string) => `编辑 ${name}`,
+      editDescription: "修改连接信息与高级设置；API Key 会回显原有值，留空保存仍会保留原有值。",
+      cancelEdit: (name: string) => `取消 ${name} 配置编辑`,
+      unset: "未设置",
+      advanced: "高级设置",
+      advancedDescription: "ID、协议与认证方式",
+      idImmutable: "Provider ID 添加后不可修改",
+      saving: "保存中…",
+      save: "保存配置"
     }
   },
 
   automation: {
     title: "自动化",
+    loading: "正在加载 Automation Rule…",
+    empty: "暂无 Automation Rule。请在应用数据目录中创建规则，或刷新后重试。",
+    noDescription: "未填写规则说明。",
+    running: "正在运行…",
+    delete: "删除规则",
+    recentRun: (time: string) => `最近运行 ${time}`,
+    nextRun: (time: string) => `下次 ${time}`,
+    noNextRun: "无下一次计划",
+    recentRunsAndArtifacts: "最近运行与产物",
     ruleCount: (n: number) => `${n} 条规则`,
     enableRule: (title: string) => `启用 ${title}`,
+    deleteRule: {
+      title: "删除 Automation Rule",
+      body: (name: string) => `确定删除 Automation Rule「${name}」吗？`,
+      confirm: "删除规则"
+    },
     rules: {
       dailyBrief: {
         steps: [
@@ -491,13 +737,134 @@ export const featureMessages = {
     manifestMissing: "Skill manifest 未找到，仍可尝试触发",
     sections: { trigger: "触发条件", steps: "动作步骤" },
     stepState: { ready: "就绪", running: "运行中", approval: "需审批" },
-    console: { title: "运行日志", copied: "已复制" },
+    console: { title: "运行日志", copied: "已复制", copy: "复制" },
+    editor: {
+      triggerOptions: { daily: "每日", weekly: "每周", hourly: "每小时", interval: "固定间隔" },
+      title: "触发与目标",
+      description: "配置执行对象、触发方式和本次运行需要的输入。",
+      saving: "保存中…",
+      save: "保存规则",
+      target: "执行目标",
+      triggerMethod: "触发方式",
+      triggerType: "触发类型",
+      schedule: "调度设置",
+      executionTime: "执行时间",
+      dailyTime: "每日时间",
+      weeklyTime: "每周时间",
+      weekDay: "星期",
+      weeklyDays: "每周星期",
+      intervalMinutes: "间隔分钟",
+      minutes: "分钟",
+      hourlyHint: "每个整点自动执行一次，无需额外参数。",
+      policyAria: "规则运行策略",
+      concurrency: "并发策略",
+      missedRun: "错过计划",
+      timezone: "时区",
+      targetVersion: "目标版本"
+    },
+    availability: { ruleDisabled: "规则已停用", targetUnavailable: "执行目标不可用", skillDisabled: "Skill 已关闭" },
+    history: {
+      empty: "尚无运行记录。运行会持久化状态、重试次数和子 Run ID。",
+      recentEmpty: (days: number) => `最近 ${days} 天暂无运行记录，更早的记录已隐藏。`,
+      attempt: (value: number) => `attempt ${value}`,
+      notSubmitted: "未提交",
+      queuedRetry: (detail: string) => `上次尝试失败，等待重试：${detail}`,
+      noArtifact: "最近子 Run 尚未产生 Artifact。"
+    },
+    scheduleDescription: {
+      daily: (timezone: string) => `每天在指定时间执行 · ${timezone}`,
+      weekly: (timezone: string) => `按星期和时间执行 · ${timezone}`,
+      hourly: (timezone: string) => `每个整点执行一次 · ${timezone}`,
+      interval: "按照固定分钟间隔重复执行"
+    },
+    concurrencyPolicy: { skip: "运行中跳过", queue: "排队等待", parallel: "允许并行" },
+    missedRunPolicy: { runOnce: "恢复后补跑一次", skip: "直接跳过" },
+    triggerLabel: {
+      daily: (time: string) => `每天 ${time}`,
+      weekly: (days: string, time: string) => `每周 ${days} ${time}`,
+      hourly: "每小时",
+      interval: (minutes: number) => `每 ${minutes} 分钟`,
+      appStart: "应用启动",
+      fileChange: (count: number) => `文件变化 · ${count} 个路径`,
+      network: (state: string) => `网络 ${state}`,
+      power: (state: string) => `电源 ${state}`,
+      runComplete: "Run 完成"
+    },
+    runtimeState: {
+      queued: "排队中",
+      inspecting: "检查中",
+      preparing: "准备运行环境",
+      cancelling: "正在停止",
+      cancelled: "已取消",
+      skipped: "已跳过",
+      pending: "等待上一步",
+      waiting: "等待执行",
+      inspectSkill: "检查 Skill",
+      waitingConsent: "等待运行许可",
+      attemptStarted: "开始执行",
+      running: "运行中",
+      succeeded: "运行完成",
+      failed: "运行失败",
+      timedOut: "运行超时"
+    },
     log: {
-      ended: (time: string, status: string) => `[${time}] 结束：${status}`
+      omitted: "…中间运行日志已省略…",
+      initialSubscriptions: (count: string) => `（初始订阅 ${count}，嵌套源另计）`,
+      rssProgress: (label: string, completed: boolean, sourceCount: number, initial: string, discovered: number, saved: number, current: string) => `${label} · RSS 进度：${completed ? "已完成" : "已开始"}检查 ${sourceCount} 个源${initial} · 发现新增 ${discovered} 篇 · 已保存 ${saved} 篇 · 当前 ${current}`,
+      waiting: (name: string) => `[--:--:--] 等待触发：${name}\n[--:--:--] 运行后 stdout、stderr、阶段和失败原因会显示在这里。`,
+      queuedRetry: "上次尝试失败，等待重试",
+      automationFailed: "Automation 失败",
+      step: (index: number, total: number, skill: string, state: string) => `步骤 ${index}/${total} · ${skill} · ${state}`,
+      workflowEnd: (state: string) => `Workflow 结束：${state}`,
+      workflowState: (state: string) => `Workflow 状态：${state}`,
+      workflowFailed: (detail: string) => `Workflow 失败：${detail}`,
+      triggered: (name: string) => `触发：${name}`,
+      workflowRun: (id: string) => `Workflow Run：${id}`,
+      ended: (state: string) => `结束：${state}`,
+      childState: (state: string) => `子 Run 状态：${state}`,
+      childFailed: (detail: string) => `子 Run 失败：${detail}`,
+      artifacts: (items: string) => `产物：${items}`,
+      childRun: (id: string) => `子 Run：${id}`
     },
     runHistory: {
       columns: { status: "状态", startedAt: "开始时间", duration: "耗时", exitCode: "退出码", items: "条目", actions: "操作" },
       status: { running: "运行中", success: "成功", failed: "失败", stopped: "已停止", timedOut: "超时" }
+    }
+  },
+
+  runs: {
+    eyebrow: "EXECUTION",
+    title: "运行中心",
+    description: "统一查看 Skill 与 Workflow 的执行结果，快速定位失败原因。",
+    refresh: "刷新",
+    resumeInputInvalid: "恢复输入必须是 JSON object。",
+    filters: {
+      aria: "运行记录筛选",
+      type: "类型",
+      typeAria: "按类型筛选",
+      allTypes: "全部类型",
+      state: "状态",
+      stateAria: "按状态筛选",
+      allStates: "全部状态",
+      skillAria: "按 Skill 筛选",
+      allSkills: "全部 Skills",
+      results: (count: number) => `${count} 条结果`
+    },
+    list: { aria: "运行记录列表", loading: "正在加载运行记录…", empty: "没有符合筛选条件的运行记录。", select: "选择一条运行记录查看详情。" },
+    actions: { cancel: "取消", retry: "重试", resuming: "恢复中…", resumeWorkflow: "恢复 Workflow", deleteHistory: "删除历史" },
+    fields: { state: "状态", createdAt: "创建时间", completedAt: "完成时间", snapshot: "数据快照", generation: (value: number) => `第 ${value} 代`, trigger: "触发方式", steps: "步骤", usage: "用量" },
+    failure: { title: "失败原因", hint: "可先重试；如果再次失败，请展开下方事件查看失败阶段与诊断信息。" },
+    orphan: { title: "可能残留进程", body: (pid: number) => `应用重启时发现该 Run 关联的进程可能仍在运行（PID ${pid}）。App 不会根据复用风险自动终止它，请在系统进程工具中人工确认后处理。` },
+    resume: { title: "恢复输入", body: "应用重启后不会保存 Workflow 输入。确认已安装的 Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。", aria: "Workflow 恢复输入", action: "使用这些输入恢复" },
+    artifacts: { title: "运行产物", count: (value: number) => `${value} 个 Artifact`, empty: "没有记录到产物。", openAria: (name: string) => `打开 ${name}`, open: "打开", revealAria: (name: string) => `定位 ${name}`, reveal: "定位", external: "外部导出绑定：", unavailable: "不可用" },
+    events: { title: "事件", empty: "没有事件。" },
+    retryStep: "重试 Step",
+    state: { succeeded: "成功", failed: "失败", timedOut: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", preparing: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" },
+    cost: { estimate: "估算 ", mixed: "混合 " },
+    deleteHistory: {
+      title: "删除运行历史",
+      body: "确定删除这条运行历史吗？不会删除 Skill 产生的用户资料。",
+      confirm: "删除历史"
     }
   },
 
@@ -519,7 +886,19 @@ export const featureMessages = {
     selectLabel: "选择",
     selectButton: "下拉菜单",
     logViewer: "运行日志",
-    logViewerEmpty: "暂无日志输出"
+    logViewerEmpty: "暂无日志输出",
+    moreActions: "更多操作",
+    expandPanel: "展开面板",
+    collapsePanel: "收起面板",
+    htmlPreview: "HTML 内容预览",
+    selectionQuote: {
+      contextLabel: (source: string, lines: number) => `引用 · ${source} · ${lines} 行`,
+      announced: (lines: number) => `已将 ${lines} 行内容引用到 AI 输入区`,
+      action: "引用到 AI",
+      actionShortcut: "引用到 AI（Ctrl+Shift+A）",
+      fallback: "选中内容",
+      dailyBrief: (date: string) => `${date} 每日简报`
+    }
   },
 
   feedback: {

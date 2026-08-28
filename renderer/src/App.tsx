@@ -110,7 +110,7 @@ function Workspace({
   const exitSettings = useCallback(() => {
     setSettingsOpen(false);
     window.requestAnimationFrame(() => {
-      document.querySelector<HTMLButtonElement>('button[aria-label="设置"]')?.focus({ preventScroll: true });
+      document.querySelector<HTMLButtonElement>(`button[aria-label="${m.nav.settings}"]`)?.focus({ preventScroll: true });
     });
   }, []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
@@ -166,6 +166,7 @@ function Workspace({
     providers: ai.snapshot.providers,
     aiFilePreviewPath,
     onAiFilePreviewPathChange: setAiFilePreviewPath,
+    confirmAction: ai.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
   };
@@ -183,7 +184,7 @@ function Workspace({
       pendingApprovals={ai.snapshot.pendingApprovals.length}
       aiSessionOpen={Boolean(ai.activeSession)}
       aiMode={showAiCompanion ? ai.panelMode : "collapsed"}
-      aiSidebar={showAiCompanion ? <AiSidebar openWorkbench={() => navigate("ai")} /> : null}
+      aiSidebar={showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} openWorkbench={() => navigate("ai")} /> : null}
       recentTasks={<SidebarRecent activeSessionId={route.page === "ai" ? ai.activeSession?.id || null : null} onOpen={(id) => { void ai.setActiveSession(id); navigate("ai"); }} />}
       onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
       >
@@ -202,7 +203,7 @@ function Workspace({
           {renderActiveRoute({ route: { page: "settings", state: settingsRouteState, nonce: 0 }, ...routeRenderProps })}
         </Suspense>
       ) : null}
-      <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} />
+      <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />
       <FeedbackHost />
       </AppShell>
     </FilePreviewProvider>

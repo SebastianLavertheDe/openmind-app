@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { messages as m } from "@shared/messages";
 
 export type ColumnSplitterProps = {
   side: "left" | "right";
@@ -108,7 +109,7 @@ export function ColumnSplitter({
         window.addEventListener("keydown", key);
       }}
     >
-      <button data-motion="icon" aria-label={collapsed ? "展开面板" : "收起面板"} title={collapsed ? "展开面板" : "收起面板"} onClick={toggle}>{side === "left" ? (collapsed ? "›" : "‹") : (collapsed ? "‹" : "›")}</button>
+      <button data-motion="icon" aria-label={collapsed ? m.designSystem.expandPanel : m.designSystem.collapsePanel} title={collapsed ? m.designSystem.expandPanel : m.designSystem.collapsePanel} onClick={toggle}>{side === "left" ? (collapsed ? "›" : "‹") : (collapsed ? "‹" : "›")}</button>
     </div>
   );
 }

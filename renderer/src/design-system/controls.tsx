@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredPopover } from "./use-anchored-popover";
+import { useExitPresence } from "./use-exit-presence";
 
 export function SegmentedControl<T extends string>({
   value,
@@ -103,72 +106,148 @@ function handleRovingKeys<T extends string>(
   });
 }
 
-export function DropdownMenu({ label, children }: { label: ReactNode; children: ReactNode }) {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const summaryRef = useRef<HTMLElement | null>(null);
-  const focusRestorePending = useRef(false);
-  const restoreFocus = useCallback(() => {
-    if (focusRestorePending.current) return;
-    focusRestorePending.current = true;
-    requestAnimationFrame(() => {
-      summaryRef.current?.focus();
-      focusRestorePending.current = false;
-    });
+export function DropdownMenu({
+  label,
+  children,
+  disabled = false,
+  ariaLabel,
+  menuLabel
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  disabled?: boolean;
+  ariaLabel?: string;
+  menuLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef(false);
+  const { visible, leaving } = useExitPresence(open, 140);
+  const popover = useAnchoredPopover({
+    open: visible,
+    anchorRef: triggerRef,
+    floatingRef: menuRef,
+    preferredSide: "bottom",
+    align: "end"
+  });
+  const closeMenu = useCallback((restoreFocus = true) => {
+    restoreFocusRef.current = restoreFocus;
+    setOpen(false);
   }, []);
-  const closeMenu = useCallback(() => {
-    const details = detailsRef.current;
-    if (!details?.open) return;
-    details.open = false;
-    restoreFocus();
-  }, [restoreFocus]);
+
+  useLayoutEffect(() => {
+    if (!open || !visible) return;
+    const frame = requestAnimationFrame(() => getEnabledMenuItems(menuRef.current).at(0)?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open, visible]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      closeMenu(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [closeMenu, open]);
+
+  useEffect(() => {
+    if (open || visible || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    triggerRef.current?.focus();
+  }, [open, visible]);
+
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      return;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      closeMenu(false);
+      if (event.shiftKey) triggerRef.current?.focus();
+      else focusAfterDropdownTrigger(triggerRef.current);
+      return;
+    }
+    const items = getEnabledMenuItems(menuRef.current);
+    if (!items.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? currentIndex < 0 || currentIndex === items.length - 1 ? 0 : currentIndex + 1
+          : currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+    items[nextIndex]?.focus();
+  };
+
   return (
-    <details
-      ref={detailsRef}
+    <span
+      ref={rootRef}
       className="ui-dropdown"
-      onToggle={(event) => {
-        if (!event.currentTarget.open) restoreFocus();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && detailsRef.current?.open) {
-          event.preventDefault();
-          event.stopPropagation();
-          closeMenu();
-          return;
-        }
-        const menu = detailsRef.current?.querySelector<HTMLElement>(":scope > [role=menu]");
-        if (!menu || !menu.contains(event.target as Node)) return;
-        const items = getEnabledMenuItems(menu);
-        if (!items.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-        event.preventDefault();
-        const currentIndex = items.indexOf(document.activeElement as HTMLElement);
-        const nextIndex = event.key === "Home"
-          ? 0
-          : event.key === "End"
-            ? items.length - 1
-            : event.key === "ArrowDown"
-              ? currentIndex < 0 || currentIndex === items.length - 1 ? 0 : currentIndex + 1
-              : currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
-        items[nextIndex]?.focus();
-      }}
-      onClick={(event) => {
-        if (event.defaultPrevented) return;
-        const menu = detailsRef.current?.querySelector<HTMLElement>(":scope > [role=menu]");
-        const item = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=menuitem]") : null;
-        if (!menu || !item || !menu.contains(item) || isMenuItemDisabled(item)) return;
-        closeMenu();
-      }}
+      data-open={open || undefined}
     >
-      <summary ref={summaryRef} aria-haspopup="menu">{label}</summary>
-      <div role="menu">{children}</div>
-    </details>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="ui-dropdown-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {label}
+      </button>
+      {visible && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={menuRef}
+          className="ui-dropdown-menu"
+          role="menu"
+          aria-label={menuLabel}
+          data-side={popover.side}
+          data-leaving={leaving || undefined}
+          style={popover.style}
+          onKeyDown={onMenuKeyDown}
+          onClick={(event) => {
+            if (event.defaultPrevented) return;
+            const item = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=menuitem]") : null;
+            if (!item || !menuRef.current?.contains(item) || isMenuItemDisabled(item)) return;
+            closeMenu();
+          }}
+        >
+          {children}
+        </div>,
+        document.body
+      ) : null}
+    </span>
   );
 }
 
-function getEnabledMenuItems(menu: HTMLElement): HTMLElement[] {
+function getEnabledMenuItems(menu: HTMLElement | null): HTMLElement[] {
+  if (!menu) return [];
   return Array.from(menu.querySelectorAll<HTMLElement>("[role=menuitem]"))
     .filter((item) => !isMenuItemDisabled(item));
 }
 
 function isMenuItemDisabled(item: HTMLElement): boolean {
   return item.getAttribute("aria-disabled") === "true" || (item instanceof HTMLButtonElement && item.disabled);
+}
+
+function focusAfterDropdownTrigger(trigger: HTMLButtonElement | null): void {
+  if (!trigger) return;
+  const tabbable = Array.from(document.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest(".ui-dropdown-menu"));
+  const triggerIndex = tabbable.indexOf(trigger);
+  tabbable[triggerIndex + 1]?.focus();
 }

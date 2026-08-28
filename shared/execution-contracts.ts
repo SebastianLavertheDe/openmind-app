@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const EXECUTION_SCHEMA_VERSION = 1 as const;
+export const WORKFLOW_INTERRUPTED_ERROR = "Workflow 在应用重启时中断，未恢复执行。";
 
 export const BrokerRunStateSchema = z.enum([
   "queued",

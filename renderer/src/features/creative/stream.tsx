@@ -187,7 +187,7 @@ function TopicDateGroups({
             onClick={() => { if (sourceFile) onOpenTopicFile(sourceFile); }}
           >
             <FileText size={16} aria-hidden />
-            <span><strong>{label || date || m.creativeUi.stream.undated}</strong><small>选题管理文件</small></span>
+            <span><strong>{label || date || m.creativeUi.stream.undated}</strong><small>{m.creativeUi.stream.topicManagementFile}</small></span>
             <b>{group.length}</b>
           </button>
         );

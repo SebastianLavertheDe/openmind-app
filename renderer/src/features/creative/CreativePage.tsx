@@ -185,7 +185,7 @@ export function CreativeWorkspacePage({
           setAutoSaveStatus("saved");
         } catch (cause) {
           setAutoSaveStatus("failed");
-          ai.notify(`自动保存失败：${cause instanceof Error ? cause.message : String(cause)}`, "error");
+          ai.notify(m.creativeUi.workspace.autoSaveFailed(cause instanceof Error ? cause.message : String(cause)), "error");
         }
       })();
     }, workflowPolicy.autoSaveIntervalMs);
@@ -194,7 +194,7 @@ export function CreativeWorkspacePage({
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;
-    if (dirty && !await ai.confirm({ title: "切换文件", body: "当前文件有未保存的修改，切换会先保留草稿内容。确定切换吗？", confirmText: "切换文件", danger: true })) return;
+    if (dirty && !await ai.confirm({ title: m.creativeUi.workspace.switchFile.title, body: m.creativeUi.workspace.switchFile.body, confirmText: m.creativeUi.workspace.switchFile.confirm, danger: true })) return;
     setActiveFile(file);
     setDraft(detail?.files?.[file] || "");
     setDirty(false);
@@ -205,11 +205,11 @@ export function CreativeWorkspacePage({
     if (!detail || !activeFile || !dirty) return;
     setSaving(true);
     try {
-      const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: "编辑器保存前版本" });
+      const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: m.creativeUi.workspace.editorVersionNote });
       setDetail(next);
       setDirty(false);
       setVersions(await window.openmind.listCreativeVersions(next.dir, activeFile));
-      ai.notify("草稿已保存并创建版本", "success");
+      ai.notify(m.creativeUi.workspace.savedWithVersion, "success");
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
@@ -229,7 +229,7 @@ export function CreativeWorkspacePage({
       setView("workflow");
       const summary: CreativeProjectSummary = {
         dir: created.dir,
-        topic: String(created.manifest?.topic || topic.title || "未命名项目"),
+        topic: String(created.manifest?.topic || topic.title || m.creativeUi.workspace.untitledProject),
         stage: "drafting",
         completion: 20,
         date: normalizeDate(topicDate)
@@ -237,14 +237,14 @@ export function CreativeWorkspacePage({
       await openProject(summary);
       if (platform && created.files && !created.files[platform.file]) {
         try {
-          const seeded = await window.openmind.saveCreativeFile({ projectDir: created.dir, file: platform.file, content: `# ${topic.title || "草稿"}\n\n`, createVersion: false });
+          const seeded = await window.openmind.saveCreativeFile({ projectDir: created.dir, file: platform.file, content: `# ${topic.title || m.creativeUi.workspace.draftTitle}\n\n`, createVersion: false });
           setDetail(seeded);
           setActiveFile(platform.file);
           setDraft(seeded.files?.[platform.file] || "");
           await window.openmind.updateCreativeManifest(created.dir, { platforms: { [platform.id]: "draft" } });
         } catch { /* platform seed optional */ }
       }
-      ai.notify(reused ? "该选题已有草稿，已打开现有稿件" : platform ? `已创建草稿（${platform.label}）` : "已创建创作稿件", reused ? "info" : "success");
+      ai.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
@@ -257,7 +257,7 @@ export function CreativeWorkspacePage({
     if (dirty) await save();
     try {
       const moved = await window.openmind.advanceCreativeProject(detail.dir, nextStage);
-      ai.notify(`稿件已进入${stageLabel(nextStage)}`, "success");
+      ai.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");
       await load();
       setStage(nextStage);
       setSelectedProject({ ...selectedProject, dir: moved.dir, stage: nextStage });
@@ -270,7 +270,7 @@ export function CreativeWorkspacePage({
   const exportDraft = async () => {
     if (!detail || !selectedProject) return;
     const publish = ((detail.manifest as Record<string, unknown> | undefined)?.publish as Record<string, unknown> | undefined) || {};
-    if (!publish.platform) { ai.notify("请先选择目标平台", "error"); return; }
+    if (!publish.platform) { ai.notify(m.creativeUi.workspace.platformRequired, "error"); return; }
     setExporting(true);
     try {
       const safeTopic = selectedProject.topic.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "draft";
@@ -278,7 +278,7 @@ export function CreativeWorkspacePage({
       const file = await window.openmind.exportText(`${normalizeDate(selectedProject.date || date)}-${safeTopic.slice(0, 80)}${platform ? `.${platform}` : ""}.md`, draft);
       const updated = await window.openmind.updateCreativeManifest(detail.dir, { publish: { status: "exported", exportedPath: file || null } });
       setDetail(updated);
-      ai.notify(file ? `已导出到 ${file}` : "导出已取消", file ? "success" : "info");
+      ai.notify(file ? m.creativeUi.workspace.exportedTo(file) : m.creativeUi.workspace.exportCancelled, file ? "success" : "info");
       await load();
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
@@ -289,23 +289,23 @@ export function CreativeWorkspacePage({
 
   const copyProject = async () => {
     if (!detail) return;
-    try { await window.openmind.copyCreativeProject(detail.dir); ai.notify("已复制稿件", "success"); await load(); }
+    try { await window.openmind.copyCreativeProject(detail.dir); ai.notify(m.creativeUi.workspace.copied, "success"); await load(); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const archiveProject = async () => {
     if (!detail) return;
-    if (!await ai.confirm({ title: "归档稿件", body: "归档后稿件移入归档区，不会删除正文。确认归档吗？", confirmText: "归档", danger: true })) return;
-    try { await window.openmind.archiveCreativeProject(detail.dir); ai.notify("稿件已归档", "success"); setSelectedProject(null); setDetail(null); await load(); }
+    if (!await ai.confirm({ title: m.creativeUi.workspace.archive.title, body: m.creativeUi.workspace.archive.body, confirmText: m.creativeUi.workspace.archive.confirm, danger: true })) return;
+    try { await window.openmind.archiveCreativeProject(detail.dir); ai.notify(m.creativeUi.workspace.archive.success, "success"); setSelectedProject(null); setDetail(null); await load(); }
     catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
 
   const addContext = () => {
     const topicDate = selectedTopic ? ((selectedTopic as TopicWithDate).sourceDate || normalizeDate(date)) : normalizeDate(date);
     const context: ContextReference | null = detail ? {
-      id: `creative:${detail.dir}`, kind: "creative", label: String(detail.manifest?.topic || "创作稿件"), path: detail.dir,
+      id: `creative:${detail.dir}`, kind: "creative", label: String(detail.manifest?.topic || m.creativeUi.workspace.contextProject), path: detail.dir,
       content: JSON.stringify({ manifest: detail.manifest, file: activeFile, content: draft }, null, 2)
     } : selectedTopic ? {
-      id: `creative-topic:${topicDate}:${selectedTopic.title}`, kind: "creative", label: selectedTopic.title || "推荐选题",
+      id: `creative-topic:${topicDate}:${selectedTopic.title}`, kind: "creative", label: selectedTopic.title || m.creativeUi.workspace.contextTopic,
       content: JSON.stringify({ date: topicDate, topic: selectedTopic }, null, 2)
     } : null;
     if (!context) return;
@@ -358,22 +358,23 @@ export function CreativeWorkspacePage({
     <div className="creative-workspace-page">
       <div className="creative-page-header">
         <PageHeader
-          eyebrow="Creative Studio"
-          title="创作中心"
-          description={analytics ? `${topics.length} 个选题 · ${analytics.total} 篇稿件 · 平均完成度 ${analytics.averageCompletion}%` : "全部选题、创作中、待发布和已发布内容。"}
-          actions={<button data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />刷新</button>}
+          eyebrow={m.creativeUi.workspace.eyebrow}
+          title={m.creativeUi.workspace.title}
+          description={analytics ? m.creativeUi.workspace.analyticsDescription(topics.length, analytics.total, analytics.averageCompletion) : m.creativeUi.workspace.description}
+          actions={<button data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />{m.creativeUi.workspace.refresh}</button>}
         />
-        <nav className="creative-view-tabs" role="tablist" aria-label="创作视图">
+        <nav className="creative-view-tabs" role="tablist" aria-label={m.creativeUi.workspace.tabsAria}>
           {([
-            ["workflow", "工作台"],
-            ["history", "版本历史"],
-            ["release", "发布记录"],
-            ["analytics", "数据分析"]
+            ["workflow", m.creativeUi.workspace.tabs.workflow],
+            ["history", m.creativeUi.workspace.tabs.history],
+            ["release", m.creativeUi.workspace.tabs.release],
+            ["analytics", m.creativeUi.workspace.tabs.analytics]
           ] as const).map(([nextView, label]) => (
             <button
               key={nextView}
               type="button"
               role="tab"
+              data-motion="selection"
               aria-selected={view === nextView}
               className={view === nextView ? "active" : ""}
               onClick={() => selectView(nextView)}
@@ -395,7 +396,7 @@ export function CreativeWorkspacePage({
           <aside className={`creative-list-pane${listVisible ? "" : " collapsed"}`}>
             {!listVisible ? null : (
               <>
-                <label className="creative-search"><input aria-label="搜索选题或稿件" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索选题或稿件" /></label>
+                <label className="creative-search"><input aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} /></label>
                 {view === "workflow" ? (
                   loading ? <CreativeStreamSkeleton /> : (
                     <TodayStream
@@ -415,11 +416,11 @@ export function CreativeWorkspacePage({
                   <div className="creative-item-list entrance-stagger">
                     {activeProjects.map((project) => (
                       <button key={project.dir} data-entrance-item data-motion="selection" className={`creative-item-row${selectedProject?.dir === project.dir ? " active" : ""}`} onClick={() => void openProject(project)}>
-                        <div><strong>{project.topic}</strong><p>{stageLabel(project.stage)}{project.platforms && Object.keys(project.platforms).length ? ` · ${Object.keys(project.platforms).map(platformLabel).join("/")}` : ""}</p><small>完成度 {project.completion}%{project.updatedAt ? ` · ${formatRelative(project.updatedAt)}` : ""}</small></div>
+                        <div><strong>{project.topic}</strong><p>{stageLabel(project.stage)}{project.platforms && Object.keys(project.platforms).length ? ` · ${Object.keys(project.platforms).map(platformLabel).join("/")}` : ""}</p><small>{m.creativeUi.workspace.completion(project.completion)}{project.updatedAt ? ` · ${formatRelative(project.updatedAt)}` : ""}</small></div>
                         <span className="completion-ring">{project.completion}%</span>
                       </button>
                     ))}
-                    {!activeProjects.length ? <EmptyState title="暂无创作稿件" description="从左侧选题创建草稿后会出现在这里。" /> : null}
+                    {!activeProjects.length ? <EmptyState title={m.creativeUi.workspace.emptyProjects.title} description={m.creativeUi.workspace.emptyProjects.description} /> : null}
                   </div>
                 )}
               </>
@@ -428,7 +429,7 @@ export function CreativeWorkspacePage({
           <ColumnSplitter
             side="left"
             collapsed={!listVisible}
-            ariaLabel="内容流宽度"
+            ariaLabel={m.creativeUi.workspace.streamWidth}
             ariaValueMin={LIST_WIDTH_MIN}
             ariaValueMax={LIST_WIDTH_MAX}
             ariaValueNow={layout.layout.listWidth}
@@ -444,8 +445,8 @@ export function CreativeWorkspacePage({
               <button
                 type="button"
                 className="creative-list-reopen"
-                aria-label="展开内容列表"
-                title="展开内容列表"
+                aria-label={m.creativeUi.workspace.expandList}
+                title={m.creativeUi.workspace.expandList}
                 data-motion="icon"
                 onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
               ><PanelLeftOpen size={17} /></button>

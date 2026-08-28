@@ -60,7 +60,8 @@ describe("design system controls", () => {
 
     const dropdownSummary = screen.getByText("更多");
     await user.click(dropdownSummary);
-    expect(screen.getByRole("menu")).toBeTruthy();
+    const menu = screen.getByRole("menu");
+    await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     await waitFor(() => expect(document.activeElement).toBe(dropdownSummary));
 
@@ -78,7 +79,7 @@ describe("design system controls", () => {
     await user.click(menuItem);
 
     expect(onRename).toHaveBeenCalledOnce();
-    expect(dropdownSummary.closest("details")?.open).toBe(false);
+    expect(dropdownSummary.closest(".ui-dropdown")?.hasAttribute("data-open")).toBe(false);
     await waitFor(() => expect(document.activeElement).toBe(dropdownSummary));
   });
 });

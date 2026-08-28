@@ -27,6 +27,41 @@ describe("OverflowBox", () => {
     expect(screen.getByText("line one")).toBeTruthy();
   });
 
+  it("shares one ResizeObserver across mounted overflow viewports", () => {
+    const observed: Element[] = [];
+    let instances = 0;
+    (globalThis as Record<string, unknown>).ResizeObserver = class {
+      constructor() { instances += 1; }
+      observe(element: Element) { observed.push(element); }
+      unobserve() { /* noop */ }
+      disconnect() { /* noop */ }
+    };
+
+    render(
+      <>
+        <OverflowBox><pre>one</pre></OverflowBox>
+        <OverflowBox><pre>two</pre></OverflowBox>
+      </>
+    );
+
+    expect(instances).toBe(1);
+    expect(observed).toHaveLength(2);
+  });
+
+  it("updates scroll shadows without a React state render", () => {
+    const { container } = render(<OverflowBox><pre>content</pre></OverflowBox>);
+    const content = container.querySelector(".overflow-box-content") as HTMLElement;
+    Object.defineProperties(content, {
+      scrollTop: { configurable: true, value: 10 },
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 240 }
+    });
+
+    fireEvent.scroll(content);
+    expect(container.querySelector(".overflow-box-shadow.top")?.hasAttribute("data-visible")).toBe(true);
+    expect(container.querySelector(".overflow-box-shadow.bottom")?.hasAttribute("data-visible")).toBe(true);
+  });
+
   it("shows expand button when expandable and expands to full height", () => {
     const { container } = render(
       <OverflowBox maxHeight={100} expandable>

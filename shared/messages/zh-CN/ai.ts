@@ -21,7 +21,9 @@ export const aiMessages = {
 
   workbench: {
     draftStatus: "尚未创建",
+    unsavedTitle: "放弃未保存修改",
     unsavedConfirm: "当前文件有未保存修改，确定要放弃吗？",
+    unsavedConfirmText: "放弃修改",
     filePreviewWidth: "文件预览宽度",
     filePreview: "文件预览",
     viewMode: "文件查看模式",
@@ -41,7 +43,9 @@ export const aiMessages = {
     editFileContent: "编辑文件内容",
     saved: "已保存",
     /* P2-PRV-2: edit 模式 dirty 切回 preview 时确认 */
-    discardDirtyConfirm: "当前文件有未保存修改，切换到预览将丢弃改动，确定吗？"
+    discardDirtyTitle: "切换到预览",
+    discardDirtyConfirm: "当前文件有未保存修改，切换到预览将丢弃改动，确定吗？",
+    discardDirtyConfirmText: "放弃并预览"
   },
 
   chat: {
@@ -101,7 +105,13 @@ export const aiMessages = {
     /* P0-CMP-3: 自定义 select */
     provider: "Provider",
     openWorkspace: "打开当前项目",
-    moreActions: "更多操作"
+    moreActions: "更多操作",
+    imageTooLarge: (size: string) => `图片过大（${size}MB），上限 2MB。`,
+    imageReadFailed: "图片读取失败。",
+    imagePreview: "图片预览",
+    closePreview: "关闭预览",
+    previousImage: "上一张",
+    nextImage: "下一张"
   },
 
   context: {
@@ -111,7 +121,11 @@ export const aiMessages = {
     chars: (n: number) => ` · ${n} 字符`,
     moveUp: "前移",
     moveDown: "后移",
-    remove: "移除"
+    remove: "移除",
+    detail: (label: string) => `${label} 详情`,
+    selection: "引用内容",
+    removeNamed: (label: string) => `删除引用：${label}`,
+    removeThis: "删除此引用"
   },
 
   suggestions: {
@@ -269,6 +283,7 @@ export const aiMessages = {
   },
 
   approval: {
+    banner: "待审批操作",
     alreadyHandled: "审批已经被其他操作处理。",
     required: "需要你的授权",
     pending: "等待处理",

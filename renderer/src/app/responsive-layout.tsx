@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ActionPresentation } from "../design-system/ResponsiveActionBar";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS } from "@shared/responsive-policy";
 export { RESPONSIVE_LAYOUT_BREAKPOINTS } from "@shared/responsive-policy";
@@ -46,23 +46,6 @@ export type LayoutComposition = {
   workspaceMinWidth?: number;
 };
 
-/**
- * Measured from the application shell rather than from the browser viewport.
- * Split panes consume this one value so maximized, restored, and high-DPI
- * windows cannot follow independent width calculations.
- */
-export type ShellLayoutMetrics = {
-  inlineSize: number;
-  navigationInlineSize: number;
-  measured: boolean;
-};
-
-const EMPTY_SHELL_LAYOUT_METRICS: ShellLayoutMetrics = {
-  inlineSize: 0,
-  navigationInlineSize: 0,
-  measured: false
-};
-
 type ResponsiveLayoutContextValue = {
   layout: ResponsiveLayout;
   reportComposition(composition: LayoutComposition): void;
@@ -70,15 +53,6 @@ type ResponsiveLayoutContextValue = {
 };
 
 const ResponsiveLayoutContext = createContext<ResponsiveLayoutContextValue | null>(null);
-const ShellLayoutMetricsContext = createContext<ShellLayoutMetrics>(EMPTY_SHELL_LAYOUT_METRICS);
-
-export function ShellLayoutMetricsProvider({ value, children }: { value: ShellLayoutMetrics; children: ReactNode }) {
-  return <ShellLayoutMetricsContext.Provider value={value}>{children}</ShellLayoutMetricsContext.Provider>;
-}
-
-export function useShellLayoutMetrics(): ShellLayoutMetrics {
-  return useContext(ShellLayoutMetricsContext);
-}
 
 function currentViewportWidth(): number {
   return window.visualViewport?.width || document.documentElement.clientWidth || window.innerWidth;
@@ -143,48 +117,42 @@ export function ResponsiveLayoutProvider({ children }: { children: ReactNode }) 
     shellDrawer: window.matchMedia(RESPONSIVE_LAYOUT_QUERIES.shellDrawer),
     narrowDensity: window.matchMedia(RESPONSIVE_LAYOUT_QUERIES.narrowDensity)
   }), []);
-  const [composition, setComposition] = useState<LayoutComposition>(() => ({
+  // Continuous viewport geometry is deliberately kept outside React state.
+  // Native window resizing may deliver dozens of measurements per second, but
+  // consumers only need a render when the semantic layout actually changes.
+  const compositionRef = useRef<LayoutComposition>({
     viewportWidth: currentViewportWidth(),
     navigationInlineSize: undefined,
     companionWidth: 0,
     companionMinWidth: 0,
     workspaceMinWidth: RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth
-  }));
-  const [layout, setLayout] = useState<ResponsiveLayout>(() => readLayout(media, composition));
-  const reportComposition = useCallback((next: LayoutComposition) => {
-    setComposition((current) => {
-      const merged = { ...current, ...next };
-      return current.viewportWidth === merged.viewportWidth
-        && current.navigationInlineSize === merged.navigationInlineSize
-        && current.companionWidth === merged.companionWidth
-        && current.companionMinWidth === merged.companionMinWidth
-        && current.workspaceMinWidth === merged.workspaceMinWidth
-        ? current
-        : merged;
+  });
+  const [layout, setLayout] = useState<ResponsiveLayout>(() => readLayout(media, compositionRef.current));
+  const commitComposition = useCallback((next: Partial<LayoutComposition>) => {
+    const merged = { ...compositionRef.current, ...next };
+    compositionRef.current = merged;
+    setLayout((current) => {
+      const resolved = readLayout(media, merged);
+      return sameLayout(current, resolved) ? current : resolved;
     });
-  }, []);
+  }, [media]);
+  const reportComposition = useCallback((next: LayoutComposition) => {
+    commitComposition(next);
+  }, [commitComposition]);
   const reportWorkspaceMinimum = useCallback((minWidth: number | null) => {
     const normalized = minWidth !== null && Number.isFinite(minWidth) && minWidth > 0
       ? minWidth
       : RESPONSIVE_LAYOUT_BREAKPOINTS.minimumWorkspaceWidth;
-    setComposition((current) => current.workspaceMinWidth === normalized
-      ? current
-      : { ...current, workspaceMinWidth: normalized });
-  }, []);
-
-  useEffect(() => {
-    setLayout((current) => {
-      const next = readLayout(media, composition);
-      return sameLayout(current, next) ? current : next;
-    });
-  }, [composition, media]);
+    if (compositionRef.current.workspaceMinWidth !== normalized) {
+      commitComposition({ workspaceMinWidth: normalized });
+    }
+  }, [commitComposition]);
 
   useEffect(() => {
     let frame = 0;
     const commit = () => {
       frame = 0;
-      const next = readLayout(media, { ...composition, viewportWidth: currentViewportWidth() });
-      setLayout((current) => sameLayout(current, next) ? current : next);
+      commitComposition({ viewportWidth: currentViewportWidth() });
     };
     const schedule = () => {
       if (frame) window.cancelAnimationFrame(frame);
@@ -208,7 +176,7 @@ export function ResponsiveLayoutProvider({ children }: { children: ReactNode }) 
       window.visualViewport?.removeEventListener("resize", schedule);
       viewportObserver?.disconnect();
     };
-  }, [composition, media]);
+  }, [commitComposition, media]);
 
   const value = useMemo(() => ({ layout, reportComposition, reportWorkspaceMinimum }), [layout, reportComposition, reportWorkspaceMinimum]);
   return <ResponsiveLayoutContext.Provider value={value}>{children}</ResponsiveLayoutContext.Provider>;

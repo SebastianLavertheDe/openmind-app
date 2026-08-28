@@ -1,13 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PREVIEW_RATIO,
+  FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE,
   FILE_PREVIEW_LAYOUT_STORAGE_KEY,
+  filePreviewLayoutMode,
   loadPreviewRatio,
   normalizePreviewLayout,
   savePreviewRatio
 } from "./file-preview-layout";
 
 describe("AI file preview layout persistence", () => {
+  it("derives the rendering mode from the workbench container boundary", () => {
+    expect(filePreviewLayoutMode(null)).toBe("split");
+    expect(filePreviewLayoutMode(FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE - 1)).toBe("preview-only");
+    expect(filePreviewLayoutMode(FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE)).toBe("split");
+  });
+
   it("loads a valid versioned ratio", () => {
     const storage = { getItem: vi.fn(() => JSON.stringify({ schemaVersion: 1, ratio: 0.61 })), setItem: vi.fn() };
     expect(loadPreviewRatio(storage)).toBe(0.61);

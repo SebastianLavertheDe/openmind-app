@@ -47,6 +47,16 @@ export const appMessages = {
       createDraft: { badge: "创作 · 编辑", title: "写一段内容草稿", why: "匹配「创作」意图 · 以编辑权限运行，结果作为草稿" },
       compare: { badge: "只读 · 分析", title: "对比相关资料", why: "匹配「对比」意图 · 只读分析两份或多份内容的异同" }
     },
+    intentPatterns: {
+      summarize: /总结|摘要|归纳|要点|概览|梳理|summari[sz]e|summary/i,
+      createDraft: /小红书|公众号|推文|开头|写一|起草|改写|续写|草稿|改个|润色|重写|draft|rewrite|write/i,
+      compare: /对比|比较|区别|异同|\bvs\.?\b|compare|difference/i
+    },
+    prompts: {
+      summarize: (date: string, userText: string) => `阅读今天（${date}）openmind/article 与 inbox 里的资料，挑出最相关的几篇，输出中文要点清单，每条带出处文件名。${userText}`,
+      createDraft: (text: string, userText: string) => `${text}。请遵守 openmind 的“Kill the AI Tone”中文写作规范：直接陈述、用具体场景与例子、避免“不是…而是…”式转折。输出 Markdown。${userText}`,
+      compare: (userText: string) => `只读相关资料，输出异同对比（表格或要点）。${userText}`
+    },
     userPrefix: (text: string) => `用户原话：「${text}」`
   }
 } as const;

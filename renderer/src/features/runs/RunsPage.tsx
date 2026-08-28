@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, FolderOpen, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord } from "@shared/contracts";
+import { WORKFLOW_INTERRUPTED_ERROR } from "@shared/execution-contracts";
+import { messages as m } from "@shared/messages";
+import type { ConfirmAction } from "../../ai-context";
 
 type RunEntry =
   | { kind: "skill"; record: BrokerRunRecord }
   | { kind: "workflow"; record: WorkflowRunRecord };
 
-export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: string; initialSkillId?: string }) {
+export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectConfirmation }: { initialRunId?: string; initialSkillId?: string; confirmAction?: ConfirmAction }) {
   const [entries, setEntries] = useState<RunEntry[]>([]);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -102,7 +105,7 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   };
 
   const deleteHistory = async () => {
-    if (!selected || !window.confirm("确定删除这条运行历史吗？不会删除 Skill 产生的用户资料。")) return;
+    if (!selected || !await confirmAction({ ...m.runs.deleteHistory, confirmText: m.runs.deleteHistory.confirm, danger: true })) return;
     try {
       await window.openmind.deleteRunHistory(selected.record.id);
       await load();
@@ -122,10 +125,10 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   };
 
   const resumeWorkflow = async () => {
-    if (!selected || selected.kind !== "workflow" || selected.record.error !== "Workflow 在应用重启时中断，未恢复执行。") return;
+    if (!selected || selected.kind !== "workflow" || selected.record.error !== WORKFLOW_INTERRUPTED_ERROR) return;
     try {
       const parsed = JSON.parse(resumeInputs);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("恢复输入必须是 JSON object。");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(m.runs.resumeInputInvalid);
       setResumeBusy(true);
       await window.openmind.resumeWorkflowRun({ runId: selected.record.id, inputs: parsed as Record<string, unknown>, providerBindings: {}, rootGeneration: selected.record.rootGeneration });
       await load();
@@ -139,20 +142,20 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   return (
     <div className="feature-page runs-page">
       <header className="runs-page-header">
-        <div><span className="eyebrow">EXECUTION</span><h1>运行中心</h1><p>统一查看 Skill 与 Workflow 的执行结果，快速定位失败原因。</p></div>
-        <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void load()} disabled={loading}><RefreshCw size={14} />刷新</button>
+        <div><span className="eyebrow">{m.runs.eyebrow}</span><h1>{m.runs.title}</h1><p>{m.runs.description}</p></div>
+        <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void load()} disabled={loading}><RefreshCw size={14} />{m.runs.refresh}</button>
       </header>
       {error ? <p role="alert" className="runs-error">{error}</p> : null}
-      <div className="runs-filterbar" aria-label="运行记录筛选">
-        <label>类型<select aria-label="按类型筛选" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">全部类型</option><option value="skill">Skill</option><option value="workflow">Workflow</option></select></label>
-        <label>状态<select aria-label="按状态筛选" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">全部状态</option><option value="failed">失败</option><option value="running">运行中</option><option value="succeeded">成功</option><option value="timed_out">超时</option><option value="cancelled">已取消</option></select></label>
-        <label>Skill<select aria-label="按 Skill 筛选" value={skillFilter} onChange={(event) => setSkillFilter(event.target.value)}><option value="all">全部 Skills</option>{skillOptions.map((skillId) => <option value={skillId} key={skillId}>{skillId}</option>)}</select></label>
-        <span>{visibleEntries.length} 条结果</span>
+      <div className="runs-filterbar" aria-label={m.runs.filters.aria}>
+        <label>{m.runs.filters.type}<select aria-label={m.runs.filters.typeAria} value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">{m.runs.filters.allTypes}</option><option value="skill">Skill</option><option value="workflow">Workflow</option></select></label>
+        <label>{m.runs.filters.state}<select aria-label={m.runs.filters.stateAria} value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">{m.runs.filters.allStates}</option><option value="failed">{m.runs.state.failed}</option><option value="running">{m.runs.state.running}</option><option value="succeeded">{m.runs.state.succeeded}</option><option value="timed_out">{m.runs.state.timedOut}</option><option value="cancelled">{m.runs.state.cancelled}</option></select></label>
+        <label>Skill<select aria-label={m.runs.filters.skillAria} value={skillFilter} onChange={(event) => setSkillFilter(event.target.value)}><option value="all">{m.runs.filters.allSkills}</option>{skillOptions.map((skillId) => <option value={skillId} key={skillId}>{skillId}</option>)}</select></label>
+        <span>{m.runs.filters.results(visibleEntries.length)}</span>
       </div>
       <section className="runs-layout">
-        <aside className="workspace-card runs-list" aria-label="运行记录列表">
-          {loading && !entries.length ? <p className="runs-empty">正在加载运行记录…</p> : null}
-          {!loading && !visibleEntries.length ? <p className="runs-empty">没有符合筛选条件的运行记录。</p> : null}
+        <aside className="workspace-card runs-list" aria-label={m.runs.list.aria}>
+          {loading && !entries.length ? <p className="runs-empty">{m.runs.list.loading}</p> : null}
+          {!loading && !visibleEntries.length ? <p className="runs-empty">{m.runs.list.empty}</p> : null}
           {visibleEntries.map((entry) => {
             const active = entryKey(entry) === selectedKey;
             return <button key={entryKey(entry)} type="button" className={`run-list-item${active ? " active" : ""}`} data-motion="selection" onClick={() => setSelectedKey(entryKey(entry))}>
@@ -164,37 +167,37 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
         </aside>
 
         <main className="workspace-card run-detail">
-          {!selected ? <p className="runs-empty">选择一条运行记录查看详情。</p> : <>
+          {!selected ? <p className="runs-empty">{m.runs.list.select}</p> : <>
             <header className="run-detail-header">
               <div><span className="eyebrow">{selected.kind.toUpperCase()}</span><h2>{selected.kind === "skill" ? selected.record.request.skillId : selected.record.workflowSkillId}</h2><p>{selected.record.id}</p></div>
               <div className="run-actions">
-                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" onClick={() => void cancel()}><X size={14} />取消</button> : null}
-                {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void retry()}><RotateCcw size={14} />重试</button> : null}
-                {selected.kind === "workflow" && selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}><RotateCcw size={14} />{resumeBusy ? "恢复中…" : "恢复 Workflow"}</button> : null}
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteHistory()}><Trash2 size={14} />删除历史</button>
+                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" onClick={() => void cancel()}><X size={14} />{m.runs.actions.cancel}</button> : null}
+                {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void retry()}><RotateCcw size={14} />{m.runs.actions.retry}</button> : null}
+                {selected.kind === "workflow" && selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}><RotateCcw size={14} />{resumeBusy ? m.runs.actions.resuming : m.runs.actions.resumeWorkflow}</button> : null}
+                <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteHistory()}><Trash2 size={14} />{m.runs.actions.deleteHistory}</button>
               </div>
             </header>
             <dl className="run-overview">
-              <div><dt>状态</dt><dd><span className={`run-pill ${stateTone(selected.record.state)}`}>{stateLabel(selected.record.state)}</span></dd></div>
-              <div><dt>创建时间</dt><dd>{formatTime(selected.record.createdAt)}</dd></div>
-              <div><dt>完成时间</dt><dd>{selected.record.completedAt ? formatTime(selected.record.completedAt) : "—"}</dd></div>
-              <div><dt>数据快照</dt><dd>第 {selected.record.rootGeneration} 代</dd></div>
-              {selected.kind === "skill" ? <div><dt>触发方式</dt><dd>{selected.record.request.trigger.type}</dd></div> : <div><dt>步骤</dt><dd>{selected.record.stepRuns.length}</dd></div>}
-              {selected.kind === "skill" && selected.record.usage ? <div><dt>用量</dt><dd>{formatUsage(selected.record.usage)}</dd></div> : null}
+              <div><dt>{m.runs.fields.state}</dt><dd><span className={`run-pill ${stateTone(selected.record.state)}`}>{stateLabel(selected.record.state)}</span></dd></div>
+              <div><dt>{m.runs.fields.createdAt}</dt><dd>{formatTime(selected.record.createdAt)}</dd></div>
+              <div><dt>{m.runs.fields.completedAt}</dt><dd>{selected.record.completedAt ? formatTime(selected.record.completedAt) : "—"}</dd></div>
+              <div><dt>{m.runs.fields.snapshot}</dt><dd>{m.runs.fields.generation(selected.record.rootGeneration)}</dd></div>
+              {selected.kind === "skill" ? <div><dt>{m.runs.fields.trigger}</dt><dd>{selected.record.request.trigger.type}</dd></div> : <div><dt>{m.runs.fields.steps}</dt><dd>{selected.record.stepRuns.length}</dd></div>}
+              {selected.kind === "skill" && selected.record.usage ? <div><dt>{m.runs.fields.usage}</dt><dd>{formatUsage(selected.record.usage)}</dd></div> : null}
             </dl>
-            {selected.record.error ? <section className="run-failure-summary" role="status"><div><strong>失败原因</strong><p>{selected.record.error}</p></div><small>可先重试；如果再次失败，请展开下方事件查看失败阶段与诊断信息。</small></section> : null}
+            {selected.record.error ? <section className="run-failure-summary" role="status"><div><strong>{m.runs.failure.title}</strong><p>{selected.record.error}</p></div><small>{m.runs.failure.hint}</small></section> : null}
             {selected.kind === "skill" && selected.record.orphanPid ? (
               <section className="run-section run-orphan-warning" role="alert">
-                <h3>可能残留进程</h3>
-                <p>应用重启时发现该 Run 关联的进程可能仍在运行（PID {selected.record.orphanPid}）。App 不会根据复用风险自动终止它，请在系统进程工具中人工确认后处理。</p>
+                <h3>{m.runs.orphan.title}</h3>
+                <p>{m.runs.orphan.body(selected.record.orphanPid)}</p>
               </section>
             ) : null}
             {selected.kind === "workflow" ? <>
-              {selected.record.error === "Workflow 在应用重启时中断，未恢复执行。" ? <section className="run-section run-resume-section"><h3>恢复输入</h3><p className="runs-muted">应用重启后不会保存 Workflow 输入。确认已安装的 Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label="Workflow 恢复输入" /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? "恢复中…" : "使用这些输入恢复"}</button></section> : null}
+              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
               <WorkflowSteps record={selected.record} onRetry={retryStep} />
             </> : <>
-              <section className="run-section"><h3>运行产物</h3><ArtifactList artifacts={selectedArtifacts} /></section>
-              <section className="run-section"><h3>事件</h3><EventList events={events} /></section>
+              <section className="run-section"><h3>{m.runs.artifacts.title}</h3><ArtifactList artifacts={selectedArtifacts} /></section>
+              <section className="run-section"><h3>{m.runs.events.title}</h3><EventList events={events} /></section>
             </>}
           </>}
         </main>
@@ -203,12 +206,16 @@ export function RunsPage({ initialRunId, initialSkillId }: { initialRunId?: stri
   );
 }
 
+function rejectConfirmation(): Promise<boolean> {
+  return Promise.resolve(false);
+}
+
 function WorkflowSteps({ record, onRetry }: { record: WorkflowRunRecord; onRetry: (stepId: string) => Promise<void> }) {
-  return <section className="run-section"><h3>Workflow Steps</h3><div className="workflow-step-list">{record.stepRuns.map((step) => <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${step.artifacts.length} 个 Artifact` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void onRetry(step.stepId)}>重试 Step</button> : null}</div>)}</div></section>;
+  return <section className="run-section"><h3>Workflow Steps</h3><div className="workflow-step-list">{record.stepRuns.map((step) => <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void onRetry(step.stepId)}>{m.runs.retryStep}</button> : null}</div>)}</div></section>;
 }
 
 function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
-  if (!artifacts.length) return <p className="runs-muted">没有记录到产物。</p>;
+  if (!artifacts.length) return <p className="runs-muted">{m.runs.artifacts.empty}</p>;
   return <div className="artifact-list">{artifacts.map((artifact) => {
     const location = artifact.logicalPath || artifact.externalPathRef || artifact.id;
     const logicalPath = artifact.logicalPath;
@@ -217,15 +224,15 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
       <code title={location}>{location}</code>
       <small>{artifact.size == null ? "" : formatBytes(artifact.size)}{artifact.declared ? " · declared" : " · undeclared"}</small>
       {logicalPath ? <div className="artifact-actions">
-        <button type="button" data-motion="icon" aria-label={`打开 ${location}`} onClick={() => void window.openmind.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />打开</button>
-        <button type="button" data-motion="icon" aria-label={`定位 ${location}`} onClick={() => void window.openmind.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />定位</button>
-      </div> : <small className="runs-muted">外部导出绑定：{artifact.externalPathRef || "不可用"}</small>}
+        <button type="button" data-motion="icon" aria-label={m.runs.artifacts.openAria(location)} onClick={() => void window.openmind.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />{m.runs.artifacts.open}</button>
+        <button type="button" data-motion="icon" aria-label={m.runs.artifacts.revealAria(location)} onClick={() => void window.openmind.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />{m.runs.artifacts.reveal}</button>
+      </div> : <small className="runs-muted">{m.runs.artifacts.external}{artifact.externalPathRef || m.runs.artifacts.unavailable}</small>}
     </div>;
   })}</div>;
 }
 
 function EventList({ events }: { events: BrokerRunEvent[] }) {
-  if (!events.length) return <p className="runs-muted">没有事件。</p>;
+  if (!events.length) return <p className="runs-muted">{m.runs.events.empty}</p>;
   return <div className="run-event-list">{events.slice(-80).map((event) => <div key={`${event.runId}-${event.sequence}`} className="run-event-row"><time>{formatTime(event.timestamp)}</time><strong>{event.state}</strong><span>{event.text || event.reason || event.error || ""}</span></div>)}</div>;
 }
 
@@ -233,14 +240,14 @@ function entryKey(entry: RunEntry): string { return `${entry.kind}:${entry.recor
 function isTerminal(state: string): boolean { return ["succeeded", "failed", "timed_out", "cancelled"].includes(state); }
 function canRetry(state: string): boolean { return ["failed", "timed_out", "cancelled"].includes(state); }
 function stateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
-function stateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "准备运行环境", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" } as Record<string, string>)[state] || state; }
+function stateLabel(state: string): string { return ({ succeeded: m.runs.state.succeeded, failed: m.runs.state.failed, timed_out: m.runs.state.timedOut, cancelled: m.runs.state.cancelled, queued: m.runs.state.queued, inspecting: m.runs.state.inspecting, waiting_execution_consent: m.runs.state.preparing, preparing_runtime: m.runs.state.preparing, running: m.runs.state.running, cancelling: m.runs.state.cancelling, pending: m.runs.state.pending, skipped: m.runs.state.skipped } as Record<string, string>)[state] || state; }
 function formatTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
 function formatBytes(value: number): string { return value < 1024 ? `${value} B` : value < 1024 * 1024 ? `${Math.round(value / 102.4) / 10} KB` : `${Math.round(value / 104857.6) / 10} MB`; }
 function formatUsage(usage: NonNullable<BrokerRunRecord["usage"]>): string {
   const parts = [
     usage.model,
     usage.totalTokens == null ? undefined : `${usage.totalTokens} tokens`,
-    usage.costUsd == null ? undefined : `${usage.costSource === "catalog-estimate" ? "估算 " : usage.costSource === "mixed" ? "混合 " : ""}$${usage.costUsd.toFixed(4)}`,
+    usage.costUsd == null ? undefined : `${usage.costSource === "catalog-estimate" ? m.runs.cost.estimate : usage.costSource === "mixed" ? m.runs.cost.mixed : ""}$${usage.costUsd.toFixed(4)}`,
     usage.durationMs == null ? undefined : `${Math.round(usage.durationMs / 100) / 10}s`
   ].filter((value): value is string => Boolean(value));
   return parts.length ? parts.join(" · ") : "—";

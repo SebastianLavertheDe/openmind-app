@@ -5,6 +5,7 @@ import { matchesSemverRange, type WorkflowManifest } from "../../shared/skill-ma
 import {
   EXECUTION_SCHEMA_VERSION,
   SkillRunRequestSchema,
+  WORKFLOW_INTERRUPTED_ERROR,
   WorkflowRunRecordSchema,
   type BrokerRunRecord,
   type SkillRunRequest,
@@ -36,7 +37,7 @@ export class WorkflowDefinitionError extends Error {
   }
 }
 
-export const WORKFLOW_INTERRUPTED_ERROR = "Workflow 在应用重启时中断，未恢复执行。";
+export { WORKFLOW_INTERRUPTED_ERROR } from "../../shared/execution-contracts";
 
 /** Validates and runs Manifest workflow steps exclusively through the Broker. */
 export class WorkflowEngine {

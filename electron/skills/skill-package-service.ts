@@ -10,7 +10,7 @@ import {
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
-import { moveDirectoryWithFallback } from "../lib/fs-utils";
+import { moveDirectoryWithFallback, writeTextAtomic } from "../lib/fs-utils";
 import {
   INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION,
   InstalledSkillRepository,
@@ -46,6 +46,7 @@ const EXCLUDED_SEGMENTS = new Set([
   "article_cache.json",
   "article-counter.json",
   "wechat_storage_state.json",
+  "user-sources.yaml",
   "posted_ids.json",
   "external_article_fetch.log",
   ".counter.json",
@@ -62,10 +63,13 @@ const EXCLUDED_SEGMENTS = new Set([
   "video"
 ]);
 
-type YamlLoader = { load(input: string, options?: Record<string, unknown>): unknown };
+type YamlCodec = {
+  load(input: string, options?: Record<string, unknown>): unknown;
+  dump(value: unknown, options?: Record<string, unknown>): string;
+};
 // js-yaml is intentionally loaded only by the Electron-side package service;
 // the renderer stays free of a YAML parser.
-const yaml = require("js-yaml") as YamlLoader;
+const yaml = require("js-yaml") as YamlCodec;
 
 export type SkillPackageErrorCode =
   | "source-not-found"
@@ -377,6 +381,7 @@ export class SkillPackageService {
       }
       copyCleanPackage(packageSource, stagingRoot, inspection.files);
       if (fs.existsSync(destination)) {
+        preserveMutableSkillData(this.paths.skills, manifest.id, destination);
         replacedTrash = path.join(this.paths.staging, `skill-replaced-${inspection.digest.slice(0, 16)}-${Date.now()}`);
         // The store lives under the bound content root (often another volume
         // than userData), so renames must fall back to copy+delete.
@@ -385,6 +390,7 @@ export class SkillPackageService {
       if (compatibilityIdentity && compatibilityIdentity.packagePath !== destination) {
         this.assertManagedPackagePath(compatibilityIdentity.packagePath);
         if (fs.existsSync(compatibilityIdentity.packagePath)) {
+          preserveMutableSkillData(this.paths.skills, manifest.id, compatibilityIdentity.packagePath);
           compatibilityTrash = path.join(
             this.paths.staging,
             `skill-identity-${inspection.digest.slice(0, 16)}-${Date.now()}`
@@ -720,6 +726,70 @@ function copyCleanPackage(source: string, destination: string, files: SkillPacka
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
     if (file.type === "symlink") fs.symlinkSync(fs.readlinkSync(sourcePath), destinationPath);
     else fs.copyFileSync(sourcePath, destinationPath);
+  }
+}
+
+/**
+ * One-time compatibility migration for data that older package revisions kept
+ * inside their managed install directory. Persist before the directory swap so
+ * a source-wide update cannot erase user-owned subscriptions.
+ */
+function preserveMutableSkillData(skillsRoot: string | null, skillId: string, installedRoot: string): void {
+  if (!skillsRoot) return;
+  const skillDataRoot = path.join(path.dirname(skillsRoot), "skill-data", skillId);
+  if (skillId === "rss-article-saver") {
+    preserveRssSubscriptionFiles(installedRoot, skillDataRoot);
+    return;
+  }
+  if (skillId === "reddit-fetcher") preserveRedditSources(installedRoot, skillDataRoot);
+}
+
+function preserveRssSubscriptionFiles(installedRoot: string, skillDataRoot: string): void {
+  let entries: fs.Dirent[];
+  try { entries = fs.readdirSync(installedRoot, { withFileTypes: true }); }
+  catch { return; }
+  for (const entry of entries) {
+    if (!entry.isFile() || !/^subscriptions(?:\.[A-Za-z0-9_-]+)?\.opml$/.test(entry.name)) continue;
+    copyRegularFileIfMissing(path.join(installedRoot, entry.name), path.join(skillDataRoot, entry.name));
+  }
+}
+
+function preserveRedditSources(installedRoot: string, skillDataRoot: string): void {
+  const target = path.join(skillDataRoot, "user-sources.yaml");
+  if (fs.existsSync(target)) return;
+  const configPath = path.join(installedRoot, "config.yaml");
+  if (!isPlainRegularFile(configPath)) return;
+  let document: unknown;
+  try { document = yaml.load(fs.readFileSync(configPath, "utf8"), { json: true }); }
+  catch (error) {
+    throw new SkillPackageError(
+      "installed-path-invalid",
+      `无法迁移现有 Reddit 来源配置，已拒绝覆盖旧 Skill：${error instanceof Error ? error.message : String(error)}`,
+      configPath
+    );
+  }
+  const fetch = isRecord(document) && isRecord(document.fetch) ? document.fetch : undefined;
+  const sources = fetch?.sources;
+  if (!Array.isArray(sources) || !sources.every((value) => typeof value === "string" && value.trim())) {
+    throw new SkillPackageError("installed-path-invalid", "无法迁移现有 Reddit 来源配置：fetch.sources 格式无效。", configPath);
+  }
+  writeTextAtomic(target, yaml.dump(
+    { schemaVersion: 1, sources: sources.map((value) => value.trim()) },
+    { noRefs: true, lineWidth: -1, sortKeys: false }
+  ));
+}
+
+function copyRegularFileIfMissing(source: string, target: string): void {
+  if (fs.existsSync(target) || !isPlainRegularFile(source)) return;
+  writeTextAtomic(target, fs.readFileSync(source, "utf8"));
+}
+
+function isPlainRegularFile(candidate: string): boolean {
+  try {
+    const stat = fs.lstatSync(candidate);
+    return stat.isFile() && !stat.isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 

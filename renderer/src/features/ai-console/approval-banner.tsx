@@ -17,7 +17,7 @@ export function ApprovalBanner() {
   const approvalList = useExitingList(pendingApprovals, (approval) => String(approval.id), 200);
   if (!approvalList.length) return null;
   return (
-    <div className="approval-banner" role="region" aria-label="待审批操作" aria-live="polite">
+    <div className="approval-banner" role="region" aria-label={m.ai.approval.banner} aria-live="polite">
       {approvalList.length > 1 ? <ApprovalBatchBar approvals={pendingApprovals} /> : null}
       <div className="approval-banner-list">
         {approvalList.map(({ item: approval, leaving }) => {

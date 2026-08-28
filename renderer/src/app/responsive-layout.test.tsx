@@ -85,10 +85,22 @@ function LayoutProbe({ composition }: { composition?: LayoutComposition }) {
   return <output aria-label="layout">{`${layout.shell}/${layout.companion}/${layout.workspace}/${layout.density}/${layout.actions}`}</output>;
 }
 
+function LayoutRenderProbe({ renders }: { renders: { current: number } }) {
+  const layout = useResponsiveLayout();
+  renders.current += 1;
+  return <output aria-label="render-layout">{`${layout.shell}/${layout.companion}/${layout.workspace}`}</output>;
+}
+
 function CompactWorkspaceRequirement() {
   const ref = useRef<HTMLDivElement>(null);
   useResponsiveWorkspaceMinimum("--test-workspace-min", ref);
   return <div ref={ref} style={{ "--test-workspace-min": "34rem" } as CSSProperties} />;
+}
+
+function OversizedWorkspaceRequirement() {
+  const ref = useRef<HTMLDivElement>(null);
+  useResponsiveWorkspaceMinimum("120rem", ref);
+  return <div ref={ref} />;
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -169,6 +181,28 @@ describe("ResponsiveLayoutProvider", () => {
         </ResponsiveLayoutProvider>
       );
       expect(screen.getByLabelText("layout").textContent).toBe("expanded/overlay/single/comfortable/full");
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("moves the companion out of the grid when a workspace minimum exceeds the available shell", () => {
+    const viewport = installViewportQueries(1_536);
+    try {
+      const { rerender } = render(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_536, companionWidth: 420, companionMinWidth: 380 }} />
+          <OversizedWorkspaceRequirement />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("rail/overlay/split/comfortable/compact");
+
+      rerender(
+        <ResponsiveLayoutProvider>
+          <LayoutProbe composition={{ viewportWidth: 1_536, companionWidth: 420, companionMinWidth: 380 }} />
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByLabelText("layout").textContent).toBe("expanded/compact/split/comfortable/full");
     } finally {
       viewport.restore();
     }
@@ -332,6 +366,36 @@ describe("ResponsiveLayoutProvider", () => {
       expect(screen.getByLabelText("layout").textContent).toBe("drawer/canvas/single/narrow/minimal");
     } finally {
       media.restore();
+    }
+  });
+
+  it("does not cascade React renders for native resize pixels inside the same semantic layout", () => {
+    const viewport = installViewportQueries(1_920);
+    let scheduledFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      scheduledFrame = callback;
+      return 1;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    const renders = { current: 0 };
+
+    try {
+      render(<ResponsiveLayoutProvider><LayoutRenderProbe renders={renders} /></ResponsiveLayoutProvider>);
+      expect(renders.current).toBe(1);
+
+      viewport.setWidth(1_900);
+      act(() => scheduledFrame?.(0));
+
+      expect(screen.getByLabelText("render-layout").textContent).toBe("expanded/docked/split");
+      expect(renders.current).toBe(1);
+
+      viewport.setWidth(1_750);
+      act(() => scheduledFrame?.(16));
+
+      expect(screen.getByLabelText("render-layout").textContent).toBe("expanded/compact/split");
+      expect(renders.current).toBe(2);
+    } finally {
+      viewport.restore();
     }
   });
 });

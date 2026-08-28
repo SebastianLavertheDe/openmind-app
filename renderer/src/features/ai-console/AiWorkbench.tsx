@@ -10,14 +10,19 @@ import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { ResponsiveActionBar, ResponsiveContextBadge, VirtualList, type ResponsiveAction } from "../../design-system/components";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
+import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { ContentPreview } from "../../components/ContentPreview";
 import { Chat } from "./Chat";
 import { FilePreviewProvider } from "./file-preview-context";
 import {
   DEFAULT_PREVIEW_RATIO,
+  FILE_PREVIEW_PANE_MIN_INLINE_SIZE,
+  FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE,
+  FILE_PREVIEW_SPLITTER_INLINE_SIZE,
   MAX_PREVIEW_RATIO,
   MIN_PREVIEW_RATIO,
+  filePreviewLayoutMode,
   loadPreviewRatio,
   savePreviewRatio
 } from "./file-preview-layout";
@@ -30,8 +35,6 @@ type PreviewState = {
 };
 
 type PreviewMode = "preview" | "edit";
-
-const FILE_PREVIEW_SPLITTER_WIDTH = 4;
 
 export function AiWorkbench({
   restoredPreviewPath = null,
@@ -68,14 +71,23 @@ export function AiWorkbench({
     floatingRef: historyFlyoutRef,
     align: "end"
   });
-  const workbenchRef = useRef<HTMLDivElement>(null);
+  const workbenchLayout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE });
+  const workbenchRef = workbenchLayout.ref;
+  const workbenchElementRef = workbenchLayout.elementRef;
+  const previewLayoutMode = filePreviewLayoutMode(workbenchLayout.inlineSize);
+  const conversationRef = useRef<HTMLElement>(null);
+  const previewPaneRef = useRef<HTMLElement>(null);
+  const focusBeforePreviewRef = useRef<HTMLElement | null>(null);
+  const restorePreviewFocusRef = useRef(false);
   const previewRatioRef = useRef(previewRatio);
   const previewResizeStartRatio = useRef(previewRatio);
   const previewRequest = useRef(0);
+  const openingPreviewPathRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const previewSnapshot = useRef<PreviewState | null>(null);
   const previewOpen = Boolean(preview);
   const { visible: previewVisible, leaving: previewLeaving } = useExitPresence(previewOpen, 240);
+  const previewOnly = previewVisible && previewLayoutMode === "preview-only";
   const displayedPreview = preview || previewSnapshot.current;
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
@@ -117,18 +129,34 @@ export function AiWorkbench({
     return effectiveModelInfo(session.provider, AUTO_MODEL, caps);
   }, [ai.activeSession, ai.snapshot.providers]);
 
-  const canLeavePreview = useCallback(() => {
-    return !dirtyRef.current || window.confirm(m.ai.workbench.unsavedConfirm);
-  }, []);
+  const canLeavePreview = useCallback(async () => {
+    return !dirtyRef.current || await ai.confirm({
+      title: m.ai.workbench.unsavedTitle,
+      body: m.ai.workbench.unsavedConfirm,
+      confirmText: m.ai.workbench.unsavedConfirmText,
+      danger: true
+    });
+  }, [ai]);
 
   // P2-PRV-2: edit 模式 dirty 时切回 preview 需确认丢弃改动
-  const switchToPreview = useCallback(() => {
-    if (previewMode === "edit" && dirty && !window.confirm(m.ai.workbench.discardDirtyConfirm)) return;
+  const switchToPreview = useCallback(async () => {
+    if (previewMode === "edit" && dirty && !await ai.confirm({
+      title: m.ai.workbench.discardDirtyTitle,
+      body: m.ai.workbench.discardDirtyConfirm,
+      confirmText: m.ai.workbench.discardDirtyConfirmText,
+      danger: true
+    })) return;
     setPreviewMode("preview");
-  }, [previewMode, dirty]);
+  }, [ai, previewMode, dirty]);
 
-  const openPreview = useCallback((path: string) => {
-    if (!canLeavePreview()) return;
+  const openPreview = useCallback(async (path: string) => {
+    if (openingPreviewPathRef.current === path) return;
+    openingPreviewPathRef.current = path;
+    if (!await canLeavePreview()) {
+      openingPreviewPathRef.current = null;
+      return;
+    }
+    if (!previewOpen) focusBeforePreviewRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const request = ++previewRequest.current;
     onPreviewPathChange?.(path);
     setPreview({ path, content: null, loading: true, error: null });
@@ -138,32 +166,55 @@ export function AiWorkbench({
     setSaveError(null);
     setSaveNotice(null);
     void window.openmind.readContent(path).then((content) => {
+      if (openingPreviewPathRef.current === path) openingPreviewPathRef.current = null;
       if (request !== previewRequest.current) return;
       setPreview({ path, content, loading: false, error: null });
       setDraft(content.content || "");
       setDirty(false);
     }).catch((cause) => {
+      if (openingPreviewPathRef.current === path) openingPreviewPathRef.current = null;
       if (request === previewRequest.current) {
         setPreview({ path, content: null, loading: false, error: previewErrorText(cause) });
       }
     });
-  }, [canLeavePreview, onPreviewPathChange]);
+  }, [canLeavePreview, onPreviewPathChange, previewOpen]);
 
   // 路由切走时 AI 工作台会卸载。文件路径由工作区保留，返回同一工作台后
   // 重新载入该文件，恢复“左文件、右对话”的分栏，而不是退回纯对话视图。
   useEffect(() => {
     if (!restoredPreviewPath || preview) return;
-    openPreview(restoredPreviewPath);
+    void openPreview(restoredPreviewPath);
   }, [openPreview, preview, restoredPreviewPath]);
 
-  const closePreview = useCallback(() => {
-    if (!canLeavePreview()) return;
+  const closePreview = useCallback(async () => {
+    if (!await canLeavePreview()) return;
     previewRequest.current += 1;
+    openingPreviewPathRef.current = null;
     onPreviewPathChange?.(null);
     setPreviewActive(false);
     setPreview(null);
     setPreviewResizing(false);
+    restorePreviewFocusRef.current = true;
   }, [canLeavePreview, onPreviewPathChange]);
+
+  useEffect(() => {
+    if (!previewOnly || !previewActive) return;
+    const frame = requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (focused instanceof Element && previewPaneRef.current?.contains(focused)) return;
+      previewPaneRef.current?.querySelector<HTMLButtonElement>('[data-action-id="close"]')?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [previewActive, previewOnly]);
+
+  useLayoutEffect(() => {
+    if (previewVisible || !restorePreviewFocusRef.current) return;
+    restorePreviewFocusRef.current = false;
+    const target = focusBeforePreviewRef.current;
+    focusBeforePreviewRef.current = null;
+    const focusTarget = target?.isConnected ? target : conversationRef.current;
+    focusTarget?.focus({ preventScroll: true });
+  }, [previewVisible]);
 
   const toggleHistory = useCallback(() => setHistoryOpen((current) => !current), []);
 
@@ -206,7 +257,7 @@ export function AiWorkbench({
       window.removeEventListener("resize", closeWhenAnchorIsUnavailable);
       window.visualViewport?.removeEventListener("resize", closeWhenAnchorIsUnavailable);
     };
-  }, [historyOpen, responsiveLayout.shell]);
+  }, [historyOpen, previewLayoutMode, responsiveLayout.shell]);
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -233,9 +284,9 @@ export function AiWorkbench({
   }, [historyOpen]);
 
   const resizePreview = useCallback((delta: number) => {
-    const width = workbenchRef.current?.getBoundingClientRect().width || window.innerWidth || 1200;
+    const width = workbenchLayout.inlineSize || workbenchElementRef.current?.getBoundingClientRect().width || FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE;
     setPreviewRatio((value) => Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, value + delta / Math.max(1, width))));
-  }, []);
+  }, [workbenchElementRef, workbenchLayout.inlineSize]);
   const startPreviewResize = useCallback(() => {
     previewResizeStartRatio.current = previewRatio;
   }, [previewRatio]);
@@ -261,9 +312,9 @@ export function AiWorkbench({
     }
   }, [draft, preview, saving]);
 
-  const previewColumns = previewVisible
+  const previewColumns = previewVisible && previewLayoutMode === "split"
     ? previewActive
-      ? `minmax(360px, ${previewRatio.toFixed(3)}fr) ${FILE_PREVIEW_SPLITTER_WIDTH}px minmax(0, ${(1 - previewRatio).toFixed(3)}fr)`
+      ? `minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${previewRatio.toFixed(3)}fr) ${FILE_PREVIEW_SPLITTER_INLINE_SIZE}px minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${(1 - previewRatio).toFixed(3)}fr)`
       : "minmax(0, 0fr) 0px minmax(0, 1fr)"
     : "minmax(0, 1fr)";
   const canEdit = Boolean(displayedPreview?.content && !displayedPreview.content.truncated);
@@ -319,9 +370,10 @@ export function AiWorkbench({
       <div
         ref={workbenchRef}
         className={`ai-workbench${previewVisible ? " with-file-preview" : ""}${previewActive ? " preview-active" : ""}${previewLeaving ? " preview-leaving" : ""}${previewResizing ? " is-resizing-preview" : ""}`}
+        data-preview-layout={previewVisible ? previewLayoutMode : undefined}
         style={{ "--workbench-columns": previewColumns } as React.CSSProperties}
       >
-        <main className="conversation-pane">
+        {!previewOnly ? <main ref={conversationRef} className="conversation-pane" tabIndex={-1}>
           <header className="conversation-header">
             <div>
               {/* P1-HDR-2: provider 改 segmented control + 彩色 dot */}
@@ -364,7 +416,7 @@ export function AiWorkbench({
             </div>
           </header>
           <Chat />
-        </main>
+        </main> : null}
         {historyPresence.visible ? createPortal(
           <div
             ref={historyFlyoutRef}
@@ -381,7 +433,7 @@ export function AiWorkbench({
         ) : null}
         {previewVisible && displayedPreview ? (
           <>
-            <ColumnSplitter
+            {previewLayoutMode === "split" ? <ColumnSplitter
               side="left"
               collapsed={false}
               ariaLabel={m.ai.workbench.filePreviewWidth}
@@ -394,9 +446,11 @@ export function AiWorkbench({
               ariaValueMin={Math.round(MIN_PREVIEW_RATIO * 100)}
               ariaValueMax={Math.round(MAX_PREVIEW_RATIO * 100)}
               ariaValueNow={Math.round(previewRatio * 100)}
-            />
+            /> : null}
             <aside
+              ref={previewPaneRef}
               className="ai-file-preview"
+              tabIndex={-1}
               aria-label={m.ai.workbench.filePreview}
               aria-hidden={previewLeaving || undefined}
               inert={previewLeaving || undefined}

@@ -2,20 +2,32 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom";
 import { Quote } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";
+import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
+import { useAnchoredPopover } from "../design-system/use-anchored-popover";
 
 type SelectionAction = {
   text: string;
   lineCount: number;
-  left: number;
-  top: number;
+  range: Range;
+  anchor: { left: number; top: number; width: number; height: number };
 };
 
 export function ContentSelectionQuote({ content, children }: { content: ContentRecord; children: ReactNode }) {
   const ai = useAi();
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const actionRef = useRef<HTMLButtonElement>(null);
   const [action, setAction] = useState<SelectionAction | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const popover = useAnchoredPopover({
+    open: Boolean(action),
+    anchorRef,
+    floatingRef: actionRef,
+    preferredSide: "top",
+    align: "center",
+    gap: 8
+  });
 
   const readSelection = useCallback(() => {
     const surface = surfaceRef.current;
@@ -41,16 +53,18 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
     const rect = typeof range.getBoundingClientRect === "function"
       ? range.getBoundingClientRect()
       : surface.getBoundingClientRect();
-    const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth;
-    const left = Math.max(72, Math.min(viewportWidth - 72, rect.left + rect.width / 2));
-    const top = Math.max(44, rect.top - 8);
-    setAction({ text, lineCount: countSelectedLines(text), left, top });
+    setAction({
+      text,
+      lineCount: countSelectedLines(text),
+      range: range.cloneRange(),
+      anchor: selectionAnchorRect(rect)
+    });
   }, []);
 
   const quoteSelection = useCallback(() => {
     if (!action) return;
     const source = selectionSourceLabel(content);
-    const label = `引用 · ${source} · ${action.lineCount} 行`;
+    const label = m.designSystem.selectionQuote.contextLabel(source, action.lineCount);
     ai.addContext({
       id: `selection:${crypto.randomUUID()}`,
       kind: "selection",
@@ -59,7 +73,7 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
       content: action.text
     });
     ai.focusComposer();
-    setAnnouncement(`已将 ${action.lineCount} 行内容引用到 AI 输入区`);
+    setAnnouncement(m.designSystem.selectionQuote.announced(action.lineCount));
     setAction(null);
     window.getSelection()?.removeAllRanges();
   }, [action, ai, content]);
@@ -75,16 +89,28 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
         quoteSelection();
       }
     };
-    const dismiss = () => setAction(null);
+    const refreshPosition = () => {
+      setAction((current) => {
+        if (!current) return null;
+        const rect = current.range.getBoundingClientRect();
+        return { ...current, anchor: selectionAnchorRect(rect) };
+      });
+    };
     document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("scroll", dismiss, true);
-    window.addEventListener("resize", dismiss);
+    document.addEventListener("scroll", refreshPosition, true);
+    window.addEventListener("resize", refreshPosition);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("scroll", dismiss, true);
-      window.removeEventListener("resize", dismiss);
+      document.removeEventListener("scroll", refreshPosition, true);
+      window.removeEventListener("resize", refreshPosition);
     };
   }, [action, quoteSelection]);
+
+  useEffect(() => {
+    if (!action) return;
+    const frame = requestAnimationFrame(popover.updatePosition);
+    return () => cancelAnimationFrame(frame);
+  }, [action, popover.updatePosition]);
 
   return (
     <>
@@ -98,23 +124,42 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
       </div>
       <span className="ui-visually-hidden" aria-live="polite">{announcement}</span>
       {action ? createPortal(
-        <button
-          type="button"
-          className="content-selection-quote"
-          data-motion="action"
-          style={{ left: action.left, top: action.top }}
-          aria-label="引用到 AI"
-          title="引用到 AI（Ctrl+Shift+A）"
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={quoteSelection}
-        >
-          <Quote size={14} aria-hidden />
-          引用到 AI
-        </button>,
+        <>
+          <span
+            ref={anchorRef}
+            className="content-selection-anchor"
+            aria-hidden="true"
+            style={{ left: action.anchor.left, top: action.anchor.top, width: action.anchor.width, height: action.anchor.height }}
+          />
+          <button
+            ref={actionRef}
+            type="button"
+            className="content-selection-quote"
+            data-motion="action"
+            data-side={popover.side}
+            style={popover.style}
+            aria-label={m.designSystem.selectionQuote.action}
+            title={m.designSystem.selectionQuote.actionShortcut}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={quoteSelection}
+          >
+            <Quote size={14} aria-hidden />
+            {m.designSystem.selectionQuote.action}
+          </button>
+        </>,
         document.body
       ) : null}
     </>
   );
+}
+
+function selectionAnchorRect(rect: DOMRect): SelectionAction["anchor"] {
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: Math.max(1, rect.width),
+    height: Math.max(1, rect.height)
+  };
 }
 
 export function countSelectedLines(text: string): number {
@@ -122,8 +167,8 @@ export function countSelectedLines(text: string): number {
 }
 
 export function selectionSourceLabel(content: ContentRecord): string {
-  const name = content.name || content.path.split(/[\\/]/).at(-1) || "选中内容";
+  const name = content.name || content.path.split(/[\\/]/).at(-1) || m.designSystem.selectionQuote.fallback;
   const dailyBrief = name.match(/(\d{4})(\d{2})(\d{2})_daily_(?:summary|brief)\.md/i);
-  if (dailyBrief) return `${dailyBrief[1]}-${dailyBrief[2]}-${dailyBrief[3]} 每日简报`;
-  return name.replace(/\.[^.]+$/, "") || "选中内容";
+  if (dailyBrief) return m.designSystem.selectionQuote.dailyBrief(`${dailyBrief[1]}-${dailyBrief[2]}-${dailyBrief[3]}`);
+  return name.replace(/\.[^.]+$/, "") || m.designSystem.selectionQuote.fallback;
 }

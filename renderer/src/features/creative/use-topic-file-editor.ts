@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { ContentRecord } from "@shared/contracts";
+import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
 
 export function useTopicFileEditor() {
@@ -21,7 +22,7 @@ export function useTopicFileEditor() {
 
   const openTopicFile = useCallback(async (path: string): Promise<boolean> => {
     if (!path) return false;
-    if (topicFileDirty && !await ai.confirm({ title: "切换选题文件", body: "当前选题文件有未保存的修改，确定放弃并切换吗？", confirmText: "放弃并切换", danger: true })) return false;
+    if (topicFileDirty && !await ai.confirm({ title: m.creativeUi.topicFile.switch.title, body: m.creativeUi.topicFile.switch.body, confirmText: m.creativeUi.topicFile.switch.confirm, danger: true })) return false;
     try {
       const next = await window.openmind.readContent(path);
       setSelectedTopicFilePath(path);
@@ -45,7 +46,7 @@ export function useTopicFileEditor() {
       setTopicFileDraft(next.content || topicFileDraft);
       setTopicFileDirty(false);
       setTopicFileMode("preview");
-      ai.notify("选题管理文件已保存", "success");
+      ai.notify(m.creativeUi.topicFile.savedNotice, "success");
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {

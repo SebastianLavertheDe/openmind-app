@@ -32,6 +32,23 @@ import {
   type SourceSettings
 } from "./common";
 
+type YamlCodec = {
+  load(input: string, options?: Record<string, unknown>): unknown;
+  dump(value: unknown, options?: Record<string, unknown>): string;
+};
+
+// Keep YAML parsing in Electron; renderer source management stays behind IPC.
+const yaml = require("js-yaml") as YamlCodec;
+
+type RedditSourceEntry = {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  frequency: string;
+  tags: string[];
+};
+
 export class SourceRegistry {
   private readonly sourceSettingsPath: string;
   private readonly sourceRunsPath: string;
@@ -43,8 +60,9 @@ export class SourceRegistry {
 
   /**
    * @param openmindRoot the selected private data repository and content root.
-   *   Content paths join onto it directly; skill-backed sources are read from
-   *   the installed store at `<openmindRoot>/.agent/skills`.
+   *   Content paths join onto it directly; Skill descriptors are read from
+   *   `<openmindRoot>/.agent/skills`, while user-owned source configuration is
+   *   persisted below `<openmindRoot>/.agent/skill-data`.
    * @param content content API.
    * @param stateRoot ADR-001 §1.3: app-private state dir under userData. When
    *   supplied, `.openmind` state lives there instead of inside openmindRoot.
@@ -67,9 +85,56 @@ export class SourceRegistry {
     return path.join(this.openmindRoot, ...segments);
   }
 
-  /** Resolve a path inside the installed Agent Skills store (.agent/skills/...). */
-  private skillSourcePath(...segments: string[]): string {
+  /** Resolve a path inside the immutable installed Agent Skills store. */
+  private installedSkillPath(...segments: string[]): string {
     return path.join(this.openmindRoot, ".agent", "skills", ...segments);
+  }
+
+  /** Resolve a path inside persistent per-Skill runtime data. */
+  private skillDataPath(...segments: string[]): string {
+    return path.join(this.openmindRoot, ".agent", "skill-data", ...segments);
+  }
+
+  /**
+   * Seed the persistent RSS subscription file once from the installed package.
+   * Existing installations historically edited the package copy in place, so
+   * that copy must win during migration. Once seeded, package updates never
+   * overwrite the persistent file.
+   */
+  private rssSubscriptionsPath(): string {
+    const persistent = this.skillDataPath("rss-article-saver", "subscriptions.opml");
+    if (fs.existsSync(persistent)) return persistent;
+    const legacy = this.installedSkillPath("rss-article-saver", "subscriptions.opml");
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(legacy);
+    } catch {
+      // The Skill may not be installed yet. addRssSource() will create an empty
+      // persistent OPML document when the user adds the first subscription.
+      return persistent;
+    }
+    if (stat.isFile() && !stat.isSymbolicLink()) writeTextAtomic(persistent, fs.readFileSync(legacy, "utf8"));
+    return persistent;
+  }
+
+  /** Seed persistent Reddit communities once from the installed package. */
+  private redditSourcesPath(): string {
+    const persistent = this.skillDataPath("reddit-fetcher", "user-sources.yaml");
+    if (fs.existsSync(persistent)) return persistent;
+    const packageConfig = readText(this.installedSkillPath("reddit-fetcher", "config.yaml"));
+    if (!packageConfig) return persistent;
+    try {
+      const document = yaml.load(packageConfig, { json: true });
+      const fetch = isRecord(document) && isRecord(document.fetch) ? document.fetch : null;
+      const sources = Array.isArray(fetch?.sources)
+        ? fetch.sources.filter((value): value is string => typeof value === "string" && isHttpUrl(value.trim()))
+        : [];
+      if (sources.length) this.writeRedditSourceEntries(sources.map((url) => defaultRedditSourceEntry(url)));
+    } catch {
+      // Invalid package defaults should not hide unrelated source types. The
+      // Skill runner will report its package configuration error when invoked.
+    }
+    return persistent;
   }
 
   /** 从已安装商店的 SKILL.md frontmatter 里挑出带 surfacesAsSource 的,生成 skill→source 绑定。 */
@@ -102,12 +167,20 @@ export class SourceRegistry {
   listSources(): SourceDefinition[] {
     const date = compactDate(new Date().toISOString().slice(0, 10));
     const rss = this.readRssSources(date);
-    const generated: SourceDefinition[] = this.skillSources().map((source) => this.skillBackedSource(source.sourceId, source.sourceName, source.kind, source.skillId, date, source.artifactRoot));
+    const skillSources = this.skillSources();
+    const redditBinding = skillSources.find((source) => source.kind === "reddit");
+    const reddit = redditBinding ? this.readRedditSources(date, redditBinding) : [];
+    const generated: SourceDefinition[] = skillSources
+      .filter((source) => source.kind !== "reddit")
+      .map((source) => this.skillBackedSource(source.sourceId, source.sourceName, source.kind, source.skillId, date, source.artifactRoot));
     const settings = this.readSourceSettings();
     const runs = this.listSourceRuns();
     const custom = settings.customSources.map((source) => this.customSource(source));
-    return [...rss, ...generated, ...custom].map((source) => {
-      const override = settings.sources[source.id] || {};
+    return [...rss, ...reddit, ...generated, ...custom].map((source) => {
+      // Reddit entries are fully owned by user-sources.yaml so their enabled
+      // state is also consumed by the Skill runner. Legacy app-only overrides
+      // must not win over that persistent per-Skill configuration.
+      const override = source.kind === "reddit" ? {} : settings.sources[source.id] || {};
       const enabled = override.enabled ?? source.enabled;
       const recentRuns = runs.filter((run) => run.sourceId === source.id || run.skillId === source.skillId).slice(0, 20);
       const latest = recentRuns[0];
@@ -134,6 +207,7 @@ export class SourceRegistry {
     const patch = SourcePatchSchema.parse(rawPatch);
     const existing = this.listSources().find((source) => source.id === id);
     if (!existing) throw new Error(messages.errors.source.updateNotFound);
+    if (existing.kind === "reddit") return this.updateRedditSource(existing, patch);
     let targetId = id;
     let targetUrl = existing.url;
     if (existing.kind === "rss" && patch.url && patch.url !== existing.url) {
@@ -173,6 +247,7 @@ export class SourceRegistry {
 
   addRssSource(rawInput: AddRssSourceInput): SourceDefinition {
     const input = AddRssSourceInputSchema.parse(rawInput);
+    if (input.kind === "reddit") return this.addRedditSource(input);
     if (input.kind !== "rss") return this.addCustomSource(input);
     try { new URL(input.url); } catch { throw new Error(messages.errors.source.invalidRssUrl); }
     const current = this.listSources();
@@ -290,7 +365,7 @@ export class SourceRegistry {
   }
 
   private readRssSources(date: string): SourceDefinition[] {
-    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.rssSubscriptionsPath();
     const raw = readText(opmlPath);
     if (!raw) return [];
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
@@ -298,7 +373,7 @@ export class SourceRegistry {
     const outlines = collectOutlines(parsed);
     const count = this.content.getContent("articles", date).length;
     const lastRun = newestMtime([
-      this.skillSourcePath("rss-article-saver", "article_cache.json"),
+      this.skillDataPath("rss-article-saver", "article_cache.json"),
       this.contentPath("article", date)
     ]);
     return outlines
@@ -319,6 +394,103 @@ export class SourceRegistry {
         recentError: null,
         itemCount: count
       }));
+  }
+
+  private readRedditSources(date: string, binding: SkillSourceBinding): SourceDefinition[] {
+    const status = this.skillBackedSource(
+      binding.sourceId,
+      binding.sourceName,
+      "reddit",
+      binding.skillId,
+      date,
+      binding.artifactRoot
+    );
+    return this.loadRedditSourceEntries(false).map((source) => SourceDefinitionSchema.parse({
+      ...status,
+      id: source.id,
+      name: source.name,
+      url: source.url,
+      enabled: source.enabled,
+      frequency: source.frequency,
+      tags: source.tags,
+      status: source.enabled ? status.status : "disabled"
+    }));
+  }
+
+  private loadRedditSourceEntries(strict: boolean): RedditSourceEntry[] {
+    const sourcePath = this.redditSourcesPath();
+    const raw = readText(sourcePath);
+    if (!raw) return [];
+    try {
+      const document = yaml.load(raw, { json: true });
+      if (!isRecord(document)) throw new Error("document must be an object");
+      const version = document.schemaVersion ?? 1;
+      if (version === 1) {
+        if (!Array.isArray(document.sources) || !document.sources.every((value) => typeof value === "string" && isHttpUrl(value.trim()))) {
+          throw new Error("schema v1 sources must be HTTP URLs");
+        }
+        return document.sources.map((url) => defaultRedditSourceEntry(String(url).trim()));
+      }
+      if (version !== 2 || !Array.isArray(document.sources)) throw new Error(`unsupported schema version ${String(version)}`);
+      const entries = document.sources.map(parseRedditSourceEntry);
+      if (entries.some((entry) => !entry)) throw new Error("schema v2 contains an invalid source");
+      return entries as RedditSourceEntry[];
+    } catch (cause) {
+      if (!strict) return [];
+      throw new Error(`Reddit 社区配置无效：${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  }
+
+  private writeRedditSourceEntries(sources: RedditSourceEntry[]): void {
+    writeTextAtomic(this.skillDataPath("reddit-fetcher", "user-sources.yaml"), yaml.dump(
+      { schemaVersion: 2, sources },
+      { noRefs: true, lineWidth: -1, sortKeys: false }
+    ));
+  }
+
+  private addRedditSource(input: ReturnType<typeof AddRssSourceInputSchema.parse>): SourceDefinition {
+    if (!isHttpUrl(input.url)) throw new Error("Reddit 社区地址必须是有效的 HTTP(S) URL。");
+    const sources = this.loadRedditSourceEntries(true);
+    const duplicate = sources.find((source) => source.url === input.url);
+    if (duplicate) {
+      const existing = this.listSources().find((source) => source.id === duplicate.id);
+      if (existing) return existing;
+    }
+    const entry: RedditSourceEntry = {
+      id: stableId(`reddit:${input.url}`),
+      name: input.name.trim(),
+      url: input.url.trim(),
+      enabled: true,
+      frequency: input.frequency,
+      tags: input.tags
+    };
+    this.writeRedditSourceEntries([...sources, entry]);
+    const created = this.listSources().find((source) => source.id === entry.id);
+    if (!created) throw new Error(messages.errors.source.refreshFailed);
+    return created;
+  }
+
+  private updateRedditSource(existing: SourceDefinition, patch: SourcePatch): SourceDefinition {
+    const sources = this.loadRedditSourceEntries(true);
+    const index = sources.findIndex((source) => source.id === existing.id);
+    if (index < 0) throw new Error(messages.errors.source.updateNotFound);
+    const nextUrl = patch.url?.trim() || sources[index].url;
+    if (!isHttpUrl(nextUrl)) throw new Error("Reddit 社区地址必须是有效的 HTTP(S) URL。");
+    if (sources.some((source, sourceIndex) => sourceIndex !== index && source.url === nextUrl)) {
+      throw new Error("这个 Reddit 社区地址已经存在。");
+    }
+    sources[index] = {
+      ...sources[index],
+      ...(patch.name ? { name: patch.name.trim() } : {}),
+      url: nextUrl,
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(patch.frequency ? { frequency: patch.frequency } : {}),
+      ...(patch.tags ? { tags: patch.tags } : {})
+    };
+    this.writeRedditSourceEntries(sources);
+    const updated = this.listSources().find((source) => source.id === existing.id);
+    if (!updated) throw new Error(messages.errors.source.refreshFailed);
+    return updated;
   }
 
   private readSourceSettings(): SourceSettings {
@@ -353,7 +525,7 @@ export class SourceRegistry {
   }
 
   private appendRssOutlines(outlines: Array<{ name: string; url: string }>): void {
-    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.rssSubscriptionsPath();
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
     const parsed = parser.parse(readText(opmlPath) || "<opml version=\"2.0\"><head><title>OpenMind</title></head><body></body></opml>") as {
@@ -373,7 +545,7 @@ export class SourceRegistry {
   }
 
   private replaceRssOutline(previousUrl: string, replacement: { name: string; url: string }): void {
-    const opmlPath = this.skillSourcePath("rss-article-saver", "subscriptions.opml");
+    const opmlPath = this.rssSubscriptionsPath();
     const parser = new XMLParser({ ignoreAttributes: false });
     const builder = new XMLBuilder({ ignoreAttributes: false, format: true, indentBy: "  " });
     const parsed = parser.parse(readText(opmlPath)) as Record<string, unknown>;
@@ -439,4 +611,61 @@ export class SourceRegistry {
       itemCount: 0
     });
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function redditSourceName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const community = parsed.pathname.match(/\/r\/([^/]+)/i)?.[1];
+    if (community) return `r/${decodeURIComponent(community)}`;
+    return parsed.hostname.replace(/^www\./, "") || "Reddit 社区";
+  } catch {
+    return "Reddit 社区";
+  }
+}
+
+function defaultRedditSourceEntry(url: string): RedditSourceEntry {
+  return {
+    id: stableId(`reddit:${url}`),
+    name: redditSourceName(url),
+    url,
+    enabled: true,
+    frequency: messages.source.frequencyPipeline,
+    tags: ["社区"]
+  };
+}
+
+function parseRedditSourceEntry(value: unknown): RedditSourceEntry | null {
+  if (!isRecord(value)) return null;
+  const url = typeof value.url === "string" ? value.url.trim() : "";
+  if (!isHttpUrl(url)) return null;
+  const id = typeof value.id === "string" && value.id.trim() ? value.id.trim() : stableId(`reddit:${url}`);
+  const name = typeof value.name === "string" && value.name.trim() ? value.name.trim() : redditSourceName(url);
+  const frequency = typeof value.frequency === "string" && value.frequency.trim()
+    ? value.frequency.trim()
+    : messages.source.frequencyPipeline;
+  const tags = Array.isArray(value.tags)
+    ? value.tags.filter((tag): tag is string => typeof tag === "string" && Boolean(tag.trim())).map((tag) => tag.trim())
+    : ["社区"];
+  return {
+    id,
+    name,
+    url,
+    enabled: value.enabled !== false,
+    frequency,
+    tags
+  };
 }

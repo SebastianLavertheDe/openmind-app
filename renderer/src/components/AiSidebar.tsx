@@ -4,7 +4,7 @@ import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAi } from "../ai-context";
 import { Select, Tooltip, useModalFocusScope } from "../design-system/components";
-import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, useShellLayoutMetrics, type ResponsiveLayout } from "../app/responsive-layout";
+import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 import {
   AI_SIDEBAR_LAYOUT_KEY,
@@ -43,18 +43,45 @@ function currentViewportWidth(): number {
   return window.visualViewport?.width || window.innerWidth;
 }
 
-function fallbackNavigationWidth(shell: ResponsiveLayout["shell"]): number {
+function fallbackNavigationWidth(shell: ResponsiveLayout["shell"], navCollapsed: boolean): number {
   return shell === "expanded"
-    ? RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth
+    ? navCollapsed
+      ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
+      : RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth
     : shell === "rail"
       ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
       : 0;
 }
 
-export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
+function liveSidebarBounds({
+  layout,
+  navCollapsed,
+  floating,
+  floatingInlineGutter
+}: {
+  layout: ResponsiveLayout;
+  navCollapsed: boolean;
+  floating: boolean;
+  floatingInlineGutter: number;
+}): SidebarBounds {
+  return sidebarBounds({
+    shellInlineSize: currentViewportWidth(),
+    navigationInlineSize: fallbackNavigationWidth(layout.shell, navCollapsed),
+    workspaceMinInlineSize: layout.workspaceMinWidth,
+    sidebarMinInlineSize: SIDEBAR_MIN_WIDTH,
+    floating,
+    floatingInlineGutter
+  });
+}
+
+function setNumericAttribute(element: HTMLElement, name: string, value: number): void {
+  const next = String(Math.round(value));
+  if (element.getAttribute(name) !== next) element.setAttribute(name, next);
+}
+
+export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkbench(): void; navCollapsed?: boolean }) {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
-  const shellLayoutMetrics = useShellLayoutMetrics();
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
   const floating = presentation === "overlay";
@@ -72,25 +99,12 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
   const mode: SidebarMode = ai.panelMode === "default"
     ? "default"
     : ai.panelMode === "wide" ? "wide" : previousMode.current;
-  const shellInlineSize = shellLayoutMetrics.measured
-    ? shellLayoutMetrics.inlineSize
-    : currentViewportWidth();
-  const navigationInlineSize = shellLayoutMetrics.measured
-    ? shellLayoutMetrics.navigationInlineSize
-    : fallbackNavigationWidth(responsiveLayout.shell);
-  const bounds = sidebarBounds({
-    shellInlineSize,
-    navigationInlineSize,
-    workspaceMinInlineSize: responsiveLayout.workspaceMinWidth,
-    sidebarMinInlineSize: SIDEBAR_MIN_WIDTH,
+  const bounds = liveSidebarBounds({
+    layout: responsiveLayout,
+    navCollapsed,
     floating: modal || floating,
-    // The overlay's visual edge comes from CSS. Reading it instead of
-    // duplicating a pixel value keeps the draggable bound in lockstep with
-    // the rendered surface.
     floatingInlineGutter: floating ? floatingInlineGutter : 0
   });
-  const boundsRef = useRef<SidebarBounds>(bounds);
-  boundsRef.current = bounds;
   const preferredRatio = ratios[mode];
   const renderedWidth = sidebarWidthForRatio(preferredRatio, bounds);
   panelModeRef.current = ai.panelMode;
@@ -115,7 +129,7 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
     const rightInset = Number.parseFloat(window.getComputedStyle(sidebarRef.current).right);
     const nextGutter = Number.isFinite(rightInset) ? Math.max(0, rightInset * 2) : 0;
     if (nextGutter !== floatingInlineGutter) setFloatingInlineGutter(nextGutter);
-  }, [floating, floatingInlineGutter, shellInlineSize]);
+  }, [floating, floatingInlineGutter]);
 
   useLayoutEffect(() => {
     const legacyWidths = legacyWidthsRef.current;
@@ -126,22 +140,75 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
     });
     legacyWidthsRef.current = null;
     setPreferencesReady(true);
-  }, [bounds]);
+  }, [bounds.maxInlineSize, bounds.minInlineSize, bounds.usableInlineSize]);
+  const ratiosRef = useRef(ratios);
+  ratiosRef.current = ratios;
+  const preferencesReadyRef = useRef(preferencesReady);
+  preferencesReadyRef.current = preferencesReady;
   useEffect(() => {
     if (!preferencesReady) return;
-    writeStorage(AI_SIDEBAR_LAYOUT_KEY, {
+    const timer = window.setTimeout(() => writeStorage(AI_SIDEBAR_LAYOUT_KEY, {
       schemaVersion: AI_SIDEBAR_LAYOUT_SCHEMA_VERSION,
       ratios
-    });
+    }), 120);
+    return () => window.clearTimeout(timer);
   }, [preferencesReady, ratios]);
+  useEffect(() => () => {
+    if (!preferencesReadyRef.current) return;
+    writeStorage(AI_SIDEBAR_LAYOUT_KEY, {
+      schemaVersion: AI_SIDEBAR_LAYOUT_SCHEMA_VERSION,
+      ratios: ratiosRef.current
+    });
+  }, []);
   useEffect(() => {
     if (ai.panelMode === "default" || ai.panelMode === "wide") previousMode.current = ai.panelMode;
   }, [ai.panelMode]);
   useLayoutEffect(() => {
     if (ai.panelMode === "default" || ai.panelMode === "wide") {
-      document.documentElement.style.setProperty("--ai-sidebar-width", `${renderedWidth}px`);
+      const navigationInlineSize = fallbackNavigationWidth(responsiveLayout.shell, navCollapsed);
+      // Keep the computed CSS expression stable while the native window is
+      // resized. Its percentage resolves directly against the live shell, so
+      // layout follows every frame without restarting the semantic transition.
+      document.documentElement.style.setProperty(
+        "--ai-sidebar-preferred-width",
+        `calc(${preferredRatio * 100}% - ${navigationInlineSize * preferredRatio}px)`
+      );
+      document.documentElement.style.setProperty("--ai-workspace-min-width", `${responsiveLayout.workspaceMinWidth}px`);
     }
-  }, [ai.panelMode, renderedWidth]);
+  }, [ai.panelMode, navCollapsed, preferredRatio, responsiveLayout.shell, responsiveLayout.workspaceMinWidth]);
+
+  useLayoutEffect(() => {
+    const sidebar = sidebarRef.current;
+    const separator = sidebar?.querySelector<HTMLElement>(".ai-sidebar-resizer");
+    if (!sidebar || !separator || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const syncGeometry = () => {
+      frame = 0;
+      const liveBounds = liveSidebarBounds({
+        layout: responsiveLayout,
+        navCollapsed,
+        floating: modal || floating,
+        floatingInlineGutter: floating ? floatingInlineGutter : 0
+      });
+      const width = sidebar.getBoundingClientRect().width
+        || sidebarWidthForRatio(ratiosRef.current[mode], liveBounds);
+      setNumericAttribute(sidebar, "data-layout-width", width);
+      setNumericAttribute(separator, "aria-valuemin", liveBounds.minInlineSize);
+      setNumericAttribute(separator, "aria-valuemax", liveBounds.maxInlineSize);
+      setNumericAttribute(separator, "aria-valuenow", width);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(syncGeometry);
+    };
+    syncGeometry();
+    const observer = new ResizeObserver(schedule);
+    observer.observe(sidebar);
+    observer.observe(document.documentElement);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [floating, floatingInlineGutter, modal, mode, navCollapsed, responsiveLayout]);
 
   if (ai.panelMode === "collapsed") return <button ref={railTriggerRef} className="ai-rail" data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ai.setPanelMode("default")}><MessageSquare size={18} /></button>;
   // Once the viewport selects a single canvas it remains the visual surface,
@@ -171,6 +238,14 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
             tabIndex={0}
             onDoubleClick={() => setRatios((current) => ({ ...current, [mode]: DEFAULT_SIDEBAR_RATIOS[mode] }))}
             onKeyDown={(event) => {
+              const liveBounds = liveSidebarBounds({
+                layout: responsiveLayout,
+                navCollapsed,
+                floating: modal || floating,
+                floatingInlineGutter: floating ? floatingInlineGutter : 0
+              });
+              const liveWidth = sidebarRef.current?.getBoundingClientRect().width
+                || sidebarWidthForRatio(ratiosRef.current[mode], liveBounds);
               if (event.key === "Home") {
                 event.preventDefault();
                 setRatios((current) => ({ ...current, [mode]: DEFAULT_SIDEBAR_RATIOS[mode] }));
@@ -180,10 +255,10 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
               event.preventDefault();
               // Keyboard resizing follows the same proportion as pointer
               // resizing, so it feels consistent on every display size.
-              const delta = bounds.usableInlineSize / 50 * (event.key === "ArrowLeft" ? 1 : -1);
+              const delta = liveBounds.usableInlineSize / 50 * (event.key === "ArrowLeft" ? 1 : -1);
               setRatios((current) => ({
                 ...current,
-                [mode]: sidebarRatioForWidth(renderedWidth + delta, bounds)
+                [mode]: sidebarRatioForWidth(liveWidth + delta, liveBounds)
               }));
             }}
             onPointerDown={(event) => {
@@ -194,13 +269,33 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
               const shell = element.closest(".app-shell");
               shell?.classList.add("ai-sidebar-resizing");
               const startX = event.clientX;
-              const startWidth = renderedWidth;
+              const startBounds = liveSidebarBounds({
+                layout: responsiveLayout,
+                navCollapsed,
+                floating: modal || floating,
+                floatingInlineGutter: floating ? floatingInlineGutter : 0
+              });
+              const startWidth = sidebarRef.current?.getBoundingClientRect().width
+                || sidebarWidthForRatio(ratiosRef.current[mode], startBounds);
+              let latestX = startX;
+              let moveFrame = 0;
+              const commitMove = () => {
+                moveFrame = 0;
+                const currentBounds = liveSidebarBounds({
+                  layout: responsiveLayout,
+                  navCollapsed,
+                  floating: modal || floating,
+                  floatingInlineGutter: floating ? floatingInlineGutter : 0
+                });
+                const ratio = sidebarRatioForWidth(startWidth + startX - latestX, currentBounds);
+                setRatios((current) => current[mode] === ratio ? current : { ...current, [mode]: ratio });
+              };
               const move = (moveEvent: PointerEvent) => {
-                const currentBounds = boundsRef.current;
-                const ratio = sidebarRatioForWidth(startWidth + startX - moveEvent.clientX, currentBounds);
-                setRatios((current) => ({ ...current, [mode]: ratio }));
+                latestX = moveEvent.clientX;
+                if (!moveFrame) moveFrame = window.requestAnimationFrame(commitMove);
               };
               const cleanup = () => {
+                if (moveFrame) window.cancelAnimationFrame(moveFrame);
                 if (element.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture(event.pointerId);
                 shell?.classList.remove("ai-sidebar-resizing");
                 window.removeEventListener("pointermove", move);
@@ -210,9 +305,15 @@ export function AiSidebar({ openWorkbench }: { openWorkbench(): void }) {
               };
               const finish = (restore: boolean) => {
                 if (restore) {
-                  const ratio = sidebarRatioForWidth(startWidth, boundsRef.current);
+                  const currentBounds = liveSidebarBounds({
+                    layout: responsiveLayout,
+                    navCollapsed,
+                    floating: modal || floating,
+                    floatingInlineGutter: floating ? floatingInlineGutter : 0
+                  });
+                  const ratio = sidebarRatioForWidth(startWidth, currentBounds);
                   setRatios((current) => ({ ...current, [mode]: ratio }));
-                }
+                } else if (moveFrame) commitMove();
                 cleanup();
               };
               const key = (keyEvent: KeyboardEvent) => {

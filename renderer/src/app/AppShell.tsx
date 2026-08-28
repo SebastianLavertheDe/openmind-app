@@ -12,7 +12,7 @@ import type { AppPage, Navigate } from "./routes";
 import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
-import { ShellLayoutMetricsProvider, useResponsiveCompositionReporter, useResponsiveLayout, type ShellLayoutMetrics } from "./responsive-layout";
+import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
 import packageJson from "../../../package.json";
 
 export function AppShell({
@@ -54,6 +54,7 @@ export function AppShell({
   const onboardingMode = page === "onboarding";
   const fullPageMode = settingsMode || onboardingMode;
   const showAiSidebar = page !== "ai" && !fullPageMode;
+  const hasAiSidebar = Boolean(aiSidebar);
   const previewMode = environment.mode === "preview";
   const windowsMica = environment.mode === "desktop" && environment.platform === "win32";
   const responsiveLayout = useResponsiveLayout();
@@ -63,14 +64,13 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [shellLayoutMetrics, setShellLayoutMetrics] = useState<ShellLayoutMetrics>({
-    inlineSize: 0,
-    navigationInlineSize: 0,
-    measured: false
-  });
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
   const effectiveNavCollapsed = !compactShell && (railShell || navCollapsed);
+  const navigationInlineSize = fullPageMode || compactShell
+    ? 0
+    : effectiveNavCollapsed
+      ? RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth
+      : RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth;
   useEffect(() => {
     if (!compactShell) setMobileNavOpen(false);
   }, [compactShell]);
@@ -83,37 +83,18 @@ export function AppShell({
   }, [windowsMica]);
   useModalFocusScope({ open: compactShell && mobileNavOpen, containerRef: navRef, triggerRef: navTriggerRef, onDismiss: closeMobileNav, layer: "drawer" });
   useLayoutEffect(() => {
-    const shell = shellRef.current;
-    if (!shell) return;
-    const measure = () => {
-      const companion = shell.querySelector<HTMLElement>(":scope > .ai-sidebar");
-      const minimumWidth = Number(companion?.dataset.layoutMinWidth);
-      const companionVisible = aiMode === "default" || aiMode === "wide";
-      const inlineSize = shell.getBoundingClientRect().width || window.innerWidth;
-      const navigationInlineSize = navRef.current?.getBoundingClientRect().width || 0;
-      setShellLayoutMetrics((current) => current.inlineSize === inlineSize
-        && current.navigationInlineSize === navigationInlineSize
-        && current.measured
-        ? current
-        : { inlineSize, navigationInlineSize, measured: true });
-      reportComposition({
-        viewportWidth: inlineSize,
-        navigationInlineSize,
-        // Fullscreen and collapsed modes do not consume a grid column. The
-        // sidebar's ratio is a rendering preference; only its semantic
-        // minimum decides whether it can remain attached.
-        companionWidth: companionVisible ? 1 : 0,
-        companionMinWidth: companionVisible
-          ? Number.isFinite(minimumWidth) && minimumWidth > 0 ? minimumWidth : 0
-          : 0
-      });
-    };
-    measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(shell);
-    if (navRef.current) observer?.observe(navRef.current);
-    return () => observer?.disconnect();
-  }, [aiMode, aiSidebar, compactShell, effectiveNavCollapsed, reportComposition, responsiveLayout.companion]);
+    const companionVisible = showAiSidebar
+      && hasAiSidebar
+      && (aiMode === "default" || aiMode === "wide");
+    reportComposition({
+      viewportWidth: window.visualViewport?.width || document.documentElement.clientWidth || window.innerWidth,
+      navigationInlineSize,
+      // Continuous pixels stay in CSS. React only owns the semantic minimum
+      // and whether the companion participates in the shell composition.
+      companionWidth: companionVisible ? 1 : 0,
+      companionMinWidth: companionVisible ? RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth : 0
+    });
+  }, [aiMode, compactShell, effectiveNavCollapsed, fullPageMode, hasAiSidebar, reportComposition, showAiSidebar]);
   const navigateFromNav = useCallback<Navigate>((nextPage, state) => {
     setMobileNavOpen(false);
     if (state === undefined) navigate(nextPage);
@@ -164,11 +145,16 @@ export function AppShell({
     }
   ];
   return (
-    <ShellLayoutMetricsProvider value={shellLayoutMetrics}>
-      <div
-      ref={shellRef}
+    <div
       className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""}${onboardingMode ? " onboarding-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
-      style={{ "--nav-width": effectiveNavCollapsed ? "60px" : "260px" } as CSSProperties}
+      style={{
+        "--nav-width": `${navigationInlineSize}px`,
+        "--layout-nav-expanded-width": `${RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth}px`,
+        "--layout-nav-rail-width": `${RESPONSIVE_LAYOUT_BREAKPOINTS.railNavigationWidth}px`,
+        "--layout-companion-min-width": `${RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth}px`,
+        "--layout-workspace-min-width": `${responsiveLayout.workspaceMinWidth}px`,
+        "--nav-preferred-ratio-offset": `${navigationInlineSize / 3}px`
+      } as CSSProperties}
     >
       {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
       {!fullPageMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
@@ -271,8 +257,7 @@ export function AppShell({
         <main className="main-area">{children}</main>
       </section>
       {showAiSidebar ? aiSidebar : null}
-      </div>
-    </ShellLayoutMetricsProvider>
+    </div>
   );
 }
 

@@ -624,7 +624,10 @@ describe("InstalledSkillExecutionResolver", () => {
       // Prepare a source copy with the localhost config BEFORE install, so the
       // recorded package digest matches what actually runs (the resolver
       // rejects post-install content changes).
-      const fixture = createBatchAFixture("reddit-fetcher");
+      // Start without an existing reddit-fetcher. Updating an existing copy is
+      // intentionally source-preserving now, so a test-only package overlay
+      // must be installed as the initial copy.
+      const fixture = createBatchAFixture();
       const sourceCopy = path.join(fixture.paths.staging, "reddit-source-overlay");
       copyTree(skillSourcePath("reddit-fetcher"), sourceCopy);
       fs.writeFileSync(
@@ -679,6 +682,10 @@ describe("InstalledSkillExecutionResolver", () => {
       expect(redditArtifacts.length).toBeGreaterThan(0);
       expect(redditArtifacts.some((a) => /\.md$/.test(a.logicalPath || ""))).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
+      expect(fs.readFileSync(
+        path.join(fixture.openmindRoot, ".agent", "skill-data", "reddit-fetcher", "user-sources.yaml"),
+        "utf8"
+      )).toContain(`http://127.0.0.1:${port}/r/artificial/hot/.rss`);
     } finally {
       server.close();
     }
@@ -819,6 +826,10 @@ describe("InstalledSkillExecutionResolver", () => {
       )).toBe(true);
       expect(completed.runtime?.packId).toBe("python-core");
       expect(fs.existsSync(path.join(openmindRoot, ".agent", "skills"))).toBe(true);
+      expect(fs.readFileSync(
+        path.join(openmindRoot, ".agent", "skill-data", "rss-article-saver", "subscriptions.opml"),
+        "utf8"
+      )).toContain(`http://127.0.0.1:${port}/feed.xml`);
     } finally {
       server.close();
     }

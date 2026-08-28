@@ -1,4 +1,5 @@
 import type { ContentRecord } from "@shared/contracts";
+import { messages as m } from "@shared/messages";
 import { MarkdownReader, type MarkdownReaderLayout } from "./MarkdownReader";
 import { ContentSelectionQuote } from "./ContentSelectionQuote";
 
@@ -9,7 +10,7 @@ export function ContentPreview({ content, layout = "article" }: { content: Conte
   const layoutClassName = layout === "file" ? " file-reader" : "";
 
   const preview = isHtml
-    ? <iframe title="HTML 内容预览" className={`html-preview${layoutClassName}`} sandbox="" srcDoc={raw} />
+    ? <iframe title={m.designSystem.htmlPreview} className={`html-preview${layoutClassName}`} sandbox="" srcDoc={raw} />
     : isPlainText(extension)
       ? <article className={`reader-markdown reader-body${layoutClassName}`}><pre className="plain-text-fallback">{raw}</pre></article>
       : <MarkdownReader content={raw} layout={layout} />;

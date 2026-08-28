@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../ai-context";
-import { ResponsiveLayoutProvider, ShellLayoutMetricsProvider } from "../app/responsive-layout";
+import { ResponsiveLayoutProvider } from "../app/responsive-layout";
 import { AiSidebar } from "./AiSidebar";
 
 const snapshot: AiSnapshot = {
@@ -42,7 +42,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   window.localStorage.clear();
+  document.documentElement.style.removeProperty("--ai-sidebar-preferred-width");
+  document.documentElement.style.removeProperty("--ai-workspace-min-width");
 });
 
 function renderSidebar() {
@@ -138,11 +141,13 @@ describe("AiSidebar", () => {
     expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
   });
 
-  it("persists adaptive sidebar ratios to localStorage on mount", () => {
+  it("persists adaptive sidebar ratios to localStorage on mount without synchronous resize writes", async () => {
     renderSidebar();
-    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
-      schemaVersion: 1,
-      ratios: { default: 1 / 3, wide: 1 / 2 }
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
+        schemaVersion: 1,
+        ratios: { default: 1 / 3, wide: 1 / 2 }
+      });
     });
   });
 
@@ -152,39 +157,44 @@ describe("AiSidebar", () => {
     window.localStorage.setItem("openmind.ai.sidebar-widths.v1", JSON.stringify({ default: 2_000, wide: 100 }));
     try {
       renderSidebar();
-      await waitFor(() => expect(window.localStorage.getItem("openmind.ai.sidebar-layout.v2")).not.toBeNull());
-      const stored = JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null");
-      expect(stored.schemaVersion).toBe(1);
-      expect(stored.ratios.default).toBeCloseTo(1_180 / 1_940);
-      expect(stored.ratios.wide).toBeCloseTo(380 / 1_940);
+      await waitFor(() => {
+        const stored = JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null");
+        expect(stored.schemaVersion).toBe(1);
+        expect(stored.ratios.default).toBeCloseTo(1_180 / 1_940);
+        expect(stored.ratios.wide).toBeCloseTo(380 / 1_940);
+      });
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
   });
 
-  it("rejects damaged or unknown adaptive preference schemas", () => {
+  it("rejects damaged or unknown adaptive preference schemas", async () => {
     window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({
       schemaVersion: 99,
       ratios: { default: .4, wide: .6 }
     }));
     renderSidebar();
 
-    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
-      schemaVersion: 1,
-      ratios: { default: 1 / 3, wide: 1 / 2 }
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
+        schemaVersion: 1,
+        ratios: { default: 1 / 3, wide: 1 / 2 }
+      });
     });
   });
 
-  it("rejects damaged values inside the adaptive preference schema", () => {
+  it("rejects damaged values inside the adaptive preference schema", async () => {
     window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({
       schemaVersion: 1,
       ratios: { default: "broken", wide: .5 }
     }));
     renderSidebar();
 
-    expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
-      schemaVersion: 1,
-      ratios: { default: 1 / 3, wide: 1 / 2 }
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("openmind.ai.sidebar-layout.v2") || "null")).toEqual({
+        schemaVersion: 1,
+        ratios: { default: 1 / 3, wide: 1 / 2 }
+      });
     });
   });
 
@@ -216,25 +226,24 @@ describe("AiSidebar", () => {
     }
   });
 
-  it("uses measured shell geometry instead of the browser viewport for its bounds", () => {
+  it("publishes a stable proportional CSS width across native viewport changes", () => {
     const originalWidth = window.innerWidth;
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1_200 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_560 });
     window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({ schemaVersion: 1, ratios: { default: 1 / 2, wide: 1 / 2 } }));
     try {
-      render(
-        <ShellLayoutMetricsProvider value={{ inlineSize: 2_560, navigationInlineSize: 260, measured: true }}>
-          <AiProvider initial={snapshot}><AiSidebar openWorkbench={vi.fn()} /></AiProvider>
-        </ShellLayoutMetricsProvider>
-      );
-      const separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
-      expect(separator.getAttribute("aria-valuemax")).toBe("1540");
-      expect(separator.getAttribute("aria-valuenow")).toBe("1150");
+      renderSidebar();
+      const preferred = document.documentElement.style.getPropertyValue("--ai-sidebar-preferred-width");
+      expect(preferred).toBe("calc(50% - 130px)");
+
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
+      fireEvent(window, new Event("resize"));
+      expect(document.documentElement.style.getPropertyValue("--ai-sidebar-preferred-width")).toBe(preferred);
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
   });
 
-  it("restores the actual drag-start width on Escape and disables shell transition while dragging", () => {
+  it("restores the actual drag-start width on Escape and batches pointer movement per frame", async () => {
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
     window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({ schemaVersion: 1, ratios: { default: 600 / 1_940, wide: 1 / 2 } }));
@@ -259,7 +268,7 @@ describe("AiSidebar", () => {
       const pointerMove = new Event("pointermove");
       Object.defineProperties(pointerMove, { pointerId: { value: 1 }, clientX: { value: 900 } });
       fireEvent(window, pointerMove);
-      expect(separator.getAttribute("aria-valuenow")).toBe("700");
+      await waitFor(() => expect(separator.getAttribute("aria-valuenow")).toBe("700"));
       fireEvent.keyDown(window, { key: "Escape" });
       expect(separator.getAttribute("aria-valuenow")).toBe("600");
       expect(shell.classList.contains("ai-sidebar-resizing")).toBe(false);

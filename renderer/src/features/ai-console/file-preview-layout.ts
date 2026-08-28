@@ -3,6 +3,15 @@ export const FILE_PREVIEW_LAYOUT_SCHEMA_VERSION = 1;
 export const DEFAULT_PREVIEW_RATIO = 0.56;
 export const MIN_PREVIEW_RATIO = 0.34;
 export const MAX_PREVIEW_RATIO = 0.7;
+export const FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE = 980;
+export const FILE_PREVIEW_PANE_MIN_INLINE_SIZE = 360;
+export const FILE_PREVIEW_SPLITTER_INLINE_SIZE = 4;
+
+export type FilePreviewLayoutMode = "split" | "preview-only";
+
+export function filePreviewLayoutMode(inlineSize: number | null): FilePreviewLayoutMode {
+  return inlineSize === null || inlineSize >= FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE ? "split" : "preview-only";
+}
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 

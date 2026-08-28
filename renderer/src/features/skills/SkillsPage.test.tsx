@@ -197,6 +197,90 @@ describe("SkillsPage", () => {
     expect(listSources).toHaveBeenCalledTimes(2);
   });
 
+  it("shows and manages the actual Reddit community list", async () => {
+    const redditInstalled: InstalledSkillView = { ...installedSkill, key: "cctools/reddit-fetcher", id: "reddit-fetcher" };
+    const redditInspection: SkillPackageInspectionView = {
+      ...inspection,
+      manifest: {
+        ...manifest,
+        id: "reddit-fetcher",
+        display: { name: "Reddit 内容抓取", description: "抓取社区内容。", group: "采集" }
+      }
+    };
+    let current: SourceDefinition[] = [{
+      schemaVersion: 1,
+      id: "reddit-local-llama",
+      name: "r/LocalLLaMA",
+      kind: "reddit",
+      url: "https://www.reddit.com/r/LocalLLaMA/hot.json",
+      skillId: "reddit-fetcher",
+      enabled: true,
+      frequency: "每日流水线",
+      tags: ["AI"],
+      lastRunAt: null,
+      lastSuccessAt: null,
+      successRate: null,
+      status: "idle",
+      recentError: null,
+      itemCount: 0
+    }];
+    const listSources = vi.fn(async () => current);
+    const updateSource = vi.fn(async (id: string, patch: Partial<SourceDefinition>) => {
+      const existing = current.find((source) => source.id === id)!;
+      const updated = { ...existing, ...patch } as SourceDefinition;
+      current = current.map((source) => source.id === id ? updated : source);
+      return updated;
+    });
+    const addRssSource = vi.fn(async (input: { name: string; url: string; kind?: string; tags?: string[] }) => {
+      const added: SourceDefinition = {
+        ...current[0],
+        id: "reddit-claude-ai",
+        name: input.name,
+        url: input.url,
+        tags: input.tags || [],
+        enabled: true,
+        status: "idle"
+      };
+      current = [...current, added];
+      return added;
+    });
+    renderPage({
+      listInstalledSkills: async () => [redditInstalled],
+      inspectInstalledSkill: async () => redditInspection,
+      listSources,
+      updateSource,
+      addRssSource
+    });
+
+    expect(await screen.findByRole("heading", { name: "Reddit 内容抓取" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "社区源 1" }));
+    expect(screen.getByText("https://www.reddit.com/r/LocalLLaMA/hot.json")).toBeTruthy();
+    expect(screen.queryByText("Reddit 订阅")).toBeNull();
+
+    fireEvent.click(screen.getByRole("switch", { name: "停用 r/LocalLLaMA" }));
+    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("reddit-local-llama", { enabled: false }));
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "社区名称" }), { target: { value: "Local LLM" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Reddit JSON 地址" }), { target: { value: "https://www.reddit.com/r/LocalLLaMA/new.json" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("reddit-local-llama", expect.objectContaining({
+      name: "Local LLM",
+      url: "https://www.reddit.com/r/LocalLLaMA/new.json"
+    })));
+
+    fireEvent.click(await screen.findByRole("button", { name: "添加社区" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "社区名称" }), { target: { value: "ClaudeAI" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Reddit JSON 地址" }), { target: { value: "https://www.reddit.com/r/ClaudeAI/hot.json" } });
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "添加社区" }));
+    await waitFor(() => expect(addRssSource).toHaveBeenCalledWith(expect.objectContaining({
+      name: "ClaudeAI",
+      kind: "reddit",
+      url: "https://www.reddit.com/r/ClaudeAI/hot.json"
+    })));
+    expect(await screen.findByRole("tab", { name: "社区源 2" })).toBeTruthy();
+  });
+
   it("shows X as a curl request configuration instead of an account source", async () => {
     const xInstalled: InstalledSkillView = { ...installedSkill, key: "cctools/x-following-fetcher", id: "x-following-fetcher" };
     const xInspection: SkillPackageInspectionView = {
@@ -449,8 +533,7 @@ describe("SkillsPage", () => {
 
   it("opens the import entry when reached from onboarding", async () => {
     renderPage({ inspectSkillSource: vi.fn(), installSkillSource: vi.fn() }, undefined, true);
-    await screen.findByRole("heading", { name: "Demo Skill" });
-    const dialog = screen.getByRole("dialog", { name: "添加 Skill 来源" });
+    const dialog = await screen.findByRole("dialog", { name: "添加 Skill 来源" });
     expect(within(dialog).getByPlaceholderText("https://github.com/org/skill.git")).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "取消" })).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "检查 Git 来源" })).toBeTruthy();

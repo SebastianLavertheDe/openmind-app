@@ -1309,7 +1309,7 @@
 
 /* AI workbench: files open on the left while the conversation glides right. */
 .ai-workbench {
-  grid-template-columns: var(--workbench-columns, minmax(0, 1fr)) !important;
+  grid-template-columns: var(--workbench-columns, minmax(0, 1fr));
   transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
 
@@ -1724,21 +1724,6 @@
   text-underline-offset: 2px;
 }
 
-@media (max-width: 980px) {
-  .ai-workbench.with-file-preview {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .ai-workbench.with-file-preview > .conversation-pane,
-  .ai-workbench.with-file-preview > .column-splitter {
-    display: none;
-  }
-
-  .ai-workbench.with-file-preview > .ai-file-preview {
-    grid-column: 1;
-  }
-}
-
 /* Image preview lightbox (ContextTray). Enter/exit motion; reduced-motion is
    handled globally (styles.css sets animation-duration:0s !important) and the
    JS close path skips the exit delay when prefers-reduced-motion matches. */
@@ -1921,11 +1906,11 @@
 .chip-select-chevron { color: var(--muted-2); transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .chip-select[data-open] .chip-select-chevron { transform: rotate(180deg); }
 .chip-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
   z-index: 30;
   min-width: 140px;
+  max-width: calc(100vw - 16px);
+  max-height: min(320px, calc(100vh - 16px));
+  overflow: auto;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1934,8 +1919,8 @@
   animation: chip-select-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 .chip-select-menu[data-leaving] { animation: chip-select-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
-@keyframes chip-select-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes chip-select-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
+@keyframes chip-select-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes chip-select-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(4px); } }
 .chip-select-option {
   display: block;
   width: 100%;

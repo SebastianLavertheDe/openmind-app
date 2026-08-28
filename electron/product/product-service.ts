@@ -49,7 +49,8 @@ export class ProductService {
     this.content = content;
     this.creative = creative;
     this.contentIndex = new ContentIndexStore(openmindRoot, content, opts.stateRoot);
-    // Skill-backed sources are read from the installed store under the root.
+    // Skill descriptors come from the installed store; mutable source
+    // configuration is owned by the per-Skill data directory.
     this.sources = new SourceRegistry(openmindRoot, content, opts.stateRoot);
   }
 

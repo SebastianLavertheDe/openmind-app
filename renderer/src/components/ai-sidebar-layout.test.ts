@@ -57,6 +57,20 @@ describe("AI sidebar adaptive layout", () => {
     expect(sidebarWidthForRatio(.95, overlay)).toBe(969);
   });
 
+  it("compromises the component minimum when the remaining width is smaller", () => {
+    const constrained = sidebarBounds({
+      shellInlineSize: 1_200,
+      navigationInlineSize: 260,
+      workspaceMinInlineSize: 800,
+      sidebarMinInlineSize: 380,
+      floating: false
+    });
+
+    expect(constrained.maxInlineSize).toBe(140);
+    expect(constrained.minInlineSize).toBe(140);
+    expect(sidebarWidthForRatio(1 / 2, constrained)).toBe(140);
+  });
+
   it("accepts only valid adaptive preferences and can migrate the legacy pixel shape", () => {
     expect(normalizeSidebarRatios({ schemaVersion: 1, ratios: { default: 1 / 3, wide: 1 / 2 } })).toEqual({ default: 1 / 3, wide: 1 / 2 });
     expect(normalizeSidebarRatios({ schemaVersion: 1, ratios: { default: 0, wide: 1 / 2 } })).toBeNull();

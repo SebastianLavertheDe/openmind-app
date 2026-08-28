@@ -8,12 +8,14 @@ import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { StatusBadge, useModalFocusScope } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
+import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 
 const m = messages.skillCenter;
 const RUN_HISTORY_WINDOW_DAYS = 5;
 const RUN_HISTORY_WINDOW_MS = RUN_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 const SOURCE_CONFIG_SKILL_IDS = new Set(["rss-article-saver", "reddit-fetcher", "x-following-fetcher"]);
 const X_CURL_PATH = ".claude/skills/x-following-fetcher/curl.txt";
+export const SKILLS_SPLIT_MIN_INLINE_SIZE = 860;
 
 type SkillDetailTab = "overview" | "sources" | "runs";
 
@@ -65,6 +67,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
   const toggleBusyKeysRef = useRef(new Set<string>());
   const catalogRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
+  const skillsLayout = useContainerLayoutMode({ splitMinInlineSize: SKILLS_SPLIT_MIN_INLINE_SIZE });
 
   const load = useCallback(async (showLoading = true, preferredSkillId?: string) => {
     if (showLoading) setLoading(true);
@@ -228,10 +231,10 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 
   const selectItem = useCallback((id: string, revealDetail = false) => {
     setSelectedId(id);
-    if (!revealDetail || typeof window.matchMedia !== "function" || !window.matchMedia("(max-width: 1100px)").matches) return;
-    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (!revealDetail || skillsLayout.mode !== "stacked") return;
+    const behavior = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
     requestAnimationFrame(() => detailRef.current?.scrollIntoView?.({ behavior, block: "start" }));
-  }, []);
+  }, [skillsLayout.mode]);
 
   const setSkillEnabled = useCallback(async (record: InstalledSkillView, enabled: boolean) => {
     if (toggleBusyKeysRef.current.has(record.key)) return;
@@ -287,7 +290,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 
       {error ? <p className="skills-error" role="alert">{error}</p> : null}
       {sourcePickerApiAvailable ? <SkillSourcePicker open={sourcePickerOpen} onToggle={() => setSourcePickerOpen((open) => !open)} onInstalled={onSourceInstalled} /> : null}
-      <section className="skills-layout">
+      <section ref={skillsLayout.ref} className="skills-layout" data-layout={skillsLayout.mode}>
         <aside className="workspace-card skills-catalog">
           <header className="skills-catalog-header">
             <label className="skills-search">
@@ -497,11 +500,11 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
         <section className="settings-provider-dialog skills-source-dialog" role="dialog" aria-modal="true" aria-labelledby="skills-source-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
           <header>
             <div><span>SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
-            <button type="button" className="settings-subtle-action" data-motion="icon" aria-label="关闭添加 Skill 来源" onClick={onToggle}><X size={16} aria-hidden /></button>
+            <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={picker.closeAria} onClick={onToggle}><X size={16} aria-hidden /></button>
           </header>
           <div className="settings-provider-dialog-body skills-source-picker-body">
             <div className="skills-source-picker-local-option">
-              <div className="skills-source-picker-local-copy"><strong>本地来源</strong><small>选择本地目录或 ZIP，系统会先完成静态检查。</small></div>
+              <div className="skills-source-picker-local-copy"><strong>{picker.localTitle}</strong><small>{picker.localDescription}</small></div>
               <button type="button" className="settings-subtle-action skills-source-picker-local" data-motion="action" disabled={busy !== null} onClick={() => void selectLocal()}>
                 <FolderOpen size={15} aria-hidden />{picker.local}
               </button>
@@ -520,7 +523,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
                 />
               </label>
               <label className="settings-field">
-                <span>分支或 tag（可选）</span>
+                <span>{picker.refLabel}</span>
                 <input
                   className="settings-browser-path-input"
                   type="text"
@@ -533,8 +536,8 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
             {candidate ? <div className="skills-source-picker-candidate">
               <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
               {inspection ? <div className="skills-source-package-summary">
-                <strong>{inspection.packages.length} 个 Skill 包</strong>
-                <span>已选择 {selectedPackageRefs.length} 个</span>
+                <strong>{picker.packageCount(inspection.packages.length)}</strong>
+                <span>{picker.selectedCount(selectedPackageRefs.length)}</span>
               </div> : null}
               {inspection ? <div className="skills-source-package-list">
                 {inspection.packages.map((item) => {
@@ -544,7 +547,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
                       type="checkbox"
                       checked={selectedPackageRefs.includes(packageRef)}
                       disabled={busy !== null}
-                      aria-label={`选择 ${inspectionName(item)}`}
+                      aria-label={picker.selectPackage(inspectionName(item))}
                       onChange={() => togglePackage(packageRef)}
                     /> : null}
                     <span className="skills-source-package-copy">
@@ -565,10 +568,10 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
             {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
           </div>
           <footer>
-            <button type="button" className="settings-subtle-action" data-motion="action" onClick={onToggle}>取消</button>
+            <button type="button" className="settings-subtle-action" data-motion="action" onClick={onToggle}>{m.common.cancel}</button>
             {busy === "inspect" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void cancelInspect()}>{picker.cancel}</button>
               : candidate && inspection ? <button type="button" className="primary-button skills-source-picker-install" data-motion="action" disabled={busy !== null || !installationReady} onClick={() => void install()}>
-                {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? `${picker.import} ${selectedPackageRefs.length} 个` : picker.import}
+                {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? picker.importSelected(selectedPackageRefs.length) : picker.import}
               </button>
                 : <button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => void inspectGit()}>{picker.inspect}</button>}
           </footer>
@@ -673,19 +676,19 @@ function inspectionName(inspection: SkillPackageInspectionView): string {
   const display = inspectionManifest(inspection).display;
   return display && typeof display === "object" && typeof (display as { name?: unknown }).name === "string"
     ? (display as { name: string }).name
-    : "未命名 Skill";
+    : m.fallback.untitled;
 }
 
 function inspectionPublisher(inspection: SkillPackageInspectionView): string {
   const publisher = inspectionManifest(inspection).publisher;
-  if (!publisher || typeof publisher !== "object") return "未声明";
+  if (!publisher || typeof publisher !== "object") return m.fallback.undeclared;
   const value = publisher as { displayName?: unknown; id?: unknown };
-  return typeof value.displayName === "string" ? value.displayName : typeof value.id === "string" ? value.id : "未声明";
+  return typeof value.displayName === "string" ? value.displayName : typeof value.id === "string" ? value.id : m.fallback.undeclared;
 }
 
 function inspectionVersion(inspection: SkillPackageInspectionView): string {
   const value = inspectionManifest(inspection).version;
-  return typeof value === "string" ? value : "未声明";
+  return typeof value === "string" ? value : m.fallback.undeclared;
 }
 
 function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, indexById, updateState, canUpdateSource, onCheckSourceUpdate, onUpdateSource, onSelect, onNavigate }: {
@@ -708,7 +711,7 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
   const updateBusy = checking || updating;
   const updateAvailable = updateState?.phase === "available";
   const sourceDescription = updateState?.message
-    || (group.locator ? `${group.locator}${group.ref ? ` @ ${group.ref}` : ""}` : "目录、ZIP 与历史安装");
+    || (group.locator ? `${group.locator}${group.ref ? ` @ ${group.ref}` : ""}` : m.fallback.localHistory);
   return <div className={`skills-source-group${remote && canUpdateSource ? " has-update-actions" : ""}${updateState ? ` update-${updateState.phase}` : ""}`}>
     <AnimatedDisclosure
       open={open}
@@ -716,7 +719,7 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
       className="skills-source-group-disclosure"
       triggerClassName="skills-source-group-trigger"
       contentClassName="skills-source-group-content"
-      triggerAriaLabel={`${open ? "收起" : "展开"} ${group.title}`}
+      triggerAriaLabel={m.groupToggle(open, group.title)}
       summary={<>
         <span className="skills-source-group-icon" aria-hidden>{remote ? <GitBranch size={15} /> : <FolderOpen size={15} />}</span>
         <span className="skills-source-group-copy">
@@ -803,11 +806,11 @@ function SkillDetailTabs({ active, sourceLabel, runCount, onChange }: {
   onChange(tab: SkillDetailTab): void;
 }) {
   const tabs: Array<{ id: SkillDetailTab; label: string }> = [
-    { id: "overview", label: "概览" },
+    { id: "overview", label: m.detailTabs.overview },
     { id: "sources", label: sourceLabel },
-    { id: "runs", label: `运行记录${runCount ? ` ${runCount}` : ""}` }
+    { id: "runs", label: m.detailTabs.runs(runCount) }
   ];
-  return <div className="skills-detail-tabs" role="tablist" aria-label="Skill 详情">
+  return <div className="skills-detail-tabs" role="tablist" aria-label={m.detailTabs.aria}>
     {tabs.map((tab, index) => <button
       key={tab.id}
       type="button"
@@ -846,6 +849,8 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
   const [feedback, setFeedback] = useState<SkillToggleFeedback | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const isRss = summary.id === "rss-article-saver";
+  const isReddit = summary.id === "reddit-fetcher";
+  const canEditSources = isRss || isReddit;
   const copy = skillSourceCopy(summary, sources.length);
   const visibleSources = sources.filter((source) => {
     const needle = query.trim().toLocaleLowerCase();
@@ -871,7 +876,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     try {
       const count = await window.openmind.importOpml();
       await onReloadSources();
-      setFeedback({ tone: "success", message: count ? `已导入 ${count} 个订阅。` : "没有发现新的订阅。" });
+      setFeedback({ tone: "success", message: m.ownedSources.importSuccess(count) });
     } catch (cause) {
       setFeedback({ tone: "error", message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
@@ -891,9 +896,9 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     <header className="skills-owned-sources-header">
       <div><h3>{copy.title}</h3><p>{copy.description}</p></div>
       <div className="skills-owned-sources-toolbar">
-        {isRss ? <div className="skills-owned-sources-actions">
-          <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />添加订阅</button>
-          <button type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />导入 OPML</button>
+        {canEditSources ? <div className="skills-owned-sources-actions">
+          <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />{isRss ? m.ownedSources.addRss : m.ownedSources.addReddit}</button>
+          {isRss ? <button type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />{m.ownedSources.importOpml}</button> : null}
         </div> : null}
         <label className="skills-source-search">
           <Search size={15} aria-hidden />
@@ -905,10 +910,10 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     {feedback ? <p className={`skills-source-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p> : null}
 
     {!visibleSources.length ? <div className="skills-source-empty">
-      <span>{query ? "没有匹配的配置。" : copy.empty}</span>
-      {!query && isRss ? <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>添加第一个订阅</button> : null}
+      <span>{query ? m.ownedSources.noMatch : copy.empty}</span>
+      {!query && canEditSources ? <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>{m.ownedSources.addFirst(isReddit)}</button> : null}
     </div> : <div className="skills-source-list" role="list">
-      <div className="skills-source-list-head" aria-hidden><span /><span>名称与订阅地址</span><span>状态与最近抓取</span><span>操作</span></div>
+      <div className="skills-source-list-head" aria-hidden><span /><span>{m.ownedSources.nameAndAddress(isReddit)}</span><span>{m.ownedSources.statusAndLastRun}</span><span>{m.ownedSources.operation}</span></div>
       {visibleSources.map((source) => <article key={source.id} className="skills-source-row" role="listitem">
         <span className={`skills-source-state ${sourceStatusTone(source)}`} aria-hidden />
         <div className="skills-source-main">
@@ -917,11 +922,11 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
         </div>
         <div className="skills-source-meta"><span>{sourceStatusLabel(source)}</span><small>{sourceLastRun(source)}</small></div>
         <div className="skills-source-row-actions">
-          {source.kind === "rss" ? <button type="button" className="skills-source-edit" data-motion="icon" aria-label={`编辑 ${source.name}`} onClick={() => setEditor({ mode: "edit", source })}><Pencil size={14} aria-hidden /></button> : null}
+          {source.kind === "rss" || source.kind === "reddit" ? <button type="button" className="skills-source-edit" data-motion="icon" aria-label={m.ownedSources.edit(source.name)} onClick={() => setEditor({ mode: "edit", source })}><Pencil size={14} aria-hidden /></button> : null}
           <ToggleSwitch
             checked={source.enabled}
             disabled={busyId === source.id}
-            label={`${source.enabled ? "停用" : "启用"} ${source.name}`}
+            label={m.ownedSources.toggle(source.enabled, source.name)}
             onChange={() => void toggleSource(source)}
           />
         </div>
@@ -929,18 +934,25 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     </div>}
 
     {isRss ? <div className="skills-source-rules">
-      <div><strong>默认抓取规则</strong><span>每个订阅最多 1 篇 · 最近 7 天 · 提取图片</span></div>
-      <button type="button" data-motion="action" aria-expanded={rulesOpen} onClick={() => setRulesOpen((current) => !current)}>{rulesOpen ? "收起规则" : "查看规则"}</button>
-      {rulesOpen ? <p>订阅级地址和启停状态保存在应用数据中；抓取数量、时间范围与图片提取规则由当前 Skill 的运行配置统一管理。</p> : null}
+      <div><strong>{m.ownedSources.rssRules.title}</strong><span>{m.ownedSources.rssRules.summary}</span></div>
+      <button type="button" data-motion="action" aria-expanded={rulesOpen} onClick={() => setRulesOpen((current) => !current)}>{rulesOpen ? m.ownedSources.hideRules : m.ownedSources.showRules}</button>
+      {rulesOpen ? <p>{m.ownedSources.rssRules.detail}</p> : null}
+    </div> : null}
+
+    {isReddit ? <div className="skills-source-rules">
+      <div><strong>{m.ownedSources.redditRules.title}</strong><span>{m.ownedSources.redditRules.summary}</span></div>
+      <button type="button" data-motion="action" aria-expanded={rulesOpen} onClick={() => setRulesOpen((current) => !current)}>{rulesOpen ? m.ownedSources.hideRules : m.ownedSources.showRules}</button>
+      {rulesOpen ? <p>{m.ownedSources.redditRules.detail}</p> : null}
     </div> : null}
 
     {editor ? <SkillSourceEditor
       state={editor}
+      kind={isReddit ? "reddit" : "rss"}
       onClose={() => setEditor(null)}
       onSaved={async () => {
         setEditor(null);
         await onReloadSources();
-        setFeedback({ tone: "success", message: editor.mode === "add" ? "订阅已添加。" : "订阅已更新。" });
+        setFeedback({ tone: "success", message: m.ownedSources.saved(isReddit, editor.mode === "add") });
       }}
     /> : null}
   </section>;
@@ -981,16 +993,16 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
     <article className="skills-x-curl-card">
       <span className={`skills-source-state ${curlState === "configured" ? "success" : "idle"}`} aria-hidden />
       <div className="skills-x-curl-copy">
-        <strong>X 请求 cURL</strong>
-        <span>{curlState === "loading" ? "正在检查配置…" : curlState === "configured" ? "已配置 · 请求内容已隐藏" : "未配置 · 抓取前需要填写完整 cURL"}</span>
-        <small>包含登录凭据，仅保存在本地；请勿截图或分享原始内容。</small>
+        <strong>{m.xCurl.title}</strong>
+        <span>{curlState === "loading" ? m.xCurl.loading : curlState === "configured" ? m.xCurl.configured : m.xCurl.missing}</span>
+        <small>{m.xCurl.securitySummary}</small>
       </div>
       <div className="skills-x-curl-actions">
-        <button type="button" data-motion="action" disabled={curlState === "loading"} onClick={() => setEditorOpen(true)}><Pencil size={14} aria-hidden />{curlState === "configured" ? "编辑 cURL" : "填写 cURL"}</button>
+        <button type="button" data-motion="action" disabled={curlState === "loading"} onClick={() => setEditorOpen(true)}><Pencil size={14} aria-hidden />{curlState === "configured" ? m.xCurl.edit : m.xCurl.fill}</button>
         {source && onToggle ? <ToggleSwitch
           checked={source.enabled}
           disabled={busy}
-          label={`${source.enabled ? "停用" : "启用"} ${summary.title}`}
+          label={m.ownedSources.toggle(source.enabled, summary.title)}
           onChange={onToggle}
         /> : null}
       </div>
@@ -999,8 +1011,8 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
     {feedback ? <p className={`skills-source-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p> : null}
 
     <div className="skills-x-curl-help">
-      <strong>如何获取</strong>
-      <ol><li>在浏览器登录 X，并打开 Following 时间线。</li><li>在开发者工具的 Network 中找到时间线请求。</li><li>右键请求并选择 Copy as cURL，然后粘贴到这里。</li></ol>
+      <strong>{m.xCurl.helpTitle}</strong>
+      <ol>{m.xCurl.helpSteps.map((step) => <li key={step}>{step}</li>)}</ol>
     </div>
 
     {editorOpen ? <SkillXCurlEditor
@@ -1031,7 +1043,7 @@ function SkillXCurlEditor({ initialCurl, onClose, onSaved }: { initialCurl: stri
   const save = async () => {
     const next = draft.trim();
     if (!/^curl(?:\s|')/i.test(next)) {
-      setFailure("请粘贴以 curl 开头的完整请求。");
+      setFailure(m.xCurl.invalid);
       return;
     }
     setSaving(true);
@@ -1048,19 +1060,20 @@ function SkillXCurlEditor({ initialCurl, onClose, onSaved }: { initialCurl: stri
 
   return createPortal(<div className="skills-source-editor-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="skills-source-editor skills-x-curl-editor" role="dialog" aria-modal="true" aria-labelledby="skills-x-curl-editor-title">
-      <header><div><h3 id="skills-x-curl-editor-title">编辑 X 请求 cURL</h3><p>保存后会覆盖当前 X Following 抓取请求。</p></div><button type="button" data-motion="icon" aria-label="关闭" onClick={onClose}><X size={16} /></button></header>
+      <header><div><h3 id="skills-x-curl-editor-title">{m.xCurl.editorTitle}</h3><p>{m.xCurl.editorDescription}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <label>完整 cURL<textarea ref={textareaRef} value={draft} onChange={(event) => { setDraft(event.target.value); setFailure(null); }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} /></label>
-        <p className="skills-x-curl-security">cURL 通常包含 Cookie 和授权信息。内容只写入本地配置，不会显示在来源列表中。</p>
+        <label>{m.xCurl.fullCurl}<textarea ref={textareaRef} value={draft} onChange={(event) => { setDraft(event.target.value); setFailure(null); }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} /></label>
+        <p className="skills-x-curl-security">{m.xCurl.securityDetail}</p>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        <footer><button type="button" data-motion="action" onClick={onClose}>取消</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !draft.trim()} aria-busy={saving || undefined}>{saving ? "保存中…" : "覆盖保存"}</button></footer>
+        <footer><button type="button" data-motion="action" onClick={onClose}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !draft.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.overwrite}</button></footer>
       </form>
     </section>
   </div>, document.body);
 }
 
-function SkillSourceEditor({ state, onClose, onSaved }: { state: SourceEditorState; onClose(): void; onSaved(): Promise<void> }) {
+function SkillSourceEditor({ state, kind, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; onClose(): void; onSaved(): Promise<void> }) {
   const editing = state.mode === "edit" ? state.source : null;
+  const isReddit = kind === "reddit";
   const [name, setName] = useState(editing?.name || "");
   const [url, setUrl] = useState(editing?.url || "");
   const [tags, setTags] = useState(editing?.tags.join(", ") || "");
@@ -1081,7 +1094,7 @@ function SkillSourceEditor({ state, onClose, onSaved }: { state: SourceEditorSta
     const nextTags = tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
     try {
       if (editing) await window.openmind.updateSource(editing.id, { name: name.trim(), url: url.trim(), tags: nextTags });
-      else await window.openmind.addRssSource({ name: name.trim(), url: url.trim(), kind: "rss", frequency: "每日流水线", tags: nextTags });
+      else await window.openmind.addRssSource({ name: name.trim(), url: url.trim(), kind, frequency: m.ownedSources.frequency, tags: nextTags });
       await onSaved();
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : String(cause));
@@ -1092,13 +1105,13 @@ function SkillSourceEditor({ state, onClose, onSaved }: { state: SourceEditorSta
 
   return createPortal(<div className="skills-source-editor-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="skills-source-editor" role="dialog" aria-modal="true" aria-labelledby="skill-source-editor-title">
-      <header><div><h3 id="skill-source-editor-title">{editing ? "编辑订阅" : "添加订阅"}</h3><p>这条订阅只供 RSS 文章采集 Skill 使用。</p></div><button type="button" data-motion="icon" aria-label="关闭" onClick={onClose}><X size={16} /></button></header>
+      <header><div><h3 id="skill-source-editor-title">{m.sourceEditor.title(Boolean(editing), isReddit)}</h3><p>{m.sourceEditor.description(isReddit)}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <label>订阅名称<input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：少数派" /></label>
-        <label>RSS 地址<input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com/feed.xml" /></label>
-        <label>标签（可选）<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="科技, 产品" /></label>
+        <label>{m.sourceEditor.name(isReddit)}<input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></label>
+        <label>{m.sourceEditor.url(isReddit)}<input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></label>
+        <label>{m.sourceEditor.tags}<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></label>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        <footer><button type="button" data-motion="action" onClick={onClose}>取消</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? "保存中…" : editing ? "保存修改" : "添加订阅"}</button></footer>
+        <footer><button type="button" data-motion="action" onClick={onClose}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</button></footer>
       </form>
     </section>
   </div>, document.body);
@@ -1135,9 +1148,9 @@ function SkillAvailability({ record, summary, busy, feedback, onChange }: {
 }
 
 function SkillRunHistory({ runs, unavailable = false }: { runs: BrokerRunRecord[]; unavailable?: boolean }) {
-  return <section className="skills-detail-section skills-run-history" aria-label="运行记录">
-    <header><h3>运行记录</h3><span>近 {RUN_HISTORY_WINDOW_DAYS} 天 · {runs.length} 条</span></header>
-    {unavailable ? <div className="skills-run-empty" role="status"><Clock3 size={16} aria-hidden /><span>运行记录暂时不可用，Skill 列表和配置仍可正常管理。</span></div> : !runs.length ? <div className="skills-run-empty"><Clock3 size={16} aria-hidden /><span>这个 Skill 最近 {RUN_HISTORY_WINDOW_DAYS} 天没有运行记录。</span></div> : (
+  return <section className="skills-detail-section skills-run-history" aria-label={m.runHistory.title}>
+    <header><h3>{m.runHistory.title}</h3><span>{m.runHistory.summary(RUN_HISTORY_WINDOW_DAYS, runs.length)}</span></header>
+    {unavailable ? <div className="skills-run-empty" role="status"><Clock3 size={16} aria-hidden /><span>{m.runHistory.unavailable}</span></div> : !runs.length ? <div className="skills-run-empty"><Clock3 size={16} aria-hidden /><span>{m.runHistory.empty(RUN_HISTORY_WINDOW_DAYS)}</span></div> : (
       <div className="skills-run-list">
         {runs.map((run) => <article className="skills-run-row" key={run.id}>
           <span className={`skills-run-state ${runStateTone(run.state)}`} aria-hidden>{run.state === "succeeded" ? <CheckCircle2 size={14} /> : null}</span>
@@ -1150,36 +1163,36 @@ function SkillRunHistory({ runs, unavailable = false }: { runs: BrokerRunRecord[
 }
 
 function skillSourceTabLabel(skillId: string, count: number): string {
-  if (skillId === "rss-article-saver") return `订阅源 ${count}`;
-  if (skillId === "reddit-fetcher") return `社区配置 ${count}`;
-  if (skillId === "x-following-fetcher") return "请求配置";
-  return `来源配置 ${count}`;
+  if (skillId === "rss-article-saver") return m.sourceTab.rss(count);
+  if (skillId === "reddit-fetcher") return m.sourceTab.reddit(count);
+  if (skillId === "x-following-fetcher") return m.sourceTab.x;
+  return m.sourceTab.other(count);
 }
 
 function skillSourceCopy(summary: ManifestSummary, count: number): { title: string; description: string; searchPlaceholder: string; empty: string } {
   if (summary.id === "rss-article-saver") return {
-    title: `${summary.title}的订阅源`,
-    description: `共 ${count} 个订阅。这些订阅只属于当前 Skill，仓库整体更新不会覆盖。`,
-    searchPlaceholder: "搜索订阅名称或地址…",
-    empty: "还没有为这个 Skill 添加订阅。"
+    title: m.sourceCopy.rss.title(summary.title),
+    description: m.sourceCopy.rss.description(count),
+    searchPlaceholder: m.sourceCopy.rss.search,
+    empty: m.sourceCopy.rss.empty
   };
   if (summary.id === "reddit-fetcher") return {
-    title: `${summary.title}的社区配置`,
-    description: `共 ${count} 项配置。这里的配置只供当前 Skill 使用，仓库整体更新不会覆盖。`,
-    searchPlaceholder: "搜索社区配置…",
-    empty: "这个 Skill 还没有可用的社区配置。"
+    title: m.sourceCopy.reddit.title(summary.title),
+    description: m.sourceCopy.reddit.description(count),
+    searchPlaceholder: m.sourceCopy.reddit.search,
+    empty: m.sourceCopy.reddit.empty
   };
   return {
-    title: `${summary.title}的请求配置`,
-    description: "通过浏览器复制的完整 cURL 配置 X 请求。配置只供当前 Skill 使用，仓库整体更新不会覆盖。",
-    searchPlaceholder: "搜索抓取配置…",
-    empty: "这个 Skill 还没有可用的抓取配置。"
+    title: m.sourceCopy.x.title(summary.title),
+    description: m.sourceCopy.x.description,
+    searchPlaceholder: m.sourceCopy.x.search,
+    empty: m.sourceCopy.x.empty
   };
 }
 
 function sourceStatusLabel(source: SourceDefinition): string {
-  if (!source.enabled || source.status === "disabled") return "已停用";
-  return ({ idle: "等待运行", running: "运行中", success: "正常", warning: "需关注", failed: "失败", disabled: "已停用" } as const)[source.status];
+  if (!source.enabled || source.status === "disabled") return m.sourceStatus.disabled;
+  return ({ idle: m.sourceStatus.idle, running: m.sourceStatus.running, success: m.sourceStatus.success, warning: m.sourceStatus.warning, failed: m.sourceStatus.failed, disabled: m.sourceStatus.disabled } as const)[source.status];
 }
 
 function sourceStatusTone(source: SourceDefinition): string {
@@ -1191,10 +1204,10 @@ function sourceStatusTone(source: SourceDefinition): string {
 }
 
 function sourceLastRun(source: SourceDefinition): string {
-  if (!source.lastRunAt) return "尚未运行";
+  if (!source.lastRunAt) return m.sourceStatus.never;
   const parsed = new Date(source.lastRunAt);
   if (Number.isNaN(parsed.getTime())) return source.lastRunAt;
-  return `上次 ${parsed.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  return m.sourceStatus.last(parsed.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }));
 }
 
 function buildItems(installed: InstalledSkillView[], installedInspectionMap: Record<string, SkillPackageInspectionView> = {}): SkillItem[] {
@@ -1221,7 +1234,7 @@ function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
     }
     groups.set(key, {
       key,
-      title: locator ? repositoryName(locator) : "本地来源",
+      title: locator ? repositoryName(locator) : m.fallback.localSource,
       ...(locator ? { locator } : {}),
       ...(ref ? { ref } : {}),
       items: [item]
@@ -1261,7 +1274,7 @@ function manifestSummary(input: unknown, record?: InstalledSkillView): ManifestS
   const publisher = value.publisher && typeof value.publisher === "object" ? value.publisher as Record<string, unknown> : {};
   return {
     id: stringValue(value.id, record?.id || "unknown-skill"),
-    title: stringValue(display.name, record?.id || "未命名 Skill"),
+    title: stringValue(display.name, record?.id || m.fallback.untitled),
     description: stringValue(display.description, ""),
     publisher: stringValue(publisher.displayName, stringValue(publisher.id, record?.publisherId || "local")),
     version: stringValue(value.version, record?.version || "—"),
@@ -1285,7 +1298,7 @@ function skillListState(item: SkillItem): SkillState {
   }
   return packageState;
 }
-function kindLabel(kind: string): string { return ({ process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }
+function kindLabel(kind: string): string { return ({ process: m.kindLabel.process, agent: m.kindLabel.agent, prompt: m.kindLabel.prompt, workflow: m.kindLabel.workflow } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }
 function runStateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
-function runStateLabel(state: string): string { return ({ succeeded: "成功", failed: "失败", timed_out: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", waiting_execution_consent: "准备运行环境", preparing_runtime: "准备运行环境", running: "运行中", cancelling: "取消中" } as Record<string, string>)[state] || state; }
+function runStateLabel(state: string): string { return ({ succeeded: m.runState.succeeded, failed: m.runState.failed, timed_out: m.runState.timedOut, cancelled: m.runState.cancelled, queued: m.runState.queued, inspecting: m.runState.inspecting, waiting_execution_consent: m.runState.preparing, preparing_runtime: m.runState.preparing, running: m.runState.running, cancelling: m.runState.cancelling } as Record<string, string>)[state] || state; }
 function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }

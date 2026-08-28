@@ -9,6 +9,7 @@ const rendererIndex = path.join(appRoot, ".build", "renderer", "index.html");
 const preload = path.join(__dirname, "visual-snapshot-preload.js");
 
 const viewports = [
+  { id: "720x600", width: 720, height: 600, zoom: 1 },
   { id: "720x720", width: 720, height: 720, zoom: 1 },
   { id: "840x720", width: 840, height: 720, zoom: 1 },
   { id: "900x720", width: 900, height: 720, zoom: 1 },
@@ -153,6 +154,7 @@ async function run() {
   await captureDarkDailyBrief(win, report);
   await captureCompletedAiResponse(win, report);
   await captureComposerSuggestions(win, report);
+  await captureOnboardingMinimumGate(report);
   win.destroy();
 
   const reportPath = path.join(appRoot, ".build", "visual-snapshot-report.json");
@@ -162,6 +164,57 @@ async function run() {
   }
   console.log(`Visual snapshots passed: ${report.snapshots.length} screenshots, report .build/visual-snapshot-report.json.`);
   app.quit();
+}
+
+async function captureOnboardingMinimumGate(report) {
+  const win = new BrowserWindow({
+    width: 720,
+    height: 600,
+    show: true,
+    backgroundColor: "#f6f7f9",
+    webPreferences: {
+      preload,
+      additionalArguments: ["--openmind-visual-onboarding"],
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      backgroundThrottling: false
+    }
+  });
+  try {
+    win.webContents.setZoomFactor(1);
+    await win.loadFile(rendererIndex);
+    await waitForSelector(win, ".onboarding-page");
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const page = document.querySelector('.onboarding-page');
+        const track = document.querySelector('.onboarding-step-track');
+        const action = [...document.querySelectorAll('.onboarding-page button')].find((button) => button.textContent.includes('选择文件夹'));
+        const pageBox = page?.getBoundingClientRect();
+        const actionBox = action?.getBoundingClientRect();
+        if (action instanceof Element) action.scrollIntoView({ block: 'center' });
+        const reachedBox = action?.getBoundingClientRect();
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          pageVisible: Boolean(pageBox && pageBox.width > 0 && pageBox.height > 0),
+          currentStep: track?.getAttribute('data-current-step'),
+          actionVisible: Boolean(actionBox && actionBox.width > 0 && actionBox.height > 0),
+          actionReachable: Boolean(reachedBox && reachedBox.bottom > 0 && reachedBox.top < window.innerHeight),
+          horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+        };
+      })()
+    `);
+    await recordContractState(win, report, "onboarding-720x600", "引导", "Onboarding remains visible and its primary setup action stays reachable at the minimum window", geometry, {
+      pageVisible: geometry.pageVisible,
+      firstStep: geometry.currentStep === "1",
+      primaryActionVisible: geometry.actionVisible,
+      primaryActionReachable: geometry.actionReachable,
+      noHorizontalOverflow: geometry.horizontalOverflow <= 2
+    });
+  } finally {
+    win.destroy();
+  }
 }
 
 async function captureCreativeReaderLayout(win, report) {
@@ -418,6 +471,7 @@ async function captureCompanionLayoutContracts(win, report) {
     { width: 900, height: 800, id: "companion-attached-900", expected: "overlay" },
     { width: 841, height: 800, id: "companion-attached-841", expected: "overlay" },
     { width: 840, height: 800, id: "companion-canvas-840", expected: "canvas" },
+    { width: 839, height: 800, id: "companion-canvas-839", expected: "canvas" },
     { width: 841, height: 800, id: "companion-attached-return-841", expected: "overlay" },
     { width: 720, height: 720, id: "companion-canvas-720", expected: "canvas" }
   ]) {
@@ -1094,7 +1148,7 @@ async function captureResponsiveGapContracts(win, report) {
     });
   }
 
-  for (const [width, expectedMode] of [[1480, "single"], [1481, "split"]]) {
+  for (const [width, expectedMode] of [[1479, "single"], [1480, "single"], [1481, "split"]]) {
     await setCssViewportWidth(win, width, 720);
     await settle();
     const breakpointGeometry = await win.webContents.executeJavaScript(`
@@ -1535,6 +1589,48 @@ async function captureResponsiveGapContracts(win, report) {
   await win.webContents.executeJavaScript(`document.querySelector('.modal-actions button')?.click()`);
   await waitForSelectorToDisappear(win, ".modal-card");
 
+  await clickSettingsSection(win, "AI 与模型");
+  await waitForText(win, "Provider 列表");
+  const providerMenuOpened = await win.webContents.executeJavaScript(`
+    (() => {
+      const trigger = document.querySelector('.settings-provider-menu .ui-dropdown-trigger');
+      if (!(trigger instanceof HTMLButtonElement)) return false;
+      trigger.scrollIntoView({ block: 'center' });
+      trigger.click();
+      return true;
+    })()
+  `);
+  if (!providerMenuOpened) throw new Error("Provider action menu fixture was not reachable.");
+  await waitForSelector(win, ".ui-dropdown-menu");
+  await settle();
+  const providerGeometry = await win.webContents.executeJavaScript(`
+    (() => {
+      const card = document.querySelector('.settings-provider-config-card');
+      const menu = document.querySelector('.ui-dropdown-menu');
+      const cardBox = card?.getBoundingClientRect();
+      const menuBox = menu?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        menuPortaled: menu?.parentElement === document.body,
+        menuInsideViewport: Boolean(menuBox && menuBox.left >= 7 && menuBox.top >= 7 && menuBox.right <= window.innerWidth - 7 && menuBox.bottom <= window.innerHeight - 7),
+        menuItems: menu?.querySelectorAll('[role="menuitem"]').length || 0,
+        menuFocusInside: Boolean(menu && menu.contains(document.activeElement)),
+        cardContained: card instanceof HTMLElement && card.scrollWidth <= card.clientWidth + 2,
+        cardVisible: Boolean(cardBox && cardBox.width > 0 && cardBox.height > 0)
+      };
+    })()
+  `);
+  await recordContractState(win, report, "settings-provider-menu-720x600", "设置", "Provider cards and their shared anchored action menu remain contained at 720x600", providerGeometry, {
+    cardVisible: providerGeometry.cardVisible,
+    cardContained: providerGeometry.cardContained,
+    menuPortaled: providerGeometry.menuPortaled,
+    menuInsideViewport: providerGeometry.menuInsideViewport,
+    menuFocusInside: providerGeometry.menuFocusInside,
+    actionsReachable: providerGeometry.menuItems >= 2
+  });
+  await win.webContents.executeJavaScript(`document.querySelector('.settings-provider-menu .ui-dropdown-trigger')?.click()`);
+  await waitForSelectorToDisappear(win, ".ui-dropdown-menu");
+
   await clickSettingsSection(win, "Skills");
   await waitForSelector(win, ".skills-page");
   const curlSkillSelected = await win.webContents.executeJavaScript(`
@@ -1597,7 +1693,131 @@ async function captureResponsiveGapContracts(win, report) {
   } else {
     throw new Error("Skills cURL visual fixture was not reachable.");
   }
+
+  await setCssViewportWidth(win, 1280, 720);
+  for (const [inlineSize, expectedMode] of [[859, "stacked"], [860, "split"], [861, "split"]]) {
+    await win.webContents.executeJavaScript(`
+      (() => {
+        const host = document.querySelector('.settings-detail-inner');
+        if (!(host instanceof HTMLElement)) return false;
+        host.style.width = '${inlineSize}px';
+        host.style.maxWidth = 'none';
+        // The boundary harness changes only an internal host style, whereas
+        // production changes arrive through a native window/layout signal.
+        // Notify the shared coalesced measurement path after the synthetic edit.
+        window.dispatchEvent(new Event('resize'));
+        return true;
+      })()
+    `);
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const layout = document.querySelector('.skills-layout');
+        const catalog = layout?.querySelector('.skills-catalog');
+        const detail = layout?.querySelector('.skills-detail');
+        const visible = (element) => element instanceof Element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          inlineSize: layout?.getBoundingClientRect().width || 0,
+          mode: layout?.getAttribute('data-layout'),
+          columns: layout instanceof Element ? getComputedStyle(layout).gridTemplateColumns : null,
+          catalogVisible: visible(catalog),
+          detailVisible: visible(detail),
+          overflow: layout instanceof HTMLElement ? layout.scrollWidth - layout.clientWidth : null
+        };
+      })()
+    `);
+    await recordContractState(win, report, `skills-layout-boundary-${inlineSize}`, "设置", `Skills owns its ${expectedMode} layout at ${inlineSize}px of container space`, geometry, {
+      measuredBoundary: Math.abs(geometry.inlineSize - inlineSize) <= 1,
+      semanticMode: geometry.mode === expectedMode,
+      panesVisible: geometry.catalogVisible && geometry.detailVisible,
+      noHorizontalOverflow: geometry.overflow <= 2
+    });
+  }
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const host = document.querySelector('.settings-detail-inner');
+      if (host instanceof HTMLElement) { host.style.removeProperty('width'); host.style.removeProperty('max-width'); }
+    })()
+  `);
   await exitSettings(win);
+
+  await setCssViewportWidth(win, 1280, 720);
+  await clickNav(win, "新建任务");
+  await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+  const openedCompletedSessionForPreview = await win.webContents.executeJavaScript(`
+    (() => {
+      const button = [...document.querySelectorAll('.nav-recent-item')].find((item) => item.textContent.includes('长会话性能验证'));
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!openedCompletedSessionForPreview) throw new Error("AI preview session fixture was not found.");
+  await waitForText(win, "打开验收报告");
+  const openedFilePreview = await win.webContents.executeJavaScript(`
+    (() => {
+      const link = [...document.querySelectorAll('.local-file-link')].find((item) => item.textContent.includes('打开验收报告'));
+      if (!(link instanceof HTMLElement)) return false;
+      link.focus();
+      link.click();
+      return true;
+    })()
+  `);
+  if (!openedFilePreview) throw new Error("AI local-file preview trigger was not found.");
+  await waitForSelector(win, ".ai-file-preview");
+
+  for (const [inlineSize, expectedMode] of [[979, "preview-only"], [980, "split"], [981, "split"]]) {
+    await win.webContents.executeJavaScript(`
+      (() => {
+        const workbench = document.querySelector('.ai-workbench');
+        if (!(workbench instanceof HTMLElement)) return false;
+        workbench.style.width = '${inlineSize}px';
+        return true;
+      })()
+    `);
+    await settle();
+    const geometry = await win.webContents.executeJavaScript(`
+      (() => {
+        const workbench = document.querySelector('.ai-workbench');
+        const conversation = workbench?.querySelector(':scope > .conversation-pane');
+        const splitter = workbench?.querySelector(':scope > .column-splitter');
+        const preview = workbench?.querySelector(':scope > .ai-file-preview');
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          inlineSize: workbench?.getBoundingClientRect().width || 0,
+          mode: workbench?.getAttribute('data-preview-layout'),
+          conversationRendered: Boolean(conversation),
+          splitterRendered: Boolean(splitter),
+          previewRendered: Boolean(preview),
+          closeFocused: document.activeElement?.getAttribute('data-action-id') === 'close',
+          overflow: workbench instanceof HTMLElement ? workbench.scrollWidth - workbench.clientWidth : null
+        };
+      })()
+    `);
+    await recordContractState(win, report, `ai-file-preview-boundary-${inlineSize}`, "新建任务", `AI file preview owns its ${expectedMode} layout at ${inlineSize}px of container space`, geometry, {
+      measuredBoundary: Math.abs(geometry.inlineSize - inlineSize) <= 1,
+      semanticMode: geometry.mode === expectedMode,
+      previewRendered: geometry.previewRendered,
+      structureMatchesMode: expectedMode === "preview-only"
+        ? !geometry.conversationRendered && !geometry.splitterRendered && geometry.closeFocused
+        : geometry.conversationRendered && geometry.splitterRendered,
+      noHorizontalOverflow: geometry.overflow <= 2
+    });
+  }
+
+  await win.webContents.executeJavaScript(`document.querySelector('.ai-file-preview [data-action-id="close"]')?.click()`);
+  await waitForSelectorToDisappear(win, ".ai-file-preview");
+  const previewCloseFocus = await win.webContents.executeJavaScript(`
+    (() => ({
+      previewRemoved: !document.querySelector('.ai-file-preview'),
+      conversationFocused: document.activeElement?.classList.contains('conversation-pane') || false
+    }))()
+  `);
+  await recordContractState(win, report, "ai-file-preview-focus-restore", "新建任务", "Closing preview-only mode restores focus to the conversation when its original trigger was replaced", previewCloseFocus, {
+    previewRemoved: previewCloseFocus.previewRemoved,
+    conversationFocused: previewCloseFocus.conversationFocused
+  });
 }
 
 async function captureCoarsePointerRecentActions(win, report) {

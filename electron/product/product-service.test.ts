@@ -17,8 +17,8 @@ describe("ProductService", () => {
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-product-"));
-    // SourceRegistry reads skill data (subscriptions.opml) from the installed
-    // store under the flat content root: <root>/openmind/.agent/skills/...
+    // Existing installations kept subscriptions.opml in the installed package.
+    // SourceRegistry migrates that legacy copy into persistent Skill data.
     fs.mkdirSync(path.join(root, "openmind", ".agent", "skills", "rss-article-saver"), { recursive: true });
     fs.mkdirSync(path.join(root, "openmind", "daily-summary"), { recursive: true });
     fs.writeFileSync(
@@ -49,8 +49,8 @@ describe("ProductService", () => {
 
   function createService() {
     // ADR-001: ProductService takes the openmind content dir (root/openmind), not
-    // the repo. The skill-source root (where .claude/skills lives) is passed
-    // via opts so SourceRegistry can still find subscriptions.opml.
+    // the repository. SourceRegistry derives both installed and persistent Skill
+    // paths from that root.
     return new ProductService(
       path.join(root, "openmind"),
       {
@@ -81,6 +81,89 @@ describe("ProductService", () => {
     const service = createService();
     const sources = service.listSources();
     expect(sources.some((source) => source.kind === "rss" && source.name === "Example")).toBe(true);
+    expect(fs.readFileSync(path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "subscriptions.opml"), "utf8")).toContain("https://example.com/feed.xml");
+  });
+
+  it("keeps an existing persistent RSS list instead of reseeding package defaults", () => {
+    const persistent = path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "subscriptions.opml");
+    fs.mkdirSync(path.dirname(persistent), { recursive: true });
+    fs.writeFileSync(
+      persistent,
+      `<?xml version="1.0"?><opml version="2.0"><body><outline text="User Feed" type="rss" xmlUrl="https://user.example/feed.xml"/></body></opml>`
+    );
+
+    const sources = createService().listSources();
+
+    expect(sources.some((source) => source.url === "https://user.example/feed.xml")).toBe(true);
+    expect(sources.some((source) => source.url === "https://example.com/feed.xml")).toBe(false);
+  });
+
+  it("lists and edits persistent Reddit communities instead of one generated placeholder", () => {
+    const installed = path.join(root, "openmind", ".agent", "skills", "reddit-fetcher");
+    fs.mkdirSync(installed, { recursive: true });
+    fs.writeFileSync(path.join(installed, "SKILL.md"), `---
+name: reddit-fetcher
+title: Reddit 内容抓取
+surfacesAsSource:
+  sourceId: reddit
+  sourceName: Reddit 订阅
+  kind: reddit
+  artifactRoot: reddit
+---
+# Reddit Fetcher
+`);
+    fs.writeFileSync(path.join(installed, "config.yaml"), `fetch:
+  sources:
+    - https://www.reddit.com/r/LocalLLaMA/hot.json
+    - https://www.reddit.com/r/artificial/hot.json
+`);
+    const service = createService();
+
+    const initial = service.listSources().filter((source) => source.kind === "reddit");
+
+    expect(initial).toHaveLength(2);
+    expect(initial.map((source) => source.name)).toEqual(["r/LocalLLaMA", "r/artificial"]);
+    expect(initial.every((source) => source.url?.endsWith("/hot.json"))).toBe(true);
+    const persistentPath = path.join(root, "openmind", ".agent", "skill-data", "reddit-fetcher", "user-sources.yaml");
+    expect(fs.readFileSync(persistentPath, "utf8")).toContain("schemaVersion: 2");
+
+    // Existing migrations wrote schema v1 URL arrays. They remain readable and
+    // are upgraded to the structured format on the first edit.
+    fs.writeFileSync(persistentPath, `schemaVersion: 1
+sources:
+  - https://www.reddit.com/r/LocalLLaMA/hot.json
+`);
+    const legacy = service.listSources().filter((source) => source.kind === "reddit");
+    expect(legacy).toHaveLength(1);
+    const first = legacy[0];
+    const updated = service.updateSource(first.id, {
+      name: "Local LLM",
+      url: "https://www.reddit.com/r/LocalLLaMA/new.json",
+      enabled: false,
+      tags: ["AI"]
+    });
+    expect(updated).toMatchObject({
+      id: first.id,
+      name: "Local LLM",
+      url: "https://www.reddit.com/r/LocalLLaMA/new.json",
+      enabled: false,
+      status: "disabled",
+      tags: ["AI"]
+    });
+
+    const added = service.addRssSource({
+      name: "ClaudeAI",
+      kind: "reddit",
+      url: "https://www.reddit.com/r/ClaudeAI/hot.json",
+      tags: ["AI"]
+    });
+    expect(added).toMatchObject({ name: "ClaudeAI", kind: "reddit", skillId: "reddit-fetcher", enabled: true });
+
+    const persistent = fs.readFileSync(persistentPath, "utf8");
+    expect(persistent).toContain("schemaVersion: 2");
+    expect(persistent).toContain("enabled: false");
+    expect(persistent).toContain("https://www.reddit.com/r/ClaudeAI/hot.json");
+    expect(fs.readFileSync(path.join(installed, "config.yaml"), "utf8")).not.toContain("ClaudeAI");
   });
 
   it("adds, disables and imports RSS sources with persisted structured runs", () => {
@@ -88,6 +171,10 @@ describe("ProductService", () => {
     const added = service.addRssSource({ name: "Second Feed", url: "https://second.example/feed.xml" });
     expect(added.name).toBe("Second Feed");
     expect(service.listSources().some((source) => source.url === "https://second.example/feed.xml")).toBe(true);
+    const installedOpml = path.join(root, "openmind", ".agent", "skills", "rss-article-saver", "subscriptions.opml");
+    const persistentOpml = path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "subscriptions.opml");
+    expect(fs.readFileSync(installedOpml, "utf8")).not.toContain("https://second.example/feed.xml");
+    expect(fs.readFileSync(persistentOpml, "utf8")).toContain("https://second.example/feed.xml");
 
     const disabled = service.updateSource(added.id, { enabled: false, frequency: "每 6 小时" });
     expect(disabled).toMatchObject({ enabled: false, frequency: "每 6 小时", status: "disabled" });

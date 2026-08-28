@@ -10,7 +10,7 @@ import { useExitPresence } from "../design-system/use-exit-presence";
 import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
 
 type PaletteAction = {
-  intent: "summarize" | "create-draft" | "compare" | "analyze";
+  intent: "summarize" | "create-draft" | "compare";
   badge: string;
   title: string;
   why: string;
@@ -28,36 +28,36 @@ function interpretAction(raw: string): PaletteAction | null {
   if (text.length < 2) return null;
   const base = m.search.userPrefix(text);
   const date = todayStr();
-  if (/总结|摘要|归纳|要点|概览|梳理/.test(text)) {
+  if (m.search.intentPatterns.summarize.test(text)) {
     const action = m.search.actions.summarize;
     return {
       intent: "summarize",
       badge: action.badge,
       title: action.title,
       why: action.why(date),
-      prompt: `阅读今天（${date}）openmind/article 与 inbox 里的资料，挑出最相关的几篇，输出中文要点清单，每条带出处文件名。${base}`,
+      prompt: m.search.prompts.summarize(date, base),
       permissionProfile: "read-only"
     };
   }
-  if (/小红书|公众号|推文|开头|写一|起草|改写|续写|草稿|改个|润色|重写/.test(text)) {
+  if (m.search.intentPatterns.createDraft.test(text)) {
     const action = m.search.actions.createDraft;
     return {
       intent: "create-draft",
       badge: action.badge,
       title: action.title,
       why: action.why,
-      prompt: `${text}。请遵守 openmind 的“Kill the AI Tone”中文写作规范：直接陈述、用具体场景与例子、避免“不是…而是…”式转折。输出 Markdown。${base}`,
+      prompt: m.search.prompts.createDraft(text, base),
       permissionProfile: "edit"
     };
   }
-  if (/对比|比较|区别|异同|vs|VS/.test(text)) {
+  if (m.search.intentPatterns.compare.test(text)) {
     const action = m.search.actions.compare;
     return {
       intent: "compare",
       badge: action.badge,
       title: action.title,
       why: action.why,
-      prompt: `只读相关资料，输出异同对比（表格或要点）。${base}`,
+      prompt: m.search.prompts.compare(base),
       permissionProfile: "read-only"
     };
   }
@@ -67,11 +67,13 @@ function interpretAction(raw: string): PaletteAction | null {
 export function GlobalSearch({
   open,
   onClose,
-  navigate
+  navigate,
+  onOpenContent
 }: {
   open: boolean;
   onClose(): void;
   navigate: Navigate;
+  onOpenContent(path: string): void;
 }) {
   const ai = useAi();
   const [query, setQuery] = useState("");
@@ -144,14 +146,15 @@ export function GlobalSearch({
 
   const choose = async (result: GlobalSearchResult) => {
     if (result.kind === "content") {
-      navigate("sources", { date: result.date || undefined });
+      if (result.path) onOpenContent(result.path);
+      else navigate("brief", { date: result.date || undefined });
     } else if (result.kind === "project") {
       navigate("creative", { projectDir: result.targetId });
     } else if (result.kind === "session") {
       await ai.setActiveSession(result.targetId);
       navigate("ai");
     } else {
-      navigate("automation", { skillId: result.targetId });
+      navigate("skills", { skillId: result.targetId });
     }
     setQuery("");
     onClose();

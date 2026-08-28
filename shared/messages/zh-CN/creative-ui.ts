@@ -1,5 +1,46 @@
 /** 创作中心 UI 扩展文案（panels / history / inline AI / review heuristics）。 */
 export const creativeUiMessages = {
+  workspace: {
+    eyebrow: "Creative Studio",
+    title: "创作中心",
+    description: "全部选题、创作中、待发布和已发布内容。",
+    analyticsDescription: (topics: number, projects: number, completion: number) => `${topics} 个选题 · ${projects} 篇稿件 · 平均完成度 ${completion}%`,
+    refresh: "刷新",
+    tabsAria: "创作视图",
+    tabs: { workflow: "工作台", history: "版本历史", release: "发布记录", analytics: "数据分析" },
+    search: "搜索选题或稿件",
+    completion: (value: number) => `完成度 ${value}%`,
+    emptyProjects: { title: "暂无创作稿件", description: "从左侧选题创建草稿后会出现在这里。" },
+    streamWidth: "内容流宽度",
+    expandList: "展开内容列表",
+    autoSaveFailed: (detail: string) => `自动保存失败：${detail}`,
+    switchFile: {
+      title: "切换文件",
+      body: "当前文件有未保存的修改，切换会先保留草稿内容。确定切换吗？",
+      confirm: "切换文件"
+    },
+    editorVersionNote: "编辑器保存前版本",
+    savedWithVersion: "草稿已保存并创建版本",
+    untitledProject: "未命名项目",
+    draftTitle: "草稿",
+    reusedDraft: "该选题已有草稿，已打开现有稿件",
+    createdDraft: (platform: string) => `已创建草稿（${platform}）`,
+    createdProject: "已创建创作稿件",
+    stageEntered: (stage: string) => `稿件已进入${stage}`,
+    platformRequired: "请先选择目标平台",
+    exportedTo: (file: string) => `已导出到 ${file}`,
+    exportCancelled: "导出已取消",
+    copied: "已复制稿件",
+    archive: {
+      title: "归档稿件",
+      body: "归档后稿件移入归档区，不会删除正文。确认归档吗？",
+      confirm: "归档",
+      success: "稿件已归档"
+    },
+    contextProject: "创作稿件",
+    contextTopic: "推荐选题"
+  },
+
   topic: {
     score: (score: number) => `推荐指数 ${score}`,
     askAi: "询问 AI",
@@ -8,6 +49,7 @@ export const creativeUiMessages = {
     pickPlatform: "选择平台与模板",
     genericDraft: "通用草稿",
     noBody: "该选题没有更多说明。",
+    reasonHeading: "推荐理由与创作角度",
     outline: {
       title: "建议结构",
       hook: "用最新事实或争议点切入主题",
@@ -49,7 +91,7 @@ export const creativeUiMessages = {
     tagsPlaceholder: "AI, 本地优先",
     cover: "封面路径（本地，可选）",
     coverPlaceholder: "assets/cover.png",
-    checks: { content: "正文已完成（≥300 字符）", platform: "平台已配置" },
+    checks: { content: "正文已完成（≥300 字符）", platform: "平台已配置", title: "标题", summary: "摘要", tags: "标签", cover: "封面" },
     exporting: "导出中",
     reexport: "重新导出",
     exportNow: "立即导出",
@@ -182,7 +224,8 @@ export const creativeUiMessages = {
     funnelAria: "创作流水线",
     undated: "未标日期",
     noPlatform: "未设置平台",
-    completion: (n: number) => `完成度 ${n}%`
+    completion: (n: number) => `完成度 ${n}%`,
+    topicManagementFile: "选题管理文件"
   },
 
   writingStats: {
@@ -235,6 +278,12 @@ export const creativeUiMessages = {
     publishedSummary: "已发布",
     publishMetricsNote: "平台阅读、点赞与互动数据未接入，因此不展示。",
     exportFileLabel: "导出文件",
+    status: { editing: "编辑中…", autoSaving: "自动保存中…", autoSaveFailed: "自动保存失败，可重试保存", autoSaved: "已自动保存", saved: "已保存" },
+    savingVersion: "保存中",
+    saveVersion: "保存版本",
+    copy: "复制",
+    archive: "归档",
+    enterStage: (stage: string) => `进入${stage}`,
     slash: {
       menu: "Markdown 插入命令",
       heading: "二级标题",
@@ -245,7 +294,33 @@ export const creativeUiMessages = {
       quote: "引用块",
       code: "代码块",
       image: "图片",
-      divider: "分割线"
+      divider: "分割线",
+      keywords: {
+        heading: ["h2", "title", "标题"],
+        bullet: ["list", "ul", "列表"],
+        ordered: ["ol", "number", "有序"],
+        todo: ["task", "check", "todo"],
+        quote: ["quote", "引用"],
+        code: ["code", "代码"],
+        image: ["image", "img", "图片"],
+        divider: ["hr", "line", "分割"]
+      }
     }
+  },
+
+  topicFile: {
+    switch: { title: "切换选题文件", body: "当前选题文件有未保存的修改，确定放弃并切换吗？", confirm: "放弃并切换" },
+    savedNotice: "选题管理文件已保存",
+    badge: "选题文件",
+    dirty: "编辑中 · 未保存",
+    saved: "已保存",
+    viewMode: "查看模式",
+    preview: "预览",
+    edit: "编辑",
+    saving: "保存中",
+    save: "保存",
+    open: "打开文件",
+    truncated: "文件过大，仅展示前 1 MB 内容，无法在应用内保存。",
+    editAria: "编辑选题管理文件"
   }
 } as const;

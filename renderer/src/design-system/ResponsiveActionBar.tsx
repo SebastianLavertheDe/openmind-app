@@ -1,5 +1,6 @@
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { messages as m } from "@shared/messages";
 import { DropdownMenu } from "./controls";
 import { Tooltip } from "./Tooltip";
 import { useExitPresence } from "./use-exit-presence";
@@ -73,6 +74,7 @@ function ActionButton({
       inert={leaving || undefined}
       tabIndex={leaving ? -1 : undefined}
       data-motion="icon"
+      data-action-id={action.id}
       data-presentation={text ? "label" : "icon"}
       data-entering={entering || undefined}
       data-leaving={leaving || undefined}
@@ -102,7 +104,7 @@ function ActionButton({
 export function ResponsiveActionBar({
   actions,
   presentation,
-  overflowLabel = "更多操作",
+  overflowLabel = m.designSystem.moreActions,
   className = ""
 }: {
   actions: ResponsiveAction[];
@@ -156,6 +158,7 @@ export function ResponsiveActionBar({
                   role="menuitem"
                   key={action.id}
                   disabled={action.disabled}
+                  data-action-id={action.id}
                   data-motion="action"
                   onClick={action.onSelect}
                 >

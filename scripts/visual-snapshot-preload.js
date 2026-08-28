@@ -6,7 +6,7 @@ const repoRoot = "/fixtures/openmind-data";
 const openmindRoot = repoRoot;
 const longPath = "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
 const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /fixtures/openmind-data/post/20260617/posts.json && ls -la /fixtures/openmind-data/post/20260617/posts.json'"`;
-let visualMode = "normal";
+let visualMode = process.argv.includes("--openmind-visual-onboarding") ? "onboarding" : "normal";
 let approvalResolved = false;
 
 const providers = [
@@ -218,8 +218,43 @@ const aiEvents = [
   event("e15", 26, "session-2", "run-ai-2", "tool-start", { itemId: "package", tool: "PowerShell", input: { command: "Get-ChildItem dist | Select-Object Name,Length" } }),
   event("e16", 27, "session-2", "run-ai-2", "tool-complete", { itemId: "package", output: "OpenMind-Portable-1.0.22-x64.exe 141388687" }),
   event("e16b", 28, "session-2", "run-ai-2", "reasoning-summary", { text: "视觉矩阵与 Windows 产物均正常，最后汇总规模验证结果，并保留命令明细供需要时展开核对。" }),
-  event("e17", 29, "session-2", "run-ai-2", "assistant-message", { text: `规模验证通过：1000 sessions、10000 events、1 MiB 输出重组正常。\n\n长 URL：https://example.com/${"responsive-segment-".repeat(28)}end\n\nUNC 路径：\\\\wsl.localhost\\Ubuntu\\${"very-long-directory\\".repeat(24)}report.md\n\n长哈希：${"abcdef0123456789".repeat(20)}\n\n行内代码：\`${"data:image/png;base64," + "A".repeat(420)}\`\n\n\`\`\`text\n${"CODE_BLOCK_WITHOUT_BREAKS_".repeat(40)}\n\`\`\`` })
+  event("e17", 29, "session-2", "run-ai-2", "assistant-message", { text: `规模验证通过：1000 sessions、10000 events、1 MiB 输出重组正常。\n\n[打开验收报告](openmind/daily-summary/20260617_daily_summary.md)\n\n长 URL：https://example.com/${"responsive-segment-".repeat(28)}end\n\nUNC 路径：\\\\wsl.localhost\\Ubuntu\\${"very-long-directory\\".repeat(24)}report.md\n\n长哈希：${"abcdef0123456789".repeat(20)}\n\n行内代码：\`${"data:image/png;base64," + "A".repeat(420)}\`\n\n\`\`\`text\n${"CODE_BLOCK_WITHOUT_BREAKS_".repeat(40)}\n\`\`\`` })
 ];
+
+// The normal visual fixture stays intentionally small. The resize performance
+// harness opts into one synthetic, tool-heavy run so the renderer exercises
+// the complete-run overflow path instead of merely benchmarking SessionStore.
+const resizePerfEventCount = Math.max(0, Number(process.env.OPENMIND_RESIZE_PERF_EVENTS) || 0);
+if (resizePerfEventCount > 29) {
+  const finalIndex = aiEvents.findIndex((item) => item.id === "e17");
+  if (finalIndex >= 0) aiEvents.splice(finalIndex, 1);
+  let seq = 29;
+  let call = 1;
+  while (seq + 1 < resizePerfEventCount) {
+    const itemId = `resize-perf-tool-${call}`;
+    const command = `analyze-layout --sample=${String(call).padStart(4, "0")}`;
+    aiEvents.push(event(`resize-perf-${seq}`, seq++, "session-2", "run-ai-2", "tool-start", {
+      itemId,
+      tool: "PowerShell",
+      input: { command }
+    }));
+    aiEvents.push(event(`resize-perf-${seq}`, seq++, "session-2", "run-ai-2", "tool-complete", {
+      itemId,
+      tool: "PowerShell",
+      output: `${command}\nlayout sample ${call} completed\n${"responsive output ".repeat(12)}`
+    }));
+    call += 1;
+  }
+  if (seq < resizePerfEventCount) {
+    aiEvents.push(event(`resize-perf-${seq}`, seq++, "session-2", "run-ai-2", "reasoning-summary", {
+      text: "汇总长会话缩放性能样本。"
+    }));
+  }
+  aiEvents.push(event("resize-perf-final", resizePerfEventCount, "session-2", "run-ai-2", "assistant-message", {
+    text: `长会话 UI 性能夹具：${resizePerfEventCount} events，${call - 1} 个工具调用。`,
+    phase: "final"
+  }));
+}
 
 const preferences = {
   schemaVersion: 2,
@@ -359,18 +394,37 @@ function visualSkillInspection(record) {
 
 const api = {
   getBootstrap: async () => ({
-    repoRoot,
-    openmindRoot,
-    workspaceRoot: repoRoot,
-    validRepo: true,
-    skillsInstalled: true,
-    onboardingCompleted: true,
+    repoRoot: visualMode === "onboarding" ? "" : repoRoot,
+    openmindRoot: visualMode === "onboarding" ? "" : openmindRoot,
+    workspaceRoot: visualMode === "onboarding" ? "" : repoRoot,
+    validRepo: visualMode !== "onboarding",
+    skillsInstalled: visualMode !== "onboarding",
+    onboardingCompleted: visualMode !== "onboarding",
     runtime: "Linux Visual Snapshot",
     environment: { mode: "desktop", platform: "linux" },
     overview: { repoRoot, metrics: { articles: 18, posts: 12, reddit: 6, summaries: 1 }, recent: contentItems },
     skills: skillDefinitions(),
-    ai: currentAiSnapshot()
+    ai: visualMode === "onboarding" ? { ...currentAiSnapshot(), projectRoot: "", providers: [], sessions: [], runs: [], pendingApprovals: [] } : currentAiSnapshot()
   }),
+  getOpenmindRoot: async () => ({
+    openmindRoot: visualMode === "onboarding" ? "" : openmindRoot,
+    workspaceRoot: visualMode === "onboarding" ? "" : repoRoot,
+    health: {
+      configured: visualMode !== "onboarding",
+      accessible: visualMode !== "onboarding",
+      readable: visualMode !== "onboarding",
+      writable: visualMode !== "onboarding",
+      missingInitializeEntries: [],
+      missingCreateIfNeededEntries: [],
+      optionalObservedEntries: [],
+      symlinkWarnings: [],
+      unknownPreservedEntries: [],
+      activeRunCount: 0,
+      warnings: []
+    },
+    snapshot: null
+  }),
+  getOnboardingState: async () => ({ completed: false, skill: "pending", provider: "pending" }),
   listContent: async () => contentItems.map((item) => ({ path: item.path, name: item.name, title: item.title, kind: item.kind, size: item.size, modifiedAt: item.modifiedAt })),
   readContent: async (itemPath) => ({
     path: itemPath,

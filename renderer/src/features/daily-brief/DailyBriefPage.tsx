@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry, ContentRecord } from "@shared/contracts";
+import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAi } from "../../ai-context";
 import { ContentPreview } from "../../components/ContentPreview";
@@ -79,7 +80,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
 
   const selectFile = async (path: string) => {
     if (path === selectedPath) return;
-    if (dirty && !await ai.confirm({ title: "切换简报", body: "当前简报有未保存的修改，确定放弃并切换吗？", confirmText: "放弃并切换", danger: true })) return;
+    if (dirty && !await ai.confirm({ title: m.brief.library.switchTitle, body: m.brief.library.switchBody, confirmText: m.brief.library.switchConfirm, danger: true })) return;
     await openFile(path);
   };
 
@@ -92,7 +93,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
       setDraft(next.content || draft);
       setDirty(false);
       setMode("preview");
-      ai.notify("每日简报已保存", "success");
+      ai.notify(m.brief.library.saved, "success");
       setFiles((current) => current.map((file) => file.path === next.path ? { ...file, modifiedAt: new Date().toISOString(), size: new Blob([draft]).size } : file));
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
@@ -104,8 +105,8 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
   const fileActions: ResponsiveAction[] = record ? [
     {
       id: "save",
-      label: saving ? "保存中" : "保存",
-      shortLabel: saving ? "保存中" : "保存",
+      label: saving ? m.brief.library.saving : m.brief.library.save,
+      shortLabel: saving ? m.brief.library.saving : m.brief.library.save,
       icon: Save,
       priority: "essential",
       disabled: !dirty || saving || record.truncated,
@@ -114,8 +115,8 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
     },
     {
       id: "open",
-      label: "打开文件",
-      shortLabel: "打开",
+      label: m.brief.library.openFile,
+      shortLabel: m.brief.library.open,
       icon: FolderOpen,
       priority: "secondary",
       className: "document-open-button",
@@ -128,14 +129,14 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
       <div className="document-library-page brief-library-page">
       <aside className="document-library-list">
         <header>
-          <div><span className="eyebrow">每日简报</span><h1>简报文件</h1></div>
-          <Tooltip content="刷新简报"><button className="icon-button" aria-label="刷新简报" aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
+          <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
+          <Tooltip content={m.brief.library.refresh}><button className="icon-button" aria-label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
         </header>
-        <label className="document-library-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索简报文件" /></label>
-        <div className="document-library-count">全部文件 <span>{filteredFiles.length}</span></div>
+        <label className="document-library-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={m.brief.library.search} /></label>
+        <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
         <div className="document-file-list entrance-stagger">
-          {loading ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label="正在加载简报" />) : null}
-          {!loading && !filteredFiles.length ? <EmptyState title="暂无每日简报" description="运行每日文章总结后，生成的文件会显示在这里。" /> : null}
+          {loading ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
+          {!loading && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
           {filteredFiles.map((file) => (
             <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}`} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
               <FileText size={16} />
@@ -148,28 +149,28 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
         {error ? <ErrorState message={error} retry={() => void load()} /> : record ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">
-              <div><span className="eyebrow">{mode === "preview" ? "预览模式" : dirty ? "编辑中 · 未保存" : "编辑模式"}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
+              <div><span className="eyebrow">{mode === "preview" ? m.brief.library.previewMode : dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
               <div className="document-detail-actions">
-                <div className="preview-mode-toggle" role="group" aria-label="查看模式">
-                  <button type="button" aria-pressed={mode === "preview"} className={mode === "preview" ? "active" : ""} data-motion="selection" onClick={() => setMode("preview")}><Eye size={14} />预览</button>
-                  <button type="button" aria-pressed={mode === "edit"} className={mode === "edit" ? "active" : ""} disabled={record.truncated} data-motion="selection" onClick={() => setMode("edit")}><Pencil size={14} />编辑</button>
+                <div className="preview-mode-toggle" role="group" aria-label={m.brief.library.viewMode}>
+                  <button type="button" aria-pressed={mode === "preview"} className={mode === "preview" ? "active" : ""} data-motion="selection" onClick={() => setMode("preview")}><Eye size={14} />{m.brief.library.preview}</button>
+                  <button type="button" aria-pressed={mode === "edit"} className={mode === "edit" ? "active" : ""} disabled={record.truncated} data-motion="selection" onClick={() => setMode("edit")}><Pencil size={14} />{m.brief.library.edit}</button>
                 </div>
                 <ResponsiveActionBar
                   actions={fileActions}
                   presentation={actionPresentation}
-                  overflowLabel="文件操作"
+                  overflowLabel={m.brief.library.fileActions}
                   className="document-file-actions"
                 />
               </div>
             </header>
             <section className={`document-content ${mode}`} aria-busy={reading || undefined}>
-              {record.truncated ? <div className="document-warning">文件过大，仅展示前 1 MB 内容，无法在应用内保存。</div> : null}
+              {record.truncated ? <div className="document-warning">{m.brief.library.truncated}</div> : null}
               <div key={mode} className="document-content-view">
-                {mode === "preview" ? <ContentPreview content={{ ...record, content: draft }} layout="file" /> : <textarea aria-label="编辑每日简报" value={draft} spellCheck={false} onChange={(event) => { setDraft(event.target.value); setDirty(true); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
+                {mode === "preview" ? <ContentPreview content={{ ...record, content: draft }} layout="file" /> : <textarea aria-label={m.brief.library.editAria} value={draft} spellCheck={false} onChange={(event) => { setDraft(event.target.value); setDirty(true); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
               </div>
             </section>
           </div>
-        ) : <EmptyState icon={<FileText size={30} />} title="选择一份简报" description="点击左侧文件后，可在右侧预览或编辑具体内容。" />}
+        ) : <EmptyState icon={<FileText size={30} />} title={m.brief.library.selectTitle} description={m.brief.library.selectDescription} />}
       </main>
       </div>
     </div>
@@ -178,7 +179,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
 
 function briefFileLabel(name: string): string {
   const match = name.match(/(\d{4})(\d{2})(\d{2})_daily_(?:summary|brief)\.md/i);
-  return match ? `${match[1]}-${match[2]}-${match[3]} 每日简报` : name.replace(/\.md$/i, "");
+  return match ? m.brief.library.fileLabel(`${match[1]}-${match[2]}-${match[3]}`) : name.replace(/\.md$/i, "");
 }
 
 function formatBytes(size: number): string {

@@ -1184,18 +1184,19 @@
 }
 
 .markdown-slash-menu {
-  position: absolute;
   z-index: var(--z-overlay);
-  left: clamp(24px, 6vw, 76px);
-  top: 18px;
-  width: min(360px, calc(100% - 48px));
-  max-height: 320px;
+  width: min(360px, calc(100vw - 16px));
   overflow: auto;
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--panel);
   box-shadow: var(--shadow-2);
+}
+
+.markdown-slash-anchor {
+  z-index: -1;
+  pointer-events: none;
 }
 
 .markdown-slash-menu button {

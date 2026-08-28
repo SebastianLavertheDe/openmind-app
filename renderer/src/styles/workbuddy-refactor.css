@@ -76,10 +76,6 @@
   --reader-link: #2479c8;
   --chat-body-size: 14px;
   --chat-body-line-height: 1.62;
-  /* Startup fallback only; React replaces it with the persisted container ratio
-     before paint. It deliberately scales with the viewport instead of pinning
-     a fixed desktop width. */
-  --ai-sidebar-width: 33.333vw;
   /* 侧边栏导航项语义变量（WorkBuddy 化改造，集中管控字号/行高/圆角）*/
   --nav-item-height: 30px;
   --nav-item-radius: 8px;
@@ -670,10 +666,6 @@ select:focus-visible,
   max-width: 180px;
 }
 
-.global-responsive-actions .ui-dropdown > div {
-  top: calc(100% + 7px);
-}
-
 .layout-density-narrow .global-toolbar {
   top: auto;
   height: 48px;
@@ -1035,7 +1027,7 @@ select:focus-visible,
 
 .ui-select-menu,
 .chip-select-menu,
-.ui-dropdown > div {
+.ui-dropdown-menu {
   border-color: var(--border);
   border-radius: 8px;
   background: var(--panel);
@@ -2566,10 +2558,7 @@ select:focus-visible,
 .provider-select .chip-select-menu,
 .permission-select .chip-select-menu,
 .mode-select .chip-select-menu {
-  top: auto;
-  bottom: calc(100% + 7px);
-  right: 0;
-  left: auto;
+  min-width: 140px;
 }
 
 .composer-editor-actions .composer-send-wrap {
@@ -2823,6 +2812,10 @@ select:focus-visible,
 
 .ai-sidebar .chat-scroll { overflow-x: hidden; }
 
+/* The chat is fully sized by the sidebar grid. Containing its internal layout
+   prevents Markdown reflow during window resizing from invalidating the shell. */
+.ai-sidebar > .chat { contain: layout; }
+
 .ai-sidebar .approval-banner {
   overflow-x: hidden;
   width: 100%;
@@ -2895,8 +2888,21 @@ select:focus-visible,
    CSS receives the already-clamped width and owns only presentation. */
 .app-shell.with-ai-default,
 .app-shell.with-ai-wide {
+  --ai-sidebar-max-width: max(
+    0px,
+    calc(100% - var(--nav-width, var(--layout-nav-expanded-width)) - var(--ai-workspace-min-width, var(--layout-workspace-min-width)))
+  );
+  --ai-sidebar-effective-min-width: min(
+    var(--ai-sidebar-min-width, var(--layout-companion-min-width)),
+    var(--ai-sidebar-max-width)
+  );
+  --ai-sidebar-width: clamp(
+    var(--ai-sidebar-effective-min-width),
+    var(--ai-sidebar-preferred-width, calc(33.333% - var(--nav-preferred-ratio-offset))),
+    var(--ai-sidebar-max-width)
+  );
   --ai-layout-column: var(--ai-sidebar-width);
-  grid-template-columns: var(--nav-width, 260px) minmax(0, 1fr) var(--ai-layout-column);
+  grid-template-columns: var(--nav-width, var(--layout-nav-expanded-width)) minmax(0, 1fr) var(--ai-layout-column);
   transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
 
@@ -2936,13 +2942,18 @@ select:focus-visible,
    workspace. The companion becomes a bounded floating surface instead of
    promoting navigation to an icon-only rail. */
 .app-shell > .ai-sidebar.layout-companion-overlay {
+  --ai-sidebar-overlay-max-width: max(0px, calc(100vw - var(--nav-width, var(--layout-nav-expanded-width)) - 32px));
   position: fixed;
   z-index: 145;
   top: max(16px, var(--workspace-inset, 0px));
   right: max(16px, var(--workspace-inset, 0px));
   bottom: max(16px, var(--workspace-inset, 0px));
-  width: var(--ai-sidebar-width);
-  max-width: calc(100vw - var(--nav-width, 260px) - 32px);
+  width: clamp(
+    min(var(--ai-sidebar-min-width, var(--layout-companion-min-width)), var(--ai-sidebar-overlay-max-width)),
+    var(--ai-sidebar-preferred-width, calc(33.333% - var(--nav-preferred-ratio-offset))),
+    var(--ai-sidebar-overlay-max-width)
+  );
+  max-width: var(--ai-sidebar-overlay-max-width);
   height: auto;
   overflow: hidden;
   border: 1px solid var(--workspace-border, var(--border));
@@ -3000,8 +3011,8 @@ select:focus-visible,
    React instead of waiting for the navigation drawer breakpoint. */
 .creative-workspace.compact-list-open,
 .creative-workspace.compact-detail-open {
-  grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-rows: minmax(0, 1fr) !important;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .creative-workspace.compact-list-open > .column-splitter,
@@ -3035,7 +3046,7 @@ select:focus-visible,
   .app-shell.layout-shell-drawer,
   .app-shell.layout-shell-drawer.with-ai-full,
   .app-shell.layout-shell-drawer.layout-companion-canvas {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-shell.layout-shell-drawer > .app-stage {
@@ -3132,45 +3143,6 @@ select:focus-visible,
     background: color-mix(in srgb, var(--page-bg) 92%, transparent);
     color: var(--muted);
     box-shadow: 0 1px 8px rgba(15, 23, 42, .06);
-  }
-
-  .ai-workbench.with-file-preview {
-    position: relative;
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .ai-workbench.with-file-preview > .conversation-pane {
-    opacity: 1;
-    pointer-events: auto;
-    transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-  }
-
-  .ai-workbench.with-file-preview.preview-active > .conversation-pane {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .ai-workbench.with-file-preview > .column-splitter { display: none; }
-
-  .ai-workbench.with-file-preview > .ai-file-preview {
-    position: absolute;
-    z-index: 8;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--page-bg);
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-
-  .ai-workbench.with-file-preview.preview-active > .ai-file-preview {
-    opacity: 1;
-    transform: none;
-  }
-
-  .ai-workbench.with-file-preview.preview-leaving > .ai-file-preview {
-    opacity: 0;
-    transform: translateX(-100%);
   }
 
   .layout-shell-drawer .ai-file-preview > header { padding-left: 58px; }

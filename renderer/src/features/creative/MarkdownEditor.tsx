@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { bracketMatching, defaultHighlightStyle, foldGutter, indentOnInput, syntaxHighlighting } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
@@ -6,6 +7,7 @@ import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, placeholder } from "@codemirror/view";
 import { messages as m } from "@shared/messages";
+import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 
 export type EditorSelectionSnapshot = {
   start: number;
@@ -30,14 +32,14 @@ type SlashCommand = {
 };
 
 const SLASH_COMMANDS: SlashCommand[] = [
-  { id: "heading", title: m.creativeUi.editor.slash.heading, detail: "##", keywords: ["h2", "title", "标题"], insert: `## ${m.creativeUi.editor.headingPlaceholder}\n\n`, cursorOffset: 3 },
-  { id: "bullet", title: m.creativeUi.editor.slash.bullet, detail: "-", keywords: ["list", "ul", "列表"], insert: `- ${m.creativeUi.editor.listPlaceholder}\n`, cursorOffset: 2 },
-  { id: "ordered", title: m.creativeUi.editor.slash.ordered, detail: "1.", keywords: ["ol", "number", "有序"], insert: `1. ${m.creativeUi.editor.listPlaceholder}\n`, cursorOffset: 3 },
-  { id: "todo", title: m.creativeUi.editor.slash.todo, detail: "- [ ]", keywords: ["task", "check", "todo"], insert: `- [ ] ${m.creativeUi.editor.slash.todoPlaceholder}\n`, cursorOffset: 6 },
-  { id: "quote", title: m.creativeUi.editor.slash.quote, detail: ">", keywords: ["quote", "引用"], insert: `> ${m.creativeUi.editor.quotePlaceholder}\n\n`, cursorOffset: 2 },
-  { id: "code", title: m.creativeUi.editor.slash.code, detail: "```", keywords: ["code", "代码"], insert: `\`\`\`\n${m.creativeUi.editor.codePlaceholder}\n\`\`\`\n`, cursorOffset: 4 },
-  { id: "image", title: m.creativeUi.editor.slash.image, detail: "![alt]", keywords: ["image", "img", "图片"], insert: `![${m.creativeUi.editor.imagePlaceholder}](https://)\n`, cursorOffset: 2 },
-  { id: "divider", title: m.creativeUi.editor.slash.divider, detail: "---", keywords: ["hr", "line", "分割"], insert: "\n---\n\n", cursorOffset: 5 }
+  { id: "heading", title: m.creativeUi.editor.slash.heading, detail: "##", keywords: [...m.creativeUi.editor.slash.keywords.heading], insert: `## ${m.creativeUi.editor.headingPlaceholder}\n\n`, cursorOffset: 3 },
+  { id: "bullet", title: m.creativeUi.editor.slash.bullet, detail: "-", keywords: [...m.creativeUi.editor.slash.keywords.bullet], insert: `- ${m.creativeUi.editor.listPlaceholder}\n`, cursorOffset: 2 },
+  { id: "ordered", title: m.creativeUi.editor.slash.ordered, detail: "1.", keywords: [...m.creativeUi.editor.slash.keywords.ordered], insert: `1. ${m.creativeUi.editor.listPlaceholder}\n`, cursorOffset: 3 },
+  { id: "todo", title: m.creativeUi.editor.slash.todo, detail: "- [ ]", keywords: [...m.creativeUi.editor.slash.keywords.todo], insert: `- [ ] ${m.creativeUi.editor.slash.todoPlaceholder}\n`, cursorOffset: 6 },
+  { id: "quote", title: m.creativeUi.editor.slash.quote, detail: ">", keywords: [...m.creativeUi.editor.slash.keywords.quote], insert: `> ${m.creativeUi.editor.quotePlaceholder}\n\n`, cursorOffset: 2 },
+  { id: "code", title: m.creativeUi.editor.slash.code, detail: "```", keywords: [...m.creativeUi.editor.slash.keywords.code], insert: `\`\`\`\n${m.creativeUi.editor.codePlaceholder}\n\`\`\`\n`, cursorOffset: 4 },
+  { id: "image", title: m.creativeUi.editor.slash.image, detail: "![alt]", keywords: [...m.creativeUi.editor.slash.keywords.image], insert: `![${m.creativeUi.editor.imagePlaceholder}](https://)\n`, cursorOffset: 2 },
+  { id: "divider", title: m.creativeUi.editor.slash.divider, detail: "---", keywords: [...m.creativeUi.editor.slash.keywords.divider], insert: "\n---\n\n", cursorOffset: 5 }
 ];
 
 export const MARKDOWN_FORMATS = {
@@ -68,8 +70,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
   const onChangeRef = useRef(onChange);
   const onSelectionChangeRef = useRef(onSelectionChange);
   const slashRef = useRef<SlashMenuState | null>(null);
+  const slashAnchorRef = useRef<HTMLSpanElement>(null);
+  const slashMenuRef = useRef<HTMLDivElement>(null);
   const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
   const exposeTestProxy = import.meta.env.MODE === "test";
+  const slashPopover = useAnchoredPopover({
+    open: Boolean(slashMenu),
+    anchorRef: slashAnchorRef,
+    floatingRef: slashMenuRef,
+    preferredSide: "bottom",
+    align: "start",
+    gap: 6
+  });
 
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
@@ -83,7 +95,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
   }, []);
 
   const updateSlashMenu = useCallback((view: EditorView) => {
-    const next = detectSlashMenu(view.state, slashRef.current?.active || 0);
+    const next = detectSlashMenu(view, slashRef.current?.active || 0);
     setSlashMenu(next);
   }, []);
 
@@ -222,7 +234,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
     view.contentDOM.setAttribute("aria-label", exposeTestProxy ? `${ariaLabel} CodeMirror` : ariaLabel);
     viewRef.current = view;
     syncSelection(view);
+    const onEditorScroll = () => updateSlashMenu(view);
+    view.scrollDOM.addEventListener("scroll", onEditorScroll, { passive: true });
     return () => {
+      view.scrollDOM.removeEventListener("scroll", onEditorScroll);
       view.destroy();
       viewRef.current = null;
     };
@@ -250,32 +265,56 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
         />
       ) : null}
       <div ref={hostRef} className="markdown-codemirror" />
-      {slashMenu && filteredCommands.length ? (
-        <div className="markdown-slash-menu" role="listbox" aria-label={m.creativeUi.editor.slash.menu}>
+      {slashMenu && filteredCommands.length && typeof document !== "undefined" ? createPortal(<>
+        <span
+          ref={slashAnchorRef}
+          className="markdown-slash-anchor"
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: slashMenu.anchor.left,
+            top: slashMenu.anchor.top,
+            width: Math.max(1, slashMenu.anchor.width),
+            height: Math.max(1, slashMenu.anchor.height)
+          }}
+        />
+        <div
+          ref={slashMenuRef}
+          className="markdown-slash-menu"
+          role="listbox"
+          aria-label={m.creativeUi.editor.slash.menu}
+          data-side={slashPopover.side}
+          style={{
+            ...slashPopover.style,
+            maxHeight: typeof slashPopover.style.maxHeight === "number"
+              ? Math.min(320, slashPopover.style.maxHeight)
+              : 320
+          }}
+        >
           {filteredCommands.map((command, index) => (
-            <button
-              key={command.id}
-              type="button"
-              data-motion="selection"
-              role="option"
-              aria-selected={slashMenu.active === index}
-              className={slashMenu.active === index ? "active" : ""}
-              onMouseEnter={() => setSlashMenu({ ...slashMenu, active: index })}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                setSlashMenu({ ...slashMenu, active: index });
-                requestAnimationFrame(() => applySlashCommand());
-              }}
-            >
-              <span>{command.detail}</span>
-              <div>
-                <strong>{command.title}</strong>
-                <small>{command.keywords.join(" · ")}</small>
-              </div>
-            </button>
+              <button
+                key={command.id}
+                type="button"
+                data-motion="selection"
+                role="option"
+                aria-selected={slashMenu.active === index}
+                className={slashMenu.active === index ? "active" : ""}
+                onMouseEnter={() => setSlashMenu({ ...slashMenu, active: index })}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setSlashMenu({ ...slashMenu, active: index });
+                  requestAnimationFrame(() => applySlashCommand());
+                }}
+              >
+                <span>{command.detail}</span>
+                <div>
+                  <strong>{command.title}</strong>
+                  <small>{command.keywords.join(" · ")}</small>
+                </div>
+              </button>
           ))}
         </div>
-      ) : null}
+      </>, document.body) : null}
     </div>
   );
 });
@@ -285,6 +324,7 @@ type SlashMenuState = {
   to: number;
   query: string;
   active: number;
+  anchor: { left: number; top: number; width: number; height: number };
 };
 
 function readSelection(state: EditorState): EditorSelectionSnapshot {
@@ -294,7 +334,8 @@ function readSelection(state: EditorState): EditorSelectionSnapshot {
   return { start, end, text: start === end ? "" : state.sliceDoc(start, end) };
 }
 
-function detectSlashMenu(state: EditorState, active: number): SlashMenuState | null {
+function detectSlashMenu(view: EditorView, active: number): SlashMenuState | null {
+  const state = view.state;
   const range = state.selection.main;
   if (!range.empty) return null;
   const line = state.doc.lineAt(range.head);
@@ -306,7 +347,17 @@ function detectSlashMenu(state: EditorState, active: number): SlashMenuState | n
   if (/\s/.test(query) || query.length > 32) return null;
   const matches = filterSlashCommands(query);
   if (!matches.length) return null;
-  return { from: line.from + slash, to: range.head, query, active: Math.min(active, matches.length - 1) };
+  const caret = view.coordsAtPos(range.head);
+  const fallback = view.contentDOM.getBoundingClientRect();
+  return {
+    from: line.from + slash,
+    to: range.head,
+    query,
+    active: Math.min(active, matches.length - 1),
+    anchor: caret
+      ? { left: caret.left, top: caret.top, width: Math.max(1, caret.right - caret.left), height: Math.max(1, caret.bottom - caret.top) }
+      : { left: fallback.left, top: fallback.top, width: 1, height: Math.max(1, Number.parseFloat(getComputedStyle(view.contentDOM).lineHeight) || 20) }
+  };
 }
 
 function filterSlashCommands(query: string): SlashCommand[] {

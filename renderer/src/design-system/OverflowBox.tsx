@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 
@@ -19,6 +19,34 @@ import { messages as m } from "@shared/messages";
 export interface OverflowBoxHandle {
   scrollContent: (top: number) => void;
   scrollToBottom: () => void;
+}
+
+const overflowResizeCallbacks = new Map<Element, () => void>();
+let sharedOverflowResizeObserver: ResizeObserver | null = null;
+
+function observeOverflowResize(element: HTMLElement, callback: () => void): () => void {
+  if (typeof ResizeObserver === "undefined") return () => undefined;
+  if (!sharedOverflowResizeObserver) {
+    sharedOverflowResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) overflowResizeCallbacks.get(entry.target)?.();
+    });
+  }
+  overflowResizeCallbacks.set(element, callback);
+  sharedOverflowResizeObserver.observe(element);
+  return () => {
+    overflowResizeCallbacks.delete(element);
+    sharedOverflowResizeObserver?.unobserve(element);
+    if (!overflowResizeCallbacks.size) {
+      sharedOverflowResizeObserver?.disconnect();
+      sharedOverflowResizeObserver = null;
+    }
+  };
+}
+
+function setDataVisible(element: HTMLElement | null, visible: boolean): void {
+  if (!element) return;
+  if (visible) element.setAttribute("data-visible", "");
+  else element.removeAttribute("data-visible");
 }
 
 export const OverflowBox = forwardRef<OverflowBoxHandle, {
@@ -59,34 +87,31 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
   "data-testid": testId
 }, ref) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const topShadowRef = useRef<HTMLDivElement>(null);
+  const bottomShadowRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [showTopShadow, setShowTopShadow] = useState(false);
-  const [showBottomShadow, setShowBottomShadow] = useState(false);
 
   useImperativeHandle(ref, () => ({
     scrollContent: (top: number) => { if (contentRef.current) contentRef.current.scrollTop = top; },
     scrollToBottom: () => { if (contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight; }
   }), []);
 
-  const updateShadows = () => {
+  const updateShadows = useCallback(() => {
     const el = contentRef.current;
     if (!el) return;
-    setShowTopShadow(el.scrollTop > 4);
-    setShowBottomShadow(el.scrollTop + el.clientHeight < el.scrollHeight - 4);
-  };
+    setDataVisible(topShadowRef.current, el.scrollTop > 4);
+    setDataVisible(bottomShadowRef.current, el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+  }, []);
 
   useEffect(() => {
-    updateShadows();
     const el = contentRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(updateShadows);
-    observer.observe(el);
-    el.addEventListener("scroll", updateShadows, { passive: true });
-    return () => {
-      observer.disconnect();
-      el.removeEventListener("scroll", updateShadows);
-    };
-  }, []);
+    return observeOverflowResize(el, updateShadows);
+  }, [updateShadows]);
+  // Children, expansion, or search controls can change scrollHeight without
+  // changing the viewport's observed border box. Sync once after each commit;
+  // native scrolling and shared resize delivery stay entirely outside React.
+  useLayoutEffect(updateShadows);
 
   // 搜索状态
   const [searchOpen, setSearchOpen] = useState(false);
@@ -217,8 +242,8 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
         </div>
         {!expanded ? (
           <>
-            <div className="overflow-box-shadow top" data-visible={showTopShadow || undefined} aria-hidden="true" />
-            <div className="overflow-box-shadow bottom" data-visible={showBottomShadow || undefined} aria-hidden="true" />
+            <div ref={topShadowRef} className="overflow-box-shadow top" aria-hidden="true" />
+            <div ref={bottomShadowRef} className="overflow-box-shadow bottom" aria-hidden="true" />
           </>
         ) : null}
       </div>

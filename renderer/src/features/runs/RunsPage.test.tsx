@@ -53,7 +53,6 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
 
 beforeEach(() => {
   window.openmind = makeApi();
-  vi.stubGlobal("confirm", vi.fn(() => true));
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -75,7 +74,7 @@ describe("RunsPage", () => {
     const retryWorkflowStep = vi.fn(async () => workflowRun);
     const deleteRunHistory = vi.fn(async () => true);
     window.openmind = makeApi({ retryWorkflowStep, deleteRunHistory });
-    render(<RunsPage initialRunId="workflow-run-1" />);
+    render(<RunsPage initialRunId="workflow-run-1" confirmAction={async () => true} />);
 
     expect(await screen.findByText("summarize")).toBeTruthy();
     expect(screen.getByText(/1 个 Artifact/)).toBeTruthy();

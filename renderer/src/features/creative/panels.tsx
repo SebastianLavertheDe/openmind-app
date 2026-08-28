@@ -26,7 +26,7 @@ export function TopicWorkspace({ topic, date, createProject, addContext }: { top
           </div>
         </div>
       ) : null}
-      <section><h2>推荐理由与创作角度</h2><MarkdownReader content={topic.body || m.creativeUi.topic.noBody} /></section>
+      <section><h2>{m.creativeUi.topic.reasonHeading}</h2><MarkdownReader content={topic.body || m.creativeUi.topic.noBody} /></section>
       <section className="topic-outline"><h2>{m.creativeUi.topic.outline.title}</h2><ol><li>{m.creativeUi.topic.outline.hook}</li><li>{m.creativeUi.topic.outline.explain}</li><li>{m.creativeUi.topic.outline.evidence}</li><li>{m.creativeUi.topic.outline.close}</li></ol></section>
     </div>
   );
@@ -67,10 +67,10 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
         <li className={contentReady ? "passed" : ""}>{contentReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.content}</li>
         <li className={platform ? "passed" : ""}>{platform ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.platform}</li>
         {enforceChecklist ? <>
-          <li className={titleReady ? "passed" : ""}>{titleReady ? <Check size={13} /> : <Clock3 size={13} />}标题</li>
-          <li className={summaryReady ? "passed" : ""}>{summaryReady ? <Check size={13} /> : <Clock3 size={13} />}摘要</li>
-          <li className={tagsReady ? "passed" : ""}>{tagsReady ? <Check size={13} /> : <Clock3 size={13} />}标签</li>
-          <li className={coverReady ? "passed" : ""}>{coverReady ? <Check size={13} /> : <Clock3 size={13} />}封面</li>
+          <li className={titleReady ? "passed" : ""}>{titleReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.title}</li>
+          <li className={summaryReady ? "passed" : ""}>{summaryReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.summary}</li>
+          <li className={tagsReady ? "passed" : ""}>{tagsReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.tags}</li>
+          <li className={coverReady ? "passed" : ""}>{coverReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.cover}</li>
         </> : null}
       </ul>
       <div className="publish-actions">

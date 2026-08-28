@@ -59,11 +59,11 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!selected) return;
       const preview = await window.openmind.previewOpenmindRoot(selected);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: "确认绑定 OpenMind 私人数据仓库", body: openmindRootPreviewBody(preview), confirmText: "确认绑定" })) return;
+      if (!await ai.confirm({ title: messages.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: messages.openmindRoot.confirm })) return;
       await window.openmind.setOpenmindRoot(selected);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "根目录选择失败，请返回设置检查目录配置。");
+      setError(cause instanceof Error ? cause.message : m.errors.root);
     } finally {
       setBusy(null);
     }
@@ -88,11 +88,11 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
     setBusy("skills");
     setError(null);
     try {
-      if (!window.openmind.installSkillSource) throw new Error("当前构建不支持在线安装 RSS 采集组件。");
+      if (!window.openmind.installSkillSource) throw new Error(m.errors.installUnsupported);
       await window.openmind.installSkillSource({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "RSS 采集组件安装失败，请检查网络后重试。");
+      setError(cause instanceof Error ? cause.message : m.errors.installFailed);
     } finally {
       setBusy(null);
     }
@@ -106,7 +106,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(availableStep);
   const previousAvailableStep = useRef(availableStep);
   const mountedStep = useRef(currentStep).current;
-  const rootPath = loading ? "正在检查数据仓库…" : rootReady ? bootstrap.repoRoot : m.rootMissing;
+  const rootPath = loading ? m.checkingRoot : rootReady ? bootstrap.repoRoot : m.rootMissing;
   const providerState = providerReady ? m.providerReady : m.providerPending;
   const currentTitle = [m.rootTitle, m.skillTitle, m.providerTitle, m.finishTitle][currentStep - 1];
 
@@ -177,7 +177,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
             <OnboardingPanel active={currentStep === 2} number="02" step="2" title={m.skillTitle}>
               <p className="onboarding-step-description">{m.skillBody}</p>
               <output className="onboarding-path" aria-label={m.skillSourceLabel}>
-                <span title={OPENMIND_SKILLS_REPO_URL}>{loading ? "正在检查 RSS 采集组件…" : OPENMIND_SKILLS_REPO_URL}</span>
+                <span title={OPENMIND_SKILLS_REPO_URL}>{loading ? m.checkingSkills : OPENMIND_SKILLS_REPO_URL}</span>
                 <PackageCheck size={20} aria-hidden />
               </output>
               <div className="onboarding-actions">
@@ -215,7 +215,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
               </div>
               <div className="onboarding-actions">
                 <button type="button" className="primary-button onboarding-primary-action" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>
-                  {busy === "state" ? "正在保存…" : m.finish}<ArrowRight size={15} aria-hidden />
+                  {busy === "state" ? m.saving : m.finish}<ArrowRight size={15} aria-hidden />
                 </button>
               </div>
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.finishSafety}</p>

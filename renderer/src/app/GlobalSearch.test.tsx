@@ -17,6 +17,7 @@ const snapshot: AiSnapshot = {
 };
 
 const navigate = vi.fn<Navigate>();
+const openContent = vi.fn<(path: string) => void>();
 let searchWorkspace: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -37,6 +38,7 @@ beforeEach(() => {
     onAiEvent: () => () => {}
   } as unknown as DesktopApi;
   navigate.mockReset();
+  openContent.mockReset();
 });
 
 afterEach(() => {
@@ -47,7 +49,7 @@ afterEach(() => {
 function renderPalette(open = true) {
   return render(
     <AiProvider initial={snapshot}>
-      <GlobalSearch open={open} onClose={vi.fn()} navigate={navigate} />
+      <GlobalSearch open={open} onClose={vi.fn()} navigate={navigate} onOpenContent={openContent} />
     </AiProvider>
   );
 }
@@ -62,7 +64,7 @@ describe("GlobalSearch", () => {
     const onClose = vi.fn();
     const view = render(
       <AiProvider initial={snapshot}>
-        <GlobalSearch open onClose={onClose} navigate={navigate} />
+        <GlobalSearch open onClose={onClose} navigate={navigate} onOpenContent={openContent} />
       </AiProvider>
     );
     const scrim = document.querySelector<HTMLElement>(".global-search-scrim");
@@ -74,7 +76,7 @@ describe("GlobalSearch", () => {
 
     view.rerender(
       <AiProvider initial={snapshot}>
-        <GlobalSearch open={false} onClose={onClose} navigate={navigate} />
+        <GlobalSearch open={false} onClose={onClose} navigate={navigate} onOpenContent={openContent} />
       </AiProvider>
     );
     expect(document.querySelector(".global-search-scrim")).toBeTruthy();
@@ -108,7 +110,7 @@ describe("GlobalSearch", () => {
     expect(screen.getByText("Beta")).toBeTruthy();
   });
 
-  it("navigates by content kind when a result is chosen", async () => {
+  it("opens the matched content path when a content result is chosen", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     searchWorkspace.mockResolvedValue([
       { id: "c1", kind: "content", title: "Alpha", subtitle: "s", path: "a.md", date: "20260707", status: null, targetId: "c1" }
@@ -118,7 +120,8 @@ describe("GlobalSearch", () => {
     await act(async () => { vi.advanceTimersByTime(300); });
     const result = await screen.findByText("Alpha");
     await user.click(result);
-    expect(navigate).toHaveBeenCalledWith("sources", { date: "20260707" });
+    expect(openContent).toHaveBeenCalledWith("a.md");
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("navigates by project kind", async () => {
@@ -133,7 +136,7 @@ describe("GlobalSearch", () => {
     expect(navigate).toHaveBeenCalledWith("creative", { projectDir: "proj-1" });
   });
 
-  it("navigates to automation for skill results", async () => {
+  it("opens the matching Skill detail for skill results", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     searchWorkspace.mockResolvedValue([
       { id: "s1", kind: "skill", title: "Skill", subtitle: "s", path: "p", date: null, status: null, targetId: "skill-1" }
@@ -142,7 +145,7 @@ describe("GlobalSearch", () => {
     await user.type(screen.getByLabelText(INPUT_LABEL), "skill");
     await act(async () => { vi.advanceTimersByTime(300); });
     await user.click(await screen.findByText("Skill"));
-    expect(navigate).toHaveBeenCalledWith("automation", { skillId: "skill-1" });
+    expect(navigate).toHaveBeenCalledWith("skills", { skillId: "skill-1" });
   });
 
   it("offers a summary action suggestion for summary-style queries", async () => {
@@ -150,6 +153,17 @@ describe("GlobalSearch", () => {
     renderPalette();
     await user.type(screen.getByLabelText(INPUT_LABEL), "总结今天的资料");
     expect(await screen.findByText("总结今天的资料", { selector: "strong" })).toBeTruthy();
+  });
+
+  it("recognizes English summary and comparison intent from the centralized policy", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPalette();
+    const input = screen.getByLabelText(INPUT_LABEL);
+    await user.type(input, "summarize today's research");
+    expect(await screen.findByText("总结今天的资料", { selector: "strong" })).toBeTruthy();
+    await user.clear(input);
+    await user.type(input, "compare Claude vs Codex");
+    expect(await screen.findByText("对比相关资料")).toBeTruthy();
   });
 
   it("offers a draft action suggestion for writing-style queries", async () => {
@@ -161,7 +175,7 @@ describe("GlobalSearch", () => {
 
   it("closes on Escape", () => {
     const onClose = vi.fn();
-    render(<AiProvider initial={snapshot}><GlobalSearch open onClose={onClose} navigate={navigate} /></AiProvider>);
+    render(<AiProvider initial={snapshot}><GlobalSearch open onClose={onClose} navigate={navigate} onOpenContent={openContent} /></AiProvider>);
     fireEvent.keyDown(screen.getByLabelText(INPUT_LABEL), { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });
