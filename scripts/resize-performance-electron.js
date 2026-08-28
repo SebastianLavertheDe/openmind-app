@@ -65,6 +65,13 @@ async function run() {
     })()
   `);
   await waitFor(win, ".completed-process");
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const process = document.querySelector('.completed-process');
+      const trigger = process?.querySelector(':scope > .ui-disclosure-trigger');
+      if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
+    })()
+  `);
   await waitFor(win, ".overflow-box");
   await delay(600);
 

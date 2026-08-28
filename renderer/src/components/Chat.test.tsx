@@ -711,6 +711,50 @@ describe("chat timeline", () => {
     expect(Boolean(liveProcess.compareDocumentPosition(committedAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("keeps completed history out of the transient stream render path", async () => {
+    const activeRun = makeRun();
+    const historicalRun = {
+      ...makeRun(),
+      id: "historical-run",
+      status: "completed" as const,
+      startedAt: "2025-12-31T23:00:00.000Z",
+      completedAt: "2025-12-31T23:00:10.000Z"
+    };
+    let historicalTextReads = 0;
+    const historicalPayload: Record<string, unknown> = { phase: "final" };
+    Object.defineProperty(historicalPayload, "text", {
+      enumerable: true,
+      get: () => {
+        historicalTextReads += 1;
+        return "stable historical answer";
+      }
+    });
+    window.openmind.aiGetEvents = async () => [{
+      ...makeEvent("historical-user", "user-message", { text: "historical prompt" }, 1),
+      runId: historicalRun.id,
+      timestamp: historicalRun.startedAt
+    }, {
+      ...makeEvent("historical-answer", "assistant-message", historicalPayload, 2),
+      runId: historicalRun.id,
+      timestamp: historicalRun.completedAt
+    }, {
+      ...makeEvent("active-user", "user-message", { text: "active prompt" }, 1),
+      runId: activeRun.id,
+      timestamp: activeRun.startedAt
+    }];
+    render(
+      <AiProvider initial={{ ...snapshotForRun(activeRun, "running"), runs: [historicalRun, activeRun] }}>
+        <Chat />
+      </AiProvider>
+    );
+    expect(await screen.findByText("stable historical answer")).toBeTruthy();
+    const readsBeforeStreaming = historicalTextReads;
+
+    aiListener?.({ kind: "transient", event: makeEvent("live", "assistant-delta", { text: "live update" }, 2) });
+    expect(await screen.findByText("live update")).toBeTruthy();
+    expect(historicalTextReads).toBe(readsBeforeStreaming);
+  });
+
   it("does not flash a buffered delta when completion arrives before the final event", async () => {
     const run = makeRun();
     window.openmind.aiGetEvents = async () => [
@@ -1193,6 +1237,54 @@ describe("chat timeline", () => {
     await user.click(screen.getByRole("button", { name: "加载更早的回合" }));
     expect(await screen.findByText("older prompt")).toBeTruthy();
     expect(listTurns).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps paged history inside the render budget until the user reveals it", async () => {
+    const oldRun = {
+      ...makeRun(),
+      id: "paged-old-run",
+      status: "completed" as const,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      completedAt: "2026-01-01T00:01:00.000Z"
+    };
+    const newRun = {
+      ...makeRun(),
+      id: "paged-new-run",
+      status: "completed" as const,
+      startedAt: "2026-01-01T01:00:00.000Z",
+      completedAt: "2026-01-01T01:01:00.000Z"
+    };
+    const oldEvents = Array.from({ length: 350 }, (_, index) => ({
+      ...makeEvent(
+        `paged-old-${index}`,
+        index === 0 ? "user-message" as const : "status" as const,
+        index === 0 ? { text: "paged older prompt" } : { state: "running" },
+        index + 1
+      ),
+      runId: oldRun.id,
+      timestamp: `2026-01-01T00:00:${String(index % 60).padStart(2, "0")}.000Z`
+    }));
+    const newEvents = [
+      { ...makeEvent("paged-new-user", "user-message", { text: "paged newest prompt" }, 1), runId: newRun.id, timestamp: newRun.startedAt },
+      { ...makeEvent("paged-new-answer", "assistant-message", { text: "paged newest answer", phase: "final" }, 2), runId: newRun.id, timestamp: newRun.completedAt }
+    ];
+    window.openmind.aiListTurns = async () => ({
+      data: [makeTurn(newRun, newEvents), makeTurn(oldRun, oldEvents)],
+      nextCursor: null,
+      total: 2,
+      parseErrors: 0
+    });
+
+    render(
+      <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [oldRun, newRun] }}>
+        <Chat />
+      </AiProvider>
+    );
+
+    expect(await screen.findByText("paged newest answer")).toBeTruthy();
+    expect(screen.queryByText("paged older prompt")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /300/ }));
+    expect(await screen.findByText("paged older prompt")).toBeTruthy();
   });
 
   it("renders the latest prompt when an older run is larger than the history budget", async () => {
@@ -1683,6 +1775,26 @@ describe("chat timeline", () => {
     expect(within(process).getAllByText("app.ts").length).toBeGreaterThan(0);
     fireEvent.click(disclosureTrigger(tool));
     expectDisclosureOpen(tool, true);
+  });
+
+  it("unmounts a closed completed process body and restores it on demand", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("lazy-user", "user-message", { text: "inspect lazily" }, 1),
+      makeEvent("lazy-tool-start", "tool-start", { itemId: "lazy-tool", tool: "Read", input: { file_path: "src/lazy.ts" } }, 2),
+      makeEvent("lazy-tool-done", "tool-complete", { itemId: "lazy-tool", output: "done" }, 3),
+      makeEvent("lazy-answer", "assistant-message", { text: "lazy complete", phase: "final" }, 4)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    expect(await screen.findByText("lazy complete")).toBeTruthy();
+    const process = disclosureFor(screen.getByText("已处理"));
+    expect(process.querySelector(".tool-event")).toBeNull();
+
+    openDisclosure(process);
+    expect(await within(process).findByText("Read")).toBeTruthy();
+    fireEvent.click(disclosureTrigger(process));
+    await waitFor(() => expect(process.querySelector(".tool-event")).toBeNull());
   });
 
   it("shows processing immediately while the first provider event is still pending", async () => {

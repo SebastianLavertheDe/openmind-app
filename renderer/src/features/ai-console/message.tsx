@@ -1,4 +1,4 @@
-import { isValidElement, useMemo, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
+import { isValidElement, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -15,6 +15,8 @@ import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
 
 const MARKDOWN_CACHE_LIMIT = 96;
+const STREAMING_MARKDOWN_INTERVAL_MS = 96;
+const STREAMING_MARKDOWN_RICH_TEXT_LIMIT = 8_192;
 const markdownCache = new Map<string, { text: string; node: ReactNode }>();
 
 export function UserMessage({ event }: { event: AiEvent }) {
@@ -69,13 +71,43 @@ export function ChatMarkdown({
   streaming?: boolean;
   className?: string;
 }) {
-  const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
-  const markdown = useMemo(
-    () => (streaming ? renderStreamingMarkdown(text) : renderCachedMarkdown(cacheKey, text)),
-    [streaming, cacheKey, text]
-  );
   const classes = ["chat-markdown", className].filter(Boolean).join(" ");
-  return <div className={classes}>{markdown}</div>;
+  return (
+    <div className={classes}>
+      {streaming ? <StreamingMarkdown text={text} /> : <CachedMarkdown text={text} />}
+    </div>
+  );
+}
+
+function CachedMarkdown({ text }: { text: string }) {
+  const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
+  return useMemo(() => renderCachedMarkdown(cacheKey, text), [cacheKey, text]);
+}
+
+function StreamingMarkdown({ text }: { text: string }) {
+  const renderedText = useThrottledStreamingText(text);
+  return useMemo(() => renderStreamingMarkdown(renderedText), [renderedText]);
+}
+
+function useThrottledStreamingText(text: string): string {
+  const [renderedText, setRenderedText] = useState(text);
+  const latestText = useRef(text);
+  const timer = useRef<number | null>(null);
+  latestText.current = text;
+
+  useEffect(() => {
+    if (text === renderedText || timer.current !== null) return;
+    timer.current = window.setTimeout(() => {
+      timer.current = null;
+      setRenderedText(latestText.current);
+    }, STREAMING_MARKDOWN_INTERVAL_MS);
+  }, [renderedText, text]);
+
+  useEffect(() => () => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+  }, []);
+
+  return renderedText;
 }
 
 export function markdownCacheKey(text: string): string {
@@ -105,8 +137,13 @@ function renderCachedMarkdown(cacheKey: string, text: string): ReactNode {
 }
 
 function renderStreamingMarkdown(text: string): ReactNode {
-  // 流式期间跳过 rehype-highlight（代码高亮是 CPU 大头）且不写入 markdownCache，
-  // 避免长回复每 24ms 全量 highlight 解析 + 中途 key 撑爆 96 项 LRU。
+  // 流式期间最多每 96ms 解析一次，并跳过 rehype-highlight（代码高亮是 CPU 大头）；
+  // 同时不写入 markdownCache，避免中途 key 撑爆 96 项 LRU。超长输出在落定前
+  // 使用一个纯文本节点，避免对不断增长的全文反复构造数千个 Markdown DOM 节点；
+  // streaming=false 后仍会立即走完整 Markdown + syntax highlight 渲染。
+  if (text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
+    return <span className="streaming-markdown-plain">{text}</span>;
+  }
   // 数学公式（remark-math + rehype-katex）开销可控，流式期间保留实时渲染，
   // 避免 $$...$$ 在生成过程中以裸文本闪烁。落定（streaming=false）后由
   // renderCachedMarkdown 完整渲染（含高亮）并进 LRU。

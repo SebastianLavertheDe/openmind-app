@@ -7,6 +7,7 @@ This checklist backs `todo.md` section 18.3. Automated checks must run in CI or 
 ```bash
 npm run build
 npm run perf:check
+npm run perf:stream
 npm run audit:evidence
 npm run scale:check
 npm run visual:snapshot
@@ -17,6 +18,15 @@ The gate fails when any renderer JavaScript chunk exceeds `500 KiB`. It also wri
 - entry script list and total entry bytes
 - largest renderer chunks
 - generation timestamp
+
+`npm run perf:stream` writes `.build/stream-performance-report.json`. It uses
+an expanded 1000-event / 497-tool history while streaming 48 KiB commentary
+and 24 KiB reasoning through the production event pump. The gate requires:
+
+- collapsed history: `0` mounted tool rows and at most `1500` DOM nodes
+- commentary/reasoning: p95 frame interval at most `25 ms`, max interval at
+  most `100 ms`, and at most `3` long tasks
+- renderer task time: commentary at most `1500 ms`, reasoning at most `900 ms`
 
 `npm run audit:evidence` writes `.build/audit-evidence.json` with architecture, security, preview-mode, visual-source and performance source checks.
 
@@ -47,7 +57,26 @@ Record each run with the packaged Windows portable build:
 
 - Renderer JS chunk: max `500 KiB`.
 - Markdown render cache: LRU cache keyed by content hash and exact text verification.
+- Streaming Markdown: rich rendering is throttled to 96 ms and bounded to 8
+  KiB while live; longer text remains readable as plain text and receives full
+  Markdown/highlight rendering when the durable final message arrives.
+- Chat history: at most 300 recent events are rendered initially, complete runs
+  are never split, and closed completed process bodies unmount after exit.
 - Route loading: major feature pages are lazy-loaded.
+
+## Streaming Performance Result (2026-08-28)
+
+Linux Electron, 1000-event fixture with the 497-tool completed history expanded:
+
+| Phase | Before | After |
+| --- | --- | --- |
+| Commentary | p95 150 ms; 80 long tasks; task 9094 ms | p95 16.7-16.8 ms; 0-1 long tasks; task 575-756 ms |
+| Reasoning | p95 50 ms; 3 long tasks; task 1722 ms | p95 16.7-16.8 ms; 0 long tasks; task 387-471 ms |
+| Collapsed history | 14,807 DOM nodes; 497 tool rows | 771 DOM nodes; 0 tool rows |
+
+The benchmark keeps the old process expanded during streaming so the render
+isolation result does not depend on hiding the historical DOM. The collapsed
+measurement separately verifies the normal history lifecycle.
 
 ## Performance Audit Results (2026-07-02)
 
@@ -63,7 +92,7 @@ All identified code-level items are implemented. The remaining work is packaged-
 
 ### High-priority results
 
-1. ✔️ Streaming text moved from `AiController` to a dedicated `useSyncExternalStore` store. Only Chat and inline AI subscribe to 24 ms updates; unrelated `useAi()` consumers bail out because `getSnapshot` returns a shared `EMPTY_STREAMING_STATE` reference for unrelated runIds (so `useSyncExternalStore` skips the re-render).
+1. ✔️ Streaming text moved from `AiController` to a dedicated `useSyncExternalStore` store. Only the active process row, its zero-DOM auto-pin effect, and inline AI subscribe to 24 ms updates; the Chat shell, composer, and completed history stay outside transient commits.
 2. ✔️ `findRepoRoot()` caches by settings/environment/cwd fingerprint, and loop callers hoist root lookup.
 3. ✔️ Content dates and parsed index data cache by filesystem fingerprint. A full cross-day inverted index remains measurement-gated.
 4. ✔️ `app:write-content` 经 `ProductService.writeContent()` 只刷新所属日期索引（内部 `refreshContentDate`）。

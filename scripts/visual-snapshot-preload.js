@@ -1,5 +1,8 @@
 const { contextBridge } = require("electron");
 
+const streamPerfEnabled = process.env.OPENMIND_STREAM_PERF === "1";
+const aiEventListeners = new Set();
+
 const now = "2026-06-17T02:20:00.000Z";
 const date = "20260617";
 const repoRoot = "/fixtures/openmind-data";
@@ -179,6 +182,29 @@ const runs = [
   { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: longUserPrompt, contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
+if (streamPerfEnabled) {
+  sessions[1] = { ...sessions[1], status: "running", lastRunId: "run-ai-stream" };
+  runs.push({
+    schemaVersion: 1,
+    id: "run-ai-stream",
+    sessionId: "session-2",
+    projectId: "visual",
+    provider: "codex",
+    providerId: "codex:native",
+    permissionProfile: "read-only",
+    status: "running",
+    prompt: "验证长会话流式输出性能",
+    contexts: [],
+    workspacePath: null,
+    baseCommit: null,
+    startedAt: now,
+    completedAt: null,
+    error: null,
+    changeSet: null,
+    risks: []
+  });
+}
+
 const approval = { id: "approval-1", runId: "run-ai-1", sessionId: "session-1", providerRequestId: "provider-approval-1", category: "command", title: "运行跨 Windows/WSL 命令前需要审批", detail: `Provider 请求执行跨 Windows/WSL 文件检查命令，用于验证超长 UNC 路径下的审批卡布局。\n\n${approvalCommand}`, cwd: repoRoot, command: approvalCommand, paths: [String.raw`\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md`, "/fixtures/openmind-data/post/20260617/posts.json"], createdAt: now, status: "pending" };
 
 const aiSnapshot = { projectRoot: repoRoot, providers, sessions, runs, pendingApprovals: [approval] };
@@ -253,6 +279,12 @@ if (resizePerfEventCount > 29) {
   aiEvents.push(event("resize-perf-final", resizePerfEventCount, "session-2", "run-ai-2", "assistant-message", {
     text: `长会话 UI 性能夹具：${resizePerfEventCount} events，${call - 1} 个工具调用。`,
     phase: "final"
+  }));
+}
+
+if (streamPerfEnabled) {
+  aiEvents.push(event("stream-perf-user", 1, "session-2", "run-ai-stream", "user-message", {
+    text: "验证长会话流式输出性能"
   }));
 }
 
@@ -559,9 +591,17 @@ const api = {
     approvalResolved = true;
     return true;
   },
-  onAiEvent: () => () => undefined,
+  onAiEvent: (callback) => {
+    aiEventListeners.add(callback);
+    return () => aiEventListeners.delete(callback);
+  },
   onSkillEvent: () => () => undefined,
-  __setVisualMode: (mode) => { visualMode = mode || "normal"; }
+  __setVisualMode: (mode) => { visualMode = mode || "normal"; },
+  __emitAiEvent: (message) => {
+    if (!streamPerfEnabled) return false;
+    for (const listener of aiEventListeners) listener(message);
+    return true;
+  }
 };
 
 contextBridge.exposeInMainWorld("openmind", api);

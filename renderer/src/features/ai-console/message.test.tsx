@@ -1,8 +1,39 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMarkdown } from "./message";
 
-afterEach(cleanup);
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
+
+describe("ChatMarkdown streaming", () => {
+  it("throttles growing Markdown and flushes the final non-streaming text immediately", () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(<ChatMarkdown text="first" streaming />);
+
+    rerender(<ChatMarkdown text="first second" streaming />);
+    expect(container.textContent).toBe("first");
+
+    act(() => vi.advanceTimersByTime(96));
+    expect(container.textContent).toBe("first second");
+
+    rerender(<ChatMarkdown text="first second final" streaming={false} />);
+    expect(container.textContent).toBe("first second final");
+  });
+
+  it("uses bounded plain text for a long live response and restores rich Markdown when final", () => {
+    const longMarkdown = `${"streaming content ".repeat(520)}\n\n## Final heading`;
+    const { container, rerender } = render(<ChatMarkdown text={longMarkdown} streaming />);
+
+    expect(container.querySelector(".streaming-markdown-plain")?.textContent).toBe(longMarkdown);
+    expect(container.querySelector("h2")).toBeNull();
+
+    rerender(<ChatMarkdown text={longMarkdown} streaming={false} />);
+    expect(container.querySelector(".streaming-markdown-plain")).toBeNull();
+    expect(container.querySelector("h2")?.textContent).toBe("Final heading");
+  });
+});
 
 describe("ChatMarkdown code blocks", () => {
   it("renders the full block without a terminal titlebar or expand control", () => {

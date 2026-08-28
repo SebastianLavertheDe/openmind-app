@@ -111,6 +111,7 @@ interface AiStreamingStore {
 const Context = createContext<AiController | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
 const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "" });
+const EMPTY_STREAMING_SUBSCRIBE = () => () => undefined;
 const DRAFTS_KEY = "openmind.ai.drafts.v1";
 const CONTEXTS_KEY = "openmind.ai.contexts.v1";
 const PANEL_KEY = "openmind.ai.panel-mode.v1";
@@ -177,7 +178,15 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
     if (!incoming.length) return;
     setEventsBySession((current) => {
       const next = { ...current };
-      for (const event of incoming) next[event.sessionId] = mergeEvents(next[event.sessionId] || [], [event]);
+      const incomingBySession = new Map<string, AiEvent[]>();
+      for (const event of incoming) {
+        const sessionEvents = incomingBySession.get(event.sessionId);
+        if (sessionEvents) sessionEvents.push(event);
+        else incomingBySession.set(event.sessionId, [event]);
+      }
+      for (const [sessionId, sessionEvents] of incomingBySession) {
+        next[sessionId] = mergeEvents(next[sessionId] || [], sessionEvents);
+      }
       return next;
     });
   };
@@ -817,7 +826,7 @@ export function useAiStreaming(runId: string | null): AiStreamingState {
   const store = useContext(StreamingContext);
   if (!store) throw new Error("useAiStreaming must be used within AiProvider");
   const getSnapshot = useCallback(() => store.getSnapshot(runId), [runId, store]);
-  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+  return useSyncExternalStore(runId ? store.subscribe : EMPTY_STREAMING_SUBSCRIBE, getSnapshot, getSnapshot);
 }
 
 function createAiStreamingStore(): AiStreamingStore {

@@ -53,12 +53,6 @@ type ChatViewItem = TimelineViewItem
 type ToolStep = Extract<TraceStep, { type: "tool" }>;
 type ToolGroupItem = { type: "tool-group"; key: string; run: AiRun; steps: ToolStep[] };
 type ChatRenderItem = ChatViewItem | ToolGroupItem;
-type LiveProcessState = {
-  runId: string | null;
-  reasoningText: string;
-  commentaryText: string;
-  pending: boolean;
-};
 type ChatScrollMemory = {
   top: number;
   near: boolean;
@@ -85,15 +79,12 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
   const lastScrollTop = useRef(0);
   const sessionId = ai.activeSession?.id || "__draft";
   const currentScrollSession = useRef(sessionId);
-  const serverPagedHistory = Boolean(window.openmind.aiListTurns);
   const streamingRunId = ai.sessionActiveRun?.id || ai.activeRun?.id || null;
-  const { streaming, reasoningStreaming } = useAiStreaming(streamingRunId);
   const timelineEvents = useMemo(() => {
     if (compact) return compactEvents(ai.events, ai.sessionActiveRun?.id);
-    if (serverPagedHistory) return ai.events;
     return selectRecentTurnEvents(ai.events, historyLimit);
-  }, [ai.events, ai.sessionActiveRun?.id, compact, historyLimit, serverPagedHistory]);
-  const hiddenEvents = compact || serverPagedHistory ? 0 : Math.max(0, ai.events.length - timelineEvents.length);
+  }, [ai.events, ai.sessionActiveRun?.id, compact, historyLimit]);
+  const hiddenEvents = compact ? 0 : Math.max(0, ai.events.length - timelineEvents.length);
   const canLoadHistory = !compact && (hiddenEvents > 0 || ai.hasOlderTurns);
   const renderableTimelineEvents = useMemo(
     () => selectRenderableTimelineEvents(timelineEvents, ai.snapshot.runs),
@@ -132,12 +123,10 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
     [activeRunId, ai.events]
   );
   const activeRunHasTool = useMemo(() => hasOpenTool(timelineEvents, activeRunId), [activeRunId, timelineEvents]);
-  const showPendingThought = Boolean(
+  const pendingThoughtEligible = Boolean(
     ai.sessionActiveRun
     && ai.sessionActiveRun.status === "running"
     && !activeRunHasTool
-    && !reasoningStreaming
-    && !streaming
   );
   const activeProcessVisible = Boolean(
     activeRunId
@@ -186,7 +175,7 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
 
   useLayoutEffect(() => {
     pinToLatest();
-  }, [pinToLatest, reasoningStreaming, renderItems, streaming]);
+  }, [pinToLatest, renderItems]);
 
   useEffect(() => {
     const target = scroller.current;
@@ -281,7 +270,7 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
           aria-relevant="additions text"
           aria-label={m.ai.chat.transcriptLabel}
         >
-          {!visible.length && !ai.sessionActiveRun && !streaming && !reasoningStreaming
+          {!visible.length && !ai.sessionActiveRun
             ? <EmptyChat onPick={(prompt) => ai.setDraft(prompt)} />
             : null}
           {canLoadHistory ? (
@@ -290,7 +279,10 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
               disabled={ai.historyLoading}
               onClick={() => {
                 if (hiddenEvents) setHistoryLimit((value) => value + 300);
-                else void ai.loadOlderTurns();
+                else {
+                  setHistoryLimit((value) => value + 300);
+                  void ai.loadOlderTurns();
+                }
               }}
             >
               {ai.historyLoading
@@ -303,28 +295,14 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
           <TimelineItems
             key={sessionId}
             items={renderItems}
-            liveProcess={{
-              runId: activeRunId,
-              reasoningText: reasoningStreaming,
-              commentaryText: streaming,
-              pending: showPendingThought
-            }}
+            activeRunId={activeRunId}
+            activeRunHasTool={activeRunHasTool}
           />
-          {!activeProcessVisible && reasoningStreaming ? (
-            <div className="trace-step reasoning live">
-              <span className="trace-step-marker"><BrainCircuit size={13} /></span>
-              <ReasoningCard
-                text={reasoningStreaming}
-                streaming
-              />
-            </div>
-          ) : null}
-          {!activeProcessVisible && showPendingThought ? (
-            <div className="trace-step reasoning live">
-              <span className="trace-step-marker"><BrainCircuit size={13} /></span>
-              <ReasoningCard streaming pending />
-            </div>
-          ) : null}
+          <StandaloneLiveProcess
+            runId={activeProcessVisible ? null : streamingRunId}
+            pendingEligible={!activeProcessVisible && pendingThoughtEligible}
+          />
+          <StreamAutoPin runId={streamingRunId} pinToLatest={pinToLatest} />
         </div>
         {/* P1-CHAT-2: compact jump-to-bottom control */}
         {jumpBottomPresence.visible ? (
@@ -364,7 +342,15 @@ function timelineItemKey(item: ChatRenderItem): string {
   return item.type === "event" ? `event:${item.event.id}` : item.key;
 }
 
-function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; liveProcess: LiveProcessState }) {
+const TimelineItems = memo(function TimelineItems({
+  items,
+  activeRunId,
+  activeRunHasTool
+}: {
+  items: ChatRenderItem[];
+  activeRunId: string | null;
+  activeRunHasTool: boolean;
+}) {
   const presenceItems = useExitingList(items, timelineItemKey, TIMELINE_EXIT_MS);
   const committedKeys = useRef(new Set(items.map(timelineItemKey)));
   const enteringKeys = new Set(
@@ -379,9 +365,6 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
 
   return presenceItems.map(({ item, leaving }, index) => {
     const key = timelineItemKey(item);
-    const live = !leaving && item.type === "process" && item.run.id === liveProcess.runId
-      ? liveProcess
-      : null;
     // P2-INT-4: 消息流 stagger 进场 30ms 递增
     const staggerDelay = enteringKeys.has(key) ? Math.min(index * 30, 240) : 0;
     return (
@@ -396,14 +379,10 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
       >
         <div className="timeline-presence-inner">
           {item.type === "process"
-            ? <CompletedProcess
-                run={item.run}
-                steps={item.steps}
-                completedAt={item.completedAt}
-                missingFinal={item.missingFinal}
-                liveReasoning={live?.reasoningText || ""}
-                liveCommentary={live?.commentaryText || ""}
-                pending={Boolean(live?.pending)}
+            ? <ProcessTimelineItem
+                item={item}
+                live={!leaving && item.run.id === activeRunId}
+                activeRunHasTool={activeRunHasTool}
               />
             : item.type === "changes-artifact"
               ? <ChangeReviewCard events={item.events} run={item.run} />
@@ -416,6 +395,66 @@ function TimelineItems({ items, liveProcess }: { items: ChatRenderItem[]; livePr
       </div>
     );
   });
+});
+
+function ProcessTimelineItem({
+  item,
+  live,
+  activeRunHasTool
+}: {
+  item: Extract<ChatRenderItem, { type: "process" }>;
+  live: boolean;
+  activeRunHasTool: boolean;
+}) {
+  const { streaming, reasoningStreaming } = useAiStreaming(live ? item.run.id : null);
+  const pending = Boolean(
+    live
+    && item.run.status === "running"
+    && !activeRunHasTool
+    && !streaming
+    && !reasoningStreaming
+  );
+  return (
+    <CompletedProcess
+      run={item.run}
+      steps={item.steps}
+      completedAt={item.completedAt}
+      missingFinal={item.missingFinal}
+      liveReasoning={reasoningStreaming}
+      liveCommentary={streaming}
+      pending={pending}
+    />
+  );
+}
+
+function StandaloneLiveProcess({ runId, pendingEligible }: { runId: string | null; pendingEligible: boolean }) {
+  const { streaming, reasoningStreaming } = useAiStreaming(runId);
+  if (!runId) return null;
+  if (reasoningStreaming) {
+    return (
+      <div className="trace-step reasoning live">
+        <span className="trace-step-marker"><BrainCircuit size={13} /></span>
+        <ReasoningCard text={reasoningStreaming} streaming />
+      </div>
+    );
+  }
+  if (pendingEligible && !streaming) {
+    return (
+      <div className="trace-step reasoning live">
+        <span className="trace-step-marker"><BrainCircuit size={13} /></span>
+        <ReasoningCard streaming pending />
+      </div>
+    );
+  }
+  return null;
+}
+
+function StreamAutoPin({ runId, pinToLatest }: { runId: string | null; pinToLatest(): void }) {
+  const { streaming, reasoningStreaming } = useAiStreaming(runId);
+  useLayoutEffect(() => {
+    if (streaming || reasoningStreaming) pinToLatest();
+  }, [pinToLatest, reasoningStreaming, streaming]);
+  return null;
 }
 
 function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, AiRun>): ChatViewItem[] {
@@ -586,11 +625,13 @@ function CompletedProcess({
   pending?: boolean;
 }) {
   const processing = ["queued", "running", "waiting-approval", "applying"].includes(run.status);
-  const [open, setOpen] = useState(processing || missingFinal);
+  const forceOpen = processing || missingFinal || run.status === "failed" || run.status === "conflicted";
+  const [open, setOpen] = useState(forceOpen);
+  const bodyPresence = useExitPresence(open, 220);
   const [liveNow, setLiveNow] = useState(Date.now());
   useEffect(() => {
-    setOpen(processing || missingFinal);
-  }, [missingFinal, processing]);
+    setOpen(forceOpen);
+  }, [forceOpen]);
   useEffect(() => {
     if (!processing) return;
     const timer = window.setInterval(() => setLiveNow(Date.now()), 1_000);
@@ -617,7 +658,7 @@ function CompletedProcess({
         </>
       }
     >
-      <div className="completed-process-body">
+      {open || bodyPresence.visible ? <div className="completed-process-body" data-leaving={bodyPresence.leaving || undefined}>
         {missingFinal ? (
           <div className="process-protocol-error" role="alert">
             <AlertTriangle size={15} aria-hidden="true" />
@@ -640,7 +681,7 @@ function CompletedProcess({
             <ReasoningCard streaming pending />
           </div>
         ) : null}
-      </div>
+      </div> : null}
     </AnimatedDisclosure>
   );
 }
@@ -656,7 +697,7 @@ function runProcessLabel(run: AiRun, processing: boolean, missingFinal: boolean)
 
 type TraceCycle = { key: string; steps: TraceStep[] };
 
-function TraceStepList({
+const TraceStepList = memo(function TraceStepList({
   steps,
   run,
   processing,
@@ -689,7 +730,7 @@ function TraceStepList({
       </div>
     );
   });
-}
+});
 
 function TraceStepBlocks({ steps, run }: { steps: TraceStep[]; run: AiRun }) {
   const blocks: Array<{ type: "step"; step: TraceStep } | { type: "tool-group"; key: string; steps: ToolStep[] }> = [];

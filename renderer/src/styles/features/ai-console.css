@@ -382,6 +382,12 @@
   letter-spacing: 0;
 }
 
+.streaming-markdown-plain {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .chat-thread .completed-process-body .process-narrative p {
   margin: 6px 0;
 }
