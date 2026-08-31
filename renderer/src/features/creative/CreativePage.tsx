@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PanelLeftOpen, RefreshCw } from "lucide-react";
-import type { ContextReference, CreativeAnalytics, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic, CreativeVersion } from "@shared/contracts";
+import type { ContextReference, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
-import { AnalyticsView } from "./history-release";
 import { type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
 import { FunnelBar, TodayStream } from "./stream";
 import { useTopicFileEditor } from "./use-topic-file-editor";
@@ -17,12 +16,9 @@ import {
   type PlatformOption,
   type Stage,
   type StreamFilter,
-  type WorkspaceView,
   bucketForStage,
   displayDate,
-  formatRelative,
   normalizeDate,
-  platformLabel,
   preferredFile,
   stageLabel,
   today
@@ -43,11 +39,9 @@ export function CreativeWorkspacePage({
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
   const [date] = useState(() => displayDate(initialDate) || today());
-  const [view, setView] = useState<WorkspaceView>("workflow");
   const [stage, setStage] = useState<Stage>(initialStage || "today");
   const [topics, setTopics] = useState<TopicWithDate[]>([]);
   const [projects, setProjects] = useState<CreativeProjectSummary[]>([]);
-  const [analytics, setAnalytics] = useState<CreativeAnalytics | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<CreativeTopic | null>(null);
   const [selectedProject, setSelectedProject] = useState<CreativeProjectSummary | null>(null);
   const [detail, setDetail] = useState<CreativeProjectDetail | null>(null);
@@ -55,7 +49,6 @@ export function CreativeWorkspacePage({
   const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [versions, setVersions] = useState<CreativeVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("preview");
@@ -89,10 +82,9 @@ export function CreativeWorkspacePage({
     setLoading(true);
     setError("");
     try {
-      const [topicDays, nextProjects, nextAnalytics] = await Promise.all([
+      const [topicDays, nextProjects] = await Promise.all([
         window.openmind.getAllCreativeTopics(),
-        window.openmind.getCreativeProjects(),
-        window.openmind.getCreativeAnalytics()
+        window.openmind.getCreativeProjects()
       ]);
       setTopics(topicDays.flatMap((day) => day.topics.map((topic, index) => ({
         ...topic,
@@ -102,7 +94,6 @@ export function CreativeWorkspacePage({
         sourceFile: day.file || `openmind/daily-topic/${day.date}_daily_topic.md`
       }))));
       setProjects(nextProjects);
-      setAnalytics(nextAnalytics);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -123,19 +114,6 @@ export function CreativeWorkspacePage({
     }).catch(() => { /* 保留安全默认值；设置页会展示持久化错误。 */ });
     return () => { active = false; };
   }, []);
-  const selectView = useCallback((nextView: WorkspaceView) => {
-    if (nextView === view) return;
-    setView(nextView);
-    setSelectedProject(null);
-    setDetail(null);
-    setSelectedTopic(null);
-    resetTopicFile();
-    setActiveFile("");
-    setDraft("");
-    setDirty(false);
-    setVersions([]);
-  }, [resetTopicFile, view]);
-
   const activeProjects = useMemo(() => projects.filter((project) => !project.archived && project.stage !== "archived"), [projects]);
   const funnelCounts = useMemo(() => {
     const counts: Record<Bucket, number> = { topic: 0, drafting: 0, pending: 0, published: 0 };
@@ -159,11 +137,10 @@ export function CreativeWorkspacePage({
       const firstFile = preferredFile(Object.keys(next.files || {}), targetStage);
       setActiveFile(firstFile);
       setDraft(next.files?.[firstFile] || "");
-      if (view === "history" && firstFile) setVersions(await window.openmind.listCreativeVersions(next.dir, firstFile));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [compactWorkspace, stage, view, resetTopicFile]);
+  }, [compactWorkspace, stage, resetTopicFile]);
 
   useEffect(() => {
     if (!initialProjectDir || !projects.length) return;
@@ -174,7 +151,7 @@ export function CreativeWorkspacePage({
   }, [initialProjectDir, projects, openProject]);
 
   useEffect(() => {
-    if (!workflowPolicy.autoSaveDraft || !detail || !activeFile || !dirty || stage === "published" || view !== "workflow" || detail.truncatedFiles?.includes(activeFile)) return;
+    if (!workflowPolicy.autoSaveDraft || !detail || !activeFile || !dirty || stage === "published" || detail.truncatedFiles?.includes(activeFile)) return;
     setAutoSaveStatus("saving");
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -190,7 +167,7 @@ export function CreativeWorkspacePage({
       })();
     }, workflowPolicy.autoSaveIntervalMs);
     return () => window.clearTimeout(timer);
-  }, [draft, dirty, activeFile, detail?.dir, stage, view, ai, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
+  }, [draft, dirty, activeFile, detail?.dir, stage, ai, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;
@@ -208,7 +185,6 @@ export function CreativeWorkspacePage({
       const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: m.creativeUi.workspace.editorVersionNote });
       setDetail(next);
       setDirty(false);
-      setVersions(await window.openmind.listCreativeVersions(next.dir, activeFile));
       ai.notify(m.creativeUi.workspace.savedWithVersion, "success");
     } catch (cause) {
       ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
@@ -226,7 +202,6 @@ export function CreativeWorkspacePage({
       const reused = Boolean((created as { reused?: boolean }).reused);
       await load();
       setStage("drafting");
-      setView("workflow");
       const summary: CreativeProjectSummary = {
         dir: created.dir,
         topic: String(created.manifest?.topic || topic.title || m.creativeUi.workspace.untitledProject),
@@ -351,8 +326,8 @@ export function CreativeWorkspacePage({
     : selectedTopic
       ? `topic:${selectedTopic.id || selectedTopic.title}`
       : selectedProject
-        ? `project:${selectedProject.dir}:${view}`
-        : `empty:${view}`;
+        ? `project:${selectedProject.dir}`
+        : "empty";
 
   return (
     <div className="creative-workspace-page">
@@ -360,68 +335,33 @@ export function CreativeWorkspacePage({
         <PageHeader
           eyebrow={m.creativeUi.workspace.eyebrow}
           title={m.creativeUi.workspace.title}
-          description={analytics ? m.creativeUi.workspace.analyticsDescription(topics.length, analytics.total, analytics.averageCompletion) : m.creativeUi.workspace.description}
+          description={m.creativeUi.workspace.description}
           actions={<button data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />{m.creativeUi.workspace.refresh}</button>}
         />
-        <nav className="creative-view-tabs" role="tablist" aria-label={m.creativeUi.workspace.tabsAria}>
-          {([
-            ["workflow", m.creativeUi.workspace.tabs.workflow],
-            ["history", m.creativeUi.workspace.tabs.history],
-            ["release", m.creativeUi.workspace.tabs.release],
-            ["analytics", m.creativeUi.workspace.tabs.analytics]
-          ] as const).map(([nextView, label]) => (
-            <button
-              key={nextView}
-              type="button"
-              role="tab"
-              data-motion="selection"
-              aria-selected={view === nextView}
-              className={view === nextView ? "active" : ""}
-              onClick={() => selectView(nextView)}
-            >{label}</button>
-          ))}
-        </nav>
-        {view === "workflow" ? (
-          <FunnelBar counts={funnelCounts} active={streamFilter} onSelect={setStreamFilter} />
-        ) : null}
+        <FunnelBar counts={funnelCounts} active={streamFilter} onSelect={setStreamFilter} />
       </div>
       {error ? <ErrorState message={error} retry={() => void load()} /> : null}
-      {view === "analytics" ? (
-        <AnalyticsView analytics={analytics} loading={loading} />
-      ) : (
-        <div
-          className={`creative-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}${layout.isResizing ? " is-resizing-list" : ""}`}
-          style={{ "--list-detail-columns": layout.columns } as CSSProperties}
-        >
+      <div
+        className={`creative-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}${layout.isResizing ? " is-resizing-list" : ""}`}
+        style={{ "--list-detail-columns": layout.columns } as CSSProperties}
+      >
           <aside className={`creative-list-pane${listVisible ? "" : " collapsed"}`}>
             {!listVisible ? null : (
               <>
                 <label className="creative-search"><input aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} /></label>
-                {view === "workflow" ? (
-                  loading ? <CreativeStreamSkeleton /> : (
-                    <TodayStream
-                      topics={topics}
-                      projects={activeProjects}
-                      filter={streamFilter}
-                      search={search}
-                      selectedTopic={selectedTopic}
-                      selectedProject={selectedProject}
-                      selectedTopicFile={selectedTopicFilePath}
-                      onOpenTopic={(topic) => { if (compactWorkspace) setCompactListOpen(false); resetTopicFile(); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); }}
-                      onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
-                      onOpenProject={(project) => void openProject(project)}
-                    />
-                  )
-                ) : loading ? <CreativeStreamSkeleton /> : (
-                  <div className="creative-item-list entrance-stagger">
-                    {activeProjects.map((project) => (
-                      <button key={project.dir} data-entrance-item data-motion="selection" className={`creative-item-row${selectedProject?.dir === project.dir ? " active" : ""}`} onClick={() => void openProject(project)}>
-                        <div><strong>{project.topic}</strong><p>{stageLabel(project.stage)}{project.platforms && Object.keys(project.platforms).length ? ` · ${Object.keys(project.platforms).map(platformLabel).join("/")}` : ""}</p><small>{m.creativeUi.workspace.completion(project.completion)}{project.updatedAt ? ` · ${formatRelative(project.updatedAt)}` : ""}</small></div>
-                        <span className="completion-ring">{project.completion}%</span>
-                      </button>
-                    ))}
-                    {!activeProjects.length ? <EmptyState title={m.creativeUi.workspace.emptyProjects.title} description={m.creativeUi.workspace.emptyProjects.description} /> : null}
-                  </div>
+                {loading ? <CreativeStreamSkeleton /> : (
+                  <TodayStream
+                    topics={topics}
+                    projects={activeProjects}
+                    filter={streamFilter}
+                    search={search}
+                    selectedTopic={selectedTopic}
+                    selectedProject={selectedProject}
+                    selectedTopicFile={selectedTopicFilePath}
+                    onOpenTopic={(topic) => { if (compactWorkspace) setCompactListOpen(false); resetTopicFile(); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); }}
+                    onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
+                    onOpenProject={(project) => void openProject(project)}
+                  />
                 )}
               </>
             )}
@@ -453,7 +393,6 @@ export function CreativeWorkspacePage({
             ) : null}
             <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}`} data-stage={stage}>
               <CreativeDetailPane
-                view={view}
                 stage={stage}
                 detail={detail}
                 selectedProject={selectedProject}
@@ -468,10 +407,8 @@ export function CreativeWorkspacePage({
                 setTopicFileMode={setTopicFileMode}
                 setTopicFileDirty={setTopicFileDirty}
                 saveTopicFile={saveTopicFile}
-                versions={versions}
                 activeFile={activeFile}
                 chooseFile={chooseFile}
-                setVersions={setVersions}
                 setDetail={setDetail}
                 setDraft={setDraft}
                 createProject={createProject}
@@ -500,8 +437,7 @@ export function CreativeWorkspacePage({
               />
             </div>
           </main>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Eye, FileOutput, LoaderCircle, Pencil, Plus, Save, Search } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
@@ -23,7 +24,10 @@ export function ProjectOutputsPanel({
   createRequested,
   onCreateHandled,
   onChanged,
-  onNavigationGuardChange
+  onNavigationGuardChange,
+  onSelectionChange,
+  listHost,
+  detailHost
 }: {
   project: ProjectDetail;
   initialOutputPath?: string;
@@ -31,6 +35,10 @@ export function ProjectOutputsPanel({
   onCreateHandled(): void;
   onChanged(): void;
   onNavigationGuardChange?(guard: ProjectOutputNavigationGuard | null): void;
+  onSelectionChange?(relativePath?: string): void;
+  /** Attached mode: the page owns the visible columns and hosts the two halves. */
+  listHost?: HTMLElement | null;
+  detailHost?: HTMLElement | null;
 }) {
   const ai = useAi();
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
@@ -177,12 +185,13 @@ export function ProjectOutputsPanel({
       setDirty(false);
       setSaveState("idle");
       setMode("edit");
+      onSelectionChange?.(relativePath);
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setReading(false);
     }
-  }, [confirmTransition, project.name]);
+  }, [confirmTransition, onSelectionChange, project.name]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -262,6 +271,7 @@ export function ProjectOutputsPanel({
       setDirty(false);
       setMode("edit");
       setCreateOpen(false);
+      onSelectionChange?.(next.relativePath);
       onChanged();
       window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".project-output-editor .cm-content")?.focus());
     } catch (cause) {
@@ -280,12 +290,14 @@ export function ProjectOutputsPanel({
     setSelected(null);
     setSelectedPath("");
     setDirty(false);
+    onSelectionChange?.();
   };
 
+  const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>成品</h2></div><button className="icon-button" aria-label="新建成品" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header>
-      <label className="project-local-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索成品" /></label>
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>成品</h2></div><button className="icon-button" aria-label="新建成品" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
+      <label className="project-local-search"><Search size={14} /><input aria-label="搜索成品" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索成品" /></label>
       <div className="project-local-count">全部成品 <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
@@ -313,12 +325,24 @@ export function ProjectOutputsPanel({
     <EmptyState icon={<FileOutput size={30} />} title="选择或新建成品" description="成品是当前项目内独立保存的 Markdown，不会进入 Creative 工作流。" action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />新建成品</button>} />
   );
 
+  const dialogs = (
+    <ProjectDialog open={createOpen} title="新建成品" description="创建一个保存在当前项目 outputs/ 中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
+      <ProjectTextField label="成品标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
+    </ProjectDialog>
+  );
+  if (attached) {
+    return (
+      <>
+        {createPortal(list, listHost!)}
+        {createPortal(detail, detailHost!)}
+        {dialogs}
+      </>
+    );
+  }
   return (
     <>
       <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="成品" onBack={() => void closeDetail()} />
-      <ProjectDialog open={createOpen} title="新建成品" description="创建一个保存在当前项目 outputs/ 中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
-        <ProjectTextField label="成品标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
-      </ProjectDialog>
+      {dialogs}
     </>
   );
 }

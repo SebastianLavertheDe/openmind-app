@@ -87,4 +87,4 @@ export type ProjectTaskRunResult = {
   run: { id: string } & Record<string, unknown>;
 };
 
-export type ProjectCreateAction = "task" | "material" | "output";
+export type ProjectCreateAction = ProjectSection;

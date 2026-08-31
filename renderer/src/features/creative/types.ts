@@ -27,7 +27,6 @@ export { bucketForStage };
 
 export type StreamFilter = Bucket | "all";
 
-export type WorkspaceView = "workflow" | "history" | "release" | "analytics";
 export type PlatformOption = { id: string; label: string; file: string };
 
 export const PLATFORM_OPTIONS = buildPlatformOptions();

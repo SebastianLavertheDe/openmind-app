@@ -350,35 +350,17 @@ describe("CreativeWorkspacePage", () => {
     expect(screen.getByRole("navigation", { name: m.creativeUi.stream.funnelAria })).toBeTruthy();
   });
 
-  it("switches to the analytics view and renders the analytics panel", async () => {
-    const api = makeApi();
-    renderCreative(api);
+  it("keeps Creative focused on the workbench without legacy admin views", async () => {
+    const getCreativeAnalytics = vi.fn(async () => analytics);
+    renderCreative(makeApi({ getCreativeAnalytics }));
+
     await screen.findByRole("button", { name: /自动保存稿件|创作中/ });
-    fireEvent.click(screen.getByRole("tab", { name: "数据分析" }));
-    await waitFor(() => expect(screen.getByText("稿件总数").parentElement?.querySelector("strong")?.textContent).toBe("1"));
-    expect(screen.getByRole("tab", { name: "数据分析" }).getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("opens the history view for a selected project and lists file tabs", async () => {
-    const api = makeApi({
-      listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "p", createdAt: "2026-06-16T00:00:00.000Z", note: "自动保存", size: 128 }]
-    });
-    renderCreative(api);
-    await screen.findByRole("button", { name: /自动保存稿件/ });
-    fireEvent.click(screen.getByRole("tab", { name: "版本历史" }));
-    fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    await waitFor(() => expect(screen.getByText("draft.md")).toBeTruthy());
-    expect(screen.getByRole("tab", { name: "版本历史" }).getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("opens the release log view and renders the timeline", async () => {
-    const api = makeApi({ getCreativeReleaseLog: async () => [{ id: "e1", createdAt: "2026-06-16T00:00:00.000Z", action: "content_exported", stage: "ready", status: "exported", detail: "导出 Markdown" }] });
-    renderCreative(api);
-    await screen.findByRole("button", { name: /自动保存稿件/ });
-    fireEvent.click(screen.getByRole("tab", { name: "发布记录" }));
-    fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    await waitFor(() => expect(screen.getByRole("list")).toBeTruthy());
-    expect(screen.getByRole("tab", { name: "发布记录" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.queryByRole("tab", { name: "版本历史" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "发布记录" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "数据分析" })).toBeNull();
+    expect(screen.queryByRole("tablist", { name: m.creativeUi.workspace.tabsAria })).toBeNull();
+    expect(screen.getByRole("navigation", { name: m.creativeUi.stream.funnelAria })).toBeTruthy();
+    expect(getCreativeAnalytics).not.toHaveBeenCalled();
   });
 
   it("advance 推进阶段 drafting → review", async () => {

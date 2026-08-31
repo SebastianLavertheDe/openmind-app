@@ -30,6 +30,7 @@
   --brand-accent: #12c9a4;
   --brand-accent-strong: #087b66;
   --brand-accent-tint: #e5f8f3;
+  --focus-ring: color-mix(in srgb, var(--text) 44%, var(--border-strong));
   --nav-selected-bg: var(--control-hover);
   --list-selected-bg: var(--control-hover);
   --app-chrome-bg:
@@ -158,7 +159,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--brand-accent-strong);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -242,6 +243,11 @@ select:focus-visible,
 
 .nav-collapse-button { margin-top: 1px; }
 .nav-search-button { flex: 0 0 auto; }
+
+.nav-search-button:focus-visible {
+  background: var(--control-hover);
+  color: var(--text);
+}
 
 .app-nav:not(.collapsed) .brand-mark { display: none; }
 .app-nav.collapsed .nav-search-button { display: none; }
@@ -757,7 +763,7 @@ select:focus-visible,
   box-shadow: none;
 }
 .document-file-list > button:focus-visible {
-  outline: 2px solid var(--brand-accent-strong);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .document-file-list > button > span { min-width: 0; display: grid; gap: 4px; }
@@ -1009,6 +1015,20 @@ select:focus-visible,
 .publish-field select:focus {
   border-color: var(--border-strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.projects-search:focus-within,
+.project-local-search:focus-within,
+.project-transcript header label:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+
+.projects-search input:focus,
+.project-local-search input:focus,
+.project-transcript header input:focus {
+  outline: 0;
+  box-shadow: none;
 }
 
 .ui-select-trigger,
@@ -1292,7 +1312,7 @@ select:focus-visible,
 
 .creative-stream-card:focus-visible,
 .rule-item:focus-visible {
-  outline: 2px solid var(--brand-accent-strong);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -1377,7 +1397,7 @@ select:focus-visible,
 }
 
 .funnel-segment:focus-visible {
-  outline: 2px solid var(--brand-accent-strong);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -1408,9 +1428,9 @@ select:focus-visible,
 
 .creative-search input:focus {
   outline: 0;
-  border-color: color-mix(in srgb, var(--brand-accent) 52%, transparent);
+  border-color: var(--border-strong);
   background: var(--panel);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 12%, transparent);
+  box-shadow: none;
 }
 
 .creative-stream {
@@ -1498,7 +1518,7 @@ select:focus-visible,
 }
 
 .creative-item-list .stream-date-file:focus-visible {
-  outline: 2px solid var(--brand-accent-strong);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 

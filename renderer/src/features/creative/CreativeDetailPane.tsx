@@ -18,19 +18,17 @@ import {
   Quote,
   Save
 } from "lucide-react";
-import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic, CreativeVersion } from "@shared/contracts";
+import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { EmptyState, StatusBadge } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
-import { HistoryView, ReleaseLogView } from "./history-release";
 import { PublishForm, TopicWorkspace, WritingStats } from "./panels";
 import { InlineAiBar } from "./InlineAiBar";
 import { MarkdownEditor, type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
 import { TopicFileWorkspace } from "./TopicFileWorkspace";
-import { type PlatformOption, type Stage, type WorkspaceView, nextStage, platformLabel, stageLabel } from "./types";
+import { type PlatformOption, type Stage, nextStage, platformLabel, stageLabel } from "./types";
 
 export function CreativeDetailPane({
-  view,
   stage,
   detail,
   selectedProject,
@@ -45,10 +43,8 @@ export function CreativeDetailPane({
   setTopicFileMode,
   setTopicFileDirty,
   saveTopicFile,
-  versions,
   activeFile,
   chooseFile,
-  setVersions,
   setDetail,
   setDraft,
   createProject,
@@ -75,7 +71,6 @@ export function CreativeDetailPane({
   insertLocalFileLink,
   updateManifest
 }: {
-  view: WorkspaceView;
   stage: Stage;
   detail: CreativeProjectDetail | null;
   selectedProject: CreativeProjectSummary | null;
@@ -90,10 +85,8 @@ export function CreativeDetailPane({
   setTopicFileMode: (mode: "preview" | "edit") => void;
   setTopicFileDirty: Dispatch<SetStateAction<boolean>>;
   saveTopicFile(): Promise<void>;
-  versions: CreativeVersion[];
   activeFile: string;
   chooseFile(file: string): Promise<void>;
-  setVersions: Dispatch<SetStateAction<CreativeVersion[]>>;
   setDetail: Dispatch<SetStateAction<CreativeProjectDetail | null>>;
   setDraft: Dispatch<SetStateAction<string>>;
   createProject(platform?: PlatformOption, topicOverride?: CreativeTopic): Promise<void>;
@@ -120,10 +113,6 @@ export function CreativeDetailPane({
   insertLocalFileLink(): Promise<void>;
   updateManifest(patch: Record<string, unknown>): Promise<void>;
 }) {
-  if (view === "history") {
-    return <HistoryView detail={detail} selectedProject={selectedProject} activeFile={activeFile} versions={versions} chooseFile={chooseFile} files={detail ? Object.keys(detail.files || {}) : []} onVersionsChange={setVersions} onRestored={(next) => { setDetail(next); setDraft(next.files?.[activeFile] || ""); }} />;
-  }
-  if (view === "release") return <ReleaseLogView detail={detail} selectedProject={selectedProject} />;
   if (selectedTopicFile) {
     return <TopicFileWorkspace
       file={selectedTopicFile}

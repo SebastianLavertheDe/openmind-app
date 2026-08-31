@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ExternalLink, File, FileOutput, FilePlus2, FileText, Globe2, LoaderCircle, Play, Plus, RefreshCw, Search, Trash2, Video } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
@@ -17,7 +18,10 @@ export function ProjectMaterialsPanel({
   createRequested,
   onCreateHandled,
   onCreateTask,
-  onChanged
+  onChanged,
+  onSelectionChange,
+  listHost,
+  detailHost
 }: {
   project: ProjectDetail;
   initialMaterialPath?: string;
@@ -25,6 +29,10 @@ export function ProjectMaterialsPanel({
   onCreateHandled(): void;
   onCreateTask(seed: ProjectTaskSeed): void;
   onChanged(): void;
+  onSelectionChange?(relativePath?: string): void;
+  /** Attached mode: the page owns the visible columns and hosts the two halves. */
+  listHost?: HTMLElement | null;
+  detailHost?: HTMLElement | null;
 }) {
   const ai = useAi();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
@@ -50,6 +58,7 @@ export function ProjectMaterialsPanel({
 
   const openMaterial = useCallback(async (relativePath: string) => {
     setSelectedPath(relativePath);
+    onSelectionChange?.(relativePath);
     setError(null);
     const known = materialsRef.current.find((item) => item.relativePath === relativePath);
     if (known && known.status !== "ready") {
@@ -66,7 +75,7 @@ export function ProjectMaterialsPanel({
     } finally {
       setReading(false);
     }
-  }, [project.name]);
+  }, [onSelectionChange, project.name]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,13 +88,13 @@ export function ProjectMaterialsPanel({
         || next.find((item) => item.relativePath === initialMaterialPath)
         || next[0];
       if (preferred) await openMaterial(preferred.relativePath);
-      else { setSelectedPath(""); setSelected(null); }
+      else { setSelectedPath(""); setSelected(null); onSelectionChange?.(); }
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialMaterialPath, openMaterial, project.name]);
+  }, [initialMaterialPath, onSelectionChange, openMaterial, project.name]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -144,6 +153,7 @@ export function ProjectMaterialsPanel({
       await projectsApi.removeMaterial(project.name, selected.relativePath);
       setSelected(null);
       setSelectedPath("");
+      onSelectionChange?.();
       await load();
       onChanged();
       ai.notify("资料已移出项目。", "success");
@@ -185,10 +195,11 @@ export function ProjectMaterialsPanel({
     }
   };
 
+  const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header>
-      <label className="project-local-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" /></label>
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
+      <label className="project-local-search"><Search size={14} /><input aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" /></label>
       <div className="project-material-filters" role="tablist" aria-label="资料类型">
         {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
       </div>
@@ -210,9 +221,21 @@ export function ProjectMaterialsPanel({
     <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
   );
 
+  if (attached) {
+    return (
+      <>
+        {createPortal(list, listHost!)}
+        {createPortal(detail, detailHost!)}
+        <ProjectDialog open={addOpen} title="添加资料" description="文件会复制到当前项目；链接会被识别为网页或受支持的视频。" confirmLabel={addMode === "file" ? "选择文件" : "添加链接"} busy={adding} onClose={() => setAddOpen(false)} onConfirm={addMode === "file" ? addFiles : addUrl}>
+          <div className="project-dialog-tabs" role="tablist" aria-label="资料来源"><button type="button" role="tab" aria-selected={addMode === "file"} className={addMode === "file" ? "active" : ""} onClick={() => setAddMode("file")}><File size={15} />本地文件</button><button type="button" role="tab" aria-selected={addMode === "url"} className={addMode === "url" ? "active" : ""} onClick={() => setAddMode("url")}><Globe2 size={15} />网页或视频链接</button></div>
+          {addMode === "file" ? <div className="project-file-picker-copy"><FilePlus2 size={26} /><strong>选择一个或多个文件</strong><p>支持 Markdown、纯文本、PDF、DOCX、PPTX 和 XLSX；文档会转换为可阅读的 Markdown。</p></div> : <ProjectTextField label="URL" value={url} placeholder="https://…" autoFocus onChange={setUrl} />}
+        </ProjectDialog>
+      </>
+    );
+  }
   return (
     <>
-      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { setSelectedPath(""); setSelected(null); }} />
+      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { setSelectedPath(""); setSelected(null); onSelectionChange?.(); }} />
       <ProjectDialog open={addOpen} title="添加资料" description="文件会复制到当前项目；链接会被识别为网页或受支持的视频。" confirmLabel={addMode === "file" ? "选择文件" : "添加链接"} busy={adding} onClose={() => setAddOpen(false)} onConfirm={addMode === "file" ? addFiles : addUrl}>
         <div className="project-dialog-tabs" role="tablist" aria-label="资料来源"><button type="button" role="tab" aria-selected={addMode === "file"} className={addMode === "file" ? "active" : ""} onClick={() => setAddMode("file")}><File size={15} />本地文件</button><button type="button" role="tab" aria-selected={addMode === "url"} className={addMode === "url" ? "active" : ""} onClick={() => setAddMode("url")}><Globe2 size={15} />网页或视频链接</button></div>
         {addMode === "file" ? <div className="project-file-picker-copy"><FilePlus2 size={26} /><strong>选择一个或多个文件</strong><p>支持 Markdown、纯文本、PDF、DOCX、PPTX 和 XLSX；文档会转换为可阅读的 Markdown。</p></div> : <ProjectTextField label="URL" value={url} placeholder="https://…" autoFocus onChange={setUrl} />}

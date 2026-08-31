@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FileOutput, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
@@ -16,7 +17,10 @@ export function ProjectTasksPanel({
   createRequested,
   seed,
   onCreateHandled,
-  onChanged
+  onChanged,
+  onSelectionChange,
+  listHost,
+  detailHost
 }: {
   project: ProjectDetail;
   initialTaskId?: string;
@@ -24,6 +28,10 @@ export function ProjectTasksPanel({
   seed?: ProjectTaskSeed | null;
   onCreateHandled(): void;
   onChanged(): void;
+  onSelectionChange?(taskId?: string): void;
+  /** Attached mode: the page owns the visible columns and hosts the two halves. */
+  listHost?: HTMLElement | null;
+  detailHost?: HTMLElement | null;
 }) {
   const ai = useAi();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
@@ -75,6 +83,7 @@ export function ProjectTasksPanel({
   }, [initialTaskId, project.name]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { onSelectionChange?.(selectedId || undefined); }, [onSelectionChange, selectedId]);
   useEffect(() => {
     const unseen = terminalProjectRunIds.filter((runId) => !refreshedTerminalRunsRef.current.has(runId));
     if (!unseen.length) return;
@@ -179,10 +188,11 @@ export function ProjectTasksPanel({
     }
   };
 
+  const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      <header className="project-local-list-header"><div><span className="eyebrow">项目任务</span><h2>任务</h2></div><button className="icon-button" aria-label="新建任务" onClick={newTask}><Plus size={16} /></button></header>
-      <label className="project-local-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务" /></label>
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目任务</span><h2>任务</h2></div><button className="icon-button" aria-label="新建任务" onClick={newTask}><Plus size={16} /></button></header> : null}
+      <label className="project-local-search"><Search size={14} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务" /></label>
       <div className="project-local-count">全部任务 <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
@@ -221,6 +231,14 @@ export function ProjectTasksPanel({
     <EmptyState icon={<Sparkles size={30} />} title="选择或新建任务" description="项目任务会在当前项目目录中查找资料，并把结果返回到对话。" action={<button className="primary-button" onClick={newTask}><Plus size={15} />新建任务</button>} />
   );
 
+  if (attached) {
+    return (
+      <>
+        {createPortal(list, listHost!)}
+        {createPortal(detail, detailHost!)}
+      </>
+    );
+  }
   return <ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />;
 }
 

@@ -169,7 +169,7 @@ describe("Project output persistence", () => {
     renderWithAi(<ProjectsPage initialProjectName={project.name} initialSection="outputs" />);
 
     fireEvent.change(await screen.findByRole("textbox", { name: "成品标题" }), { target: { value: "切换前保存" } });
-    fireEvent.click(screen.getByRole("button", { name: /任务 0/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /任务 0/ }));
 
     await waitFor(() => expect(order).toEqual(["save", "tasks"]));
   });
