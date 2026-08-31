@@ -69,6 +69,9 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "automation-runs-list": return scheduler.listAutomationRuns(typeof first === "string" ? first : undefined);
     case "automation-schedules-list": return scheduler.listAutomationSchedules();
     case "start": return scheduler.startRun(first as never);
+    // Main-only ProjectTask bridge. Renderer IPC never supplies projectRoot;
+    // Main resolves it through ProjectPathResolver before invoking this method.
+    case "start-project-run": return scheduler.startProjectRun(first as never);
     case "cancel": return scheduler.cancelRun(String(first));
     case "update-session": return scheduler.updateSession(String(first), second as never);
     case "fork-session": return scheduler.forkSession(String(first), typeof second === "string" ? second : undefined);

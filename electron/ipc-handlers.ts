@@ -40,6 +40,25 @@ import * as settings from "./lib/settings";
 import { messages } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
+import {
+  ProjectAddUrlInputSchema,
+  ProjectAiRunResultSchema,
+  ProjectArchiveInputSchema,
+  ProjectCreateInputSchema,
+  ProjectCreateOutputInputSchema,
+  ProjectCreateTaskInputSchema,
+  ProjectMaterialLocatorSchema,
+  ProjectNameInputSchema,
+  ProjectNameSchema,
+  ProjectOutputLocatorSchema,
+  ProjectRenameInputSchema,
+  ProjectSaveOutputInputSchema,
+  ProjectStartTaskRunInputSchema,
+  ProjectTaskLocatorSchema,
+  ProjectTaskRunResultSchema,
+  type ProjectTask
+} from "../shared/project-contracts";
+import type { ProjectService } from "./project/project-service";
 
 const StringArgSchema = z.string().min(1).max(4096);
 const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
@@ -75,6 +94,22 @@ async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中�
   if (count > 0) throw new Error(message);
 }
 
+class AsyncSerialGate {
+  private tail: Promise<void> = Promise.resolve();
+
+  async run<T>(operation: () => T | Promise<T>): Promise<T> {
+    const previous = this.tail;
+    let release!: () => void;
+    this.tail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+}
+
 export type AiWorkerCaller = {
   call(method: string, ...args: unknown[]): Promise<unknown>;
 };
@@ -82,6 +117,7 @@ export type AiWorkerCaller = {
 export type IpcMainContext = {
   getMainWindow: () => BrowserWindow | null;
   ensureProductService: () => ProductService;
+  ensureProjectService: () => ProjectService;
   ensureAiWorker: () => AiWorkerCaller;
   ensureOpenmindFileSearch: () => OpenmindFileSearch;
   ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
@@ -111,6 +147,7 @@ export type IpcHandlerEntry = {
 export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] {
   const C = IPC_METHOD_CHANNELS;
   const product = () => ctx.ensureProductService();
+  const projects = () => ctx.ensureProjectService();
   const ai = () => ctx.ensureAiWorker();
   const skillPackages = () => ctx.ensureSkillPackageService();
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
@@ -118,6 +155,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     if (!ctx.ensureSharedPythonRuntimeService) throw new Error("内置 Python 运行时服务尚未初始化。 ");
     return ctx.ensureSharedPythonRuntimeService();
   };
+  // Project run admission and mutations share one gate. The active-run check
+  // and the mutation itself must be atomic with respect to starting/continuing
+  // a Project turn; otherwise a run could slip in after a zero-count check.
+  const projectAdmission = new AsyncSerialGate();
 
   return [
     {
@@ -125,10 +166,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async () => {
         const repoRoot = settings.findRepoRoot();
         const date = ctx.localDate();
-        // ADR-001: surface the resolved openmind/workspace roots so the renderer
-        // can drive the new path settings UI without re-deriving them.
+        // The wire contract retains `workspaceRoot` for compatibility, but AI
+        // execution is now rooted exclusively at openmindRoot.
         const openmindRoot = settings.resolveOpenmindRoot();
-        const workspaceRoot = settings.resolveWorkspaceRoot();
+        const workspaceRoot = openmindRoot;
         // `validRepo` is retained in the wire contract for one release. It
         // means only that an explicit, usable openmind save root is bound.
         // Setup checks Skill installation presence only; integrity/provenance
@@ -222,7 +263,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         if (result.canceled) return [];
         const projectRoot = settings.findRepoRoot();
         return result.filePaths.map((filePath) =>
-          path.relative(projectRoot, settings.ensureInsideRepo(filePath)).split(path.sep).join("/")
+          path.relative(projectRoot, settings.ensureInsideRepoReadable(filePath)).split(path.sep).join("/")
         );
       }
     },
@@ -315,7 +356,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.getOpenmindRoot,
       handler: () => ({
         openmindRoot: settings.resolveOpenmindRoot(),
-        workspaceRoot: settings.resolveWorkspaceRoot(),
+        workspaceRoot: settings.resolveOpenmindRoot(),
         health: settings.getOpenmindRootHealth(),
         snapshot: settings.getOpenmindRootSnapshot()
       })
@@ -525,7 +566,46 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         ? ai().call("prewarm", parseOptionalString(sessionId))
         : false
     },
-    { channel: C.aiStartRun, handler: (input) => ai().call("start", StartRunInputSchema.parse(input)) },
+    {
+      channel: C.aiStartRun,
+      handler: async (rawInput) => {
+        const input = StartRunInputSchema.parse(rawInput);
+        if (!input.sessionId) {
+          // Main repeats the generic path boundary before the worker receives
+          // the request. The worker performs the authoritative realpath check.
+          settings.ensureInsideRepoReadable(input.cwd);
+          for (const context of input.contexts) {
+            if (context.path && !(context.kind === "image" && context.content)) settings.ensureInsideRepoReadable(context.path);
+          }
+          return ai().call("start", input);
+        }
+        return projectAdmission.run(async () => {
+          const projectService = projects();
+          const task = projectService.findProjectTaskBySessionId(input.sessionId!);
+          if (!task) return ai().call("start", input);
+          if (task.status === "archived") throw new Error("已归档的 Project Task 不能继续创作。");
+          if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不允许在续写时切换。");
+          const projectRoot = projectService.resolveProjectRoot(task.projectName);
+          const contexts = input.contexts.map((context) => {
+            if (!context.path) return context;
+            const absolute = projectService.paths.resolveInsideProject(task.projectName, context.path, {
+              allowedTopLevels: ["materials", "outputs"]
+            });
+            return { ...context, path: path.relative(projectRoot, absolute).split(path.sep).join("/") };
+          });
+          try {
+            return ProjectAiRunResultSchema.parse(await ai().call("start-project-run", {
+              sessionId: input.sessionId,
+              prompt: input.prompt,
+              contexts
+            }));
+          } catch (error) {
+            projectService.setProjectTaskStatus(task.projectName, task.taskId, "failed");
+            throw error;
+          }
+        });
+      }
+    },
     { channel: C.aiCancelRun, handler: (runId) => ai().call("cancel", parseString(runId)) },
     {
       channel: C.aiUpdateSession,
@@ -544,7 +624,249 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.aiResolveApproval,
       handler: (approvalId, decision) => ai().call("resolve-approval", parseString(approvalId), ApprovalDecisionSchema.parse(decision))
     },
+    { channel: C.listProjects, handler: () => projects().listProjects() },
+    { channel: C.createProject, handler: (input) => projects().createProject(ProjectCreateInputSchema.parse(input)) },
+    { channel: C.getProject, handler: (projectName) => projects().getProject(ProjectNameSchema.parse(projectName)) },
+    {
+      channel: C.renameProject,
+      handler: async (rawInput) => {
+        const input = ProjectRenameInputSchema.parse(rawInput);
+        return projectAdmission.run(async () => {
+          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能重命名 Project。");
+          return projects().renameProject(input.projectName, input.newName);
+        });
+      }
+    },
+    {
+      channel: C.archiveProject,
+      handler: async (rawInput) => {
+        const input = ProjectArchiveInputSchema.parse(rawInput);
+        return projectAdmission.run(async () => {
+          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能归档 Project。");
+          return projects().archiveProject(input.projectName, input.archived);
+        });
+      }
+    },
+    {
+      channel: C.addProjectFiles,
+      handler: async (rawInput) => {
+        const input = ProjectNameInputSchema.parse(rawInput);
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "添加项目资料",
+          properties: ["openFile", "multiSelections"],
+          filters: [
+            { name: "支持的项目资料", extensions: ["md", "markdown", "txt", "pdf", "docx", "pptx", "xlsx"] },
+            { name: "All Files", extensions: ["*"] }
+          ]
+        });
+        if (result.canceled || result.filePaths.length === 0) return [];
+        return projects().addProjectFiles(input.projectName, result.filePaths);
+      }
+    },
+    {
+      channel: C.addProjectUrl,
+      handler: (rawInput) => {
+        const input = ProjectAddUrlInputSchema.parse(rawInput);
+        return projects().addProjectUrl(input.projectName, input.url);
+      }
+    },
+    {
+      channel: C.retryMaterialExtraction,
+      handler: (rawInput) => {
+        const input = ProjectMaterialLocatorSchema.parse(rawInput);
+        return projects().retryMaterialExtraction(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.removeProjectMaterial,
+      handler: (rawInput) => {
+        const input = ProjectMaterialLocatorSchema.parse(rawInput);
+        return projects().removeProjectMaterial(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.readProjectMaterial,
+      handler: (rawInput) => {
+        const input = ProjectMaterialLocatorSchema.parse(rawInput);
+        return projects().readProjectMaterial(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.listProjectMaterials,
+      handler: (projectName) => projects().listProjectMaterials(ProjectNameSchema.parse(projectName))
+    },
+    {
+      channel: C.createProjectTask,
+      handler: (rawInput) => {
+        const input = ProjectCreateTaskInputSchema.parse(rawInput);
+        return projects().createProjectTask(input.projectName, input.title, input.providerId);
+      }
+    },
+    {
+      channel: C.listProjectTasks,
+      handler: async (projectName) => {
+        const name = ProjectNameSchema.parse(projectName);
+        const projectService = projects();
+        const tasks = projectService.listProjectTasks(name);
+        try {
+          const snapshot = await ai().call("snapshot") as {
+            sessions?: Array<{ id?: unknown; status?: unknown; scope?: unknown }>;
+            runs?: Array<{ id?: unknown; sessionId?: unknown; status?: unknown; startedAt?: unknown }>;
+          };
+          const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
+          const runs = Array.isArray(snapshot.runs) ? snapshot.runs : [];
+          return tasks.map((task) => reconcileProjectTaskStatus(projectService, name, task, sessions, runs));
+        } catch {
+          // Project files remain usable while the AI worker is unavailable.
+          return tasks;
+        }
+      }
+    },
+    {
+      channel: C.listProjectTaskMessages,
+      handler: (rawInput) => {
+        const input = ProjectTaskLocatorSchema.parse(rawInput);
+        return projects().listProjectTaskMessages(input.projectName, input.taskId);
+      }
+    },
+    {
+      channel: C.archiveProjectTask,
+      handler: async (rawInput) => {
+        const input = ProjectTaskLocatorSchema.parse(rawInput);
+        return projectAdmission.run(async () => {
+          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能归档 Project Task。");
+          return projects().archiveProjectTask(input.projectName, input.taskId);
+        });
+      }
+    },
+    {
+      channel: C.projectStartTaskRun,
+      handler: async (rawInput) => {
+        const input = ProjectStartTaskRunInputSchema.parse(rawInput);
+        return projectAdmission.run(async () => {
+          const projectService = projects();
+          const task = projectService.getProjectTask(input.projectName, input.taskId);
+          if (task.status === "archived") throw new Error("已归档的 Project Task 不能继续创作。");
+          const projectRoot = projectService.resolveProjectRoot(input.projectName);
+          const trustedContexts = input.contexts.map((context) => {
+            if (!context.path) return context;
+            const absolute = projectService.paths.resolveInsideProject(input.projectName, context.path, {
+              allowedTopLevels: ["materials", "outputs"]
+            });
+            return { ...context, path: path.relative(projectRoot, absolute).split(path.sep).join("/") };
+          });
+          let trustedInput: Record<string, unknown>;
+          if (input.sessionId) {
+            if (!task.sessionId || task.sessionId !== input.sessionId) {
+              throw new Error("AI Session 不属于该 Project Task。");
+            }
+            if (input.providerId && input.providerId !== task.providerId) {
+              throw new Error("Project Task Provider 不允许在续写时切换。");
+            }
+            trustedInput = { sessionId: input.sessionId, prompt: input.prompt, contexts: trustedContexts };
+          } else {
+            if (task.sessionId) throw new Error("Project Task 已有 Session，续写必须携带原 Session ID。");
+            if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不一致。");
+            trustedInput = {
+              projectRoot,
+              projectName: input.projectName,
+              taskId: input.taskId,
+              providerId: task.providerId,
+              prompt: input.prompt,
+              contexts: trustedContexts
+            };
+          }
+          try {
+            const result = ProjectAiRunResultSchema.parse(await ai().call("start-project-run", trustedInput));
+            if (result.session.scope?.type !== "project-task"
+              || result.session.scope.projectName !== input.projectName
+              || result.session.scope.taskId !== input.taskId
+              || result.run.sessionId !== result.session.id
+              || result.run.scope?.type !== "project-task"
+              || result.run.scope.projectName !== input.projectName
+              || result.run.scope.taskId !== input.taskId) {
+              throw new Error("AI Worker 返回了不匹配的 Project Session。");
+            }
+            const bound = projectService.bindProjectTaskSession(
+              input.projectName,
+              input.taskId,
+              result.session.id,
+              result.session.providerId
+            );
+            projectService.appendProjectTaskMessage(input.projectName, input.taskId, {
+              id: `${result.run.id}:user`,
+              role: "user",
+              content: input.prompt,
+              sourceMessageId: null,
+              createdAt: result.run.startedAt
+            });
+            return ProjectTaskRunResultSchema.parse({ ...result, task: bound });
+          } catch (error) {
+            projectService.setProjectTaskStatus(input.projectName, input.taskId, "failed");
+            throw error;
+          }
+        });
+      }
+    },
+    {
+      channel: C.listProjectOutputs,
+      handler: (projectName) => projects().listProjectOutputs(ProjectNameSchema.parse(projectName))
+    },
+    {
+      channel: C.createProjectOutput,
+      handler: (input) => projects().createProjectOutput(ProjectCreateOutputInputSchema.parse(input))
+    },
+    {
+      channel: C.readProjectOutput,
+      handler: (rawInput) => {
+        const input = ProjectOutputLocatorSchema.parse(rawInput);
+        return projects().readProjectOutput(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.saveProjectOutput,
+      handler: (input) => projects().saveProjectOutput(ProjectSaveOutputInputSchema.parse(input))
+    },
+    {
+      channel: C.removeProjectOutput,
+      handler: (rawInput) => {
+        const input = ProjectOutputLocatorSchema.parse(rawInput);
+        return projects().removeProjectOutput(input.projectName, input.relativePath);
+      }
+    },
   ];
+}
+
+function reconcileProjectTaskStatus(
+  projectService: ProjectService,
+  projectName: string,
+  task: ProjectTask,
+  sessions: Array<{ id?: unknown; status?: unknown; scope?: unknown }>,
+  runs: Array<{ id?: unknown; sessionId?: unknown; status?: unknown; startedAt?: unknown }>
+): ProjectTask {
+  if (!task.sessionId || task.status === "archived") return task;
+  const session = sessions.find((candidate) => candidate.id === task.sessionId);
+  if (!session) return task;
+  const scope = session.scope && typeof session.scope === "object"
+    ? session.scope as Record<string, unknown>
+    : null;
+  if (scope?.type !== "project-task" || scope.projectName !== projectName || scope.taskId !== task.taskId) {
+    return task;
+  }
+  const latest = runs
+    .filter((candidate) => candidate.sessionId === task.sessionId)
+    .sort((left, right) => String(right.startedAt || "").localeCompare(String(left.startedAt || "")))[0];
+  const runStatus = String(latest?.status || "");
+  const nextStatus = ["queued", "running", "waiting-approval", "applying"].includes(runStatus)
+    ? "active"
+    : runStatus === "completed"
+      ? "completed"
+      : ["failed", "cancelled", "conflicted"].includes(runStatus) || session.status === "failed"
+        ? "failed"
+        : task.status;
+  return nextStatus === task.status
+    ? task
+    : projectService.setProjectTaskStatus(projectName, task.taskId, nextStatus);
 }
 
 function browserPreferencesChanged(previous: z.infer<typeof UserPreferencesSchema>, next: z.infer<typeof UserPreferencesSchema>): boolean {

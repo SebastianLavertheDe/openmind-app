@@ -5,6 +5,12 @@ import { MarkdownReader, addCjkLatinSpacing, normalizeMarkdownTables } from "./M
 afterEach(cleanup);
 
 describe("MarkdownReader", () => {
+  it("does not automatically load remote images from untrusted Markdown", () => {
+    const { container } = render(<MarkdownReader content="![内网图](http://127.0.0.1/private.png)" />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("http://127.0.0.1/private.png");
+  });
+
   it("adds spacing between CJK text and Latin words or numbers", () => {
     expect(addCjkLatinSpacing("提取Chrome热门插件，GPT5表现提升20%并支持中文"))
       .toBe("提取 Chrome 热门插件，GPT5 表现提升 20% 并支持中文");

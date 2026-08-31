@@ -60,15 +60,18 @@ into three concern areas. No two roots may alias or contain one another.
 
 ### 2. Workspace root — `workspaceRoot` (optional, AI/code only)
 
-- **What it is:** an optional directory the AI workspace uses for code/file
-  work that is unrelated to content.
+> **Superseding note (2026-08-31).** Provider execution and file access are
+> rooted exclusively at `openmindRoot`. The legacy `workspaceRoot` preference
+> remains in persisted/wire schemas for compatibility, but it is no longer an
+> AI filesystem authority and is not shown as a separate path in Settings.
+
+- **What it is:** a legacy optional code-workspace preference retained for
+  migration compatibility.
 - **Cardinality:** zero or one.
-- **Relationship to content:** completely independent of `openmindRoot`. Setting
-  one does not set the other. They may legitimately be the same directory the
-  user cares about, but the app never infers one from the other.
-- **Legacy role:** none in the current build. The pre-release automatic
-  `repoRoot` derivation and its IPC shims were removed; users explicitly bind
-  `openmindRoot` and, if needed, `workspaceRoot`.
+- **Relationship to content:** the persisted legacy value may differ from
+  `openmindRoot`, but it does not widen or replace the active AI root.
+- **Legacy role:** old settings and IPC clients can still carry the field while
+  the current UI and AI worker use `openmindRoot`.
 
 ### 3. App-private roots — under `userData`, except repository-travelling data
 
@@ -148,13 +151,13 @@ to travel with the private repository is explicitly listed in ADR-002 instead
   refactored to take a `OpenmindPathResolver` (or `openmindRootSnapshot`) via
   dependency injection instead of calling `findRepoRoot()`.
 - **Negative:** pre-release users with only a legacy `repoRoot` setting must
-  explicitly reselect their save root and optional workspace. Startup performs
+  explicitly reselect their save root. Startup performs
   no implicit content or private-state copy.
 
 ## Open questions (deferred to follow-up ADRs)
 
-- Whether `workspaceRoot` is needed at all for v1 (default: yes, kept for the
-  AI workspace, but it may remain unset and the app still functions).
+- Whether to remove the legacy `workspaceRoot` field and IPC entirely after
+  all supported settings/wire migrations no longer require it.
 - Whether to allow relocating the entire `userData` tree (deferred; not v1).
 
 ## User-initiated openmind relocation

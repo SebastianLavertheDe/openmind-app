@@ -13,6 +13,9 @@ export type AppPage =
 export type AppRouteState = {
   date?: string;
   projectDir?: string;
+  projectName?: string;
+  projectSection?: "tasks" | "materials" | "outputs";
+  projectItem?: string;
   runId?: string;
   skillId?: string;
   stage?: "today" | "drafting" | "review" | "ready" | "published";

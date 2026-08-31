@@ -16,6 +16,7 @@ import type {
 import { DEFAULT_BROWSER_EVIDENCE_DIR } from "@shared/contracts";
 import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
 import type { AutomationRule } from "@shared/contracts";
+import type { ProjectDetail, ProjectMaterial, ProjectOutput, ProjectOutputRead, ProjectSummary, ProjectTask, ProjectTaskMessage, ProjectVideoReadMetadata } from "@shared/project-contracts";
 
 export function installBrowserPreviewApi(): boolean {
   if (window.openmind) return true;
@@ -225,6 +226,123 @@ export function installBrowserPreviewApi(): boolean {
     { schemaVersion: 1, id: "source-reddit-claude-ai", name: "r/ClaudeAI", kind: "reddit", url: "https://www.reddit.com/r/ClaudeAI/hot.json", skillId: "reddit-fetcher", enabled: true, frequency: "每日流水线", tags: ["AI", "社区"], lastRunAt: "2026-08-22T08:45:00.000Z", lastSuccessAt: "2026-08-22T08:45:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 18 },
     { schemaVersion: 1, id: "source-x", name: "X 关注账号", kind: "x", url: null, skillId: "x-following-fetcher", enabled: true, frequency: "每日流水线", tags: ["动态"], lastRunAt: "2026-08-22T08:15:00.000Z", lastSuccessAt: "2026-08-22T08:15:00.000Z", successRate: 100, status: "success", recentError: null, itemCount: 24 }
   ];
+  const projectCreatedAt = "2026-08-27T08:00:00.000Z";
+  let previewProjects: ProjectSummary[] = [{
+    schemaVersion: 1,
+    name: "AI 安全",
+    description: "整理可信资料，并完成 AI 安全主题创作。",
+    status: "active",
+    materialCount: 3,
+    taskCount: 1,
+    outputCount: 1,
+    createdAt: projectCreatedAt,
+    updatedAt: "2026-08-31T09:30:00.000Z"
+  }];
+  let previewProjectMaterials: ProjectMaterial[] = [{
+    projectName: "AI 安全",
+    relativePath: "materials/documents/AI安全研究.md",
+    title: "AI 安全研究",
+    kind: "document",
+    status: "ready",
+    source: { type: "file", originalName: "AI安全研究.md" },
+    originalRelativePath: null,
+    mimeType: "text/markdown",
+    byteSize: 2380,
+    sha256: null,
+    converterId: "markdown-copy",
+    errorCode: null,
+    errorMessage: null,
+    createdAt: projectCreatedAt,
+    updatedAt: "2026-08-31T09:00:00.000Z"
+  }, {
+    projectName: "AI 安全",
+    relativePath: "materials/web/Anthropic提示词注入研究.web.md",
+    title: "Anthropic 提示词注入研究",
+    kind: "web",
+    status: "ready",
+    source: { type: "url", url: "https://example.com/ai-safety" },
+    originalRelativePath: null,
+    mimeType: "text/markdown",
+    byteSize: 4210,
+    sha256: null,
+    converterId: "readability-markdown",
+    errorCode: null,
+    errorMessage: null,
+    createdAt: projectCreatedAt,
+    updatedAt: "2026-08-31T09:10:00.000Z"
+  }, {
+    projectName: "AI 安全",
+    relativePath: "materials/videos/Steve-Jobs-keynote.video.md",
+    title: "Steve Jobs MacWorld keynote",
+    kind: "video",
+    status: "ready",
+    source: { type: "url", url: "https://www.youtube.com/watch?v=MnrJzXM7a6o" },
+    originalRelativePath: null,
+    mimeType: "text/markdown",
+    byteSize: 6320,
+    sha256: null,
+    converterId: "youtube-caption",
+    errorCode: null,
+    errorMessage: null,
+    createdAt: projectCreatedAt,
+    updatedAt: "2026-08-31T09:20:00.000Z"
+  }];
+  const previewProjectMaterialContent = new Map<string, string>([
+    ["materials/documents/AI安全研究.md", "# AI 安全研究\n\n## 关键问题\n\n模型能力提升后，权限边界、指令注入和来源可信度成为产品设计的核心问题。\n\n## 原则\n\n- 资料是参考数据，不是系统指令。\n- 高风险操作需要显式批准。\n- 每次创作保留可追溯引用。"],
+    ["materials/web/Anthropic提示词注入研究.web.md", "# Anthropic 提示词注入研究\n\n- URL：https://example.com/ai-safety\n- 抓取时间：2026-08-31\n\n## 摘要\n\n网页正文转换为 Markdown 后，AI 可以通过普通文件搜索按需读取，而无需额外向量索引。"],
+    ["materials/videos/Steve-Jobs-keynote.video.md", "# Steve Jobs MacWorld keynote\n\n## 元数据\n\n- 类型：video\n- Provider：youtube\n- URL：https://www.youtube.com/watch?v=MnrJzXM7a6o\n- Video ID：MnrJzXM7a6o\n- 时长：01:20:15\n\n## 字幕\n\n[00:07.000–00:18.000] this is a day I've been looking forward to for two and a half years\n\n[00:19.000–00:25.000] every once in a while a revolutionary product comes along\n\n[00:26.000–00:34.000] today Apple is going to reinvent the phone"]
+  ]);
+  const previewProjectVideo: ProjectVideoReadMetadata = {
+    provider: "youtube",
+    sourceUrl: "https://www.youtube.com/watch?v=MnrJzXM7a6o",
+    embedUrl: "https://www.youtube-nocookie.com/embed/MnrJzXM7a6o",
+    videoId: "MnrJzXM7a6o",
+    mediaType: "video",
+    title: "Steve Jobs MacWorld keynote",
+    durationMs: 4_815_000,
+    thumbnailUrl: null,
+    transcript: [
+      { startMs: 7_000, endMs: 18_000, text: "this is a day I've been looking forward to for two and a half years" },
+      { startMs: 19_000, endMs: 25_000, text: "every once in a while a revolutionary product comes along" },
+      { startMs: 26_000, endMs: 34_000, text: "today Apple is going to reinvent the phone" }
+    ],
+    transcriptSource: "platform"
+  };
+  let previewProjectTasks: ProjectTask[] = [{
+    taskId: "3c111111-1111-4111-8111-111111111111",
+    projectName: "AI 安全",
+    title: "整理 AI 安全创作框架",
+    sessionId: "preview-session",
+    providerId: "claude-preview",
+    status: "active",
+    createdAt: projectCreatedAt,
+    updatedAt: "2026-08-31T09:25:00.000Z"
+  }];
+  let previewProjectOutputs: ProjectOutputRead[] = [{
+    output: {
+      projectName: "AI 安全",
+      relativePath: "outputs/AI安全行业分析.md",
+      title: "AI 安全行业分析",
+      sourceTaskId: previewProjectTasks[0].taskId,
+      sourceSessionId: "preview-session",
+      sourceMessageId: "preview-answer",
+      createdAt: projectCreatedAt,
+      updatedAt: "2026-08-31T09:30:00.000Z"
+    },
+    content: "# AI 安全行业分析\n\n## 结论\n\n安全能力应与 Agent 权限、资料可信边界和可恢复执行一起设计。\n\n## 建议\n\n1. 默认只读。\n2. 显式展示资料引用。\n3. 输出由应用受控保存。"
+  }];
+  const previewProjectDetail = (name: string): ProjectDetail => {
+    const current = previewProjects.find((project) => project.name === name);
+    if (!current) throw new Error("项目不存在");
+    const project: ProjectSummary = {
+      ...current,
+      materialCount: previewProjectMaterials.filter((item) => item.projectName === name).length,
+      taskCount: previewProjectTasks.filter((item) => item.projectName === name).length,
+      outputCount: previewProjectOutputs.filter((item) => item.output.projectName === name).length
+    };
+    previewProjects = previewProjects.map((item) => item.name === name ? project : item);
+    return { project };
+  };
   const previewAutomationRules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.map((input, index) => ({
     schemaVersion: 1,
     ...input,
@@ -286,11 +404,123 @@ export function installBrowserPreviewApi(): boolean {
       return source;
     },
     importOpml: async () => 2,
+    listProjects: async () => previewProjects.map((project) => previewProjectDetail(project.name).project),
+    createProject: async (input) => {
+      if (previewProjects.some((project) => project.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) throw new Error("项目名已存在");
+      const now = new Date().toISOString();
+      const project: ProjectSummary = { schemaVersion: 1, name: input.name, description: input.description || "", status: "active", materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
+      previewProjects = [project, ...previewProjects];
+      return { project };
+    },
+    getProject: async (projectName) => previewProjectDetail(projectName),
+    renameProject: async ({ projectName, newName }) => {
+      const current = previewProjectDetail(projectName).project;
+      const now = new Date().toISOString();
+      const renamed = { ...current, name: newName, updatedAt: now };
+      previewProjects = previewProjects.map((project) => project.name === projectName ? renamed : project);
+      previewProjectMaterials = previewProjectMaterials.map((material) => material.projectName === projectName ? { ...material, projectName: newName, updatedAt: now } : material);
+      previewProjectTasks = previewProjectTasks.map((task) => task.projectName === projectName ? { ...task, projectName: newName, updatedAt: now } : task);
+      previewProjectOutputs = previewProjectOutputs.map((entry) => entry.output.projectName === projectName ? { ...entry, output: { ...entry.output, projectName: newName, updatedAt: now } } : entry);
+      return { project: renamed };
+    },
+    archiveProject: async ({ projectName, archived }) => {
+      const current = previewProjectDetail(projectName).project;
+      const project = { ...current, status: archived ? "archived" as const : "active" as const, updatedAt: new Date().toISOString() };
+      previewProjects = previewProjects.map((item) => item.name === projectName ? project : item);
+      return { project };
+    },
+    addProjectFiles: async () => [],
+    addProjectUrl: async ({ projectName, url }) => {
+      const now = new Date().toISOString();
+      const isVideo = /(?:youtube\.com|youtu\.be)/i.test(url);
+      const relativePath = isVideo ? `materials/videos/video-${previewProjectMaterials.length + 1}.video.md` : `materials/web/web-${previewProjectMaterials.length + 1}.web.md`;
+      const material: ProjectMaterial = { projectName, relativePath, title: isVideo ? "新视频资料" : "新网页资料", kind: isVideo ? "video" : "web", status: "ready", source: { type: "url", url }, originalRelativePath: null, mimeType: "text/markdown", byteSize: 0, sha256: null, converterId: isVideo ? "youtube-caption" : "readability-markdown", errorCode: null, errorMessage: null, createdAt: now, updatedAt: now };
+      previewProjectMaterials = [material, ...previewProjectMaterials];
+      previewProjectMaterialContent.set(relativePath, `# ${material.title}\n\n- URL：${url}\n\n浏览器预览不会执行真实抓取。`);
+      previewProjectDetail(projectName);
+      return material;
+    },
+    retryMaterialExtraction: async ({ projectName, relativePath }) => {
+      const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
+      if (!current) throw new Error("资料不存在");
+      const material = { ...current, status: "ready" as const, errorCode: null, errorMessage: null, updatedAt: new Date().toISOString() };
+      previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
+      return material;
+    },
+    removeProjectMaterial: async ({ projectName, relativePath }) => {
+      const before = previewProjectMaterials.length;
+      previewProjectMaterials = previewProjectMaterials.filter((item) => !(item.projectName === projectName && item.relativePath === relativePath));
+      previewProjectMaterialContent.delete(relativePath);
+      previewProjectDetail(projectName);
+      return previewProjectMaterials.length < before;
+    },
+    readProjectMaterial: async ({ projectName, relativePath }) => {
+      const material = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
+      if (!material) throw new Error("资料不存在");
+      return { material, content: previewProjectMaterialContent.get(relativePath) || "", truncated: false, ...(material.kind === "video" ? { video: previewProjectVideo } : {}) };
+    },
+    listProjectMaterials: async (projectName) => previewProjectMaterials.filter((item) => item.projectName === projectName),
+    createProjectTask: async ({ projectName, title, providerId }) => {
+      const now = new Date().toISOString();
+      const task: ProjectTask = { taskId: crypto.randomUUID(), projectName, title, sessionId: null, providerId, status: "active", createdAt: now, updatedAt: now };
+      previewProjectTasks = [task, ...previewProjectTasks];
+      previewProjectDetail(projectName);
+      return task;
+    },
+    listProjectTasks: async (projectName) => previewProjectTasks.filter((task) => task.projectName === projectName),
+    listProjectTaskMessages: async ({ projectName, taskId }) => {
+      const task = previewProjectTasks.find((item) => item.projectName === projectName && item.taskId === taskId);
+      if (!task) throw new Error("任务不存在");
+      return [] as ProjectTaskMessage[];
+    },
+    archiveProjectTask: async ({ projectName, taskId }) => {
+      const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
+      if (!current) throw new Error("任务不存在");
+      const task: ProjectTask = { ...current, status: "archived", updatedAt: new Date().toISOString() };
+      previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
+      return task;
+    },
+    projectStartTaskRun: async ({ projectName, taskId }) => {
+      const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
+      if (!current) throw new Error("任务不存在");
+      const task = { ...current, sessionId: "preview-session", updatedAt: new Date().toISOString() };
+      previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
+      return { task, session: snapshot.sessions[0], run: snapshot.runs[0] };
+    },
+    listProjectOutputs: async (projectName) => previewProjectOutputs.filter((entry) => entry.output.projectName === projectName).map((entry) => entry.output),
+    createProjectOutput: async (input) => {
+      const now = new Date().toISOString();
+      const base = input.title.trim().replace(/[\\/:*?"<>|]/g, "-") || "未命名成品";
+      const output: ProjectOutput = { projectName: input.projectName, relativePath: `outputs/${base}.md`, title: input.title, sourceTaskId: input.sourceTaskId || null, sourceSessionId: input.sourceSessionId || null, sourceMessageId: input.sourceMessageId || null, createdAt: now, updatedAt: now };
+      const result = { output, content: input.content || "" };
+      previewProjectOutputs = [result, ...previewProjectOutputs.filter((entry) => entry.output.relativePath !== output.relativePath || entry.output.projectName !== output.projectName)];
+      previewProjectDetail(input.projectName);
+      return result;
+    },
+    readProjectOutput: async ({ projectName, relativePath }) => {
+      const result = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
+      if (!result) throw new Error("成品不存在");
+      return result;
+    },
+    saveProjectOutput: async ({ projectName, relativePath, title, content }) => {
+      const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
+      if (!current) throw new Error("成品不存在");
+      const result = { output: { ...current.output, title: title || current.output.title, updatedAt: new Date().toISOString() }, content };
+      previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
+      return result;
+    },
+    removeProjectOutput: async ({ projectName, relativePath }) => {
+      const before = previewProjectOutputs.length;
+      previewProjectOutputs = previewProjectOutputs.filter((entry) => !(entry.output.projectName === projectName && entry.output.relativePath === relativePath));
+      previewProjectDetail(projectName);
+      return previewProjectOutputs.length < before;
+    },
     searchWorkspace: async (query) => {
       const normalized = query.toLocaleLowerCase();
       return [
         { id: "content:preview-content-1", kind: "content" as const, title: "工程级 AI 工作台设计", subtitle: "Anthropic · 文章", path: "openmind/article/demo.md", date: "20260615", status: null, targetId: "preview-content-1" },
-        { id: "project:openmind/creative/demo", kind: "project" as const, title: "本地 AI 工程工作台", subtitle: "20260615 · 制作中", path: "openmind/creative/demo", date: "20260615", status: "drafting", targetId: "openmind/creative/demo" },
+        { id: "project:演示项目", kind: "project" as const, title: "演示项目", subtitle: "1 份资料 · 1 个任务 · 1 个成品", path: "projects/演示项目", date: "20260616", status: "active", targetId: "演示项目" },
+        { id: "creative-project:openmind/creative/demo", kind: "creative-project" as const, title: "本地 AI 工程工作台", subtitle: "20260615 · 制作中", path: "openmind/creative/demo", date: "20260615", status: "drafting", targetId: "openmind/creative/demo" },
         { id: "skill:rss-article-saver", kind: "skill" as const, title: "RSS 文章抓取", subtitle: "拉取订阅并保存完整文章。", path: ".claude/skills/rss-article-saver", date: null, status: null, targetId: "rss-article-saver" }
       ].filter((item) => `${item.title} ${item.subtitle}`.toLocaleLowerCase().includes(normalized));
     },
@@ -348,7 +578,7 @@ export function installBrowserPreviewApi(): boolean {
         accessible: true,
         readable: true,
         writable: true,
-        expectedStructureVersion: "openmind-layout-v3",
+        expectedStructureVersion: "openmind-layout-v4",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],
@@ -369,7 +599,7 @@ export function installBrowserPreviewApi(): boolean {
         accessible: previewRootReady,
         readable: previewRootReady,
         writable: previewRootReady,
-        expectedStructureVersion: "openmind-layout-v3",
+        expectedStructureVersion: "openmind-layout-v4",
         missingInitializeEntries: [],
         missingCreateIfNeededEntries: [],
         optionalObservedEntries: [],

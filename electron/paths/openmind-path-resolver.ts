@@ -26,10 +26,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  OPENMIND_LAYOUT_VERSION,
-  OPENMIND_WRITABLE_TOP_LEVEL_DIRS,
+  OPENMIND_LAYOUT_VERSION_V4 as OPENMIND_LAYOUT_VERSION,
+  OPENMIND_V4_WRITABLE_TOP_LEVEL_DIRS as OPENMIND_WRITABLE_TOP_LEVEL_DIRS,
   topLevelOf
-} from "../../shared/openmind-layout-v3";
+} from "../../shared/openmind-layout-v4";
 
 export interface OpenmindRootSnapshot {
   /** Canonical real path of the openmind root. */
@@ -70,6 +70,7 @@ export type OpenmindPathErrorCode =
   | "traversal-detected"
   | "not-inside-root"
   | "symlink-escapes-root"
+  | "app-managed-project-forbidden"
   | "unknown-top-level-write";
 
 export interface ResolverOptions {
@@ -81,16 +82,10 @@ export interface ResolverOptions {
 }
 
 export class OpenmindPathResolver {
-  private readonly caseSensitive: boolean;
-
   constructor(
     private readonly snapshot: OpenmindRootSnapshot,
-    opts: ResolverOptions = {}
-  ) {
-    this.caseSensitive =
-      opts.caseSensitive ??
-      (process.platform !== "win32" && process.platform !== "darwin");
-  }
+    _opts: ResolverOptions = {}
+  ) {}
 
   /** The pinned snapshot this resolver resolves against. */
   getRoot(): OpenmindRootSnapshot {
@@ -108,10 +103,18 @@ export class OpenmindPathResolver {
    */
   resolve(logicalInput: string, mode: "read" | "write" = "read"): ResolvedOpenmindPath {
     const normalised = this.normaliseLogical(logicalInput);
+    if (mode === "write" && topLevelOf(normalised) === "projects") {
+      throw new OpenmindPathError(
+        "app-managed-project-forbidden",
+        "Project 内容只能通过 Project 专用接口访问。",
+        normalised
+      );
+    }
     if (mode === "write") this.assertWriteAllowed(normalised);
     const physical = path.join(this.snapshot.rootPath, normalised);
     this.assertInsideRoot(physical);
     this.assertNoEscapingSymlink(physical);
+    if (mode === "write") assertOutsideAppManagedProjects(this.snapshot.rootPath, physical, normalised);
     return {
       physicalPath: physical,
       logicalPath: normalised,
@@ -163,17 +166,8 @@ export class OpenmindPathResolver {
   }
 
   private assertInsideRoot(physical: string): void {
-    const rel = path.relative(this.snapshot.rootPath, physical);
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    if (!isCanonicalPathWithin(this.snapshot.rootPath, physical)) {
       throw new OpenmindPathError("not-inside-root", "resolved path is outside openmind root", physical);
-    }
-    if (!this.caseSensitive) {
-      // Case-insensitive prefix check (Windows/macOS default).
-      const rootLower = this.snapshot.rootPath.toLowerCase();
-      const physLower = physical.toLowerCase();
-      if (!physLower.startsWith(rootLower)) {
-        throw new OpenmindPathError("not-inside-root", "resolved path is outside openmind root (case mismatch)", physical);
-      }
     }
   }
 
@@ -205,8 +199,7 @@ export class OpenmindPathResolver {
             // Broken symlink; treat as escape (cannot resolve safely).
             throw new OpenmindPathError("symlink-escapes-root", "broken symlink in path", current);
           }
-          const relReal = path.relative(this.snapshot.rootPath, real);
-          if (relReal.startsWith("..") || path.isAbsolute(relReal)) {
+          if (!isCanonicalPathWithin(this.snapshot.rootPath, real)) {
             throw new OpenmindPathError("symlink-escapes-root", "symlink points outside openmind root", current);
           }
         }
@@ -219,6 +212,127 @@ export class OpenmindPathResolver {
       }
     }
   }
+}
+
+/**
+ * Generic workspace/content APIs must not cross into the app-managed
+ * `projects/` tree.  Check both the lexical path and the canonical path so an
+ * in-root symlink cannot be used as an alias for Project data.  ProjectService
+ * deliberately uses ProjectPathResolver instead of this boundary.
+ */
+export function assertOutsideAppManagedProjects(
+  openmindRootInput: string,
+  candidateInput: string,
+  logicalPath?: string
+): void {
+  const openmindRoot = path.resolve(openmindRootInput);
+  const candidate = path.resolve(candidateInput);
+  const projectsRoot = path.join(openmindRoot, "projects");
+  if (isCanonicalPathWithin(projectsRoot, candidate)) {
+    throw new OpenmindPathError(
+      "app-managed-project-forbidden",
+      "Project 内容只能通过 Project 专用接口访问。",
+      logicalPath
+    );
+  }
+
+  const canonicalCandidate = canonicalExistingOrProspective(candidate);
+  const canonicalProjects = canonicalExistingOrProspective(projectsRoot);
+  if (isCanonicalPathWithin(canonicalProjects, canonicalCandidate)) {
+    throw new OpenmindPathError(
+      "app-managed-project-forbidden",
+      "Project 内容只能通过 Project 专用接口访问。",
+      logicalPath
+    );
+  }
+}
+
+/**
+ * Resolve an existing or prospective path below a trusted directory root.
+ * The closest existing ancestor is realpathed so an in-root symlink cannot
+ * redirect reads, opens, reveals, or a future write outside the selected
+ * Workspace. Filesystem errors and broken symlinks fail closed.
+ */
+export function resolvePathInsideCanonicalRoot(
+  rootInput: string,
+  candidateInput: string,
+  message = "路径超出所选 Workspace。"
+): string {
+  let root: string;
+  let candidate: string;
+  try {
+    root = fs.realpathSync.native(path.resolve(rootInput));
+    candidate = canonicalExistingOrProspective(candidateInput);
+  } catch {
+    throw new Error(message);
+  }
+  if (!isCanonicalPathWithin(root, candidate)) throw new Error(message);
+  return candidate;
+}
+
+function canonicalExistingOrProspective(candidate: string): string {
+  const tail: string[] = [];
+  let cursor = path.resolve(candidate);
+  while (true) {
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(cursor);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code !== "ENOENT") throw error;
+      const parent = path.dirname(cursor);
+      if (parent === cursor) throw error;
+      tail.unshift(path.basename(cursor));
+      cursor = parent;
+      continue;
+    }
+    // lstat succeeded, so a realpath failure means a broken/unreadable link
+    // or another filesystem error — never reinterpret it as a missing leaf.
+    if (!stat) throw new Error("path unavailable");
+    return path.resolve(fs.realpathSync.native(cursor), ...tail);
+  }
+}
+
+export type CanonicalPathStyle = "native" | "posix" | "win32";
+
+/**
+ * Compare already-canonical paths component by component. Node's
+ * `path.win32.relative()` deliberately folds case for every component, which
+ * is unsafe for case-sensitive NTFS directories (`C:\\Root` and `C:\\root`
+ * may be distinct). Only the Windows volume/UNC root identity is folded;
+ * canonical directory and file components must match exactly.
+ */
+export function isCanonicalPathWithin(
+  root: string,
+  candidate: string,
+  style: CanonicalPathStyle = "native"
+): boolean {
+  const flavor = style === "native"
+    ? process.platform === "win32" ? "win32" : "posix"
+    : style;
+  const api = flavor === "win32" ? path.win32 : path.posix;
+  const normalizedRoot = api.normalize(root);
+  const normalizedCandidate = api.normalize(candidate);
+  const rootVolume = api.parse(normalizedRoot).root;
+  const candidateVolume = api.parse(normalizedCandidate).root;
+  if (!rootVolume || !candidateVolume) return false;
+  const sameVolume = flavor === "win32"
+    ? normalizeWindowsVolume(rootVolume) === normalizeWindowsVolume(candidateVolume)
+    : rootVolume === candidateVolume;
+  if (!sameVolume) return false;
+  const separator = flavor === "win32" ? /[\\/]+/u : /\/+/u;
+  const rootParts = splitCanonicalComponents(normalizedRoot.slice(rootVolume.length), separator);
+  const candidateParts = splitCanonicalComponents(normalizedCandidate.slice(candidateVolume.length), separator);
+  if (rootParts.length > candidateParts.length) return false;
+  return rootParts.every((component, index) => component === candidateParts[index]);
+}
+
+function normalizeWindowsVolume(value: string): string {
+  return value.replaceAll("/", "\\").replace(/\\+$/u, "").toLowerCase();
+}
+
+function splitCanonicalComponents(value: string, separator: RegExp): string[] {
+  return value.split(separator).filter(Boolean);
 }
 
 function tryDecodeSegment(seg: string): string {

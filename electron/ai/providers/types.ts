@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ApprovalDecision, AiContextState, AiEvent, AiRun, AiSession, ProviderCapabilities } from "../../../shared/contracts";
 import type { BrowserAutomationConfig } from "../browser-evidence";
 import type { ProviderSkillBridge } from "./skill-bridge";
+import { resolvePathInsideRoot } from "../scheduler-paths";
 
 export interface ProviderSkillInvocation {
   name: string;
@@ -14,6 +15,10 @@ export interface ProviderRunContext {
   session: AiSession;
   run: AiRun;
   provider: ProviderCapabilities;
+  /** App-selected OpenMind content/filesystem boundary. Project-scoped sessions keep their
+   * own cwd/content identity, but provider file tools may read anywhere below
+   * this root. */
+  openmindRoot: string;
   cwd: string;
   prompt: string;
   contextState: AiContextState;
@@ -38,6 +43,13 @@ export interface ProviderRunContext {
   skillBridge?: ProviderSkillBridge | null;
   /** OpenMind 托管的写作证据截图能力。 */
   browserAutomation: BrowserAutomationConfig;
+  /** App-managed trees that an ordinary Workspace provider may read but must
+   * not mutate. Project-scoped runs receive an empty list and use their own
+   * strict read-only root instead. */
+  protectedPaths?: readonly string[];
+  /** App-private storage root. Project-scoped providers use it for isolated
+   * provider state that must never live beside user content. */
+  stateRoot?: string;
   /** 粘贴图片等附件（已 materialize 到临时文件）：provider 转 image content block 传 SDK。 */
   images: Array<{ id: string; path: string; mediaType: string }>;
 }
@@ -59,6 +71,9 @@ export interface ProviderAdapter {
   disposeWarmSlots?(): void;
   /** 该 provider 的运行是否依赖预先捕获的 turnContext（Claude 用，Codex 不用）。 */
   needsTurnContext?: boolean;
+  /** False when provider history persistence is disabled and every turn must
+   * be rebuilt from the app-owned rollout. */
+  usesExternalSession?: boolean;
 }
 
 /** Provider 注册表项：kind + adapter。新增 provider = scheduler.providers 加一行 + 实现 ProviderAdapter。 */
@@ -109,9 +124,12 @@ export function isOutsideWorkspace(cwd: string, candidate: string): boolean {
   } else if (wslCandidate) {
     return true;
   }
-  if (!path.isAbsolute(candidate)) return false;
-  const relative = path.relative(path.resolve(cwd), path.resolve(candidate));
-  return relative.startsWith("..") || path.isAbsolute(relative);
+  try {
+    resolvePathInsideRoot(cwd, candidate);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 function parseWslUncPath(value: string): { distro: string; path: string } | null {

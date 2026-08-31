@@ -6,6 +6,8 @@ import {
   OpenmindPathError,
   OpenmindPathResolver,
   computeRootId,
+  isCanonicalPathWithin,
+  resolvePathInsideCanonicalRoot,
   type OpenmindRootSnapshot
 } from "./openmind-path-resolver";
 
@@ -87,6 +89,22 @@ describe("OpenmindPathResolver — rejection", () => {
   it("rejects an empty path", () => {
     expect(() => resolver().resolve("")).toThrow(OpenmindPathError);
   });
+
+  it("allows app-managed Project data in read mode", () => {
+    fs.mkdirSync(path.join(tmpRoot, "projects", "Research", "materials"), { recursive: true });
+    fs.writeFileSync(path.join(tmpRoot, "projects", "Research", "materials", "note.md"), "secret");
+    expect(resolver().resolve("projects/Research/materials/note.md", "read").physicalPath)
+      .toBe(path.join(tmpRoot, "projects", "Research", "materials", "note.md"));
+  });
+
+  it("allows an in-root symlink alias that resolves into readable Project data", () => {
+    const materialDir = path.join(tmpRoot, "projects", "Research", "materials");
+    fs.mkdirSync(materialDir, { recursive: true });
+    fs.writeFileSync(path.join(materialDir, "note.md"), "secret");
+    fs.symlinkSync(materialDir, path.join(tmpRoot, "project-alias"), process.platform === "win32" ? "junction" : "dir");
+    expect(resolver().resolve("project-alias/note.md", "read").physicalPath)
+      .toBe(path.join(tmpRoot, "project-alias", "note.md"));
+  });
 });
 
 describe("OpenmindPathResolver — write mode", () => {
@@ -111,6 +129,11 @@ describe("OpenmindPathResolver — write mode", () => {
       expect(e).toBeInstanceOf(OpenmindPathError);
       expect((e as OpenmindPathError).code).toBe("unknown-top-level-write");
     }
+  });
+
+  it("keeps generic and Skill-style writes out of app-managed projects", () => {
+    expect(() => resolver().resolve("projects/Research/materials/note.md", "write"))
+      .toThrow(/Project 专用接口/);
   });
 
   it("read mode tolerates unknown top-level dirs (a user-created dir)", () => {
@@ -160,6 +183,40 @@ describe("OpenmindPathResolver — symlink safety", () => {
     expect(() =>
       resolver().resolve("daily-summary/20260805_new.md", "write")
     ).not.toThrow();
+  });
+});
+
+describe("resolvePathInsideCanonicalRoot", () => {
+  it("rejects existing and prospective paths below an escaping symlink", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-canonical-outside-"));
+    fs.writeFileSync(path.join(outside, "secret.md"), "secret");
+    fs.symlinkSync(outside, path.join(tmpRoot, "escape"), process.platform === "win32" ? "junction" : "dir");
+    try {
+      expect(() => resolvePathInsideCanonicalRoot(tmpRoot, path.join(tmpRoot, "escape", "secret.md"))).toThrow(/Workspace/);
+      expect(() => resolvePathInsideCanonicalRoot(tmpRoot, path.join(tmpRoot, "escape", "new.md"))).toThrow(/Workspace/);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed for a broken symlink and a prospective child below it", () => {
+    const broken = path.join(tmpRoot, "broken");
+    fs.symlinkSync(path.join(tmpRoot, "missing-target"), broken, process.platform === "win32" ? "junction" : "dir");
+    expect(() => resolvePathInsideCanonicalRoot(tmpRoot, broken)).toThrow(/Workspace/);
+    expect(() => resolvePathInsideCanonicalRoot(tmpRoot, path.join(broken, "new.md"))).toThrow(/Workspace/);
+  });
+});
+
+describe("canonical path membership", () => {
+  it("treats only the Windows volume identity as case-insensitive", () => {
+    expect(isCanonicalPathWithin("C:\\Root", "c:\\Root\\child.md", "win32")).toBe(true);
+    expect(isCanonicalPathWithin("C:\\Root", "C:\\root\\child.md", "win32")).toBe(false);
+    expect(isCanonicalPathWithin("C:\\Root", "C:\\RootElse\\child.md", "win32")).toBe(false);
+  });
+
+  it("folds an UNC root but preserves canonical directory component spelling", () => {
+    expect(isCanonicalPathWithin("\\\\Server\\Share\\Root", "\\\\server\\share\\Root\\child", "win32")).toBe(true);
+    expect(isCanonicalPathWithin("\\\\Server\\Share\\Root", "\\\\server\\share\\root\\child", "win32")).toBe(false);
   });
 });
 

@@ -82,7 +82,7 @@ function Workspace({
   const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   const ai = useAi();
-  const showAiCompanion = route.page === "creative" || route.page === "projects" || route.page === "brief";
+  const showAiCompanion = route.page === "creative" || route.page === "brief";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
     const next = await window.openmind.getBootstrap();
@@ -149,6 +149,14 @@ function Workspace({
     // 每日简报首次进入时直接提供对话框；同页手动收起后保持用户选择。
     if (route.page === "brief" && enteredPage && ai.panelMode === "collapsed") ai.setPanelMode("default");
   }, [route.page, showAiCompanion, ai.panelMode, ai.setPanelMode]);
+  useEffect(() => {
+    // Project sessions are only valid inside the Project task surface. Clear
+    // the global selection when leaving Projects so Creative, Brief and the
+    // ordinary AI workbench cannot accidentally render or continue it.
+    if (route.page !== "projects" && ai.activeSession?.scope?.type === "project-task") {
+      void ai.setActiveSession(null);
+    }
+  }, [ai.activeSession?.id, ai.activeSession?.scope?.type, ai.setActiveSession, route.page]);
   // 窗口重新获焦时异步重探 provider：登录在后、换模型、新装 CLI 都能被捡起。
   // 探测在 worker 进程用 spawn 跑、非阻塞，完成后自动推送 snapshot，绝不卡 send。
   useEffect(() => {

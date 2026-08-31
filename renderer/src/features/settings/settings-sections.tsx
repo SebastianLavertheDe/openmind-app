@@ -592,11 +592,10 @@ export function BrowserSettingsSection({
   );
 }
 
-export function PathSettingsSection({ openmind, workspace, notes, onSelectOpenmind, onSelectWorkspace, onOpenNotes }: { openmind: string; workspace: string; notes: string; onSelectOpenmind(): void; onSelectWorkspace(): void; onOpenNotes(): void }) {
+export function PathSettingsSection({ openmind, notes, onSelectOpenmind, onOpenNotes }: { openmind: string; notes: string; onSelectOpenmind(): void; onOpenNotes(): void }) {
   return (
     <SettingsPanel title={m.settings.paths.title} scope={m.settings.scopes.localProject}>
       <div className="settings-path-list">
-        <PathRow label={m.settings.paths.workspace} path={workspace} buttonLabel={m.settings.paths.browse} onClick={onSelectWorkspace} />
         <PathRow label={m.settings.paths.notes} path={notes} buttonLabel={m.settings.paths.browse} onClick={onOpenNotes} />
         <PathRow label={m.settings.paths.openmindRoot} path={openmind} buttonLabel={m.settings.paths.selectRoot} onClick={onSelectOpenmind} />
       </div>

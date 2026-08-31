@@ -238,11 +238,29 @@ export const AiSessionSkillSnapshotSchema = z.array(AiSessionSkillSnapshotEntryS
   }
 });
 
+/**
+ * The filesystem execution boundary frozen into an AI conversation.
+ *
+ * `project-task` is intentionally identified by business metadata only. The
+ * trusted absolute root remains `AiSession.projectRoot` and is resolved by
+ * Main; renderer inputs must never be able to select it directly.
+ */
+export const AiSessionScopeSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("workspace") }),
+  z.object({
+    type: z.literal("project-task"),
+    projectName: z.string().min(1).max(80),
+    taskId: z.string().min(1).max(128)
+  })
+]);
+export type AiSessionScope = z.infer<typeof AiSessionScopeSchema>;
+
 export const AiSessionSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
   id: z.string(),
   projectId: z.string(),
   projectRoot: z.string(),
+  scope: AiSessionScopeSchema.default({ type: "workspace" }),
   title: z.string(),
   provider: ProviderKindSchema,
   providerId: z.string(),
@@ -266,11 +284,12 @@ export const AiSessionSchema = z.object({
 });
 type ParsedAiSession = z.infer<typeof AiSessionSchema>;
 /** Defaulted fields stay optional for old persisted objects and existing callers. */
-export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot"> & {
+export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot" | "scope"> & {
   interactionMode?: InteractionMode;
   serviceProviderId?: string | null;
   serviceProviderRevision?: string | null;
   skillSnapshot?: AiSessionSkillSnapshotEntry[] | null;
+  scope?: AiSessionScope;
 };
 
 export const AiRunSchema = z.object({
@@ -278,6 +297,7 @@ export const AiRunSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
   projectId: z.string(),
+  scope: AiSessionScopeSchema.default({ type: "workspace" }),
   provider: ProviderKindSchema,
   providerId: z.string().default("legacy"),
   permissionProfile: PermissionProfileSchema.default("edit"),
@@ -296,7 +316,10 @@ export const AiRunSchema = z.object({
   rolledBackAt: z.string().nullable().optional()
 });
 type ParsedAiRun = z.infer<typeof AiRunSchema>;
-export type AiRun = Omit<ParsedAiRun, "interactionMode"> & { interactionMode?: InteractionMode };
+export type AiRun = Omit<ParsedAiRun, "interactionMode" | "scope"> & {
+  interactionMode?: InteractionMode;
+  scope?: AiSessionScope;
+};
 
 export const AiEventSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -628,7 +651,8 @@ export type AddRssSourceInput = z.input<typeof AddRssSourceInputSchema>;
 
 export const GlobalSearchResultSchema = z.object({
   id: z.string(),
-  kind: z.enum(["content", "project", "session", "skill"]),
+  /** `project` is the independent Project domain; Creative has its own kind. */
+  kind: z.enum(["content", "project", "creative-project", "session", "skill"]),
   title: z.string(),
   subtitle: z.string(),
   path: z.string().nullable().default(null),
@@ -935,8 +959,8 @@ export const UserPreferencesSchema = z.object({
    */
   openmindRoot: z.string().default(""),
   /**
-   * ADR-001: optional AI/code workspace root, independent of openmindRoot.
-   * May be empty. Never inferred from openmindRoot.
+   * Legacy optional code-workspace preference retained for settings migration.
+   * It is not a Provider filesystem authority; AI is rooted at openmindRoot.
    */
   workspaceRoot: z.string().default(""),
   themeMode: z.enum(["dark", "light"]).default("light"),
@@ -1041,7 +1065,7 @@ export type AppBootstrap = {
   repoRoot: string;
   /** Selected private data repository; this is also the flat content root. */
   openmindRoot: string;
-  /** ADR-001: optional AI/code workspace, independent of openmind. */
+  /** Compatibility alias for the active AI root; current Main returns openmindRoot. */
   workspaceRoot: string;
   validRepo: boolean;
   /** True when the official cctools-skills repository is installed (first-start gate, mandatory). */
@@ -1057,6 +1081,7 @@ export type AppBootstrap = {
 
 export type OpenmindRootStatus = {
   openmindRoot: string;
+  /** Compatibility alias for openmindRoot in the current desktop build. */
   workspaceRoot: string;
   health: {
     configured: boolean;

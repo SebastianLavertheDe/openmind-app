@@ -245,6 +245,13 @@ describe("readContent", () => {
     fs.mkdirSync(path.join(repo, "adir"), { recursive: true });
     expect(() => readContent("adir")).toThrow();
   });
+
+  it("允许通过只读内容入口读取 Project 资料", () => {
+    writeFile("openmind/projects/Research/materials/note.md", "project-only");
+
+    expect(readContent("projects/Research/materials/note.md").content).toBe("project-only");
+    expect(readContent("openmind/projects/Research/materials/note.md").content).toBe("project-only");
+  });
 });
 
 describe("writeContent", () => {
@@ -258,5 +265,13 @@ describe("writeContent", () => {
   it("路径是目录时抛 notAFile", () => {
     fs.mkdirSync(path.join(repo, "adir2"), { recursive: true });
     expect(() => writeContent("adir2", "x")).toThrow();
+  });
+
+  it("拒绝通过通用内容入口修改 Project 资料", () => {
+    const projectFile = path.join(repo, "openmind", "projects", "Research", "materials", "note.md");
+    writeFile("openmind/projects/Research/materials/note.md", "original");
+
+    expect(() => writeContent("projects/Research/materials/note.md", "changed")).toThrow();
+    expect(fs.readFileSync(projectFile, "utf8")).toBe("original");
   });
 });

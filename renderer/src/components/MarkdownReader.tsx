@@ -91,6 +91,19 @@ function splitTableRow(line: string): string[] | null {
 
 export type MarkdownReaderLayout = "article" | "file";
 
+function SafeReaderImage({ src, alt }: { src?: string; alt?: string }) {
+  const value = typeof src === "string" ? src.trim() : "";
+  if (/^data:image\/(?:png|gif|jpe?g|webp|avif);base64,/i.test(value)) {
+    return <img src={value} alt={alt || ""} />;
+  }
+  if (!value) return <span>{alt || "图片"}</span>;
+  // User/imported Markdown is untrusted. Automatically resolving remote image
+  // URLs would let a document make the Electron renderer issue requests to
+  // local/private hosts. Keep the URL user-visible and require an explicit
+  // external navigation instead.
+  return <a href={value} target="_blank" rel="noreferrer">{alt || "远程图片（未自动加载）"}</a>;
+}
+
 export function MarkdownReader({ content, className = "", layout = "article" }: { content: string; className?: string; layout?: MarkdownReaderLayout }) {
   const normalizedContent = normalizeMarkdownTables(content);
   const classes = [
@@ -105,6 +118,7 @@ export function MarkdownReader({ content, className = "", layout = "article" }: 
         remarkPlugins={[remarkGfm, remarkCjkSpacing]}
         components={{
           a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+          img: ({ node: _node, src, alt }) => <SafeReaderImage src={src} alt={alt} />,
           table: ({ node: _node, ...props }) => <div className="markdown-table-scroll"><table {...props} /></div>
         }}
       >{normalizedContent}</ReactMarkdown>

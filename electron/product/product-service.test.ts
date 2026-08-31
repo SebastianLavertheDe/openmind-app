@@ -248,7 +248,7 @@ sources:
     const service = createService();
     const results = service.searchCreativeProjects("demo", 16);
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].kind).toBe("project");
+    expect(results[0].kind).toBe("creative-project");
     expect(results[0].title).toBe("Demo");
     // 不匹配的 query 返回空
     expect(service.searchCreativeProjects("不存在的选题")).toEqual([]);

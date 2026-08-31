@@ -264,15 +264,15 @@ describe("App bootstrap", () => {
     expect(track?.dataset.currentStep).toBe("3");
   }, 15_000);
 
-  it("remounts AI state when the workspace root changes", async () => {
+  it("remounts AI state when openmindRoot changes", async () => {
     const rootASnapshot: AiSnapshot = {
       ...snapshot,
-      projectRoot: "/project-a",
+      projectRoot: "/openmind-a",
       sessions: [{
         schemaVersion: 1,
         id: "root-a-session",
-        projectId: "project-a",
-        projectRoot: "/project-a",
+        projectId: "openmind-a",
+        projectRoot: "/openmind-a",
         title: "Root A Session",
         provider: "codex",
         providerId: "codex-native",
@@ -288,16 +288,36 @@ describe("App bootstrap", () => {
         skillSnapshot: []
       }]
     };
-    const rootBSnapshot: AiSnapshot = { ...snapshot, projectRoot: "/project-b", sessions: [] };
+    const rootBSnapshot: AiSnapshot = { ...snapshot, projectRoot: "/openmind-b", sessions: [] };
     let bootstrapCalls = 0;
     installApi({
       getBootstrap: async () => {
         bootstrapCalls += 1;
         return bootstrapCalls === 1
-          ? { repoRoot: "/project-a", openmindRoot: "/openmind-a", workspaceRoot: "/project-a", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootASnapshot }
-          : { repoRoot: "/project-b", openmindRoot: "/openmind-a", workspaceRoot: "/project-b", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootBSnapshot };
+          ? { repoRoot: "/openmind-a", openmindRoot: "/openmind-a", workspaceRoot: "/openmind-a", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootASnapshot }
+          : { repoRoot: "/openmind-b", openmindRoot: "/openmind-b", workspaceRoot: "/openmind-b", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: rootBSnapshot };
       },
-      selectWorkspaceRoot: async () => "/project-b"
+      selectOpenmindRoot: async () => "/openmind-b",
+      previewOpenmindRoot: async () => ({
+        candidate: "/openmind-b",
+        canonicalRoot: "/openmind-b",
+        health: {
+          configured: true,
+          accessible: true,
+          readable: true,
+          writable: true,
+          missingInitializeEntries: [],
+          missingCreateIfNeededEntries: [],
+          optionalObservedEntries: [],
+          symlinkWarnings: [],
+          unknownPreservedEntries: [],
+          activeRunCount: 0,
+          warnings: []
+        },
+        canBind: true,
+        blockingReasons: []
+      }),
+      setOpenmindRoot: async () => "/openmind-b"
     });
 
     render(<App />);
@@ -306,7 +326,8 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
     await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
-    fireEvent.click((await screen.findAllByRole("button", { name: "浏览" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "选择" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认绑定" }));
 
     await waitFor(() => expect(bootstrapCalls).toBe(2));
     await waitFor(() => expect(screen.queryAllByText("Root A Session")).toHaveLength(0));

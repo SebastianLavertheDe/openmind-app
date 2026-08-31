@@ -30,6 +30,8 @@ export interface ActiveRun {
 
 export interface SchedulerExecutionHost {
   projectRoot: string;
+  openmindRoot: string;
+  protectedPaths?: readonly string[];
   stateRoot?: string;
   store: SessionStore;
   registry: ProviderRegistry;
@@ -44,13 +46,14 @@ export interface SchedulerExecutionHost {
   publish(message: unknown): void;
   publishSnapshot(): void;
   prewarm(provider: ProviderKind, sessionId?: string): Promise<boolean>;
+  validateSessionRoot(session: AiSession): string;
 }
 
 export async function persistScheduledTurnAndPump(host: SchedulerExecutionHost, run: AiRun): Promise<void> {
   try {
     const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, host.store.getSession(run.sessionId), run.prompt);
     const modelInput = skillInvocation
-      ? skillBridge && host.store.getSession(run.sessionId).provider !== "claude"
+      ? skillBridge
         ? composeNativeSkillTaskPrompt(run, skillInvocation)
         : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
@@ -90,7 +93,14 @@ export async function pumpScheduledRuns(host: SchedulerExecutionHost): Promise<v
 export async function executeScheduledRun(host: SchedulerExecutionHost, initialRun: AiRun): Promise<void> {
   const controller = new AbortController();
   let session = host.store.getSession(initialRun.sessionId);
-  const directCwd = resolveCwd(host.projectRoot, session.cwd);
+  const sessionRoot = host.validateSessionRoot(session);
+  // Project Claude never persists SDK sessions outside app-private state.
+  // Clear ids produced by older builds before local rollout recovery decides
+  // whether this turn needs reconstruction.
+  if (session.scope?.type === "project-task" && session.provider === "claude" && session.providerSessionId) {
+    session = host.store.updateSession(session.id, { providerSessionId: null });
+  }
+  const directCwd = resolveCwd(sessionRoot, session.cwd);
   let run = host.store.updateRun(initialRun.id, {
     status: "running",
     turnContext: captureTurnContext(directCwd)
@@ -107,26 +117,35 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     if (!provider?.available && !(pinnedManagedProvider && provider?.version)) {
       throw new Error(provider?.diagnostic || "会话绑定的 Provider 当前不可用。");
     }
-    const turnImages = extractImageContexts(host.projectRoot, run.contexts, host.stateRoot);
+    const turnImages = extractImageContexts(sessionRoot, run.contexts, host.stateRoot);
     if (turnImages.length && provider.supportsImages === false) throw new Error("当前 Provider 不支持图片附件。");
     const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt);
+    const usesExternalSession = host.adapters[session.provider].usesExternalSession !== false;
+    if (!usesExternalSession && session.providerSessionId) {
+      session = host.store.updateSession(session.id, { providerSessionId: null });
+    }
     const contextState = host.store.getContextState(run.sessionId);
     const baseProviderPrompt = skillInvocation
-      ? skillBridge && session.provider !== "claude"
+      ? skillBridge
         ? composeNativeSkillTaskPrompt(run, skillInvocation)
         : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
-    const evidenceInstructions = browserEvidenceInstructions(host.browserAutomation);
+    const evidenceInstructions = session.scope?.type === "project-task"
+      ? ""
+      : browserEvidenceInstructions(host.browserAutomation);
     const browserAwarePrompt = evidenceInstructions ? `${baseProviderPrompt}\n\n${evidenceInstructions}` : baseProviderPrompt;
-    const providerPrompt = session.providerSessionId ? browserAwarePrompt : withRecoveredHistory(browserAwarePrompt, contextState, run.id);
+    const providerPrompt = usesExternalSession && session.providerSessionId
+      ? browserAwarePrompt
+      : withRecoveredHistory(browserAwarePrompt, contextState, run.id);
     const prompt = host.adapters[session.provider].needsTurnContext && run.turnContext ? withTurnContext(providerPrompt, run.turnContext) : providerPrompt;
     let providerProducedOutput = false;
     let providerProducedFinal = false;
-    const attemptedResume = Boolean(session.providerSessionId);
+    const attemptedResume = usesExternalSession && Boolean(session.providerSessionId);
     const providerContext = (value: string): ProviderRunContext => ({
       session,
       run,
       provider,
+      openmindRoot: host.openmindRoot,
       cwd: directCwd,
       prompt: value,
       contextState,
@@ -143,6 +162,7 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         return host.approvals.request(run, { ...input, cwd: directCwd, paths: input.paths || [] });
       },
       updateProviderSession: (id) => {
+        if (!usesExternalSession) return;
         if (session.providerSessionId !== id) session = host.store.updateSession(session.id, { providerSessionId: id });
       },
       updateInteractionMode: (mode) => {
@@ -157,11 +177,13 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         raw: skillInvocation.raw,
         prompt: composeNativeSkillTaskPrompt(run, skillInvocation)
       } : null,
-      // Claude discovers Agent Skills natively from `.claude/skills`. Codex
-      // still receives the exact installed path as a native Skill input.
-      skillBridge: session.provider === "claude" ? null : skillBridge,
+      // Both providers receive only the integrity-checked Installed Skill
+      // selected by Main. Provider-global Skill discovery is disabled.
+      skillBridge,
       providerModel: host.resolveProviderModel(session.provider),
       browserAutomation: host.browserAutomation,
+      protectedPaths: session.scope?.type === "project-task" ? [] : host.protectedPaths,
+      stateRoot: host.stateRoot,
       images: turnImages
     });
     try {
@@ -194,7 +216,9 @@ export async function cancelScheduledRun(host: SchedulerExecutionHost, runId: st
   const queuedIndex = host.queue.indexOf(runId);
   if (queuedIndex >= 0) {
     host.queue.splice(queuedIndex, 1);
-    cleanupImages(host.projectRoot, runId, host.stateRoot);
+    const queued = host.store.getRun(runId);
+    const session = host.store.getSession(queued.sessionId);
+    cleanupImages(session.projectRoot, runId, host.stateRoot);
     const run = host.store.updateRun(runId, { status: "cancelled", completedAt: new Date().toISOString() });
     await appendScheduledEvent(host, run, "status", { state: "cancelled" });
     await host.store.abortTurn(run, null);
@@ -248,7 +272,7 @@ export async function appendScheduledEvent(host: SchedulerExecutionHost, run: Ai
 }
 
 async function finalizeScheduledRun(host: SchedulerExecutionHost, run: AiRun, outcome: { status: "completed" | "failed" | "cancelled"; error: string | null }): Promise<AiRun> {
-  cleanupImages(host.projectRoot, run.id, host.stateRoot);
+  cleanupImages(host.store.getSession(run.sessionId).projectRoot, run.id, host.stateRoot);
   const risks = host.store.getRisks(run.id);
   host.store.writeSecurityReport(run, risks);
   const updated = host.store.updateRun(run.id, {
@@ -268,6 +292,7 @@ async function finalizeScheduledRun(host: SchedulerExecutionHost, run: AiRun, ou
     await host.store.abortTurn(updated, outcome.error);
   } else {
     await appendScheduledEvent(host, updated, "error", { text: outcome.error || "运行失败" });
+    await appendScheduledEvent(host, updated, "status", { state: "failed" });
     await host.store.abortTurn(updated, outcome.error);
   }
   return updated;
@@ -279,6 +304,13 @@ function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unk
 }
 
 function resolveSessionSkillInvocation(host: SchedulerExecutionHost, session: AiSession, prompt: string) {
+  // Project Tasks intentionally expose only the files below their frozen
+  // Project root. Installed/user Skills are a separate execution domain and
+  // may bring MCP, hooks or external processes, so they are never resolved
+  // from a Project conversation.
+  if (session.scope?.type === "project-task") {
+    return { skillInvocation: null, skillBridge: null };
+  }
   const snapshot = session.skillSnapshot;
   if (!snapshot) throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
   const skillInvocation = parseSkillSlashInvocation(prompt, snapshot.map((entry) => entry.definition));

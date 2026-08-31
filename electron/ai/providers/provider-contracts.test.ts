@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
@@ -14,7 +17,8 @@ import { CLAUDE_SETTING_SOURCES, CLAUDE_SKILL_SELECTION, decideClaudePermission,
 import { parseClaudeAuthStatus } from "../provider-registry";
 
 const context = {
-  session: { permissionProfile: "edit" },
+  session: { permissionProfile: "edit", projectRoot: "/project", cwd: ".", scope: { type: "workspace" } },
+  openmindRoot: "/project",
   cwd: "/project"
 } as ProviderRunContext;
 
@@ -140,9 +144,9 @@ describe("provider contracts", () => {
     expect(durable.pendingReasoning).toBe("");
   });
 
-  it("loads user settings so local Claude credentials and provider environment are inherited", () => {
-    expect(CLAUDE_SETTING_SOURCES).toEqual(["user", "project"]);
-    expect(CLAUDE_SKILL_SELECTION).toBe("all");
+  it("isolates Claude from user/project settings and native Skill discovery", () => {
+    expect(CLAUDE_SETTING_SOURCES).toEqual([]);
+    expect(CLAUDE_SKILL_SELECTION).toEqual([]);
     expect(normalizeClaudeMessage({ type: "result", is_error: true, result: "Not logged in" }).events.map((event) => event.kind))
       .toEqual(["usage"]);
   });
@@ -165,39 +169,120 @@ describe("provider contracts", () => {
     expect(classifyApproval("git push").category).toBe("network");
   });
 
-  it("returns updatedInput on auto-approved Claude tool calls so the SDK schema accepts the result", () => {
-    const decision = decideClaudePermission(context, "Bash", { command: "ls" });
+  it("returns updatedInput on auto-approved Claude file tools so the SDK schema accepts the result", () => {
+    const decision = decideClaudePermission(context, "Read", { file_path: "/project/a.md" });
     expect(decision.behavior).toBe("allow");
     if (decision.behavior !== "allow") throw new Error("expected allow");
-    expect(decision.updatedInput).toEqual({ command: "ls" });
+    expect(decision.updatedInput).toEqual({ file_path: "/project/a.md" });
   });
 
-  it("auto-approves safe reads when Claude reports the equivalent WSL UNC alias as blocked", () => {
+  it("does not approve a removed command tool even when it reports a WSL path", () => {
     const autoWslContext = {
-      session: { permissionProfile: "auto" },
+      session: {
+        permissionProfile: "auto",
+        projectRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
+        cwd: ".",
+        scope: { type: "workspace" }
+      },
+      openmindRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
       cwd: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data"
     } as ProviderRunContext;
     const file = "//wsl.localhost/Ubuntu/home/test-user/work/openmind-data/.agent/skills/cctools/daily-topic-selector/SKILL.md";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
-    expect(decision.behavior).toBe("allow");
+    expect(decision.behavior).toBe("deny");
   });
 
-  it("still asks before reading outside the WSL workspace in auto mode", () => {
+  it("hard-denies reading outside the WSL workspace in auto mode", () => {
     const autoWslContext = {
-      session: { permissionProfile: "auto" },
+      session: {
+        permissionProfile: "auto",
+        projectRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
+        cwd: ".",
+        scope: { type: "workspace" }
+      },
+      openmindRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
       cwd: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data"
     } as ProviderRunContext;
     const file = "//wsl.localhost/Ubuntu/home/test-user/.ssh/id_rsa";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
-    expect(decision).toMatchObject({ behavior: "ask", category: "outside-workspace" });
+    expect(decision).toMatchObject({ behavior: "deny" });
   });
 
   it("denies mutating tools in read-only Claude sessions", () => {
-    const readOnly = { session: { permissionProfile: "read-only" }, cwd: "/project" } as ProviderRunContext;
+    const readOnly = { session: { permissionProfile: "read-only" }, openmindRoot: "/project", cwd: "/project" } as ProviderRunContext;
     const decision = decideClaudePermission(readOnly, "Write", { file_path: "/project/a.ts" });
     expect(decision.behavior).toBe("deny");
+  });
+
+  it("auto-allows only root-contained Read/Glob/Grep for Project Task sessions", () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-permission-"));
+    const projectRoot = path.join(fixture, "AI安全");
+    const materials = path.join(projectRoot, "materials");
+    fs.mkdirSync(materials, { recursive: true });
+    fs.writeFileSync(path.join(materials, "report.md"), "safe material");
+    const projectContext = {
+      session: {
+        permissionProfile: "read-only",
+        projectRoot,
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      },
+      openmindRoot: fixture,
+      cwd: projectRoot
+    } as ProviderRunContext;
+    try {
+      for (const [tool, input] of [
+        ["Read", { file_path: "materials/report.md" }],
+        ["Glob", { path: "materials", pattern: "**/*.md" }],
+        ["Grep", { directory: "materials", pattern: "safe" }]
+      ] as const) {
+        expect(decideClaudePermission(projectContext, tool, input)).toMatchObject({ behavior: "allow", updatedInput: input });
+      }
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("allows Project reads across openmindRoot but denies mutations and realpath escapes", () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-deny-"));
+    const openmindRoot = path.join(fixture, "openmind");
+    const projectRoot = path.join(openmindRoot, "projects", "AI安全");
+    const sibling = path.join(openmindRoot, "projects", "sibling");
+    const outside = path.join(fixture, "outside");
+    fs.mkdirSync(projectRoot, { recursive: true });
+    fs.mkdirSync(sibling, { recursive: true });
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(sibling, "shared.md"), "shared");
+    fs.writeFileSync(path.join(outside, "secret.md"), "secret");
+    fs.symlinkSync(outside, path.join(projectRoot, "escape"), process.platform === "win32" ? "junction" : "dir");
+    const projectContext = {
+      session: {
+        permissionProfile: "read-only",
+        projectRoot,
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      },
+      openmindRoot,
+      cwd: projectRoot
+    } as ProviderRunContext;
+    try {
+      for (const tool of ["Write", "Edit", "NotebookEdit", "Bash", "PowerShell"]) {
+        expect(decideClaudePermission(projectContext, tool, { file_path: "materials/new.md", command: "echo unsafe" }))
+          .toMatchObject({ behavior: "deny" });
+      }
+      expect(decideClaudePermission(projectContext, "Read", { file_path: "../sibling/shared.md" }))
+        .toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(projectContext, "Read", { file_path: "escape/secret.md" }))
+        .toMatchObject({ behavior: "deny" });
+      expect(decideClaudePermission(projectContext, "Glob", { path: outside, pattern: "**/*" }))
+        .toMatchObject({ behavior: "deny" });
+      expect(decideClaudePermission(projectContext, "Glob", { path: sibling, pattern: "**/*.md" }))
+        .toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(projectContext, "Glob", { pattern: "escape/**" }))
+        .toMatchObject({ behavior: "deny" });
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
   });
 
   it("builds Codex native skill input from skills/list metadata", () => {

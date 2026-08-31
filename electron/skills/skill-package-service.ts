@@ -4,9 +4,9 @@ import path from "node:path";
 import type { SkillManifest } from "../../shared/skill-manifest-schema";
 import { validateManifest } from "../../shared/skill-manifest-schema";
 import {
-  OPENMIND_LAYOUT_V3,
+  OPENMIND_LAYOUT_V4,
   type OpenmindEntryCategory
-} from "../../shared/openmind-layout-v3";
+} from "../../shared/openmind-layout-v4";
 import { parseSkillFrontmatter, type ParsedSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { InstalledRunnableSkillView, InstalledSkillView, SkillPackageInspectionView } from "../../shared/contracts";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
@@ -803,7 +803,7 @@ function validateManifestPackagePaths(manifest: SkillManifest): SkillPackageIssu
   }
   for (const pattern of manifest.capabilities.openmind.write) {
     const topLevel = pattern.split("/")[0];
-    const entry = OPENMIND_LAYOUT_V3.find((item) => item.logicalPath === topLevel);
+    const entry = OPENMIND_LAYOUT_V4.find((item) => item.logicalPath === topLevel);
     if (!entry || !isWritableLayoutCategory(entry.category)) {
       issues.push({ code: "openmind-write-forbidden", message: `openmind.write 不允许写入 '${topLevel}'。`, path: "capabilities.openmind.write" });
     }

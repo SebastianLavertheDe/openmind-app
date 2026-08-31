@@ -38,10 +38,14 @@ type PreviewMode = "preview" | "edit";
 
 export function AiWorkbench({
   restoredPreviewPath = null,
-  onPreviewPathChange
+  onPreviewPathChange,
+  projectMode = false
 }: {
   restoredPreviewPath?: string | null;
   onPreviewPathChange?: (path: string | null) => void;
+  /** Project Tasks have a separate content API/root. Until a Project-scoped
+   * preview bridge is supplied, suppress the global editable file preview. */
+  projectMode?: boolean;
 } = {}) {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
@@ -182,9 +186,17 @@ export function AiWorkbench({
   // 路由切走时 AI 工作台会卸载。文件路径由工作区保留，返回同一工作台后
   // 重新载入该文件，恢复“左文件、右对话”的分栏，而不是退回纯对话视图。
   useEffect(() => {
-    if (!restoredPreviewPath || preview) return;
+    if (projectMode || !restoredPreviewPath || preview) return;
     void openPreview(restoredPreviewPath);
-  }, [openPreview, preview, restoredPreviewPath]);
+  }, [openPreview, preview, projectMode, restoredPreviewPath]);
+
+  const providerOpenPreview = useCallback(async (targetPath: string) => {
+    if (projectMode) {
+      ai.notify("Project 资料请在“资料”页查看；此处不会使用全局工作区文件编辑器。", "error");
+      return;
+    }
+    await openPreview(targetPath);
+  }, [ai, openPreview, projectMode]);
 
   const closePreview = useCallback(async () => {
     if (!await canLeavePreview()) return;
@@ -366,7 +378,7 @@ export function AiWorkbench({
   ] : [];
 
   return (
-    <FilePreviewProvider open={openPreview}>
+    <FilePreviewProvider open={providerOpenPreview}>
       <div
         ref={workbenchRef}
         className={`ai-workbench${previewVisible ? " with-file-preview" : ""}${previewActive ? " preview-active" : ""}${previewLeaving ? " preview-leaving" : ""}${previewResizing ? " is-resizing-preview" : ""}`}
@@ -390,7 +402,7 @@ export function AiWorkbench({
                 <span className="eyebrow">{m.ai.workbench.draftStatus}</span>
               )}
               <h2>{ai.activeSession?.title || m.ai.session.new}</h2>
-              {ai.activeSession ? <small title={ai.activeSession.cwd === "." ? ai.snapshot.projectRoot : ai.activeSession.cwd}>{responsiveLayout.actions === "full" ? ai.activeSession.cwd === "." ? ai.snapshot.projectRoot : ai.activeSession.cwd : compactPath(ai.activeSession.cwd === "." ? ai.snapshot.projectRoot : ai.activeSession.cwd)}</small> : null}
+              {ai.activeSession ? <small title={displaySessionPath(ai.activeSession, ai.snapshot.projectRoot)}>{responsiveLayout.actions === "full" ? displaySessionPath(ai.activeSession, ai.snapshot.projectRoot) : compactPath(displaySessionPath(ai.activeSession, ai.snapshot.projectRoot))}</small> : null}
             </div>
             {/* P1-HDR-1: status 改圆点 + 脉冲,配语义色 token */}
             <div className="conversation-header-actions">
@@ -402,7 +414,7 @@ export function AiWorkbench({
                   tone={sessionStatusTone(ai.activeSession.status)}
                 />
               ) : null}
-              <button
+              {!projectMode ? <button
                 ref={historyButtonRef}
                 className="icon-button history-toggle"
                 aria-label={m.ai.session.recent}
@@ -412,12 +424,12 @@ export function AiWorkbench({
                 onClick={toggleHistory}
               >
                 <History size={16} />
-              </button>
+              </button> : null}
             </div>
           </header>
           <Chat />
         </main> : null}
-        {historyPresence.visible ? createPortal(
+        {!projectMode && historyPresence.visible ? createPortal(
           <div
             ref={historyFlyoutRef}
             className="history-flyout"
@@ -524,12 +536,18 @@ function compactPath(value: string): string {
   return value.split(/[\\/]/).filter(Boolean).at(-1) || value;
 }
 
+function displaySessionPath(session: AiSession, fallbackRoot: string): string {
+  return session.cwd === "." ? session.projectRoot || fallbackRoot : session.cwd;
+}
+
 export function AiSessionNavigation() {
   const ai = useAi();
-  const sessions = useMemo(() => [...ai.snapshot.sessions].sort((left, right) => {
+  const sessions = useMemo(() => ai.snapshot.sessions
+    .filter((session) => session.scope?.type !== "project-task")
+    .sort((left, right) => {
     if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
     return right.createdAt.localeCompare(left.createdAt);
-  }), [ai.snapshot.sessions]);
+    }), [ai.snapshot.sessions]);
 
   const onSessionListKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;

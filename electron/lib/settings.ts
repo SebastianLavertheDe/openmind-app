@@ -5,7 +5,7 @@ import path from "node:path";
 import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
-import { computeRootId, OpenmindPathResolver } from "../paths/openmind-path-resolver";
+import { assertOutsideAppManagedProjects, computeRootId, OpenmindPathResolver, resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
 import { OpenmindLocationService, type OpenmindRootHealth } from "../paths/openmind-location-service";
 
 const electronApp = app;
@@ -227,11 +227,9 @@ function resolveExplicitWorkspaceRoot(): string {
 }
 
 /**
- * AI session workspace root. Unbound workspaces fall back to the bound
- * openmind content root, so AI sessions work inside the user's content by
- * default; an explicit binding still takes precedence. Provider-config
- * discovery is deliberately separate and follows the openmind root's private
- * data repository instead of an arbitrary AI/code workspace.
+ * Legacy code-workspace resolver. Provider execution no longer uses this as a
+ * filesystem authority: Main roots AI sessions exclusively at openmindRoot.
+ * Keep the fallback and stored preference for wire/settings migration.
  */
 function resolveWorkspaceRoot(): string {
   return resolveExplicitWorkspaceRoot() || resolveOpenmindRoot();
@@ -329,15 +327,29 @@ function ensureInsideRepo(relativeOrAbsolute: string): string {
   const logical = raw.replaceAll("\\", "/");
   const openmind = resolveOpenmindRoot();
   const isOpenmindPath = logical === "openmind" || logical.startsWith("openmind/");
-  if (isOpenmindPath && openmind) return resolveOpenmindPath(logical);
+  if (isOpenmindPath && openmind) {
+    const resolved = resolveOpenmindPath(logical);
+    assertOutsideAppManagedProjects(openmind, resolved, logical);
+    return resolved;
+  }
   const base = resolveWorkspaceRoot() || findRepoRoot();
   const candidate = raw;
   const resolved = path.resolve(base, candidate);
-  const relative = path.relative(base, resolved);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(messages.errors.repo.pathOutsideProject);
-  }
-  return resolved;
+  const canonical = resolvePathInsideCanonicalRoot(base, resolved, messages.errors.repo.pathOutsideProject);
+  if (openmind) assertOutsideAppManagedProjects(openmind, canonical, logical);
+  return canonical;
+}
+
+/** Resolve a read-only Workspace/Context path without hiding Project data. */
+function ensureInsideRepoReadable(relativeOrAbsolute: string): string {
+  const raw = String(relativeOrAbsolute || "");
+  const logical = raw.replaceAll("\\", "/");
+  const openmind = resolveOpenmindRoot();
+  const isOpenmindPath = logical === "openmind" || logical.startsWith("openmind/");
+  if (isOpenmindPath && openmind) return resolveOpenmindPath(logical, "read");
+  const base = resolveWorkspaceRoot() || findRepoRoot();
+  const resolved = path.resolve(base, raw);
+  return resolvePathInsideCanonicalRoot(base, resolved, messages.errors.repo.pathOutsideProject);
 }
 
 /** Resolve a logical openmind path without exposing the physical root to callers. */
@@ -357,6 +369,7 @@ function relativeToOpenmind(absolutePath: string): string {
   const openmind = resolveOpenmindRoot();
   if (!openmind) throw new Error(messages.errors.repo.selectValidFirst);
   const resolved = path.resolve(absolutePath);
+  assertOutsideAppManagedProjects(openmind, resolved);
   const relative = path.relative(openmind, resolved);
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(messages.errors.repo.pathOutsideProject);
@@ -571,6 +584,7 @@ export {
   getOpenmindRootSnapshot,
   appPrivateStatePath,
   ensureInsideRepo,
+  ensureInsideRepoReadable,
   resolveOpenmindPath,
   relativeToOpenmind,
   getPreferences,

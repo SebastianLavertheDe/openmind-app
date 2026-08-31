@@ -1,5 +1,8 @@
 import { EventEmitter, PassThrough } from "node:stream";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderRunContext } from "./types";
 
@@ -29,6 +32,8 @@ vi.mock(import("../../config/providers-yaml"), () => ({
 import { spawnInDirectory, spawnNativeInDirectory } from "../process-utils";
 import {
   CodexAppServerAdapter,
+  buildProjectCodexConfig,
+  buildWorkspaceBoundaryCodexConfig,
   buildCodexTurnInput,
   CODEX_MANAGED_API_KEY_ENV,
   CODEX_MANAGED_PROVIDER_ID,
@@ -69,6 +74,11 @@ function sendLine(child: FakeChild, message: unknown): void {
 }
 
 const wait = (ms = 15) => new Promise((r) => setTimeout(r, ms));
+const TEST_CODEX_STATE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-codex-state-"));
+
+afterAll(() => {
+  fs.rmSync(TEST_CODEX_STATE_ROOT, { recursive: true, force: true });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -128,6 +138,39 @@ describe("codexProviderEnvironment", () => {
   });
 });
 
+describe("Project Codex host config", () => {
+  it("disables provider-owned discovery without defining a sandbox profile", () => {
+    expect(buildProjectCodexConfig()).toMatchObject({
+      project_doc_max_bytes: 0,
+      project_root_markers: [],
+      web_search: "disabled",
+      features: {
+        apps: false,
+        hooks: false,
+        multi_agent: false,
+        plugins: false
+      }
+    });
+    expect(buildProjectCodexConfig()).not.toHaveProperty("permissions");
+  });
+});
+
+describe("Workspace Codex host config", () => {
+  it("keeps provider-owned discovery disabled without defining a sandbox profile", () => {
+    const context = makeContext({
+      cwd: "/workspace",
+      session: { ...makeContext().session, projectRoot: "/workspace", cwd: ".", permissionProfile: "edit" },
+      protectedPaths: ["/workspace/projects"]
+    });
+    expect(buildWorkspaceBoundaryCodexConfig(context)).toMatchObject({
+      project_doc_max_bytes: 0,
+      project_root_markers: [],
+      features: { hooks: false, plugins: false, skill_search: false }
+    });
+    expect(buildWorkspaceBoundaryCodexConfig(context)).not.toHaveProperty("permissions");
+  });
+});
+
 function makeContext(overrides: Partial<ProviderRunContext> = {}): ProviderRunContext {
   return {
     session: {
@@ -138,6 +181,7 @@ function makeContext(overrides: Partial<ProviderRunContext> = {}): ProviderRunCo
     run: { id: "run-1", sessionId: "sess-1", prompt: "你好", status: "running", startedAt: "now", cwd: "/project" } as never,
     provider: { runtime: "native", id: "codex-native", provider: "codex", label: "Codex", available: true } as never,
     providerModel: "auto",
+    openmindRoot: "/project",
     cwd: "/project",
     prompt: "你好",
     contextState: { contexts: [] } as never,
@@ -147,6 +191,7 @@ function makeContext(overrides: Partial<ProviderRunContext> = {}): ProviderRunCo
     updateProviderSession: vi.fn(),
     requestApproval: vi.fn(async () => "accept"),
     skillInvocation: null,
+    stateRoot: TEST_CODEX_STATE_ROOT,
     ...overrides
   } as unknown as ProviderRunContext;
 }
@@ -184,6 +229,7 @@ describe("CodexAppServerAdapter.run()", () => {
         digest: "a".repeat(64),
         packageRoot: "/user-data/skills/installed-agent",
         skillPath: "/user-data/skills/installed-agent/SKILL.md",
+        instructions: "# Installed Agent\n执行受控任务。",
         referencePaths: ["references/rules.md"],
         openmindRoot: "/workspace/openmind",
         capabilities: {
@@ -199,17 +245,20 @@ describe("CodexAppServerAdapter.run()", () => {
       path: "/user-data/skills/installed-agent/SKILL.md",
       enabled: true
     });
-    expect(input).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "skill", path: "/user-data/skills/installed-agent/SKILL.md" }),
-      expect.objectContaining({ type: "text", text: expect.stringContaining("openmind_root: /workspace/openmind") })
-    ]));
+    expect(input).toEqual([expect.objectContaining({
+      type: "text",
+      text: expect.stringContaining("openmind_root: /workspace/openmind")
+    })]);
+    expect(String(input[0].text)).toContain("# Installed Agent");
+    expect(input).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "skill" })]));
     const child = await driveSuccessfulRun(ctx);
     const messages = child.writtenLines.map((line) => JSON.parse(line));
     expect(messages.some((message) => message.method === "skills/list")).toBe(false);
     const turn = messages.find((message) => message.method === "turn/start");
-    expect(turn.params.input).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "skill", path: "/user-data/skills/installed-agent/SKILL.md" })
-    ]));
+    expect(turn.params.input).toEqual([expect.objectContaining({
+      type: "text",
+      text: expect.stringContaining("# Installed Agent")
+    })]);
   });
 
   it("Plan 模式通过真实 collaborationMode 字段传给 turn/start", async () => {
@@ -440,25 +489,65 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(requests.find((r) => r.method === "turn/start")).toBeDefined();
   });
 
-  it("浏览器取证开启时在 thread/start 注入单一受控 MCP 工具和写作规则", async () => {
+  it("普通 Workspace 关闭 Codex 沙箱并保留应用托管配置", async () => {
+    const isolatedHome = path.join(TEST_CODEX_STATE_ROOT, ".openmind", "ai", "workspace-codex", "native");
+    fs.mkdirSync(path.join(isolatedHome, "skills", "evil"), { recursive: true });
+    fs.writeFileSync(path.join(isolatedHome, "config.toml"), "[mcp_servers.evil]\ncommand='evil'\n");
+    fs.writeFileSync(path.join(isolatedHome, "skills", "evil", "SKILL.md"), "# evil\n");
+    const base = makeContext();
     const ctx = makeContext({
-      browserAutomation: {
-        enabled: true,
-        reuseExistingTabs: true,
-        evidenceDir: "assets/browser-evidence",
-        extensionToken: "extension-token"
-      }
+      cwd: "/project/subdir",
+      session: { ...base.session, projectRoot: "/project", cwd: "subdir" },
+      protectedPaths: ["/project/projects"]
     });
     const child = await driveSuccessfulRun(ctx);
-    const request = child.writtenLines
-      .map((line) => JSON.parse(line))
-      .find((message) => message.method === "thread/start");
-    const server = request.params.config.mcp_servers.openmind_browser;
+    const requests = child.writtenLines.map((line) => JSON.parse(line));
+    const thread = requests.find((request) => request.method === "thread/start");
+    const turn = requests.find((request) => request.method === "turn/start");
 
-    expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
-    expect(server.default_tools_approval_mode).toBe("approve");
-    expect(request.params.developerInstructions).toContain("复用该标签页");
-    expect(JSON.stringify(request.params.config)).not.toContain("browser_run_code_unsafe");
+    expect(thread.params.permissions).toBeUndefined();
+    expect(thread.params.runtimeWorkspaceRoots).toEqual(["/project"]);
+    expect(thread.params.sandbox).toBe("danger-full-access");
+    expect(thread.params.config.permissions).toBeUndefined();
+    expect(thread.params.config.features).toMatchObject({ hooks: false, plugins: false, skill_search: false });
+    expect(thread.params.config.skills).toEqual({ include_instructions: false });
+    expect(turn.params.permissions).toBeUndefined();
+    expect(turn.params.runtimeWorkspaceRoots).toEqual(["/project"]);
+    expect(turn.params.sandboxPolicy).toEqual({ type: "dangerFullAccess" });
+    expect(vi.mocked(spawnNativeInDirectory).mock.calls.at(-1)?.[3]?.env?.CODEX_HOME)
+      .toContain("workspace-codex");
+    expect(fs.existsSync(path.join(isolatedHome, "config.toml"))).toBe(false);
+    expect(fs.existsSync(path.join(isolatedHome, "skills"))).toBe(false);
+  });
+
+  it("浏览器取证开启时在 thread/start 注入单一受控 MCP 工具和写作规则", async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-codex-browser-"));
+    try {
+      const base = makeContext();
+      const ctx = makeContext({
+        openmindRoot: workspace,
+        cwd: workspace,
+        session: { ...base.session, projectRoot: workspace, cwd: "." },
+        browserAutomation: {
+          enabled: true,
+          reuseExistingTabs: true,
+          evidenceDir: "assets/browser-evidence",
+          extensionToken: "extension-token"
+        }
+      });
+      const child = await driveSuccessfulRun(ctx);
+      const request = child.writtenLines
+        .map((line) => JSON.parse(line))
+        .find((message) => message.method === "thread/start");
+      const server = request.params.config.mcp_servers.openmind_browser;
+
+      expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
+      expect(server.default_tools_approval_mode).toBe("approve");
+      expect(request.params.developerInstructions).toContain("复用该标签页");
+      expect(JSON.stringify(request.params.config)).not.toContain("browser_run_code_unsafe");
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -659,7 +748,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(responses[0].result.decision).toBe("accept");
   });
 
-  it("server request accept-session 映射为 acceptForSession", async () => {
+  it("越界 file approval 即使用户接受也直接 decline", async () => {
     const ctx = makeContext({ requestApproval: vi.fn(async () => "accept-session") } as Partial<ProviderRunContext>);
     const adapter = new CodexAppServerAdapter();
     const child = makeFakeChild();
@@ -679,7 +768,40 @@ describe("CodexAppServerAdapter.run()", () => {
     await runPromise;
 
     const responses = child.writtenLines.map((l) => JSON.parse(l)).filter((m) => m.id === 100);
-    expect(responses[0].result.decision).toBe("acceptForSession");
+    expect(responses[0].result.decision).toBe("decline");
+    expect(ctx.requestApproval).not.toHaveBeenCalled();
+  });
+
+  it("Project 子树的 file approval 不能把只读边界升级为可写", async () => {
+    const requestApproval = vi.fn(async () => "accept-session" as const);
+    const ctx = makeContext({
+      protectedPaths: ["/project/projects"],
+      requestApproval
+    } as Partial<ProviderRunContext>);
+    const adapter = new CodexAppServerAdapter();
+    const child = makeFakeChild();
+    const runPromise = adapter.run(ctx);
+    runPromise.catch(() => undefined);
+
+    await wait();
+    sendLine(child, { id: 1, result: {} });
+    await wait();
+    sendLine(child, { id: 2, result: { thread: { id: "t1" } } });
+    await wait();
+    sendLine(child, {
+      id: 100,
+      method: "fileChange",
+      params: { command: "edit note", grantRoot: "/project/projects/Research" }
+    });
+    await wait();
+    sendLine(child, { id: 3, result: {} });
+    await wait();
+    sendLine(child, { method: "turn/completed" });
+    await runPromise;
+
+    const response = child.writtenLines.map((line) => JSON.parse(line)).find((message) => message.id === 100);
+    expect(response.result.decision).toBe("decline");
+    expect(requestApproval).not.toHaveBeenCalled();
   });
 
   it("server request decline 映射为 decline", async () => {
@@ -705,7 +827,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(responses[0].result.decision).toBe("decline");
   });
 
-  it("现代 command approval 展示协议提供的命令字段并尊重 availableDecisions", async () => {
+  it("现代 command/unsandbox approval 直接 decline，不能由用户扩大边界", async () => {
     const requestApproval = vi.fn(async () => "accept-session" as const);
     const ctx = makeContext({ requestApproval } as Partial<ProviderRunContext>);
     const adapter = new CodexAppServerAdapter();
@@ -732,16 +854,9 @@ describe("CodexAppServerAdapter.run()", () => {
     sendLine(child, { method: "turn/completed" });
     await runPromise;
 
-    expect(requestApproval).toHaveBeenCalledWith(expect.objectContaining({
-      category: "network",
-      cwd: "/project",
-      command: "git push",
-      detail: expect.stringContaining("Available decisions: accept, decline")
-    }));
+    expect(requestApproval).not.toHaveBeenCalled();
     const response = child.writtenLines.map((line) => JSON.parse(line)).find((message) => message.id === 100);
-    // The user requested session approval, but this request only offers one-shot
-    // accept; safely narrow the scope instead of inventing an unavailable enum.
-    expect(response.result.decision).toBe("accept");
+    expect(response.result.decision).toBe("decline");
   });
 
   it("旧版 exec approval 使用 ReviewDecision 枚举", async () => {
@@ -796,9 +911,23 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(response.result).toBeUndefined();
   });
 
-  it("read-only 权限走 sandbox read-only", async () => {
+  it("Project read-only 使用隔离 CODEX_HOME 且关闭 Codex 沙箱", async () => {
+    const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-codex-project-test-"));
+    const isolatedHome = path.join(stateRoot, ".openmind", "ai", "project-codex", "native");
+    fs.mkdirSync(path.join(isolatedHome, "skills", "evil"), { recursive: true });
+    fs.writeFileSync(path.join(isolatedHome, "config.toml"), "[mcp_servers.evil]\ncommand = 'evil'\n");
+    fs.writeFileSync(path.join(isolatedHome, "skills", "evil", "SKILL.md"), "# untrusted\n");
     const ctx = makeContext({
-      session: { providerSessionId: null, permissionProfile: "read-only", cwd: "/project", projectRoot: "/project" } as never
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/AI安全",
+      session: {
+        providerSessionId: null,
+        permissionProfile: "read-only",
+        cwd: ".",
+        projectRoot: "/openmind/projects/AI安全",
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      } as never,
+      stateRoot
     } as Partial<ProviderRunContext>);
     const adapter = new CodexAppServerAdapter();
     const child = makeFakeChild();
@@ -816,7 +945,39 @@ describe("CodexAppServerAdapter.run()", () => {
     await runPromise;
 
     const threadReq = child.writtenLines.map((l) => JSON.parse(l)).find((m) => m.method === "thread/start");
-    expect(threadReq.params.sandbox).toBe("read-only");
+    const turnReq = child.writtenLines.map((l) => JSON.parse(l)).find((m) => m.method === "turn/start");
+    expect(threadReq.params.sandbox).toBe("danger-full-access");
+    expect(threadReq.params.approvalPolicy).toBe("never");
+    expect(threadReq.params.permissions).toBeUndefined();
+    expect(threadReq.params.runtimeWorkspaceRoots).toEqual(["/openmind"]);
+    expect(threadReq.params.config).toEqual(buildProjectCodexConfig());
+    expect(threadReq.params.config).toMatchObject({
+      features: {
+        skill_search: false,
+        skill_mcp_dependency_install: false
+      },
+      skills: { include_instructions: false }
+    });
+    expect(threadReq.params.cwd).toBe("/openmind/projects/AI安全");
+    expect(threadReq.params.developerInstructions).toContain("OpenMind 文件访问根目录是：/openmind");
+    expect(threadReq.params.developerInstructions).toContain("项目“AI安全”");
+    expect(threadReq.params.developerInstructions).toContain("不可信参考数据");
+    expect(turnReq.params.cwd).toBe("/openmind/projects/AI安全");
+    expect(turnReq.params.sandboxPolicy).toEqual({ type: "dangerFullAccess" });
+    expect(turnReq.params.approvalPolicy).toBe("never");
+    expect(turnReq.params.permissions).toBeUndefined();
+    expect(turnReq.params.runtimeWorkspaceRoots).toEqual(["/openmind"]);
+    expect(spawnNativeInDirectory).toHaveBeenCalledWith(
+      "/openmind/projects/AI安全",
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({ CODEX_HOME: expect.stringContaining("project-codex") })
+      })
+    );
+    expect(fs.existsSync(path.join(isolatedHome, "config.toml"))).toBe(false);
+    expect(fs.existsSync(path.join(isolatedHome, "skills"))).toBe(false);
+    fs.rmSync(stateRoot, { recursive: true, force: true });
   });
 
   it("notification(item/completed agentMessage)转发 assistant-message", async () => {

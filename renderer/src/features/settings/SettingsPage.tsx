@@ -176,7 +176,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
 
   const archivedSessions = useMemo(() => ai.snapshot.sessions
-    .filter((session) => session.archived)
+    .filter((session) => session.archived && session.scope?.type !== "project-task")
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions]);
 
   const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0];
@@ -185,18 +185,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setActiveSection(section);
     if (detailRef.current) detailRef.current.scrollTop = 0;
   }, []);
-
-  const selectWorkspace = async () => {
-    try {
-      const root = await window.openmind.selectWorkspaceRoot();
-      if (!root) return;
-      await onRepo(root);
-      await loadPrefs();
-      ai.notify(m.settings.notify.workspaceUpdated, "success");
-    } catch {
-      ai.notify(m.settings.notify.workspaceSelectFailed, "error");
-    }
-  };
 
   const selectOpenmindRoot = async () => {
     try {
@@ -352,7 +340,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "general" ? (
                 <>
                   <AppearanceSettingsSection prefs={prefs} save={save} />
-                  <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} workspace={prefs.workspaceRoot || initialRepo} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onSelectWorkspace={() => void selectWorkspace()} onOpenNotes={() => void openNotesDir()} />
+                  <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} save={save} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}

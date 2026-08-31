@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { detectPathConflicts, type AppPaths } from "./app-paths-service";
 import {
-  OPENMIND_APP_MANAGED_TOP_LEVEL,
-  OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL,
-  OPENMIND_LAYOUT_VERSION,
-  OPENMIND_OPTIONAL_TOP_LEVEL
-} from "../../shared/openmind-layout-v3";
+  OPENMIND_V4_APP_MANAGED_TOP_LEVEL as OPENMIND_APP_MANAGED_TOP_LEVEL,
+  OPENMIND_V4_CREATE_IF_NEEDED_TOP_LEVEL as OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL,
+  OPENMIND_LAYOUT_VERSION_V4 as OPENMIND_LAYOUT_VERSION,
+  OPENMIND_V4_OPTIONAL_TOP_LEVEL as OPENMIND_OPTIONAL_TOP_LEVEL
+} from "../../shared/openmind-layout-v4";
 import { computeRootId, type OpenmindRootSnapshot } from "./openmind-path-resolver";
 
 export type RootBinding = {

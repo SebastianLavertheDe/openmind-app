@@ -59,6 +59,22 @@ describe("OpenmindFileSearch", () => {
     expect(result.items.map((item) => item.path)).toEqual(["openmind/notes/target.md"]);
   });
 
+  it("indexes and manually selects app-managed Project files for Workspace AI reads", async () => {
+    const root = createRoot();
+    write(root, "openmind/notes/visible.md");
+    write(root, "openmind/projects/Research/materials/project-secret.md");
+
+    const result = await new OpenmindFileSearch(root).search("project-secret", 20);
+    expect(result.items.map((item) => item.path)).toEqual([
+      "openmind/projects/Research/materials/project-secret.md"
+    ]);
+    expect(result.indexedCount).toBe(2);
+    expect(normalizeOpenmindSelection(
+      root,
+      path.join(root, "openmind", "projects", "Research", "materials", "project-secret.md")
+    )).toBe("openmind/projects/Research/materials/project-secret.md");
+  });
+
   it("only indexes openmind and excludes credentials and private keys", async () => {
     const root = createRoot();
     write(root, "renderer/src/composer.tsx");

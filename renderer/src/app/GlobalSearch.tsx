@@ -121,7 +121,7 @@ export function GlobalSearch({
   useEffect(() => { setActiveIndex(0); setActionError(null); }, [query]);
 
   const groups = useMemo(() => {
-    const order: GlobalSearchResult["kind"][] = ["content", "project", "session", "skill"];
+    const order: GlobalSearchResult["kind"][] = ["content", "project", "creative-project", "session", "skill"];
     return order.flatMap((kind) => {
       const items = results.filter((result) => result.kind === kind);
       return items.length ? [{ kind, items }] : [];
@@ -133,6 +133,10 @@ export function GlobalSearch({
     setActionError(null);
     setRunning(true);
     try {
+      // A global palette action always creates/continues a workspace task. A
+      // Project task can be active while the palette is opened from Projects,
+      // but that must not absorb unrelated global actions.
+      if (ai.activeSession?.scope?.type === "project-task") await ai.setActiveSession(null);
       await ai.send(target.prompt, { permissionProfile: target.permissionProfile });
       setQuery("");
       onClose();
@@ -149,6 +153,8 @@ export function GlobalSearch({
       if (result.path) onOpenContent(result.path);
       else navigate("brief", { date: result.date || undefined });
     } else if (result.kind === "project") {
+      navigate("projects", { projectName: result.targetId });
+    } else if (result.kind === "creative-project") {
       navigate("creative", { projectDir: result.targetId });
     } else if (result.kind === "session") {
       await ai.setActiveSession(result.targetId);
@@ -264,7 +270,7 @@ function groupLabel(kind: GlobalSearchResult["kind"]): string {
 
 function resultIcon(kind: GlobalSearchResult["kind"]) {
   if (kind === "content") return <FileText size={16} />;
-  if (kind === "project") return <FolderKanban size={16} />;
+  if (kind === "project" || kind === "creative-project") return <FolderKanban size={16} />;
   if (kind === "session") return <Bot size={16} />;
   return <Command size={16} />;
 }

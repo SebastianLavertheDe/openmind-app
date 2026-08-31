@@ -36,7 +36,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
 
   const recent = useMemo(() =>
     [...ai.snapshot.sessions]
-      .filter((session) => !session.archived)
+      .filter((session) => !session.archived && session.scope?.type !== "project-task")
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
     [ai.snapshot.sessions]
   );

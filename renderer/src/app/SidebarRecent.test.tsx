@@ -52,6 +52,29 @@ afterEach(() => {
 });
 
 describe("SidebarRecent", () => {
+  it("keeps Project Task sessions out of the global recent list", () => {
+    const projectSession: AiSession = {
+      ...session,
+      id: "project-session",
+      title: "项目内部会话",
+      scope: { type: "project-task", projectName: "AI 安全", taskId: "task-1" }
+    };
+    window.openmind = {
+      aiRefresh: async () => ({ ...snapshot, sessions: [projectSession], pendingApprovals: [] }),
+      aiGetEvents: async () => [],
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+
+    const { container } = render(
+      <AiProvider initial={{ ...snapshot, sessions: [projectSession], pendingApprovals: [] }}>
+        <SidebarRecent activeSessionId={null} onOpen={() => undefined} />
+      </AiProvider>
+    );
+
+    expect(container.querySelector(".nav-recent")).toBeNull();
+    expect(screen.queryByText("项目内部会话")).toBeNull();
+  });
+
   it("keeps the visible session time anchored to creation after later replies", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-03T00:00:00.000Z"));

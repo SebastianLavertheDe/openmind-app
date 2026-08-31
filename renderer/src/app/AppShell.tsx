@@ -207,7 +207,7 @@ export function AppShell({
                 </div>
               );
             })}
-            {recentTasks}
+            {page === "projects" ? null : recentTasks}
             {(() => {
               const items = NAV_ITEMS.filter((item) => item.group === "system");
               if (!items.length) return null;

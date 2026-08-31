@@ -38,7 +38,8 @@ export const appMessages = {
     runningSuffix: "· 运行中",
     groups: {
       content: "资料",
-      project: "创作",
+      project: "项目",
+      "creative-project": "创作",
       session: "AI 会话",
       skill: "自动化"
     },

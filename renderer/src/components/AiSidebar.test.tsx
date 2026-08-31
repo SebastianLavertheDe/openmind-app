@@ -72,6 +72,24 @@ describe("AiSidebar", () => {
     expect(options).toContain("新会话草稿");
   });
 
+  it("does not expose Project Task sessions in the global session switcher", () => {
+    const projectSession = {
+      ...snapshot.sessions[0],
+      id: "project-session",
+      title: "项目内部会话",
+      scope: { type: "project-task" as const, projectName: "AI 安全", taskId: "task-1" }
+    };
+    render(
+      <AiProvider initial={{ ...snapshot, sessions: [projectSession, snapshot.sessions[0]] }}>
+        <AiSidebar openWorkbench={vi.fn()} />
+      </AiProvider>
+    );
+    const select = screen.getByRole("combobox", { name: /切换 AI 会话/ }) as HTMLSelectElement;
+    const options = Array.from(select.options).map((option) => option.textContent);
+    expect(options).toContain("我的会话");
+    expect(options).not.toContain("项目内部会话");
+  });
+
   it("renders readable custom session options inside the sidebar header", () => {
     renderSidebar();
     fireEvent.click(screen.getByRole("button", { name: /切换 AI 会话.*下拉菜单/ }));

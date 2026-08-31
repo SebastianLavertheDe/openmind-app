@@ -9,6 +9,8 @@ import { resolveCliProvider } from "../config/providers-yaml";
 
 export async function prewarmProviderSession(input: {
   projectRoot: string;
+  openmindRoot: string;
+  protectedPaths?: readonly string[];
   store: SessionStore;
   registry: ProviderRegistry;
   adapter: ProviderAdapter;
@@ -28,7 +30,7 @@ export async function prewarmProviderSession(input: {
     if (session.provider !== input.provider) return false;
     if (input.store.listRuns(session.id).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status))) return false;
     providerId = session.providerId;
-    cwd = resolveCwd(input.projectRoot, session.cwd);
+    cwd = resolveCwd(session.projectRoot, session.cwd);
     permissionProfile = session.permissionProfile;
     interactionMode = session.interactionMode;
     providerSessionId = session.providerSessionId;
@@ -45,12 +47,14 @@ export async function prewarmProviderSession(input: {
   return input.adapter.prewarm({
     session,
     provider,
+    openmindRoot: input.openmindRoot,
     cwd,
     permissionProfile,
     interactionMode,
     providerSessionId,
     providerModel: input.resolveProviderModel(input.provider),
     browserAutomation: input.browserAutomation,
+    protectedPaths: session?.scope?.type === "project-task" ? [] : input.protectedPaths,
     images: []
   });
 }

@@ -301,7 +301,10 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
 }
 
 export function AiProvider({ initial, skills: initialSkills = [], storageScope = "", children }: { initial: AiSnapshot; skills?: SkillDefinition[]; storageScope?: string; children: ReactNode }) {
-  const firstSession = initial.sessions.find((session) => !session.archived) || null;
+  // Project conversations are opened explicitly by their Project task page;
+  // the global workbench must never adopt one merely because it was the most
+  // recently persisted session.
+  const firstSession = initial.sessions.find((session) => !session.archived && session.scope?.type !== "project-task") || null;
   // App remounts AiProvider when this scope changes. Draft text and file
   // contexts must follow that same openmind/workspace boundary; otherwise a
   // relative attachment selected in workspace A could be submitted in B.

@@ -1,5 +1,6 @@
 import type { DesktopApi } from "./contracts";
 import { IPC } from "./ipc-channels";
+import { PROJECT_IPC } from "./project-contracts";
 
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [
@@ -94,6 +95,27 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "aiListTurns", channel: IPC.AI_TURNS },
   { method: "aiForkSession", channel: IPC.AI_FORK_SESSION },
   { method: "aiResolveApproval", channel: IPC.AI_RESOLVE_APPROVAL },
+  { method: "listProjects", channel: PROJECT_IPC.LIST },
+  { method: "createProject", channel: PROJECT_IPC.CREATE },
+  { method: "getProject", channel: PROJECT_IPC.GET },
+  { method: "renameProject", channel: PROJECT_IPC.RENAME },
+  { method: "archiveProject", channel: PROJECT_IPC.ARCHIVE },
+  { method: "addProjectFiles", channel: PROJECT_IPC.MATERIAL_ADD_FILES },
+  { method: "addProjectUrl", channel: PROJECT_IPC.MATERIAL_ADD_URL },
+  { method: "retryMaterialExtraction", channel: PROJECT_IPC.MATERIAL_RETRY },
+  { method: "removeProjectMaterial", channel: PROJECT_IPC.MATERIAL_REMOVE },
+  { method: "readProjectMaterial", channel: PROJECT_IPC.MATERIAL_READ },
+  { method: "listProjectMaterials", channel: PROJECT_IPC.MATERIAL_LIST },
+  { method: "createProjectTask", channel: PROJECT_IPC.TASK_CREATE },
+  { method: "listProjectTasks", channel: PROJECT_IPC.TASK_LIST },
+  { method: "listProjectTaskMessages", channel: PROJECT_IPC.TASK_MESSAGES },
+  { method: "archiveProjectTask", channel: PROJECT_IPC.TASK_ARCHIVE },
+  { method: "projectStartTaskRun", channel: PROJECT_IPC.TASK_START_RUN },
+  { method: "listProjectOutputs", channel: PROJECT_IPC.OUTPUT_LIST },
+  { method: "createProjectOutput", channel: PROJECT_IPC.OUTPUT_CREATE },
+  { method: "readProjectOutput", channel: PROJECT_IPC.OUTPUT_READ },
+  { method: "saveProjectOutput", channel: PROJECT_IPC.OUTPUT_SAVE },
+  { method: "removeProjectOutput", channel: PROJECT_IPC.OUTPUT_REMOVE },
 ] as const;
 
 export type IpcInvokeMethod = (typeof IPC_INVOKE_REGISTRY)[number]["method"];

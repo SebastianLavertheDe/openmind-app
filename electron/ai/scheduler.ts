@@ -6,6 +6,7 @@ import {
   type AiEvent,
   type AiRun,
   type AiSession,
+  type AiSessionScope,
   type AiSnapshot,
   type AiTurnListParams,
   type AiTurnPage,
@@ -19,7 +20,7 @@ import { SessionStore } from "./session-store";
 import { SkillToolRegistry } from "./skill-tool-registry";
 import { ClaudeAgentSdkAdapter } from "./providers/claude-agent-sdk";
 import { CodexAppServerAdapter } from "./providers/codex-app-server";
-import { normalizeContextReferences, normalizeCwd } from "./scheduler-paths";
+import { canonicalizeTrustedProjectRoot, normalizeContextReferences, normalizeCwd } from "./scheduler-paths";
 import { materializeImages, cleanupStaleImages } from "./scheduler-images";
 import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
 import { slashCommandValidationError } from "../../shared/slash-commands";
@@ -45,6 +46,7 @@ import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
 import { cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
 import { providerConfigurationRevision, resolveCliProvider } from "../config/providers-yaml";
+import { TrustedProjectRunInputSchema, type TrustedProjectRunInput } from "./project-run";
 
 export class RunScheduler {
   private readonly store: SessionStore;
@@ -60,6 +62,8 @@ export class RunScheduler {
   private readonly resolveProviderModel: (kind: ProviderKind) => string;
   private readonly browserAutomation: BrowserAutomationConfig;
   private readonly stateRoot?: string;
+  private readonly openmindRoot: string;
+  private readonly projectsRoot?: string;
   private readonly automation: AutomationScheduler | null;
 
   constructor(
@@ -69,12 +73,15 @@ export class RunScheduler {
     browserAutomation?: BrowserAutomationConfig,
     stateRoot?: string,
     openmindRoot?: string,
-    rootGeneration = 1
+    rootGeneration = 1,
+    trustedProjectsRoot?: string
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
     this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR, extensionToken: null };
     this.stateRoot = stateRoot;
-    this.store = new SessionStore(projectRoot, stateRoot);
+    this.openmindRoot = openmindRoot || projectRoot;
+    this.projectsRoot = trustedProjectsRoot ?? (openmindRoot ? path.join(openmindRoot, "projects") : undefined);
+    this.store = new SessionStore(projectRoot, stateRoot, this.projectsRoot);
     this.registry = new ProviderRegistry(projectRoot);
     const appPaths = openmindRoot
       ? buildAppPaths(process.env.OPENMIND_USER_DATA_DIR, resolveSkillStoreRoot(openmindRoot))
@@ -208,7 +215,18 @@ export class RunScheduler {
   /** prewarm Claude（兼容 worker RPC 与既有测试）；通用 prewarm 按 adapter 能力触发（新增 provider 无需改）。 */
   async prewarmClaude(sessionId?: string): Promise<boolean> { return this.prewarm("claude", sessionId); }
   async prewarm(provider: ProviderKind, sessionId?: string): Promise<boolean> {
-    return prewarmProviderSession({ projectRoot: this.projectRoot, store: this.store, registry: this.registry, adapter: this.adapters[provider], provider, resolveProviderModel: this.resolveProviderModel, browserAutomation: this.browserAutomation }, sessionId);
+    if (sessionId) this.validatedSessionRoot(this.store.getSession(sessionId));
+    return prewarmProviderSession({
+      projectRoot: this.projectRoot,
+      openmindRoot: this.openmindRoot,
+      protectedPaths: this.projectsRoot ? [this.projectsRoot] : [],
+      store: this.store,
+      registry: this.registry,
+      adapter: this.adapters[provider],
+      provider,
+      resolveProviderModel: this.resolveProviderModel,
+      browserAutomation: this.browserAutomation
+    }, sessionId);
   }
 
   listSkillRuns(): BrokerRunRecord[] { return this.skillTools.listRuns(); }
@@ -251,6 +269,9 @@ export class RunScheduler {
 
   async forkSession(sessionId: string, throughRunId?: string): Promise<AiSession> {
     const source = this.store.getSession(sessionId);
+    if (source.scope?.type === "project-task") {
+      throw new Error("Project Task 会话不能通过全局 AI fork；请在 Project 中创建新 Task。");
+    }
     if (this.store.listRuns(sessionId).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status))) {
       throw new Error("Cannot fork a session while a turn is active.");
     }
@@ -262,16 +283,87 @@ export class RunScheduler {
 
   startRun(raw: StartRunInput): { session: AiSession; run: AiRun } {
     const input = StartRunInputSchema.parse(raw);
+    const session = input.sessionId ? this.store.getSession(input.sessionId) : null;
+    if (session?.scope?.type === "project-task") {
+      throw new Error("Project Task 会话必须通过专用入口继续。");
+    }
+    const sessionRoot = session?.projectRoot ?? this.projectRoot;
+    const cwd = session ? normalizeCwd(sessionRoot, session.cwd) : normalizeCwd(sessionRoot, input.cwd);
+    if (session && normalizeCwd(sessionRoot, input.cwd) !== session.cwd) {
+      throw new Error("会话工作目录已锁定，不能中途切换。");
+    }
+    return this.scheduleRun({
+      session,
+      sessionRoot,
+      scope: session?.scope ?? { type: "workspace" },
+      providerId: input.providerId,
+      permissionProfile: input.permissionProfile,
+      interactionMode: input.interactionMode,
+      cwd,
+      prompt: input.prompt,
+      contexts: input.contexts
+    });
+  }
+
+  /**
+   * Main-only Project entry point. New sessions receive an already-resolved
+   * trusted root; continuation requests carry only the frozen session id.
+   */
+  startProjectRun(raw: TrustedProjectRunInput): { session: AiSession; run: AiRun } {
+    const input = TrustedProjectRunInputSchema.parse(raw);
+    if ("sessionId" in input) {
+      const session = this.store.getSession(input.sessionId);
+      this.assertProjectSession(session);
+      return this.scheduleRun({
+        session,
+        sessionRoot: session.projectRoot,
+        scope: session.scope!,
+        providerId: session.providerId,
+        permissionProfile: "read-only",
+        interactionMode: session.interactionMode ?? "default",
+        cwd: session.cwd,
+        prompt: input.prompt,
+        contexts: input.contexts
+      });
+    }
+    if (!this.projectsRoot) throw new Error("Project 内容根尚未初始化。");
+    const sessionRoot = canonicalizeTrustedProjectRoot(this.projectsRoot, input.projectName, input.projectRoot);
+    return this.scheduleRun({
+      session: null,
+      sessionRoot,
+      scope: { type: "project-task", projectName: input.projectName, taskId: input.taskId },
+      providerId: input.providerId,
+      permissionProfile: "read-only",
+      interactionMode: "default",
+      cwd: ".",
+      prompt: input.prompt,
+      contexts: input.contexts
+    });
+  }
+
+  private scheduleRun(input: {
+    session: AiSession | null;
+    sessionRoot: string;
+    scope: AiSessionScope;
+    providerId: string;
+    permissionProfile: AiSession["permissionProfile"];
+    interactionMode: NonNullable<AiSession["interactionMode"]>;
+    cwd: string;
+    prompt: string;
+    contexts: AiRun["contexts"];
+  }): { session: AiSession; run: AiRun } {
     // New conversations refresh only the active catalog. Installed packages
     // are read on demand; legacy workspace discovery rescans when applicable.
-    if (!input.sessionId) this.skillTools.refresh();
-    const cwd = normalizeCwd(this.projectRoot, input.cwd);
-    const contexts = normalizeContextReferences(this.projectRoot, input.contexts);
-    let session = input.sessionId ? this.store.getSession(input.sessionId) : null;
+    const projectScoped = input.scope.type === "project-task";
+    if (!input.session && !projectScoped) this.skillTools.refresh();
+    const contexts = normalizeContextReferences(input.sessionRoot, input.contexts);
+    let session = input.session;
     const skillSnapshot = session
       ? requireSessionSkillSnapshot(session)
-      : this.skillTools.captureSessionSnapshot();
-    const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
+      : projectScoped ? [] : this.skillTools.captureSessionSnapshot();
+    const skillInvocation = projectScoped
+      ? null
+      : parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
     const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
     const provider = this.registry.detect().find((item) => item.id === input.providerId);
@@ -292,11 +384,13 @@ export class RunScheduler {
         // native provider thread to a different backend mid-conversation.
         serviceProviderId: selectedServiceProvider?.id || null,
         serviceProviderRevision: selectedServiceProvider ? providerConfigurationRevision(selectedServiceProvider) : null,
-        cwd,
+        cwd: input.cwd,
         title: titleFromPrompt(input.prompt),
         permissionProfile: input.permissionProfile,
         interactionMode: input.interactionMode,
-        skillSnapshot
+        skillSnapshot,
+        projectRoot: input.sessionRoot,
+        scope: input.scope
       });
     } else if (
       session.permissionProfile !== input.permissionProfile
@@ -308,12 +402,27 @@ export class RunScheduler {
       });
     }
     const runId = crypto.randomUUID();
-    const materializedContexts = materializeImages(this.projectRoot, runId, contexts, this.stateRoot);
+    const materializedContexts = materializeImages(session.projectRoot, runId, contexts, this.stateRoot);
     const run = this.store.createRun(session, input.prompt, materializedContexts, runId);
     this.queue.push(run.id);
     this.publishSnapshot();
     void persistScheduledTurnAndPump(this.executionHost(), run);
     return { session, run };
+  }
+
+  private assertProjectSession(session: AiSession): void {
+    const scope = session.scope;
+    if (scope?.type !== "project-task") throw new Error("指定会话不是 Project Task 会话。");
+    if (!this.projectsRoot) throw new Error("Project 内容根尚未初始化。");
+    const root = canonicalizeTrustedProjectRoot(this.projectsRoot, scope.projectName, session.projectRoot);
+    if (root !== session.projectRoot || session.cwd !== "." || session.permissionProfile !== "read-only") {
+      throw new Error("Project Task 会话执行边界无效。");
+    }
+  }
+
+  private validatedSessionRoot(session: AiSession): string {
+    if (session.scope?.type === "project-task") this.assertProjectSession(session);
+    return session.projectRoot;
   }
 
   async cancelRun(runId: string): Promise<boolean> { return cancelScheduledRun(this.executionHost(), runId); }
@@ -326,6 +435,8 @@ export class RunScheduler {
   private executionHost(): SchedulerExecutionHost {
     return {
       projectRoot: this.projectRoot,
+      openmindRoot: this.openmindRoot,
+      protectedPaths: this.projectsRoot ? [this.projectsRoot] : [],
       stateRoot: this.stateRoot,
       store: this.store,
       registry: this.registry,
@@ -339,7 +450,8 @@ export class RunScheduler {
       maxConcurrentRuns: this.maxConcurrentRuns,
       publish: this.publish,
       publishSnapshot: () => this.publishSnapshot(),
-      prewarm: (provider, sessionId) => this.prewarm(provider, sessionId)
+      prewarm: (provider, sessionId) => this.prewarm(provider, sessionId),
+      validateSessionRoot: (session) => this.validatedSessionRoot(session)
     };
   }
 

@@ -55,4 +55,15 @@ describe("renderActiveRoute repo gate", () => {
     expect(element.props).toMatchObject({ initialSkillId: "daily-summary" });
     expect(element.props).not.toHaveProperty("go");
   });
+
+  it("routes projects to the independent Project workspace with deep-link state", () => {
+    const p = props(baseBootstrap);
+    p.route = { page: "projects", state: { projectName: "AI 安全", projectSection: "materials", projectItem: "materials/web/a.web.md" }, nonce: 4 };
+    const projectsRoute = ROUTE_DEFINITIONS.find((entry) => entry.page === "projects");
+    const element = projectsRoute?.render(p) as ReactElement<Record<string, unknown>>;
+
+    expect(projectsRoute?.nav?.label).toBe("项目");
+    expect(element.props).toMatchObject({ initialProjectName: "AI 安全", initialSection: "materials", initialItem: "materials/web/a.web.md" });
+    expect(element.props).not.toHaveProperty("initialProjectDir");
+  });
 });

@@ -24,7 +24,7 @@ The Utility Process owns all mutable AI runtime state. A worker crash rejects ou
 
 Codex runs `codex app-server` over JSONL JSON-RPC. The adapter initializes experimental capability only for registered dynamic openmind tools. It consumes semantic thread, turn, item, approval, usage and diff events. It never parses terminal prose.
 
-Claude runs through `@anthropic-ai/claude-agent-sdk`. `canUseTool` routes permission decisions through the same ApprovalBroker used by Codex. The adapter enables the Claude sandbox and never enables bypass-permissions modes.
+Claude runs through `@anthropic-ai/claude-agent-sdk`. `canUseTool` routes permission decisions through the same ApprovalBroker used by Codex. The adapter explicitly disables the Claude process sandbox; file-tool paths remain subject to OpenMind's canonical `openmindRoot` checks.
 
 Provider events are normalized into versioned `AiEvent` records before persistence or UI rendering.
 
@@ -69,4 +69,6 @@ Search is project-file based. Each session maintains `search-index.json`; no SQL
 
 Semantic event logs intentionally keep complete tool output. RiskScanner detects likely tokens, credentials, cookies, private keys and absolute paths. Findings are written to the event and run security report. The policy is warn-only.
 
-The app does not use `dangerously-bypass-approvals-and-sandbox`, `dangerously-skip-permissions`, direct API providers, cloud sync or multi-agent orchestration.
+AI execution is rooted at the selected `openmindRoot`; the legacy optional `workspaceRoot` preference is not a Provider filesystem authority. Application file tools may read every path below `openmindRoot`, including `projects/`, and reject paths that resolve outside it.
+
+The app does not use Claude's `dangerously-bypass-approvals-and-sandbox` or `dangerously-skip-permissions` modes. Codex runs with `danger-full-access`, and Claude runs with `sandbox.enabled = false`; therefore the `openmindRoot` boundary is an application policy rather than an OS-enforced command boundary. Claude does not expose Bash or PowerShell, so its file-tool boundary remains enforceable in the adapter. Codex retains a native shell; without a sandbox, indirect shell access outside `openmindRoot` cannot be technically guaranteed. Direct API providers, cloud sync and multi-agent orchestration remain unavailable.

@@ -46,6 +46,41 @@ describe("RunScheduler input boundaries", () => {
     })).toThrow("上下文文件超出项目目录");
   });
 
+  it("allows generic Workspace cwd and contexts inside app-managed projects for reads", async () => {
+    const root = createRoot();
+    const projectsRoot = path.join(root, "projects");
+    fs.mkdirSync(path.join(projectsRoot, "Research", "materials"), { recursive: true });
+    fs.writeFileSync(path.join(projectsRoot, "Research", "materials", "note.md"), "private");
+    const scheduler = new RunScheduler(root, () => undefined, undefined, undefined, undefined, root, 1, projectsRoot);
+    const provider: ProviderCapabilities = {
+      id: "claude-native", provider: "claude", label: "Claude Code", runtime: "native",
+      available: true, version: "test", supportsApprovals: true, supportsResume: true,
+      supportsImages: true, diagnostic: null
+    };
+    const internals = schedulerInternals(scheduler);
+    internals.registry.detect = () => [provider];
+    internals.adapters.claude.run = async (context) => {
+      await context.emit("assistant-message", { text: "readable", phase: "final" });
+    };
+
+    const { session, run } = scheduler.startRun({
+      providerId: "claude-native",
+      permissionProfile: "edit",
+      cwd: "projects/Research",
+      prompt: "test",
+      contexts: [{
+        id: "project-note",
+        kind: "file",
+        label: "note.md",
+        path: "projects/Research/materials/note.md"
+      }]
+    });
+
+    expect(session.cwd).toBe(path.join("projects", "Research"));
+    expect(run.contexts[0].path).toBe(path.join("projects", "Research", "materials", "note.md"));
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+  });
+
   it("rejects invalid slash commands before creating a provider run", () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -63,6 +98,158 @@ describe("RunScheduler input boundaries", () => {
       prompt: "/not-a-command value",
       contexts: []
     })).toThrow("未知命令");
+  });
+});
+
+describe("RunScheduler Project Task scope", () => {
+  const claudeProvider: ProviderCapabilities = {
+    id: "claude-native", provider: "claude", label: "Claude Code", runtime: "native",
+    available: true, version: "test", supportsApprovals: true, supportsResume: true,
+    supportsImages: true, diagnostic: null
+  };
+
+  function projectScheduler() {
+    const workspace = createRoot();
+    const stateRoot = createRoot();
+    const contentRoot = createRoot();
+    const projectsRoot = path.join(contentRoot, "projects");
+    const projectRoot = path.join(projectsRoot, "AI安全");
+    fs.mkdirSync(path.join(projectRoot, "materials"), { recursive: true });
+    return {
+      workspace,
+      stateRoot,
+      projectsRoot,
+      projectRoot,
+      contentRoot,
+      scheduler: new RunScheduler(workspace, () => undefined, undefined, undefined, stateRoot, contentRoot, 1, projectsRoot)
+    };
+  }
+
+  it("creates a read-only session rooted at the trusted Project and continues only from its frozen identity", async () => {
+    const fixture = projectScheduler();
+    fs.writeFileSync(path.join(fixture.projectRoot, "materials", "report.md"), "MATERIAL_BODY_MUST_NOT_BE_AUTO_INJECTED");
+    fs.writeFileSync(path.join(fixture.projectRoot, "materials", "cover.png"), "png");
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    const executions: Array<{ cwd: string; openmindRoot: string; prompt: string; session: AiSession; images: ProviderRunContext["images"] }> = [];
+    internals.adapters.claude = {
+      run: async (context) => {
+        executions.push({ cwd: context.cwd, openmindRoot: context.openmindRoot, prompt: context.prompt, session: context.session, images: context.images });
+        await context.emit("assistant-message", { text: "done", phase: "final" });
+      }
+    };
+
+    const first = fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot,
+      projectName: "AI安全",
+      taskId: "task-1",
+      providerId: "claude-native",
+      prompt: "根据资料写报告",
+      contexts: [{ id: "cover", kind: "image", label: "cover", path: "materials/cover.png", mediaType: "image/png" }]
+    });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === first.run.id)?.status === "completed");
+
+    expect(first.session).toMatchObject({
+      projectRoot: fs.realpathSync.native(fixture.projectRoot),
+      cwd: ".",
+      permissionProfile: "read-only",
+      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+    });
+    expect(first.run).toMatchObject({ projectId: first.session.projectId, scope: first.session.scope, permissionProfile: "read-only" });
+    expect(executions[0].cwd).toBe(first.session.projectRoot);
+    expect(executions[0].openmindRoot).toBe(fixture.contentRoot);
+    expect(executions[0].images).toEqual([{ id: "cover", path: path.join(first.session.projectRoot, "materials", "cover.png"), mediaType: "image/png" }]);
+    expect(executions[0].prompt).toContain("./materials");
+    expect(executions[0].prompt).not.toContain("MATERIAL_BODY_MUST_NOT_BE_AUTO_INJECTED");
+    expect(() => fixture.scheduler.startRun({
+      sessionId: first.session.id,
+      providerId: first.session.providerId,
+      permissionProfile: "read-only",
+      interactionMode: "default",
+      cwd: ".",
+      prompt: "不得绕过 Project 专用入口",
+      contexts: []
+    })).toThrow("必须通过专用入口");
+    await expect(fixture.scheduler.forkSession(first.session.id)).rejects.toThrow("不能通过全局 AI fork");
+
+    for (const forbiddenIdentity of [
+      { projectRoot: fixture.workspace },
+      { providerId: "codex-native" },
+      { projectName: "other" },
+      { taskId: "task-2" }
+    ]) {
+      expect(() => fixture.scheduler.startProjectRun({
+        sessionId: first.session.id,
+        prompt: "不得覆盖已冻结身份",
+        ...forbiddenIdentity
+      } as never)).toThrow();
+    }
+
+    // Simulate a Project Claude session id persisted by an older build. The
+    // current execution must discard it and rebuild from app-private rollout
+    // rather than resume ~/.claude/projects state.
+    internals.store.updateSession(first.session.id, { providerSessionId: "legacy-global-claude-session" });
+    const second = fixture.scheduler.startProjectRun({ sessionId: first.session.id, prompt: "继续完善" });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === second.run.id)?.status === "completed");
+    expect(second.session.id).toBe(first.session.id);
+    expect(second.session.projectRoot).toBe(first.session.projectRoot);
+    expect(second.session.providerId).toBe(first.session.providerId);
+    expect(second.session.scope).toEqual(first.session.scope);
+    expect(executions[1].cwd).toBe(first.session.projectRoot);
+    expect(executions[1].session.providerSessionId).toBeNull();
+    expect(executions[1].prompt).toContain("done");
+  });
+
+  it("rejects untrusted, mismatched and symlink Project roots before provider startup", () => {
+    const fixture = projectScheduler();
+    const outside = createRoot();
+    const alias = path.join(fixture.projectsRoot, "alias");
+    fs.symlinkSync(fixture.projectRoot, alias, process.platform === "win32" ? "junction" : "dir");
+
+    expect(() => fixture.scheduler.startProjectRun({
+      projectRoot: outside,
+      projectName: "AI安全",
+      taskId: "task-1",
+      providerId: "claude-native",
+      prompt: "unsafe"
+    })).toThrow(/不匹配/);
+    expect(() => fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot,
+      projectName: "wrong",
+      taskId: "task-1",
+      providerId: "claude-native",
+      prompt: "unsafe"
+    })).toThrow(/不匹配/);
+    expect(() => fixture.scheduler.startProjectRun({
+      projectRoot: alias,
+      projectName: "alias",
+      taskId: "task-1",
+      providerId: "claude-native",
+      prompt: "unsafe"
+    })).toThrow(/符号链接/);
+  });
+
+  it("prewarms a Project session at its cwd while retaining openmindRoot as the file boundary", async () => {
+    const fixture = projectScheduler();
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    const prewarm = vi.fn(async () => true);
+    internals.adapters.claude = {
+      run: async (context) => { await context.emit("assistant-message", { text: "done", phase: "final" }); }
+    };
+    const { session, run } = fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot,
+      projectName: "AI安全",
+      taskId: "task-prewarm",
+      providerId: "claude-native",
+      prompt: "start"
+    });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+    internals.adapters.claude = { run: async () => undefined, prewarm };
+
+    await expect(fixture.scheduler.prewarmClaude(session.id)).resolves.toBe(true);
+    expect(prewarm).toHaveBeenCalledWith(expect.objectContaining({ session: expect.objectContaining({ id: session.id }), cwd: session.projectRoot, openmindRoot: fixture.contentRoot }));
+    expect(prewarm.mock.calls[0][0].cwd).not.toBe(fixture.workspace);
   });
 });
 
@@ -459,7 +646,8 @@ describe("RunScheduler Claude prewarm", () => {
     const failed = scheduler.snapshot().runs.find((item) => item.id === run.id);
     expect(failed?.error).toContain("未返回最终回复");
     expect(scheduler.getEvents(session.id)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "error", payload: expect.objectContaining({ text: expect.stringContaining("未返回最终回复") }) })
+      expect.objectContaining({ kind: "error", payload: expect.objectContaining({ text: expect.stringContaining("未返回最终回复") }) }),
+      expect.objectContaining({ kind: "status", payload: expect.objectContaining({ state: "failed" }) })
     ]));
   });
 
@@ -499,12 +687,50 @@ describe("RunScheduler Claude prewarm", () => {
     expect(prompts[1]).toContain("old answer");
     expect(internals.store.getSession(session.id).providerSessionId).toBeNull();
   });
+
+  it("clears legacy generic Claude session ids and rebuilds the first attempt from local rollout", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined);
+    const internals = schedulerInternals(scheduler);
+    const prompts: string[] = [];
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      usesExternalSession: false,
+      run: async (context) => {
+        prompts.push(context.prompt);
+        await context.emit("assistant-message", { text: "recovered", phase: "final" });
+      }
+    };
+    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
+    session = internals.store.updateSession(session.id, { providerSessionId: "legacy-global-session" });
+    let oldRun = internals.store.createRun(session, "old prompt", []);
+    await internals.store.beginTurn(oldRun);
+    await internals.store.appendEvent(oldRun, "assistant-message", { text: "old answer", phase: "final" });
+    oldRun = internals.store.updateRun(oldRun.id, { status: "completed", completedAt: new Date().toISOString() });
+    await internals.store.completeTurn(oldRun);
+
+    const { run } = scheduler.startRun({
+      sessionId: session.id,
+      providerId: "claude-native",
+      permissionProfile: "edit",
+      cwd: ".",
+      prompt: "continue",
+      contexts: []
+    });
+    await waitUntil(() => scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain('source="local_rollout"');
+    expect(prompts[0]).toContain("old answer");
+    expect(internals.store.getSession(session.id).providerSessionId).toBeNull();
+  });
 });
 
 type SchedulerInternals = {
   registry: { detect(): ProviderCapabilities[] };
   adapters: {
     claude: {
+      usesExternalSession?: boolean;
       prewarm?: (context: { session: { id: string } | null; cwd: string; providerSessionId: string | null }) => Promise<boolean>;
       disposeSession?: (sessionId: string) => void;
       disposeWarmSlots?: () => void;

@@ -549,7 +549,7 @@ export const featureMessages = {
       defaultLabel: "新会话默认权限",
       defaultDescription: "只读最安全；编辑允许写文件；自动执行免审批。",
       destructiveLabel: "破坏性操作需审批",
-      destructiveDescription: "删除、覆盖、提权与项目外访问始终需要确认。",
+      destructiveDescription: "应用文件工具会检查删除、覆盖、提权与 OpenMind 根目录外访问。",
       riskScanLabel: "风险扫描",
       riskScanDescription: "只提醒，不脱敏、不修改、不阻止保存。"
     },
@@ -561,7 +561,7 @@ export const featureMessages = {
       browse: "浏览",
       selectRoot: "选择",
       unset: "未设置",
-      note: "私人数据仓库本身就是内容根，config、article、.agent 等目录彼此平级；工作目录仅用于 AI/代码工作。"
+      note: "OpenMind 私人数据仓库同时是 AI 文件访问根；AI 可读取根内全部内容，包括 projects/。"
     },
     archivedSessions: {
       title: "已归档会话",

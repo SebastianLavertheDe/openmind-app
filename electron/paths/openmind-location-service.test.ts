@@ -39,6 +39,16 @@ describe("OpenmindLocationService", () => {
     expect(health.unknownPreservedEntries).toEqual(["private-notes"]);
   });
 
+  it("recognizes the app-managed projects directory under layout v4", () => {
+    const root = makeRoot();
+    fs.mkdirSync(path.join(root, "projects"));
+    const service = new OpenmindLocationService({ paths: buildAppPaths(makeRoot()) });
+    const health = service.inspect(root);
+    expect(health.expectedStructureVersion).toBe("openmind-layout-v4");
+    expect(health.unknownPreservedEntries).not.toContain("projects");
+    expect(service.bind(root).layoutVersion).toBe("openmind-layout-v4");
+  });
+
   it("increments generation on a root switch and pins snapshots", () => {
     const first = makeRoot();
     const second = makeRoot();

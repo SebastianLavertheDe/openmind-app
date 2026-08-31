@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
-import { canAutoApprove, classifyApproval, isOutsideWorkspace } from "./types";
+import { canAutoApprove, classifyApproval } from "./types";
 import { buildWslLoginCommand, decodeProcessOutput, resolveWslLoginExecutable, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
@@ -15,6 +15,9 @@ import {
 } from "../browser-evidence";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
+import { openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { resolvePathInsideRoot } from "../scheduler-paths";
+import { buildProviderSkillContext } from "./skill-bridge";
 
 /** 有图片附件时，把 prompt 转成 SDK 多模态 user message 流（image blocks + text block）。 */
 async function* claudeImageMessageStream(
@@ -35,11 +38,11 @@ async function* claudeImageMessageStream(
 }
 
 const CLAUDE_WORKBENCH_TOOLS = [
-  "Read", "Write", "Edit", "Bash", "PowerShell", "Glob", "Grep", "NotebookEdit", "WebFetch", "WebSearch",
+  "Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit", "WebFetch", "WebSearch",
   "EnterPlanMode", "ExitPlanMode", "TodoWrite", "TaskCreate", "TaskGet", "TaskUpdate", "TaskList"
 ];
-export const CLAUDE_SETTING_SOURCES = ["user", "project"] as const;
-export const CLAUDE_SKILL_SELECTION = "all" as const;
+export const CLAUDE_SETTING_SOURCES: readonly [] = [];
+export const CLAUDE_SKILL_SELECTION: readonly [] = [];
 
 export type ClaudePermissionDecision =
   | { behavior: "allow"; updatedInput: Record<string, unknown> }
@@ -65,20 +68,156 @@ export function decideClaudePermission(
   blockedPath?: string
 ): ClaudePermissionDecision {
   if (!runContext) return { behavior: "deny", message: "Claude Code 预热进程尚未绑定到运行。" };
+  const readOnly = runContext.session.permissionProfile === "read-only";
+  const projectScoped = runContext.session.scope?.type === "project-task";
+  if (/^(bash|powershell)$/i.test(toolName)) {
+    return { behavior: "deny", message: "Workspace 隔离模式不允许命令工具。" };
+  }
+  if (/^webfetch$/i.test(toolName)) {
+    const rawUrl = typeof input.url === "string" ? input.url.trim() : "";
+    try {
+      const url = new URL(rawUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported protocol");
+    } catch {
+      return { behavior: "deny", message: "WebFetch 只允许 HTTP(S) URL。" };
+    }
+  }
   if (toolName === CLAUDE_BROWSER_EVIDENCE_TOOL && runContext.browserAutomation?.enabled) {
+    if (projectScoped) return { behavior: "deny", message: "Project 会话为只读模式，不能写入浏览器取证文件。" };
+    if (firstPathInsideProtectedWorkspace(runContext, [runContext.cwd])) {
+      return { behavior: "deny", message: "Project 目录为只读，不能在其中写入浏览器取证文件。" };
+    }
     return { behavior: "allow", updatedInput: input };
   }
-  if (runContext.session.permissionProfile === "read-only" && /write|edit|bash|notebook/i.test(toolName)) {
+  if (readOnly && /write|edit|bash|powershell|notebook/i.test(toolName)) {
     return { behavior: "deny", message: "当前会话为只读模式。" };
   }
+  if (toolName.toLocaleLowerCase() === "glob") {
+    const pattern = typeof input.pattern === "string" ? input.pattern : "";
+    if (unsafeProjectGlobPattern(pattern)) {
+      return { behavior: "deny", message: `Project Glob/Workspace Glob 不能使用可能越出所选目录的 pattern：${pattern}` };
+    }
+  }
+  const paths = claudeToolPaths(toolName, input, blockedPath);
+  const tildePath = paths.find((candidate) => candidate.trimStart().startsWith("~"));
+  if (tildePath) {
+    // Claude expands `~`/`~/` before its filesystem tools run, while Node's
+    // path.resolve treats it as a literal directory. Reject every tilde-prefixed
+    // form (including ~user and Windows separators) before boundary checks so
+    // provider and host cannot disagree about the effective target.
+    return { behavior: "deny", message: `Claude 工具路径不能以 ~ 开头：${tildePath}` };
+  }
+  const outside = firstPathOutsideExecutionRoot(runContext, paths);
+  if (outside) {
+    return {
+      behavior: "deny",
+      message: projectScoped
+        ? `Project 会话不能访问当前项目以外的路径：${outside}`
+        : `Workspace 会话不能访问所选 Workspace 以外的路径：${outside}`
+    };
+  }
+  const protectedPath = firstPathInsideProtectedWorkspace(runContext, paths);
+  if (protectedPath && isFilesystemMutationTool(toolName)) {
+    return { behavior: "deny", message: `Project 目录为只读，普通 Workspace 会话不能修改：${protectedPath}` };
+  }
+  if (projectScoped) {
+    if (readOnly && CLAUDE_PROJECT_READ_TOOLS.has(toolName.toLocaleLowerCase())) {
+      return { behavior: "allow", updatedInput: input };
+    }
+  }
   const command = String(input.command || input.file_path || "");
-  const outsideBlockedPath = blockedPath && isOutsideWorkspace(runContext.cwd, blockedPath) ? blockedPath : undefined;
-  const classified = outsideBlockedPath
-    ? { category: "outside-workspace" as const, title: "请求访问项目目录外路径" }
-    : classifyApproval(command, toolName);
-  const paths = typeof input.file_path === "string" ? [input.file_path] : [];
+  const classified = classifyApproval(command, toolName);
   if (canAutoApprove(runContext, classified.category, command, paths)) return { behavior: "allow", updatedInput: input };
   return { behavior: "ask", category: classified.category, title: classified.title, command, paths };
+}
+
+const CLAUDE_PROJECT_TOOLS = ["Read", "Glob", "Grep"] as const;
+const CLAUDE_PROJECT_READ_TOOLS = new Set(CLAUDE_PROJECT_TOOLS.map((tool) => tool.toLocaleLowerCase()));
+const CLAUDE_PATH_FIELDS = ["file_path", "path", "directory", "cwd", "notebook_path"] as const;
+
+/**
+ * Glob patterns are selectors rather than literal paths. Expansion syntax can
+ * synthesize a parent component that is absent from the raw string, for example
+ * `{.,x}{.,x}/outside/**` or `[.][.]/outside/**` can match `../outside/**`.
+ * Project runs do not have a second OS sandbox boundary, so keep their Glob
+ * grammar deliberately small: safe literal characters, `/`, `**`, and `*`
+ * only in a filename segment that also contains a non-dot literal (for
+ * example `*.md`). Every other picomatch selector/negation meta character is
+ * unavailable; in particular `.?` and `!!../x` can both select a parent.
+ */
+function unsafeProjectGlobPattern(pattern: string): boolean {
+  if (!pattern) return false;
+  if (/[\u0000-\u001f\u007f\\~?{}\[\]()|!+@^]/u.test(pattern)) return true;
+  if (path.posix.isAbsolute(pattern) || path.win32.isAbsolute(pattern)) return true;
+  const segments = pattern.split("/");
+  return segments.some((segment) => {
+    if (!segment || segment === "." || segment === "..") return true;
+    if (segment === "**" || !segment.includes("*")) return false;
+    // With every other expansion syntax disabled, a star segment can match
+    // `.`/`..` iff all of its fixed characters are dots. Reject that family,
+    // including bare `*`, `.*`, `*.`, `*..` and their equivalents.
+    return !/[^*.]/.test(segment);
+  });
+}
+
+function claudeToolPaths(toolName: string, input: Record<string, unknown>, blockedPath?: string): string[] {
+  const values = CLAUDE_PATH_FIELDS
+    .map((field) => input[field])
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  // Glob's pattern is itself a filesystem selector and can otherwise smuggle an
+  // absolute path or `../sibling/**` while omitting the optional `path` field.
+  const globPatterns = toolName.toLocaleLowerCase() === "glob"
+    && typeof input.pattern === "string"
+    && input.pattern.trim()
+    ? [input.pattern.trim()]
+    : [];
+  const listed = Array.isArray(input.paths)
+    ? input.paths
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean)
+    : [];
+  const normalizedBlockedPath = blockedPath?.trim();
+  return [...new Set([...values, ...globPatterns, ...listed, ...(normalizedBlockedPath ? [normalizedBlockedPath] : [])])];
+}
+
+function firstPathOutsideExecutionRoot(context: ProviderRunContext, paths: string[]): string | null {
+  try {
+    resolvePathInsideRoot(context.openmindRoot, context.cwd);
+  } catch {
+    return context.cwd;
+  }
+  for (const candidate of paths) {
+    const target = path.isAbsolute(candidate) ? candidate : path.resolve(context.cwd, candidate);
+    try {
+      resolvePathInsideRoot(context.openmindRoot, target);
+    } catch {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function firstPathInsideProtectedWorkspace(context: ProviderRunContext, paths: string[]): string | null {
+  if (context.session.scope?.type === "project-task") return null;
+  for (const candidate of paths) {
+    const target = path.isAbsolute(candidate) ? candidate : path.resolve(context.cwd, candidate);
+    for (const protectedRoot of context.protectedPaths ?? []) {
+      try {
+        resolvePathInsideRoot(protectedRoot, target, "not-protected");
+        return candidate;
+      } catch {
+        // Outside this protected root.
+      }
+    }
+  }
+  return null;
+}
+
+function isFilesystemMutationTool(toolName: string): boolean {
+  return /write|edit|notebook|bash|powershell/i.test(toolName);
 }
 type ClaudeSemanticEvent = { kind: AiEvent["kind"]; payload: Record<string, unknown> };
 
@@ -131,6 +270,7 @@ type WarmSlot = {
 
 export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   public readonly needsTurnContext = true;
+  public readonly usesExternalSession = false;
   private readonly warmSlots = new Map<string, WarmSlot>();
 
   async prewarm(context: ProviderPrewarmContext): Promise<boolean> {
@@ -138,7 +278,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const serviceProvider = context.session
       ? resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null)
       : resolveCliProvider("claude");
-    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider);
+    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider, context.protectedPaths);
     const existing = this.warmSlots.get(key);
     if (existing) return true;
     // A manually edited providers.yaml may change a draft before Main has sent
@@ -161,7 +301,11 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
             providerSessionId: context.providerSessionId,
             providerModel: context.providerModel,
             serviceProvider,
-            browserAutomation: context.browserAutomation
+            browserAutomation: context.browserAutomation,
+            openmindRoot: context.openmindRoot,
+            skillBridge: context.skillBridge,
+            projectScoped: context.session?.scope?.type === "project-task",
+            projectInstructions: projectSessionInstructions(context.session)
           },
           () => slot.activeContext,
           captureStderr
@@ -300,7 +444,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       for await (const message of query) {
         const value = message as unknown as Record<string, unknown>;
         const normalized = normalizeClaudeMessage(value, normalizerState);
-        if (normalized.sessionId) context.updateProviderSession(normalized.sessionId);
+        // Claude persistence is disabled for every scope; app-owned rollout
+        // history is the only continuation source.
         const ordered = orderClaudeEvents(normalized.events, reasoning);
         reasoning = ordered.pendingReasoning;
         for (let index = 0; index < ordered.events.length; index++) {
@@ -383,7 +528,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       providerModel: string;
       serviceProvider: ProviderYamlEntry | null;
       browserAutomation: ProviderRunContext["browserAutomation"];
+      openmindRoot: string;
       skillBridge?: ProviderRunContext["skillBridge"];
+      projectInstructions: string;
+      projectScoped: boolean;
     },
     getRunContext: ClaudeRunContextGetter,
     captureStderr: (text: string) => void
@@ -394,21 +542,42 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const nativeExecutable = context.provider.runtime === "native" && process.platform === "win32"
       ? context.serviceProvider ? resolveNativeClaudeExecutable() : resolveClaudeExecutable()
       : null;
-    const browserServer = buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
-    const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
-    const systemAppend = browserInstructions;
+    const browserServer = context.projectScoped
+      ? null
+      : buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
+    const browserInstructions = context.projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
+    const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
+    const systemAppend = [
+      openmindFilesystemInstructions(context.openmindRoot),
+      context.projectInstructions,
+      browserInstructions,
+      skillInstructions
+    ].filter(Boolean).join("\n\n");
     return {
       ...(context.providerModel && context.providerModel !== AUTO_MODEL
         ? { model: context.providerModel }
         : context.serviceProvider ? { model: context.serviceProvider.model } : {}),
       ...(context.serviceProvider ? { env: claudeProviderEnvironment(context.serviceProvider) } : {}),
       cwd: context.cwd,
-      resume: context.providerSessionId || undefined,
-      permissionMode: context.interactionMode === "plan" ? "plan" : "default",
-      settingSources: [...CLAUDE_SETTING_SOURCES],
-      skills: CLAUDE_SKILL_SELECTION,
-      tools: CLAUDE_WORKBENCH_TOOLS,
-      systemPrompt: { type: "preset", preset: "claude_code", ...(systemAppend ? { append: systemAppend } : {}) },
+      resume: undefined,
+      permissionMode: context.projectScoped
+        ? "dontAsk"
+        : context.interactionMode === "plan" ? "plan" : "default",
+      // Do not load repo/user hooks, MCP, settings, or arbitrary discovered
+      // Skills. An integrity-checked Installed Skill may be enabled explicitly
+      // for this one invocation through the Main-only bridge.
+      settingSources: [],
+      // The explicitly admitted Skill text is injected through systemAppend;
+      // provider-native discovery remains disabled.
+      skills: [...CLAUDE_SKILL_SELECTION],
+      tools: context.projectScoped ? [...CLAUDE_PROJECT_TOOLS] : CLAUDE_WORKBENCH_TOOLS,
+      strictMcpConfig: true,
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        excludeDynamicSections: true,
+        ...(systemAppend ? { append: systemAppend } : {})
+      },
       ...(browserServer ? {
         mcpServers: {
           openmind_browser: {
@@ -421,11 +590,14 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           }
         }
       } : {}),
-      sandbox: process.platform === "win32" && context.provider.runtime === "native"
-        ? { enabled: false }
-        : { enabled: true, allowUnsandboxedCommands: false },
+      sandbox: {
+        // OpenMind owns file-tool admission in canUseTool. Do not ask Claude
+        // Code to create a second OS/process sandbox on any platform.
+        enabled: false
+      },
       includePartialMessages: true,
-      persistSession: true,
+      // Never read/write provider transcripts under ~/.claude/projects.
+      persistSession: false,
       stderr: captureStderr,
       ...(nativeExecutable ? { pathToClaudeCodeExecutable: nativeExecutable } : {}),
       ...(context.provider.runtime === "wsl"
@@ -454,10 +626,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   private claimWarmSlot(context: ProviderRunContext): WarmSlot | null {
     const serviceProvider = resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null);
     const keys = [
-      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider)
+      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider, context.protectedPaths)
     ];
-    if (!context.session.providerSessionId) {
-      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider));
+    if (!context.session.providerSessionId && context.session.scope?.type !== "project-task") {
+      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider, context.protectedPaths));
     }
     for (const key of keys) {
       const slot = this.warmSlots.get(key);
@@ -469,11 +641,11 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   }
 }
 
-function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null): string {
+function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null, protectedPaths: readonly string[] | undefined): string {
   const serviceRevision = serviceProvider
     ? providerConfigurationRevision(serviceProvider)
     : "cli";
-  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision].join("\0");
+  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision, [...(protectedPaths ?? [])].sort().join("\n")].join("\0");
 }
 
 function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext, "provider" | "cwd"> & {
@@ -483,7 +655,10 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
   providerModel: string;
   serviceProvider: ProviderYamlEntry | null;
   browserAutomation: ProviderRunContext["browserAutomation"];
+  openmindRoot: string;
   skillBridge?: ProviderRunContext["skillBridge"];
+  projectInstructions: string;
+  projectScoped: boolean;
 } {
   return {
     provider: context.provider,
@@ -494,7 +669,10 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
     providerModel: context.providerModel,
     serviceProvider: resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null),
     browserAutomation: context.browserAutomation,
-    skillBridge: context.skillBridge
+    openmindRoot: context.openmindRoot,
+    skillBridge: context.skillBridge,
+    projectScoped: context.session.scope?.type === "project-task",
+    projectInstructions: projectSessionInstructions(context.session)
   };
 }
 

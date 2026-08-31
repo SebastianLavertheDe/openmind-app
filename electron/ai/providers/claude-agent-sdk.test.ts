@@ -44,7 +44,15 @@ vi.mock(import("../process-utils"), async (importOriginal) => ({
   resolveWslLoginExecutable: processUtilsMock.resolveWslLoginExecutable
 }));
 
-import { ClaudeAgentSdkAdapter, claudeProviderEnvironment, createClaudeNormalizerState, normalizeClaudeMessage, resolveNativeClaudeExecutable, supportsManagedClaudeVersion } from "./claude-agent-sdk";
+import {
+  ClaudeAgentSdkAdapter,
+  claudeProviderEnvironment,
+  createClaudeNormalizerState,
+  decideClaudePermission,
+  normalizeClaudeMessage,
+  resolveNativeClaudeExecutable,
+  supportsManagedClaudeVersion
+} from "./claude-agent-sdk";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -176,6 +184,7 @@ function makePrewarmContext(overrides: Partial<ProviderPrewarmContext> = {}): Pr
   return {
     session: { id: "sess-1", provider: "claude", providerId: "claude-native", providerSessionId: null } as never,
     provider: { id: "claude-native", provider: "claude", label: "Claude", runtime: "native", available: true } as never,
+    openmindRoot: "/project",
     cwd: "/project",
     permissionProfile: "edit",
     providerSessionId: null,
@@ -193,27 +202,35 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
   });
 
   it("浏览器取证开启时只挂载受控 MCP，并追加写作取证规则", async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-browser-"));
     const adapter = new ClaudeAgentSdkAdapter();
-    await adapter.prewarm(makePrewarmContext({
-      browserAutomation: {
-        enabled: true,
-        reuseExistingTabs: true,
-        evidenceDir: "assets/browser-evidence",
-        extensionToken: "extension-token"
-      }
-    }));
+    try {
+      await adapter.prewarm(makePrewarmContext({
+        openmindRoot: workspace,
+        cwd: workspace,
+        session: { id: "sess-1", projectRoot: workspace, provider: "claude", providerId: "claude-native", providerSessionId: null } as never,
+        browserAutomation: {
+          enabled: true,
+          reuseExistingTabs: true,
+          evidenceDir: "assets/browser-evidence",
+          extensionToken: "extension-token"
+        }
+      }));
 
-    const startup = sdkMock.startup.mock.calls[0][0] as {
-      options: {
-        mcpServers: Record<string, { args: string[]; env: Record<string, string> }>;
-        systemPrompt: { append?: string };
+      const startup = sdkMock.startup.mock.calls[0][0] as {
+        options: {
+          mcpServers: Record<string, { args: string[]; env: Record<string, string> }>;
+          systemPrompt: { append?: string };
+        };
       };
-    };
-    const server = startup.options.mcpServers.openmind_browser;
-    expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
-    expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
-    expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
-    expect(JSON.stringify(startup.options)).not.toContain("browser_run_code_unsafe");
+      const server = startup.options.mcpServers.openmind_browser;
+      expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
+      expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
+      expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
+      expect(JSON.stringify(startup.options)).not.toContain("browser_run_code_unsafe");
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   it("相同 key 重复 prewarm 复用 warm slot,不重复 startup", async () => {
@@ -314,6 +331,7 @@ function makeRunContext(overrides: Partial<ProviderRunContext> = {}): ProviderRu
     run: { id: "run-1", sessionId: "sess-1", prompt: "hi", status: "running", startedAt: "now", cwd: "/project" } as never,
     provider: { id: "claude-native", provider: "claude", label: "Claude", runtime: "native", available: true } as never,
     providerModel: "auto",
+    openmindRoot: "/project",
     cwd: "/project",
     prompt: "你好",
     contextState: { contexts: [] } as never,
@@ -338,6 +356,158 @@ function makeQuery(messages: unknown[] = []) {
   });
 }
 
+describe("decideClaudePermission Project Glob boundary", () => {
+  function makeProjectRunContext(): ProviderRunContext {
+    const base = makeRunContext();
+    const projectRoot = "/openmind/projects/Research";
+    return makeRunContext({
+      openmindRoot: "/openmind",
+      cwd: projectRoot,
+      session: {
+        ...base.session,
+        cwd: ".",
+        projectRoot,
+        permissionProfile: "read-only",
+        scope: { type: "project-task", projectName: "Research", taskId: "task-1" }
+      }
+    });
+  }
+
+  it("allows a relative pattern contained in the Project", () => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Glob", { pattern: "materials/**/*.md" }))
+      .toMatchObject({ behavior: "allow" });
+  });
+
+  it.each([
+    "{materials,../../outside}/**",
+    "{.,x}{.,x}/outside/**",
+    "materials/{ok,../../../outside}/**",
+    "@(materials|../../outside)/**",
+    "@(.)@(.)/outside/**",
+    "[.][.]/outside/**",
+    ".?/outside/**",
+    "??/outside/**",
+    "!!../outside/**",
+    "!!!!../outside/**",
+    "^^../outside/**",
+    "*/outside/**",
+    "*./outside/**",
+    "{materials,/etc}/**",
+    "{materials,C:\\Windows}/**",
+    "~/outside/**",
+    "materials/\0outside"
+  ])("denies an escaping selector before Glob expansion: %s", (pattern) => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Glob", { pattern }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("Project Glob") });
+  });
+
+  it("rejects Claude home expansion in a Project Read path", () => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Read", { file_path: "  ~/.ssh/id_rsa  " }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("不能以 ~ 开头") });
+  });
+
+  it("trims a Project path before rejecting an absolute target", () => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Read", { file_path: "  /etc/passwd  " }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("当前项目以外") });
+  });
+
+  it("rejects Claude home expansion in the optional Project Glob path", () => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Glob", { path: "~", pattern: "*.md" }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("不能以 ~ 开头") });
+  });
+});
+
+describe("decideClaudePermission tilde path boundary", () => {
+  function makeWorkspaceRunContext(): ProviderRunContext {
+    const base = makeRunContext();
+    return makeRunContext({
+      openmindRoot: "/workspace",
+      cwd: "/workspace",
+      session: { ...base.session, projectRoot: "/workspace", cwd: ".", permissionProfile: "edit", scope: { type: "workspace" } },
+      protectedPaths: ["/home/test/openmind/projects"]
+    });
+  }
+
+  it.each([
+    ["file_path", { file_path: "~/openmind/projects/Research/note.md" }],
+    ["path", { path: "~\\openmind\\projects\\Research" }],
+    ["directory", { directory: "~user/private" }],
+    ["cwd", { cwd: "  ~/openmind/projects" }],
+    ["notebook_path", { notebook_path: "~/openmind/projects/private.ipynb" }],
+    ["paths", { paths: ["safe", "~/openmind/projects/Research"] }]
+  ])("rejects a tilde-prefixed %s field before generic protected-path checks", (_field, input) => {
+    expect(decideClaudePermission(makeWorkspaceRunContext(), "Read", input))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("不能以 ~ 开头") });
+  });
+
+  it("rejects a tilde-prefixed blockedPath before generic protected-path checks", () => {
+    expect(decideClaudePermission(
+      makeWorkspaceRunContext(),
+      "Read",
+      { file_path: "safe.md" },
+      "~/openmind/projects/Research/note.md"
+    )).toMatchObject({ behavior: "deny", message: expect.stringContaining("不能以 ~ 开头") });
+  });
+
+  it("trims a generic path before checking the protected Project subtree", () => {
+    expect(decideClaudePermission(makeWorkspaceRunContext(), "Read", {
+      file_path: "  /home/test/openmind/projects/Research/note.md  "
+    })).toMatchObject({ behavior: "deny", message: expect.stringContaining("Workspace") });
+  });
+});
+
+describe("decideClaudePermission Workspace read boundary", () => {
+  function makeWorkspaceRunContext(root: string, cwd = root): ProviderRunContext {
+    const base = makeRunContext();
+    return makeRunContext({
+      openmindRoot: root,
+      cwd,
+      session: {
+        ...base.session,
+        projectRoot: root,
+        cwd: path.relative(root, cwd) || ".",
+        permissionProfile: "edit",
+        scope: { type: "workspace" }
+      },
+      protectedPaths: []
+    });
+  }
+
+  it.each([
+    ["absolute", "/etc/passwd"],
+    ["home", "~/.ssh/id_rsa"],
+    ["parent", "../outside/secret.md"]
+  ])("hard-denies a generic Read using an %s path", (_case, filePath) => {
+    expect(decideClaudePermission(makeWorkspaceRunContext("/workspace"), "Read", { file_path: filePath }))
+      .toMatchObject({ behavior: "deny" });
+  });
+
+  it("hard-denies a symlink that resolves outside the selected Workspace", () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-read-boundary-"));
+    const workspace = path.join(fixture, "workspace");
+    const outside = path.join(fixture, "outside");
+    fs.mkdirSync(workspace);
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, "secret.md"), "secret");
+    fs.symlinkSync(outside, path.join(workspace, "escape"), process.platform === "win32" ? "junction" : "dir");
+    try {
+      expect(decideClaudePermission(makeWorkspaceRunContext(workspace), "Read", {
+        file_path: "escape/secret.md"
+      })).toMatchObject({ behavior: "deny", message: expect.stringContaining("Workspace 以外") });
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["file:///etc/passwd", "/etc/passwd", "data:text/plain,secret"])(
+    "hard-denies non-HTTP WebFetch target %s",
+    (url) => {
+      expect(decideClaudePermission(makeWorkspaceRunContext("/workspace"), "WebFetch", { url }))
+        .toMatchObject({ behavior: "deny", message: expect.stringContaining("HTTP(S)") });
+    }
+  );
+});
+
 describe("ClaudeAgentSdkAdapter.run()", () => {
   it("遍历 query 消息并 emit 事件(assistant-message)", async () => {
     const query = makeQuery([
@@ -350,7 +520,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(ctx.emit).toHaveBeenCalledWith("assistant-message", expect.objectContaining({ text: "你好" }));
   });
 
-  it("system init 消息 emit system 事件 + 更新 providerSessionId", async () => {
+  it("system init 消息 emit system 事件但不持久化 providerSessionId", async () => {
     const query = makeQuery([
       { type: "system", subtype: "init", session_id: "real-session", model: "claude-4", claude_code_version: "1.0" }
     ]);
@@ -358,7 +528,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     const ctx = makeRunContext();
     const adapter = new ClaudeAgentSdkAdapter();
     await adapter.run(ctx);
-    expect(ctx.updateProviderSession).toHaveBeenCalledWith("real-session");
+    expect(ctx.updateProviderSession).not.toHaveBeenCalled();
     expect(ctx.emit).toHaveBeenCalledWith("system", expect.objectContaining({ subtype: "init" }));
   });
 
@@ -901,7 +1071,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(stderrOn).toHaveBeenCalledWith("data", expect.any(Function));
   });
 
-  it("keeps Claude Code native Skill discovery enabled for installed Skill invocations", async () => {
+  it("injects only the admitted Installed Skill text while native discovery stays disabled", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-bridge-"));
     fs.mkdirSync(`${tmpDir}/references`, { recursive: true });
     fs.writeFileSync(`${tmpDir}/SKILL.md`, "# Installed Agent\n执行受控任务。\n");
@@ -917,6 +1087,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
           digest: "a".repeat(64),
           packageRoot: tmpDir,
           skillPath: `${tmpDir}/SKILL.md`,
+          instructions: "# Installed Agent\n执行受控任务。",
           referencePaths: ["references/rules.md"],
           openmindRoot: `${tmpDir}/openmind`,
           capabilities: {
@@ -929,11 +1100,104 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
       });
       await new ClaudeAgentSdkAdapter().run(ctx);
       const opts = sdkMock.query.mock.calls[0][0] as { options: { settingSources: string[]; skills: string[]; systemPrompt: { append?: string } } };
-      expect(opts.options.settingSources).toEqual(["user", "project"]);
-      expect(opts.options.skills).toBe("all");
-      expect(opts.options.systemPrompt.append || "").not.toContain("Installed Agent");
+      expect(opts.options.settingSources).toEqual([]);
+      expect(opts.options.skills).toEqual([]);
+      expect(opts.options.systemPrompt.append || "").toContain("# Installed Agent");
+      expect(opts.options.systemPrompt.append || "").toContain("skill_id: installed-agent");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("isolates Project runs from settings, Skills, MCP, browser and write-capable tools", async () => {
+    sdkMock.query.mockReturnValueOnce(makeQuery([
+      { type: "system", subtype: "init", session_id: "project-sdk-session" }
+    ]));
+    const base = makeRunContext();
+    const ctx = makeRunContext({
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/AI安全",
+      session: {
+        ...base.session,
+        projectRoot: "/openmind/projects/AI安全",
+        cwd: ".",
+        permissionProfile: "read-only",
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      }
+    });
+
+    await new ClaudeAgentSdkAdapter().run(ctx);
+
+    const call = sdkMock.query.mock.calls[0][0] as {
+      options: {
+        systemPrompt: { append?: string; excludeDynamicSections?: boolean };
+        settingSources: string[];
+        skills: string[];
+        tools: string[];
+        permissionMode: string;
+        strictMcpConfig: boolean;
+        persistSession: boolean;
+        sandbox: { enabled: boolean };
+        resume?: string;
+        mcpServers?: unknown;
+      };
+    };
+    expect(call.options.systemPrompt.append).toContain("项目“AI安全”");
+    expect(call.options.systemPrompt.append).toContain("OpenMind 文件访问根目录是：/openmind");
+    expect(call.options.systemPrompt.append).toContain("不可信参考数据");
+    expect(call.options.systemPrompt.excludeDynamicSections).toBe(true);
+    expect(call.options.settingSources).toEqual([]);
+    expect(call.options.skills).toEqual([]);
+    expect(call.options.tools).toEqual(["Read", "Glob", "Grep"]);
+    expect(call.options.permissionMode).toBe("dontAsk");
+    expect(call.options.strictMcpConfig).toBe(true);
+    expect(call.options.persistSession).toBe(false);
+    expect(call.options.sandbox).toEqual({ enabled: false });
+    expect(call.options.resume).toBeUndefined();
+    expect(call.options.mcpServers).toBeUndefined();
+    expect(ctx.updateProviderSession).not.toHaveBeenCalled();
+  });
+
+  it("allows ordinary Workspace reads while keeping the app-managed Project subtree write-protected", async () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-workspace-boundary-"));
+    const projects = path.join(fixture, "projects");
+    fs.mkdirSync(path.join(projects, "Research"), { recursive: true });
+    try {
+      sdkMock.query.mockReturnValueOnce(makeQuery([]));
+      const base = makeRunContext();
+      const ctx = makeRunContext({
+        openmindRoot: fixture,
+        cwd: fixture,
+        session: { ...base.session, projectRoot: fixture, cwd: ".", permissionProfile: "edit" },
+        protectedPaths: [projects]
+      });
+      await new ClaudeAgentSdkAdapter().run(ctx);
+      const call = sdkMock.query.mock.calls[0][0] as {
+        options: {
+          tools: string[];
+          settingSources: string[];
+          skills: string[];
+          strictMcpConfig: boolean;
+          sandbox: { enabled: boolean };
+        };
+      };
+      expect(call.options.sandbox).toEqual({ enabled: false });
+      expect(call.options.tools).not.toEqual(expect.arrayContaining(["Bash", "PowerShell"]));
+      expect(call.options.settingSources).toEqual([]);
+      expect(call.options.skills).toEqual([]);
+      expect(call.options.strictMcpConfig).toBe(true);
+      expect(decideClaudePermission(ctx, "Edit", { file_path: path.join(projects, "Research", "note.md") }))
+        .toMatchObject({ behavior: "deny", message: expect.stringContaining("Project 目录") });
+      expect(decideClaudePermission(ctx, "Read", { file_path: path.join(projects, "Research", "note.md") }))
+        .toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(ctx, "Glob", { path: fixture, pattern: "**/*.md" }))
+        .toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(ctx, "Glob", { pattern: "**/*.md" }))
+        .toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(ctx, "Grep", { path: fixture, pattern: "sentinel" }))
+        .toMatchObject({ behavior: "allow" });
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
     }
   });
 
@@ -943,6 +1207,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     await adapter.prewarm({
       session: { id: "sess-1" } as never,
       provider: { id: "claude-native", provider: "claude", label: "Claude", runtime: "native", available: true } as never,
+      openmindRoot: "/project",
       cwd: "/project", permissionProfile: "edit", providerSessionId: null, providerModel: "auto"
     } as unknown as ProviderPrewarmContext);
 

@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(91);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(91);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(91);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(112);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(112);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(112);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -86,9 +86,13 @@ function makeAiSpy() {
 
 function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
   const { product } = makeProductSpy();
+  const project = new Proxy({}, {
+    get: () => vi.fn()
+  });
   return {
     getMainWindow: () => null,
     ensureProductService: () => product as never,
+    ensureProjectService: () => project as never,
     ensureAiWorker: () => makeAiSpy() as never,
     ensureOpenmindFileSearch: () => ({ search: async () => [] }) as never,
     ensureSkillPackageService: () => ({
@@ -544,8 +548,9 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
     vi.spyOn(settings, "isValidOpenmindRoot").mockReturnValue(true);
     vi.spyOn(settings, "resolveWorkspaceRoot").mockReturnValue("/workspace");
-    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; environment: { mode: string; platform: string } };
+    const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; workspaceRoot: string; environment: { mode: string; platform: string } };
     expect(result.validRepo).toBeDefined();
+    expect(result.workspaceRoot).toBe("/workspace/openmind");
     expect(result.environment.mode).toBe("desktop");
     expect(result.environment.platform).toBe(process.platform);
     expect(ai.call).toHaveBeenCalledWith("skills");
@@ -861,4 +866,96 @@ describe("handler forwarding — 剩余 AI passthrough", () => {
     });
     expect(ai.call).toHaveBeenCalledWith("start", expect.objectContaining({ sessionId: "s1" }));
   });
+
+  it("aiStartRun 在 Main 边界允许普通 Workspace 读取 projects", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    const settings = await import("./lib/settings");
+    const readable = vi.spyOn(settings, "ensureInsideRepoReadable").mockImplementation((value) => String(value));
+
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.aiStartRun, {
+      prompt: "hi", providerId: "codex-native", permissionProfile: "edit", cwd: "projects/Research",
+      contexts: [{ id: "note", kind: "file", label: "note.md", path: "projects/Research/materials/note.md" }]
+    });
+    expect(readable).toHaveBeenCalledWith("projects/Research");
+    expect(readable).toHaveBeenCalledWith("projects/Research/materials/note.md");
+    expect(ai.call).toHaveBeenCalledWith("start", expect.objectContaining({ cwd: "projects/Research" }));
+  });
 });
+
+describe("handler forwarding — Project domain", () => {
+  it("validates create input and forwards it only to ProjectService", async () => {
+    const createProject = vi.fn(() => ({ project: { name: "Research" } }));
+    const ctx = makeCtx({ ensureProjectService: () => ({ createProject }) as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.createProject, { name: "Research", description: "notes" });
+    expect(createProject).toHaveBeenCalledWith(expect.objectContaining({ name: "Research", description: "notes" }));
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.createProject, { name: "../escape" })).toThrow();
+  });
+
+  it("blocks Task archive while any AI run is active", async () => {
+    const archiveProjectTask = vi.fn();
+    const ctx = makeCtx({
+      ensureProjectService: () => ({ archiveProjectTask }) as never,
+      getActiveRunCount: async () => 1
+    });
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveProjectTask, {
+      projectName: "Research",
+      taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c"
+    })).rejects.toThrow("运行中的 AI 任务");
+    expect(archiveProjectTask).not.toHaveBeenCalled();
+  });
+
+  it("serializes rename check+mutation against rerouted generic Project continuation admission", async () => {
+    const events: string[] = [];
+    let releaseRename!: () => void;
+    const renameBarrier = new Promise<void>((resolve) => { releaseRename = resolve; });
+    const renameProject = vi.fn(async () => {
+      events.push("rename-start");
+      await renameBarrier;
+      events.push("rename-end");
+      return { name: "Renamed" };
+    });
+    const findProjectTaskBySessionId = vi.fn(() => {
+      events.push("start-admitted");
+      return {
+        projectName: "Research",
+        taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c",
+        providerId: "codex-native",
+        status: "archived"
+      };
+    });
+    const projectService = { renameProject, findProjectTaskBySessionId };
+    const ctx = makeCtx({
+      ensureProjectService: () => projectService as never,
+      getActiveRunCount: async () => {
+        events.push("active-check");
+        return 0;
+      }
+    });
+    const entries = createIpcHandlerEntries(ctx);
+    const rename = entries.find((entry) => entry.channel === IPC_METHOD_CHANNELS.renameProject)!.handler;
+    const start = entries.find((entry) => entry.channel === IPC_METHOD_CHANNELS.aiStartRun)!.handler;
+
+    const renamePromise = Promise.resolve(rename({ projectName: "Research", newName: "Renamed" }));
+    await waitForCondition(() => renameProject.mock.calls.length === 1);
+    const startPromise = Promise.resolve(start({
+      sessionId: "project-session-1", providerId: "codex-native", permissionProfile: "read-only",
+      cwd: ".", prompt: "write", contexts: []
+    }));
+    await Promise.resolve();
+    expect(findProjectTaskBySessionId).not.toHaveBeenCalled();
+
+    releaseRename();
+    await renamePromise;
+    await expect(startPromise).rejects.toThrow("已归档的 Project Task");
+    expect(events).toEqual(["active-check", "rename-start", "rename-end", "start-admitted"]);
+  });
+});
+
+async function waitForCondition(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("condition not reached");
+}

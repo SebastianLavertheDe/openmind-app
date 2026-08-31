@@ -136,6 +136,7 @@ export class InstalledSkillExecutionResolver {
       digest: record.digest,
       packageRoot,
       skillPath,
+      instructions: fs.readFileSync(skillPath, "utf8"),
       referencePaths: listReferenceFiles(packageRoot),
       openmindRoot: canonicalDirectory(this.openmindRoot),
       capabilities: inspection.manifest.capabilities

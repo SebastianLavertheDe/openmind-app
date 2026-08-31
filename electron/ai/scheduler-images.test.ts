@@ -87,7 +87,10 @@ describe("materializeImages", () => {
   it("非 dataURL 的 content 跳过并清空 content,warn", () => {
     const root = createRoot();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const result = materializeImages(root, "run-1", [imageContext({ content: "not-a-data-url" })]);
+    const result = materializeImages(root, "run-1", [imageContext({
+      content: "not-a-data-url",
+      path: "projects/Research/materials/private.png"
+    })]);
     expect(result[0].content).toBeUndefined();
     expect(result[0].path).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("非 dataURL"));
@@ -102,6 +105,7 @@ describe("materializeImages", () => {
     });
     const result = materializeImages(root, "run-1", [imageContext()]);
     expect(result[0].content).toBeUndefined();
+    expect(result[0].path).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("materialize img1 失败"));
   });
 });
@@ -211,10 +215,23 @@ describe("extractImageContexts", () => {
   });
 
   it("mediaType 缺省时回退 image/png", () => {
-    const result = extractImageContexts("/root", [
-      imageContext({ content: undefined, path: "/abs.png", mediaType: undefined })
+    const root = createRoot();
+    const result = extractImageContexts(root, [
+      imageContext({ content: undefined, path: path.join(root, "abs.png"), mediaType: undefined })
     ]);
     expect(result[0].mediaType).toBe("image/png");
+  });
+
+  it("allows app-private materialized images but rejects paths outside both roots", () => {
+    const root = createRoot();
+    const stateRoot = createRoot();
+    const materialized = materializeImages(root, "run-private", [imageContext()], stateRoot);
+    expect(extractImageContexts(root, materialized, stateRoot)[0].path).toBe(materialized[0].path);
+
+    const outside = path.join(path.dirname(root), "outside-image.png");
+    expect(() => extractImageContexts(root, [
+      imageContext({ content: undefined, path: outside })
+    ], stateRoot)).toThrow(/超出会话执行根/);
   });
 
   it("非 image context 跳过", () => {

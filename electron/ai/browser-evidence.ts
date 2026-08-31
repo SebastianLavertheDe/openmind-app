@@ -2,6 +2,7 @@ import path from "node:path";
 import { DEFAULT_BROWSER_EVIDENCE_DIR, type ProviderCapabilities } from "../../shared/contracts";
 import { toWslPath } from "./process-utils";
 import { buildAiWorkerEnvironment } from "./worker-environment";
+import { resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
 
 export const BROWSER_MCP_SERVER_NAME = "openmind_browser";
 export const BROWSER_EVIDENCE_TOOL = "capture_source_evidence";
@@ -105,5 +106,9 @@ function resolveEvidenceDir(cwd: string, configured: string): string {
   if (!normalized || path.isAbsolute(normalized) || normalized.split("/").some((part) => part === "..")) {
     throw new Error("浏览器证据目录必须是项目内的相对路径。");
   }
-  return path.resolve(cwd, normalized);
+  return resolvePathInsideCanonicalRoot(
+    cwd,
+    path.resolve(cwd, normalized),
+    "浏览器证据目录超出所选 Workspace。"
+  );
 }

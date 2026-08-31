@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ContextReference } from "../../shared/contracts";
+import { resolvePathInsideRoot } from "./scheduler-paths";
 
 const TMP_DIR_NAME = "tmp-images";
 const STALE_MAX_MS = 7 * 24 * 3600 * 1000;
@@ -35,7 +36,7 @@ export function materializeImages(projectRoot: string, runId: string, contexts: 
     const parsed = parseDataURL(context.content);
     if (!parsed) {
       console.warn(`[image] context ${context.id} content 非 dataURL，跳过`);
-      return { ...context, content: undefined };
+      return { ...context, content: undefined, path: undefined };
     }
     try {
       fs.mkdirSync(dir, { recursive: true });
@@ -51,7 +52,7 @@ export function materializeImages(projectRoot: string, runId: string, contexts: 
       };
     } catch (err) {
       console.warn(`[image] materialize ${context.id} 失败：${err}`);
-      return { ...context, content: undefined };
+      return { ...context, content: undefined, path: undefined };
     }
   });
 }
@@ -107,13 +108,29 @@ export function stripImageContent(contexts: ContextReference[]): ContextReferenc
 export function extractImageContexts(
   projectRoot: string,
   contexts: ContextReference[],
-  _stateRoot?: string
+  stateRoot?: string
 ): Array<{ id: string; path: string; mediaType: string }> {
   const result: Array<{ id: string; path: string; mediaType: string }> = [];
   for (const context of contexts) {
     if (context.kind !== "image" || !context.path) continue;
     const abs = path.isAbsolute(context.path) ? context.path : path.resolve(projectRoot, context.path);
+    assertImagePath(projectRoot, abs, stateRoot);
     result.push({ id: context.id, path: abs, mediaType: context.mediaType || "image/png" });
   }
   return result;
+}
+
+function assertImagePath(projectRoot: string, candidate: string, stateRoot?: string): void {
+  try {
+    resolvePathInsideRoot(projectRoot, candidate, "图片附件超出会话执行根。");
+    return;
+  } catch (projectError) {
+    if (stateRoot) {
+      try {
+        resolvePathInsideRoot(tmpImagesDir(projectRoot, stateRoot), candidate, "图片附件超出会话执行根。");
+        return;
+      } catch { /* report the stable project-boundary error below */ }
+    }
+    throw projectError;
+  }
 }

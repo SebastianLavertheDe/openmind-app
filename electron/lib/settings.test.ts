@@ -16,6 +16,7 @@ import {
   normalizeRepoRoot,
   parseWslRepoPath,
   ensureInsideRepo,
+  ensureInsideRepoReadable,
   findRepoRoot,
   getPreferences,
   setOpenmindRoot,
@@ -65,6 +66,54 @@ describe("settings path handling", () => {
   it("keeps resolved paths inside the repo", () => {
     expect(ensureInsideRepo("openmind/article/x.md")).toBe(path.resolve(repo, "article/x.md"));
     expect(() => ensureInsideRepo("../../etc/passwd")).toThrow("超出项目目录");
+  });
+
+  it("keeps generic path entry points out of app-managed projects and symlink aliases", () => {
+    const materialDir = path.join(repo, "projects", "Research", "materials");
+    fs.mkdirSync(materialDir, { recursive: true });
+    fs.writeFileSync(path.join(materialDir, "note.md"), "private");
+    fs.symlinkSync(materialDir, path.join(repo, "project-alias"), process.platform === "win32" ? "junction" : "dir");
+
+    expect(() => ensureInsideRepo("openmind/projects/Research/materials/note.md"))
+      .toThrow(/Project 专用接口/);
+    expect(() => ensureInsideRepo("projects/Research/materials/note.md"))
+      .toThrow(/Project 专用接口/);
+    expect(() => ensureInsideRepo("project-alias/note.md"))
+      .toThrow(/Project 专用接口/);
+  });
+
+  it("allows read-only Workspace entry points to access app-managed projects", () => {
+    const material = path.join(repo, "projects", "Research", "materials", "note.md");
+    fs.mkdirSync(path.dirname(material), { recursive: true });
+    fs.writeFileSync(material, "private");
+
+    expect(ensureInsideRepoReadable("projects/Research/materials/note.md")).toBe(material);
+    expect(ensureInsideRepoReadable("openmind/projects/Research/materials/note.md")).toBe(material);
+  });
+
+  it("rejects external symlink files, directories, and prospective writes", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-settings-outside-"));
+    fs.writeFileSync(path.join(outside, "secret.md"), "secret");
+    fs.symlinkSync(
+      path.join(outside, "secret.md"),
+      path.join(repo, "secret-link.md"),
+      process.platform === "win32" ? "file" : undefined
+    );
+    fs.symlinkSync(outside, path.join(repo, "escape"), process.platform === "win32" ? "junction" : "dir");
+    try {
+      expect(() => ensureInsideRepo("secret-link.md")).toThrow("超出项目目录");
+      expect(() => ensureInsideRepo("escape/secret.md")).toThrow("超出项目目录");
+      expect(() => ensureInsideRepo("escape/new.md")).toThrow("超出项目目录");
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects broken symlink leaves and prospective children", () => {
+    const broken = path.join(repo, "broken-link");
+    fs.symlinkSync(path.join(repo, "missing-target"), broken, process.platform === "win32" ? "junction" : "dir");
+    expect(() => ensureInsideRepo("broken-link")).toThrow("超出项目目录");
+    expect(() => ensureInsideRepo("broken-link/new.md")).toThrow("超出项目目录");
   });
 
   it("uses the bound flat data root as the display repo root", () => {

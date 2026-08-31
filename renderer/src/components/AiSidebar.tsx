@@ -341,7 +341,9 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
             onChange={(value) => void ai.setActiveSession(value || null)}
             options={[
               { value: "" as const, label: m.ai.sidebar.newDraft },
-              ...ai.snapshot.sessions.filter((session) => !session.archived).map((session) => ({ value: session.id, label: session.title }))
+              ...ai.snapshot.sessions
+                .filter((session) => !session.archived && session.scope?.type !== "project-task")
+                .map((session) => ({ value: session.id, label: session.title }))
             ]}
           />
           <div>

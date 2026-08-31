@@ -91,6 +91,54 @@ describe("SessionStore", () => {
     expect(fs.existsSync(path.join(writerA.root, "sessions", sessionB.id, "session.json"))).toBe(true);
   });
 
+  it("persists Project Task scope/root per session and freezes the read-only boundary", () => {
+    const workspace = createRoot();
+    const stateRoot = createRoot();
+    const openmindRoot = createRoot();
+    const projectsRoot = path.join(openmindRoot, "projects");
+    const projectRoot = path.join(projectsRoot, "AI安全");
+    fs.mkdirSync(path.join(projectRoot, "materials"), { recursive: true });
+    const store = new SessionStore(workspace, stateRoot, projectsRoot);
+
+    const session = store.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      cwd: ".",
+      title: "Project research",
+      permissionProfile: "edit",
+      projectRoot,
+      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+    });
+    const run = store.createRun(session, "分析资料", []);
+    const updated = store.updateSession(session.id, {
+      projectRoot: workspace,
+      projectId: store.projectId,
+      scope: { type: "workspace" },
+      cwd: "materials",
+      permissionProfile: "edit"
+    });
+
+    expect(session).toMatchObject({
+      projectRoot: fs.realpathSync.native(projectRoot),
+      cwd: ".",
+      permissionProfile: "read-only",
+      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+    });
+    expect(run.scope).toEqual(session.scope);
+    expect(run.projectId).toBe(session.projectId);
+    expect(updated).toMatchObject({
+      projectId: session.projectId,
+      projectRoot: session.projectRoot,
+      scope: session.scope,
+      cwd: ".",
+      permissionProfile: "read-only"
+    });
+
+    const restarted = new SessionStore(workspace, stateRoot, projectsRoot);
+    expect(restarted.getSession(session.id)).toMatchObject({ projectRoot: session.projectRoot, scope: session.scope });
+    expect(restarted.getRun(run.id)).toMatchObject({ projectId: session.projectId, scope: session.scope });
+  });
+
   it("persists a fresh Skill snapshot and protects it from generic session patches", () => {
     const store = new SessionStore(createRoot());
     const snapshot = sessionSkillSnapshot();

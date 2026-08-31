@@ -8,6 +8,8 @@ import {
   type AiSession
 } from "../shared/contracts";
 import { ProductService } from "./product/product-service";
+import { ProjectService } from "./project/project-service";
+import { createDefaultProjectMaterialConverters } from "./project/converters/project-material-converters";
 import { globalSearch } from "./product/global-search";
 import { OpenmindFileSearch } from "./openmind-file-search";
 import { registerIpcHandlers } from "./ipc-handlers";
@@ -63,6 +65,8 @@ let mainWindow: BrowserWindow | null = null;
 let aiWorker: AiWorkerClient | null = null;
 let productService: ProductService | null = null;
 let productServiceRoot = "";
+let projectService: ProjectService | null = null;
+let projectServiceRoot = "";
 let openmindFileSearch: OpenmindFileSearch | null = null;
 let openmindFileSearchRoot = "";
 let skillPackageService: SkillPackageService | null = null;
@@ -219,6 +223,7 @@ class AiWorkerClient {
         sendToRenderer("skill:run-event", push.event);
         return;
       }
+      if (push?.kind === "event" && push.event) syncProjectTaskEvent(push.event);
       sendToRenderer("ai:push", message.payload);
       return;
     }
@@ -231,16 +236,69 @@ class AiWorkerClient {
   }
 }
 
+function syncProjectTaskEvent(rawEvent: Record<string, unknown>): void {
+  const sessionId = typeof rawEvent.sessionId === "string" ? rawEvent.sessionId : "";
+  if (!sessionId) return;
+  const kind = String(rawEvent.kind || "");
+  const payload = rawEvent.payload && typeof rawEvent.payload === "object"
+    ? rawEvent.payload as Record<string, unknown>
+    : {};
+  // Token deltas, reasoning, tool events and intermediate assistant messages
+  // never enter messages.jsonl. Reject them before touching the synchronous
+  // Project filesystem so ordinary streaming stays constant-cost.
+  const relevant = kind === "user-message"
+    || (kind === "assistant-message" && payload.phase === "final" && typeof payload.text === "string")
+    || (kind === "status" && ["completed", "failed", "cancelled"].includes(String(payload.state || "")));
+  if (!relevant) return;
+  try {
+    const service = ensureProjectService();
+    const task = service.findProjectTaskBySessionId(sessionId);
+    if (!task) return;
+    const eventId = typeof rawEvent.id === "string" ? rawEvent.id : crypto.randomUUID();
+    const createdAt = typeof rawEvent.timestamp === "string" ? rawEvent.timestamp : new Date().toISOString();
+    if (kind === "user-message" && typeof payload.text === "string") {
+      service.appendProjectTaskMessage(task.projectName, task.taskId, {
+        id: eventId,
+        role: "user",
+        content: payload.text,
+        sourceMessageId: eventId,
+        createdAt
+      });
+      service.setProjectTaskStatus(task.projectName, task.taskId, "active");
+      return;
+    }
+    if (kind === "assistant-message" && payload.phase === "final" && typeof payload.text === "string") {
+      service.appendProjectTaskMessage(task.projectName, task.taskId, {
+        id: eventId,
+        role: "assistant",
+        content: payload.text,
+        sourceMessageId: eventId,
+        createdAt
+      });
+      return;
+    }
+    if (kind === "status") {
+      const state = String(payload.state || "");
+      if (state === "completed") service.setProjectTaskStatus(task.projectName, task.taskId, "completed");
+      if (state === "failed" || state === "cancelled") service.setProjectTaskStatus(task.projectName, task.taskId, "failed");
+    }
+  } catch {
+    // AI rollout persistence remains authoritative even if the optional
+    // Project-readable transcript cannot be mirrored during shutdown/root swap.
+  }
+}
+
 function ensureAiWorker(): AiWorkerClient {
   if (aiWorker) return aiWorker;
   if (!hasRequiredStartupConfiguration()) {
     throw new Error("请先配置 openmind 保存目录并安装官方 cctools-skills。");
   }
-  // Workspace defaults to the bound content root (settings.resolveWorkspaceRoot),
-  // so reaching here without a project root means no content root is bound.
-  const projectRoot = settings.resolveWorkspaceRoot();
-  if (!projectRoot) throw new Error("请先绑定内容目录后再使用 AI 会话。");
-  aiWorker = new AiWorkerClient(projectRoot, resolveAiStateRoot());
+  // AI file access is deliberately rooted at the selected OpenMind content
+  // directory. The legacy optional code-workspace preference is not an AI
+  // filesystem authority and must never widen this boundary.
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (!openmindRoot) throw new Error("请先绑定内容目录后再使用 AI 会话。");
+  aiWorker = new AiWorkerClient(openmindRoot, resolveAiStateRoot());
   return aiWorker;
 }
 
@@ -260,6 +318,18 @@ function ensureProductService(): ProductService {
     productServiceRoot = cacheKey;
   }
   return productService;
+}
+
+function ensureProjectService(): ProjectService {
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
+  if (!projectService || projectServiceRoot !== openmindRoot) {
+    projectService = new ProjectService(openmindRoot, {
+      materialConverters: createDefaultProjectMaterialConverters()
+    });
+    projectServiceRoot = openmindRoot;
+  }
+  return projectService;
 }
 
 function ensureOpenmindFileSearch(): OpenmindFileSearch {
@@ -343,6 +413,8 @@ function restartAiWorker(): void {
   aiWorker = null;
   productService = null;
   productServiceRoot = "";
+  projectService = null;
+  projectServiceRoot = "";
   openmindFileSearch = null;
   openmindFileSearchRoot = "";
   // The skill store lives under the openmind root; drop the singletons bound to
@@ -350,9 +422,9 @@ function restartAiWorker(): void {
   skillPackageService = null;
   skillSourceService = null;
   sharedPythonRuntimeService = null;
-  const workspaceRoot = settings.resolveWorkspaceRoot();
-  if (workspaceRoot && hasRequiredStartupConfiguration()) {
-    aiWorker = new AiWorkerClient(workspaceRoot, resolveAiStateRoot());
+  const openmindRoot = settings.resolveOpenmindRoot();
+  if (openmindRoot && hasRequiredStartupConfiguration()) {
+    aiWorker = new AiWorkerClient(openmindRoot, resolveAiStateRoot());
   }
 }
 
@@ -395,6 +467,7 @@ function classifyIpcError(message: string): string {
 function runGlobalSearch(rawQuery: unknown) {
   return globalSearch(rawQuery, {
     ensureProductService,
+    ensureProjectService,
     searchSessions: (query) => ensureAiWorker().call("search", query) as Promise<AiSession[]>,
     listSkillDefinitions: () => ensureAiWorker().call("skills") as Promise<Array<Record<string, unknown>>>
   });
@@ -405,6 +478,7 @@ function registerIpc(): void {
     {
       getMainWindow: () => mainWindow,
       ensureProductService,
+      ensureProjectService,
       ensureAiWorker,
       ensureOpenmindFileSearch,
       ensureCliInstallerService,

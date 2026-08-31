@@ -6,6 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { buildAiWorkerEnvironment } from "./worker-environment";
+import { resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
 import {
   CAPTURE_SCOPES,
   buildControlledCaptureCode,
@@ -104,12 +105,14 @@ async function captureEvidence(input: {
 
   const outputName = evidenceFilename(input.filename, input.caption, input.url);
   const imagePath = path.join(outputDir, outputName);
-  assertInsideWorkspace(outputDir, imagePath);
+  assertInsideWorkspace(workspace, imagePath);
   try {
     const captured = await runControlledCapture(input.quote, imagePath, input.captureScope);
     if (!fs.existsSync(imagePath)) throw new Error("浏览器没有生成截图文件。");
+    assertInsideWorkspace(workspace, imagePath);
     const relativeImagePath = path.relative(workspace, imagePath).split(path.sep).join("/");
     const metadataPath = imagePath.replace(/\.png$/i, ".json");
+    assertInsideWorkspace(workspace, metadataPath);
     const metadata = {
       schemaVersion: 2,
       sourceUrl: captured.url || input.url,
@@ -125,6 +128,8 @@ async function captureEvidence(input: {
       capturedAt: new Date().toISOString()
     };
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf8");
+    assertInsideWorkspace(workspace, metadataPath);
+    assertInsideWorkspace(workspace, imagePath);
     return {
       content: [
         {
@@ -273,8 +278,7 @@ function requiredArgument(values: Map<string, string>, name: string): string {
 }
 
 function assertInsideWorkspace(root: string, candidate: string): void {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("证据文件路径超出允许的项目目录。");
+  resolvePathInsideCanonicalRoot(root, candidate, "证据文件路径超出允许的项目目录。");
 }
 
 async function main(): Promise<void> {

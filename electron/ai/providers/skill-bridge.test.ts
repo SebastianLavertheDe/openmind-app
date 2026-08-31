@@ -8,6 +8,7 @@ function createBridge(): ProviderSkillBridge {
     digest: "a".repeat(64),
     packageRoot: "/packages/installed-agent",
     skillPath: "/packages/installed-agent/SKILL.md",
+    instructions: "# Installed Agent\nFollow the admitted workflow.",
     referencePaths: ["references/rules.md"],
     openmindRoot: "/repo",
     capabilities: {
@@ -22,5 +23,6 @@ function createBridge(): ProviderSkillBridge {
 describe("Provider Skill bridge", () => {
   it("builds the structured, non-secret capability context", () => {
     expect(buildProviderSkillContext(createBridge())).toContain("openmind_write: creative/**");
+    expect(buildProviderSkillContext(createBridge())).toContain("Follow the admitted workflow.");
   });
 });

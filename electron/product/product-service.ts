@@ -171,8 +171,8 @@ export class ProductService {
 
   private projectSearchResult(project: LegacyCreativeProject): GlobalSearchResult {
     return {
-      id: `project:${project.id || project.dir}`,
-      kind: "project",
+      id: `creative-project:${project.id || project.dir}`,
+      kind: "creative-project",
       title: project.topic,
       subtitle: `${project.date || "日期未知"} · ${project.stage || "项目"}`,
       path: project.dir,

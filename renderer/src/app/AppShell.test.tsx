@@ -298,12 +298,14 @@ describe("AppShell", () => {
 
     expect(screen.queryByText("核心功能")).toBeNull();
     expect(screen.queryByText("系统")).toBeNull();
-    // 新建任务在顶部、设置在核心功能之后：设置应排在创作之后
+    // 新建任务在顶部；项目作为独立创作空间排在现有 Creative 之前。
     const create = screen.getByRole("button", { name: "新建任务" });
+    const projects = screen.getByRole("button", { name: "项目" });
     const creative = screen.getByRole("button", { name: "创作" });
     const settings = screen.getByRole("button", { name: "设置" });
     expect(screen.queryByRole("button", { name: "运行中心" })).toBeNull();
-    expect(create.compareDocumentPosition(creative) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(create.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(projects.compareDocumentPosition(creative) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(creative.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -357,5 +359,28 @@ describe("AppShell", () => {
     const settings = screen.getByRole("button", { name: "设置" });
     expect(creative.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(recent.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("hides the global recent-task slot inside a project to avoid a duplicate task list", () => {
+    render(
+      <AppShell
+        page="projects"
+        navigate={vi.fn()}
+        onOpenSearch={vi.fn()}
+        navCollapsed={false}
+        setNavCollapsed={vi.fn()}
+        repoRoot="/repo"
+        runtime="linux"
+        environment={{ mode: "desktop", platform: "linux" }}
+        pendingApprovals={0}
+        aiMode="collapsed"
+        recentTasks={<div>最近任务区块</div>}
+      >
+        <div>Project</div>
+      </AppShell>
+    );
+
+    expect(screen.queryByText("最近任务区块")).toBeNull();
+    expect(screen.getByRole("button", { name: "项目" }).getAttribute("aria-current")).toBe("page");
   });
 });

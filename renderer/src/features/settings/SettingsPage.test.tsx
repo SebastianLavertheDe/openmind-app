@@ -632,20 +632,14 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ riskScanEnabled: false })));
   });
 
-  it("keeps project path actions connected to the desktop API", async () => {
-    const onRepo = vi.fn();
-    const selectWorkspaceRoot = vi.fn().mockResolvedValue("/repo-next");
+  it("keeps OpenMind path actions connected to the desktop API", async () => {
     const openPath = vi.fn().mockResolvedValue("");
-    window.openmind = makeApi({ selectWorkspaceRoot, openPath });
-    renderSettings(onRepo);
-    await waitFor(() => expect(screen.getByText("工作目录")).toBeTruthy());
+    window.openmind = makeApi({ openPath });
+    renderSettings();
+    await waitFor(() => expect(screen.getByText("项目路径")).toBeTruthy());
 
     const browseButtons = screen.getAllByRole("button", { name: "浏览" });
     fireEvent.click(browseButtons[0]);
-    await waitFor(() => expect(selectWorkspaceRoot).toHaveBeenCalled());
-    expect(onRepo).toHaveBeenCalledWith("/repo-next");
-
-    fireEvent.click(browseButtons[1]);
     await waitFor(() => expect(openPath).toHaveBeenCalledWith("openmind"));
   });
 

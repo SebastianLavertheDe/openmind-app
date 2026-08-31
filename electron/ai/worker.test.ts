@@ -20,6 +20,7 @@ const hoisted = vi.hoisted(() => ({
     activeTaskCount: vi.fn(() => 0),
     prewarmClaude: vi.fn(async () => true),
     startRun: vi.fn(async () => "run-1"),
+    startProjectRun: vi.fn(async () => "project-run-1"),
     cancelRun: vi.fn(async () => undefined),
     updateSession: vi.fn(() => ({})),
     forkSession: vi.fn(() => ({})),
@@ -108,6 +109,18 @@ describe("worker dispatch", () => {
   it("start 方法转发 StartRunInput", async () => {
     await sendMessage("start", [{ sessionId: "s1", prompt: "hi" }]);
     expect(hoisted.schedulerMethods.startRun).toHaveBeenCalledWith({ sessionId: "s1", prompt: "hi" });
+  });
+
+  it("start-project-run 只转发 Main 已解析的可信 Project 请求", async () => {
+    const request = {
+      projectRoot: "/openmind/projects/AI安全",
+      projectName: "AI安全",
+      taskId: "task-1",
+      providerId: "claude-native",
+      prompt: "分析资料"
+    };
+    await sendMessage("start-project-run", [request]);
+    expect(hoisted.schedulerMethods.startProjectRun).toHaveBeenCalledWith(request);
   });
 
   it("cancel 方法转发 runId", async () => {

@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
+import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import type { AiEvent } from "../../../shared/contracts";
@@ -12,6 +15,8 @@ import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser
 import { buildProviderSkillContext } from "./skill-bridge";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
+import { openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { resolvePathInsideRoot } from "../scheduler-paths";
 
 interface RpcMessage {
   id?: string | number;
@@ -64,59 +69,59 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       });
       rpc.notify("initialized", {});
       const cwd = providerCwd(context);
-      const sandbox = context.session.permissionProfile === "read-only" ? "read-only" : "workspace-write";
-      const browserConfig = buildCodexBrowserConfig(context.provider, context.cwd, context.browserAutomation);
-      const browserInstructions = browserEvidenceInstructions(context.browserAutomation);
-      const threadBrowserOptions = {
-        ...(browserConfig ? { config: browserConfig } : {}),
-        ...(browserInstructions ? { developerInstructions: browserInstructions } : {})
+      const openmindRoot = providerOpenmindRoot(context);
+      const projectScoped = context.session.scope?.type === "project-task";
+      if (projectScoped && context.session.permissionProfile !== "read-only") {
+        throw new Error("Project Codex 会话必须使用只读权限配置。");
+      }
+      if (projectScoped && context.skillInvocation) {
+        throw new Error("Project Codex 会话不允许调用全局 Skill。");
+      }
+      const browserConfig = projectScoped ? null : buildCodexBrowserConfig(context.provider, context.cwd, context.browserAutomation);
+      const hostConfig = projectScoped ? buildProjectCodexConfig() : buildWorkspaceBoundaryCodexConfig(context);
+      const genericConfig = mergeCodexConfigs(browserConfig, hostConfig);
+      const browserInstructions = projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
+      const projectInstructions = projectSessionInstructions(context.session);
+      const developerInstructions = [
+        openmindFilesystemInstructions(openmindRoot),
+        projectInstructions,
+        browserInstructions
+      ].filter(Boolean).join("\n\n");
+      const threadOptions = {
+        ...(genericConfig ? { config: genericConfig } : {}),
+        runtimeWorkspaceRoots: [openmindRoot],
+        ...(developerInstructions ? { developerInstructions } : {})
       };
       const threadResult = context.session.providerSessionId
         ? await rpc.request("thread/resume", {
           threadId: context.session.providerSessionId,
           cwd,
-          approvalPolicy: "on-request",
+          approvalPolicy: projectScoped ? "never" : "on-request",
           approvalsReviewer: "user",
-          sandbox,
-          ...threadBrowserOptions
+          // Explicit full access disables Codex's OS/process sandbox. OpenMind
+          // keeps its own request/path admission checks at the app boundary.
+          sandbox: "danger-full-access",
+          ...threadOptions
         })
         : await rpc.request("thread/start", {
           cwd,
-          approvalPolicy: "on-request",
+          approvalPolicy: projectScoped ? "never" : "on-request",
           approvalsReviewer: "user",
-          sandbox,
+          sandbox: "danger-full-access",
           serviceName: "openmind-desktop",
-          ...threadBrowserOptions
+          ...threadOptions
         });
       const thread = threadResult.thread as { id?: string } | undefined;
       if (!thread?.id) throw new Error("Codex App Server 未返回 thread id。");
       context.updateProviderSession(thread.id);
       let nativeSkill: CodexNativeSkill | null = null;
       if (context.skillInvocation) {
-        if (context.skillBridge) {
-          nativeSkill = {
-            name: context.skillBridge.id,
-            path: context.skillBridge.skillPath,
-            enabled: true
-          };
-        }
-        const projectSkill = context.skillBridge ? null : resolveProjectCodexSkill(context, cwd, context.skillInvocation.name);
-        let discoveredSkill: CodexNativeSkill | null = null;
-        if (!context.skillBridge) {
-          try {
-            discoveredSkill = resolveCodexNativeSkill(
-              await rpc.request("skills/list", { cwds: [cwd] }),
-              context.skillInvocation.name
-            );
-            nativeSkill = discoveredSkill || projectSkill;
-          } catch (error) {
-            if (!projectSkill) throw error;
-            nativeSkill = projectSkill;
-          }
-        }
-        if (discoveredSkill && !discoveredSkill.enabled) {
-          throw new Error(`Codex Skill 已被禁用：${context.skillInvocation.name}`);
-        }
+        if (!context.skillBridge) throw new Error("Codex 会话只允许应用已校验的 Installed Skill。");
+        nativeSkill = {
+          name: context.skillBridge.id,
+          path: context.skillBridge.skillPath,
+          enabled: true
+        };
       }
       if (context.skillInvocation && !nativeSkill) {
         throw new Error(`Codex 没有在 ${cwd} 发现 Skill：${context.skillInvocation.name}。请确认 .claude/skills 或 .agents/skills 中存在对应的 SKILL.md。`);
@@ -125,17 +130,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       await rpc.request("turn/start", {
         threadId: thread.id,
         cwd,
-        approvalPolicy: "on-request",
+        approvalPolicy: projectScoped ? "never" : "on-request",
         approvalsReviewer: "user",
-        sandboxPolicy: context.session.permissionProfile === "read-only"
-          ? { type: "readOnly", networkAccess: false }
-          : {
-            type: "workspaceWrite",
-            writableRoots: [cwd],
-            networkAccess: context.session.permissionProfile === "auto",
-            excludeTmpdirEnvVar: false,
-            excludeSlashTmp: false
-          },
+        runtimeWorkspaceRoots: [openmindRoot],
+        sandboxPolicy: { type: "dangerFullAccess" },
         input: buildCodexTurnInput(context, nativeSkill),
         ...(collaborationMode ? { collaborationMode } : {})
       });
@@ -160,6 +158,38 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
 
     const params = message.params || {};
+    if (context.session.scope?.type === "project-task") {
+      const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
+      return {
+        decision: legacyCommand || legacyFile
+          ? "denied"
+          : selectCodexApprovalDecision("decline", availableDecisions)
+      };
+    }
+    if ((modernFile || legacyFile) && firstProtectedApprovalPath(context, params)) {
+      const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
+      return {
+        decision: legacyFile
+          ? "denied"
+          : selectCodexApprovalDecision("decline", availableDecisions)
+      };
+    }
+    // Native command requests cannot be made path-safe by approving a command
+    // string. Keep those denied; filesystem tools are checked separately.
+    if (modernCommand || legacyCommand) {
+      const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
+      return { decision: legacyCommand ? "denied" : selectCodexApprovalDecision("decline", availableDecisions) };
+    }
+    for (const candidate of [params.cwd, params.grantRoot]) {
+      if (typeof candidate !== "string" || !candidate.trim()) continue;
+      try {
+        const target = path.isAbsolute(candidate.trim()) ? candidate.trim() : path.resolve(context.cwd, candidate.trim());
+        resolvePathInsideRoot(context.openmindRoot, target);
+      } catch {
+        const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
+        return { decision: legacyFile ? "denied" : selectCodexApprovalDecision("decline", availableDecisions) };
+      }
+    }
     const command = Array.isArray(params.command) ? params.command.map(String).join(" ") : String(params.command || "");
     const classified = classifyApproval(command, method);
     const category = modernFile || legacyFile ? "file-change" : classified.category;
@@ -185,6 +215,30 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       : selectCodexApprovalDecision(decision, availableDecisions);
     return { decision: mapped };
   }
+}
+
+function firstProtectedApprovalPath(
+  context: Pick<ProviderRunContext, "cwd" | "protectedPaths">,
+  params: Record<string, unknown>
+): string | null {
+  const candidates = [params.grantRoot, params.path, params.filePath]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map((value) => value.trim());
+  const listed = Array.isArray(params.paths)
+    ? params.paths.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map((value) => value.trim())
+    : [];
+  for (const candidate of [...candidates, ...listed]) {
+    const target = path.isAbsolute(candidate) ? candidate : path.resolve(context.cwd, candidate);
+    for (const protectedRoot of context.protectedPaths ?? []) {
+      try {
+        resolvePathInsideRoot(protectedRoot, target, "not-protected");
+        return candidate;
+      } catch {
+        // Outside this write-protected root.
+      }
+    }
+  }
+  return null;
 }
 
 function selectCodexApprovalDecision(
@@ -570,6 +624,66 @@ export function buildCodexCollaborationMode(
 export const CODEX_MANAGED_PROVIDER_ID = "openmind_managed_6f1b38d4b0e94c6a";
 export const CODEX_MANAGED_API_KEY_ENV = "OPENMIND_CODEX_API_KEY";
 
+/** Provider-owned discovery stays disabled even though process sandboxing is off. */
+export function buildProjectCodexConfig(): Record<string, unknown> {
+  return {
+    project_doc_max_bytes: 0,
+    project_root_markers: [],
+    web_search: "disabled",
+    notify: [],
+    features: {
+      apps: false,
+      hooks: false,
+      memories: false,
+      goals: false,
+      multi_agent: false,
+      plugins: false,
+      skill_search: false,
+      skill_mcp_dependency_install: false
+    },
+    // Project content is untrusted. Do not let repo-local or user-installed
+    // Skills become model instructions even though this run uses an isolated
+    // CODEX_HOME: Codex also discovers Skills from the Project and ~/.agents.
+    skills: { include_instructions: false },
+    apps: { _default: { enabled: false } }
+  };
+}
+
+/**
+ * Generic Workspace runs use the same provider-discovery hardening as Project
+ * runs. Filesystem admission is owned by OpenMind instead of a Codex named
+ * permission profile or sandbox policy.
+ */
+export function buildWorkspaceBoundaryCodexConfig(
+  context: Pick<ProviderRunContext, "session">
+): Record<string, unknown> | null {
+  if (context.session.scope?.type === "project-task") return null;
+  return {
+    project_doc_max_bytes: 0,
+    project_root_markers: [],
+    web_search: "disabled",
+    notify: [],
+    features: {
+      apps: false,
+      hooks: false,
+      memories: false,
+      goals: false,
+      multi_agent: false,
+      plugins: false,
+      skill_search: false,
+      skill_mcp_dependency_install: false
+    },
+    skills: { include_instructions: false },
+    apps: { _default: { enabled: false } }
+  };
+}
+
+function mergeCodexConfigs(...configs: Array<Record<string, unknown> | null>): Record<string, unknown> | null {
+  const present = configs.filter((value): value is Record<string, unknown> => Boolean(value));
+  if (present.length === 0) return null;
+  return Object.assign({}, ...present);
+}
+
 /** 构造 `codex app-server` 启动参数，并把选中的 Responses Provider 映射为临时 config 覆盖。 */
 export function buildCodexAppServerArgs(
   providerModel: string | null | undefined,
@@ -645,13 +759,18 @@ export function codexProviderEnvironment(serviceProvider: ProviderYamlEntry): Re
 
 function spawnCodex(context: ProviderRunContext, serviceProvider: ProviderYamlEntry | null): ChildProcessWithoutNullStreams {
   const args = buildCodexAppServerArgs(context.providerModel, serviceProvider);
-  const environment = serviceProvider ? codexProviderEnvironment(serviceProvider) : undefined;
+  const isolatedEnvironment = prepareIsolatedCodexEnvironment(context);
+  const environment = {
+    ...(serviceProvider ? codexProviderEnvironment(serviceProvider) : {}),
+    ...isolatedEnvironment
+  };
+  const hasEnvironment = Object.keys(environment).length > 0;
   // A one-click installed codex lives in the app-private tools/bin; prefer it
   // over the bare name so runs work without a shell PATH entry.
   const command = context.provider.runtime === "wsl" ? "codex" : resolveAppToolExecutable("codex") || "codex";
-  if (context.provider.runtime === "wsl" && serviceProvider) {
-    // WSLENV forwards the secret via the child environment, keeping it out of
-    // the visible wsl.exe command line.
+  if (context.provider.runtime === "wsl" && hasEnvironment) {
+    // WSLENV forwards the credential and isolated CODEX_HOME via the child
+    // environment, keeping both out of the visible wsl.exe command line.
     return spawnInDirectory(context.cwd, command, args, {
       env: {
         ...environment,
@@ -661,7 +780,96 @@ function spawnCodex(context: ProviderRunContext, serviceProvider: ProviderYamlEn
   }
   return context.provider.runtime === "wsl"
     ? spawnInDirectory(context.cwd, command, args)
-    : spawnNativeInDirectory(context.cwd, command, args, environment ? { env: environment } : {});
+    : spawnNativeInDirectory(context.cwd, command, args, hasEnvironment ? { env: environment } : {});
+}
+
+function prepareIsolatedCodexEnvironment(context: ProviderRunContext): Record<string, string> {
+  if (!context.stateRoot) {
+    throw new Error("Codex 隔离目录尚未初始化。");
+  }
+  const parsedWsl = context.provider.runtime === "wsl" ? parseWslPath(context.cwd) : null;
+  const runtimeId = parsedWsl
+    ? `wsl-${crypto.createHash("sha256").update(parsedWsl.distro.toLocaleLowerCase()).digest("hex").slice(0, 12)}`
+    : "native";
+  const scopeDirectory = context.session.scope?.type === "project-task" ? "project-codex" : "workspace-codex";
+  const hostHome = path.join(context.stateRoot, ".openmind", "ai", scopeDirectory, runtimeId);
+  fs.mkdirSync(hostHome, { recursive: true, mode: 0o700 });
+  sanitizeCodexHome(hostHome);
+
+  if (parsedWsl && process.platform === "win32") {
+    const providerHome = toWslPath(hostHome, parsedWsl.distro);
+    const wslHome = String(execFileSync("wsl.exe", [
+      "-d", parsedWsl.distro,
+      "--exec", "/bin/sh", "-lc", 'printf "%s" "$HOME"'
+    ], {
+      windowsHide: true,
+      timeout: 10_000,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    })).trim();
+    if (!wslHome.startsWith("/")) throw new Error("无法解析 WSL Codex 用户目录。");
+    execFileSync("wsl.exe", ["-d", parsedWsl.distro, "--exec", "/bin/mkdir", "-p", providerHome], {
+      windowsHide: true,
+      timeout: 10_000,
+      stdio: "ignore"
+    });
+    const sourceAuth = path.posix.join(wslHome, ".codex", "auth.json");
+    const targetAuth = path.posix.join(providerHome, "auth.json");
+    try {
+      execFileSync("wsl.exe", ["-d", parsedWsl.distro, "--exec", "/usr/bin/test", "-f", sourceAuth], {
+        windowsHide: true,
+        timeout: 10_000,
+        stdio: "ignore"
+      });
+      execFileSync("wsl.exe", ["-d", parsedWsl.distro, "--exec", "/bin/cp", sourceAuth, targetAuth], {
+        windowsHide: true,
+        timeout: 10_000,
+        stdio: "ignore"
+      });
+    } catch {
+      // Managed providers carry their credential in the child environment. A
+      // native ChatGPT login without auth.json will produce Codex's normal
+      // authentication diagnostic rather than falling back to user config.
+    }
+    return { CODEX_HOME: providerHome };
+  }
+
+  const sourceAuth = path.join(os.homedir(), ".codex", "auth.json");
+  if (fs.existsSync(sourceAuth)) {
+    const targetAuth = path.join(hostHome, "auth.json");
+    fs.copyFileSync(sourceAuth, targetAuth);
+    try { fs.chmodSync(targetAuth, 0o600); } catch { /* Windows ACLs are host-managed. */ }
+  }
+  return { CODEX_HOME: hostHome };
+}
+
+/**
+ * The Project Codex home is app-owned and must contain credentials only.
+ * Remove stale or externally planted discovery/config surfaces before every
+ * launch so they cannot re-enable MCP, Skills, plugins, hooks, or rules.
+ */
+function sanitizeCodexHome(projectCodexHome: string): void {
+  for (const entry of [
+    "config.toml",
+    "config.json",
+    "AGENTS.md",
+    "instructions.md",
+    ".mcp.json",
+    "mcp.json",
+    "skills",
+    "commands",
+    "prompts",
+    "plugins",
+    "hooks",
+    "rules",
+    "memories",
+    "goals",
+    ".agents",
+    ".claude",
+    ".codex-plugin"
+  ]) {
+    fs.rmSync(path.join(projectCodexHome, entry), { recursive: true, force: true });
+  }
 }
 
 function tomlString(value: string): string {
@@ -686,17 +894,10 @@ function providerCwd(context: ProviderRunContext): string {
   return parsed ? parsed.linuxPath : toWslPath(context.cwd);
 }
 
-function resolveProjectCodexSkill(context: ProviderRunContext, providerWorkingDirectory: string, name: string): CodexNativeSkill | null {
-  const relativeSkillPath = path.join(".claude", "skills", name, "SKILL.md");
-  const hostPath = path.resolve(context.cwd, relativeSkillPath);
-  if (!fs.existsSync(hostPath)) return null;
-  return {
-    name,
-    path: context.provider.runtime === "wsl"
-      ? path.posix.join(providerWorkingDirectory, ".claude", "skills", name, "SKILL.md")
-      : hostPath,
-    enabled: true
-  };
+function providerOpenmindRoot(context: ProviderRunContext): string {
+  if (context.provider.runtime !== "wsl") return context.openmindRoot;
+  const parsed = parseWslPath(context.openmindRoot);
+  return parsed ? parsed.linuxPath : toWslPath(context.openmindRoot);
 }
 
 export function resolveCodexNativeSkill(result: Record<string, unknown>, requestedName: string): CodexNativeSkill | null {
@@ -724,6 +925,13 @@ export function buildCodexTurnInput(
     return [{ type: "text", text: context.prompt, text_elements: [] }];
   }
   if (!nativeSkill?.enabled) throw new Error(`Codex Skill 不可用：${context.skillInvocation.name}`);
+  if (context.skillBridge) {
+    return [{
+      type: "text",
+      text: [context.skillInvocation.prompt, buildProviderSkillContext(context.skillBridge)].filter(Boolean).join("\n\n"),
+      text_elements: []
+    }];
+  }
   const input: Array<Record<string, unknown>> = [{
     type: "skill",
     name: nativeSkill.name,
@@ -731,9 +939,6 @@ export function buildCodexTurnInput(
   }];
   if (context.skillInvocation.prompt) {
     input.push({ type: "text", text: context.skillInvocation.prompt, text_elements: [] });
-  }
-  if (context.skillBridge) {
-    input.push({ type: "text", text: buildProviderSkillContext(context.skillBridge), text_elements: [] });
   }
   return input;
 }

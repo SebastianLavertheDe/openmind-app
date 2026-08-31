@@ -5,9 +5,11 @@ import {
   type GlobalSearchResult
 } from "../../shared/contracts";
 import type { ProductService } from "./product-service";
+import type { ProjectService } from "../project/project-service";
 
 export type GlobalSearchContext = {
   ensureProductService(): ProductService;
+  ensureProjectService(): ProjectService;
   searchSessions(query: string): Promise<AiSession[]>;
   listSkillDefinitions(): Promise<Array<Record<string, unknown>>>;
 };
@@ -24,16 +26,34 @@ export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext):
   const product = ctx.ensureProductService();
   const contentResults = product.searchContent(query, 24);
   const projectResults = product.searchCreativeProjects(query, 16);
-  const sessionResults: GlobalSearchResult[] = sessions.slice(0, 16).map((session) => ({
-    id: `session:${session.id}`,
-    kind: "session",
-    title: session.title,
-    subtitle: `${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.cwd}`,
-    path: session.cwd,
-    date: session.updatedAt,
-    status: session.status,
-    targetId: session.id
-  }));
+  const independentProjectResults: GlobalSearchResult[] = ctx.ensureProjectService().listProjects()
+    .filter((project) => `${project.name} ${project.description}`.toLocaleLowerCase().includes(normalizedQuery))
+    .slice(0, 16)
+    .map((project) => ({
+      id: `project:${project.name}`,
+      kind: "project",
+      title: project.name,
+      subtitle: `${project.materialCount} 份资料 · ${project.taskCount} 个任务 · ${project.outputCount} 个成品`,
+      path: `projects/${project.name}`,
+      date: project.updatedAt,
+      status: project.status,
+      targetId: project.name
+    }));
+  const sessionResults: GlobalSearchResult[] = sessions
+    // Project Task conversations are owned by their Project page. They must
+    // not leak into the workspace-wide AI/session search surface.
+    .filter((session) => session.scope?.type !== "project-task")
+    .slice(0, 16)
+    .map((session) => ({
+      id: `session:${session.id}`,
+      kind: "session",
+      title: session.title,
+      subtitle: `${session.provider === "claude" ? "Claude Code" : "Codex"} · ${session.cwd}`,
+      path: session.cwd,
+      date: session.updatedAt,
+      status: session.status,
+      targetId: session.id
+    }));
   const skillResults: GlobalSearchResult[] = skillDefinitions
     .filter((skill) =>
       `${skill.title || ""} ${skill.description || ""} ${skill.id || ""}`.toLocaleLowerCase().includes(normalizedQuery)
@@ -49,7 +69,7 @@ export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext):
       status: null,
       targetId: String(skill.id)
     }));
-  return [...contentResults, ...projectResults, ...sessionResults, ...skillResults]
+  return [...contentResults, ...independentProjectResults, ...projectResults, ...sessionResults, ...skillResults]
     .slice(0, 64)
     .map((result) => GlobalSearchResultSchema.parse(result));
 }

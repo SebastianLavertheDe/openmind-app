@@ -13,6 +13,7 @@ import {
   type AiRolloutLine,
   type AiRun,
   type AiSession,
+  type AiSessionScope,
   type AiSessionSkillSnapshotEntry,
   type AiTurnListParams,
   type AiTurnPage,
@@ -40,6 +41,7 @@ import { SessionSearchIndex } from "./session-search-index";
 import { RolloutJournal } from "./rollout-journal";
 import { RolloutProjector } from "./rollout-projector";
 import { chunkPayload, isContextCompaction, isProviderPrivateDelta, normalizeLoadedEvent, reassembleEvents } from "./event-chunking";
+import { canonicalizeTrustedProjectRoot } from "./scheduler-paths";
 
 export class SessionStore {
   readonly root: string;
@@ -61,11 +63,15 @@ export class SessionStore {
     (runId: string) => this.getRun(runId)
   );
 
-  constructor(readonly projectRoot: string, stateRoot?: string) {
+  constructor(
+    readonly projectRoot: string,
+    stateRoot?: string,
+    private readonly trustedProjectsRoot?: string
+  ) {
     // stateRoot is the parent of `.openmind` under userData. The optional
     // argument preserves the legacy workspace layout for isolated callers.
     this.root = path.join(stateRoot ?? projectRoot, ".openmind", "ai");
-    this.projectId = crypto.createHash("sha256").update(path.resolve(projectRoot)).digest("hex").slice(0, 16);
+    this.projectId = projectIdForRoot(projectRoot);
   }
 
   initialize(): void {
@@ -112,22 +118,27 @@ export class SessionStore {
     interactionMode?: AiSession["interactionMode"];
     forkedFromId?: string | null;
     skillSnapshot?: AiSessionSkillSnapshotEntry[];
+    projectRoot?: string;
+    scope?: AiSessionScope;
   }): AiSession {
     this.initialize();
     const now = new Date().toISOString();
+    const scope = input.scope ?? { type: "workspace" };
+    const sessionProjectRoot = this.resolveSessionRoot(scope, input.projectRoot);
     const session = AiSessionSchema.parse({
       schemaVersion: SCHEMA_VERSION,
       id: crypto.randomUUID(),
-      projectId: this.projectId,
-      projectRoot: this.projectRoot,
+      projectId: projectIdForRoot(sessionProjectRoot),
+      projectRoot: sessionProjectRoot,
+      scope,
       title: input.title.slice(0, 120),
       provider: input.provider,
       providerId: input.providerId,
       serviceProviderId: input.serviceProviderId || null,
       serviceProviderRevision: input.serviceProviderRevision || null,
       forkedFromId: input.forkedFromId || null,
-      cwd: input.cwd,
-      permissionProfile: input.permissionProfile,
+      cwd: scope.type === "project-task" ? "." : input.cwd,
+      permissionProfile: scope.type === "project-task" ? "read-only" : input.permissionProfile,
       interactionMode: input.interactionMode || "default",
       // Every newly-created session has an explicit (possibly empty) frozen
       // Skill set. `null` is reserved for persisted sessions from before the
@@ -162,7 +173,9 @@ export class SessionStore {
       permissionProfile: source.permissionProfile,
       interactionMode: source.interactionMode,
       forkedFromId: source.id,
-      skillSnapshot: source.skillSnapshot ?? []
+      skillSnapshot: source.skillSnapshot ?? [],
+      projectRoot: source.projectRoot,
+      scope: source.scope ?? { type: "workspace" }
     });
     const lines: AiRolloutLine[] = [];
     for (const sourceTurn of sourceTurns) {
@@ -222,6 +235,10 @@ export class SessionStore {
       ...current,
       ...patch,
       id: current.id,
+      projectId: current.projectId,
+      projectRoot: current.projectRoot,
+      scope: current.scope ?? { type: "workspace" },
+      cwd: current.cwd,
       provider: current.provider,
       providerId: current.providerId,
       serviceProviderId: current.serviceProviderId || null,
@@ -229,6 +246,9 @@ export class SessionStore {
       // Skill availability is a conversation boundary. Generic UI/lifecycle
       // patches must never mutate the frozen snapshot.
       skillSnapshot: current.skillSnapshot ?? null,
+      permissionProfile: current.scope?.type === "project-task"
+        ? "read-only"
+        : (patch as Partial<AiSession>).permissionProfile ?? current.permissionProfile,
       updatedAt: new Date().toISOString()
     });
     writeJsonAtomic(this.sessionFile(id), next);
@@ -274,7 +294,8 @@ export class SessionStore {
       schemaVersion: SCHEMA_VERSION,
       id: id ?? crypto.randomUUID(),
       sessionId: session.id,
-      projectId: this.projectId,
+      projectId: session.projectId,
+      scope: session.scope ?? { type: "workspace" },
       provider: session.provider,
       providerId: session.providerId,
       permissionProfile: session.permissionProfile,
@@ -308,7 +329,17 @@ export class SessionStore {
 
   updateRun(runId: string, patch: Partial<AiRun>): AiRun {
     const current = this.getRun(runId);
-    const next = AiRunSchema.parse({ ...current, ...patch, id: current.id, sessionId: current.sessionId, provider: current.provider });
+    const next = AiRunSchema.parse({
+      ...current,
+      ...patch,
+      id: current.id,
+      sessionId: current.sessionId,
+      projectId: current.projectId,
+      scope: current.scope ?? { type: "workspace" },
+      provider: current.provider,
+      providerId: current.providerId,
+      permissionProfile: current.permissionProfile
+    });
     writeJsonAtomic(this.runFile(current.sessionId, runId), next);
     this.runs.set(runId, next);
     return next;
@@ -323,7 +354,7 @@ export class SessionStore {
         id: crypto.randomUUID(),
         seq: 1,
         timestamp: run.startedAt,
-        projectId: this.projectId,
+        projectId: run.projectId,
         sessionId: run.sessionId,
         runId: run.id,
         provider: run.provider,
@@ -381,7 +412,7 @@ export class SessionStore {
           id,
           seq: seq + index + 1,
           timestamp: new Date().toISOString(),
-          projectId: this.projectId,
+          projectId: run.projectId,
           sessionId: run.sessionId,
           runId: run.id,
           provider: run.provider,
@@ -443,8 +474,7 @@ export class SessionStore {
         // workspaces. Keep foreign session directories untouched, but never
         // index their metadata, search body, rollout, or runs into this
         // workspace's scheduler.
-        if (session.projectId !== this.projectId
-          || path.resolve(session.projectRoot) !== path.resolve(this.projectRoot)) continue;
+        if (!this.ownsSession(session)) continue;
         this.sessions.set(session.id, session);
         try {
           const index = this.readJson(this.searchFile(session.id)) as { body?: string; text?: string };
@@ -460,7 +490,9 @@ export class SessionStore {
         for (const runEntry of fs.readdirSync(runsRoot, { withFileTypes: true }).filter((item) => item.isDirectory())) {
           try {
             const run = AiRunSchema.parse(this.readJson(this.runFile(session.id, runEntry.name)));
-            if (run.projectId !== this.projectId || run.sessionId !== session.id) continue;
+            if (run.projectId !== session.projectId
+              || run.sessionId !== session.id
+              || !sameScope(run.scope, session.scope)) continue;
             this.runs.set(run.id, run);
           } catch {
             // Corrupt run metadata is ignored and remains available for manual recovery.
@@ -639,6 +671,35 @@ export class SessionStore {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   }
 
+  private resolveSessionRoot(scope: AiSessionScope, requestedRoot?: string): string {
+    if (scope.type === "workspace") {
+      if (requestedRoot && path.resolve(requestedRoot) !== path.resolve(this.projectRoot)) {
+        throw new Error("Workspace 会话不能切换执行根。");
+      }
+      return this.projectRoot;
+    }
+    if (!this.trustedProjectsRoot || !requestedRoot) throw new Error("Project 会话缺少可信执行根。");
+    return canonicalizeTrustedProjectRoot(this.trustedProjectsRoot, scope.projectName, requestedRoot);
+  }
+
+  private ownsSession(session: AiSession): boolean {
+    const scope = session.scope ?? { type: "workspace" };
+    if (scope.type === "workspace") {
+      return session.projectId === this.projectId
+        && path.resolve(session.projectRoot) === path.resolve(this.projectRoot);
+    }
+    if (!this.trustedProjectsRoot) return false;
+    try {
+      const root = canonicalizeTrustedProjectRoot(this.trustedProjectsRoot, scope.projectName, session.projectRoot);
+      return path.resolve(session.projectRoot) === root
+        && session.projectId === projectIdForRoot(root)
+        && session.cwd === "."
+        && session.permissionProfile === "read-only";
+    } catch {
+      return false;
+    }
+  }
+
   private sessionsRoot(): string { return path.join(this.root, "sessions"); }
   private sessionRoot(id: string): string { return path.join(this.sessionsRoot(), id); }
   private sessionFile(id: string): string { return path.join(this.sessionRoot(id), "session.json"); }
@@ -648,4 +709,15 @@ export class SessionStore {
   private runFile(sessionId: string, runId: string): string { return path.join(this.runRoot(sessionId, runId), "run.json"); }
   private rolloutFile(sessionId: string): string { return path.join(this.sessionRoot(sessionId), "rollout.jsonl"); }
   private eventsFile(sessionId: string, runId: string): string { return path.join(this.runRoot(sessionId, runId), "events.jsonl"); }
+}
+
+function projectIdForRoot(projectRoot: string): string {
+  return crypto.createHash("sha256").update(path.resolve(projectRoot)).digest("hex").slice(0, 16);
+}
+
+function sameScope(left: AiSessionScope | undefined, right: AiSessionScope | undefined): boolean {
+  const a = left ?? { type: "workspace" };
+  const b = right ?? { type: "workspace" };
+  return a.type === b.type
+    && (a.type === "workspace" || (b.type === "project-task" && a.projectName === b.projectName && a.taskId === b.taskId));
 }

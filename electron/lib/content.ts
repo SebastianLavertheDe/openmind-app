@@ -5,7 +5,7 @@ import {
   LEGACY_CONTENT_FILE_ROOT_KINDS,
   LEGACY_GET_CONTENT_ALL_KINDS
 } from "../../shared/content-kinds";
-import { findRepoRoot, ensureInsideRepo, relativeToOpenmind, resolveOpenmindPath, resolveOpenmindRoot } from "./settings";
+import { findRepoRoot, ensureInsideRepo, ensureInsideRepoReadable, relativeToOpenmind, resolveOpenmindPath, resolveOpenmindRoot } from "./settings";
 import { messages } from "../../shared/messages";
 
 export type ContentFileEntry = {
@@ -185,7 +185,7 @@ function getContent(kind: string, date: string): Array<ContentFileEntry & { kind
 }
 
 function readContent(relativePath: string): ContentReadResult {
-  const filePath = ensureInsideRepo(relativePath);
+  const filePath = ensureInsideRepoReadable(relativePath);
   const stat = fs.statSync(filePath);
   if (!stat.isFile()) throw new Error(messages.errors.file.notAFile);
   const maxBytes = 1024 * 1024;

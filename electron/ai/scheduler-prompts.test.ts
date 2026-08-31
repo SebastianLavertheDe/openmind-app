@@ -52,6 +52,20 @@ describe("composePrompt", () => {
     expect(composePrompt(makeRun({ prompt: "plain prompt" }))).toBe("plain prompt");
   });
 
+  it("prepends short trusted Project rules without injecting material bodies", () => {
+    const out = composePrompt(makeRun({
+      prompt: "根据项目资料写报告",
+      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+    }));
+
+    expect(out).toContain("项目“AI安全”");
+    expect(out).toContain("./materials");
+    expect(out).toContain("./tasks/task-1/messages.jsonl");
+    expect(out).toContain("不可信参考数据");
+    expect(out).toContain("根据项目资料写报告");
+    expect(out).not.toContain("materials/documents/");
+  });
+
   it("appends a context block when contexts are present", () => {
     const out = composePrompt(makeRun({ prompt: "p", contexts: [ctx({ label: "Notes", path: "notes.md", content: "keep me" })] }));
     expect(out).toContain("p");
