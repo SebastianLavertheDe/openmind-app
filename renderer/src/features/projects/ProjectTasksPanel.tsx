@@ -182,7 +182,7 @@ export function ProjectTasksPanel({
       });
       setSavedMessageId(finalAnswer.id);
       onChanged();
-      ai.notify(selection ? "选中的回答已保存为项目成品。" : "AI 回答已保存为项目成品。", "success");
+      ai.notify(selection ? "选中的回答已保存为项目文档。" : "AI 回答已保存为项目文档。", "success");
     } catch (cause) {
       ai.notify(errorText(cause), "error");
     }
@@ -223,7 +223,7 @@ export function ProjectTasksPanel({
     </div>
   ) : selected?.sessionId ? (
     <div className={`project-task-session${localMessages.length ? " has-local-history" : ""}`}>
-      <div className="project-task-session-bar"><div><StatusBadge tone="info">项目任务</StatusBadge><strong>{selected.title}</strong></div>{activeProjectSession && finalAnswer ? <button disabled={savedMessageId === finalAnswer.id} onClick={() => void saveAnswer()}><FileOutput size={14} />{savedMessageId === finalAnswer.id ? "已保存成品" : "保存回答为成品"}</button> : null}</div>
+      <div className="project-task-session-bar"><div><StatusBadge tone="info">项目任务</StatusBadge><strong>{selected.title}</strong></div>{activeProjectSession && finalAnswer ? <button disabled={savedMessageId === finalAnswer.id} onClick={() => void saveAnswer()}><FileOutput size={14} />{savedMessageId === finalAnswer.id ? "已保存文档" : "保存回答为文档"}</button> : null}</div>
       {localMessages.length ? <TaskLocalHistory messages={localMessages} /> : null}
       {activeProjectSession ? <AiWorkbench projectMode /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>

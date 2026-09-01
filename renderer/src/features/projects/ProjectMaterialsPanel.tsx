@@ -20,6 +20,7 @@ export function ProjectMaterialsPanel({
   onCreateTask,
   onChanged,
   onSelectionChange,
+  autoSelectFirst = true,
   listHost,
   detailHost
 }: {
@@ -30,7 +31,8 @@ export function ProjectMaterialsPanel({
   onCreateTask(seed: ProjectTaskSeed): void;
   onChanged(): void;
   onSelectionChange?(relativePath?: string): void;
-  /** Attached mode: the page owns the visible columns and hosts the two halves. */
+  autoSelectFirst?: boolean;
+  /** Hosted mode: the page may provide either or both visible column hosts. */
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
@@ -86,15 +88,19 @@ export function ProjectMaterialsPanel({
       materialsRef.current = next;
       const preferred = next.find((item) => item.relativePath === selectedPath)
         || next.find((item) => item.relativePath === initialMaterialPath)
-        || next[0];
+        || (autoSelectFirst ? next[0] : undefined);
       if (preferred) await openMaterial(preferred.relativePath);
-      else { setSelectedPath(""); setSelected(null); onSelectionChange?.(); }
+      else {
+        setSelectedPath("");
+        setSelected(null);
+        if (autoSelectFirst) onSelectionChange?.();
+      }
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialMaterialPath, onSelectionChange, openMaterial, project.name]);
+  }, [autoSelectFirst, initialMaterialPath, onSelectionChange, openMaterial, project.name]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -183,22 +189,22 @@ export function ProjectMaterialsPanel({
 
   const copyAsOutput = async (material: ProjectMaterial) => {
     if (material.truncated) {
-      ai.notify("当前资料预览不完整，不能复制为成品。请让 AI 按需读取原资料。", "error");
+      ai.notify("当前资料预览不完整，不能转为文档。请让 AI 按需读取原资料。", "error");
       return;
     }
     try {
       await projectsApi.createOutput(project.name, material.title, material.content || "");
       onChanged();
-      ai.notify("资料已复制为项目成品。", "success");
+      ai.notify("资料已转为可编辑文档。", "success");
     } catch (cause) {
       ai.notify(errorText(cause), "error");
     }
   };
 
-  const attached = Boolean(listHost && detailHost);
+  const hosted = Boolean(listHost || detailHost);
   const list = (
     <>
-      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
       <label className="project-local-search"><Search size={14} /><input aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" /></label>
       <div className="project-material-filters" role="tablist" aria-label="资料类型">
         {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
@@ -221,11 +227,11 @@ export function ProjectMaterialsPanel({
     <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
   );
 
-  if (attached) {
+  if (hosted) {
     return (
       <>
-        {createPortal(list, listHost!)}
-        {createPortal(detail, detailHost!)}
+        {listHost ? createPortal(list, listHost) : null}
+        {detailHost ? createPortal(detail, detailHost) : null}
         <ProjectDialog open={addOpen} title="添加资料" description="文件会复制到当前项目；链接会被识别为网页或受支持的视频。" confirmLabel={addMode === "file" ? "选择文件" : "添加链接"} busy={adding} onClose={() => setAddOpen(false)} onConfirm={addMode === "file" ? addFiles : addUrl}>
           <div className="project-dialog-tabs" role="tablist" aria-label="资料来源"><button type="button" role="tab" aria-selected={addMode === "file"} className={addMode === "file" ? "active" : ""} onClick={() => setAddMode("file")}><File size={15} />本地文件</button><button type="button" role="tab" aria-selected={addMode === "url"} className={addMode === "url" ? "active" : ""} onClick={() => setAddMode("url")}><Globe2 size={15} />网页或视频链接</button></div>
           {addMode === "file" ? <div className="project-file-picker-copy"><FilePlus2 size={26} /><strong>选择一个或多个文件</strong><p>支持 Markdown、纯文本、PDF、DOCX、PPTX 和 XLSX；文档会转换为可阅读的 Markdown。</p></div> : <ProjectTextField label="URL" value={url} placeholder="https://…" autoFocus onChange={setUrl} />}
@@ -252,9 +258,9 @@ function MaterialDetail({ material, retrying, onRetry, onRemove, onCopyOutput, o
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
       <header className="project-detail-header">
         <div><span className="eyebrow">{materialKindLabel(material.kind)} · {materialStatusLabel(material.status)}</span><h2>{material.title}</h2><p title={material.relativePath}>{material.sourceUrl || material.relativePath}</p></div>
-        <div><button className="primary-button" disabled={material.status !== "ready"} onClick={createTask}><SparklesIcon />基于此资料新建任务</button><button className="icon-button" disabled={material.status !== "ready" || material.truncated} aria-label="复制为成品" title={material.truncated ? "资料预览不完整，不能复制为成品" : "复制为成品"} onClick={onCopyOutput}><FileOutput size={15} /></button>{material.sourceUrl ? <button className="icon-button" aria-label="在浏览器打开原始链接" onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={15} /></button> : null}<button className="icon-button danger" aria-label="移出项目" onClick={onRemove}><Trash2 size={15} /></button></div>
+        <div><button className="primary-button" disabled={material.status !== "ready"} onClick={createTask}><SparklesIcon />基于此资料新建任务</button><button className="icon-button" disabled={material.status !== "ready" || material.truncated} aria-label="转为可编辑文档" title={material.truncated ? "资料预览不完整，不能转为文档" : "转为可编辑文档"} onClick={onCopyOutput}><FileOutput size={15} /></button>{material.sourceUrl ? <button className="icon-button" aria-label="在浏览器打开原始链接" onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={15} /></button> : null}<button className="icon-button danger" aria-label="移出项目" onClick={onRemove}><Trash2 size={15} /></button></div>
       </header>
-      {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接复制为成品；项目任务仍可按需读取原资料。</p></div></div> : null}
+      {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接转为文档；项目任务仍可按需读取原资料。</p></div></div> : null}
       {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
       {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} onCreateTask={onCreateTask} /> : null}

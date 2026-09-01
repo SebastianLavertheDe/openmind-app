@@ -238,7 +238,7 @@ function output(value: unknown): ProjectOutput {
   const relativePath = string(item.relativePath || item.path);
   return {
     relativePath,
-    title: string(item.title || item.name, relativePath.split("/").at(-1)?.replace(/\.md$/i, "") || "未命名成品"),
+    title: string(item.title || item.name, relativePath.split("/").at(-1)?.replace(/\.md$/i, "") || "未命名文档"),
     content: typeof wrapper.content === "string" ? wrapper.content : typeof item.content === "string" ? item.content : undefined,
     sourceTaskId: optionalString(item.sourceTaskId),
     sourceSessionId: optionalString(item.sourceSessionId),

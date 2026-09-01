@@ -26,6 +26,7 @@ export function ProjectOutputsPanel({
   onChanged,
   onNavigationGuardChange,
   onSelectionChange,
+  autoSelectFirst = true,
   listHost,
   detailHost
 }: {
@@ -36,7 +37,8 @@ export function ProjectOutputsPanel({
   onChanged(): void;
   onNavigationGuardChange?(guard: ProjectOutputNavigationGuard | null): void;
   onSelectionChange?(relativePath?: string): void;
-  /** Attached mode: the page owns the visible columns and hosts the two halves. */
+  autoSelectFirst?: boolean;
+  /** Hosted mode: the page may provide either or both visible column hosts. */
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
@@ -156,7 +158,7 @@ export function ProjectOutputsPanel({
     if (!dirtyRef.current) return true;
     if (await save()) return true;
     const discard = await confirmRef.current({
-      title: "成品保存失败",
+      title: "文档保存失败",
       body: "修改仍未保存。要放弃这些修改并继续吗？",
       confirmText: "放弃修改",
       danger: true
@@ -201,14 +203,14 @@ export function ProjectOutputsPanel({
       setError(null);
       const preferred = next.find((item) => item.relativePath === selectedPathRef.current)
         || next.find((item) => item.relativePath === initialOutputPath)
-        || next[0];
+        || (autoSelectFirst ? next[0] : undefined);
       if (preferred && !selectedRef.current) await readOutput(preferred.relativePath, false);
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialOutputPath, project.name, readOutput]);
+  }, [autoSelectFirst, initialOutputPath, project.name, readOutput]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -293,55 +295,55 @@ export function ProjectOutputsPanel({
     onSelectionChange?.();
   };
 
-  const attached = Boolean(listHost && detailHost);
+  const hosted = Boolean(listHost || detailHost);
   const list = (
     <>
-      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>成品</h2></div><button className="icon-button" aria-label="新建成品" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
-      <label className="project-local-search"><Search size={14} /><input aria-label="搜索成品" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索成品" /></label>
-      <div className="project-local-count">全部成品 <span>{filtered.length}</span></div>
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
+      <label className="project-local-search"><Search size={14} /><input aria-label="搜索文档" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文档" /></label>
+      <div className="project-local-count">全部文档 <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的成品" : "还没有成品"} description={outputs.length ? "换一个标题关键词后再试。" : "创建空白 Markdown，或从项目任务保存 AI 回答。"} /> : null}
+        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的文档" : "还没有文档"} description={outputs.length ? "换一个标题关键词后再试。" : "创建空白 Markdown，或从项目任务保存 AI 回答。"} /> : null}
         {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} onClick={() => void readOutput(item.relativePath)}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
   );
 
-  const detail = reading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取成品…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected ? (
+  const detail = reading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
-        <div><span className="eyebrow">项目成品</span><input className="project-output-title" value={title} aria-label="成品标题" onChange={(event) => { const value = event.target.value; editVersionRef.current += 1; titleRef.current = value; dirtyRef.current = true; setTitle(value); setDirty(true); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
+        <div><span className="eyebrow">项目文档</span><input className="project-output-title" value={title} aria-label="文档标题" onChange={(event) => { const value = event.target.value; editVersionRef.current += 1; titleRef.current = value; dirtyRef.current = true; setTitle(value); setDirty(true); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
         <div className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saveState === "saving" ? "info" : "neutral"}>{saveLabel(saveState, dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="成品查看方式"><button className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}><Pencil size={14} />编辑</button><button className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} onClick={() => setMode("preview")}><Eye size={14} />预览</button></div>
+          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}><Pencil size={14} />编辑</button><button className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} onClick={() => setMode("preview")}><Eye size={14} />预览</button></div>
           <button disabled={!dirty || saveState === "saving"} onClick={() => void save()}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
         </div>
       </header>
       <div className={`project-output-editor ${mode}`}>
-        {mode === "preview" ? <MarkdownReader content={draft} layout="file" /> : <MarkdownEditor value={draft} ariaLabel="Markdown 成品内容" onChange={(value) => { editVersionRef.current += 1; draftRef.current = value; dirtyRef.current = true; setDraft(value); setDirty(true); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
+        {mode === "preview" ? <MarkdownReader content={draft} layout="file" /> : <MarkdownEditor value={draft} ariaLabel="Markdown 文档内容" onChange={(value) => { editVersionRef.current += 1; draftRef.current = value; dirtyRef.current = true; setDraft(value); setDirty(true); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
       </div>
     </div>
   ) : (
-    <EmptyState icon={<FileOutput size={30} />} title="选择或新建成品" description="成品是当前项目内独立保存的 Markdown，不会进入 Creative 工作流。" action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />新建成品</button>} />
+    <EmptyState icon={<FileOutput size={30} />} title="选择或新建文档" description="文档会作为 Markdown 文件保存在当前项目中。" action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />新建文档</button>} />
   );
 
   const dialogs = (
-    <ProjectDialog open={createOpen} title="新建成品" description="创建一个保存在当前项目 outputs/ 中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
-      <ProjectTextField label="成品标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
+    <ProjectDialog open={createOpen} title="新建文档" description="创建一个保存在当前项目中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
+      <ProjectTextField label="文档标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
     </ProjectDialog>
   );
-  if (attached) {
+  if (hosted) {
     return (
       <>
-        {createPortal(list, listHost!)}
-        {createPortal(detail, detailHost!)}
+        {listHost ? createPortal(list, listHost) : null}
+        {detailHost ? createPortal(detail, detailHost) : null}
         {dialogs}
       </>
     );
   }
   return (
     <>
-      <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="成品" onBack={() => void closeDetail()} />
+      <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="文档" onBack={() => void closeDetail()} />
       {dialogs}
     </>
   );

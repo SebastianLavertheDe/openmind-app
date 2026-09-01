@@ -175,7 +175,7 @@
 
 .project-pane-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
   margin: 0 12px 10px;
   padding: 3px;
@@ -209,6 +209,9 @@
 }
 .project-pane-section > .project-item-list { flex: 1; }
 .project-pane-section > .project-material-filters { flex: 0 0 auto; }
+.project-files-search { flex: 0 0 auto; }
+.project-file-list > button { min-height: 38px; padding-block: 8px; }
+.project-file-list > button strong { font-size: 12.5px; font-weight: 500; }
 
 .project-detail-fill {
   min-width: 0;
@@ -221,24 +224,33 @@
 .project-detail-fill > .ui-error-state { margin: auto; }
 
 .project-list-search {
-  min-height: 56px;
-  display: flex;
+  min-width: 0;
+  height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-}
-.project-list-search input {
-  width: 100%;
-  min-width: 0;
-  height: 36px;
-  padding: 0 12px;
+  margin: 10px 8px 6px;
+  padding: 0 10px 0 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  color: var(--muted);
+  cursor: text;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.project-list-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.project-list-search input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--text);
 }
+.project-list-search > svg { width: 15px; height: 15px; pointer-events: none; }
 
 .project-list-scroll {
   min-height: 0;
@@ -249,17 +261,6 @@
   overscroll-behavior: contain;
   padding: 8px;
 }
-.project-list-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 8px 4px;
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 650;
-}
-.project-list-section.archived { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted-2); }
-.project-list-section b { color: var(--muted-2); font-size: 10px; font-weight: 500; }
 .project-list-scroll > button {
   min-width: 0;
   min-height: 46px;

@@ -96,7 +96,7 @@ describe("Project output persistence", () => {
     let guard: ProjectOutputNavigationGuard | null = null;
     renderWithAi(<ProjectOutputsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} onNavigationGuardChange={(next) => { guard = next; }} />);
 
-    const title = await screen.findByRole("textbox", { name: "成品标题" });
+    const title = await screen.findByRole("textbox", { name: "文档标题" });
     fireEvent.change(title, { target: { value: "最终报告" } });
     expect(screen.getByText("待保存")).toBeTruthy();
 
@@ -119,7 +119,7 @@ describe("Project output persistence", () => {
     });
     const view = renderWithAi(<ProjectOutputsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "成品标题" }), { target: { value: "卸载前保存" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "文档标题" }), { target: { value: "卸载前保存" } });
     view.unmount();
 
     await waitFor(() => expect(saveProjectOutput).toHaveBeenCalledWith(expect.objectContaining({ title: "卸载前保存" })));
@@ -138,15 +138,15 @@ describe("Project output persistence", () => {
     });
     renderWithAi(<ProjectOutputsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} />);
 
-    const title = await screen.findByRole("textbox", { name: "成品标题" });
+    const title = await screen.findByRole("textbox", { name: "文档标题" });
     fireEvent.change(title, { target: { value: "尚未保存" } });
     fireEvent.click(screen.getByRole("button", { name: /第二份/ }));
 
-    const confirm = await screen.findByRole("alertdialog", { name: "成品保存失败" });
+    const confirm = await screen.findByRole("alertdialog", { name: "文档保存失败" });
     expect(readProjectOutput).toHaveBeenCalledTimes(1);
     fireEvent.click(within(confirm).getByRole("button", { name: "取消" }));
-    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "成品保存失败" })).toBeNull());
-    expect((screen.getByRole("textbox", { name: "成品标题" }) as HTMLInputElement).value).toBe("尚未保存");
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "文档保存失败" })).toBeNull());
+    expect((screen.getByRole("textbox", { name: "文档标题" }) as HTMLInputElement).value).toBe("尚未保存");
     expect(readProjectOutput).toHaveBeenCalledTimes(1);
   });
 
@@ -155,6 +155,7 @@ describe("Project output persistence", () => {
     installApi({
       listProjects: vi.fn(async () => [project]),
       getProject: vi.fn(async () => ({ project })),
+      listProjectMaterials: vi.fn(async () => []),
       listProjectOutputs: vi.fn(async () => [outputRecord()]),
       readProjectOutput: vi.fn(async () => ({ output: outputRecord(), content: "# 初稿" })),
       saveProjectOutput: vi.fn(async (input: { relativePath: string; title: string; content: string }) => {
@@ -168,8 +169,8 @@ describe("Project output persistence", () => {
     });
     renderWithAi(<ProjectsPage initialProjectName={project.name} initialSection="outputs" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "成品标题" }), { target: { value: "切换前保存" } });
-    fireEvent.click(screen.getByRole("tab", { name: /任务 0/ }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "文档标题" }), { target: { value: "切换前保存" } });
+    fireEvent.click(screen.getByRole("tab", { name: "任务" }));
 
     await waitFor(() => expect(order).toEqual(["save", "tasks"]));
   });
@@ -276,7 +277,7 @@ describe("Project material truncation", () => {
     renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
 
     expect(await screen.findByText("当前只显示资料的部分内容")).toBeTruthy();
-    const copy = screen.getByRole("button", { name: "复制为成品" });
+    const copy = screen.getByRole("button", { name: "转为可编辑文档" });
     expect((copy as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(copy);
     expect(createProjectOutput).not.toHaveBeenCalled();

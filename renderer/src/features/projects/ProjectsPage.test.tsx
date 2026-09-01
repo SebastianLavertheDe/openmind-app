@@ -18,6 +18,26 @@ const summary: ProjectSummary = {
 };
 
 const detail: ProjectDetail = { ...summary };
+const existingMaterial = {
+  projectName: summary.name,
+  relativePath: "materials/research.md",
+  title: "研究资料",
+  kind: "document",
+  status: "ready",
+  source: { type: "file" },
+  createdAt: "2026-08-30T00:00:00.000Z",
+  updatedAt: "2026-08-31T00:00:00.000Z"
+};
+const existingDocument = {
+  projectName: summary.name,
+  relativePath: "outputs/report.md",
+  title: "研究文档",
+  sourceTaskId: null,
+  sourceSessionId: null,
+  sourceMessageId: null,
+  createdAt: "2026-08-30T00:00:00.000Z",
+  updatedAt: "2026-08-30T12:00:00.000Z"
+};
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -80,7 +100,10 @@ describe("ProjectsPage", () => {
     installApi({ listProjects: vi.fn(async () => [summary, other]) });
     renderPage();
 
-    fireEvent.change(await screen.findByLabelText("搜索项目"), { target: { value: "安全" } });
+    const search = await screen.findByLabelText("搜索项目");
+    expect(search.getAttribute("placeholder")).toBe("你的项目");
+    expect(search.nextElementSibling?.tagName.toLocaleLowerCase()).toBe("svg");
+    fireEvent.change(search, { target: { value: "安全" } });
 
     await waitFor(() => expect(screen.queryByRole("button", { name: /每日简报实验/ })).toBeNull());
     expect(screen.getByRole("button", { name: /AI 安全/ })).toBeTruthy();
@@ -99,26 +122,70 @@ describe("ProjectsPage", () => {
     expect(await screen.findByText("项目名称")).toBeTruthy();
   });
 
-  it("switches content sections in place from the pane tabs", async () => {
-    installApi();
+  it("shows materials and editable documents in one flat file list", async () => {
+    installApi({
+      listProjectMaterials: vi.fn(async () => [existingMaterial]),
+      readProjectMaterial: vi.fn(async () => ({ material: existingMaterial, content: "# 研究资料", truncated: false })),
+      listProjectOutputs: vi.fn(async () => [existingDocument]),
+      readProjectOutput: vi.fn(async () => ({ output: existingDocument, content: "# 研究文档" }))
+    });
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
-    const materialsTab = await screen.findByRole("tab", { name: "资料 1" });
-    fireEvent.click(materialsTab);
+    const filesTab = await screen.findByRole("tab", { name: "文件" });
+    fireEvent.click(filesTab);
 
-    await waitFor(() => expect(window.openmind.listProjectMaterials).toHaveBeenCalledWith("AI 安全"));
-    expect(materialsTab.getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByLabelText("搜索资料")).toBeTruthy();
+    await waitFor(() => {
+      expect(window.openmind.listProjectMaterials).toHaveBeenCalledWith("AI 安全");
+      expect(window.openmind.listProjectOutputs).toHaveBeenCalledWith("AI 安全");
+    });
+    expect(filesTab.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByLabelText("搜索文件").getAttribute("placeholder")).toBe("你的文件");
+    expect(await screen.findByRole("button", { name: "研究资料" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "研究文档" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "资料" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "成品" })).toBeNull();
+    expect(screen.queryByRole("tablist", { name: "资料类型" })).toBeNull();
   });
 
-  it("groups archived projects under a muted section of the pane list", async () => {
-    const archived: ProjectSummary = { ...summary, name: "旧选题库", status: "archived" as const };
-    installApi({ listProjects: vi.fn(async () => [summary, archived]) });
+  it("offers task, document, and material actions from the project plus menu", async () => {
+    installApi({
+      listProjectMaterials: vi.fn(async () => [existingMaterial]),
+      readProjectMaterial: vi.fn(async () => ({ material: existingMaterial, content: "# 研究资料", truncated: false })),
+      listProjectOutputs: vi.fn(async () => [existingDocument]),
+      readProjectOutput: vi.fn(async () => ({ output: existingDocument, content: "# 研究文档" }))
+    });
     renderPage();
 
-    expect(await screen.findByText("已归档")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /旧选题库/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByLabelText("新建项目内容"));
+
+    expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
+    const newDocument = screen.getByRole("menuitem", { name: "新建文档" });
+    expect(newDocument).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "添加资料" })).toBeTruthy();
+
+    fireEvent.click(newDocument);
+    expect(await screen.findByRole("dialog", { name: "新建文档" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "文件" }).getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "新建文档" })).toBeNull());
+    fireEvent.click(screen.getByLabelText("新建项目内容"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "添加资料" }));
+    expect(await screen.findByRole("dialog", { name: "添加资料" })).toBeTruthy();
+  });
+
+  it("shows active and archived projects in one flat list without status headings", async () => {
+    const archived: ProjectSummary = { ...summary, name: "旧选题库", status: "archived" as const };
+    installApi({ listProjects: vi.fn(async () => [summary, archived]) });
+    const { container } = renderPage();
+
+    const archivedProject = await screen.findByRole("button", { name: /旧选题库/ });
+    expect(screen.queryByText("进行中")).toBeNull();
+    expect(screen.queryByText("已归档")).toBeNull();
+    expect(container.querySelector(".project-list-section")).toBeNull();
+    fireEvent.click(archivedProject);
     await waitFor(() => expect(window.openmind.getProject).toHaveBeenCalledWith("旧选题库"));
   });
 });
