@@ -2,8 +2,8 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   color: var(--text);
   background: var(--bg);
@@ -17,8 +17,6 @@
   justify-content: space-between;
   gap: 18px;
 }
-
-.projects-page-header { min-width: 0; padding: 18px 24px 13px; border-bottom: 1px solid var(--border); }
 
 .project-local-list-header h2,
 .project-detail-header h2,
@@ -125,6 +123,7 @@
 }
 
 .project-workspace {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -632,8 +631,6 @@
 }
 
 @media (max-width: 720px) {
-  .projects-page-header { padding-inline: 16px; }
-  .projects-page-header { padding-inline: 16px; }
   .project-create-menu summary { width: 34px; height: 34px; padding: 0; font-size: 0; }
   .project-create-menu summary svg { margin: 0; }
   .project-create-menu summary svg:last-child { display: none; }

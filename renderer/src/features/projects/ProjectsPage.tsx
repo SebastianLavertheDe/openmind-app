@@ -17,7 +17,7 @@ import { useAi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
-import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
+import { EmptyState, ErrorState, Skeleton } from "../../design-system/components";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
 import { ProjectOutputsPanel, type ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
@@ -237,14 +237,6 @@ export function ProjectsPage({
 
   return (
     <div className="projects-page">
-      <header className="projects-page-header">
-        <PageHeader
-          eyebrow="资料驱动创作"
-          title="项目"
-          description="在同一个空间中组织资料、完成 AI 任务并沉淀 Markdown 成品。"
-          actions={<button className="primary-button" data-motion="action" onClick={openCreateDialog}><Plus size={15} />创建项目</button>}
-        />
-      </header>
       {error ? <ErrorState message={error} retry={() => void loadProjects()} /> : null}
       <div
         className={`project-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}${layout.isResizing ? " is-resizing-list" : ""}`}

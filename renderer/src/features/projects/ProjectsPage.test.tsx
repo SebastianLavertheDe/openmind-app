@@ -86,15 +86,16 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("button", { name: /AI 安全/ })).toBeTruthy();
   });
 
-  it("shows an empty-state main pane until a project is selected", async () => {
+  it("uses the full-height workspace and keeps creation in the empty state", async () => {
     installApi();
-    renderPage();
+    const { container } = renderPage();
 
     expect(await screen.findByText("选择一个项目")).toBeTruthy();
-    const createButtons = screen.getAllByRole("button", { name: "创建项目" });
-    expect(createButtons.length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelector(".projects-page-header")).toBeNull();
+    expect(screen.queryByText("资料驱动创作")).toBeNull();
+    const createButton = screen.getByRole("button", { name: "创建项目" });
 
-    fireEvent.click(createButtons[createButtons.length - 1]);
+    fireEvent.click(createButton);
     expect(await screen.findByText("项目名称")).toBeTruthy();
   });
 
