@@ -135,7 +135,7 @@ export function ProjectFilesPanel({
 
   const list = (
     <>
-      <label className="project-list-search project-files-search">
+      <label className="project-pane-filter">
         <input aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
         <Search aria-hidden="true" />
       </label>

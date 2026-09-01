@@ -1,16 +1,11 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive,
   ArrowLeft,
-  ChevronRight,
-  FilePlus2,
   Files,
   FolderKanban,
   Library,
   ListTodo,
-  MoreHorizontal,
   PanelLeftOpen,
-  Pencil,
   Plus,
   Search
 } from "lucide-react";
@@ -51,7 +46,6 @@ export function ProjectsPage({
   const [createAction, setCreateAction] = useState<ProjectCreateAction | null>(null);
   const [taskSeed, setTaskSeed] = useState<ProjectTaskSeed | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -173,44 +167,6 @@ export function ProjectsPage({
     }
   };
 
-  const renameProject = async () => {
-    if (!activeProject || !name.trim() || busy) return;
-    if (!await canLeaveCurrentOutput()) return;
-    setBusy(true);
-    try {
-      const next = await projectsApi.renameProject(activeProject.name, name.trim());
-      setProjects((current) => current.map((item) => item.name === activeProject.name ? next : item));
-      setActiveProject(next);
-      setRenameOpen(false);
-      ai.notify(`项目已重命名为“${next.name}”。`, "success");
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggleArchive = async () => {
-    if (!activeProject) return;
-    if (!await canLeaveCurrentOutput()) return;
-    const archive = activeProject.status !== "archived";
-    const confirmed = await ai.confirm({
-      title: archive ? "归档项目" : "恢复项目",
-      body: archive ? `归档“${activeProject.name}”后，项目内容仍会保留。` : `将“${activeProject.name}”恢复到项目列表。`,
-      confirmText: archive ? "归档" : "恢复",
-      danger: archive
-    });
-    if (!confirmed) return;
-    try {
-      const next = await projectsApi.archiveProject(activeProject.name, archive);
-      setProjects((current) => current.map((item) => item.name === next.name ? next : item));
-      setActiveProject(archive ? null : next);
-      ai.notify(archive ? "项目已归档。" : "项目已恢复。", "success");
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
-    }
-  };
-
   const refreshActive = useCallback(async () => {
     if (!activeProject) return;
     try {
@@ -253,15 +209,7 @@ export function ProjectsPage({
                   <summary className="icon-button" aria-label="新建项目内容" title="新建"><Plus size={16} /></summary>
                   <div role="menu">
                     <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("tasks"); }}><ListTodo size={14} /><span>新建任务</span></button>
-                    <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("outputs"); }}><FilePlus2 size={14} /><span>新建文档</span></button>
                     <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("materials"); }}><Library size={14} /><span>添加资料</span></button>
-                  </div>
-                </details>
-                <details className="project-more-menu">
-                  <summary className="icon-button" aria-label="项目操作"><MoreHorizontal size={17} /></summary>
-                  <div role="menu">
-                    <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); void navigateProject(() => { setName(activeProject.name); setRenameOpen(true); }); }}><Pencil size={14} />编辑项目</button>
-                    <button role="menuitem" className={activeProject.status === "archived" ? "" : "danger"} onClick={(event) => { closeOwningMenu(event.currentTarget); void toggleArchive(); }}><Archive size={14} />{activeProject.status === "archived" ? "恢复项目" : "归档项目"}</button>
                   </div>
                 </details>
               </header>
@@ -288,7 +236,7 @@ export function ProjectsPage({
             </>
           ) : (
             <>
-              <label className="project-list-search">
+              <label className="project-pane-filter">
                 <input aria-label="搜索项目" value={query} placeholder="你的项目" onChange={(event) => setQuery(event.target.value)} />
                 <Search aria-hidden="true" />
               </label>
@@ -308,8 +256,7 @@ export function ProjectsPage({
                       onClick={() => void openProject(project)}
                     >
                       <FolderKanban aria-hidden="true" />
-                      <span><strong>{project.name}</strong><small>{project.description || "暂无描述"}</small></span>
-                      <ChevronRight aria-hidden="true" />
+                      <span><strong>{project.name}</strong></span>
                     </button>
                   ))}
                   {!filteredProjects.length ? <p className="project-list-empty">{query ? "没有匹配的项目" : "还没有项目"}</p> : null}
@@ -362,9 +309,6 @@ export function ProjectsPage({
       <ProjectDialog open={createProjectOpen} title="创建项目" description="项目名会作为本地目录名，请使用清晰且稳定的名称。" confirmLabel="创建项目" busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
         <ProjectTextField label="项目名称" value={name} placeholder="例如：AI 安全研究" autoFocus onChange={setName} />
         <ProjectTextField label="描述（可选）" value={description} placeholder="这个项目要研究和创作什么？" multiline onChange={setDescription} />
-      </ProjectDialog>
-      <ProjectDialog open={renameOpen} title="重命名项目" description="项目目录也会同步重命名；运行中的任务需要先结束。" confirmLabel="保存名称" busy={busy} onClose={() => setRenameOpen(false)} onConfirm={renameProject}>
-        <ProjectTextField label="新名称" value={name} autoFocus onChange={setName} />
       </ProjectDialog>
     </div>
   );

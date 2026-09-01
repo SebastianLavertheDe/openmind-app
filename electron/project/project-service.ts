@@ -138,7 +138,7 @@ export class ProjectService {
         project: ProjectSummarySchema.parse({
           ...manifest,
           materialCount: this.materials.list(manifest.name).length,
-          taskCount: this.tasks.list(manifest.name).length,
+          taskCount: this.tasks.list(manifest.name).filter((task) => task.status !== "archived").length,
           outputCount: outputs.length
         })
       };
@@ -273,7 +273,7 @@ export class ProjectService {
   }
 
   listProjectTasks(projectName: string): ProjectTask[] {
-    return this.tasks.list(this.canonicalName(projectName));
+    return this.tasks.list(this.canonicalName(projectName)).filter((task) => task.status !== "archived");
   }
 
   listProjectTaskMessages(projectName: string, taskId: string) {
@@ -313,6 +313,15 @@ export class ProjectService {
 
   getProjectTask(projectName: string, taskId: string): ProjectTask {
     return this.tasks.get(this.canonicalName(projectName), taskId);
+  }
+
+  renameProjectTask(projectName: string, taskId: string, title: string): ProjectTask {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const task = this.tasks.rename(name, taskId, title);
+      this.touch(name);
+      return task;
+    });
   }
 
   archiveProjectTask(projectName: string, taskId: string): ProjectTask {

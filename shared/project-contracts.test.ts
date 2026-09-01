@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ProjectCreateInputSchema,
   ProjectNameSchema,
+  ProjectRenameTaskInputSchema,
   ProjectStartTaskRunInputSchema,
   projectNameUniquenessKey
 } from "./project-contracts";
@@ -35,5 +36,15 @@ describe("ProjectStartTaskRunInputSchema", () => {
 
   it("allows a continuation to carry only its frozen session identity", () => {
     expect(ProjectStartTaskRunInputSchema.safeParse({ projectName: "Alpha", taskId, sessionId: "session-1", prompt: "继续" }).success).toBe(true);
+  });
+});
+
+describe("ProjectRenameTaskInputSchema", () => {
+  const taskId = "7f43fc74-10a1-4e71-97cd-ec90d2660c1c";
+
+  it("requires a safe task identity and a non-empty trimmed title", () => {
+    expect(ProjectRenameTaskInputSchema.safeParse({ projectName: "Alpha", taskId, title: "新标题" }).success).toBe(true);
+    expect(ProjectRenameTaskInputSchema.safeParse({ projectName: "Alpha", taskId, title: "   " }).success).toBe(false);
+    expect(ProjectRenameTaskInputSchema.safeParse({ projectName: "Alpha", taskId: "task-1", title: "新标题" }).success).toBe(false);
   });
 });

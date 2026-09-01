@@ -109,6 +109,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "createProjectTask", channel: PROJECT_IPC.TASK_CREATE },
   { method: "listProjectTasks", channel: PROJECT_IPC.TASK_LIST },
   { method: "listProjectTaskMessages", channel: PROJECT_IPC.TASK_MESSAGES },
+  { method: "renameProjectTask", channel: PROJECT_IPC.TASK_RENAME },
   { method: "archiveProjectTask", channel: PROJECT_IPC.TASK_ARCHIVE },
   { method: "projectStartTaskRun", channel: PROJECT_IPC.TASK_START_RUN },
   { method: "listProjectOutputs", channel: PROJECT_IPC.OUTPUT_LIST },

@@ -52,6 +52,7 @@ import {
   ProjectNameSchema,
   ProjectOutputLocatorSchema,
   ProjectRenameInputSchema,
+  ProjectRenameTaskInputSchema,
   ProjectSaveOutputInputSchema,
   ProjectStartTaskRunInputSchema,
   ProjectTaskLocatorSchema,
@@ -727,6 +728,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (rawInput) => {
         const input = ProjectTaskLocatorSchema.parse(rawInput);
         return projects().listProjectTaskMessages(input.projectName, input.taskId);
+      }
+    },
+    {
+      channel: C.renameProjectTask,
+      handler: (rawInput) => {
+        const input = ProjectRenameTaskInputSchema.parse(rawInput);
+        return projects().renameProjectTask(input.projectName, input.taskId, input.title);
       }
     },
     {

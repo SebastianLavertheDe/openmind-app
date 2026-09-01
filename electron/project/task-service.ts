@@ -91,6 +91,10 @@ export class ProjectTaskService {
     return this.update(projectName, taskId, { status: "archived" });
   }
 
+  rename(projectName: string, taskId: string, title: string): ProjectTask {
+    return this.update(projectName, taskId, { title });
+  }
+
   bindSession(projectName: string, taskId: string, sessionId: string, providerId?: string): ProjectTask {
     return this.paths.withProjectMutationLock(() => {
       const current = this.get(projectName, taskId);

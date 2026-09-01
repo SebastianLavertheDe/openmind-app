@@ -1,3 +1,4 @@
+import type { ContextReference } from "@shared/contracts";
 import type {
   ProjectDetail,
   ProjectMaterial,
@@ -28,6 +29,8 @@ type ProjectMethod =
   | "listProjectTasks"
   | "listProjectTaskMessages"
   | "createProjectTask"
+  | "renameProjectTask"
+  | "archiveProjectTask"
   | "listProjectOutputs"
   | "createProjectOutput"
   | "readProjectOutput"
@@ -294,7 +297,7 @@ export const projectsApi = {
   },
 
   async listTasks(projectName: string): Promise<ProjectTask[]> {
-    return array(await invoke("listProjectTasks", projectName)).map(task).filter((item) => item.taskId);
+    return array(await invoke("listProjectTasks", projectName)).map(task).filter((item) => item.taskId && item.status !== "archived");
   },
 
   async listTaskMessages(projectName: string, taskId: string): Promise<ProjectTaskMessage[]> {
@@ -307,8 +310,16 @@ export const projectsApi = {
     return task(await invoke("createProjectTask", { projectName, title, providerId }));
   },
 
-  async startTaskRun(projectName: string, taskId: string, providerId: string, prompt: string): Promise<ProjectTaskRunResult> {
-    const result = record(await invoke("projectStartTaskRun", { projectName, taskId, providerId, prompt }));
+  async renameTask(projectName: string, taskId: string, title: string): Promise<ProjectTask> {
+    return task(await invoke("renameProjectTask", { projectName, taskId, title }));
+  },
+
+  async removeTask(projectName: string, taskId: string): Promise<void> {
+    await invoke("archiveProjectTask", { projectName, taskId });
+  },
+
+  async startTaskRun(projectName: string, taskId: string, providerId: string, prompt: string, contexts: ContextReference[] = []): Promise<ProjectTaskRunResult> {
+    const result = record(await invoke("projectStartTaskRun", { projectName, taskId, providerId, prompt, ...(contexts.length ? { contexts } : {}) }));
     const session = record(result.session) as ProjectTaskRunResult["session"];
     const run = record(result.run) as ProjectTaskRunResult["run"];
     return { task: task(result.task), session, run };

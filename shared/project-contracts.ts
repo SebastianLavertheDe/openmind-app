@@ -207,6 +207,11 @@ export const ProjectTaskLocatorSchema = z.object({
 });
 export type ProjectTaskLocator = z.input<typeof ProjectTaskLocatorSchema>;
 
+export const ProjectRenameTaskInputSchema = ProjectTaskLocatorSchema.extend({
+  title: z.string().trim().min(1).max(160)
+});
+export type ProjectRenameTaskInput = z.input<typeof ProjectRenameTaskInputSchema>;
+
 export const ProjectTaskMessageSchema = z.object({
   id: z.string().min(1).max(160),
   role: z.enum(["user", "assistant"]),
@@ -314,6 +319,7 @@ export interface ProjectDesktopApi {
   createProjectTask(input: ProjectCreateTaskInput): Promise<ProjectTask>;
   listProjectTasks(projectName: string): Promise<ProjectTask[]>;
   listProjectTaskMessages(input: ProjectTaskLocator): Promise<ProjectTaskMessage[]>;
+  renameProjectTask(input: ProjectRenameTaskInput): Promise<ProjectTask>;
   archiveProjectTask(input: ProjectTaskLocator): Promise<ProjectTask>;
   projectStartTaskRun(input: ProjectStartTaskRunInput): Promise<ProjectTaskRunResult>;
 
@@ -340,6 +346,7 @@ export const PROJECT_IPC = {
   TASK_CREATE: "project:task-create",
   TASK_LIST: "project:task-list",
   TASK_MESSAGES: "project:task-messages",
+  TASK_RENAME: "project:task-rename",
   TASK_ARCHIVE: "project:task-archive",
   TASK_START_RUN: "project:task-start-run",
   OUTPUT_LIST: "project:output-list",

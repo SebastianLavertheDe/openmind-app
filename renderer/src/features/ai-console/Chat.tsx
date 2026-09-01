@@ -18,7 +18,7 @@ import { useExitingList } from "../../design-system/use-exiting-list";
 import { selectRecentTurnEvents } from "../../ai-utils";
 import { ApprovalDecisionEvent } from "./approval";
 import { ApprovalBanner } from "./approval-banner";
-import { ChatComposer } from "./composer";
+import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
@@ -66,7 +66,9 @@ type ChatScrollRestore = {
 const CHAT_BOTTOM_THRESHOLD = 90;
 const CHAT_SCROLL_UP_EPSILON = 1;
 
-export const Chat = memo(function Chat({ compact = false }: { compact?: boolean }) {
+export type { ChatDraftSubmitHandler } from "./composer";
+
+export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { compact?: boolean; onDraftSubmit?: ChatDraftSubmitHandler }) {
   const ai = useAi();
   const [nearBottom, setNearBottom] = useState(true);
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
@@ -330,7 +332,7 @@ export const Chat = memo(function Chat({ compact = false }: { compact?: boolean 
       <div className="chat-bottom-stack">
         <ActiveTodoFloat events={activeTodoEvents} active={Boolean(ai.sessionActiveRun)} />
         <ApprovalBanner />
-        <ChatComposer />
+        <ChatComposer onDraftSubmit={onDraftSubmit} />
       </div>
     </section>
   );

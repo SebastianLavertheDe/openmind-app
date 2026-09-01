@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(112);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(112);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(112);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(113);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(113);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(113);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -903,6 +903,24 @@ describe("handler forwarding — Project domain", () => {
       taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c"
     })).rejects.toThrow("运行中的 AI 任务");
     expect(archiveProjectTask).not.toHaveBeenCalled();
+  });
+
+  it("validates and forwards Task rename input", async () => {
+    const renameProjectTask = vi.fn(() => ({ taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c", title: "新标题" }));
+    const ctx = makeCtx({ ensureProjectService: () => ({ renameProjectTask }) as never });
+
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.renameProjectTask, {
+      projectName: "Research",
+      taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c",
+      title: "新标题"
+    });
+
+    expect(renameProjectTask).toHaveBeenCalledWith("Research", "7f43fc74-10a1-4e71-97cd-ec90d2660c1c", "新标题");
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.renameProjectTask, {
+      projectName: "Research",
+      taskId: "task-1",
+      title: "新标题"
+    })).toThrow();
   });
 
   it("serializes rename check+mutation against rerouted generic Project continuation admission", async () => {

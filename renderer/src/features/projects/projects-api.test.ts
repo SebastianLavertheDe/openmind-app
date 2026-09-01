@@ -32,6 +32,19 @@ describe("projectsApi", () => {
     expect(result.session.id).toBe("session-1");
   });
 
+  it("renames and removes tasks through the Project task endpoints", async () => {
+    const renamed = { taskId: "task-1", projectName: "AI 安全", title: "新标题", sessionId: null, providerId: "codex", status: "active", createdAt: "2026-08-30T00:00:00.000Z", updatedAt: "2026-08-31T00:00:00.000Z" };
+    const renameProjectTask = vi.fn(async () => renamed);
+    const archiveProjectTask = vi.fn(async () => ({ ...renamed, status: "archived" }));
+    window.openmind = { renameProjectTask, archiveProjectTask } as never;
+
+    await expect(projectsApi.renameTask("AI 安全", "task-1", "新标题")).resolves.toMatchObject({ title: "新标题" });
+    await projectsApi.removeTask("AI 安全", "task-1");
+
+    expect(renameProjectTask).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1", title: "新标题" });
+    expect(archiveProjectTask).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1" });
+  });
+
   it("reads parsed video metadata from the ProjectMaterialRead envelope", async () => {
     window.openmind = {
       readProjectMaterial: vi.fn(async () => ({

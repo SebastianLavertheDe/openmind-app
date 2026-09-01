@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
+import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
+import type { ChatDraftSubmitInput } from "../ai-console/composer";
 import { assistantPhase, selectRenderableTimelineEvents } from "../ai-console/timeline";
 import { ProjectListDetail } from "./ProjectListDetail";
+import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { projectsApi } from "./projects-api";
 import type { ProjectDetail, ProjectTask, ProjectTaskMessage } from "./types";
 
@@ -48,9 +50,14 @@ export function ProjectTasksPanel({
   const [error, setError] = useState<string | null>(null);
   const [savedMessageId, setSavedMessageId] = useState<string | null>(null);
   const [localMessages, setLocalMessages] = useState<ProjectTaskMessage[]>([]);
+  const [taskMenu, setTaskMenu] = useState<{ taskId: string; left: number; top: number } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ProjectTask | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [taskActionBusy, setTaskActionBusy] = useState(false);
   const refreshedTerminalRunsRef = useRef(new Set<string>());
 
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
+  const setActiveSession = ai.setActiveSession;
   const selected = tasks.find((item) => item.taskId === selectedId) || null;
   const activeProjectSession = matchesProjectTaskSession(ai.activeSession, project.name, selected);
   const terminalProjectRunIds = useMemo(() => ai.snapshot.runs
@@ -73,7 +80,7 @@ export function ProjectTasksPanel({
     try {
       const next = await projectsApi.listTasks(project.name);
       setTasks(next);
-      setSelectedId((current) => next.some((item) => item.taskId === current) ? current : initialTaskId && next.some((item) => item.taskId === initialTaskId) ? initialTaskId : next[0]?.taskId || "");
+      setSelectedId((current) => next.some((item) => item.taskId === current) ? current : initialTaskId && next.some((item) => item.taskId === initialTaskId) ? initialTaskId : "");
       setError(null);
     } catch (cause) {
       setError(errorText(cause));
@@ -84,6 +91,10 @@ export function ProjectTasksPanel({
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { onSelectionChange?.(selectedId || undefined); }, [onSelectionChange, selectedId]);
+  useEffect(() => {
+    if (loading || creating || selectedId) return;
+    void setActiveSession(null);
+  }, [creating, loading, selectedId, setActiveSession]);
   useEffect(() => {
     const unseen = terminalProjectRunIds.filter((runId) => !refreshedTerminalRunsRef.current.has(runId));
     if (!unseen.length) return;
@@ -98,12 +109,16 @@ export function ProjectTasksPanel({
   }, [selected?.providerId, selected?.sessionId]);
   useEffect(() => {
     if (!createRequested) return;
+    void setActiveSession(null);
+    ai.clearContexts();
+    ai.setDraft(seed?.prompt || "");
     setCreating(true);
     setSelectedId("");
     setTitle(seed?.title || "");
     setPrompt(seed?.prompt || "");
+    setError(null);
     onCreateHandled();
-  }, [createRequested, onCreateHandled, seed]);
+  }, [createRequested, onCreateHandled, seed, setActiveSession]);
   useEffect(() => {
     if (!selected?.sessionId) return;
     let current = true;
@@ -125,12 +140,104 @@ export function ProjectTasksPanel({
       .catch(() => { if (current) setLocalMessages([]); });
     return () => { current = false; };
   }, [project.name, selected?.taskId, selected?.updatedAt]);
+  useEffect(() => {
+    if (!taskMenu) return;
+    const close = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest(".project-task-menu, [data-task-menu-trigger]")) return;
+      setTaskMenu(null);
+    };
+    const closeOnKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTaskMenu(null);
+    };
+    const closeOnViewportChange = () => setTaskMenu(null);
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", closeOnKey);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", closeOnKey);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [taskMenu]);
 
   const newTask = () => {
+    void setActiveSession(null);
+    ai.clearContexts();
+    ai.setDraft("");
     setCreating(true);
     setSelectedId("");
     setTitle("");
     setPrompt("");
+    setError(null);
+  };
+
+  const openTaskMenu = (button: HTMLButtonElement, taskId: string) => {
+    if (taskMenu?.taskId === taskId) {
+      setTaskMenu(null);
+      return;
+    }
+    const bounds = button.getBoundingClientRect();
+    const menuWidth = 168;
+    const menuHeight = 104;
+    const gap = 6;
+    const left = window.innerWidth - bounds.right >= menuWidth + gap
+      ? bounds.right + gap
+      : Math.max(8, bounds.left - menuWidth - gap);
+    const top = Math.min(Math.max(8, bounds.top), Math.max(8, window.innerHeight - menuHeight - 8));
+    setTaskMenu({ taskId, left, top });
+  };
+
+  const beginRenameTask = (task: ProjectTask) => {
+    setTaskMenu(null);
+    setRenameTarget(task);
+    setRenameTitle(task.title);
+  };
+
+  const renameTask = async () => {
+    const nextTitle = renameTitle.trim();
+    if (!renameTarget || !nextTitle || taskActionBusy) return;
+    setTaskActionBusy(true);
+    try {
+      const updated = await projectsApi.renameTask(project.name, renameTarget.taskId, nextTitle);
+      setTasks((current) => current.map((item) => item.taskId === updated.taskId ? updated : item));
+      setRenameTarget(null);
+      onChanged();
+      if (updated.sessionId && ai.snapshot.sessions.some((session) => session.id === updated.sessionId)) {
+        try { await ai.updateSession(updated.sessionId, { title: updated.title }); }
+        catch { ai.notify("任务已重命名，但会话标题暂未同步。", "error"); }
+      }
+      ai.notify(`任务已重命名为“${updated.title}”。`, "success");
+    } catch (cause) {
+      ai.notify(errorText(cause), "error");
+    } finally {
+      setTaskActionBusy(false);
+    }
+  };
+
+  const removeTask = async (task: ProjectTask) => {
+    setTaskMenu(null);
+    const confirmed = await ai.confirm({
+      title: "删除任务",
+      body: `确定删除“${task.title}”吗？任务将从列表中移除。`,
+      confirmText: "删除",
+      danger: true
+    });
+    if (!confirmed) return;
+    try {
+      await projectsApi.removeTask(project.name, task.taskId);
+      setTasks((current) => current.filter((item) => item.taskId !== task.taskId));
+      if (selectedId === task.taskId) {
+        setCreating(false);
+        setSelectedId("");
+      }
+      onChanged();
+      ai.notify("任务已删除。", "success");
+    } catch (cause) {
+      ai.notify(errorText(cause), "error");
+    }
   };
 
   const start = async () => {
@@ -168,6 +275,55 @@ export function ProjectTasksPanel({
     }
   };
 
+  const startFromWorkbench = async (input: ChatDraftSubmitInput) => {
+    const nextPrompt = input.prompt.trim();
+    if (!nextPrompt || !input.providerId || sending) return;
+    setSending(true);
+    setError(null);
+    let task: ProjectTask | null = null;
+    try {
+      task = await projectsApi.createTask(
+        project.name,
+        (creating ? title.trim() : "") || firstLine(nextPrompt),
+        input.providerId
+      );
+      setTasks((current) => [task!, ...current.filter((item) => item.taskId !== task!.taskId)]);
+      onChanged();
+
+      const result = await projectsApi.startTaskRun(
+        project.name,
+        task.taskId,
+        input.providerId,
+        nextPrompt,
+        input.contexts
+      );
+      // Clear the Project draft before activating its newly-created Session;
+      // otherwise the first prompt would remain in the new-conversation draft.
+      ai.setDraft("");
+      ai.clearContexts();
+      await ai.refresh();
+      await ai.setActiveSession(result.session.id);
+      setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
+      setSelectedId(result.task.taskId);
+      setCreating(false);
+      setTitle("");
+      setPrompt("");
+      onChanged();
+    } catch (cause) {
+      const message = errorText(cause);
+      if (task) {
+        setPrompt(nextPrompt);
+        await load();
+        setSelectedId(task.taskId);
+        setCreating(false);
+      }
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const finalAnswer = useMemo(() => [...selectRenderableTimelineEvents(ai.events, ai.snapshot.runs)].reverse().find((event) => event.sessionId === selected?.sessionId && event.kind === "assistant-message" && assistantPhase(event) === "final" && typeof event.payload?.text === "string"), [ai.events, ai.snapshot.runs, selected?.sessionId]);
   const saveAnswer = async () => {
     if (!selected || !finalAnswer || savedMessageId === finalAnswer.id) return;
@@ -192,15 +348,43 @@ export function ProjectTasksPanel({
   const list = (
     <>
       {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目任务</span><h2>任务</h2></div><button className="icon-button" aria-label="新建任务" onClick={newTask}><Plus size={16} /></button></header> : null}
-      <label className="project-local-search"><Search size={14} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务" /></label>
-      <div className="project-local-count">全部任务 <span>{filtered.length}</span></div>
+      <label className="project-pane-filter"><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="你的任务" /><Search aria-hidden="true" /></label>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? "没有匹配的任务" : "还没有任务"} description={tasks.length ? "换一个标题关键词后再试。" : "新建任务，让 AI 在当前项目资料中搜索和创作。"} /> : null}
-        {filtered.map((item) => <button key={item.taskId} className={item.taskId === selectedId && !creating ? "active" : ""} onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><Sparkles size={15} /><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>)}
+        {filtered.map((item) => {
+          const active = item.taskId === selectedId && !creating;
+          const menuOpen = taskMenu?.taskId === item.taskId;
+          return (
+            <div key={item.taskId} className={`project-task-row${active ? " active" : ""}${menuOpen ? " menu-open" : ""}`}>
+              <button className="project-task-select" onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><Sparkles size={15} /><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
+              <button
+                type="button"
+                className="project-task-more"
+                data-task-menu-trigger
+                aria-label={`任务操作：${item.title}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={(event) => openTaskMenu(event.currentTarget, item.taskId)}
+              ><MoreHorizontal size={16} /></button>
+            </div>
+          );
+        })}
       </div>
     </>
   );
+
+  const menuTask = taskMenu ? tasks.find((item) => item.taskId === taskMenu.taskId) || null : null;
+  const taskMenuOverlay = menuTask && taskMenu ? createPortal(
+    <div className="project-task-menu" role="menu" aria-label={`${menuTask.title}的任务操作`} style={{ left: taskMenu.left, top: taskMenu.top }}>
+      <button role="menuitem" onClick={() => beginRenameTask(menuTask)}><Pencil size={15} />重命名</button>
+      <button role="menuitem" className="danger" onClick={() => void removeTask(menuTask)}><Trash2 size={15} />删除</button>
+    </div>,
+    document.body
+  ) : null;
+  const renameDialog = <ProjectDialog open={Boolean(renameTarget)} title="重命名任务" confirmLabel="保存" busy={taskActionBusy} onClose={() => setRenameTarget(null)} onConfirm={renameTask}>
+    <ProjectTextField label="任务名称" value={renameTitle} autoFocus onChange={setRenameTitle} />
+  </ProjectDialog>;
 
   const starter = <TaskStarter
       project={project}
@@ -216,7 +400,10 @@ export function ProjectTasksPanel({
       onProvider={setProviderId}
       onStart={() => void start()}
     />;
-  const detail = creating ? starter : selected && !selected.sessionId ? (
+  const projectDraftWorkbench = <div className="project-task-session is-draft">
+    <AiWorkbench projectMode onDraftSubmit={startFromWorkbench} />
+  </div>;
+  const detail = creating ? projectDraftWorkbench : selected && !selected.sessionId ? (
     <div className="project-task-recovered">
       {localMessages.length ? <TaskLocalHistory messages={localMessages} expanded /> : null}
       {starter}
@@ -228,7 +415,7 @@ export function ProjectTasksPanel({
       {activeProjectSession ? <AiWorkbench projectMode /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>
   ) : error ? <ErrorState message={error} retry={() => void load()} /> : (
-    <EmptyState icon={<Sparkles size={30} />} title="选择或新建任务" description="项目任务会在当前项目目录中查找资料，并把结果返回到对话。" action={<button className="primary-button" onClick={newTask}><Plus size={15} />新建任务</button>} />
+    projectDraftWorkbench
   );
 
   if (attached) {
@@ -236,10 +423,12 @@ export function ProjectTasksPanel({
       <>
         {createPortal(list, listHost!)}
         {createPortal(detail, detailHost!)}
+        {taskMenuOverlay}
+        {renameDialog}
       </>
     );
   }
-  return <ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />;
+  return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />{taskMenuOverlay}{renameDialog}</>;
 }
 
 function TaskLocalHistory({ messages, expanded = false }: { messages: ProjectTaskMessage[]; expanded?: boolean }) {

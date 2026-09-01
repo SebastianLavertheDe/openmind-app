@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ExternalLink, File, FileOutput, FilePlus2, FileText, Globe2, LoaderCircle, Play, Plus, RefreshCw, Search, Trash2, Video } from "lucide-react";
+import { AlertTriangle, ExternalLink, FileOutput, FilePlus2, FileText, Globe2, LoaderCircle, Play, Plus, RefreshCw, Search, Trash2, Upload, Video } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState } from "../../design-system/components";
-import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
+import { ProjectDialog } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
 import { projectsApi } from "./projects-api";
 import type { ProjectDetail, ProjectMaterial, ProjectMaterialKind, ProjectTranscriptSegment } from "./types";
@@ -46,7 +46,6 @@ export function ProjectMaterialsPanel({
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [addMode, setAddMode] = useState<"file" | "url">("file");
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
   const [retryingPath, setRetryingPath] = useState("");
@@ -202,6 +201,47 @@ export function ProjectMaterialsPanel({
   };
 
   const hosted = Boolean(listHost || detailHost);
+  const addDialog = (
+    <ProjectDialog
+      open={addOpen}
+      title="添加资料"
+      confirmLabel="添加链接"
+      busy={adding}
+      className="project-material-add-dialog"
+      showFooter={false}
+      onClose={() => setAddOpen(false)}
+      onConfirm={addUrl}
+    >
+      <button
+        type="button"
+        className="project-material-upload"
+        aria-label="上传文件"
+        disabled={adding}
+        onClick={() => void addFiles()}
+      >
+        <span className="project-material-upload-icon" aria-hidden="true">
+          {adding ? <LoaderCircle className="spin" size={22} /> : <Upload size={22} />}
+        </span>
+        <strong>{adding ? "正在添加资料…" : "点击上传文件"}</strong>
+        <small>支持 PDF、文档、图片、音频和视频等文件</small>
+      </button>
+      <div className="project-material-url-entry">
+        <textarea
+          aria-label="资料 URL"
+          value={url}
+          placeholder="粘贴 YouTube、播客或任意网页的 URL"
+          disabled={adding}
+          onChange={(event) => setUrl(event.target.value)}
+        />
+        <div className="project-material-url-actions">
+          <span>{url.trim() ? "1/1" : "0/1"}</span>
+          <button type="submit" className="primary-button" disabled={!url.trim() || adding} aria-busy={adding || undefined}>
+            {adding ? "添加中…" : "添加链接"}
+          </button>
+        </div>
+      </div>
+    </ProjectDialog>
+  );
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
@@ -232,20 +272,14 @@ export function ProjectMaterialsPanel({
       <>
         {listHost ? createPortal(list, listHost) : null}
         {detailHost ? createPortal(detail, detailHost) : null}
-        <ProjectDialog open={addOpen} title="添加资料" description="文件会复制到当前项目；链接会被识别为网页或受支持的视频。" confirmLabel={addMode === "file" ? "选择文件" : "添加链接"} busy={adding} onClose={() => setAddOpen(false)} onConfirm={addMode === "file" ? addFiles : addUrl}>
-          <div className="project-dialog-tabs" role="tablist" aria-label="资料来源"><button type="button" role="tab" aria-selected={addMode === "file"} className={addMode === "file" ? "active" : ""} onClick={() => setAddMode("file")}><File size={15} />本地文件</button><button type="button" role="tab" aria-selected={addMode === "url"} className={addMode === "url" ? "active" : ""} onClick={() => setAddMode("url")}><Globe2 size={15} />网页或视频链接</button></div>
-          {addMode === "file" ? <div className="project-file-picker-copy"><FilePlus2 size={26} /><strong>选择一个或多个文件</strong><p>支持 Markdown、纯文本、PDF、DOCX、PPTX 和 XLSX；文档会转换为可阅读的 Markdown。</p></div> : <ProjectTextField label="URL" value={url} placeholder="https://…" autoFocus onChange={setUrl} />}
-        </ProjectDialog>
+        {addDialog}
       </>
     );
   }
   return (
     <>
       <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { setSelectedPath(""); setSelected(null); onSelectionChange?.(); }} />
-      <ProjectDialog open={addOpen} title="添加资料" description="文件会复制到当前项目；链接会被识别为网页或受支持的视频。" confirmLabel={addMode === "file" ? "选择文件" : "添加链接"} busy={adding} onClose={() => setAddOpen(false)} onConfirm={addMode === "file" ? addFiles : addUrl}>
-        <div className="project-dialog-tabs" role="tablist" aria-label="资料来源"><button type="button" role="tab" aria-selected={addMode === "file"} className={addMode === "file" ? "active" : ""} onClick={() => setAddMode("file")}><File size={15} />本地文件</button><button type="button" role="tab" aria-selected={addMode === "url"} className={addMode === "url" ? "active" : ""} onClick={() => setAddMode("url")}><Globe2 size={15} />网页或视频链接</button></div>
-        {addMode === "file" ? <div className="project-file-picker-copy"><FilePlus2 size={26} /><strong>选择一个或多个文件</strong><p>支持 Markdown、纯文本、PDF、DOCX、PPTX 和 XLSX；文档会转换为可阅读的 Markdown。</p></div> : <ProjectTextField label="URL" value={url} placeholder="https://…" autoFocus onChange={setUrl} />}
-      </ProjectDialog>
+      {addDialog}
     </>
   );
 }

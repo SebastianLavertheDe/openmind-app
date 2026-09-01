@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSnapshot, DesktopApi } from "@shared/contracts";
+import type { AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { ProjectsPage } from "./ProjectsPage";
@@ -65,8 +65,8 @@ function installApi(overrides: Record<string, unknown> = {}): void {
   } as unknown as DesktopApi;
 }
 
-function renderPage() {
-  return render(<AiProvider initial={snapshot}><ProjectsPage /><FeedbackHost /></AiProvider>);
+function renderPage(initial: AiSnapshot = snapshot) {
+  return render(<AiProvider initial={initial}><ProjectsPage /><FeedbackHost /></AiProvider>);
 }
 
 beforeEach(() => {
@@ -85,14 +85,62 @@ describe("ProjectsPage", () => {
 
     const search = await screen.findByLabelText("搜索项目");
     expect(search).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /AI 安全/ }));
+    const projectButton = screen.getByRole("button", { name: /AI 安全/ });
+    expect(projectButton.querySelectorAll("svg")).toHaveLength(1);
+    fireEvent.click(projectButton);
 
     await waitFor(() => expect(window.openmind.getProject).toHaveBeenCalledWith("AI 安全"));
     expect(await screen.findByText("AI 安全")).toBeTruthy();
     const tabs = await screen.findAllByRole("tab", { name: /任务/ });
     expect(tabs.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("搜索任务")).toBeTruthy();
-    expect(await screen.findByText("选择或新建任务")).toBeTruthy();
+    expect(await screen.findByText("新会话")).toBeTruthy();
+  });
+
+  it("keeps the new-conversation view until a concrete task is selected", async () => {
+    const workspaceSession: AiSession = {
+      schemaVersion: 1,
+      id: "workspace-session",
+      projectId: "workspace",
+      projectRoot: "/project",
+      title: "之前打开的会话",
+      provider: "codex",
+      providerId: "codex-native",
+      providerSessionId: null,
+      cwd: ".",
+      permissionProfile: "edit",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z",
+      lastRunId: null
+    };
+    const task = {
+      taskId: "task-1",
+      projectName: summary.name,
+      title: "具体任务",
+      sessionId: null,
+      providerId: "codex-native",
+      status: "active",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    installApi({ listProjectTasks: vi.fn(async () => [task]) });
+    const { container } = renderPage({ ...snapshot, sessions: [workspaceSession] });
+
+    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+
+    const taskButton = (await screen.findByText("具体任务")).closest("button")!;
+    expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(false);
+    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(screen.queryByText("之前打开的会话")).toBeNull();
+    expect(container.querySelector(".project-task-session-bar")).toBeNull();
+
+    fireEvent.click(taskButton);
+
+    expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(true);
+    expect(await screen.findByText("基于“AI 安全”开始创作")).toBeTruthy();
   });
 
   it("filters the pane list through the project search", async () => {
@@ -148,7 +196,7 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("tablist", { name: "资料类型" })).toBeNull();
   });
 
-  it("offers task, document, and material actions from the project plus menu", async () => {
+  it("keeps only task and material actions in the project plus menu", async () => {
     installApi({
       listProjectMaterials: vi.fn(async () => [existingMaterial]),
       readProjectMaterial: vi.fn(async () => ({ material: existingMaterial, content: "# 研究资料", truncated: false })),
@@ -161,19 +209,79 @@ describe("ProjectsPage", () => {
     fireEvent.click(await screen.findByLabelText("新建项目内容"));
 
     expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
-    const newDocument = screen.getByRole("menuitem", { name: "新建文档" });
-    expect(newDocument).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "添加资料" })).toBeTruthy();
+    const addMaterial = screen.getByRole("menuitem", { name: "添加资料" });
+    expect(addMaterial).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "新建文档" })).toBeNull();
+    expect(screen.queryByLabelText("项目操作")).toBeNull();
 
-    fireEvent.click(newDocument);
-    expect(await screen.findByRole("dialog", { name: "新建文档" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "文件" }).getAttribute("aria-selected")).toBe("true");
-
-    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "新建文档" })).toBeNull());
-    fireEvent.click(screen.getByLabelText("新建项目内容"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "添加资料" }));
+    fireEvent.click(addMaterial);
     expect(await screen.findByRole("dialog", { name: "添加资料" })).toBeTruthy();
+  });
+
+  it("opens the reused AI conversation workbench when creating a task", async () => {
+    installApi();
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByLabelText("新建项目内容"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "新建任务" }));
+
+    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(screen.getByText("从资料到创作，让 AI 帮你推进")).toBeTruthy();
+    expect(screen.getByLabelText("AI 消息")).toBeTruthy();
+    expect(screen.queryByText("基于“AI 安全”开始创作")).toBeNull();
+  });
+
+  it("renames and deletes a task from its row menu", async () => {
+    const task = {
+      taskId: "task-1",
+      projectName: summary.name,
+      title: "暑期保养预告海报",
+      sessionId: null,
+      providerId: "codex-native",
+      status: "active",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const renamedTask = { ...task, title: "暑期保养海报" };
+    const renameProjectTask = vi.fn(async () => renamedTask);
+    const archiveProjectTask = vi.fn(async () => ({ ...renamedTask, status: "archived" }));
+    installApi({
+      listProjectTasks: vi.fn(async () => [task]),
+      renameProjectTask,
+      archiveProjectTask
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    const taskButton = (await screen.findByText("暑期保养预告海报")).closest("button")!;
+    fireEvent.click(taskButton);
+    expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "任务操作：暑期保养预告海报" }));
+    const taskMenu = await screen.findByRole("menu", { name: "暑期保养预告海报的任务操作" });
+    fireEvent.click(within(taskMenu).getByRole("menuitem", { name: "重命名" }));
+
+    const renameDialog = await screen.findByRole("dialog", { name: "重命名任务" });
+    fireEvent.change(within(renameDialog).getByLabelText("任务名称"), { target: { value: "暑期保养海报" } });
+    fireEvent.click(within(renameDialog).getByRole("button", { name: "保存" }));
+
+    await waitFor(() => expect(renameProjectTask).toHaveBeenCalledWith({
+      projectName: "AI 安全",
+      taskId: "task-1",
+      title: "暑期保养海报"
+    }));
+    expect((await screen.findByText("暑期保养海报")).closest("button")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "任务操作：暑期保养海报" }));
+    const renamedMenu = await screen.findByRole("menu", { name: "暑期保养海报的任务操作" });
+    fireEvent.click(within(renamedMenu).getByRole("menuitem", { name: "删除" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "删除任务" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "删除" }));
+
+    await waitFor(() => expect(archiveProjectTask).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1" }));
+    await waitFor(() => expect(screen.queryByText("暑期保养海报")).toBeNull());
+    expect(await screen.findByText("新会话")).toBeTruthy();
   });
 
   it("shows active and archived projects in one flat list without status headings", async () => {

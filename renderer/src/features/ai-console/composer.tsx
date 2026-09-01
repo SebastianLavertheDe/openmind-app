@@ -133,7 +133,17 @@ async function ingestPastedImage(
   }
 }
 
-export function ChatComposer() {
+export type ChatDraftSubmitInput = {
+  prompt: string;
+  providerId: string;
+  permissionProfile: PermissionProfile;
+  interactionMode: InteractionMode;
+  contexts: ContextReference[];
+};
+
+export type ChatDraftSubmitHandler = (input: ChatDraftSubmitInput) => Promise<void>;
+
+export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmitHandler } = {}) {
   const ai = useAi();
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const projectName = ai.snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || ai.snapshot.projectRoot;
@@ -146,6 +156,7 @@ export function ChatComposer() {
   const [fileLoading, setFileLoading] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [customSending, setCustomSending] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLElement>(null);
@@ -239,7 +250,7 @@ export function ChatComposer() {
   }, [activeSuggestion, suggestionCount]);
 
   const submit = async () => {
-    if (!ai.draft.trim() || ai.isSending) return;
+    if (!ai.draft.trim() || ai.isSending || customSending) return;
     const skillInvocation = parseSkillSlashInvocation(ai.draft, ai.skills);
     const validationError = skillInvocation ? null : slashCommandValidationError(ai.draft, ai.pendingContexts);
     if (validationError) {
@@ -249,9 +260,23 @@ export function ChatComposer() {
     setTrigger(null);
     setLocalError(null);
     try {
-      await ai.send(ai.draft, { providerId, permissionProfile, interactionMode });
-    } catch {
+      if (onDraftSubmit) {
+        setCustomSending(true);
+        await onDraftSubmit({
+          prompt: ai.draft,
+          providerId,
+          permissionProfile,
+          interactionMode,
+          contexts: ai.pendingContexts
+        });
+      } else {
+        await ai.send(ai.draft, { providerId, permissionProfile, interactionMode });
+      }
+    } catch (cause) {
+      if (onDraftSubmit) setLocalError(cause instanceof Error ? cause.message : String(cause));
       // The controller keeps the draft and exposes the actionable error.
+    } finally {
+      setCustomSending(false);
     }
   };
 
@@ -528,7 +553,7 @@ export function ChatComposer() {
                 className={`composer-send${visibleActiveRun ? " danger" : ""}`}
                 disabled={visibleActiveRun
                   ? visibleActiveRun.status === "applying"
-                  : ai.isSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
+                  : ai.isSending || customSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
                 aria-label={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.send}
                 title={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.sendShortcut}
                 onClick={() => visibleActiveRun ? void ai.cancel(visibleActiveRun.id) : void submit()}
@@ -536,7 +561,7 @@ export function ChatComposer() {
                 {visibleActiveRun ? (
                   <span key="stop" className="composer-send-icon" aria-hidden="true"><Square size={16} /></span>
                 ) : (
-                  <ComposerSendIcon loading={ai.isSending} />
+                  <ComposerSendIcon loading={ai.isSending || customSending} />
                 )}
               </button>
             </div>

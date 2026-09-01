@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSnapshot, DesktopApi } from "@shared/contracts";
+import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
+import { messages as m } from "@shared/messages";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
@@ -177,6 +178,93 @@ describe("Project output persistence", () => {
 });
 
 describe("Project task recovery", () => {
+  it("creates a Project task from the reused conversation composer", async () => {
+    const createdTask = {
+      taskId: "task-1",
+      projectName: project.name,
+      title: "生成项目报告",
+      sessionId: null,
+      providerId: "codex-native",
+      status: "active" as const,
+      createdAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const session: AiSession = {
+      schemaVersion: 1,
+      id: "session-1",
+      projectId: "project",
+      projectRoot: "/project/AI 安全",
+      scope: { type: "project-task", projectName: project.name, taskId: createdTask.taskId },
+      provider: "codex",
+      providerId: "codex-native",
+      providerSessionId: null,
+      cwd: ".",
+      title: createdTask.title,
+      permissionProfile: "read-only",
+      interactionMode: "default",
+      status: "running",
+      pinned: false,
+      archived: false,
+      createdAt: createdTask.createdAt,
+      updatedAt: createdTask.updatedAt,
+      lastRunId: "run-1"
+    };
+    const run: AiRun = {
+      schemaVersion: 1,
+      id: "run-1",
+      sessionId: session.id,
+      projectId: session.projectId,
+      scope: session.scope,
+      provider: "codex",
+      providerId: "codex-native",
+      permissionProfile: "read-only",
+      interactionMode: "default",
+      status: "running",
+      prompt: "生成项目报告",
+      contexts: [],
+      turnContext: null,
+      workspacePath: null,
+      baseCommit: null,
+      startedAt: createdTask.createdAt,
+      completedAt: null,
+      error: null,
+      changeSet: null,
+      risks: []
+    };
+    const boundTask = { ...createdTask, sessionId: session.id };
+    let refreshedSnapshot = snapshot;
+    const createProjectTask = vi.fn(async () => createdTask);
+    const projectStartTaskRun = vi.fn(async () => {
+      refreshedSnapshot = { ...snapshot, sessions: [session], runs: [run] };
+      return { task: boundTask, session, run };
+    });
+    installApi({
+      aiRefresh: vi.fn(async () => refreshedSnapshot),
+      listProjectTasks: vi.fn(async () => []),
+      createProjectTask,
+      projectStartTaskRun
+    });
+    const view = renderWithAi(<ProjectTasksPanel project={{ ...project, taskCount: 0 }} createRequested seed={{ prompt: "生成项目报告" }} onCreateHandled={vi.fn()} onChanged={vi.fn()} />);
+
+    const send = await screen.findByRole("button", { name: m.ai.composer.send });
+    await waitFor(() => expect((send as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(send);
+
+    await waitFor(() => expect(createProjectTask).toHaveBeenCalledWith({
+      projectName: project.name,
+      title: "生成项目报告",
+      providerId: "codex-native"
+    }));
+    expect(projectStartTaskRun).toHaveBeenCalledWith({
+      projectName: project.name,
+      taskId: createdTask.taskId,
+      providerId: "codex-native",
+      prompt: "生成项目报告"
+    });
+    await waitFor(() => expect(view.container.querySelector(".project-task-row.active")).toBeTruthy());
+    expect(view.container.querySelector(".project-task-session-bar")).toBeTruthy();
+  });
+
   it("keeps and selects a created task when starting its run fails", async () => {
     const createdTask = {
       taskId: "task-1",
@@ -200,9 +288,11 @@ describe("Project task recovery", () => {
     });
     renderWithAi(<ProjectTasksPanel project={{ ...project, taskCount: 0 }} createRequested seed={{ title: "保留任务", prompt: "生成报告" }} onCreateHandled={vi.fn()} onChanged={onChanged} />);
 
-    const start = await screen.findByRole("button", { name: "开始任务" });
-    await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(start);
+    const composer = await screen.findByLabelText(m.ai.composer.messageInput);
+    expect((composer as HTMLTextAreaElement).value).toBe("生成报告");
+    const send = screen.getByRole("button", { name: m.ai.composer.send });
+    await waitFor(() => expect((send as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(send);
 
     expect(await screen.findByText("运行启动失败")).toBeTruthy();
     expect(screen.getByRole("button", { name: /保留任务.*失败/ })).toBeTruthy();
@@ -281,5 +371,50 @@ describe("Project material truncation", () => {
     expect((copy as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(copy);
     expect(createProjectOutput).not.toHaveBeenCalled();
+  });
+});
+
+describe("Project material creation", () => {
+  it("shows file upload and URL input together in the add-material dialog", async () => {
+    installApi({ listProjectMaterials: vi.fn(async () => []) });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    const dialog = await screen.findByRole("dialog", { name: "添加资料" });
+    expect(within(dialog).getByRole("button", { name: "上传文件" })).toBeTruthy();
+    expect(within(dialog).getByRole("textbox", { name: "资料 URL" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "添加链接" })).toBeTruthy();
+    expect(within(dialog).getByText("0/1")).toBeTruthy();
+    expect(within(dialog).queryByRole("tablist", { name: "资料来源" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "取消" })).toBeNull();
+  });
+
+  it("opens the existing file picker from the upload area", async () => {
+    const addProjectFiles = vi.fn(async () => []);
+    installApi({ listProjectMaterials: vi.fn(async () => []), addProjectFiles });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "上传文件" }));
+    await waitFor(() => expect(addProjectFiles).toHaveBeenCalledWith({ projectName: project.name }));
+  });
+
+  it("adds the entered URL through the existing material API", async () => {
+    const linkedMaterial = {
+      projectName: project.name,
+      relativePath: "materials/example.md",
+      title: "示例网页",
+      kind: "web",
+      status: "ready",
+      source: { type: "url", url: "https://example.com" },
+      sourceUrl: "https://example.com",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const addProjectUrl = vi.fn(async () => linkedMaterial);
+    installApi({ listProjectMaterials: vi.fn(async () => []), addProjectUrl });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "资料 URL" }), { target: { value: "https://example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加链接" }));
+    await waitFor(() => expect(addProjectUrl).toHaveBeenCalledWith({ projectName: project.name, url: "https://example.com" }));
   });
 });

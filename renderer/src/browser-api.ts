@@ -337,7 +337,7 @@ export function installBrowserPreviewApi(): boolean {
     const project: ProjectSummary = {
       ...current,
       materialCount: previewProjectMaterials.filter((item) => item.projectName === name).length,
-      taskCount: previewProjectTasks.filter((item) => item.projectName === name).length,
+      taskCount: previewProjectTasks.filter((item) => item.projectName === name && item.status !== "archived").length,
       outputCount: previewProjectOutputs.filter((item) => item.output.projectName === name).length
     };
     previewProjects = previewProjects.map((item) => item.name === name ? project : item);
@@ -467,11 +467,18 @@ export function installBrowserPreviewApi(): boolean {
       previewProjectDetail(projectName);
       return task;
     },
-    listProjectTasks: async (projectName) => previewProjectTasks.filter((task) => task.projectName === projectName),
+    listProjectTasks: async (projectName) => previewProjectTasks.filter((task) => task.projectName === projectName && task.status !== "archived"),
     listProjectTaskMessages: async ({ projectName, taskId }) => {
       const task = previewProjectTasks.find((item) => item.projectName === projectName && item.taskId === taskId);
       if (!task) throw new Error("任务不存在");
       return [] as ProjectTaskMessage[];
+    },
+    renameProjectTask: async ({ projectName, taskId, title }) => {
+      const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
+      if (!current) throw new Error("任务不存在");
+      const task: ProjectTask = { ...current, title, updatedAt: new Date().toISOString() };
+      previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
+      return task;
     },
     archiveProjectTask: async ({ projectName, taskId }) => {
       const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);

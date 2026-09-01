@@ -13,7 +13,7 @@ import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { ContentPreview } from "../../components/ContentPreview";
-import { Chat } from "./Chat";
+import { Chat, type ChatDraftSubmitHandler } from "./Chat";
 import { FilePreviewProvider } from "./file-preview-context";
 import {
   DEFAULT_PREVIEW_RATIO,
@@ -39,13 +39,17 @@ type PreviewMode = "preview" | "edit";
 export function AiWorkbench({
   restoredPreviewPath = null,
   onPreviewPathChange,
-  projectMode = false
+  projectMode = false,
+  onDraftSubmit
 }: {
   restoredPreviewPath?: string | null;
   onPreviewPathChange?: (path: string | null) => void;
   /** Project Tasks have a separate content API/root. Until a Project-scoped
    * preview bridge is supplied, suppress the global editable file preview. */
   projectMode?: boolean;
+  /** Lets a Project reuse the complete AI conversation UI while preserving
+   * its own task creation and persistence boundary. */
+  onDraftSubmit?: ChatDraftSubmitHandler;
 } = {}) {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
@@ -427,7 +431,7 @@ export function AiWorkbench({
               </button> : null}
             </div>
           </header>
-          <Chat />
+          <Chat onDraftSubmit={onDraftSubmit} />
         </main> : null}
         {!projectMode && historyPresence.visible ? createPortal(
           <div

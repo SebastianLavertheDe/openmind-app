@@ -53,6 +53,20 @@ describe("ProjectService", () => {
     expect(restarted.resolveProjectRoot("研究 2026")).toBe(projectRoot);
   });
 
+  it("persists task renames and hides archived tasks from visible counts", () => {
+    const { root, service } = fixture();
+    service.createProject({ name: "Task actions" });
+    const task = service.createProjectTask("Task actions", "旧标题", "provider-a");
+
+    expect(service.renameProjectTask("Task actions", task.taskId, "新标题").title).toBe("新标题");
+    expect(new ProjectService(root).listProjectTasks("Task actions")[0]?.title).toBe("新标题");
+
+    service.archiveProjectTask("Task actions", task.taskId);
+    expect(service.listProjectTasks("Task actions")).toEqual([]);
+    expect(service.getProject("Task actions").project.taskCount).toBe(0);
+    expect(service.getProjectTask("Task actions", task.taskId).status).toBe("archived");
+  });
+
   it("imports ordinary UTF-8 MD/TXT files, deduplicates content and protects control filenames", async () => {
     const { imports, service } = fixture();
     service.createProject({ name: "Materials" });
