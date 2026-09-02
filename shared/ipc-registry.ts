@@ -122,7 +122,7 @@ export const IPC_INVOKE_REGISTRY = [
 export type IpcInvokeMethod = (typeof IPC_INVOKE_REGISTRY)[number]["method"];
 export type IpcInvokeChannel = (typeof IPC_INVOKE_REGISTRY)[number]["channel"];
 
-type DesktopInvokeMethods = keyof Omit<DesktopApi, "onAiEvent" | "onSkillEvent" | "onSkillRunEvent" | "onCliInstallProgress">;
+type DesktopInvokeMethods = keyof Omit<DesktopApi, "pathForFile" | "onAiEvent" | "onSkillEvent" | "onSkillRunEvent" | "onCliInstallProgress">;
 
 type RegistryCoversDesktopApi = DesktopInvokeMethods extends IpcInvokeMethod
   ? IpcInvokeMethod extends DesktopInvokeMethods ? true : false

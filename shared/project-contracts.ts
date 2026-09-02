@@ -159,6 +159,12 @@ export type ProjectMaterialRead = z.infer<typeof ProjectMaterialReadSchema>;
 export const ProjectNameInputSchema = z.object({ projectName: ProjectNameSchema });
 export type ProjectNameInput = z.input<typeof ProjectNameInputSchema>;
 
+/** filePaths comes from renderer drag-and-drop (preload webUtils); omit it to open the native picker in Main. */
+export const ProjectAddFilesInputSchema = ProjectNameInputSchema.extend({
+  filePaths: z.array(z.string().min(1).max(4096)).max(100).optional()
+});
+export type ProjectAddFilesInput = z.input<typeof ProjectAddFilesInputSchema>;
+
 export const ProjectAddUrlInputSchema = z.object({
   projectName: ProjectNameSchema,
   url: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。")
@@ -309,7 +315,7 @@ export interface ProjectDesktopApi {
   renameProject(input: ProjectRenameInput): Promise<ProjectDetail>;
   archiveProject(input: ProjectArchiveInput): Promise<ProjectDetail>;
 
-  addProjectFiles(input: ProjectNameInput): Promise<ProjectMaterial[]>;
+  addProjectFiles(input: ProjectAddFilesInput): Promise<ProjectMaterial[]>;
   addProjectUrl(input: ProjectAddUrlInput): Promise<ProjectMaterial>;
   retryMaterialExtraction(input: ProjectMaterialLocator): Promise<ProjectMaterial>;
   removeProjectMaterial(input: ProjectMaterialLocator): Promise<boolean>;

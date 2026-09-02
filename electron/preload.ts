@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopApi } from "../shared/contracts";
 import { IPC } from "../shared/ipc-channels";
 import { createDesktopInvokeBridge } from "../shared/ipc-bridge";
@@ -7,6 +7,7 @@ const invokeBridge = createDesktopInvokeBridge((channel, ...args) => ipcRenderer
 
 const api: DesktopApi = {
   ...invokeBridge,
+  pathForFile: (file) => webUtils.getPathForFile(file),
   onAiEvent: (callback) => {
     const listener = (_: unknown, payload: unknown) => callback(payload as never);
     ipcRenderer.on("ai:push", listener);

@@ -165,7 +165,7 @@ describe("CliInstallerService", () => {
     });
   });
 
-  it("probes the current version from a system PATH CLI", async () => {
+  it("offers an app-private automatic update for a system PATH CLI", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     const commandRunner = vi.fn(async () => ({ stdout: "2.1.177 (Claude Code)", stderr: "" }));
     const transport: CliInstallerTransport = vi.fn(async (url) => {
@@ -185,7 +185,7 @@ describe("CliInstallerService", () => {
       currentVersion: "2.1.177",
       latestVersion: "2.1.233",
       updateAvailable: true,
-      canUpgrade: false,
+      canUpgrade: true,
       source: "official"
     });
     expect(commandRunner).toHaveBeenCalledWith(

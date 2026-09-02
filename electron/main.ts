@@ -10,6 +10,7 @@ import {
 import { ProductService } from "./product/product-service";
 import { ProjectService } from "./project/project-service";
 import { createDefaultProjectMaterialConverters } from "./project/converters/project-material-converters";
+import { registerYoutubeEmbedRequestPolicy } from "./project/youtube-embed-request";
 import { globalSearch } from "./product/global-search";
 import { OpenmindFileSearch } from "./openmind-file-search";
 import { registerIpcHandlers } from "./ipc-handlers";
@@ -567,6 +568,7 @@ function createWindow(): void {
     }
   });
   mainWindow = window;
+  registerYoutubeEmbedRequestPolicy(window.webContents.session);
   if (process.platform === "win32") {
     const updateTitleBarOverlay = () => {
       if (!window.isDestroyed()) window.setTitleBarOverlay(windowsTitleBarOverlay(nativeTheme.shouldUseDarkColors));

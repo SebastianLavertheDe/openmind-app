@@ -522,12 +522,22 @@
 }
 
 .settings-provider-version-actions {
-  min-width: 0;
-  display: inline-flex;
+  min-width: 230px;
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto;
+  grid-template-areas:
+    "copy action"
+    "error error";
   align-items: center;
-  justify-content: flex-end;
-  gap: 7px;
-  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.settings-provider-version-copy {
+  grid-area: copy;
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
 }
 
 .settings-provider-version {
@@ -537,10 +547,14 @@
 }
 
 .settings-provider-version-result {
-  flex-basis: 100%;
+  max-width: 190px;
+  margin-top: 0 !important;
+  overflow: visible !important;
   color: var(--muted-2);
   font-size: 10px;
   text-align: right;
+  text-overflow: clip !important;
+  white-space: normal !important;
 }
 
 .settings-provider-version-latest {
@@ -548,7 +562,7 @@
 }
 
 .settings-provider-version-error {
-  flex-basis: 100%;
+  grid-area: error;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -559,6 +573,7 @@
 }
 
 .settings-provider-upgrade {
+  grid-area: action;
   min-height: 28px;
   padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
@@ -566,6 +581,10 @@
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
   color: var(--accent-fg);
   font-size: 11px;
+}
+
+.settings-provider-version-actions > .settings-provider-recheck {
+  grid-area: action;
 }
 
 .settings-provider-upgrade:hover:not(:disabled) {
@@ -1226,6 +1245,23 @@
 .settings-browser-token-controls input:focus {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.settings-browser-token-controls input {
+  border-color: transparent;
+  background: var(--panel-muted);
+}
+
+.settings-browser-token-controls input:hover {
+  background: var(--control-hover);
+}
+
+.settings-browser-token-controls input:focus,
+.settings-browser-token-controls input:focus-visible {
+  border-color: transparent;
+  outline: none;
+  background: var(--panel-muted);
+  box-shadow: none;
 }
 
 .settings-browser-token {

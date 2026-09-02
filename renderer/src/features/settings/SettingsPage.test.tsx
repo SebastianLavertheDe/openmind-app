@@ -280,8 +280,10 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "检查更新" })[0]);
     await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledWith("codex"));
-    expect(await screen.findByRole("button", { name: "一键更新" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "一键更新" }));
+    const updateButton = await screen.findByRole("button", { name: "更新" });
+    expect(screen.getByText("可更新至 v1.1.0")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "重新检查" })).toBeNull();
+    fireEvent.click(updateButton);
     await waitFor(() => expect(upgradeCliTool).toHaveBeenCalledWith("codex"));
     await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledTimes(2));
     expect(screen.getByText("已是最新")).toBeTruthy();

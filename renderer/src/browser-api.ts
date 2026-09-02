@@ -548,6 +548,7 @@ export function installBrowserPreviewApi(): boolean {
     archiveCreativeProject: async (dir) => ({ dir: `${dir}-archived`, stage: "archived", manifest: { topic: "本地 AI 工程工作台", stage: "archived" }, files: { "draft.md": "# 已归档" } }),
     getCreativeAnalytics: async () => ({ total: 1, stages: [{ stage: "drafting", count: 1 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 72 }),
     selectFiles: async () => [],
+    pathForFile: (file) => `/preview/${file.name}`,
     selectOpenmindFiles: async () => [],
     searchOpenmindFiles: async (query, limit = 40) => {
       const files = [

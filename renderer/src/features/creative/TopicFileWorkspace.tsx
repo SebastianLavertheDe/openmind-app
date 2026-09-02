@@ -8,13 +8,13 @@ export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, o
   return <>
     <header className="creative-document-header topic-file-header">
       <div><div className="document-status"><StatusBadge tone="info">{m.creativeUi.topicFile.badge}</StatusBadge><span>{dirty ? m.creativeUi.topicFile.dirty : m.creativeUi.topicFile.saved}</span></div><h1>{file.name || file.path.split(/[\\/]/).at(-1)}</h1><p>{file.path}</p></div>
-      <div>
+      <div className="topic-file-actions">
         <div className="preview-mode-toggle" role="group" aria-label={m.creativeUi.topicFile.viewMode}>
           <button data-motion="selection" className={mode === "preview" ? "active" : ""} onClick={() => onMode("preview")}><Eye size={13} />{m.creativeUi.topicFile.preview}</button>
           <button data-motion="selection" className={mode === "edit" ? "active" : ""} disabled={file.truncated} onClick={() => onMode("edit")}><Pencil size={13} />{m.creativeUi.topicFile.edit}</button>
         </div>
-        <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? m.creativeUi.topicFile.saving : m.creativeUi.topicFile.save}</button>
-        <button data-motion="action" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={14} />{m.creativeUi.topicFile.open}</button>
+        <button className="topic-file-action topic-file-save-action" data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? m.creativeUi.topicFile.saving : m.creativeUi.topicFile.save}</button>
+        <button className="topic-file-action" data-motion="action" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={14} />{m.creativeUi.topicFile.open}</button>
       </div>
     </header>
     <div className={`creative-topic-file-content ${mode}`}>

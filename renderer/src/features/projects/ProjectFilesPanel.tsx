@@ -56,6 +56,8 @@ export function ProjectFilesPanel({
   confirmRef.current = ai.confirm;
 
   const updateSelection = useCallback((next: ProjectFileSelection | null) => {
+    const current = selectionRef.current;
+    if ((!current && !next) || (current && next && sameSelection(current, next))) return;
     selectionRef.current = next;
     setSelection(next);
   }, []);
@@ -133,6 +135,14 @@ export function ProjectFilesPanel({
     onChanged();
   }, [load, onChanged]);
 
+  const handleMaterialSelection = useCallback((relativePath?: string) => {
+    updateSelection(relativePath ? { kind: "material", relativePath } : null);
+  }, [updateSelection]);
+
+  const handleOutputSelection = useCallback((relativePath?: string) => {
+    updateSelection(relativePath ? { kind: "output", relativePath } : null);
+  }, [updateSelection]);
+
   const list = (
     <>
       <label className="project-pane-filter">
@@ -179,9 +189,7 @@ export function ProjectFilesPanel({
       onCreateTask={onCreateTask}
       onChanged={handleChanged}
       autoSelectFirst={Boolean(activePath)}
-      onSelectionChange={(relativePath) => {
-        updateSelection(relativePath ? { kind: "material", relativePath } : null);
-      }}
+      onSelectionChange={handleMaterialSelection}
       detailHost={detailHost}
     />
   ) : activeKind === "output" ? (
@@ -194,9 +202,7 @@ export function ProjectFilesPanel({
       onChanged={handleChanged}
       onNavigationGuardChange={handleNavigationGuard}
       autoSelectFirst={Boolean(activePath)}
-      onSelectionChange={(relativePath) => {
-        updateSelection(relativePath ? { kind: "output", relativePath } : null);
-      }}
+      onSelectionChange={handleOutputSelection}
       detailHost={detailHost}
     />
   ) : createPortal(

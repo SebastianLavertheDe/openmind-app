@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, ExternalLink, FileOutput, FilePlus2, FileText, Globe2, LoaderCircle, Play, Plus, RefreshCw, Search, Trash2, Upload, Video } from "lucide-react";
 import { useAi } from "../../ai-context";
@@ -48,9 +48,14 @@ export function ProjectMaterialsPanel({
   const [addOpen, setAddOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [retryingPath, setRetryingPath] = useState("");
   const materialsRef = useRef<ProjectMaterial[]>([]);
+  const selectedPathRef = useRef(initialMaterialPath || "");
+  const onSelectionChangeRef = useRef(onSelectionChange);
   materialsRef.current = materials;
+  selectedPathRef.current = selectedPath;
+  onSelectionChangeRef.current = onSelectionChange;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -58,8 +63,9 @@ export function ProjectMaterialsPanel({
   }, [filter, materials, query]);
 
   const openMaterial = useCallback(async (relativePath: string) => {
+    selectedPathRef.current = relativePath;
     setSelectedPath(relativePath);
-    onSelectionChange?.(relativePath);
+    onSelectionChangeRef.current?.(relativePath);
     setError(null);
     const known = materialsRef.current.find((item) => item.relativePath === relativePath);
     if (known && known.status !== "ready") {
@@ -76,7 +82,7 @@ export function ProjectMaterialsPanel({
     } finally {
       setReading(false);
     }
-  }, [onSelectionChange, project.name]);
+  }, [project.name]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,21 +91,22 @@ export function ProjectMaterialsPanel({
       const next = await projectsApi.listMaterials(project.name);
       setMaterials(next);
       materialsRef.current = next;
-      const preferred = next.find((item) => item.relativePath === selectedPath)
+      const preferred = next.find((item) => item.relativePath === selectedPathRef.current)
         || next.find((item) => item.relativePath === initialMaterialPath)
         || (autoSelectFirst ? next[0] : undefined);
       if (preferred) await openMaterial(preferred.relativePath);
       else {
+        selectedPathRef.current = "";
         setSelectedPath("");
         setSelected(null);
-        if (autoSelectFirst) onSelectionChange?.();
+        if (autoSelectFirst) onSelectionChangeRef.current?.();
       }
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [autoSelectFirst, initialMaterialPath, onSelectionChange, openMaterial, project.name]);
+  }, [autoSelectFirst, initialMaterialPath, openMaterial, project.name]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -108,11 +115,13 @@ export function ProjectMaterialsPanel({
     onCreateHandled();
   }, [createRequested, onCreateHandled]);
 
-  const addFiles = async () => {
+  const links = useMemo(() => parseMaterialLinks(url), [url]);
+
+  const addFiles = async (filePaths?: string[]) => {
     if (adding) return;
     setAdding(true);
     try {
-      const created = await projectsApi.addFiles(project.name);
+      const created = await projectsApi.addFiles(project.name, filePaths);
       setAddOpen(false);
       await load();
       if (created[0]?.relativePath) await openMaterial(created[0].relativePath);
@@ -130,22 +139,42 @@ export function ProjectMaterialsPanel({
     }
   };
 
-  const addUrl = async () => {
-    if (!url.trim() || adding) return;
+  const dropFiles = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setDragOver(false);
+    if (adding) return;
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (!files.length) return;
+    const paths = files
+      .map((file) => typeof window.openmind.pathForFile === "function" ? window.openmind.pathForFile(file) : "")
+      .filter(Boolean);
+    if (!paths.length) {
+      ai.notify("无法读取拖入文件的路径，请改用点击上传。", "error");
+      return;
+    }
+    void addFiles(paths);
+  };
+
+  const addUrls = async () => {
+    if (adding || !links.length) return;
     setAdding(true);
+    let created = 0;
+    let first: ProjectMaterial | undefined;
     try {
-      const created = await projectsApi.addUrl(project.name, url.trim());
+      for (const link of links) {
+        const material = await projectsApi.addUrl(project.name, link);
+        created += 1;
+        first ??= material;
+      }
+      ai.notify(created > 1 ? `已添加 ${created} 个链接并完成转换。` : "链接已加入项目并完成转换。", "success");
+    } catch (cause) {
+      ai.notify(created ? `已添加 ${created} 个链接，其余添加失败：${errorText(cause)}` : errorText(cause), "error");
+    } finally {
       setAddOpen(false);
       setUrl("");
       await load();
-      if (created.relativePath) await openMaterial(created.relativePath);
-      ai.notify("链接已加入项目并完成转换。", "success");
+      if (first?.relativePath) await openMaterial(first.relativePath);
       onChanged();
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
-      setAddOpen(false);
-      await load();
-    } finally {
       setAdding(false);
     }
   };
@@ -210,32 +239,35 @@ export function ProjectMaterialsPanel({
       className="project-material-add-dialog"
       showFooter={false}
       onClose={() => setAddOpen(false)}
-      onConfirm={addUrl}
+      onConfirm={addUrls}
     >
       <button
         type="button"
-        className="project-material-upload"
+        className={`project-material-upload${dragOver ? " drag-over" : ""}`}
         aria-label="上传文件"
         disabled={adding}
         onClick={() => void addFiles()}
+        onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={dropFiles}
       >
         <span className="project-material-upload-icon" aria-hidden="true">
           {adding ? <LoaderCircle className="spin" size={22} /> : <Upload size={22} />}
         </span>
-        <strong>{adding ? "正在添加资料…" : "点击上传文件"}</strong>
-        <small>支持 PDF、文档、图片、音频和视频等文件</small>
+        <strong>{adding ? "正在添加资料…" : "拖拽文件到这里，或点击上传文件"}</strong>
+        <small>支持 PDF、文档、图片、音频、视频等</small>
       </button>
       <div className="project-material-url-entry">
         <textarea
           aria-label="资料 URL"
           value={url}
-          placeholder="粘贴 YouTube、播客或任意网页的 URL"
+          placeholder={"或者将链接粘贴到这里，从 YouTube、播客或任意网页添加内容\n如需添加多个链接，请使用空格或换行分隔"}
           disabled={adding}
           onChange={(event) => setUrl(event.target.value)}
         />
         <div className="project-material-url-actions">
-          <span>{url.trim() ? "1/1" : "0/1"}</span>
-          <button type="submit" className="primary-button" disabled={!url.trim() || adding} aria-busy={adding || undefined}>
+          <span>{links.length}/50</span>
+          <button type="submit" className="primary-button" disabled={!links.length || adding} aria-busy={adding || undefined}>
             {adding ? "添加中…" : "添加链接"}
           </button>
         </div>
@@ -444,6 +476,27 @@ function materialStatusLabel(status: ProjectMaterial["status"]): string {
 
 function SparklesIcon() {
   return <span aria-hidden="true">✦</span>;
+}
+
+const MAX_MATERIAL_LINKS = 50;
+
+/** 按空格/换行拆分粘贴内容，只保留 HTTP(S) 链接；按规范化结果去重，上限 50 个。 */
+function parseMaterialLinks(value: string): string[] {
+  const seen = new Set<string>();
+  const links: string[] = [];
+  for (const token of value.split(/\s+/)) {
+    if (!token) continue;
+    try {
+      const parsed = new URL(token);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
+      const normalized = parsed.toString();
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      links.push(token);
+    } catch { /* 非 URL 片段直接忽略。 */ }
+    if (links.length >= MAX_MATERIAL_LINKS) break;
+  }
+  return links;
 }
 
 function errorText(cause: unknown): string {

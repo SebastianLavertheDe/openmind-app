@@ -1172,6 +1172,8 @@ export interface DesktopApi {
   archiveCreativeProject(path: string): Promise<CreativeProjectDetail>;
   getCreativeAnalytics(): Promise<CreativeAnalytics>;
   selectFiles(): Promise<string[]>;
+  /** Resolve the absolute path of a File dropped into the renderer; preload-only (webUtils), never IPC. */
+  pathForFile(file: File): string;
   selectOpenmindFiles(): Promise<string[]>;
   searchOpenmindFiles(query: string, limit?: number): Promise<ProjectFileSearchResult>;
   openPath(path: string): Promise<string>;

@@ -280,8 +280,9 @@ export const projectsApi = {
     return material(await invoke("readProjectMaterial", { projectName, relativePath }));
   },
 
-  async addFiles(projectName: string): Promise<ProjectMaterial[]> {
-    return array(await invoke("addProjectFiles", { projectName })).map(material);
+  async addFiles(projectName: string, filePaths?: string[]): Promise<ProjectMaterial[]> {
+    const input = filePaths?.length ? { projectName, filePaths } : { projectName };
+    return array(await invoke("addProjectFiles", input)).map(material);
   },
 
   async addUrl(projectName: string, url: string): Promise<ProjectMaterial> {

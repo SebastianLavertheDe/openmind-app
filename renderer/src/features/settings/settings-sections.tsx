@@ -180,17 +180,20 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
                   </div> : null}
                 </div> : null}
                 {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
-                  <span className="settings-provider-version">v{provider.version}</span>
-                  {versionCheck?.updateAvailable && versionCheck.canUpgrade ? <button type="button" className="settings-provider-upgrade" data-motion="action" disabled={upgrading || versionCheckBusy !== null} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
+                  <div className="settings-provider-version-copy">
+                    <span className="settings-provider-version">v{provider.version}</span>
+                    {versionCheck ? <small className={`settings-provider-version-result ${!versionCheck.updateAvailable && versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
+                      {versionCheck.updateAvailable ? m.settings.provider.updateAvailable(versionCheck.latestVersion) : versionCheck.latestVersion && versionCheck.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown}
+                    </small> : null}
+                  </div>
+                  {versionCheck?.updateAvailable ? <button type="button" className="settings-provider-upgrade" data-motion="action" disabled={!versionCheck.canUpgrade || upgrading || versionCheckBusy !== null} title={!versionCheck.canUpgrade ? m.settings.provider.upgradeUnavailable : undefined} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
                     {upgrading ? m.settings.provider.updating : m.settings.provider.upgrade}
-                  </button> : versionCheck ? <small className={`settings-provider-version-result ${versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
-                    {versionCheck.updateAvailable ? m.settings.provider.manualUpdate(versionCheck.latestVersion) : versionCheck.latestVersion && versionCheck.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown}
-                  </small> : <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
-                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : m.settings.provider.checkUpdate}
+                  </button> : <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
+                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : versionCheck ? m.settings.provider.recheckUpdate : m.settings.provider.checkUpdate}
                   </button>}
-                  {versionCheck ? <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
-                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : m.settings.provider.recheckUpdate}
-                  </button> : null}
+                  {installError?.cli === provider.provider && !canInstall ? <div className="settings-provider-version-error" role="alert">
+                    <span>{m.settings.provider.upgradeFailed}{installError.message}</span>
+                  </div> : null}
                   {versionError?.cli === provider.provider ? <div className="settings-provider-version-error" role="alert">
                     <span>{m.settings.provider.versionFailed(versionError.message)}</span>
                     <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>{m.settings.provider.retryVersion}</button>

@@ -47,7 +47,6 @@ export function ProjectsPage({
   const [taskSeed, setTaskSeed] = useState<ProjectTaskSeed | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +130,6 @@ export function ProjectsPage({
 
   const openCreateDialog = () => {
     setName("");
-    setDescription("");
     setCreateProjectOpen(true);
   };
 
@@ -152,13 +150,12 @@ export function ProjectsPage({
     if (!projectName || busy) return;
     setBusy(true);
     try {
-      const next = await projectsApi.createProject(projectName, description.trim());
+      const next = await projectsApi.createProject(projectName, "");
       setProjects((current) => [next, ...current.filter((item) => item.name !== next.name)]);
       setActiveProject(next);
       setView("tasks");
       setCreateProjectOpen(false);
       setName("");
-      setDescription("");
       ai.notify(`项目“${next.name}”已创建。`, "success");
     } catch (cause) {
       ai.notify(errorText(cause), "error");
@@ -308,7 +305,6 @@ export function ProjectsPage({
       ) : null}
       <ProjectDialog open={createProjectOpen} title="创建项目" description="项目名会作为本地目录名，请使用清晰且稳定的名称。" confirmLabel="创建项目" busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
         <ProjectTextField label="项目名称" value={name} placeholder="例如：AI 安全研究" autoFocus onChange={setName} />
-        <ProjectTextField label="描述（可选）" value={description} placeholder="这个项目要研究和创作什么？" multiline onChange={setDescription} />
       </ProjectDialog>
     </div>
   );

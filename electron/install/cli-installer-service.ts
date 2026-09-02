@@ -284,13 +284,23 @@ export class CliInstallerService {
       latestVersion = null;
     }
     const comparison = currentVersion && latestVersion ? compareVersions(currentVersion, latestVersion) : null;
+    const managedPlatform = detectCliToolPlatform(this.platform, this.arch);
+    // A CLI discovered on PATH can still be upgraded safely: install the new
+    // version into OpenMind's private tools directory, which providers already
+    // prefer over the user-managed executable. The system installation remains
+    // untouched and no elevated permissions are required.
+    const canUpgrade = Boolean(
+      detected.installed
+      && managedPlatform
+      && (cli === "claude" || this.resolveNodeRuntime())
+    );
     return {
       cli,
       installed: current.installed || detected.installed,
       currentVersion,
       latestVersion,
       updateAvailable: comparison !== null ? comparison < 0 : false,
-      canUpgrade: current.installed && Boolean(current.digest),
+      canUpgrade,
       checkedAt: new Date().toISOString(),
       source: current.installed || detected.installed ? source : "unknown"
     };

@@ -41,6 +41,7 @@ import { messages } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import {
+  ProjectAddFilesInputSchema,
   ProjectAddUrlInputSchema,
   ProjectAiRunResultSchema,
   ProjectArchiveInputSchema,
@@ -48,7 +49,6 @@ import {
   ProjectCreateOutputInputSchema,
   ProjectCreateTaskInputSchema,
   ProjectMaterialLocatorSchema,
-  ProjectNameInputSchema,
   ProjectNameSchema,
   ProjectOutputLocatorSchema,
   ProjectRenameInputSchema,
@@ -651,17 +651,23 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.addProjectFiles,
       handler: async (rawInput) => {
-        const input = ProjectNameInputSchema.parse(rawInput);
-        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "添加项目资料",
-          properties: ["openFile", "multiSelections"],
-          filters: [
-            { name: "支持的项目资料", extensions: ["md", "markdown", "txt", "pdf", "docx", "pptx", "xlsx"] },
-            { name: "All Files", extensions: ["*"] }
-          ]
-        });
-        if (result.canceled || result.filePaths.length === 0) return [];
-        return projects().addProjectFiles(input.projectName, result.filePaths);
+        const input = ProjectAddFilesInputSchema.parse(rawInput);
+        // Drag-and-drop supplies paths from the renderer; without them Main opens the native picker.
+        const filePaths = input.filePaths?.length
+          ? input.filePaths
+          : await (async () => {
+            const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+              title: "添加项目资料",
+              properties: ["openFile", "multiSelections"],
+              filters: [
+                { name: "支持的项目资料", extensions: ["md", "markdown", "txt", "pdf", "docx", "pptx", "xlsx"] },
+                { name: "All Files", extensions: ["*"] }
+              ]
+            });
+            return result.canceled ? [] : result.filePaths;
+          })();
+        if (filePaths.length === 0) return [];
+        return projects().addProjectFiles(input.projectName, filePaths);
       }
     },
     {

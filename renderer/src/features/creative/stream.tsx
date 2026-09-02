@@ -30,16 +30,14 @@ export function FunnelBar({
   active: StreamFilter;
   onSelect(value: StreamFilter): void;
 }) {
-  const attentionBucket = (["pending", "drafting"] as Bucket[]).find((bucket) => counts[bucket] > 0);
   return (
     <nav className="creative-funnel" aria-label={m.creativeUi.stream.funnelAria}>
-      {BUCKETS.map((bucket, index) => (
+      {BUCKETS.map((bucket) => (
         <span key={bucket.id} className="funnel-step">
-          {index > 0 ? <span className="funnel-arrow" aria-hidden>›</span> : null}
           <button
             type="button"
             data-motion="selection"
-            className={`funnel-segment${active === bucket.id ? " active" : ""}${attentionBucket === bucket.id ? " pulse" : ""}`}
+            className={`funnel-segment${active === bucket.id ? " active" : ""}`}
             aria-pressed={active === bucket.id}
             onClick={() => onSelect(active === bucket.id ? "all" : bucket.id)}
           >

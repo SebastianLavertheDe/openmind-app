@@ -716,6 +716,7 @@
   text-align: center;
 }
 .project-material-upload:hover:not(:disabled) { border-color: var(--muted-2); background: var(--control-hover); }
+.project-material-upload.drag-over { border-color: var(--brand-accent); background: var(--brand-accent-tint); }
 .project-material-upload:focus-visible { outline-offset: 3px; }
 .project-material-upload:disabled { cursor: wait; opacity: .72; }
 .project-material-upload-icon {

@@ -1188,9 +1188,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .ai-sidebar.mode-wide { width: var(--ai-sidebar-width); }
 .ai-sidebar.mode-full { position: fixed; z-index: var(--z-overlay); inset: 0; width: auto; }
 .ai-sidebar-resizer { position: absolute; z-index: 3; top: 0; bottom: 0; left: -6px; width: 12px; cursor: col-resize; }
-.ai-sidebar-resizer::after { content: ""; position: absolute; top: 50%; left: 5px; width: 2px; height: 44px; border-radius: 1px; background: var(--border-strong); }
-.ai-sidebar-resizer:hover::after { background: var(--accent); }
-.ai-sidebar-resizer:focus-visible::after { width: 3px; background: var(--accent); }
+.ai-sidebar-resizer::after { display: none; }
 .ai-sidebar > header { min-height: 60px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 190px) auto; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .ai-sidebar > header strong { display: block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .ai-sidebar > header > div:last-child { display: flex; gap: 2px; }
@@ -1355,15 +1353,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .creative-page-header .ui-page-header { padding: 0; }
 .creative-funnel { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: var(--space-3) 0 0; }
 .funnel-step { display: inline-flex; align-items: center; gap: 2px; }
-.funnel-arrow { color: var(--muted-2); font-size: 12px; padding: 0 1px; }
 .funnel-segment { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); padding: 6px 13px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-dim); font-size: var(--fs-caption); transition: border-color var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), color var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), background var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .funnel-segment:hover { border-color: var(--accent); color: var(--text); }
 .funnel-segment .funnel-label { line-height: 1; }
 .funnel-segment b { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .funnel-segment.active { border-color: transparent; background: var(--surface-hover); color: var(--text); }
 .funnel-segment.active b { color: var(--text); }
-.funnel-segment.pulse::before { content: ""; position: absolute; top: 4px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: funnel-pulse 1.6s ease-in-out infinite; }
-@keyframes funnel-pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.25); } }
 .creative-stream { gap: 4px; }
 .creative-stream-card { position: relative; align-items: stretch; }
 .creative-stream-card .creative-item-main { padding-left: 0; }

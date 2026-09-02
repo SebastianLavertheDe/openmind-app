@@ -781,59 +781,59 @@ select:focus-visible,
 .document-detail-header > div:first-child { min-width: 0; }
 .document-detail-header h2 { margin: 1px 0 0; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .document-detail-header p { max-width: 52vw; margin: 3px 0 0; overflow: hidden; color: var(--muted-2); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.document-detail-actions { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+.document-detail-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .document-detail-actions .preview-mode-toggle {
-  height: 38px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px;
+  padding: 0;
   border: 0;
-  border-radius: 11px;
-  background: var(--panel-muted);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 74%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
 }
 .document-detail-actions .preview-mode-toggle button {
-  min-width: 72px;
+  min-width: 0;
   height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 0 12px;
+  gap: 5px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 560;
+  font-weight: 500;
 }
-.document-detail-actions .preview-mode-toggle button:hover:not(:disabled) { background: color-mix(in srgb, var(--page-bg) 72%, transparent); color: var(--text); }
+.document-detail-actions .preview-mode-toggle button:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
 .document-detail-actions .preview-mode-toggle button.active {
-  background: var(--page-bg);
-  color: var(--brand-accent-strong);
-  box-shadow: 0 1px 2px rgba(20, 20, 20, .08), 0 3px 9px rgba(20, 20, 20, .05);
+  background: var(--panel-muted);
+  color: var(--text);
+  box-shadow: none;
 }
-.document-file-actions { display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border-subtle); }
+.document-file-actions { display: flex; align-items: center; gap: 2px; padding-left: 0; border-left: 0; }
 .document-file-actions .ui-responsive-action {
-  min-height: 36px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 0 13px;
-  border: 1px solid var(--workspace-border);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--page-bg) 92%, var(--panel-muted));
-  color: var(--text-dim);
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
   font-size: 12px;
-  font-weight: 570;
-  box-shadow: 0 1px 2px rgba(20, 20, 20, .035);
+  font-weight: 500;
+  box-shadow: none;
 }
-.document-file-actions .ui-responsive-action:hover:not(:disabled) { border-color: var(--border-strong); background: var(--control-hover); color: var(--text); }
-.document-file-actions .document-save-button:not(:disabled) { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast); }
-.document-file-actions .document-save-button:not(:disabled):hover { background: var(--accent-strong); }
-.document-file-actions .ui-responsive-action:disabled { border-color: transparent; background: var(--panel-muted); color: var(--muted-2); box-shadow: none; opacity: .72; }
+.document-file-actions .ui-responsive-action:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
+.document-file-actions .document-save-button:not(:disabled) { background: var(--panel-muted); color: var(--text); }
+.document-file-actions .document-save-button:not(:disabled):hover { background: var(--control-hover); }
+.document-file-actions .ui-responsive-action:disabled { background: transparent; color: var(--muted-2); box-shadow: none; opacity: .5; }
 .document-content { min-height: 0; flex: 1; overflow: auto; }
 /* MOTION-P1-001: Preview/Edit 模式切换 crossfade。key={mode} 驱动重挂载。 */
 .view-fade, .document-content-view { min-height: 0; height: 100%; display: flex; flex-direction: column; animation: view-switch-in var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
@@ -1356,29 +1356,26 @@ select:focus-visible,
 }
 
 .creative-funnel {
-  gap: 4px;
-  padding: 8px 12px 10px;
+  gap: 2px;
+  padding: 8px 10px 10px;
   border: 0;
   background: var(--page-bg);
 }
 
 .funnel-step {
-  gap: 3px;
+  gap: 0;
   color: var(--muted);
-}
-
-.funnel-arrow {
-  padding-inline: 2px;
-  opacity: .42;
 }
 
 .funnel-segment {
-  min-height: 32px;
-  padding: 0 11px;
+  min-height: 30px;
+  gap: 5px;
+  padding: 0 10px;
   border-color: transparent;
-  border-radius: 7px;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
+  font-size: 12px;
   transition: background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 
@@ -1390,9 +1387,9 @@ select:focus-visible,
 
 .funnel-segment.active {
   border-color: transparent;
-  background: var(--list-selected-bg);
+  background: var(--panel-muted);
   color: var(--text);
-  font-weight: 650;
+  font-weight: 500;
   box-shadow: none;
 }
 
@@ -1630,7 +1627,41 @@ select:focus-visible,
 }
 .stream-date-group > summary em { margin-left: auto; color: var(--muted-2); font-size: 10px; font-style: normal; font-weight: 500; }
 .stream-date-group > summary b { margin-left: 8px; }
-.topic-file-header .preview-mode-toggle { margin-right: 2px; }
+.topic-file-header .topic-file-actions { gap: 2px; }
+.topic-file-header .preview-mode-toggle {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+.topic-file-header .preview-mode-toggle button,
+.topic-file-header .topic-file-action {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.topic-file-header .preview-mode-toggle button:hover:not(:disabled),
+.topic-file-header .topic-file-action:hover:not(:disabled) { border-color: transparent; background: var(--control-hover); color: var(--text); }
+.topic-file-header .preview-mode-toggle button.active,
+.topic-file-header .topic-file-save-action:not(:disabled) { background: var(--panel-muted); color: var(--text); box-shadow: none; }
+.topic-file-header .topic-file-action:disabled { background: transparent; color: var(--muted-2); opacity: .5; }
 .creative-topic-file-content { min-height: 0; flex: 1; overflow: auto; }
 .creative-topic-file-content .reader-markdown { margin: 0 auto; padding: 40px 54px 90px; }
 .creative-topic-file-content textarea { width: 100%; height: 100%; min-height: 420px; resize: none; padding: 34px 42px 90px; border: 0; outline: 0; background: #fcfcfb; color: var(--text); font: 14px/1.75 ui-monospace, "SFMono-Regular", Consolas, monospace; }

@@ -4,6 +4,7 @@ import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts
 import { messages as m } from "@shared/messages";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
+import { ProjectFilesPanel } from "./ProjectFilesPanel";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
 import { ProjectOutputsPanel, type ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
 import { ProjectTasksPanel } from "./ProjectTasksPanel";
@@ -374,6 +375,56 @@ describe("Project material truncation", () => {
   });
 });
 
+describe("Project file selection", () => {
+  it("does not repeatedly read an already selected YouTube material", async () => {
+    const videoMaterial = {
+      projectName: project.name,
+      relativePath: "materials/videos/Uny6Lpmjral.video.md",
+      title: "YouTube Uny6Lpmjral",
+      kind: "video",
+      status: "ready",
+      source: { type: "url", url: "https://www.youtube.com/watch?v=Uny6Lpmjral" },
+      sourceUrl: "https://www.youtube.com/watch?v=Uny6Lpmjral",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const readProjectMaterial = vi.fn(async () => ({
+      material: videoMaterial,
+      content: "# YouTube Uny6Lpmjral",
+      video: { provider: "youtube", videoId: "Uny6Lpmjral", transcript: [] }
+    }));
+    installApi({
+      listProjectMaterials: vi.fn(async () => [videoMaterial]),
+      listProjectOutputs: vi.fn(async () => []),
+      readProjectMaterial
+    });
+    const listHost = document.createElement("div");
+    const detailHost = document.createElement("div");
+    document.body.append(listHost, detailHost);
+
+    const view = renderWithAi(
+      <ProjectFilesPanel
+        project={project}
+        initialSection="materials"
+        initialItem={videoMaterial.relativePath}
+        createRequested={null}
+        onCreateHandled={vi.fn()}
+        onCreateTask={vi.fn()}
+        onChanged={vi.fn()}
+        listHost={listHost}
+        detailHost={detailHost}
+      />
+    );
+
+    expect(await within(detailHost).findByText("当前链接无法安全内嵌播放")).toBeTruthy();
+    await waitFor(() => expect(readProjectMaterial).toHaveBeenCalledTimes(1));
+
+    view.unmount();
+    listHost.remove();
+    detailHost.remove();
+  });
+});
+
 describe("Project material creation", () => {
   it("shows file upload and URL input together in the add-material dialog", async () => {
     installApi({ listProjectMaterials: vi.fn(async () => []) });
@@ -383,7 +434,7 @@ describe("Project material creation", () => {
     expect(within(dialog).getByRole("button", { name: "上传文件" })).toBeTruthy();
     expect(within(dialog).getByRole("textbox", { name: "资料 URL" })).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "添加链接" })).toBeTruthy();
-    expect(within(dialog).getByText("0/1")).toBeTruthy();
+    expect(within(dialog).getByText("0/50")).toBeTruthy();
     expect(within(dialog).queryByRole("tablist", { name: "资料来源" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "取消" })).toBeNull();
   });
@@ -395,6 +446,20 @@ describe("Project material creation", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "上传文件" }));
     await waitFor(() => expect(addProjectFiles).toHaveBeenCalledWith({ projectName: project.name }));
+  });
+
+  it("adds dropped files through their resolved local paths", async () => {
+    const addProjectFiles = vi.fn(async () => []);
+    installApi({
+      listProjectMaterials: vi.fn(async () => []),
+      addProjectFiles,
+      pathForFile: vi.fn((file: File) => `/tmp/${file.name}`)
+    });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    const dropzone = await screen.findByRole("button", { name: "上传文件" });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [new File(["x"], "a.pdf"), new File(["y"], "b.md")] } });
+    await waitFor(() => expect(addProjectFiles).toHaveBeenCalledWith({ projectName: project.name, filePaths: ["/tmp/a.pdf", "/tmp/b.md"] }));
   });
 
   it("adds the entered URL through the existing material API", async () => {
@@ -416,5 +481,31 @@ describe("Project material creation", () => {
     fireEvent.change(await screen.findByRole("textbox", { name: "资料 URL" }), { target: { value: "https://example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "添加链接" }));
     await waitFor(() => expect(addProjectUrl).toHaveBeenCalledWith({ projectName: project.name, url: "https://example.com" }));
+  });
+
+  it("adds every pasted link separated by spaces or new lines", async () => {
+    const linkedMaterial = {
+      projectName: project.name,
+      relativePath: "materials/example.md",
+      title: "示例网页",
+      kind: "web",
+      status: "ready",
+      source: { type: "url", url: "https://example.com" },
+      sourceUrl: "https://example.com",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const addProjectUrl = vi.fn(async () => linkedMaterial);
+    installApi({ listProjectMaterials: vi.fn(async () => []), addProjectUrl });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    fireEvent.change(
+      await screen.findByRole("textbox", { name: "资料 URL" }),
+      { target: { value: "https://example.com/a https://youtu.be/xyz\nhttps://example.com/b 不是链接" } }
+    );
+    expect(screen.getByText("3/50")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "添加链接" }));
+    await waitFor(() => expect(addProjectUrl).toHaveBeenCalledTimes(3));
+    expect(addProjectUrl).toHaveBeenCalledWith({ projectName: project.name, url: "https://youtu.be/xyz" });
   });
 });
