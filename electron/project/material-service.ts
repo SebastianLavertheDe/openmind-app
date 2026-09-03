@@ -242,12 +242,7 @@ export class ProjectMaterialService {
       const records = this.readIndex(canonicalProjectName);
       const index = records.findIndex((item) => item.relativePath === relativePath);
       if (index < 0) return false;
-      const markers = this.scanActiveConversionMarkers(canonicalProjectName);
-      if (this.activeConversions.has(conversionKey(canonicalProjectName, relativePath))
-        || markers.hasUnknown
-        || markers.relativePaths.has(portableIdentityKey(relativePath))) {
-        throw new Error("项目资料正在转换，暂时不能删除。");
-      }
+      this.assertNotConverting(canonicalProjectName, relativePath, "删除");
       const [removed] = records.splice(index, 1);
       this.writeIndex(canonicalProjectName, records);
       for (const candidate of [removed.relativePath, removed.originalRelativePath]) {
@@ -259,6 +254,148 @@ export class ProjectMaterialService {
         fs.rmSync(absolute, { force: true });
       }
       return true;
+    });
+  }
+
+  rename(projectName: string, relativePath: string, newTitle: string): ProjectMaterial {
+    return this.paths.withProjectMutationLock(() => {
+      const canonicalProjectName = this.paths.resolveProject(projectName).name;
+      const records = this.readIndex(canonicalProjectName);
+      const index = records.findIndex((item) => item.relativePath === relativePath);
+      if (index < 0) throw new Error("项目资料不存在。");
+      const current = records[index];
+      if (current.status !== "ready") throw new Error("项目资料尚未完成转换，暂时不能重命名。");
+      this.assertNotConverting(canonicalProjectName, relativePath, "重命名");
+      const title = newTitle.trim().slice(0, 255);
+      const directory = path.posix.dirname(current.relativePath);
+      const extension = path.posix.extname(current.relativePath);
+      const reserved = records
+        .filter((item) => item.relativePath !== current.relativePath && path.posix.dirname(item.relativePath) === directory)
+        .map((item) => path.posix.basename(item.relativePath));
+      const fileName = allocateFileName(
+        `${title}${extension}`,
+        reserved,
+        (candidate) => fs.existsSync(this.paths.resolveInsideProject(
+          canonicalProjectName,
+          `${directory}/${candidate}`,
+          { allowedTopLevels: MATERIALS_TOP_LEVEL, allowMissingLeaf: true }
+        ))
+      );
+      const nextRelativePath = `${directory}/${fileName}`;
+      if (nextRelativePath !== current.relativePath) {
+        const previousAbsolute = this.paths.resolveInsideProject(canonicalProjectName, current.relativePath, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL
+        });
+        const nextAbsolute = this.paths.resolveInsideProject(canonicalProjectName, nextRelativePath, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL,
+          allowMissingLeaf: true
+        });
+        fs.renameSync(previousAbsolute, nextAbsolute);
+      }
+      const updated = ProjectMaterialSchema.parse({
+        ...current,
+        title,
+        relativePath: nextRelativePath,
+        updatedAt: now()
+      });
+      records[index] = updated;
+      this.writeIndex(canonicalProjectName, records);
+      return updated;
+    });
+  }
+
+  moveToProject(projectName: string, relativePath: string, targetProjectName: string): ProjectMaterial {
+    return this.paths.withProjectMutationLock(() => {
+      const sourceProjectName = this.paths.resolveProject(projectName).name;
+      const targetName = this.paths.resolveProject(targetProjectName).name;
+      if (sourceProjectName === targetName) {
+        const current = this.readIndex(sourceProjectName).find((item) => item.relativePath === relativePath);
+        if (!current) throw new Error("项目资料不存在。");
+        return current;
+      }
+      const sourceRecords = this.readIndex(sourceProjectName);
+      const index = sourceRecords.findIndex((item) => item.relativePath === relativePath);
+      if (index < 0) throw new Error("项目资料不存在。");
+      const current = sourceRecords[index];
+      if (current.status !== "ready") throw new Error("项目资料尚未完成转换，暂时不能移动。");
+      this.assertNotConverting(sourceProjectName, relativePath, "移动");
+      const targetRecords = this.readIndex(targetName);
+      const directory = path.posix.dirname(current.relativePath);
+      const nextRelativePath = `${directory}/${allocateFileName(
+        path.posix.basename(current.relativePath),
+        targetRecords.map((item) => path.posix.basename(item.relativePath)),
+        (candidate) => fs.existsSync(this.paths.resolveInsideProject(
+          targetName,
+          `${directory}/${candidate}`,
+          { allowedTopLevels: MATERIALS_TOP_LEVEL, allowMissingLeaf: true }
+        ))
+      )}`;
+      let nextOriginalRelativePath: string | null = null;
+      if (current.originalRelativePath) {
+        nextOriginalRelativePath = `materials/originals/${allocateFileName(
+          path.posix.basename(current.originalRelativePath),
+          targetRecords.map((item) => item.originalRelativePath ? path.posix.basename(item.originalRelativePath) : "").filter(Boolean),
+          (candidate) => fs.existsSync(this.paths.resolveInsideProject(
+            targetName,
+            `materials/originals/${candidate}`,
+            { allowedTopLevels: MATERIALS_TOP_LEVEL, allowMissingLeaf: true }
+          ))
+        )}`;
+      }
+      const copyIntoTarget = (fromRelative: string, toRelative: string) => {
+        const fromAbsolute = this.paths.resolveInsideProject(sourceProjectName, fromRelative, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL
+        });
+        const toAbsolute = this.paths.resolveInsideProject(targetName, toRelative, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL,
+          allowMissingLeaf: true
+        });
+        fs.mkdirSync(path.dirname(toAbsolute), { recursive: true });
+        fs.copyFileSync(fromAbsolute, toAbsolute, fs.constants.COPYFILE_EXCL);
+      };
+      const copied: string[] = [];
+      let moved: ProjectMaterial;
+      // Copy files first, then append the target record, then drop the source
+      // record: any failure leaves the worst case of a duplicated copy instead
+      // of a lost material.
+      try {
+        copyIntoTarget(current.relativePath, nextRelativePath);
+        copied.push(nextRelativePath);
+        if (current.originalRelativePath && nextOriginalRelativePath) {
+          copyIntoTarget(current.originalRelativePath, nextOriginalRelativePath);
+          copied.push(nextOriginalRelativePath);
+        }
+        moved = ProjectMaterialSchema.parse({
+          ...current,
+          projectName: targetName,
+          relativePath: nextRelativePath,
+          originalRelativePath: nextOriginalRelativePath,
+          updatedAt: now()
+        });
+        this.writeIndex(targetName, [...targetRecords, moved]);
+        try {
+          this.writeIndex(sourceProjectName, sourceRecords.filter((item) => item.relativePath !== relativePath));
+        } catch (error) {
+          this.writeIndex(targetName, targetRecords);
+          throw error;
+        }
+      } catch (error) {
+        for (const copiedRelative of copied) {
+          fs.rmSync(this.paths.resolveInsideProject(targetName, copiedRelative, {
+            allowedTopLevels: MATERIALS_TOP_LEVEL,
+            allowMissingLeaf: true
+          }), { force: true });
+        }
+        throw error;
+      }
+      for (const staleRelative of [current.relativePath, current.originalRelativePath]) {
+        if (!staleRelative) continue;
+        fs.rmSync(this.paths.resolveInsideProject(sourceProjectName, staleRelative, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL,
+          allowMissingLeaf: true
+        }), { force: true });
+      }
+      return moved;
     });
   }
 
@@ -433,6 +570,15 @@ export class ProjectMaterialService {
       });
     } finally {
       this.endActiveConversion(lease);
+    }
+  }
+
+  private assertNotConverting(projectName: string, relativePath: string, action: string): void {
+    const markers = this.scanActiveConversionMarkers(projectName);
+    if (this.activeConversions.has(conversionKey(projectName, relativePath))
+      || markers.hasUnknown
+      || markers.relativePaths.has(portableIdentityKey(relativePath))) {
+      throw new Error(`项目资料正在转换，暂时不能${action}。`);
     }
   }
 

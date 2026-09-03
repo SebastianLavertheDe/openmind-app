@@ -627,7 +627,14 @@ function createWindow(): void {
       window.show();
     });
   }
-  void window.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));
+  // 开发模式：OPENMIND_DEV_SERVER_URL 指向 vite dev server（npm run dev）时走热更新，
+  // 其余情况始终加载构建产物。
+  const devServerUrl = new URL(process.env.OPENMIND_DEV_SERVER_URL || "");
+  if (devServerUrl.protocol === "http:" || devServerUrl.protocol === "https:") {
+    void window.loadURL(devServerUrl.toString());
+  } else {
+    void window.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));
+  }
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };

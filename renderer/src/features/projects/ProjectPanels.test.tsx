@@ -348,8 +348,7 @@ describe("Project task recovery", () => {
 });
 
 describe("Project material truncation", () => {
-  it("warns about a truncated read and disables copying the partial preview", async () => {
-    const createProjectOutput = vi.fn();
+  it("warns about a truncated read", async () => {
     const material = {
       projectName: project.name,
       relativePath: "materials/large.md",
@@ -362,16 +361,11 @@ describe("Project material truncation", () => {
     };
     installApi({
       listProjectMaterials: vi.fn(async () => [material]),
-      readProjectMaterial: vi.fn(async () => ({ material, content: "# 仅部分内容", truncated: true })),
-      createProjectOutput
+      readProjectMaterial: vi.fn(async () => ({ material, content: "# 仅部分内容", truncated: true }))
     });
     renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
 
     expect(await screen.findByText("当前只显示资料的部分内容")).toBeTruthy();
-    const copy = screen.getByRole("button", { name: "转为可编辑文档" });
-    expect((copy as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(copy);
-    expect(createProjectOutput).not.toHaveBeenCalled();
   });
 });
 
@@ -422,6 +416,182 @@ describe("Project file selection", () => {
     view.unmount();
     listHost.remove();
     detailHost.remove();
+  });
+
+  it("offers rename, move, download and delete per file and hides download for videos", async () => {
+    const videoMaterial = {
+      projectName: project.name,
+      relativePath: "materials/videos/Uny6Lpmjral.video.md",
+      title: "YouTube Uny6Lpmjral",
+      kind: "video",
+      status: "ready",
+      source: { type: "url", url: "https://www.youtube.com/watch?v=Uny6Lpmjral" },
+      sourceUrl: "https://www.youtube.com/watch?v=Uny6Lpmjral",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const documentMaterial = {
+      projectName: project.name,
+      relativePath: "materials/documents/doc.md",
+      title: "安全笔记",
+      kind: "document",
+      status: "ready",
+      source: { type: "file", originalName: "doc.md" },
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const report = outputRecord("报告", "outputs/report.md");
+    const renameProjectMaterial = vi.fn(async () => ({ ...documentMaterial, title: "新笔记" }));
+    const moveProjectOutput = vi.fn(async () => ({ ...report, projectName: "其他项目" }));
+    const removeProjectMaterial = vi.fn(async () => true);
+    const listProjects = vi.fn(async () => [
+      { ...project, status: "active" },
+      { ...project, name: "其他项目", status: "active" }
+    ]);
+    installApi({
+      listProjectMaterials: vi.fn(async () => [videoMaterial, documentMaterial]),
+      listProjectOutputs: vi.fn(async () => [report]),
+      listProjects,
+      renameProjectMaterial,
+      moveProjectOutput,
+      removeProjectMaterial
+    });
+    const listHost = document.createElement("div");
+    const detailHost = document.createElement("div");
+    document.body.append(listHost, detailHost);
+
+    const view = renderWithAi(
+      <ProjectFilesPanel
+        project={project}
+        initialSection="materials"
+        createRequested={null}
+        onCreateHandled={vi.fn()}
+        onCreateTask={vi.fn()}
+        onChanged={vi.fn()}
+        listHost={listHost}
+        detailHost={detailHost}
+      />
+    );
+
+    await within(listHost).findByText("安全笔记");
+
+    const videoMenuButton = within(listHost).getByRole("button", { name: "文件操作：YouTube Uny6Lpmjral" });
+    fireEvent.click(videoMenuButton);
+    const videoMenu = await screen.findByRole("menu", { name: "YouTube Uny6Lpmjral的文件操作" });
+    expect(within(videoMenu).queryByRole("menuitem", { name: "下载" })).toBeNull();
+    for (const label of ["重命名", "移动到其他项目", "删除"]) {
+      expect(within(videoMenu).getByRole("menuitem", { name: label })).toBeTruthy();
+    }
+    fireEvent.click(videoMenuButton);
+
+    fireEvent.click(within(listHost).getByRole("button", { name: "文件操作：安全笔记" }));
+    const documentMenu = await screen.findByRole("menu", { name: "安全笔记的文件操作" });
+    expect(within(documentMenu).getByRole("menuitem", { name: "下载" })).toBeTruthy();
+    fireEvent.click(within(documentMenu).getByRole("menuitem", { name: "重命名" }));
+
+    const renameDialog = await screen.findByRole("dialog", { name: "重命名" });
+    fireEvent.change(within(renameDialog).getByLabelText("名称"), { target: { value: "新笔记" } });
+    fireEvent.click(within(renameDialog).getByRole("button", { name: "确认" }));
+    await waitFor(() => expect(renameProjectMaterial).toHaveBeenCalledWith({
+      projectName: project.name,
+      relativePath: documentMaterial.relativePath,
+      newTitle: "新笔记"
+    }));
+
+    fireEvent.click(within(listHost).getByRole("button", { name: "文件操作：报告" }));
+    const outputMenu = await screen.findByRole("menu", { name: "报告的文件操作" });
+    fireEvent.click(within(outputMenu).getByRole("menuitem", { name: "移动到其他项目" }));
+    await waitFor(() => expect(listProjects).toHaveBeenCalled());
+    const moveDialog = await screen.findByRole("dialog", { name: "移动“报告”" });
+    fireEvent.change(within(moveDialog).getByLabelText("目标项目"), { target: { value: "其他项目" } });
+    fireEvent.click(within(moveDialog).getByRole("button", { name: "移动" }));
+    await waitFor(() => expect(moveProjectOutput).toHaveBeenCalledWith({
+      projectName: project.name,
+      relativePath: report.relativePath,
+      targetProjectName: "其他项目"
+    }));
+
+    fireEvent.click(within(listHost).getByRole("button", { name: "文件操作：安全笔记" }));
+    const deleteMenu = await screen.findByRole("menu", { name: "安全笔记的文件操作" });
+    fireEvent.click(within(deleteMenu).getByRole("menuitem", { name: "删除" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "删除文件" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(removeProjectMaterial).toHaveBeenCalledWith({
+      projectName: project.name,
+      relativePath: documentMaterial.relativePath
+    }));
+
+    view.unmount();
+    listHost.remove();
+    detailHost.remove();
+  });
+
+  it("moves transcript views below the video when the material canvas crosses its own width breakpoint", async () => {
+    let resizeCallback: ResizeObserverCallback | null = null;
+    let resizeTarget: Element | null = null;
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) { resizeCallback = callback; }
+      observe(target: Element) { resizeTarget = target; }
+      disconnect() { /* no-op */ }
+      unobserve() { /* no-op */ }
+    }
+    vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    const videoMaterial = {
+      projectName: project.name,
+      relativePath: "materials/videos/responsive.video.md",
+      title: "响应式视频",
+      kind: "video",
+      status: "ready",
+      source: { type: "url", url: "https://www.youtube.com/watch?v=Uny6Lpmjral" },
+      sourceUrl: "https://www.youtube.com/watch?v=Uny6Lpmjral",
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    installApi({
+      listProjectMaterials: vi.fn(async () => [videoMaterial]),
+      readProjectMaterial: vi.fn(async () => ({
+        material: videoMaterial,
+        content: "",
+        video: {
+          provider: "youtube",
+          videoId: "Uny6Lpmjral",
+          durationMs: 60_000,
+          transcript: [{ startMs: 7_000, endMs: 18_000, text: "responsive transcript" }]
+        }
+      }))
+    });
+    const view = renderWithAi(<ProjectMaterialsPanel project={project} initialMaterialPath={videoMaterial.relativePath} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    try {
+      expect((await screen.findAllByText("responsive transcript")).length).toBeGreaterThanOrEqual(1);
+      const layout = document.querySelector(".project-video-layout") as HTMLElement;
+      expect(layout.classList.contains("layout-split")).toBe(true);
+      expect(screen.getByText("responsive transcript")).toBeTruthy();
+
+      act(() => resizeCallback?.([{
+        target: resizeTarget!,
+        contentRect: { width: 719 },
+        contentBoxSize: [{ inlineSize: 719 }],
+        borderBoxSize: [{ inlineSize: 719 }]
+      } as unknown as ResizeObserverEntry], {} as ResizeObserver));
+      await waitFor(() => expect(layout.classList.contains("layout-stacked")).toBe(true));
+      expect(screen.getByText("responsive transcript")).toBeTruthy();
+
+      act(() => resizeCallback?.([{
+        target: resizeTarget!,
+        contentRect: { width: 720 },
+        contentBoxSize: [{ inlineSize: 720 }],
+        borderBoxSize: [{ inlineSize: 720 }]
+      } as unknown as ResizeObserverEntry], {} as ResizeObserver));
+      await waitFor(() => expect(layout.classList.contains("layout-split")).toBe(true));
+      expect(screen.getByText("responsive transcript")).toBeTruthy();
+      expect(screen.queryByRole("tab", { name: "摘录" })).toBeNull();
+      expect(screen.queryByRole("tab", { name: "章节视图" })).toBeNull();
+      expect(screen.queryByRole("tab", { name: "描述" })).toBeNull();
+    } finally {
+      view.unmount();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

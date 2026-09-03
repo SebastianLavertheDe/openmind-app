@@ -99,11 +99,14 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "createProject", channel: PROJECT_IPC.CREATE },
   { method: "getProject", channel: PROJECT_IPC.GET },
   { method: "renameProject", channel: PROJECT_IPC.RENAME },
+  { method: "updateProject", channel: PROJECT_IPC.UPDATE },
   { method: "archiveProject", channel: PROJECT_IPC.ARCHIVE },
   { method: "addProjectFiles", channel: PROJECT_IPC.MATERIAL_ADD_FILES },
   { method: "addProjectUrl", channel: PROJECT_IPC.MATERIAL_ADD_URL },
   { method: "retryMaterialExtraction", channel: PROJECT_IPC.MATERIAL_RETRY },
   { method: "removeProjectMaterial", channel: PROJECT_IPC.MATERIAL_REMOVE },
+  { method: "renameProjectMaterial", channel: PROJECT_IPC.MATERIAL_RENAME },
+  { method: "moveProjectMaterial", channel: PROJECT_IPC.MATERIAL_MOVE },
   { method: "readProjectMaterial", channel: PROJECT_IPC.MATERIAL_READ },
   { method: "listProjectMaterials", channel: PROJECT_IPC.MATERIAL_LIST },
   { method: "createProjectTask", channel: PROJECT_IPC.TASK_CREATE },
@@ -116,7 +119,10 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "createProjectOutput", channel: PROJECT_IPC.OUTPUT_CREATE },
   { method: "readProjectOutput", channel: PROJECT_IPC.OUTPUT_READ },
   { method: "saveProjectOutput", channel: PROJECT_IPC.OUTPUT_SAVE },
+  { method: "renameProjectOutput", channel: PROJECT_IPC.OUTPUT_RENAME },
+  { method: "moveProjectOutput", channel: PROJECT_IPC.OUTPUT_MOVE },
   { method: "removeProjectOutput", channel: PROJECT_IPC.OUTPUT_REMOVE },
+  { method: "downloadProjectFile", channel: PROJECT_IPC.FILE_DOWNLOAD },
 ] as const;
 
 export type IpcInvokeMethod = (typeof IPC_INVOKE_REGISTRY)[number]["method"];

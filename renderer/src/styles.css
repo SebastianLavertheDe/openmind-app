@@ -554,8 +554,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .approval-hint { max-width: 430px; margin-right: auto; color: var(--muted); font-size: 11px; }
 .inline-error { margin: 5px 0; color: color-mix(in srgb, var(--danger-500) 75%, var(--text)); font-size: 11px; white-space: pre-wrap; }
 .error-event { max-width: 920px; margin: 8px 0 14px; border: 1px solid color-mix(in srgb, var(--red) 30%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--red) 7%, var(--panel)); }
-.error-event > .ui-disclosure-trigger { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 7px; padding: 9px; color: var(--red); cursor: pointer; }
-.error-event > .ui-disclosure-trigger span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.error-event > .ui-disclosure-trigger { display: flex; align-items: center; gap: 7px; padding: 9px; color: var(--red); cursor: pointer; }
+.error-event > .ui-disclosure-trigger .conversation-cell-header { flex: 1 1 auto; }
 .error-event pre { max-height: 260px; overflow: auto; margin: 0; padding: 10px; border-top: 1px solid color-mix(in srgb, var(--danger-500) 24%, var(--border)); color: color-mix(in srgb, var(--danger-500) 72%, var(--text-dim)); font: 11px/1.55 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; }
 .error-event footer { display: flex; justify-content: flex-end; gap: 6px; padding: 8px; }
 .error-event footer button, .reasoning-event > .ui-disclosure-trigger { min-height: 29px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); }
@@ -1184,7 +1184,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .provider-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--red); }
 .provider-list .available .provider-dot { background: var(--green); }
 
-.ai-sidebar { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); border-left: 1px solid var(--border); background: var(--bg); }
+.ai-sidebar { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); border-left: 1px solid var(--border); background: var(--bg);
+  /* 默认占满侧栏可用宽度；需要封顶阅读列的页面自行覆盖（项目页 960px / 工作台 720px）。 */
+  --ai-flow-width: 100%; }
 .ai-sidebar.mode-wide { width: var(--ai-sidebar-width); }
 .ai-sidebar.mode-full { position: fixed; z-index: var(--z-overlay); inset: 0; width: auto; }
 .ai-sidebar-resizer { position: absolute; z-index: 3; top: 0; bottom: 0; left: -6px; width: 12px; cursor: col-resize; }
@@ -2102,8 +2104,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* ====================================================================
    P1-APR-5: 审批决策历史痕迹
-   ==================================================================== */
-.approval-decision-inline.declined[data-declined] {
+   ==================================================================== */.approval-decision-inline.declined[data-declined] {
   display: inline-block;
   padding: 3px 10px 3px 8px;
   border-left: 3px solid var(--warning-500);
@@ -2112,6 +2113,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   color: var(--warning-700);
   font-weight: 500;
 }
+
+/* P2-EVT-2: 会话卡片头部布局（此前无样式，label/标题/摘要与状态徽标挤成一行） */
+.conversation-cell-header { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.conversation-cell-icon { flex: 0 0 auto; display: grid; place-items: center; }
+.conversation-cell-title { flex: 0 1 auto; min-width: 0; display: grid; gap: 2px; }
+.conversation-cell-kicker { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+.conversation-cell-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.conversation-cell-title small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.conversation-cell-chevron { flex: 0 0 auto; color: var(--muted); transition: transform 140ms ease; }
+.ui-disclosure[data-open] > .ui-disclosure-trigger .conversation-cell-chevron { transform: rotate(90deg); }
+.conversation-status { flex: 0 0 auto; display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+.conversation-status.danger { color: var(--danger-500); background: var(--danger-tint); }
+.conversation-status.neutral { color: var(--muted); background: var(--panel-muted); }
 
 /* P2-EVT-1: ErrorEvent 红色 stripe */
 .error-event.has-stripe,

@@ -7,8 +7,10 @@ export function ProjectDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = "取消",
   busy = false,
   className,
+  backdropClassName,
   showFooter = true,
   children,
   onConfirm,
@@ -18,8 +20,10 @@ export function ProjectDialog({
   title: string;
   description?: string;
   confirmLabel: string;
+  cancelLabel?: string | null;
   busy?: boolean;
   className?: string;
+  backdropClassName?: string;
   showFooter?: boolean;
   children: ReactNode;
   onConfirm(): void | Promise<void>;
@@ -33,7 +37,7 @@ export function ProjectDialog({
     if (!busy) void onConfirm();
   };
   return (
-    <div className="project-dialog-backdrop" onMouseDown={onClose}>
+    <div className={`project-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`} onMouseDown={onClose}>
       <section ref={dialogRef} className={`project-dialog${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
         <form onSubmit={submit}>
           <header>
@@ -42,7 +46,7 @@ export function ProjectDialog({
           </header>
           <div className="project-dialog-body">{children}</div>
           {showFooter ? <footer>
-            <button type="button" onClick={onClose}>取消</button>
+            {cancelLabel ? <button type="button" onClick={onClose}>{cancelLabel}</button> : null}
             <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? "处理中…" : confirmLabel}</button>
           </footer> : null}
         </form>

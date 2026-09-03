@@ -1,6 +1,7 @@
 import type { ContextReference } from "@shared/contracts";
 import type {
   ProjectDetail,
+  ProjectColor,
   ProjectMaterial,
   ProjectMaterialKind,
   ProjectMaterialStatus,
@@ -19,6 +20,7 @@ type ProjectMethod =
   | "getProject"
   | "createProject"
   | "renameProject"
+  | "updateProject"
   | "archiveProject"
   | "listProjectMaterials"
   | "readProjectMaterial"
@@ -26,6 +28,8 @@ type ProjectMethod =
   | "addProjectUrl"
   | "retryMaterialExtraction"
   | "removeProjectMaterial"
+  | "renameProjectMaterial"
+  | "moveProjectMaterial"
   | "listProjectTasks"
   | "listProjectTaskMessages"
   | "createProjectTask"
@@ -35,6 +39,10 @@ type ProjectMethod =
   | "createProjectOutput"
   | "readProjectOutput"
   | "saveProjectOutput"
+  | "renameProjectOutput"
+  | "moveProjectOutput"
+  | "removeProjectOutput"
+  | "downloadProjectFile"
   | "projectStartTaskRun";
 
 type UnknownRecord = Record<string, unknown>;
@@ -76,6 +84,12 @@ function status(value: unknown): ProjectStatus {
   return value === "archived" ? "archived" : "active";
 }
 
+function projectColor(value: unknown): ProjectColor {
+  return ["neutral", "gray", "blue", "cyan", "green", "indigo", "purple", "pink", "red", "orange", "yellow", "brown"].includes(String(value))
+    ? value as ProjectColor
+    : "neutral";
+}
+
 function project(value: unknown): ProjectSummary {
   const wrapper = record(value);
   const item = Object.keys(record(wrapper.project)).length ? record(wrapper.project) : wrapper;
@@ -84,6 +98,9 @@ function project(value: unknown): ProjectSummary {
     name: string(item.name || item.projectName),
     description: string(item.description),
     status: status(item.status),
+    icon: string(item.icon, "database"),
+    color: projectColor(item.color),
+    favorite: item.favorite === true,
     materialCount: number(item.materialCount, number(counts.materials)),
     taskCount: number(item.taskCount, number(counts.tasks)),
     outputCount: number(item.outputCount, number(counts.outputs)),
@@ -268,6 +285,10 @@ export const projectsApi = {
     return project(await invoke("renameProject", { projectName, newName }));
   },
 
+  async updateProject(projectName: string, patch: { icon?: string; color?: ProjectColor; favorite?: boolean }): Promise<ProjectDetail> {
+    return project(await invoke("updateProject", { projectName, ...patch }));
+  },
+
   async archiveProject(projectName: string, archived: boolean): Promise<ProjectDetail> {
     return project(await invoke("archiveProject", { projectName, archived }));
   },
@@ -295,6 +316,14 @@ export const projectsApi = {
 
   async removeMaterial(projectName: string, relativePath: string): Promise<void> {
     await invoke("removeProjectMaterial", { projectName, relativePath });
+  },
+
+  async renameMaterial(projectName: string, relativePath: string, newTitle: string): Promise<ProjectMaterial> {
+    return material(await invoke("renameProjectMaterial", { projectName, relativePath, newTitle }));
+  },
+
+  async moveMaterial(projectName: string, relativePath: string, targetProjectName: string): Promise<ProjectMaterial> {
+    return material(await invoke("moveProjectMaterial", { projectName, relativePath, targetProjectName }));
   },
 
   async listTasks(projectName: string): Promise<ProjectTask[]> {
@@ -347,5 +376,25 @@ export const projectsApi = {
 
   async saveOutput(projectName: string, relativePath: string, content: string, title?: string): Promise<ProjectOutput> {
     return output(await invoke("saveProjectOutput", { projectName, relativePath, content, title }));
+  },
+
+  async renameOutput(projectName: string, relativePath: string, newTitle: string): Promise<ProjectOutput> {
+    return output(await invoke("renameProjectOutput", { projectName, relativePath, newTitle }));
+  },
+
+  async moveOutput(projectName: string, relativePath: string, targetProjectName: string): Promise<ProjectOutput> {
+    return output(await invoke("moveProjectOutput", { projectName, relativePath, targetProjectName }));
+  },
+
+  async removeOutput(projectName: string, relativePath: string): Promise<void> {
+    await invoke("removeProjectOutput", { projectName, relativePath });
+  },
+
+  async downloadFile(projectName: string, kind: "material" | "output", relativePath: string): Promise<{ canceled: boolean; savedPath?: string | null }> {
+    const result = record(await invoke("downloadProjectFile", { projectName, kind, relativePath }));
+    return {
+      canceled: result.canceled === true,
+      savedPath: typeof result.savedPath === "string" ? result.savedPath : null
+    };
   }
 };

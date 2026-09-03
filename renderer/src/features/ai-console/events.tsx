@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Archive, CheckCircle2, CircleX, LoaderCircle, Redo2, ShieldAlert, Users } from "lucide-react";
+import { Archive, CheckCircle2, CircleX, LoaderCircle, LogIn, Redo2, ShieldAlert, Users } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
@@ -152,6 +152,10 @@ export function ErrorEvent({ event }: { event: AiEvent }) {
   const text = String(event.payload.text || m.ai.events.runFailed);
   const [busy, setBusy] = useState(false);
   const searchLines = useMemo(() => text.split(/\r?\n/), [text]);
+  // 登录类失败重试必然原样再失败，给出直达的终端登录入口。
+  const loginRequired = /not logged in|please run \/login|not authenticated|未登录/i.test(text);
+  const session = ai.snapshot.sessions.find((item) => item.id === event.sessionId);
+  const loginTool: "claude" | "codex" = session?.provider === "codex" ? "codex" : "claude";
   const retry = async () => {
     setBusy(true);
     try { await ai.rerun(event.runId); } catch { /* controller shows the error */ } finally { setBusy(false); }
@@ -162,18 +166,23 @@ export function ErrorEvent({ event }: { event: AiEvent }) {
       icon={<ShieldAlert size={15} />}
       label="Error"
       title={m.ai.events.runFailed}
-      subtitle={firstLine(text)}
       status="failed"
       statusTone="danger"
       className="error-event has-stripe"
       collapsible
       defaultOpen
     >
-      {/* P2-EVT-1: 错误内容用 OverflowBox 限高 + 搜索;红色 stripe 由 CSS 处理 */}
+      {/* P2-EVT-1: 错误内容用 OverflowBox 限高 + 搜索;红色 stripe 由 CSS 处理。
+          错误全文只在这里出现一次，头部不再重复摘要。 */}
       <OverflowBox className="error-event-overflow" maxHeight={300} searchable lines={searchLines}>
         <pre>{text}</pre>
       </OverflowBox>
-      <footer><CopyButton text={text} /><button data-motion="action" onClick={() => void window.openmind.openPath(runRecordPath(ai.snapshot.projectRoot, event))}>{m.ai.events.openRunRecord}</button><button data-motion="action" disabled={busy} onClick={() => void retry()}><Redo2 size={13} />{m.ai.events.retry}</button></footer>
+      <footer>
+        <CopyButton text={text} />
+        {loginRequired ? <button data-motion="action" onClick={() => void window.openmind.openCliLogin(loginTool)}><LogIn size={13} />{m.ai.events.openLogin}</button> : null}
+        <button data-motion="action" onClick={() => void window.openmind.openPath(runRecordPath(ai.snapshot.projectRoot, event))}>{m.ai.events.openRunRecord}</button>
+        <button data-motion="action" disabled={busy} onClick={() => void retry()}><Redo2 size={13} />{m.ai.events.retry}</button>
+      </footer>
     </ConversationCell>
   );
 }

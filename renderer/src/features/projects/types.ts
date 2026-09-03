@@ -1,10 +1,14 @@
 export type ProjectStatus = "active" | "archived";
 export type ProjectSection = "tasks" | "materials" | "outputs";
+export type ProjectColor = "neutral" | "gray" | "blue" | "cyan" | "green" | "indigo" | "purple" | "pink" | "red" | "orange" | "yellow" | "brown";
 
 export type ProjectSummary = {
   name: string;
   description: string;
   status: ProjectStatus;
+  icon?: string;
+  color?: ProjectColor;
+  favorite?: boolean;
   materialCount: number;
   taskCount: number;
   outputCount: number;

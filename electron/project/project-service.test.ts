@@ -53,6 +53,22 @@ describe("ProjectService", () => {
     expect(restarted.resolveProjectRoot("研究 2026")).toBe(projectRoot);
   });
 
+  it("persists project icon, color and favorite metadata across restart", () => {
+    const { root, service } = fixture();
+    service.createProject({ name: "Appearance" });
+
+    expect(service.updateProject("Appearance", { icon: "gamepad", color: "pink", favorite: true }).project).toMatchObject({
+      icon: "gamepad",
+      color: "pink",
+      favorite: true
+    });
+    expect(new ProjectService(root).getProject("Appearance").project).toMatchObject({
+      icon: "gamepad",
+      color: "pink",
+      favorite: true
+    });
+  });
+
   it("persists task renames and hides archived tasks from visible counts", () => {
     const { root, service } = fixture();
     service.createProject({ name: "Task actions" });
@@ -119,6 +135,73 @@ describe("ProjectService", () => {
     const ready = await service.retryMaterialExtraction("Retry", failed.relativePath);
     expect(ready.status).toBe("ready");
     expect(service.readProjectMaterial("Retry", ready.relativePath).content).toBe("# kept");
+  });
+
+  it("renames and moves materials across projects on disk and in the index", async () => {
+    const { imports, service } = fixture();
+    service.createProject({ name: "Source" });
+    service.createProject({ name: "Target" });
+    const file = path.join(imports, "notes.md");
+    fs.writeFileSync(file, "# Notes\n", "utf8");
+    const [material] = await service.addProjectFiles("Source", [file]);
+
+    const renamed = service.renameProjectMaterial("Source", material.relativePath, "新笔记");
+    expect(renamed.title).toBe("新笔记");
+    expect(renamed.relativePath).toBe("materials/documents/新笔记.md");
+    expect(service.readProjectMaterial("Source", renamed.relativePath).content).toBe("# Notes\n");
+    expect(fs.existsSync(path.join(service.resolveProjectRoot("Source"), ...material.relativePath.split("/")))).toBe(false);
+
+    const moved = service.moveProjectMaterial("Source", renamed.relativePath, "Target");
+    expect(moved).toMatchObject({ projectName: "Target", relativePath: renamed.relativePath, title: "新笔记" });
+    expect(service.readProjectMaterial("Target", moved.relativePath).content).toBe("# Notes\n");
+    expect(service.listProjectMaterials("Source")).toEqual([]);
+    expect(service.getProject("Source").project.materialCount).toBe(0);
+    expect(service.getProject("Target").project.materialCount).toBe(1);
+  });
+
+  it("renames and moves outputs across projects and clears cross-project provenance", () => {
+    const { service } = fixture();
+    service.createProject({ name: "Origin" });
+    service.createProject({ name: "Destination" });
+    const task = service.createProjectTask("Origin", "Write", "provider-a");
+    const created = service.createProjectOutput({ projectName: "Origin", title: "Draft", content: "v1", sourceTaskId: task.taskId });
+
+    const renamed = service.renameProjectOutput("Origin", created.output.relativePath, "终稿");
+    expect(renamed.output.title).toBe("终稿");
+    expect(renamed.output.relativePath).toBe("outputs/终稿.md");
+    expect(renamed.content).toBe("v1");
+    expect(fs.existsSync(path.join(service.resolveProjectRoot("Origin"), "outputs", "Draft.md"))).toBe(false);
+
+    const moved = service.moveProjectOutput("Origin", renamed.output.relativePath, "Destination");
+    expect(moved.output).toMatchObject({
+      projectName: "Destination",
+      relativePath: "outputs/终稿.md",
+      sourceTaskId: null,
+      sourceSessionId: null,
+      sourceMessageId: null
+    });
+    expect(moved.content).toBe("v1");
+    expect(service.listProjectOutputs("Origin")).toEqual([]);
+    expect(() => service.readProjectOutput("Origin", renamed.output.relativePath)).toThrow();
+    expect(service.readProjectOutput("Destination", moved.output.relativePath).content).toBe("v1");
+  });
+
+  it("resolves download sources to ordinary project files", async () => {
+    const { imports, service } = fixture();
+    service.createProject({ name: "Export" });
+    const file = path.join(imports, "doc.md");
+    fs.writeFileSync(file, "# Exportable\n", "utf8");
+    const [material] = await service.addProjectFiles("Export", [file]);
+    const materialRoot = service.resolveProjectRoot("Export");
+
+    const materialSource = service.resolveProjectExportFile("Export", "material", material.relativePath);
+    expect(materialSource.startsWith(materialRoot)).toBe(true);
+    expect(fs.statSync(materialSource).isFile()).toBe(true);
+
+    const created = service.createProjectOutput({ projectName: "Export", title: "Report", content: "body" });
+    const outputSource = service.resolveProjectExportFile("Export", "output", created.output.relativePath);
+    expect(outputSource).toBe(path.join(service.resolveProjectRoot("Export"), ...created.output.relativePath.split("/")));
+    expect(() => service.resolveProjectExportFile("Export", "output", "outputs/missing.md")).toThrow();
   });
 
   it("uses atomic files without leaving temporary siblings", () => {

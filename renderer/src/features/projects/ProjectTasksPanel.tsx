@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { useAi } from "../../ai-context";
@@ -352,11 +352,11 @@ export function ProjectTasksPanel({
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? "没有匹配的任务" : "还没有任务"} description={tasks.length ? "换一个标题关键词后再试。" : "新建任务，让 AI 在当前项目资料中搜索和创作。"} /> : null}
-        {filtered.map((item) => {
+        {filtered.map((item, index) => {
           const active = item.taskId === selectedId && !creating;
           const menuOpen = taskMenu?.taskId === item.taskId;
           return (
-            <div key={item.taskId} className={`project-task-row${active ? " active" : ""}${menuOpen ? " menu-open" : ""}`}>
+            <div key={item.taskId} className={`project-task-row${active ? " active" : ""}${menuOpen ? " menu-open" : ""}`} style={{ "--project-list-index": index } as CSSProperties}>
               <button className="project-task-select" onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><Sparkles size={15} /><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
               <button
                 type="button"

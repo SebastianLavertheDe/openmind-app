@@ -55,11 +55,33 @@ export function normalizeProjectName(value: string): ProjectName {
 export const ProjectStatusSchema = z.enum(["active", "archived"]);
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 
+export const ProjectColorSchema = z.enum([
+  "neutral",
+  "gray",
+  "blue",
+  "cyan",
+  "green",
+  "indigo",
+  "purple",
+  "pink",
+  "red",
+  "orange",
+  "yellow",
+  "brown"
+]);
+export type ProjectColor = z.infer<typeof ProjectColorSchema>;
+
+export const ProjectIconSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9-]+$/).default("database");
+export type ProjectIcon = z.infer<typeof ProjectIconSchema>;
+
 export const ProjectManifestSchema = z.object({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION).default(PROJECT_SCHEMA_VERSION),
   name: ProjectNameSchema,
   description: z.string().max(20_000).default(""),
   status: ProjectStatusSchema.default("active"),
+  icon: ProjectIconSchema,
+  color: ProjectColorSchema.default("neutral"),
+  favorite: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 });
@@ -94,6 +116,16 @@ export const ProjectArchiveInputSchema = z.object({
   archived: z.boolean().default(true)
 });
 export type ProjectArchiveInput = z.input<typeof ProjectArchiveInputSchema>;
+
+export const ProjectUpdateInputSchema = z.object({
+  projectName: ProjectNameSchema,
+  icon: ProjectIconSchema.optional(),
+  color: ProjectColorSchema.optional(),
+  favorite: z.boolean().optional()
+}).refine((input) => input.icon !== undefined || input.color !== undefined || input.favorite !== undefined, {
+  message: "至少需要更新一项项目设置。"
+});
+export type ProjectUpdateInput = z.input<typeof ProjectUpdateInputSchema>;
 
 export const ProjectMaterialKindSchema = z.enum(["document", "web", "video"]);
 export type ProjectMaterialKind = z.infer<typeof ProjectMaterialKindSchema>;
@@ -176,6 +208,16 @@ export const ProjectMaterialLocatorSchema = z.object({
   relativePath: z.string().min(1).max(4096)
 });
 export type ProjectMaterialLocator = z.input<typeof ProjectMaterialLocatorSchema>;
+
+export const ProjectRenameMaterialInputSchema = ProjectMaterialLocatorSchema.extend({
+  newTitle: z.string().trim().min(1).max(255)
+});
+export type ProjectRenameMaterialInput = z.input<typeof ProjectRenameMaterialInputSchema>;
+
+export const ProjectMoveMaterialInputSchema = ProjectMaterialLocatorSchema.extend({
+  targetProjectName: ProjectNameSchema
+});
+export type ProjectMoveMaterialInput = z.input<typeof ProjectMoveMaterialInputSchema>;
 
 export const ProjectTaskStatusSchema = z.enum(["active", "completed", "failed", "archived"]);
 export type ProjectTaskStatus = z.infer<typeof ProjectTaskStatusSchema>;
@@ -308,17 +350,43 @@ export const ProjectSaveOutputInputSchema = ProjectOutputLocatorSchema.extend({
 });
 export type ProjectSaveOutputInput = z.input<typeof ProjectSaveOutputInputSchema>;
 
+export const ProjectRenameOutputInputSchema = ProjectOutputLocatorSchema.extend({
+  newTitle: z.string().trim().min(1).max(255)
+});
+export type ProjectRenameOutputInput = z.input<typeof ProjectRenameOutputInputSchema>;
+
+export const ProjectMoveOutputInputSchema = ProjectOutputLocatorSchema.extend({
+  targetProjectName: ProjectNameSchema
+});
+export type ProjectMoveOutputInput = z.input<typeof ProjectMoveOutputInputSchema>;
+
+export const ProjectDownloadFileInputSchema = z.object({
+  projectName: ProjectNameSchema,
+  kind: z.enum(["material", "output"]),
+  relativePath: z.string().min(1).max(4096)
+});
+export type ProjectDownloadFileInput = z.input<typeof ProjectDownloadFileInputSchema>;
+
+export const ProjectDownloadFileResultSchema = z.object({
+  canceled: z.boolean(),
+  savedPath: z.string().min(1).nullable().default(null)
+});
+export type ProjectDownloadFileResult = z.infer<typeof ProjectDownloadFileResultSchema>;
+
 export interface ProjectDesktopApi {
   listProjects(): Promise<ProjectSummary[]>;
   createProject(input: ProjectCreateInput): Promise<ProjectDetail>;
   getProject(projectName: string): Promise<ProjectDetail>;
   renameProject(input: ProjectRenameInput): Promise<ProjectDetail>;
+  updateProject(input: ProjectUpdateInput): Promise<ProjectDetail>;
   archiveProject(input: ProjectArchiveInput): Promise<ProjectDetail>;
 
   addProjectFiles(input: ProjectAddFilesInput): Promise<ProjectMaterial[]>;
   addProjectUrl(input: ProjectAddUrlInput): Promise<ProjectMaterial>;
   retryMaterialExtraction(input: ProjectMaterialLocator): Promise<ProjectMaterial>;
   removeProjectMaterial(input: ProjectMaterialLocator): Promise<boolean>;
+  renameProjectMaterial(input: ProjectRenameMaterialInput): Promise<ProjectMaterial>;
+  moveProjectMaterial(input: ProjectMoveMaterialInput): Promise<ProjectMaterial>;
   readProjectMaterial(input: ProjectMaterialLocator): Promise<ProjectMaterialRead>;
   listProjectMaterials(projectName: string): Promise<ProjectMaterial[]>;
 
@@ -333,7 +401,10 @@ export interface ProjectDesktopApi {
   createProjectOutput(input: ProjectCreateOutputInput): Promise<ProjectOutputRead>;
   readProjectOutput(input: ProjectOutputLocator): Promise<ProjectOutputRead>;
   saveProjectOutput(input: ProjectSaveOutputInput): Promise<ProjectOutputRead>;
+  renameProjectOutput(input: ProjectRenameOutputInput): Promise<ProjectOutputRead>;
+  moveProjectOutput(input: ProjectMoveOutputInput): Promise<ProjectOutputRead>;
   removeProjectOutput(input: ProjectOutputLocator): Promise<boolean>;
+  downloadProjectFile(input: ProjectDownloadFileInput): Promise<ProjectDownloadFileResult>;
 }
 
 /** Project invoke channels are kept with their independent domain contract. */
@@ -342,11 +413,14 @@ export const PROJECT_IPC = {
   CREATE: "project:create",
   GET: "project:get",
   RENAME: "project:rename",
+  UPDATE: "project:update",
   ARCHIVE: "project:archive",
   MATERIAL_ADD_FILES: "project:material-add-files",
   MATERIAL_ADD_URL: "project:material-add-url",
   MATERIAL_RETRY: "project:material-retry",
   MATERIAL_REMOVE: "project:material-remove",
+  MATERIAL_RENAME: "project:material-rename",
+  MATERIAL_MOVE: "project:material-move",
   MATERIAL_READ: "project:material-read",
   MATERIAL_LIST: "project:material-list",
   TASK_CREATE: "project:task-create",
@@ -359,7 +433,10 @@ export const PROJECT_IPC = {
   OUTPUT_CREATE: "project:output-create",
   OUTPUT_READ: "project:output-read",
   OUTPUT_SAVE: "project:output-save",
-  OUTPUT_REMOVE: "project:output-remove"
+  OUTPUT_RENAME: "project:output-rename",
+  OUTPUT_MOVE: "project:output-move",
+  OUTPUT_REMOVE: "project:output-remove",
+  FILE_DOWNLOAD: "project:file-download"
 } as const;
 
 declare module "./contracts" {

@@ -1,19 +1,24 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Archive,
   Files,
   FolderKanban,
   Library,
   ListTodo,
+  MoreHorizontal,
   PanelLeftOpen,
+  PencilLine,
   Plus,
-  Search
+  Search,
+  Star
 } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
-import { EmptyState, ErrorState, Skeleton } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, Skeleton } from "../../design-system/components";
+import { ProjectEditDialog, ProjectIcon, projectColorValue } from "./ProjectAppearance";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectFilesPanel } from "./ProjectFilesPanel";
 import type { ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
@@ -46,6 +51,8 @@ export function ProjectsPage({
   const [createAction, setCreateAction] = useState<ProjectCreateAction | null>(null);
   const [taskSeed, setTaskSeed] = useState<ProjectTaskSeed | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [editProject, setEditProject] = useState<ProjectSummary | null>(null);
+  const [projectActionBusy, setProjectActionBusy] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,6 +63,7 @@ export function ProjectsPage({
   const [detailHost, setDetailHost] = useState<HTMLDivElement | null>(null);
   const layout = useListDetailLayout("openmind.list-detail.projects.v1", { listWidth: 264, listCollapsed: false });
   const outputNavigationGuardRef = useRef<ProjectOutputNavigationGuard | null>(null);
+  const createMenuRef = useRef<HTMLDetailsElement>(null);
   const confirmRef = useRef(ai.confirm);
   confirmRef.current = ai.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
@@ -65,6 +73,17 @@ export function ProjectsPage({
     if (!compactWorkspace) return;
     setCompactListOpen(!hasActiveProject);
   }, [compactWorkspace, hasActiveProject]);
+
+  useEffect(() => {
+    const closeCreateMenu = (event: PointerEvent) => {
+      const menu = createMenuRef.current;
+      const target = event.target;
+      if (!menu?.open || !(target instanceof Node) || menu.contains(target)) return;
+      menu.removeAttribute("open");
+    };
+    document.addEventListener("pointerdown", closeCreateMenu);
+    return () => document.removeEventListener("pointerdown", closeCreateMenu);
+  }, []);
 
   const handleOutputNavigationGuard = useCallback((guard: ProjectOutputNavigationGuard | null) => {
     outputNavigationGuardRef.current = guard;
@@ -89,12 +108,21 @@ export function ProjectsPage({
     action();
   }, [canLeaveCurrentOutput]);
 
+  const presentProjectView = useCallback((next: ProjectView) => {
+    setView(next);
+    if (next === "files") {
+      if (ai.panelMode === "collapsed") ai.setPanelMode("default");
+    } else if (ai.panelMode !== "collapsed") {
+      ai.setPanelMode("collapsed");
+    }
+  }, [ai.panelMode, ai.setPanelMode]);
+
   const requestCreate = useCallback((action: ProjectCreateAction) => {
     void navigateProject(() => {
-      setView(action === "tasks" ? "tasks" : "files");
+      presentProjectView(action === "tasks" ? "tasks" : "files");
       setCreateAction(action);
     });
-  }, [navigateProject]);
+  }, [navigateProject, presentProjectView]);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -122,11 +150,12 @@ export function ProjectsPage({
       if (!await canLeaveCurrentOutput()) return;
       try {
         setActiveProject(await projectsApi.getProject(initialProjectName));
+        presentProjectView(initialSection === "tasks" ? "tasks" : "files");
       } catch (cause) {
         setError(errorText(cause));
       }
     })();
-  }, [activeProject?.name, canLeaveCurrentOutput, initialProjectName]);
+  }, [activeProject?.name, canLeaveCurrentOutput, initialProjectName, initialSection, presentProjectView]);
 
   const openCreateDialog = () => {
     setName("");
@@ -138,7 +167,7 @@ export function ProjectsPage({
     setError(null);
     try {
       setActiveProject(await projectsApi.getProject(project.name));
-      setView("tasks");
+      presentProjectView("tasks");
     } catch (cause) {
       setError(errorText(cause));
     }
@@ -153,7 +182,7 @@ export function ProjectsPage({
       const next = await projectsApi.createProject(projectName, "");
       setProjects((current) => [next, ...current.filter((item) => item.name !== next.name)]);
       setActiveProject(next);
-      setView("tasks");
+      presentProjectView("tasks");
       setCreateProjectOpen(false);
       setName("");
       ai.notify(`项目“${next.name}”已创建。`, "success");
@@ -161,6 +190,58 @@ export function ProjectsPage({
       ai.notify(errorText(cause), "error");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const replaceProject = useCallback((previousName: string, next: ProjectDetail) => {
+    setProjects((current) => current.map((item) => item.name === previousName ? next : item));
+    setActiveProject((current) => current?.name === previousName ? next : current);
+  }, []);
+
+  const saveProjectEdits = async (input: { name: string; icon: string; color: ProjectSummary["color"] }) => {
+    const current = editProject;
+    if (!current || busy || !input.name) return;
+    setBusy(true);
+    try {
+      let next = current;
+      if (input.name !== current.name) next = await projectsApi.renameProject(current.name, input.name);
+      next = await projectsApi.updateProject(next.name, { icon: input.icon, color: input.color });
+      replaceProject(current.name, next);
+      setEditProject(null);
+      ai.notify(`项目“${next.name}”已更新。`, "success");
+    } catch (cause) {
+      ai.notify(errorText(cause), "error");
+      void loadProjects();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleFavorite = async (project: ProjectSummary) => {
+    if (projectActionBusy) return;
+    setProjectActionBusy(project.name);
+    try {
+      const next = await projectsApi.updateProject(project.name, { favorite: !project.favorite });
+      replaceProject(project.name, next);
+      ai.notify(next.favorite ? `已收藏“${next.name}”。` : `已取消收藏“${next.name}”。`, "success");
+    } catch (cause) {
+      ai.notify(errorText(cause), "error");
+    } finally {
+      setProjectActionBusy(null);
+    }
+  };
+
+  const archiveProject = async (project: ProjectSummary) => {
+    if (projectActionBusy) return;
+    setProjectActionBusy(project.name);
+    try {
+      const next = await projectsApi.archiveProject(project.name, true);
+      replaceProject(project.name, next);
+      ai.notify(`项目“${project.name}”已归档。`, "success");
+    } catch (cause) {
+      ai.notify(errorText(cause), "error");
+    } finally {
+      setProjectActionBusy(null);
     }
   };
 
@@ -177,16 +258,19 @@ export function ProjectsPage({
   const selectView = useCallback((next: ProjectView) => {
     if (!activeProject) return;
     setCreateAction(null);
-    setView(next);
-  }, [activeProject?.name]);
+    presentProjectView(next);
+  }, [activeProject?.name, presentProjectView]);
 
   const activeProjectName = activeProject?.name;
   const filteredProjects = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return projects
+      .filter((project) => project.status === "active")
       .filter((project) => !needle || `${project.name}\n${project.description}`.toLocaleLowerCase().includes(needle))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }, [projects, query]);
+  const favoriteProjects = useMemo(() => filteredProjects.filter((project) => project.favorite), [filteredProjects]);
+  const recentProjects = useMemo(() => filteredProjects.filter((project) => !project.favorite), [filteredProjects]);
   const attachedPanelsReady = Boolean(activeProject && sectionListHost && detailHost);
 
   return (
@@ -200,9 +284,9 @@ export function ProjectsPage({
           {activeProject ? (
             <>
               <header className="project-pane-project">
-                <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); })}><ArrowLeft size={15} /></button>
+                <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); ai.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
-                <details className="project-create-menu">
+                <details ref={createMenuRef} className="project-create-menu">
                   <summary className="icon-button" aria-label="新建项目内容" title="新建"><Plus size={16} /></summary>
                   <div role="menu">
                     <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("tasks"); }}><ListTodo size={14} /><span>新建任务</span></button>
@@ -243,19 +327,31 @@ export function ProjectsPage({
                 </div>
               ) : (
                 <div className="project-list-scroll" aria-live="polite">
-                  {filteredProjects.map((project, index) => (
-                    <button
-                      key={project.name}
-                      type="button"
-                      className={activeProjectName === project.name ? "active" : ""}
-                      aria-current={activeProjectName === project.name ? "true" : undefined}
-                      style={{ "--project-list-index": index } as CSSProperties}
-                      onClick={() => void openProject(project)}
-                    >
-                      <FolderKanban aria-hidden="true" />
-                      <span><strong>{project.name}</strong></span>
-                    </button>
-                  ))}
+                  {favoriteProjects.length ? (
+                    <ProjectListGroup
+                      label="收藏"
+                      projects={favoriteProjects}
+                      activeProjectName={activeProjectName}
+                      busyProjectName={projectActionBusy}
+                      onOpen={(project) => void openProject(project)}
+                      onEdit={setEditProject}
+                      onToggleFavorite={(project) => void toggleFavorite(project)}
+                      onArchive={(project) => void archiveProject(project)}
+                    />
+                  ) : null}
+                  {recentProjects.length ? (
+                    <ProjectListGroup
+                      label="近期项目"
+                      projects={recentProjects}
+                      activeProjectName={activeProjectName}
+                      busyProjectName={projectActionBusy}
+                      indexOffset={favoriteProjects.length}
+                      onOpen={(project) => void openProject(project)}
+                      onEdit={setEditProject}
+                      onToggleFavorite={(project) => void toggleFavorite(project)}
+                      onArchive={(project) => void archiveProject(project)}
+                    />
+                  ) : null}
                   {!filteredProjects.length ? <p className="project-list-empty">{query ? "没有匹配的项目" : "还没有项目"}</p> : null}
                 </div>
               )}
@@ -300,13 +396,76 @@ export function ProjectsPage({
       {attachedPanelsReady ? (
         <>
           {view === "tasks" ? <ProjectTasksPanel key={`tasks:${activeProject!.name}`} project={activeProject!} initialTaskId={initialSection === "tasks" ? initialItem : undefined} createRequested={createAction === "tasks"} seed={taskSeed} onCreateHandled={() => { setCreateAction(null); setTaskSeed(null); }} onChanged={() => void refreshActive()} listHost={sectionListHost} detailHost={detailHost} /> : null}
-          {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); setView("tasks"); }); }} onChanged={() => void refreshActive()} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
+          {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
         </>
       ) : null}
       <ProjectDialog open={createProjectOpen} title="创建项目" description="项目名会作为本地目录名，请使用清晰且稳定的名称。" confirmLabel="创建项目" busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
         <ProjectTextField label="项目名称" value={name} placeholder="例如：AI 安全研究" autoFocus onChange={setName} />
       </ProjectDialog>
+      <ProjectEditDialog project={editProject} busy={busy} onClose={() => setEditProject(null)} onSave={saveProjectEdits} />
     </div>
+  );
+}
+
+function ProjectListGroup({
+  label,
+  projects,
+  activeProjectName,
+  busyProjectName,
+  indexOffset = 0,
+  onOpen,
+  onEdit,
+  onToggleFavorite,
+  onArchive
+}: {
+  label: string;
+  projects: ProjectSummary[];
+  activeProjectName?: string;
+  busyProjectName: string | null;
+  indexOffset?: number;
+  onOpen(project: ProjectSummary): void;
+  onEdit(project: ProjectSummary): void;
+  onToggleFavorite(project: ProjectSummary): void;
+  onArchive(project: ProjectSummary): void;
+}) {
+  return (
+    <section className="project-list-group" aria-label={label}>
+      <h2>{label}</h2>
+      <div>
+        {projects.map((project, index) => (
+          <div
+            key={project.name}
+            className={`project-list-row${activeProjectName === project.name ? " active" : ""}`}
+            style={{
+              "--project-list-index": indexOffset + index,
+              "--project-icon-color": projectColorValue(project.color)
+            } as CSSProperties}
+          >
+            <button
+              type="button"
+              className="project-list-project"
+              aria-current={activeProjectName === project.name ? "true" : undefined}
+              onClick={() => onOpen(project)}
+            >
+              <ProjectIcon name={project.icon} />
+              <span><strong>{project.name}</strong></span>
+            </button>
+            <DropdownMenu
+              className="project-list-actions"
+              menuClassName="project-project-menu"
+              ariaLabel={`项目操作：${project.name}`}
+              menuLabel={`${project.name}的项目操作`}
+              disabled={busyProjectName === project.name}
+              label={<MoreHorizontal size={17} aria-hidden="true" />}
+            >
+              <button type="button" role="menuitem" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />编辑</button>
+              <button type="button" role="menuitem" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? "取消收藏" : "收藏"}</button>
+              <button type="button" role="menuitem" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
+            </DropdownMenu>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

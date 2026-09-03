@@ -45,6 +45,29 @@ describe("projectsApi", () => {
     expect(archiveProjectTask).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1" });
   });
 
+  it("updates persisted project appearance and favorite metadata", async () => {
+    const updateProject = vi.fn(async () => ({
+      project: {
+        name: "AI 安全",
+        description: "研究",
+        status: "active",
+        icon: "gamepad",
+        color: "pink",
+        favorite: true,
+        createdAt: "2026-08-30T00:00:00.000Z",
+        updatedAt: "2026-08-31T00:00:00.000Z"
+      }
+    }));
+    window.openmind = { updateProject } as never;
+
+    await expect(projectsApi.updateProject("AI 安全", { icon: "gamepad", color: "pink", favorite: true })).resolves.toMatchObject({
+      icon: "gamepad",
+      color: "pink",
+      favorite: true
+    });
+    expect(updateProject).toHaveBeenCalledWith({ projectName: "AI 安全", icon: "gamepad", color: "pink", favorite: true });
+  });
+
   it("reads parsed video metadata from the ProjectMaterialRead envelope", async () => {
     window.openmind = {
       readProjectMaterial: vi.fn(async () => ({

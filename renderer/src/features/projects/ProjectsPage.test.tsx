@@ -57,6 +57,7 @@ function installApi(overrides: Record<string, unknown> = {}): void {
     getProject: vi.fn(async () => detail),
     createProject: vi.fn(async () => detail),
     renameProject: vi.fn(async () => detail),
+    updateProject: vi.fn(async () => detail),
     archiveProject: vi.fn(async () => detail),
     listProjectTasks: vi.fn(async () => []),
     listProjectMaterials: vi.fn(async () => []),
@@ -85,7 +86,7 @@ describe("ProjectsPage", () => {
 
     const search = await screen.findByLabelText("搜索项目");
     expect(search).toBeTruthy();
-    const projectButton = screen.getByRole("button", { name: /AI 安全/ });
+    const projectButton = screen.getByRole("button", { name: "AI 安全" });
     expect(projectButton.querySelectorAll("svg")).toHaveLength(1);
     fireEvent.click(projectButton);
 
@@ -129,7 +130,7 @@ describe("ProjectsPage", () => {
     installApi({ listProjectTasks: vi.fn(async () => [task]) });
     const { container } = renderPage({ ...snapshot, sessions: [workspaceSession] });
 
-    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
 
     const taskButton = (await screen.findByText("具体任务")).closest("button")!;
     expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(false);
@@ -154,7 +155,7 @@ describe("ProjectsPage", () => {
     fireEvent.change(search, { target: { value: "安全" } });
 
     await waitFor(() => expect(screen.queryByRole("button", { name: /每日简报实验/ })).toBeNull());
-    expect(screen.getByRole("button", { name: /AI 安全/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "AI 安全" })).toBeTruthy();
   });
 
   it("uses the full-height workspace and keeps creation in the empty state", async () => {
@@ -179,7 +180,7 @@ describe("ProjectsPage", () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
     const filesTab = await screen.findByRole("tab", { name: "文件" });
     fireEvent.click(filesTab);
 
@@ -205,7 +206,7 @@ describe("ProjectsPage", () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
     fireEvent.click(await screen.findByLabelText("新建项目内容"));
 
     expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
@@ -218,11 +219,28 @@ describe("ProjectsPage", () => {
     expect(await screen.findByRole("dialog", { name: "添加资料" })).toBeTruthy();
   });
 
+  it("closes the project plus menu when clicking outside it", async () => {
+    installApi();
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
+    const trigger = await screen.findByLabelText("新建项目内容");
+    fireEvent.click(trigger);
+
+    const menu = trigger.closest("details");
+    expect(menu?.hasAttribute("open")).toBe(true);
+    expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(menu?.hasAttribute("open")).toBe(false);
+  });
+
   it("opens the reused AI conversation workbench when creating a task", async () => {
     installApi();
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
     fireEvent.click(await screen.findByLabelText("新建项目内容"));
     fireEvent.click(screen.getByRole("menuitem", { name: "新建任务" }));
 
@@ -253,7 +271,7 @@ describe("ProjectsPage", () => {
     });
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: /AI 安全/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
     const taskButton = (await screen.findByText("暑期保养预告海报")).closest("button")!;
     fireEvent.click(taskButton);
     expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(true);
@@ -284,16 +302,59 @@ describe("ProjectsPage", () => {
     expect(await screen.findByText("新会话")).toBeTruthy();
   });
 
-  it("shows active and archived projects in one flat list without status headings", async () => {
-    const archived: ProjectSummary = { ...summary, name: "旧选题库", status: "archived" as const };
-    installApi({ listProjects: vi.fn(async () => [summary, archived]) });
-    const { container } = renderPage();
+  it("edits a project name, color and icon from the three-dot menu", async () => {
+    const renamed = { ...detail, name: "Chaos" };
+    const renameProject = vi.fn(async () => renamed);
+    const updateProject = vi.fn(async ({ icon, color }: { icon: string; color: string }) => ({ ...renamed, icon, color }));
+    installApi({ renameProject, updateProject });
+    renderPage();
 
-    const archivedProject = await screen.findByRole("button", { name: /旧选题库/ });
-    expect(screen.queryByText("进行中")).toBeNull();
-    expect(screen.queryByText("已归档")).toBeNull();
-    expect(container.querySelector(".project-list-section")).toBeNull();
-    fireEvent.click(archivedProject);
-    await waitFor(() => expect(window.openmind.getProject).toHaveBeenCalledWith("旧选题库"));
+    fireEvent.click(await screen.findByRole("button", { name: "项目操作：AI 安全" }));
+    const menu = await screen.findByRole("menu", { name: "AI 安全的项目操作" });
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["编辑", "收藏", "归档"]);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "编辑" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "编辑项目" });
+    fireEvent.change(within(dialog).getByLabelText("项目名称"), { target: { value: "Chaos" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "图标" }));
+    const picker = await screen.findByRole("dialog", { name: "选择项目图标" });
+    fireEvent.click(within(picker).getByRole("button", { name: "游戏" }));
+    expect(screen.queryByRole("dialog", { name: "选择项目图标" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "粉色" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "更新" }));
+
+    await waitFor(() => expect(renameProject).toHaveBeenCalledWith({ projectName: "AI 安全", newName: "Chaos" }));
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith({ projectName: "Chaos", icon: "gamepad", color: "pink" }));
+    expect(await screen.findByRole("button", { name: "Chaos" })).toBeTruthy();
+  });
+
+  it("moves a favorite out of Recent Projects into Favorites only", async () => {
+    const updateProject = vi.fn(async () => ({ ...detail, favorite: true }));
+    installApi({ updateProject });
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "近期项目" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "项目操作：AI 安全" }));
+    fireEvent.click(within(await screen.findByRole("menu", { name: "AI 安全的项目操作" })).getByRole("menuitem", { name: "收藏" }));
+
+    const favorites = await screen.findByRole("region", { name: "收藏" });
+    expect(within(favorites).getByRole("button", { name: "AI 安全" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "近期项目" })).toBeNull();
+    expect(updateProject).toHaveBeenCalledWith({ projectName: "AI 安全", favorite: true });
+  });
+
+  it("archives a project from its menu and keeps archived projects out of the recent group", async () => {
+    const archived: ProjectSummary = { ...summary, name: "旧选题库", status: "archived" as const };
+    const archiveProject = vi.fn(async () => ({ ...detail, status: "archived" as const }));
+    installApi({ listProjects: vi.fn(async () => [summary, archived]), archiveProject });
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "近期项目" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "旧选题库" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "项目操作：AI 安全" }));
+    fireEvent.click(within(await screen.findByRole("menu", { name: "AI 安全的项目操作" })).getByRole("menuitem", { name: "归档" }));
+
+    await waitFor(() => expect(archiveProject).toHaveBeenCalledWith({ projectName: "AI 安全", archived: true }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "AI 安全" })).toBeNull());
   });
 });

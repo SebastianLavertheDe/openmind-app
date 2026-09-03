@@ -48,10 +48,16 @@ import {
   ProjectCreateInputSchema,
   ProjectCreateOutputInputSchema,
   ProjectCreateTaskInputSchema,
+  ProjectDownloadFileInputSchema,
   ProjectMaterialLocatorSchema,
+  ProjectMoveMaterialInputSchema,
+  ProjectMoveOutputInputSchema,
   ProjectNameSchema,
   ProjectOutputLocatorSchema,
   ProjectRenameInputSchema,
+  ProjectRenameMaterialInputSchema,
+  ProjectRenameOutputInputSchema,
+  ProjectUpdateInputSchema,
   ProjectRenameTaskInputSchema,
   ProjectSaveOutputInputSchema,
   ProjectStartTaskRunInputSchema,
@@ -639,6 +645,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
+      channel: C.updateProject,
+      handler: (rawInput) => {
+        const input = ProjectUpdateInputSchema.parse(rawInput);
+        const { projectName, ...patch } = input;
+        return projects().updateProject(projectName, patch);
+      }
+    },
+    {
       channel: C.archiveProject,
       handler: async (rawInput) => {
         const input = ProjectArchiveInputSchema.parse(rawInput);
@@ -689,6 +703,20 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (rawInput) => {
         const input = ProjectMaterialLocatorSchema.parse(rawInput);
         return projects().removeProjectMaterial(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.renameProjectMaterial,
+      handler: (rawInput) => {
+        const input = ProjectRenameMaterialInputSchema.parse(rawInput);
+        return projects().renameProjectMaterial(input.projectName, input.relativePath, input.newTitle);
+      }
+    },
+    {
+      channel: C.moveProjectMaterial,
+      handler: (rawInput) => {
+        const input = ProjectMoveMaterialInputSchema.parse(rawInput);
+        return projects().moveProjectMaterial(input.projectName, input.relativePath, input.targetProjectName);
       }
     },
     {
@@ -846,6 +874,34 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (rawInput) => {
         const input = ProjectOutputLocatorSchema.parse(rawInput);
         return projects().removeProjectOutput(input.projectName, input.relativePath);
+      }
+    },
+    {
+      channel: C.renameProjectOutput,
+      handler: (rawInput) => {
+        const input = ProjectRenameOutputInputSchema.parse(rawInput);
+        return projects().renameProjectOutput(input.projectName, input.relativePath, input.newTitle);
+      }
+    },
+    {
+      channel: C.moveProjectOutput,
+      handler: (rawInput) => {
+        const input = ProjectMoveOutputInputSchema.parse(rawInput);
+        return projects().moveProjectOutput(input.projectName, input.relativePath, input.targetProjectName);
+      }
+    },
+    {
+      channel: C.downloadProjectFile,
+      handler: async (rawInput) => {
+        const input = ProjectDownloadFileInputSchema.parse(rawInput);
+        const source = projects().resolveProjectExportFile(input.projectName, input.kind, input.relativePath);
+        const result = await dialog.showSaveDialog(ctx.getMainWindow()!, {
+          title: "下载文件",
+          defaultPath: path.basename(source)
+        });
+        if (result.canceled || !result.filePath) return { canceled: true, savedPath: null };
+        await fs.copyFile(source, result.filePath);
+        return { canceled: false, savedPath: result.filePath };
       }
     },
   ];

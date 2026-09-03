@@ -334,6 +334,7 @@ export const aiMessages = {
     systemTitle: "系统事件",
     runFailed: "运行失败",
     openRunRecord: "打开运行记录",
+    openLogin: "去终端登录",
     retry: "按原上下文重试",
     runDetail: "运行详情",
     runDetailSubtitle: "初始化、状态与生命周期事件",

@@ -521,6 +521,43 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
   }, 15_000);
 
+  it("docks the AI companion beside Project files and closes it for Project tasks", async () => {
+    const project = {
+      schemaVersion: 1 as const,
+      name: "AI 安全",
+      description: "研究与写作",
+      status: "active" as const,
+      icon: "database",
+      color: "neutral" as const,
+      favorite: false,
+      materialCount: 0,
+      taskCount: 0,
+      outputCount: 0,
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    installApi({
+      listProjects: async () => [project],
+      getProject: async () => ({ project }),
+      listProjectTasks: async () => [],
+      listProjectMaterials: async () => [],
+      listProjectOutputs: async () => []
+    });
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "项目" }));
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
+    fireEvent.click(await screen.findByRole("tab", { name: "文件" }));
+
+    await waitFor(() => expect(document.querySelector(".app-shell.page-projects > .ai-sidebar.mode-default")).toBeTruthy());
+    expect(screen.getByRole("separator", { name: /AI 侧栏宽度/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "任务" }));
+    await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeNull());
+    expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy();
+  }, 15_000);
+
   it("opens companion file references inside the left workspace instead of the external editor", async () => {
     const path = "openmind/daily-topic/20260728_daily_topic.md";
     const openPath = vi.fn(async (value: string) => value);

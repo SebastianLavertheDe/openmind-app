@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ExternalLink, FileOutput, FilePlus2, FileText, Globe2, LoaderCircle, Play, Plus, RefreshCw, Search, Trash2, Upload, Video } from "lucide-react";
+import { AlertTriangle, ExternalLink, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Search, Upload, Video } from "lucide-react";
 import { useAi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState } from "../../design-system/components";
+import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 import { ProjectDialog } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
 import { projectsApi } from "./projects-api";
@@ -11,6 +12,8 @@ import type { ProjectDetail, ProjectMaterial, ProjectMaterialKind, ProjectTransc
 import type { ProjectTaskSeed } from "./ProjectTasksPanel";
 
 type MaterialFilter = "all" | ProjectMaterialKind;
+
+const VIDEO_DETAIL_SPLIT_MIN_INLINE_SIZE = 720;
 
 export function ProjectMaterialsPanel({
   project,
@@ -179,23 +182,6 @@ export function ProjectMaterialsPanel({
     }
   };
 
-  const remove = async () => {
-    if (!selected) return;
-    const confirmed = await ai.confirm({ title: "移出项目", body: `从项目移出“${selected.title}”？项目外部的原始文件不会被删除。`, confirmText: "移出", danger: true });
-    if (!confirmed) return;
-    try {
-      await projectsApi.removeMaterial(project.name, selected.relativePath);
-      setSelected(null);
-      setSelectedPath("");
-      onSelectionChange?.();
-      await load();
-      onChanged();
-      ai.notify("资料已移出项目。", "success");
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
-    }
-  };
-
   const retry = async (material: ProjectMaterial) => {
     if (retryingPath) return;
     setRetryingPath(material.relativePath);
@@ -212,20 +198,6 @@ export function ProjectMaterialsPanel({
       ai.notify(errorText(cause), "error");
     } finally {
       setRetryingPath("");
-    }
-  };
-
-  const copyAsOutput = async (material: ProjectMaterial) => {
-    if (material.truncated) {
-      ai.notify("当前资料预览不完整，不能转为文档。请让 AI 按需读取原资料。", "error");
-      return;
-    }
-    try {
-      await projectsApi.createOutput(project.name, material.title, material.content || "");
-      onChanged();
-      ai.notify("资料已转为可编辑文档。", "success");
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
     }
   };
 
@@ -294,7 +266,7 @@ export function ProjectMaterialsPanel({
   );
 
   const detail = reading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在读取资料…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
-    <MaterialDetail material={selected} retrying={retryingPath === selected.relativePath} onRetry={() => void retry(selected)} onRemove={() => void remove()} onCopyOutput={() => void copyAsOutput(selected)} onCreateTask={onCreateTask} />
+    <MaterialDetail material={selected} retrying={retryingPath === selected.relativePath} onRetry={() => void retry(selected)} />
   ) : (
     <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
   );
@@ -316,20 +288,17 @@ export function ProjectMaterialsPanel({
   );
 }
 
-function MaterialDetail({ material, retrying, onRetry, onRemove, onCopyOutput, onCreateTask }: { material: ProjectMaterial; retrying: boolean; onRetry(): void; onRemove(): void; onCopyOutput(): void; onCreateTask(seed: ProjectTaskSeed): void }) {
+function MaterialDetail({ material, retrying, onRetry }: { material: ProjectMaterial; retrying: boolean; onRetry(): void }) {
   const [raw, setRaw] = useState(false);
-  const citation = `[[source:${material.relativePath}]]`;
-  const createTask = () => onCreateTask({ title: `基于${material.title}创作`, prompt: `请基于资料 ${citation} 进行分析并完成创作。` });
   return (
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
       <header className="project-detail-header">
         <div><span className="eyebrow">{materialKindLabel(material.kind)} · {materialStatusLabel(material.status)}</span><h2>{material.title}</h2><p title={material.relativePath}>{material.sourceUrl || material.relativePath}</p></div>
-        <div><button className="primary-button" disabled={material.status !== "ready"} onClick={createTask}><SparklesIcon />基于此资料新建任务</button><button className="icon-button" disabled={material.status !== "ready" || material.truncated} aria-label="转为可编辑文档" title={material.truncated ? "资料预览不完整，不能转为文档" : "转为可编辑文档"} onClick={onCopyOutput}><FileOutput size={15} /></button>{material.sourceUrl ? <button className="icon-button" aria-label="在浏览器打开原始链接" onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={15} /></button> : null}<button className="icon-button danger" aria-label="移出项目" onClick={onRemove}><Trash2 size={15} /></button></div>
       </header>
       {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接转为文档；项目任务仍可按需读取原资料。</p></div></div> : null}
       {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
-      {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} onCreateTask={onCreateTask} /> : null}
+      {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} /> : null}
       {material.status === "ready" && material.kind !== "video" ? (
         <div className="project-markdown-material">
           <div className="project-preview-mode" role="group" aria-label="资料查看方式"><button className={!raw ? "active" : ""} aria-pressed={!raw} onClick={() => setRaw(false)}>阅读</button><button className={raw ? "active" : ""} aria-pressed={raw} onClick={() => setRaw(true)}>Markdown</button></div>
@@ -340,16 +309,12 @@ function MaterialDetail({ material, retrying, onRetry, onRemove, onCopyOutput, o
   );
 }
 
-function VideoMaterialDetail({ material, onCreateTask }: { material: ProjectMaterial; onCreateTask(seed: ProjectTaskSeed): void }) {
+function VideoMaterialDetail({ material }: { material: ProjectMaterial }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const videoLayout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: VIDEO_DETAIL_SPLIT_MIN_INLINE_SIZE });
   const [currentMs, setCurrentMs] = useState(0);
-  const [query, setQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const segments = useMemo(() => material.video?.transcript?.length ? material.video.transcript : parseTranscript(material.content || ""), [material.content, material.video?.transcript]);
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return segments.filter((item) => !needle || item.text.toLocaleLowerCase().includes(needle));
-  }, [query, segments]);
+
   // Project Markdown is user-editable, so never let a persisted direct/HLS URL
   // make the renderer fetch arbitrary hosts. The first release embeds only the
   // provider URL that Main reconstructs for a canonical YouTube id; other
@@ -385,33 +350,27 @@ function VideoMaterialDetail({ material, onCreateTask }: { material: ProjectMate
       frameRef.current.contentWindow.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [milliseconds / 1000, true] }), embedOrigin);
     }
   };
-  const selectedSegments = segments.filter((item) => selectedIds.has(item.id));
-  const createFromSelection = () => {
-    if (!selectedSegments.length) {
-      onCreateTask({ title: `基于${material.title}创作`, prompt: `请基于视频资料 [[source:${material.relativePath}]] 进行分析并完成创作。` });
-      return;
-    }
-    const start = Math.min(...selectedSegments.map((item) => item.startMs));
-    const end = Math.max(...selectedSegments.map((item) => item.endMs));
-    onCreateTask({ title: `基于${material.title}片段创作`, prompt: `请重点基于视频片段 [[video:${material.relativePath}@${formatMachineTime(start)}-${formatMachineTime(end)}]] 进行分析并完成创作。` });
-  };
 
   return (
-    <div className="project-video-detail">
-      <section className="project-video-player">
-        {embedUrl ? <iframe ref={frameRef} title={material.title} src={embedUrl} onLoad={connectEmbeddedPlayer} sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : <div className="project-video-unavailable"><Video size={28} /><strong>当前链接无法安全内嵌播放</strong><p>字幕仍可阅读；可以在浏览器中打开原视频。</p>{material.sourceUrl ? <button onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={14} />浏览器打开</button> : null}</div>}
-      </section>
-      <section className="project-transcript">
-        <header><label><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索字幕" /></label><button className="primary-button" disabled={!segments.length} onClick={createFromSelection}><Play size={14} />{selectedIds.size ? `基于 ${selectedIds.size} 段新建任务` : "基于视频新建任务"}</button></header>
-        <div className="project-transcript-list">
-          {!segments.length ? <EmptyState title="暂无字幕" description="当前视频没有可用的平台字幕；原始链接仍会保留在项目资料中。" /> : null}
-          {segments.length && !filtered.length ? <EmptyState title="没有匹配的字幕" description="换一个关键词后再试。" /> : null}
-          {filtered.map((item) => {
-            const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
-            return <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}><button className="project-timecode" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button><label><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => setSelectedIds((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} /><span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span></label></div>;
-          })}
+    <div ref={videoLayout.ref} className={`project-video-layout layout-${videoLayout.mode}`} data-layout-width={videoLayout.inlineSize ? Math.round(videoLayout.inlineSize) : undefined}>
+      <div className="project-video-detail">
+        <div className="project-video-media-column">
+          <section className="project-video-player">
+            {embedUrl ? <iframe ref={frameRef} title={material.title} src={embedUrl} onLoad={connectEmbeddedPlayer} sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : <div className="project-video-unavailable"><Video size={28} /><strong>当前链接无法安全内嵌播放</strong><p>字幕仍可阅读；可以在浏览器中打开原视频。</p>{material.sourceUrl ? <button onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={14} />浏览器打开</button> : null}</div>}
+          </section>
         </div>
-      </section>
+        <div className="project-video-inspector-column">
+          <section className="project-transcript project-video-inspector">
+            <div className="project-transcript-list">
+              {!segments.length ? <EmptyState title="暂无字幕" description="当前视频没有可用的平台字幕；原始链接仍会保留在项目资料中。" /> : null}
+              {segments.map((item) => {
+                const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
+                return <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}><button className="project-timecode" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button><span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span></div>;
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
@@ -450,14 +409,6 @@ function formatDisplayTime(milliseconds: number): string {
   return `${hours ? `${String(hours).padStart(2, "0")}:` : ""}${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
-function formatMachineTime(milliseconds: number): string {
-  const totalSeconds = Math.max(0, milliseconds) / 1000;
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = (totalSeconds % 60).toFixed(3).padStart(6, "0");
-  return `${hours ? `${String(hours).padStart(2, "0")}:` : ""}${String(minutes).padStart(2, "0")}:${seconds}`;
-}
-
 function materialIcon(kind: ProjectMaterialKind) {
   return kind === "video" ? Video : kind === "web" ? Globe2 : FileText;
 }
@@ -472,10 +423,6 @@ function materialKindLabel(kind: ProjectMaterialKind): string {
 
 function materialStatusLabel(status: ProjectMaterial["status"]): string {
   return status === "importing" ? "导入中" : status === "converting" ? "转换中" : status === "failed" ? "转换失败" : "可用";
-}
-
-function SparklesIcon() {
-  return <span aria-hidden="true">✦</span>;
 }
 
 const MAX_MATERIAL_LINKS = 50;

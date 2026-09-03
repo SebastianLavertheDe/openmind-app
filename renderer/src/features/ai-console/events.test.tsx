@@ -194,7 +194,7 @@ describe("process system semantics", () => {
 });
 
 describe("ErrorEvent", () => {
-  it("renders error title and first line of error text", () => {
+  it("renders error title once with the full text only in the expandable body", () => {
     const event = makeEvent("err1", "error", { text: "Something went wrong\nDetailed stack trace" });
     render(
       <AiProvider initial={snapshot}>
@@ -202,7 +202,32 @@ describe("ErrorEvent", () => {
       </AiProvider>
     );
     expect(screen.getByText("运行失败")).toBeTruthy();
-    expect(screen.getByText("Something went wrong")).toBeTruthy();
+    // 错误全文只在展开区出现一次，头部不再重复摘要。
+    expect(screen.getAllByText(/Something went wrong/)).toHaveLength(1);
+  });
+
+  it("offers a terminal login shortcut for not-logged-in failures", () => {
+    const openCliLogin = vi.fn(async () => {});
+    window.openmind = { ...window.openmind, openCliLogin } as unknown as DesktopApi;
+    const session = { id: "session-1", provider: "claude" };
+    const withSessions = { ...snapshot, sessions: [session] } as typeof snapshot;
+    const event = makeEvent("err1b", "error", { sessionId: "session-1", text: "Not logged in · Please run /login" });
+    render(
+      <AiProvider initial={withSessions}>
+        <ErrorEvent event={event} />
+      </AiProvider>
+    );
+    fireEvent.click(screen.getByText("去终端登录"));
+    expect(openCliLogin).toHaveBeenCalledWith("claude");
+    // 非登录类错误不显示该入口。
+    cleanup();
+    const other = makeEvent("err1c", "error", { text: "boom" });
+    render(
+      <AiProvider initial={withSessions}>
+        <ErrorEvent event={other} />
+      </AiProvider>
+    );
+    expect(screen.queryByText("去终端登录")).toBeNull();
   });
 
   it("falls back to default message when text is empty", () => {

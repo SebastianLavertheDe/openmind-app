@@ -111,13 +111,17 @@ export function DropdownMenu({
   children,
   disabled = false,
   ariaLabel,
-  menuLabel
+  menuLabel,
+  className,
+  menuClassName
 }: {
   label: ReactNode;
   children: ReactNode;
   disabled?: boolean;
   ariaLabel?: string;
   menuLabel?: string;
+  className?: string;
+  menuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -193,7 +197,7 @@ export function DropdownMenu({
   return (
     <span
       ref={rootRef}
-      className="ui-dropdown"
+      className={`ui-dropdown${className ? ` ${className}` : ""}`}
       data-open={open || undefined}
     >
       <button
@@ -211,7 +215,7 @@ export function DropdownMenu({
       {visible && typeof document !== "undefined" ? createPortal(
         <div
           ref={menuRef}
-          className="ui-dropdown-menu"
+          className={`ui-dropdown-menu${menuClassName ? ` ${menuClassName}` : ""}`}
           role="menu"
           aria-label={menuLabel}
           data-side={popover.side}

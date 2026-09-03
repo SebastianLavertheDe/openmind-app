@@ -232,6 +232,9 @@ export function installBrowserPreviewApi(): boolean {
     name: "AI 安全",
     description: "整理可信资料，并完成 AI 安全主题创作。",
     status: "active",
+    icon: "database",
+    color: "neutral",
+    favorite: false,
     materialCount: 3,
     taskCount: 1,
     outputCount: 1,
@@ -295,7 +298,7 @@ export function installBrowserPreviewApi(): boolean {
   const previewProjectVideo: ProjectVideoReadMetadata = {
     provider: "youtube",
     sourceUrl: "https://www.youtube.com/watch?v=MnrJzXM7a6o",
-    embedUrl: "https://www.youtube-nocookie.com/embed/MnrJzXM7a6o",
+    embedUrl: "https://www.youtube-nocookie.com/embed/MnrJzXM7a6o?enablejsapi=1",
     videoId: "MnrJzXM7a6o",
     mediaType: "video",
     title: "Steve Jobs MacWorld keynote",
@@ -408,7 +411,7 @@ export function installBrowserPreviewApi(): boolean {
     createProject: async (input) => {
       if (previewProjects.some((project) => project.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) throw new Error("项目名已存在");
       const now = new Date().toISOString();
-      const project: ProjectSummary = { schemaVersion: 1, name: input.name, description: input.description || "", status: "active", materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
+      const project: ProjectSummary = { schemaVersion: 1, name: input.name, description: input.description || "", status: "active", icon: "database", color: "neutral", favorite: false, materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
       previewProjects = [project, ...previewProjects];
       return { project };
     },
@@ -422,6 +425,18 @@ export function installBrowserPreviewApi(): boolean {
       previewProjectTasks = previewProjectTasks.map((task) => task.projectName === projectName ? { ...task, projectName: newName, updatedAt: now } : task);
       previewProjectOutputs = previewProjectOutputs.map((entry) => entry.output.projectName === projectName ? { ...entry, output: { ...entry.output, projectName: newName, updatedAt: now } } : entry);
       return { project: renamed };
+    },
+    updateProject: async ({ projectName, icon, color, favorite }) => {
+      const current = previewProjectDetail(projectName).project;
+      const project = {
+        ...current,
+        ...(icon !== undefined ? { icon } : {}),
+        ...(color !== undefined ? { color } : {}),
+        ...(favorite !== undefined ? { favorite } : {}),
+        updatedAt: new Date().toISOString()
+      };
+      previewProjects = previewProjects.map((item) => item.name === projectName ? project : item);
+      return { project };
     },
     archiveProject: async ({ projectName, archived }) => {
       const current = previewProjectDetail(projectName).project;
@@ -453,6 +468,22 @@ export function installBrowserPreviewApi(): boolean {
       previewProjectMaterialContent.delete(relativePath);
       previewProjectDetail(projectName);
       return previewProjectMaterials.length < before;
+    },
+    renameProjectMaterial: async ({ projectName, relativePath, newTitle }) => {
+      const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
+      if (!current) throw new Error("资料不存在");
+      const material: ProjectMaterial = { ...current, title: newTitle, updatedAt: new Date().toISOString() };
+      previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
+      return material;
+    },
+    moveProjectMaterial: async ({ projectName, relativePath, targetProjectName }) => {
+      const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
+      if (!current) throw new Error("资料不存在");
+      const material: ProjectMaterial = { ...current, projectName: targetProjectName, updatedAt: new Date().toISOString() };
+      previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
+      previewProjectDetail(projectName);
+      previewProjectDetail(targetProjectName);
+      return material;
     },
     readProjectMaterial: async ({ projectName, relativePath }) => {
       const material = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
@@ -522,6 +553,23 @@ export function installBrowserPreviewApi(): boolean {
       previewProjectDetail(projectName);
       return previewProjectOutputs.length < before;
     },
+    renameProjectOutput: async ({ projectName, relativePath, newTitle }) => {
+      const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
+      if (!current) throw new Error("成品不存在");
+      const result = { output: { ...current.output, title: newTitle, updatedAt: new Date().toISOString() }, content: current.content };
+      previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
+      return result;
+    },
+    moveProjectOutput: async ({ projectName, relativePath, targetProjectName }) => {
+      const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
+      if (!current) throw new Error("成品不存在");
+      const result = { output: { ...current.output, projectName: targetProjectName, sourceTaskId: null, sourceSessionId: null, sourceMessageId: null, updatedAt: new Date().toISOString() }, content: current.content };
+      previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
+      previewProjectDetail(projectName);
+      previewProjectDetail(targetProjectName);
+      return result;
+    },
+    downloadProjectFile: async () => ({ canceled: true, savedPath: null }),
     searchWorkspace: async (query) => {
       const normalized = query.toLocaleLowerCase();
       return [

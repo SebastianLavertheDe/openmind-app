@@ -82,7 +82,7 @@ function Workspace({
   const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   const ai = useAi();
-  const showAiCompanion = route.page === "creative" || route.page === "brief";
+  const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
     const next = await window.openmind.getBootstrap();

@@ -23,7 +23,8 @@ import {
   type ProjectSaveOutputInput,
   type ProjectSummary,
   type ProjectTask,
-  type ProjectTaskStatus
+  type ProjectTaskStatus,
+  type ProjectUpdateInput
 } from "../../shared/project-contracts";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import {
@@ -44,9 +45,15 @@ const RenamePhaseSchema = z.enum([
   "outputs-renamed",
   "committed"
 ]);
+const ProjectDirectoryIdentityPartSchema = z.preprocess(
+  (value) => typeof value === "number" || typeof value === "bigint" ? value.toString() : value,
+  z.string().regex(/^\d+$/)
+);
 const ProjectDirectoryIdentitySchema = z.object({
-  device: z.number().int().nonnegative(),
-  inode: z.number().int().nonnegative(),
+  // Windows can expose file IDs larger than Number.MAX_SAFE_INTEGER. Persisting
+  // them as strings keeps rename journals valid while accepting older numeric journals.
+  device: ProjectDirectoryIdentityPartSchema,
+  inode: ProjectDirectoryIdentityPartSchema,
   birthtimeMs: z.number().nonnegative()
 });
 const ProjectRenameJournalSchema = z.object({
@@ -113,6 +120,9 @@ export class ProjectService {
         name: project.name,
         description: input.description,
         status: "active",
+        icon: "database",
+        color: "neutral",
+        favorite: false,
         createdAt: timestamp,
         updatedAt: timestamp
       });
@@ -215,6 +225,20 @@ export class ProjectService {
       this.writeManifest(manifest.name, {
         ...manifest,
         status: archived ? "archived" : "active",
+        updatedAt: now()
+      });
+      return this.getProject(manifest.name);
+    });
+  }
+
+  updateProject(projectName: string, patch: Omit<ProjectUpdateInput, "projectName">): ProjectDetail {
+    return this.paths.withProjectMutationLock(() => {
+      const manifest = this.readManifest(projectName);
+      this.writeManifest(manifest.name, {
+        ...manifest,
+        ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
+        ...(patch.color !== undefined ? { color: patch.color } : {}),
+        ...(patch.favorite !== undefined ? { favorite: patch.favorite } : {}),
         updatedAt: now()
       });
       return this.getProject(manifest.name);
@@ -397,6 +421,66 @@ export class ProjectService {
       const removed = this.outputs.remove(name, relativePath);
       if (removed) this.touch(name);
       return removed;
+    });
+  }
+
+  renameProjectMaterial(projectName: string, relativePath: string, newTitle: string): ProjectMaterial {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const updated = this.materials.rename(name, relativePath, newTitle);
+      this.touch(name);
+      return updated;
+    });
+  }
+
+  moveProjectMaterial(projectName: string, relativePath: string, targetProjectName: string): ProjectMaterial {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const targetName = this.canonicalName(targetProjectName);
+      const moved = this.materials.moveToProject(name, relativePath, targetName);
+      this.touch(name);
+      this.touch(targetName);
+      return moved;
+    });
+  }
+
+  renameProjectOutput(projectName: string, relativePath: string, newTitle: string): ProjectOutputRead {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const result = this.outputs.rename(name, relativePath, newTitle);
+      this.touch(name);
+      return result;
+    });
+  }
+
+  moveProjectOutput(projectName: string, relativePath: string, targetProjectName: string): ProjectOutputRead {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const targetName = this.canonicalName(targetProjectName);
+      const result = this.outputs.moveToProject(name, relativePath, targetName);
+      this.touch(name);
+      this.touch(targetName);
+      return result;
+    });
+  }
+
+  /** Absolute path of the on-disk file a download should export (material original when preserved). */
+  resolveProjectExportFile(projectName: string, kind: "material" | "output", relativePath: string): string {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      if (kind === "output") {
+        this.outputs.read(name, relativePath);
+        return this.paths.resolveInsideProject(name, relativePath, { allowedTopLevels: ["outputs"] });
+      }
+      const material = this.materials.list(name).find((item) => item.relativePath === relativePath);
+      if (!material) throw new Error("项目资料不存在。");
+      const candidates = [material.originalRelativePath, material.relativePath].filter(Boolean) as readonly string[];
+      for (const candidate of candidates) {
+        const absolute = this.paths.resolveInsideProject(name, candidate, { allowedTopLevels: ["materials"] });
+        const stat = fs.lstatSync(absolute);
+        if (stat.isFile() && !stat.isSymbolicLink()) return absolute;
+      }
+      throw new Error("项目资料文件不存在，暂时不能下载。");
     });
   }
 
@@ -735,7 +819,8 @@ function assertJsonEqual(actual: unknown, expected: unknown, message: string): v
 }
 
 function syncFile(filePath: string): void {
-  const descriptor = fs.openSync(filePath, "r");
+  // FlushFileBuffers requires a writable file handle on Windows.
+  const descriptor = fs.openSync(filePath, "r+");
   try { fs.fsyncSync(descriptor); }
   finally { fs.closeSync(descriptor); }
 }

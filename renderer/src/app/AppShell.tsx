@@ -146,7 +146,7 @@ export function AppShell({
   ];
   return (
     <div
-      className={`app-shell layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""}${onboardingMode ? " onboarding-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
+      className={`app-shell page-${page} layout-shell-${responsiveLayout.shell} layout-companion-${responsiveLayout.companion} layout-workspace-${responsiveLayout.workspace} layout-density-${responsiveLayout.density} ${page === "ai" ? "ai-page" : ""}${settingsMode ? " settings-mode" : ""}${onboardingMode ? " onboarding-mode" : ""} ${showAiSidebar ? `with-ai-${aiMode}` : ""}${mobileNavOpen ? " mobile-nav-open" : ""}${windowsMica ? " window-chrome-mica" : ""}`}
       style={{
         "--nav-width": `${navigationInlineSize}px`,
         "--layout-nav-expanded-width": `${RESPONSIVE_LAYOUT_BREAKPOINTS.expandedNavigationWidth}px`,

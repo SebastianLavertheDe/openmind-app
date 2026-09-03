@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(113);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(113);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(113);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(119);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(119);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(119);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -890,6 +890,24 @@ describe("handler forwarding — Project domain", () => {
     await invokeHandler(ctx, IPC_METHOD_CHANNELS.createProject, { name: "Research", description: "notes" });
     expect(createProject).toHaveBeenCalledWith(expect.objectContaining({ name: "Research", description: "notes" }));
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.createProject, { name: "../escape" })).toThrow();
+  });
+
+  it("validates project appearance updates at the IPC boundary", async () => {
+    const updateProject = vi.fn(() => ({ project: { name: "Research", icon: "gamepad", color: "pink", favorite: true } }));
+    const ctx = makeCtx({ ensureProjectService: () => ({ updateProject }) as never });
+
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.updateProject, {
+      projectName: "Research",
+      icon: "gamepad",
+      color: "pink",
+      favorite: true
+    });
+
+    expect(updateProject).toHaveBeenCalledWith("Research", { icon: "gamepad", color: "pink", favorite: true });
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.updateProject, {
+      projectName: "Research",
+      color: "not-a-color"
+    })).toThrow();
   });
 
   it("blocks Task archive while any AI run is active", async () => {

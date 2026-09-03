@@ -39,7 +39,7 @@ export class ProjectOutputService {
       const projectName = this.paths.resolveProject(input.projectName).name;
       this.initializeProject(projectName);
       const records = this.readIndex(projectName);
-      const fileName = allocateOutputName(input.title, records, (candidate) => fs.existsSync(
+      const fileName = allocateOutputName(input.title, records.map((item) => path.posix.basename(item.relativePath)), (candidate) => fs.existsSync(
         this.paths.resolveInsideProject(projectName, `outputs/${candidate}`, {
           allowedTopLevels: OUTPUTS_TOP_LEVEL,
           allowMissingLeaf: true
@@ -114,6 +114,106 @@ export class ProjectOutputService {
     });
   }
 
+  rename(projectName: string, relativePath: string, newTitle: string): ProjectOutputRead {
+    return this.paths.withProjectMutationLock(() => {
+      const canonicalProjectName = this.paths.resolveProject(projectName).name;
+      const records = this.readIndex(canonicalProjectName);
+      const index = records.findIndex((item) => item.relativePath === relativePath);
+      if (index < 0) throw new Error("项目产物不存在。");
+      const current = records[index];
+      const title = newTitle.trim().slice(0, 255);
+      const currentStem = safeStem(path.posix.basename(current.relativePath).replace(/\.md$/i, ""));
+      let nextRelativePath = current.relativePath;
+      if (safeStem(title) !== currentStem) {
+        const reserved = records
+          .filter((item) => item.relativePath !== current.relativePath)
+          .map((item) => path.posix.basename(item.relativePath));
+        const fileName = allocateOutputName(title, reserved, (candidate) => fs.existsSync(
+          this.paths.resolveInsideProject(canonicalProjectName, `outputs/${candidate}`, {
+            allowedTopLevels: OUTPUTS_TOP_LEVEL,
+            allowMissingLeaf: true
+          })
+        ));
+        nextRelativePath = `outputs/${fileName}`;
+        const previousAbsolute = this.paths.resolveInsideProject(canonicalProjectName, current.relativePath, {
+          allowedTopLevels: OUTPUTS_TOP_LEVEL
+        });
+        const nextAbsolute = this.paths.resolveInsideProject(canonicalProjectName, nextRelativePath, {
+          allowedTopLevels: OUTPUTS_TOP_LEVEL,
+          allowMissingLeaf: true
+        });
+        fs.renameSync(previousAbsolute, nextAbsolute);
+      }
+      const updated = ProjectOutputSchema.parse({
+        ...current,
+        title,
+        relativePath: nextRelativePath,
+        updatedAt: now()
+      });
+      records[index] = updated;
+      this.writeIndex(canonicalProjectName, records);
+      const absolute = this.paths.resolveInsideProject(canonicalProjectName, updated.relativePath, {
+        allowedTopLevels: OUTPUTS_TOP_LEVEL
+      });
+      return { output: updated, content: fs.readFileSync(absolute, "utf8") };
+    });
+  }
+
+  moveToProject(projectName: string, relativePath: string, targetProjectName: string): ProjectOutputRead {
+    return this.paths.withProjectMutationLock(() => {
+      const sourceProjectName = this.paths.resolveProject(projectName).name;
+      const targetName = this.paths.resolveProject(targetProjectName).name;
+      const source = this.read(sourceProjectName, relativePath);
+      if (sourceProjectName === targetName) return source;
+      const sourceRecords = this.readIndex(sourceProjectName);
+      const targetRecords = this.readIndex(targetName);
+      const nextRelativePath = `outputs/${allocateOutputName(
+        source.output.title,
+        targetRecords.map((item) => path.posix.basename(item.relativePath)),
+        (candidate) => fs.existsSync(this.paths.resolveInsideProject(
+          targetName,
+          `outputs/${candidate}`,
+          { allowedTopLevels: OUTPUTS_TOP_LEVEL, allowMissingLeaf: true }
+        ))
+      )}`;
+      const targetAbsolute = this.paths.resolveInsideProject(targetName, nextRelativePath, {
+        allowedTopLevels: OUTPUTS_TOP_LEVEL,
+        allowMissingLeaf: true
+      });
+      writeTextAtomic(targetAbsolute, source.content);
+      let moved: ProjectOutput;
+      try {
+        // Task/Session provenance is bound to the source project's tasks, so it
+        // cannot follow the output across projects and is cleared on the copy.
+        moved = ProjectOutputSchema.parse({
+          ...source.output,
+          projectName: targetName,
+          relativePath: nextRelativePath,
+          sourceTaskId: null,
+          sourceSessionId: null,
+          sourceMessageId: null,
+          updatedAt: now()
+        });
+        this.writeIndex(targetName, [...targetRecords, moved]);
+        try {
+          this.writeIndex(sourceProjectName, sourceRecords.filter((item) => item.relativePath !== relativePath));
+        } catch (error) {
+          this.writeIndex(targetName, targetRecords);
+          throw error;
+        }
+      } catch (error) {
+        fs.rmSync(targetAbsolute, { force: true });
+        throw error;
+      }
+      const sourceAbsolute = this.paths.resolveInsideProject(sourceProjectName, relativePath, {
+        allowedTopLevels: OUTPUTS_TOP_LEVEL,
+        allowMissingLeaf: true
+      });
+      fs.rmSync(sourceAbsolute, { force: true });
+      return { output: moved, content: source.content };
+    });
+  }
+
   renameProject(previousName: string, nextName: string): void {
     this.paths.withProjectMutationLock(() => {
       const records = this.readIndex(nextName, { allowedProjectNames: [previousName, nextName] })
@@ -185,12 +285,12 @@ export class ProjectOutputService {
   }
 }
 
-function allocateOutputName(title: string, records: readonly ProjectOutput[], exists: (candidate: string) => boolean): string {
+function allocateOutputName(title: string, reserved: readonly string[], exists: (candidate: string) => boolean): string {
   const stem = safeStem(title);
-  const reserved = new Set(records.map((item) => path.posix.basename(item.relativePath).normalize("NFKC").toLocaleLowerCase("en-US")));
+  const keys = new Set(reserved.map((value) => value.normalize("NFKC").toLocaleLowerCase("en-US")));
   for (let index = 1; index <= 10_000; index += 1) {
     const candidate = index === 1 ? `${stem}.md` : `${stem} (${index}).md`;
-    if (!reserved.has(candidate.normalize("NFKC").toLocaleLowerCase("en-US")) && !exists(candidate)) return candidate;
+    if (!keys.has(candidate.normalize("NFKC").toLocaleLowerCase("en-US")) && !exists(candidate)) return candidate;
   }
   throw new Error("无法为项目产物分配唯一文件名。");
 }
