@@ -45,7 +45,8 @@ import { AutomationScheduler } from "../automation/automation-scheduler";
 import { AutomationLeader } from "../automation/automation-leader";
 import { createAutomationFileFingerprint } from "../automation/automation-file-fingerprint";
 import { cancelScheduledRun, handleApprovalRequest, persistScheduledTurnAndPump, resolveScheduledApproval, type ActiveRun, type SchedulerExecutionHost } from "./scheduler-execution";
-import { providerConfigurationRevision, resolveCliProvider } from "../config/providers-yaml";
+import { providerConfigurationRevision, ProviderRevisionMismatchError, resolveCliProvider } from "../config/providers-yaml";
+import { formatProviderChangePending, type ProviderYamlEntry } from "../../shared/contracts";
 import { TrustedProjectRunInputSchema, type TrustedProjectRunInput } from "./project-run";
 
 export class RunScheduler {
@@ -155,6 +156,9 @@ export class RunScheduler {
     // reads skill-preferences.json, so a corrupt preference cannot brick
     // bootstrap or an existing conversation.
     this.store.backfillMissingSkillSnapshots(() => this.skillTools.captureSessionSnapshot(true));
+    // Keep existing conversations aligned with the current installed catalog
+    // so slash commands list every Skill, not only the kinds frozen earlier.
+    this.store.refreshWorkspaceSkillSnapshots(() => this.skillTools.captureSessionSnapshot(true));
     recoverInterruptedRuns(this.store);
     cleanupStaleImages(this.projectRoot, this.stateRoot);
     this.automation?.start();
@@ -301,7 +305,8 @@ export class RunScheduler {
       interactionMode: input.interactionMode,
       cwd,
       prompt: input.prompt,
-      contexts: input.contexts
+      contexts: input.contexts,
+      acknowledgeProviderChange: input.acknowledgeProviderChange === true
     });
   }
 
@@ -351,6 +356,7 @@ export class RunScheduler {
     cwd: string;
     prompt: string;
     contexts: AiRun["contexts"];
+    acknowledgeProviderChange?: boolean;
   }): { session: AiSession; run: AiRun } {
     // New conversations refresh only the active catalog. Installed packages
     // are read on demand; legacy workspace discovery rescans when applicable.
@@ -367,9 +373,29 @@ export class RunScheduler {
     const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
     const provider = this.registry.detect().find((item) => item.id === input.providerId);
-    const pinnedManagedProvider = session?.serviceProviderId
-      ? resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null)
-      : null;
+    let pinnedManagedProvider: ProviderYamlEntry | null = null;
+    if (session?.serviceProviderId) {
+      try {
+        pinnedManagedProvider = resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null);
+      } catch (cause) {
+        if (!(cause instanceof ProviderRevisionMismatchError)) throw cause;
+        if (!input.acknowledgeProviderChange) {
+          // Renderer turns this tagged error into a confirm dialog; confirming
+          // retries the start with acknowledgeProviderChange and rebinds below.
+          throw new Error(formatProviderChangePending({
+            kind: cause.kind,
+            id: cause.providerId,
+            message: cause.message
+          }));
+        }
+        pinnedManagedProvider = resolveCliProvider(session.provider, session.serviceProviderId, session.serviceProviderRevision ?? null, { ignoreRevisionCheck: true });
+        if (!pinnedManagedProvider) throw cause;
+        // 冻结指纹刷新为当前配置：确认一次后，本次配置下的后续对话不再询问。
+        session = this.store.updateSession(session.id, {
+          serviceProviderRevision: providerConfigurationRevision(pinnedManagedProvider)
+        });
+      }
+    }
     if (!provider?.available && !(pinnedManagedProvider && provider?.version)) {
       throw new Error(provider?.diagnostic || "所选 AI Provider 当前不可用。");
     }

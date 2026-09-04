@@ -1,6 +1,6 @@
-import type { AgentManifest } from "../../../shared/skill-manifest-schema";
+import type { SkillManifest } from "../../../shared/skill-manifest-schema";
 
-/** Main-only bridge metadata for an approved Installed Agent Skill. */
+/** Main-only bridge metadata for an approved Installed Skill of any kind. */
 export type ProviderSkillBridge = {
   id: string;
   version: string;
@@ -11,7 +11,7 @@ export type ProviderSkillBridge = {
   instructions: string;
   referencePaths: string[];
   openmindRoot: string;
-  capabilities: Pick<AgentManifest["capabilities"], "openmind" | "network" | "subprocess" | "browser">;
+  capabilities: Pick<SkillManifest["capabilities"], "openmind" | "network" | "subprocess" | "browser">;
 };
 
 /** Structured, non-secret context passed alongside a Codex Skill input. */

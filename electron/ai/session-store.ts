@@ -241,8 +241,10 @@ export class SessionStore {
       cwd: current.cwd,
       provider: current.provider,
       providerId: current.providerId,
-      serviceProviderId: current.serviceProviderId || null,
-      serviceProviderRevision: current.serviceProviderRevision || null,
+      // Frozen provider binding normally never moves; the explicit patch path
+      // exists only for the acknowledged provider-change rebind in scheduler.
+      serviceProviderId: (patch as Partial<AiSession>).serviceProviderId ?? (current.serviceProviderId || null),
+      serviceProviderRevision: (patch as Partial<AiSession>).serviceProviderRevision ?? (current.serviceProviderRevision || null),
       // Skill availability is a conversation boundary. Generic UI/lifecycle
       // patches must never mutate the frozen snapshot.
       skillSnapshot: current.skillSnapshot ?? null,
@@ -285,6 +287,34 @@ export class SessionStore {
       migrated += 1;
     }
     return migrated;
+  }
+
+  /**
+   * Aligns every workspace-scope conversation with the current installed
+   * catalog so slash commands keep listing all installed Skills as packages
+   * are added or updated. Project-task sessions keep their empty Skill
+   * boundary, and conversations are never reordered by a timestamp change.
+   */
+  refreshWorkspaceSkillSnapshots(resolveSkillSnapshot: () => AiSessionSkillSnapshotEntry[]): number {
+    this.initialize();
+    this.ensureIndex();
+    const refreshable = [...this.sessions.values()]
+      .filter((session) => session.scope?.type !== "project-task");
+    if (!refreshable.length) return 0;
+    const skillSnapshot = resolveSkillSnapshot();
+    let refreshed = 0;
+    for (const current of refreshable) {
+      if (JSON.stringify(current.skillSnapshot) === JSON.stringify(skillSnapshot)) continue;
+      const next = AiSessionSchema.parse({
+        ...current,
+        skillSnapshot,
+        updatedAt: current.updatedAt
+      });
+      writeJsonAtomic(this.sessionFile(current.id), next);
+      this.sessions.set(current.id, next);
+      refreshed += 1;
+    }
+    return refreshed;
   }
 
 

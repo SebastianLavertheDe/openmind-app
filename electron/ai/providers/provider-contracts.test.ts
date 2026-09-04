@@ -176,7 +176,7 @@ describe("provider contracts", () => {
     expect(decision.updatedInput).toEqual({ file_path: "/project/a.md" });
   });
 
-  it("does not approve a removed command tool even when it reports a WSL path", () => {
+  it("never auto-approves a command tool, even in auto mode with a reported WSL path", () => {
     const autoWslContext = {
       session: {
         permissionProfile: "auto",
@@ -190,10 +190,10 @@ describe("provider contracts", () => {
     const file = "//wsl.localhost/Ubuntu/home/test-user/work/openmind-data/.agent/skills/cctools/daily-topic-selector/SKILL.md";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
-    expect(decision.behavior).toBe("deny");
+    expect(decision.behavior).toBe("ask");
   });
 
-  it("hard-denies reading outside the WSL workspace in auto mode", () => {
+  it("sends out-of-workspace command reads to explicit approval in auto mode", () => {
     const autoWslContext = {
       session: {
         permissionProfile: "auto",
@@ -207,7 +207,7 @@ describe("provider contracts", () => {
     const file = "//wsl.localhost/Ubuntu/home/test-user/.ssh/id_rsa";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
-    expect(decision).toMatchObject({ behavior: "deny" });
+    expect(decision).toMatchObject({ behavior: "ask", command: `cat "${file}"` });
   });
 
   it("denies mutating tools in read-only Claude sessions", () => {

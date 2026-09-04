@@ -158,6 +158,29 @@ describe("SessionStore", () => {
     expect(persisted.skillSnapshot).toEqual(snapshot);
   });
 
+  it("rebinds the frozen provider revision only through an explicit patch", () => {
+    const store = new SessionStore(createRoot());
+    const session = store.createSession({
+      provider: "claude",
+      providerId: "claude-native",
+      serviceProviderId: "glm",
+      serviceProviderRevision: "a".repeat(64),
+      cwd: ".",
+      title: "Rebind",
+      permissionProfile: "edit"
+    });
+
+    // 普通补丁（如归档、置顶）不得移动冻结的 Provider 绑定。
+    const touched = store.updateSession(session.id, { title: "Renamed", pinned: true });
+    expect(touched.serviceProviderId).toBe("glm");
+    expect(touched.serviceProviderRevision).toBe("a".repeat(64));
+
+    const rebound = store.updateSession(session.id, { serviceProviderRevision: "b".repeat(64) });
+    const persisted = JSON.parse(fs.readFileSync(path.join(store.root, "sessions", session.id, "session.json"), "utf8"));
+    expect(rebound.serviceProviderRevision).toBe("b".repeat(64));
+    expect(persisted.serviceProviderRevision).toBe("b".repeat(64));
+  });
+
   it("backfills only legacy null snapshots once and persists the compatibility catalog", () => {
     const root = createRoot();
     const writer = new SessionStore(root);

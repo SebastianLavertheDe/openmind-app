@@ -21,6 +21,7 @@ import type {
   SkillDefinition,
   SessionPatch
 } from "@shared/contracts";
+import { parseProviderChangePending } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import {
   activeRunForSession,
@@ -48,7 +49,7 @@ type SendOptions = {
   contexts?: ContextReference[];
 };
 
-interface AiController {
+export interface AiController {
   snapshot: AiSnapshot;
   activeSession: AiSession | null;
   activeRun: AiRun | null;
@@ -538,6 +539,16 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     setDrafts((current) => ({ ...current, [key]: value }));
   }, []);
 
+  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
+    confirmResolver.current = resolve;
+    setConfirmState(options);
+  }), []);
+  const resolveConfirm = useCallback((value: boolean) => {
+    confirmResolver.current?.(value);
+    confirmResolver.current = null;
+    setConfirmState(null);
+  }, []);
+
   const send = useCallback(async (prompt: string, options: SendOptions = {}) => {
     if (sendingRef.current) throw new Error(m.ai.error.sendingInProgress);
     const targetSession = options.sessionId
@@ -554,15 +565,32 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     // 后端 startRun 里也会 refresh(),所以即使这次还没到也不影响解析。
     if (!targetSession) void refreshSkills();
     try {
-      const result = await window.openmind.aiStartRun({
+      const startInput = (acknowledgeProviderChange?: boolean) => ({
         sessionId: targetSession?.id,
         providerId,
         permissionProfile: options.permissionProfile || targetSession?.permissionProfile || "edit",
         interactionMode: options.interactionMode || targetSession?.interactionMode || "default",
         cwd: targetSession?.cwd || ".",
         prompt,
-        contexts
+        contexts,
+        ...(acknowledgeProviderChange ? { acknowledgeProviderChange: true } : {})
       });
+      let result: Awaited<ReturnType<typeof window.openmind.aiStartRun>>;
+      try {
+        result = await window.openmind.aiStartRun(startInput());
+      } catch (cause) {
+        // 会话绑定的 Provider 指纹已变更：弹确认框，同意后按当前配置重试一次，
+        // worker 会把会话冻结的指纹刷新为当前值；取消则按原错误文案提示。
+        const change = parseProviderChangePending(errorText(cause));
+        if (!change) throw cause;
+        const acknowledged = await confirm({
+          title: m.ai.providerChange.title,
+          body: m.ai.providerChange.body(change.id),
+          confirmText: m.ai.providerChange.confirm
+        });
+        if (!acknowledged) throw new Error(change.message);
+        result = await window.openmind.aiStartRun(startInput(true));
+      }
       setDrafts((current) => ({ ...current, [sourceKey]: "" }));
       setContextsByDraft((current) => ({ ...current, [sourceKey]: [] }));
       activeSessionRef.current = result.session.id;
@@ -609,7 +637,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       sendingRef.current = false;
       setIsSending(false);
     }
-  }, [loadEvents]);
+  }, [loadEvents, confirm]);
 
   const rerun = useCallback(async (runId: string) => {
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
@@ -663,15 +691,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     const timer = toastTimers.current.get(id);
     if (timer !== undefined) { window.clearTimeout(timer); toastTimers.current.delete(id); }
     setToasts((current) => current.filter((item) => item.id !== id));
-  }, []);
-  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
-    confirmResolver.current = resolve;
-    setConfirmState(options);
-  }), []);
-  const resolveConfirm = useCallback((value: boolean) => {
-    confirmResolver.current?.(value);
-    confirmResolver.current = null;
-    setConfirmState(null);
   }, []);
 
   const value = useMemo<AiController>(() => ({

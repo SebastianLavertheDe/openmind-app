@@ -120,22 +120,22 @@ describe("InstalledSkillExecutionResolver", () => {
 
   });
 
-  it("rejects a non-Agent snapshot instead of falling back to a same-name workspace Skill", () => {
+  it("bridges every installed kind through exact provenance without workspace fallback", () => {
     const fixture = createFixture();
     const record = fixture.packages.getInstalled(fixture.key, fixture.digest)!;
     const snapshot = {
       definition: {
         id: record.id,
         title: "Resolver Fixture",
-        description: "Process packages are not provider-native Skills",
+        description: "Process packages are provider-bridgeable Skills",
         cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,
         command: "managed-runtime"
       },
       installed: { key: record.key, version: record.version, digest: record.digest }
     };
 
-    expect(fixture.resolver.captureSessionSnapshot()).toEqual([]);
-    expect(() => fixture.resolver.providerSkillBridge(snapshot)).toThrow(/不是 Agent 类型/);
+    // The plain process fixture has no SKILL.md, so bridging fails closed.
+    expect(() => fixture.resolver.providerSkillBridge(snapshot)).toThrow(/SKILL\.md/);
     expect(() => fixture.resolver.providerSkillBridge({
       ...snapshot,
       installed: null
@@ -155,6 +155,38 @@ describe("InstalledSkillExecutionResolver", () => {
 
     fs.appendFileSync(path.join(fixture.packages.getInstalled(fixture.key)!.packagePath, "main.py"), "\ntampered = True\n");
     expect(() => fixture.resolver.providerSkillBridge(snapshot)).toThrow(/digest/);
+  });
+
+  it("includes process and workflow packages in the session snapshot with an internal kind marker", () => {
+    const fixture = createWorkflowAdmissionFixture();
+
+    const kinds = fixture.resolver.captureSessionSnapshot()
+      .map((entry) => ({ id: entry.definition.id, kind: entry.definition.kind }));
+    expect(kinds).toEqual(expect.arrayContaining([
+      { id: "resolver-fixture", kind: "process" },
+      { id: "resolver-step-two", kind: "process" },
+      { id: "resolver-workflow", kind: "workflow" }
+    ]));
+
+    // Packages without SKILL.md stay listed but fail closed at bridge time.
+    const processEntry = fixture.resolver.captureSessionSnapshot()
+      .find((entry) => entry.definition.id === "resolver-fixture")!;
+    expect(() => fixture.resolver.providerSkillBridge(processEntry)).toThrow(/SKILL\.md/);
+  });
+
+  it("bridges a process package once it declares SKILL.md instructions", () => {
+    const fixture = createFixture(false, "python", { skillMd: true });
+
+    const entry = fixture.resolver.captureSessionSnapshot()
+      .find((candidate) => candidate.definition.id === "resolver-fixture")!;
+    expect(entry.definition.kind).toBe("process");
+    const bridge = fixture.resolver.providerSkillBridge(entry);
+    expect(bridge).toMatchObject({
+      id: "resolver-fixture",
+      version: "1.0.0",
+      digest: fixture.digest
+    });
+    expect(bridge?.instructions).toContain("# Resolver Fixture");
   });
 
   it("checks enabled only before queue admission, not during asynchronous plan resolution", async () => {
@@ -1328,6 +1360,7 @@ function createFixture(
     externalExport?: boolean;
     agent?: boolean;
     legacySecretTemplate?: boolean;
+    skillMd?: boolean;
   } = {}
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-installed-resolver-"));
@@ -1357,7 +1390,7 @@ function createFixture(
     fs.writeFileSync(path.join(source, "main.py"), "print('ok')\n");
     fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='resolver-fixture'\nversion='1.0.0'\n");
   }
-  if (options.agent) {
+  if (options.agent || options.skillMd) {
     fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: resolver-fixture\ndescription: Test Agent Skill\n---\n\n# Resolver Fixture\n");
   }
   fs.writeFileSync(

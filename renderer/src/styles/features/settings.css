@@ -131,16 +131,16 @@
   gap: 7px;
   margin: 0 1px 2px;
   padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--workspace-border) 80%, transparent);
+  border: 0;
   border-radius: var(--nav-item-radius);
-  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  background: transparent;
   color: var(--muted-2);
+  transition: background var(--dur-fast) var(--ease-standard);
 }
 
+.settings-nav-search:hover,
 .settings-nav-search:focus-within {
-  border-color: color-mix(in srgb, var(--brand-accent-strong) 36%, var(--workspace-border));
-  background: color-mix(in srgb, var(--panel) 78%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-accent) 9%, transparent);
+  background: var(--control-hover);
 }
 
 .settings-nav-search input {
@@ -155,6 +155,13 @@
 
 .settings-nav-search input::placeholder {
   color: var(--muted-2);
+}
+
+/* 与项目页过滤框一致：无重轮廓，聚焦反馈只走容器底色。 */
+.settings-nav-search input:focus,
+.settings-nav-search input:focus-visible {
+  outline: 0;
+  box-shadow: none;
 }
 
 .settings-navigation-scroll {
@@ -396,7 +403,7 @@
 
 .settings-provider-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(220px, auto);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -434,6 +441,33 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.settings-provider-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-provider-title-line strong {
+  min-width: 0;
+}
+
+.settings-provider-runtime-meta {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+}
+
+.settings-provider-runtime-meta small {
+  margin-top: 0;
+}
+
+.settings-provider-runtime-error {
+  color: var(--danger-600) !important;
 }
 
 .settings-provider-model {
@@ -513,6 +547,10 @@
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.settings-cli-provider-menu {
+  flex: 0 0 auto;
 }
 
 .settings-provider-install--action {
@@ -1930,12 +1968,6 @@
 .settings-provider-config-meta > span[data-state="set"] { color: var(--green); }
 .settings-provider-config-meta > span[data-state="pending"] { color: var(--orange); }
 
-.settings-provider-config-chevron {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: var(--muted);
-}
-
 .settings-provider-config-actions {
   position: absolute;
   z-index: 2;
@@ -2058,6 +2090,72 @@
 .settings-provider-dialog form { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
 .settings-provider-dialog-body { display: grid; gap: 18px; overflow-y: auto; padding: 20px; }
 .settings-provider-dialog footer { justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--panel-muted) 42%, var(--panel)); }
+
+.settings-cli-provider-dialog {
+  width: min(560px, 100%);
+}
+
+.settings-cli-provider-options {
+  gap: 8px;
+}
+
+.settings-cli-provider-option {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.settings-cli-provider-option:hover {
+  border-color: var(--border-strong);
+  background: var(--control-hover);
+}
+
+.settings-cli-provider-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.settings-cli-provider-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.settings-cli-provider-option > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-cli-provider-option strong,
+.settings-cli-provider-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-cli-provider-option strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-cli-provider-option small {
+  color: var(--muted);
+  font: 11px/1.45 var(--font-mono);
+}
+
+.settings-cli-provider-empty {
+  margin: 8px 2px 0;
+}
 
 @keyframes settings-provider-dialog-in {
   from { opacity: 0; transform: translateY(10px) scale(.985); }

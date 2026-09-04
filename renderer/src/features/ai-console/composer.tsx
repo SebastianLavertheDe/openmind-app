@@ -471,14 +471,16 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
           {/* P2-CMP-2: 空状态 prompt 提示 chip —— 空 draft 时显示快捷入口 */}
           {/* P2-CMP-3: textarea 到底渐变遮罩 —— 由 CSS 控制 */}
           {showMenu && menuStashRef.current ? (
-            <>
-              <span
-                ref={suggestionAnchorRef}
-                className="composer-suggestion-caret-anchor"
-                aria-hidden="true"
-                style={{ left: suggestionAnchor.left, top: suggestionAnchor.top, height: suggestionAnchor.height } as CSSProperties}
-              />
-              {createPortal(
+            createPortal(
+              <>
+                {/* 锚点必须与弹层同级挂在 body 下：.ai-workbench 的动画残留 transform
+                    会接管 position:fixed 的包含块，导致锚点测量坐标整体漂移。 */}
+                <span
+                  ref={suggestionAnchorRef}
+                  className="composer-suggestion-caret-anchor"
+                  aria-hidden="true"
+                  style={{ left: suggestionAnchor.left, top: suggestionAnchor.top, height: suggestionAnchor.height } as CSSProperties}
+                />
                 <div
                   ref={suggestionMenuRef}
                   className="composer-suggestion-popover ui-overlay"
@@ -487,10 +489,10 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                   style={{ ...suggestionPopover.style, width: suggestionAnchor.width } as CSSProperties}
                 >
                   {menuStashRef.current}
-                </div>,
-                document.body
-              )}
-            </>
+                </div>
+              </>,
+              document.body
+            )
           ) : null}
           <div className="composer-editor-actions">
             <button

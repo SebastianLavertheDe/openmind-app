@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -206,30 +206,6 @@ describe("ErrorEvent", () => {
     expect(screen.getAllByText(/Something went wrong/)).toHaveLength(1);
   });
 
-  it("offers a terminal login shortcut for not-logged-in failures", () => {
-    const openCliLogin = vi.fn(async () => {});
-    window.openmind = { ...window.openmind, openCliLogin } as unknown as DesktopApi;
-    const session = { id: "session-1", provider: "claude" };
-    const withSessions = { ...snapshot, sessions: [session] } as typeof snapshot;
-    const event = makeEvent("err1b", "error", { sessionId: "session-1", text: "Not logged in · Please run /login" });
-    render(
-      <AiProvider initial={withSessions}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    fireEvent.click(screen.getByText("去终端登录"));
-    expect(openCliLogin).toHaveBeenCalledWith("claude");
-    // 非登录类错误不显示该入口。
-    cleanup();
-    const other = makeEvent("err1c", "error", { text: "boom" });
-    render(
-      <AiProvider initial={withSessions}>
-        <ErrorEvent event={other} />
-      </AiProvider>
-    );
-    expect(screen.queryByText("去终端登录")).toBeNull();
-  });
-
   it("falls back to default message when text is empty", () => {
     const event = makeEvent("err2", "error", {});
     render(
@@ -241,129 +217,19 @@ describe("ErrorEvent", () => {
     expect(screen.getAllByText("运行失败").length).toBeGreaterThan(0);
   });
 
-  it("renders full error text in OverflowBox", () => {
-    const event = makeEvent("err3", "error", { text: "Error line 1\nError line 2" });
+  it("shows the error text plainly without action buttons, search or stripe", () => {
+    const event = makeEvent("err3", "error", { text: "Not logged in · Please run /login" });
     const { container } = render(
       <AiProvider initial={snapshot}>
         <ErrorEvent event={event} />
       </AiProvider>
     );
-    const overflowBox = container.querySelector(".overflow-box");
-    expect(overflowBox).toBeTruthy();
-  });
-
-  it("has-stripe class for red stripe styling", () => {
-    const event = makeEvent("err4", "error", { text: "fail" });
-    const { container } = render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    const cell = container.querySelector(".error-event.has-stripe");
-    expect(cell).toBeTruthy();
-  });
-
-  it("searches within error text and highlights matches", async () => {
-    const longText = Array.from({ length: 20 }, (_, i) => `error line ${i}`).join("\n");
-    const event = makeEvent("err5", "error", { text: longText });
-    render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    // 打开搜索 → 输入 → 验证匹配计数
-    fireEvent.click(screen.getByRole("button", { name: /⌘F/ }));
-    const input = screen.getByPlaceholderText("搜索…");
-    fireEvent.change(input, { target: { value: "line 5" } });
-    await waitFor(() => {
-      expect(screen.getByText(/1 \/ 1/)).toBeTruthy();
-    });
-  });
-
-  it("calls ai.rerun → aiStartRun with original prompt when retry clicked", async () => {
-    const startRun = vi.fn(async () => "new-run-id");
-    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
-    const event = makeEvent("err6", "error", { text: "fail" });
-    render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    const retryBtn = screen.getByText("按原上下文重试");
-    fireEvent.click(retryBtn);
-    // rerun(runId) → send(run.prompt) → aiStartRun({ prompt })
-    await waitFor(() => expect(startRun).toHaveBeenCalledTimes(1));
-    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({
-      prompt: "original prompt"
-    }));
-  });
-
-  it("disables retry button while busy", async () => {
-    // 让 aiStartRun 挂起,模拟进行中
-    let resolveStart!: (value: string) => void;
-    const startRun = vi.fn(() => new Promise<string>((resolve) => { resolveStart = resolve; }));
-    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
-    const event = makeEvent("err6b", "error", { text: "fail" });
-    render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    const retryBtn = screen.getByText("按原上下文重试");
-    fireEvent.click(retryBtn);
-    // busy 期间按钮应 disabled
-    await waitFor(() => expect(retryBtn).toHaveProperty("disabled", true));
-    resolveStart("new-run-id");
-    await waitFor(() => expect(retryBtn).toHaveProperty("disabled", false));
-  });
-
-  it("recovers gracefully when rerun throws (catch branch)", async () => {
-    // rerun 内部调 send → aiStartRun; 让它 reject,走 retry 的 catch
-    const startRun = vi.fn(async () => { throw new Error("provider down"); });
-    window.openmind = { ...window.openmind, aiStartRun: startRun } as unknown as DesktopApi;
-    const event = makeEvent("err6c", "error", { text: "fail" });
-    render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    const retryBtn = screen.getByText("按原上下文重试");
-    fireEvent.click(retryBtn);
-    // catch 后 finally 会 setBusy(false),按钮恢复可点
-    await waitFor(() => expect(retryBtn).toHaveProperty("disabled", false));
-    // startRun 确实被调了(说明 rerun 真的执行了)
-    expect(startRun).toHaveBeenCalled();
-  });
-
-  it("opens run record path when button clicked", () => {
-    const openPath = vi.fn();
-    window.openmind = { ...window.openmind, openPath } as unknown as DesktopApi;
-    const event = makeEvent("err7", "error", { text: "fail" });
-    render(
-      <AiProvider initial={snapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    const openBtn = screen.getByText("打开运行记录");
-    fireEvent.click(openBtn);
-    expect(openPath).toHaveBeenCalled();
-    const calledPath = openPath.mock.calls[0][0] as string;
-    expect(calledPath).toContain("runs");
-    expect(calledPath).toContain("run");
-  });
-
-  it("uses backslash separator when projectRoot has backslash", () => {
-    const openPath = vi.fn();
-    window.openmind = { ...window.openmind, openPath } as unknown as DesktopApi;
-    const backslashSnapshot = { ...snapshot, projectRoot: "C:\\project" };
-    const event = makeEvent("err8", "error", { text: "fail" });
-    render(
-      <AiProvider initial={backslashSnapshot}>
-        <ErrorEvent event={event} />
-      </AiProvider>
-    );
-    fireEvent.click(screen.getByText("打开运行记录"));
-    const calledPath = openPath.mock.calls[0][0] as string;
-    expect(calledPath).toContain("\\");
+    expect(screen.getByText("Not logged in · Please run /login")).toBeTruthy();
+    expect(container.querySelector(".overflow-box")).toBeNull();
+    expect(container.querySelector(".has-stripe")).toBeNull();
+    expect(container.querySelector("footer")).toBeNull();
+    expect(screen.queryByText("去终端登录")).toBeNull();
+    expect(screen.queryByText("打开运行记录")).toBeNull();
+    expect(screen.queryByText("按原上下文重试")).toBeNull();
   });
 });

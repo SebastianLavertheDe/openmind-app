@@ -121,13 +121,9 @@ export class InstalledSkillExecutionResolver {
     // sessions retain their capability set, while package bytes and identity
     // are still re-inspected on every bridge resolution.
     const inspection = this.packages.inspectInstalledCopy(record);
-    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Agent Skill Manifest 校验失败。 ");
-    if (inspection.manifest.kind !== "agent") {
-      // Never let an Installed Process/Workflow snapshot fall through to the
-      // providers' legacy workspace Skill lookup. That would cross the exact
-      // package identity frozen with the conversation.
-      throw new InstalledSkillExecutionError(`会话 Skill 不是 Agent 类型，不能交给 Provider Bridge：${snapshot.definition.id}`);
-    }
+    if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
+    // Every installed kind (agent/process/workflow) is bridged through its
+    // SKILL.md; exact-identity checks above prevent any workspace fallback.
     const packageRoot = canonicalDirectory(record.packagePath);
     const skillPath = resolvePackageFile(packageRoot, "SKILL.md");
     return {
@@ -154,10 +150,11 @@ export class InstalledSkillExecutionResolver {
   }
 
   /**
-   * Capture renderer-safe Agent metadata plus exact installed provenance. New
-   * sessions use enabled Agent packages only; legacy backfill opts into every
-   * usable Agent package to preserve the old all-installed behavior. Process
-   * and Workflow packages stay on their Broker/Automation boundaries.
+   * Capture renderer-safe Skill metadata plus exact installed provenance for
+   * every installed kind (agent/process/workflow). New sessions use enabled
+   * packages only; legacy backfill opts into every usable package to preserve
+   * the old all-installed behavior. Broker/Automation execution boundaries
+   * are unchanged and keep validating kind-specific plans independently.
    */
   captureSessionSnapshot(includeDisabled = false): AiSessionSkillSnapshotEntry[] {
     let records = this.packages.listInstalled();
@@ -314,10 +311,8 @@ export class InstalledSkillExecutionResolver {
     const inspection = this.packages.inspectInstalledCopy(record);
     if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
     const manifest = inspection.manifest;
-    // AI conversation snapshots are provider-native Agent catalogs. Process
-    // and Workflow packages stay available through their Broker/Automation
-    // entry points and must never be reinterpreted as workspace Agent Skills.
-    if (manifest.kind !== "agent") return null;
+    // Slash-command surfaces expose every installed kind uniformly; `kind` is
+    // carried as an internal marker so execution routing can stay explicit.
     return {
       definition: {
         id: manifest.id,
@@ -335,7 +330,8 @@ export class InstalledSkillExecutionResolver {
         outputArtifacts: manifest.artifacts.map((artifact) => artifact.path
           ? `openmind/${artifact.path}`
           : `external:${artifact.externalExportId}`),
-        timeoutMs: manifest.execution.timeoutSeconds * 1000
+        timeoutMs: manifest.execution.timeoutSeconds * 1000,
+        kind: manifest.kind
       },
       installed: {
         key: record.key,

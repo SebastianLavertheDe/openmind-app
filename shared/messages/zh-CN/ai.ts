@@ -333,9 +333,6 @@ export const aiMessages = {
     riskTitle: "风险提示",
     systemTitle: "系统事件",
     runFailed: "运行失败",
-    openRunRecord: "打开运行记录",
-    openLogin: "去终端登录",
-    retry: "按原上下文重试",
     runDetail: "运行详情",
     runDetailSubtitle: "初始化、状态与生命周期事件",
     system: "系统",
@@ -444,6 +441,13 @@ export const aiMessages = {
     exitFullscreen: "退出全屏",
     collapse: "收起",
     openWorkbench: "在 AI 工作台打开"
+  },
+
+  providerChange: {
+    title: "AI Provider 有变更",
+    body: (id: string) => `该会话绑定的 Provider「${id}」配置在创建后发生过变更。确认继续后，后续消息将按当前配置发送到对应服务，并更新会话记录的绑定指纹。`,
+    confirm: "确认继续",
+    cancel: "取消"
   },
 
   error: {

@@ -2272,18 +2272,6 @@
   overflow-x: auto;
 }
 
-/* error-event overflow 适配 */
-.error-event-overflow .overflow-box-content {
-  padding: 0;
-  background: transparent;
-}
-.error-event-overflow pre {
-  margin: 0;
-  padding: 10px 12px;
-  border: 0;
-  background: transparent;
-}
-
 /* completed-process 摘要 */
 .completed-process-title small { color: var(--muted); font-weight: 400; }
 

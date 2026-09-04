@@ -361,7 +361,7 @@ describe("AppShell", () => {
     expect(recent.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("hides the global recent-task slot inside a project to avoid a duplicate task list", () => {
+  it("renders the global recent-task slot on the projects page too", () => {
     render(
       <AppShell
         page="projects"
@@ -380,7 +380,7 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    expect(screen.queryByText("最近任务区块")).toBeNull();
+    expect(screen.getByText("最近任务区块")).not.toBeNull();
     expect(screen.getByRole("button", { name: "项目" }).getAttribute("aria-current")).toBe("page");
   });
 });

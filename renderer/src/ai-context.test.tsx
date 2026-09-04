@@ -1,7 +1,8 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
-import { AiProvider, useAi, useAiStreaming } from "./ai-context";
+import { messages as m } from "@shared/messages";
+import { AiProvider, useAi, useAiStreaming, type AiController } from "./ai-context";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -401,5 +402,108 @@ describe("AiProvider streaming store via event pump", () => {
     emit({ kind: "snapshot", snapshot: newSnapshot });
     // snapshot replacement does not throw; streaming stays empty
     expect(screen.getByTestId("streaming").textContent).toBe("");
+  });
+});
+
+describe("AiProvider provider-change confirmation on send", () => {
+  let controller: AiController | null;
+  let sendResult: Promise<string> | null;
+  const startCalls: Array<Record<string, unknown>> = [];
+
+  function SendTrigger() {
+    const ai = useAi();
+    controller = ai;
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          sendResult = ai.send("继续", { sessionId: "session-1", providerId: "codex-native" }).then(
+            () => "ok",
+            (cause: unknown) => `failed:${cause instanceof Error ? cause.message : String(cause)}`
+          );
+        }}
+      >send</button>
+    );
+  }
+
+  beforeEach(() => {
+    controller = null;
+    sendResult = null;
+    startCalls.length = 0;
+    vi.useFakeTimers();
+    window.openmind = {
+      aiRefresh: async () => activeSnapshot,
+      aiGetEvents: async () => [],
+      aiStartRun: vi.fn(async (input: Record<string, unknown>) => {
+        startCalls.push(input);
+        if (!input.acknowledgeProviderChange) {
+          throw new Error(`Error invoking remote method 'ai:start': Error: OPENMIND_PROVIDER_CHANGE_PENDING:${JSON.stringify({
+            kind: "codex",
+            id: "glm",
+            message: "codex 会话绑定的 Provider 配置已变更：glm。为避免把旧会话发送到不同服务，请新建会话。"
+          })}`);
+        }
+        return { session: activeSnapshot.sessions[0], run: activeSnapshot.runs[0] };
+      }),
+      aiCancelRun: async () => true,
+      aiResolveApproval: async () => true,
+      selectFiles: async () => [],
+      onAiEvent: () => () => undefined
+    } as unknown as DesktopApi;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("opens the confirm dialog and retries with the acknowledged rebind after consent", async () => {
+    render(
+      <AiProvider initial={activeSnapshot} skills={skills}>
+        <SendTrigger />
+      </AiProvider>
+    );
+
+    await act(async () => {
+      screen.getByRole("button").click();
+    });
+    expect(controller?.confirmState?.title).toBe(m.ai.providerChange.title);
+
+    await act(async () => {
+      controller?.resolveConfirm(true);
+      await sendResult;
+    });
+
+    expect(sendResult && await sendResult).toBe("ok");
+    expect(startCalls).toHaveLength(2);
+    expect(startCalls[1]).toMatchObject({
+      sessionId: "session-1",
+      providerId: "codex-native",
+      prompt: "继续",
+      acknowledgeProviderChange: true
+    });
+    expect(controller?.confirmState).toBeNull();
+  });
+
+  it("surfaces the plain backend error without the marker when the user declines", async () => {
+    render(
+      <AiProvider initial={activeSnapshot} skills={skills}>
+        <SendTrigger />
+      </AiProvider>
+    );
+
+    await act(async () => {
+      screen.getByRole("button").click();
+    });
+    await act(async () => {
+      controller?.resolveConfirm(false);
+      await sendResult;
+    });
+
+    const outcome = sendResult ? await sendResult : "";
+    expect(outcome).toContain("codex 会话绑定的 Provider 配置已变更：glm");
+    expect(outcome).not.toContain("OPENMIND_PROVIDER_CHANGE_PENDING");
+    expect(startCalls).toHaveLength(1);
   });
 });

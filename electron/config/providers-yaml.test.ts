@@ -172,6 +172,36 @@ describe("config/providers.yaml file repository", () => {
       .toThrow("为避免把旧会话发送到不同服务，请新建会话");
   });
 
+  it("throws a typed mismatch error and re-resolves when the acknowledged rebind ignores the revision check", () => {
+    config.saveProvidersFromInput(providerDocument());
+    const pinned = config.readProvidersYaml()?.providers.find((provider) => provider.id === "claude-session");
+    if (!pinned) throw new Error("expected pinned provider");
+    const revision = config.providerConfigurationRevision(pinned);
+
+    config.saveProvidersFromInput({
+      ...providerDocument(),
+      providers: providerDocument().providers.map((provider) => provider.id === "claude-session"
+        ? { ...provider, baseUrl: "https://different-backend.example.com/anthropic" }
+        : provider)
+    });
+
+    let caught: unknown;
+    try {
+      config.resolveCliProvider("claude", "claude-session", revision);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(config.ProviderRevisionMismatchError);
+    const mismatch = caught as InstanceType<typeof config.ProviderRevisionMismatchError>;
+    expect(mismatch.kind).toBe("claude");
+    expect(mismatch.providerId).toBe("claude-session");
+
+    const rebound = config.resolveCliProvider("claude", "claude-session", revision, { ignoreRevisionCheck: true });
+    if (!rebound) throw new Error("expected rebound provider");
+    expect(rebound.id).toBe("claude-session");
+    expect(config.providerConfigurationRevision(rebound)).not.toBe(revision);
+  });
+
   it("reports explicit errors for missing or protocol-incompatible session provider ids", () => {
     expect(() => config.resolveCliProvider("claude", "missing-session-provider"))
       .toThrow("claude 会话缺少 Provider 配置指纹");

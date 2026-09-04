@@ -207,6 +207,7 @@ describe("SettingsPage", () => {
     const installButton = await screen.findByRole("button", { name: "一键安装" });
     expect(screen.queryByText("安装到应用私有目录，不影响系统环境。")).toBeNull();
     expect(screen.queryByText("不可用")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Claude Code（本机） 更多操作" })).toBeNull();
     fireEvent.click(installButton);
     await waitFor(() => expect(installCliTool).toHaveBeenCalledWith("claude"));
     await waitFor(() => expect(aiRefreshProviders).toHaveBeenCalled());
@@ -278,12 +279,12 @@ describe("SettingsPage", () => {
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "检查更新" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "检查更新" }));
     await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledWith("codex"));
-    const updateButton = await screen.findByRole("button", { name: "更新" });
     expect(screen.getByText("可更新至 v1.1.0")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "重新检查" })).toBeNull();
-    fireEvent.click(updateButton);
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "更新到 v1.1.0" }));
     await waitFor(() => expect(upgradeCliTool).toHaveBeenCalledWith("codex"));
     await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledTimes(2));
     expect(screen.getByText("已是最新")).toBeTruthy();
@@ -361,18 +362,32 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("button", { name: "保存配置" })).toBeNull();
   });
 
-  it("keeps CLI binding controls out of the compact Provider list", async () => {
+  it("binds each CLI from its overflow menu and filters Providers by wire protocol", async () => {
     const providerView = {
       schemaVersion: 1 as const,
       default: "general-chat",
-      cli: { claude: "claude-a", codex: "codex-a" },
-      providers: [{
-        id: "general-chat", name: "通用 Chat", enabled: true, protocol: "openai-chat" as const,
-        authMode: "bearer" as const, baseUrl: "https://general-chat.example.com/v1", model: "chat-model", apiKeySet: true,
-        proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
-      }]
+      cli: { claude: null, codex: null },
+      providers: [
+        {
+          id: "general-chat", name: "通用 Chat", enabled: true, protocol: "openai-chat" as const,
+          authMode: "bearer" as const, baseUrl: "https://general-chat.example.com/v1", model: "chat-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+        },
+        {
+          id: "claude-a", name: "Claude A", enabled: true, protocol: "anthropic-messages" as const,
+          authMode: "bearer" as const, baseUrl: "https://claude.example.com", model: "claude-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+        },
+        {
+          id: "codex-a", name: "Codex A", enabled: true, protocol: "openai-responses" as const,
+          authMode: "bearer" as const, baseUrl: "https://codex.example.com/v1", model: "codex-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const
+        }
+      ]
     };
-    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView) });
+    const saveProviders = vi.fn(async (input: Parameters<DesktopApi["saveProviders"]>[0]) => ({ ...providerView, cli: input.cli }));
+    const aiRefreshProviders = vi.fn().mockResolvedValue(undefined);
+    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), saveProviders, aiRefreshProviders });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
     openCategory("AI 与模型");
@@ -380,9 +395,38 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(window.openmind.getProviders).toHaveBeenCalled());
     expect(screen.queryByRole("combobox", { name: "Claude Code 服务商" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Codex CLI 服务商" })).toBeNull();
-    expect(screen.queryByText("使用 Claude Code 自身配置")).toBeNull();
-    expect(screen.queryByText("使用 Codex CLI 自身配置")).toBeNull();
-    expect(screen.getByRole("button", { name: "添加 Provider" })).toBeTruthy();
+    expect(screen.getByText("使用 Claude Code 自身配置")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Claude Code 操作" })).getByRole("menuitem", { name: "设置 Provider" }));
+    const dialog = await screen.findByRole("dialog", { name: "设置 Claude Code Provider" });
+    expect(within(dialog).getByRole("radio", { name: /Claude A/ })).toBeTruthy();
+    expect(within(dialog).queryByRole("radio", { name: /Codex A/ })).toBeNull();
+    expect(within(dialog).queryByRole("radio", { name: /通用 Chat/ })).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Claude A/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存 Provider" }));
+
+    await waitFor(() => expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+      cli: { claude: "claude-a", codex: null },
+      providers: expect.arrayContaining([expect.objectContaining({ id: "claude-a", apiKey: "" })])
+    })));
+    await waitFor(() => expect(aiRefreshProviders).toHaveBeenCalled());
+    expect(await screen.findByText("Provider · Claude A")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "设置 Provider" }));
+    const codexDialog = await screen.findByRole("dialog", { name: "设置 Codex CLI Provider" });
+    expect(within(codexDialog).getByRole("radio", { name: /Codex A/ })).toBeTruthy();
+    expect(within(codexDialog).queryByRole("radio", { name: /Claude A/ })).toBeNull();
+
+    fireEvent.click(within(codexDialog).getByRole("radio", { name: /Codex A/ }));
+    fireEvent.click(within(codexDialog).getByRole("button", { name: "保存 Provider" }));
+
+    await waitFor(() => expect(saveProviders).toHaveBeenLastCalledWith(expect.objectContaining({
+      cli: { claude: "claude-a", codex: "codex-a" }
+    })));
+    expect(await screen.findByText("Provider · Codex A")).toBeTruthy();
   });
 
   it("opens Provider configuration in a dialog, cancels local edits, and saves from the dialog", async () => {
@@ -539,10 +583,11 @@ describe("SettingsPage", () => {
     openCategory("AI 与模型");
     await waitFor(() => expect(screen.getByText("Claude Code")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("radio", { name: "将 Claude Code 设为默认" }));
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Claude Code 操作" })).getByRole("menuitem", { name: "设为默认" }));
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ defaultProvider: "claude-preview" })));
-    expect(screen.getAllByText("可用").length).toBe(2);
+    expect(screen.getByText("默认")).toBeTruthy();
   });
 
   it("installs and exposes one shared uv-managed Python runtime", async () => {

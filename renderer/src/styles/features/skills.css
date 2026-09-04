@@ -74,7 +74,16 @@
 
 .skills-layout[data-layout="stacked"] .skills-detail-header { position: static; }
 
-.skills-page--embedded .skills-layout { padding: 0; background: transparent; }
+.skills-page--embedded .skills-layout {
+  padding: 0;
+  background: transparent;
+  /* 嵌入设置页时父容器高度自适应，flex:1 1 0 会塌缩成 0 高；
+    改为内容外定高，让目录/详情的内部滚动接管。 */
+  flex: 0 0 auto;
+}
+.skills-page--embedded .skills-layout[data-layout="split"] {
+  height: max(440px, calc(100vh - 320px));
+}
 .skills-page .skills-catalog,
 .skills-page .skills-detail {
   min-height: 0;
@@ -104,21 +113,21 @@
 
 .skills-search {
   min-width: 0;
-  min-height: 38px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 7px 0 11px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: var(--surface);
+  padding: 0 8px 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--muted-2);
-  transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+  transition: background var(--dur-fast) var(--ease-standard);
 }
 
+.skills-search:hover,
 .skills-search:focus-within {
-  border-color: transparent;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-accent-strong) 25%, transparent);
+  background: var(--control-hover);
 }
 
 .skills-search input {
@@ -129,6 +138,13 @@
   background: transparent;
   color: var(--text);
   font: inherit;
+}
+
+/* 与项目页过滤框一致：无重轮廓，聚焦反馈只走容器底色。 */
+.skills-search input:focus,
+.skills-search input:focus-visible {
+  outline: 0;
+  box-shadow: none;
 }
 
 .skills-search input::placeholder { color: var(--muted-2); }

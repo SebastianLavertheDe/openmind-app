@@ -557,8 +557,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .error-event > .ui-disclosure-trigger { display: flex; align-items: center; gap: 7px; padding: 9px; color: var(--red); cursor: pointer; }
 .error-event > .ui-disclosure-trigger .conversation-cell-header { flex: 1 1 auto; }
 .error-event pre { max-height: 260px; overflow: auto; margin: 0; padding: 10px; border-top: 1px solid color-mix(in srgb, var(--danger-500) 24%, var(--border)); color: color-mix(in srgb, var(--danger-500) 72%, var(--text-dim)); font: 11px/1.55 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; }
-.error-event footer { display: flex; justify-content: flex-end; gap: 6px; padding: 8px; }
-.error-event footer button, .reasoning-event > .ui-disclosure-trigger { min-height: 29px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); }
+.reasoning-event > .ui-disclosure-trigger { min-height: 29px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); }
 .reasoning-event { max-width: 920px; margin: 8px 0 12px; color: var(--muted); font-size: 11px; }
 .reasoning-event > .ui-disclosure-trigger { width: fit-content; padding: 0 8px; cursor: pointer; }
 .reasoning-event p { padding: 8px; border-left: 2px solid var(--border-strong); white-space: pre-wrap; }
@@ -2126,16 +2125,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .conversation-status { flex: 0 0 auto; display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; }
 .conversation-status.danger { color: var(--danger-500); background: var(--danger-tint); }
 .conversation-status.neutral { color: var(--muted); background: var(--panel-muted); }
-
-/* P2-EVT-1: ErrorEvent 红色 stripe */
-.error-event.has-stripe,
-.conversation-cell.error.has-stripe {
-  border-left: 3px solid var(--danger-500);
-}
-.error-event.has-stripe .conversation-cell-icon {
-  background: var(--danger-tint);
-  border-radius: var(--radius-sm);
-}
 
 /* ====================================================================
    P0-OFL: OverflowBox 统一容器样式

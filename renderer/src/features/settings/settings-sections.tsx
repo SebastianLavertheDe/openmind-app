@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
@@ -56,7 +56,21 @@ export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferen
   );
 }
 
-export function ProviderSettingsSection({ providers, defaultProviderId, save }: { providers: ProviderCapabilities[]; defaultProviderId: string; save: SavePreferences }) {
+export function ProviderSettingsSection({
+  providers,
+  defaultProviderId,
+  providerConfiguration,
+  providerConfigurationBusy,
+  save,
+  onSaveProviderConfiguration
+}: {
+  providers: ProviderCapabilities[];
+  defaultProviderId: string;
+  providerConfiguration: ProvidersYamlView | null;
+  providerConfigurationBusy: boolean;
+  save: SavePreferences;
+  onSaveProviderConfiguration(input: ProvidersYamlInput): Promise<void>;
+}) {
   const [installingCli, setInstallingCli] = useState<"claude" | "codex" | null>(null);
   const [installProgress, setInstallProgress] = useState<CliInstallProgress | null>(null);
   const [installError, setInstallError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
@@ -64,6 +78,20 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
   const [versionError, setVersionError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
   const [versionCheckBusy, setVersionCheckBusy] = useState<"claude" | "codex" | null>(null);
   const [upgradingCli, setUpgradingCli] = useState<"claude" | "codex" | null>(null);
+  const [configuringCli, setConfiguringCli] = useState<"claude" | "codex" | null>(null);
+  const [selectedCliProvider, setSelectedCliProvider] = useState<string | null>(null);
+  const [bindingBusy, setBindingBusy] = useState(false);
+  const providerDialogRef = useRef<HTMLDivElement | null>(null);
+
+  const closeProviderDialog = () => {
+    if (!bindingBusy) setConfiguringCli(null);
+  };
+
+  useModalFocusScope({ open: Boolean(configuringCli), containerRef: providerDialogRef, onDismiss: closeProviderDialog, layer: "global" });
+
+  const compatibleProviders = useMemo(() => configuringCli && providerConfiguration
+    ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(configuringCli, entry.protocol))
+    : [], [configuringCli, providerConfiguration]);
 
   useEffect(() => window.openmind.onCliInstallProgress?.((progress) => {
     setInstallProgress(progress);
@@ -119,99 +147,148 @@ export function ProviderSettingsSection({ providers, defaultProviderId, save }: 
     }
   };
 
+  const openProviderDialog = (kind: "claude" | "codex") => {
+    setSelectedCliProvider(providerConfiguration?.cli?.[kind] ?? null);
+    setConfiguringCli(kind);
+  };
+
+  const saveProviderBinding = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!configuringCli || !providerConfiguration || providerConfigurationBusy || bindingBusy) return;
+    setBindingBusy(true);
+    try {
+      await onSaveProviderConfiguration(providersViewAsInput(providerConfiguration, {
+        ...(providerConfiguration.cli || { claude: null, codex: null }),
+        [configuringCli]: selectedCliProvider
+      }));
+      await window.openmind.aiRefreshProviders?.();
+      setConfiguringCli(null);
+    } finally {
+      setBindingBusy(false);
+    }
+  };
+
   return (
-    <SettingsPanel title={m.settings.provider.title} scope={m.settings.scopes.newSession}>
-      <div className="settings-provider-list" role="radiogroup" aria-label={m.settings.provider.defaultAria}>
-        {providers.length ? providers.map((provider) => {
-          const active = provider.id === defaultProviderId;
-          const canInstall = provider.runtime === "native" && provider.installable && !provider.available && provider.version === null
-            && provider.provider !== undefined && (provider.provider === "claude" || provider.provider === "codex");
-          // Installed but not logged in (version known, still unavailable).
-          const canLogin = !provider.available && provider.version !== null
-            && (provider.provider === "claude" || provider.provider === "codex");
-          const installing = installingCli === provider.provider;
-          const upgrading = upgradingCli === provider.provider;
-          const versionCheck = provider.provider ? versionChecks[provider.provider] : undefined;
-          return (
-            <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
-              <span className="settings-provider-dot" aria-hidden="true" />
-              <div className="settings-provider-main">
-                <div><strong>{provider.label}</strong><small>{providerSubtitle(provider)}</small></div>
-                <div className="settings-provider-model" aria-label={m.settings.provider.configuredModelAria(provider.label)}>
-                  <small className="settings-provider-model-source">{m.settings.provider.configuredModel}</small>
-                  <span className="settings-provider-model-meta">
-                    {provider.oneMillion ? <StatusBadge tone="info">1M</StatusBadge> : null}
-                    <small title={provider.detectedModel || undefined}>
-                      {provider.detectedModel || m.settings.provider.modelNotConfigured}
-                      {provider.contextWindow ? ` · ${formatContextWindow(provider.contextWindow)}` : ""}
-                    </small>
-                  </span>
-                </div>
-                {canLogin ? <div className="settings-provider-install">
-                  <button type="button" className="settings-provider-install-button" data-motion="action" onClick={() => void window.openmind.openCliLogin(provider.provider as "claude" | "codex")}>
-                    {m.settings.provider.openLogin}
-                  </button>
-                  <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void window.openmind.aiRefreshProviders()}>
-                    {m.settings.provider.recheck}
-                  </button>
-                  <small>{m.settings.provider.loginHint}</small>
-                </div> : null}
-                {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
-                  <summary>{m.settings.provider.wslStepsTitle}</summary>
-                  <ol>
-                    <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
-                    <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
-                    <li>{m.settings.provider.wslStepsRecheck}</li>
-                  </ol>
-                </details> : null}
-              </div>
-              <div className="settings-provider-actions">
-                {canInstall ? <div className="settings-provider-install settings-provider-install--action">
-                  {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
-                    <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
-                    <small>{installProgress?.message || m.settings.provider.installing}</small>
-                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>{m.settings.provider.cancelInstall}</button>
-                  </div> : <button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
-                    {m.settings.provider.install}
-                  </button>}
-                  {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
-                    <span>{m.settings.provider.installFailed}{installError.message}</span>
-                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
-                  </div> : null}
-                </div> : null}
-                {provider.version !== null && provider.provider ? <div className="settings-provider-version-actions">
-                  <div className="settings-provider-version-copy">
-                    <span className="settings-provider-version">v{provider.version}</span>
-                    {versionCheck ? <small className={`settings-provider-version-result ${!versionCheck.updateAvailable && versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : ""}`} role="status">
+    <>
+      <SettingsPanel title={m.settings.provider.title} scope={m.settings.scopes.newSession}>
+        <div className="settings-provider-list" aria-label={m.settings.provider.defaultAria}>
+          {providers.length ? providers.map((provider) => {
+            const active = provider.id === defaultProviderId;
+            const canInstall = provider.runtime === "native" && provider.installable && !provider.available && provider.version === null
+              && provider.provider !== undefined && (provider.provider === "claude" || provider.provider === "codex");
+            const canLogin = !provider.available && provider.version !== null
+              && (provider.provider === "claude" || provider.provider === "codex");
+            const installing = installingCli === provider.provider;
+            const upgrading = upgradingCli === provider.provider;
+            const cliKind = provider.provider === "claude" || provider.provider === "codex" ? provider.provider : null;
+            const versionCheck = cliKind ? versionChecks[cliKind] : undefined;
+            const boundProviderId = cliKind ? providerConfiguration?.cli?.[cliKind] ?? null : null;
+            const boundProvider = boundProviderId ? providerConfiguration?.providers.find((entry) => entry.id === boundProviderId) ?? null : null;
+            return (
+              <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
+                <span className="settings-provider-dot" aria-hidden="true" />
+                <div className="settings-provider-main">
+                  <div>
+                    <span className="settings-provider-title-line"><strong>{provider.label}</strong>{active ? <StatusBadge tone="info">{m.settings.provider.default}</StatusBadge> : null}</span>
+                    <small>{providerSubtitle(provider)}</small>
+                  </div>
+                  <div className="settings-provider-model" aria-label={m.settings.provider.configuredModelAria(provider.label)}>
+                    <small className="settings-provider-model-source">{m.settings.provider.configuredModel}</small>
+                    <span className="settings-provider-model-meta">
+                      {provider.oneMillion ? <StatusBadge tone="info">1M</StatusBadge> : null}
+                      <small title={provider.detectedModel || undefined}>
+                        {provider.detectedModel || m.settings.provider.modelNotConfigured}
+                        {provider.contextWindow ? ` · ${formatContextWindow(provider.contextWindow)}` : ""}
+                      </small>
+                    </span>
+                  </div>
+                  {cliKind ? <div className="settings-provider-runtime-meta">
+                    {provider.version !== null ? <small>v{provider.version}</small> : null}
+                    <small>{boundProvider ? m.settings.provider.usingProvider(boundProvider.name) : m.settings.provider.usingOwnConfiguration(provider.label)}</small>
+                    {versionCheck ? <small className={!versionCheck.updateAvailable && versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : undefined} role="status">
                       {versionCheck.updateAvailable ? m.settings.provider.updateAvailable(versionCheck.latestVersion) : versionCheck.latestVersion && versionCheck.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown}
                     </small> : null}
-                  </div>
-                  {versionCheck?.updateAvailable ? <button type="button" className="settings-provider-upgrade" data-motion="action" disabled={!versionCheck.canUpgrade || upgrading || versionCheckBusy !== null} title={!versionCheck.canUpgrade ? m.settings.provider.upgradeUnavailable : undefined} onClick={() => void upgradeCli(provider.provider as "claude" | "codex")}>
-                    {upgrading ? m.settings.provider.updating : m.settings.provider.upgrade}
-                  </button> : <button type="button" className="settings-provider-recheck" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>
-                    {versionCheckBusy === provider.provider ? m.settings.provider.checking : versionCheck ? m.settings.provider.recheckUpdate : m.settings.provider.checkUpdate}
-                  </button>}
-                  {installError?.cli === provider.provider && !canInstall ? <div className="settings-provider-version-error" role="alert">
-                    <span>{m.settings.provider.upgradeFailed}{installError.message}</span>
+                    {versionCheckBusy === cliKind ? <small role="status">{m.settings.provider.checking}</small> : null}
+                    {installError?.cli === cliKind && !canInstall ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.upgradeFailed}{installError.message}</small> : null}
+                    {versionError?.cli === cliKind ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.versionFailed(versionError.message)}</small> : null}
                   </div> : null}
-                  {versionError?.cli === provider.provider ? <div className="settings-provider-version-error" role="alert">
-                    <span>{m.settings.provider.versionFailed(versionError.message)}</span>
-                    <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void checkVersion(provider.provider as "claude" | "codex")}>{m.settings.provider.retryVersion}</button>
+                  {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
+                    <summary>{m.settings.provider.wslStepsTitle}</summary>
+                    <ol>
+                      <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
+                      <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
+                      <li>{m.settings.provider.wslStepsRecheck}</li>
+                    </ol>
+                  </details> : null}
+                </div>
+                <div className="settings-provider-actions">
+                  {canInstall ? <div className="settings-provider-install settings-provider-install--action">
+                    {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
+                      <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
+                      <small>{installProgress?.message || m.settings.provider.installing}</small>
+                      <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>{m.settings.provider.cancelInstall}</button>
+                    </div> : <button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
+                      {m.settings.provider.install}
+                    </button>}
+                    {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
+                      <span>{m.settings.provider.installFailed}{installError.message}</span>
+                      <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
+                    </div> : null}
                   </div> : null}
-                </div> : null}
-                {!canInstall ? <>
-                  <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge>
-                  <label className="settings-provider-default">
-                    <input type="radio" name="default-provider" checked={active} disabled={!provider.available} aria-label={m.settings.provider.setDefault(provider.label)} onChange={() => void save({ defaultProvider: provider.id })} />
-                    <span>{active ? m.settings.provider.default : m.settings.provider.setAsDefault}</span>
-                  </label>
-                </> : null}
+                  {!canInstall && provider.version !== null && cliKind ? <div className="settings-provider-menu settings-cli-provider-menu">
+                    <DropdownMenu
+                      ariaLabel={m.settings.provider.more(provider.label)}
+                      menuLabel={m.settings.provider.menu(provider.label)}
+                      disabled={installingCli !== null || upgradingCli !== null || providerConfigurationBusy}
+                      label={<span className="settings-provider-menu-trigger" data-motion="icon"><MoreHorizontal size={18} aria-hidden /></span>}
+                    >
+                      <button type="button" role="menuitem" data-motion="selection" disabled={active || !provider.available} onClick={() => void save({ defaultProvider: provider.id })}>{m.settings.provider.setAsDefault}</button>
+                      <button type="button" role="menuitem" data-motion="selection" disabled={!providerConfiguration} onClick={() => openProviderDialog(cliKind)}>{m.settings.provider.setProvider}</button>
+                      <button type="button" role="menuitem" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(cliKind)}>{m.settings.provider.checkUpdate}</button>
+                      {versionCheck?.updateAvailable ? <button type="button" role="menuitem" data-motion="action" disabled={!versionCheck.canUpgrade || upgrading || versionCheckBusy !== null} title={!versionCheck.canUpgrade ? m.settings.provider.upgradeUnavailable : undefined} onClick={() => void upgradeCli(cliKind)}>{upgrading ? m.settings.provider.updating : m.settings.provider.upgradeTo(versionCheck.latestVersion)}</button> : null}
+                      {canLogin ? <button type="button" role="menuitem" data-motion="action" onClick={() => void window.openmind.openCliLogin(cliKind)}>{m.settings.provider.openLogin}</button> : null}
+                    </DropdownMenu>
+                  </div> : !canInstall ? <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge> : null}
+                </div>
+              </article>
+            );
+          }) : <p className="settings-note">{m.settings.provider.empty}</p>}
+        </div>
+      </SettingsPanel>
+
+      {configuringCli && typeof document !== "undefined" ? createPortal(
+        <div ref={providerDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={closeProviderDialog}>
+          <section className="settings-provider-dialog settings-cli-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="cli-provider-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span>{m.settings.provider.providerDialogEyebrow}</span>
+                <h2 id="cli-provider-dialog-title">{m.settings.provider.providerDialogTitle(configuringCli === "claude" ? "Claude Code" : "Codex CLI")}</h2>
+                <p>{m.settings.provider.providerDialogDescription(configuringCli === "claude" ? "anthropic-messages" : "openai-responses")}</p>
               </div>
-            </article>
-          );
-        }) : <p className="settings-note">{m.settings.provider.empty}</p>}
-      </div>
-    </SettingsPanel>
+              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.provider.closeProviderDialog} onClick={closeProviderDialog}><X size={16} /></button>
+            </header>
+            <form onSubmit={(event) => void saveProviderBinding(event)}>
+              <div className="settings-provider-dialog-body settings-cli-provider-options" role="radiogroup" aria-label={m.settings.provider.providerOptionsAria}>
+                <label className="settings-cli-provider-option">
+                  <input type="radio" name="cli-provider-binding" checked={selectedCliProvider === null} onChange={() => setSelectedCliProvider(null)} autoFocus />
+                  <span><strong>{m.settings.provider.ownConfiguration(configuringCli === "claude" ? "Claude Code" : "Codex CLI")}</strong><small>{m.settings.provider.ownConfigurationDescription}</small></span>
+                </label>
+                {compatibleProviders.map((entry) => <label key={entry.id} className="settings-cli-provider-option">
+                  <input type="radio" name="cli-provider-binding" checked={selectedCliProvider === entry.id} onChange={() => setSelectedCliProvider(entry.id)} />
+                  <span><strong>{entry.name}</strong><small>{entry.protocol} · {entry.model}</small></span>
+                </label>)}
+                {!compatibleProviders.length ? <p className="settings-note settings-cli-provider-empty">{m.settings.provider.noCompatibleProviders(configuringCli === "claude" ? "anthropic-messages" : "openai-responses")}</p> : null}
+              </div>
+              <footer>
+                <button type="button" className="settings-subtle-action" data-motion="action" onClick={closeProviderDialog}>{m.settings.provider.cancel}</button>
+                <button type="submit" className="primary-button" disabled={providerConfigurationBusy || bindingBusy}>{bindingBusy ? m.settings.provider.savingProvider : m.settings.provider.saveProvider}</button>
+              </footer>
+            </form>
+          </section>
+        </div>,
+        document.body
+      ) : null}
+    </>
   );
 }
 
@@ -944,7 +1021,6 @@ export function AiProvidersSettingsSection({
                       <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}</span>
                       <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || m.settings.providerConfig.noModel}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
                     </span>
-                    <ChevronRight className="settings-provider-config-chevron" size={16} aria-hidden />
                   </button>
                   <div className="settings-provider-config-actions">
                     <ToggleSwitch checked={entry.enabled} disabled={busy || entry.id === defaultId} label={m.settings.providerConfig.enable(displayName)} onChange={(checked) => setProviderEnabled(entry.id, checked)} />
@@ -1080,6 +1156,27 @@ function providerSubtitle(provider: ProviderCapabilities): string {
   if (!provider.available) return provider.diagnostic || m.settings.provider.notLoggedIn;
   const protocol = provider.provider === "claude" ? m.settings.provider.claudeProtocol : m.settings.provider.codexProtocol;
   return `${protocol} · ${m.settings.provider.loggedIn}`;
+}
+
+function providersViewAsInput(view: ProvidersYamlView, cli: CliProviderBindings): ProvidersYamlInput {
+  return {
+    schemaVersion: 1,
+    default: view.default,
+    cli,
+    providers: view.providers.map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      enabled: provider.enabled,
+      protocol: provider.protocol,
+      authMode: provider.authMode || "bearer",
+      apiKey: "",
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      proxyUrl: provider.proxyUrl || "",
+      proxyPolicy: provider.proxyPolicy || "system",
+      tlsPolicy: provider.tlsPolicy || "verify"
+    }))
+  };
 }
 
 function formatSessionDate(value: string): string {

@@ -89,8 +89,8 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
         aria-expanded={!collapsed}
         onClick={() => toggle(!collapsed)}
       >
-        <ChevronDown size={13} aria-hidden />
         <span>{m.ai.session.recent} <span className="nav-recent-count">({recent.length})</span></span>
+        <ChevronDown size={13} aria-hidden />
       </button>
       {!collapsed ? (
         <div className="nav-recent-list">

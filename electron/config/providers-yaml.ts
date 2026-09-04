@@ -91,20 +91,32 @@ export function readDefaultProviderEnv(openmindRoot?: string): { env: Record<str
   return { env: processProviderEnvironment(defaultEntry), apiKey: defaultEntry.apiKey };
 }
 
+/** 会话冻结的 Provider 指纹与当前配置不一致；用户可选择确认后按新配置继续。 */
+export class ProviderRevisionMismatchError extends Error {
+  constructor(readonly kind: keyof CliProviderBindings, readonly providerId: string, message: string) {
+    super(message);
+    this.name = "ProviderRevisionMismatchError";
+  }
+}
+
 /**
  * Resolve the API profile used by a Claude Code/Codex CLI session.
  *
  * - `requestedId === undefined`: use the current top-level `cli` binding.
  * - `requestedId === null`: explicitly use the CLI's own login/configuration.
  * - a string: resolve the profile frozen into an existing desktop session.
+ *
+ * `options.ignoreRevisionCheck` 为 true 时跳过指纹比对（含缺失指纹检查），
+ * 仅供用户在确认弹窗中同意按当前配置继续后的重绑路径使用。
  */
 export function resolveCliProvider(
   kind: keyof CliProviderBindings,
   requestedId?: string | null,
-  expectedRevision?: string | null
+  expectedRevision?: string | null,
+  options?: { ignoreRevisionCheck?: boolean }
 ): ProviderYamlEntry | null {
   if (requestedId === null) return null;
-  if (requestedId !== undefined && expectedRevision == null) {
+  if (requestedId !== undefined && expectedRevision == null && !options?.ignoreRevisionCheck) {
     throw new Error(`${kind} 会话缺少 Provider 配置指纹，请新建会话后重试。`);
   }
   const config = readProvidersYaml();
@@ -129,9 +141,15 @@ export function resolveCliProvider(
   }
   // Explicitly requested providers come from persisted sessions. A revision
   // is mandatory so legacy or partially migrated sessions cannot resume on a
-  // newly created profile that happens to reuse the same id.
-  if (expectedRevision !== undefined && providerConfigurationRevision(provider) !== expectedRevision) {
-    throw new Error(`${kind} 会话绑定的 Provider 配置已变更：${id}。为避免把旧会话发送到不同服务，请新建会话。`);
+  // newly created profile that happens to reuse the same id. Interactive
+  // resumption may acknowledge a mismatch explicitly (see scheduler rebind).
+  if (expectedRevision !== undefined && !options?.ignoreRevisionCheck
+    && providerConfigurationRevision(provider) !== expectedRevision) {
+    throw new ProviderRevisionMismatchError(
+      kind,
+      id,
+      `${kind} 会话绑定的 Provider 配置已变更：${id}。为避免把旧会话发送到不同服务，请新建会话。`
+    );
   }
   return provider;
 }

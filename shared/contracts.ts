@@ -203,7 +203,9 @@ export const SkillDefinitionSchema = z.object({
   group: z.string().optional(),
   permission: z.enum(["read-only", "edit", "auto"]).optional(),
   outputArtifacts: z.array(z.string()).optional(),
-  timeoutMs: z.number().int().positive().optional()
+  timeoutMs: z.number().int().positive().optional(),
+  /** Internal package kind marker; slash-command surfaces treat all kinds uniformly. */
+  kind: z.enum(["agent", "process", "workflow"]).optional()
 });
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
 
@@ -556,9 +558,42 @@ export const StartRunInputSchema = z.object({
   interactionMode: InteractionModeSchema.default("default"),
   cwd: z.string(),
   prompt: z.string().min(1),
-  contexts: z.array(ContextReferenceSchema).default([])
+  contexts: z.array(ContextReferenceSchema).default([]),
+  // 续跑已存在的会话时，用户在确认弹窗里同意按当前 Provider 配置继续后携带 true。
+  acknowledgeProviderChange: z.boolean().optional()
 });
 export type StartRunInput = z.input<typeof StartRunInputSchema>;
+
+/**
+ * 会话绑定的 Provider 指纹与当前 config/providers.yaml 不一致时，start 抛错的
+ * 稳定标记。错误跨 worker/main/renderer 后只剩字符串，渲染端靠该标记识别
+ * “可确认继续”的情况；标记后跟 JSON 载荷 { kind, id, message }。
+ */
+export const PROVIDER_CHANGE_PENDING = "OPENMIND_PROVIDER_CHANGE_PENDING";
+
+export interface ProviderChangePendingInfo {
+  kind: string;
+  id: string;
+  message: string;
+}
+
+export function formatProviderChangePending(info: ProviderChangePendingInfo): string {
+  return `${PROVIDER_CHANGE_PENDING}:${JSON.stringify(info)}`;
+}
+
+export function parseProviderChangePending(text: string): ProviderChangePendingInfo | null {
+  const marker = `${PROVIDER_CHANGE_PENDING}:`;
+  const at = text.indexOf(marker);
+  if (at < 0) return null;
+  try {
+    const payload = JSON.parse(text.slice(at + marker.length)) as Partial<ProviderChangePendingInfo>;
+    return typeof payload.kind === "string" && typeof payload.id === "string" && typeof payload.message === "string"
+      ? { kind: payload.kind, id: payload.id, message: payload.message }
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export const SessionPatchSchema = z.object({
   title: z.string().min(1).max(120).optional(),

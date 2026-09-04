@@ -288,6 +288,10 @@ select:focus-visible,
   line-height: 22px;
 }
 
+.app-nav nav button:focus-visible {
+  outline-offset: -2px;
+}
+
 .nav-group-create {
   margin-bottom: 0;
 }
@@ -2567,13 +2571,13 @@ select:focus-visible,
 }
 
 .provider-select {
-  min-width: 72px;
-  flex: 0 1 230px;
+  flex: 0 0 auto;
+  max-width: 230px;
   margin-left: auto;
 }
 
 .provider-select .chip-select-trigger {
-  width: 100%;
+  width: auto;
   min-width: 0;
   min-height: 36px;
   max-width: 230px;
@@ -2591,7 +2595,7 @@ select:focus-visible,
 .provider-select .chip-select-label { display: none; }
 .provider-select .chip-select-value {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow: hidden;
   color: var(--text-dim);
   font-weight: 500;

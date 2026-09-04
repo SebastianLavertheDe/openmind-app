@@ -1182,7 +1182,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
         };
       };
       expect(call.options.sandbox).toEqual({ enabled: false });
-      expect(call.options.tools).not.toEqual(expect.arrayContaining(["Bash", "PowerShell"]));
+      expect(call.options.tools).toEqual(expect.arrayContaining(["Bash", "PowerShell"]));
       expect(call.options.settingSources).toEqual([]);
       expect(call.options.skills).toEqual([]);
       expect(call.options.strictMcpConfig).toBe(true);
@@ -1364,6 +1364,66 @@ describe("normalizeClaudeMessage Plan/Todo", () => {
     }, state);
     expect(normalized.events).toContainEqual(expect.objectContaining({ kind: "plan", payload: expect.objectContaining({ sourceTool: "ExitPlanMode" }) }));
     expect(normalized.events.some((event) => event.kind === "system" && event.payload.subtype === "interaction_mode")).toBe(false);
+  });
+});
+
+describe("decideClaudePermission 命令工具", () => {
+  function makeCommandRunContext(permissionProfile: "edit" | "read-only" = "edit"): ProviderRunContext {
+    const base = makeRunContext();
+    return makeRunContext({
+      openmindRoot: "/workspace",
+      cwd: "/workspace",
+      session: {
+        ...base.session,
+        projectRoot: "/workspace",
+        cwd: ".",
+        permissionProfile,
+        scope: { type: "workspace" }
+      },
+      protectedPaths: ["/home/test/openmind/projects"]
+    });
+  }
+
+  it("Workspace 会话中命令逐条请求用户审批，不自动放行", () => {
+    expect(decideClaudePermission(makeCommandRunContext(), "Bash", { command: "npm test" }))
+      .toEqual({
+        behavior: "ask",
+        category: "command",
+        title: "请求执行命令",
+        command: "npm test",
+        paths: []
+      });
+  });
+
+  it.each([
+    ["rm -rf build", "delete", "请求删除文件"],
+    ["curl https://example.com", "network", "请求网络操作"],
+    ["sudo apt install jq", "elevation", "请求高权限操作"]
+  ])("按命令内容标注审批分类：%s", (command, category, title) => {
+    expect(decideClaudePermission(makeCommandRunContext(), "Bash", { command }))
+      .toMatchObject({ behavior: "ask", category, title, command });
+  });
+
+  it("只读会话拒绝命令工具", () => {
+    expect(decideClaudePermission(makeCommandRunContext("read-only"), "Bash", { command: "npm test" }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("只读") });
+  });
+
+  it("Project 会话拒绝命令工具", () => {
+    const base = makeRunContext();
+    const ctx = makeRunContext({
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/Research",
+      session: {
+        ...base.session,
+        cwd: ".",
+        projectRoot: "/openmind/projects/Research",
+        permissionProfile: "edit",
+        scope: { type: "project-task", projectName: "Research", taskId: "task-1" }
+      }
+    });
+    expect(decideClaudePermission(ctx, "Bash", { command: "npm test" }))
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("Project") });
   });
 });
 

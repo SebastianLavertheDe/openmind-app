@@ -39,6 +39,7 @@ async function* claudeImageMessageStream(
 
 const CLAUDE_WORKBENCH_TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit", "WebFetch", "WebSearch",
+  "Bash", "PowerShell",
   "EnterPlanMode", "ExitPlanMode", "TodoWrite", "TaskCreate", "TaskGet", "TaskUpdate", "TaskList"
 ];
 export const CLAUDE_SETTING_SOURCES: readonly [] = [];
@@ -70,9 +71,6 @@ export function decideClaudePermission(
   if (!runContext) return { behavior: "deny", message: "Claude Code 预热进程尚未绑定到运行。" };
   const readOnly = runContext.session.permissionProfile === "read-only";
   const projectScoped = runContext.session.scope?.type === "project-task";
-  if (/^(bash|powershell)$/i.test(toolName)) {
-    return { behavior: "deny", message: "Workspace 隔离模式不允许命令工具。" };
-  }
   if (/^webfetch$/i.test(toolName)) {
     const rawUrl = typeof input.url === "string" ? input.url.trim() : "";
     try {
@@ -91,6 +89,13 @@ export function decideClaudePermission(
   }
   if (readOnly && /write|edit|bash|powershell|notebook/i.test(toolName)) {
     return { behavior: "deny", message: "当前会话为只读模式。" };
+  }
+  if (/^(bash|powershell)$/i.test(toolName)) {
+    if (projectScoped) return { behavior: "deny", message: "Project 会话为只读模式，不能执行命令工具。" };
+    // 命令字符串无法像文件工具那样做路径边界校验，也不做关键词自动放行；
+    // 每条命令都交用户审批，classifyApproval 仅决定弹窗的分类与标题。
+    const command = String(input.command || "");
+    return { behavior: "ask", ...classifyApproval(command, toolName), command, paths: [] };
   }
   if (toolName.toLocaleLowerCase() === "glob") {
     const pattern = typeof input.pattern === "string" ? input.pattern : "";
