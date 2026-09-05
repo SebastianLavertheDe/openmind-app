@@ -251,6 +251,9 @@ export const AiSessionScopeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("workspace") }),
   z.object({
     type: z.literal("project-task"),
+    /** Stable Project identity. Names and filesystem paths are mutable labels. */
+    projectId: z.string().uuid(),
+    /** Frozen display/path locator for the lifetime of this Provider session. */
     projectName: z.string().min(1).max(80),
     taskId: z.string().min(1).max(128)
   })
@@ -262,7 +265,7 @@ export const AiSessionSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   projectRoot: z.string(),
-  scope: AiSessionScopeSchema.default({ type: "workspace" }),
+  scope: AiSessionScopeSchema,
   title: z.string(),
   provider: ProviderKindSchema,
   providerId: z.string(),
@@ -285,13 +288,12 @@ export const AiSessionSchema = z.object({
   lastRunId: z.string().nullable().default(null)
 });
 type ParsedAiSession = z.infer<typeof AiSessionSchema>;
-/** Defaulted fields stay optional for old persisted objects and existing callers. */
-export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot" | "scope"> & {
+/** Defaulted non-identity fields stay optional for existing in-memory callers. */
+export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot"> & {
   interactionMode?: InteractionMode;
   serviceProviderId?: string | null;
   serviceProviderRevision?: string | null;
   skillSnapshot?: AiSessionSkillSnapshotEntry[] | null;
-  scope?: AiSessionScope;
 };
 
 export const AiRunSchema = z.object({
@@ -299,13 +301,15 @@ export const AiRunSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
   projectId: z.string(),
-  scope: AiSessionScopeSchema.default({ type: "workspace" }),
+  scope: AiSessionScopeSchema,
   provider: ProviderKindSchema,
   providerId: z.string().default("legacy"),
   permissionProfile: PermissionProfileSchema.default("edit"),
   interactionMode: InteractionModeSchema.default("default"),
   status: RunStatusSchema,
   prompt: z.string(),
+  /** Project runs keep the user-message body in Project storage and persist only this reference. */
+  promptMessageId: z.string().uuid().nullable().default(null),
   contexts: z.array(ContextReferenceSchema).default([]),
   turnContext: AiTurnContextSchema.nullable().default(null),
   workspacePath: z.string().nullable().default(null),
@@ -318,9 +322,9 @@ export const AiRunSchema = z.object({
   rolledBackAt: z.string().nullable().optional()
 });
 type ParsedAiRun = z.infer<typeof AiRunSchema>;
-export type AiRun = Omit<ParsedAiRun, "interactionMode" | "scope"> & {
+export type AiRun = Omit<ParsedAiRun, "interactionMode" | "promptMessageId"> & {
   interactionMode?: InteractionMode;
-  scope?: AiSessionScope;
+  promptMessageId?: string | null;
 };
 
 export const AiEventSchema = z.object({

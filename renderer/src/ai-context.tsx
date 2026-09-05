@@ -21,6 +21,7 @@ import type {
   SkillDefinition,
   SessionPatch
 } from "@shared/contracts";
+import { workspaceSessions } from "@shared/ai-session-scope";
 import { parseProviderChangePending } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import {
@@ -75,6 +76,9 @@ export interface AiController {
   reorderContexts(fromId: string, toId: string): void;
   clearContexts(): void;
   addFiles(): Promise<void>;
+  /** 项目详情页打开时选定的「新对话归属项目」；null = 常规工作区会话。 */
+  projectComposeTarget: { projectId: string; projectName: string } | null;
+  setProjectComposeTarget(target: { projectId: string; projectName: string } | null): void;
   composerFocusRequest: number;
   focusComposer(): void;
   send(prompt: string, options?: SendOptions): Promise<void>;
@@ -305,7 +309,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   // Project conversations are opened explicitly by their Project task page;
   // the global workbench must never adopt one merely because it was the most
   // recently persisted session.
-  const firstSession = initial.sessions.find((session) => !session.archived && session.scope?.type !== "project-task") || null;
+  const firstSession = workspaceSessions(initial.sessions)[0] || null;
   // App remounts AiProvider when this scope changes. Draft text and file
   // contexts must follow that same openmind/workspace boundary; otherwise a
   // relative attachment selected in workspace A could be submitted in B.
@@ -320,6 +324,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [drafts, setDrafts] = useState<Record<string, string>>(() => scopedStorageJson(DRAFTS_KEY, storageScope, {}));
   const [contextsByDraft, setContextsByDraft] = useState<Record<string, ContextReference[]>>(() => scopedStorageJson(CONTEXTS_KEY, storageScope, {}));
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => storageJson(PANEL_KEY, "collapsed"));
+  const [projectComposeTarget, setProjectComposeTarget] = useState<{ projectId: string; projectName: string } | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastSeq = useRef(0);
   const toastTimers = useRef(new Map<number, number>());
@@ -791,6 +796,8 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     refreshSkills,
     panelMode,
     setPanelMode: setPanelModeState,
+    projectComposeTarget,
+    setProjectComposeTarget,
     toasts,
     notify,
     dismissToast,
@@ -824,6 +831,8 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     refreshSkills,
     panelMode,
     composerFocusRequest,
+    projectComposeTarget,
+    setProjectComposeTarget,
     notify,
     dismissToast,
     confirm,

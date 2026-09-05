@@ -224,7 +224,6 @@ class AiWorkerClient {
         sendToRenderer("skill:run-event", push.event);
         return;
       }
-      if (push?.kind === "event" && push.event) syncProjectTaskEvent(push.event);
       sendToRenderer("ai:push", message.payload);
       return;
     }
@@ -234,58 +233,6 @@ class AiWorkerClient {
     this.pending.delete(message.id);
     if (message.error) pending.reject(new Error(message.error));
     else pending.resolve(message.result);
-  }
-}
-
-function syncProjectTaskEvent(rawEvent: Record<string, unknown>): void {
-  const sessionId = typeof rawEvent.sessionId === "string" ? rawEvent.sessionId : "";
-  if (!sessionId) return;
-  const kind = String(rawEvent.kind || "");
-  const payload = rawEvent.payload && typeof rawEvent.payload === "object"
-    ? rawEvent.payload as Record<string, unknown>
-    : {};
-  // Token deltas, reasoning, tool events and intermediate assistant messages
-  // never enter messages.jsonl. Reject them before touching the synchronous
-  // Project filesystem so ordinary streaming stays constant-cost.
-  const relevant = kind === "user-message"
-    || (kind === "assistant-message" && payload.phase === "final" && typeof payload.text === "string")
-    || (kind === "status" && ["completed", "failed", "cancelled"].includes(String(payload.state || "")));
-  if (!relevant) return;
-  try {
-    const service = ensureProjectService();
-    const task = service.findProjectTaskBySessionId(sessionId);
-    if (!task) return;
-    const eventId = typeof rawEvent.id === "string" ? rawEvent.id : crypto.randomUUID();
-    const createdAt = typeof rawEvent.timestamp === "string" ? rawEvent.timestamp : new Date().toISOString();
-    if (kind === "user-message" && typeof payload.text === "string") {
-      service.appendProjectTaskMessage(task.projectName, task.taskId, {
-        id: eventId,
-        role: "user",
-        content: payload.text,
-        sourceMessageId: eventId,
-        createdAt
-      });
-      service.setProjectTaskStatus(task.projectName, task.taskId, "active");
-      return;
-    }
-    if (kind === "assistant-message" && payload.phase === "final" && typeof payload.text === "string") {
-      service.appendProjectTaskMessage(task.projectName, task.taskId, {
-        id: eventId,
-        role: "assistant",
-        content: payload.text,
-        sourceMessageId: eventId,
-        createdAt
-      });
-      return;
-    }
-    if (kind === "status") {
-      const state = String(payload.state || "");
-      if (state === "completed") service.setProjectTaskStatus(task.projectName, task.taskId, "completed");
-      if (state === "failed" || state === "cancelled") service.setProjectTaskStatus(task.projectName, task.taskId, "failed");
-    }
-  } catch {
-    // AI rollout persistence remains authoritative even if the optional
-    // Project-readable transcript cannot be mirrored during shutdown/root swap.
   }
 }
 
@@ -629,8 +576,13 @@ function createWindow(): void {
   }
   // 开发模式：OPENMIND_DEV_SERVER_URL 指向 vite dev server（npm run dev）时走热更新，
   // 其余情况始终加载构建产物。
-  const devServerUrl = new URL(process.env.OPENMIND_DEV_SERVER_URL || "");
-  if (devServerUrl.protocol === "http:" || devServerUrl.protocol === "https:") {
+  let devServerUrl: URL | null = null;
+  try {
+    devServerUrl = process.env.OPENMIND_DEV_SERVER_URL ? new URL(process.env.OPENMIND_DEV_SERVER_URL) : null;
+  } catch {
+    devServerUrl = null;
+  }
+  if (devServerUrl && (devServerUrl.protocol === "http:" || devServerUrl.protocol === "https:")) {
     void window.loadURL(devServerUrl.toString());
   } else {
     void window.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));

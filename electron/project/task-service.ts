@@ -3,17 +3,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import {
+  PROJECT_MANIFEST_FILE,
+  ProjectManifestSchema,
   ProjectTaskMessageSchema,
   ProjectTaskSchema,
   type ProjectTask,
   type ProjectTaskMessage,
   type ProjectTaskStatus
 } from "../../shared/project-contracts";
-import { writeJsonAtomic, writeTextAtomic } from "../lib/fs-utils";
+import { writeJsonAtomic } from "../lib/fs-utils";
 import { ProjectPathResolver } from "./project-path-resolver";
 
 const TASKS_TOP_LEVEL = ["tasks"] as const;
-const MAX_MESSAGES_BYTES = 20 * 1024 * 1024;
+const LegacyProjectTaskSchema = ProjectTaskSchema.omit({ projectId: true });
 
 export class ProjectTaskService {
   constructor(private readonly paths: ProjectPathResolver) {}
@@ -33,6 +35,7 @@ export class ProjectTaskService {
       const timestamp = now();
       const task = ProjectTaskSchema.parse({
         taskId: crypto.randomUUID(),
+        projectId: this.projectId(canonicalProjectName),
         projectName: canonicalProjectName,
         title,
         sessionId: null,
@@ -46,7 +49,7 @@ export class ProjectTaskService {
       fs.mkdirSync(directory, { recursive: false });
       try {
         writeJsonAtomic(path.join(directory, "task.json"), task);
-        writeTextAtomic(path.join(directory, "messages.jsonl"), "");
+        fs.mkdirSync(path.join(directory, "messages"), { recursive: false });
       } catch (error) {
         fs.rmSync(directory, { recursive: true, force: true });
         throw error;
@@ -76,9 +79,30 @@ export class ProjectTaskService {
     return this.paths.withProjectMutationLock(() => {
       const canonicalProjectName = this.paths.resolveProject(projectName).name;
       const filePath = this.taskFile(canonicalProjectName, taskId);
-      const task = ProjectTaskSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf8")));
+      const raw: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      const current = ProjectTaskSchema.safeParse(raw);
+      let task: ProjectTask;
+      if (current.success) {
+        task = current.data;
+      } else {
+        const legacy = LegacyProjectTaskSchema.parse(raw);
+        task = ProjectTaskSchema.parse({
+          ...legacy,
+          projectId: this.projectId(canonicalProjectName),
+          // Project identity can be migrated safely; old dual-written conversation
+          // history cannot. Start a fresh Session while preserving Task metadata.
+          sessionId: null,
+          previousSessionIds: []
+        });
+        writeJsonAtomic(filePath, task);
+        fs.mkdirSync(this.messageDirectory(canonicalProjectName, taskId, true), { recursive: true });
+        fs.rmSync(path.join(path.dirname(filePath), "messages.jsonl"), { force: true });
+      }
       if (task.projectName !== canonicalProjectName) {
         throw new Error(`Project Task 的 projectName 与所在项目不一致：${task.taskId}`);
+      }
+      if (task.projectId !== this.projectId(canonicalProjectName)) {
+        throw new Error(`Project Task 的 projectId 与所在项目不一致：${task.taskId}`);
       }
       if (task.taskId !== taskId || path.basename(path.dirname(filePath)) !== taskId) {
         throw new Error(`Project Task 的 taskId 与所在目录不一致：${taskId}`);
@@ -99,6 +123,7 @@ export class ProjectTaskService {
     return this.paths.withProjectMutationLock(() => {
       const current = this.get(projectName, taskId);
       if (current.sessionId && current.sessionId !== sessionId) throw new Error("Project Task 已绑定其他 AI Session。");
+      if (current.sessionId === sessionId) return current;
       if (!current.sessionId && (current.previousSessionIds ?? []).includes(sessionId)) {
         throw new Error("Project Task 不能重新绑定已失效的历史 AI Session。");
       }
@@ -113,34 +138,40 @@ export class ProjectTaskService {
 
   appendMessage(projectName: string, taskId: string, message: ProjectTaskMessage): void {
     this.paths.withProjectMutationLock(() => {
-      this.get(projectName, taskId);
+      const task = this.get(projectName, taskId);
       const parsed = ProjectTaskMessageSchema.parse(message);
-      const filePath = this.messageFile(projectName, taskId);
-      const existing = fs.readFileSync(filePath, "utf8");
-      const duplicate = existing.split("\n").filter(Boolean).some((line) => {
-        try {
-          const current = ProjectTaskMessageSchema.parse(JSON.parse(line));
-          return current.id === parsed.id || (
-            current.role === parsed.role
-            && current.content === parsed.content
-            && current.createdAt === parsed.createdAt
-          );
-        }
-        catch { return false; }
-      });
-      if (duplicate) return;
-      const next = `${existing}${JSON.stringify(parsed)}\n`;
-      if (Buffer.byteLength(next, "utf8") > MAX_MESSAGES_BYTES) throw new Error("Project Task 消息记录超过 20 MB 限制。");
-      writeTextAtomic(filePath, next);
+      if (parsed.sessionId !== task.sessionId) throw new Error("Project Task 消息的 Session 归属不一致。");
+      const directory = this.messageDirectory(task.projectName, task.taskId, true);
+      fs.mkdirSync(directory, { recursive: true });
+      const filePath = path.join(directory, `${parsed.id}.json`);
+      if (fs.existsSync(filePath)) {
+        const current = ProjectTaskMessageSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf8")));
+        if (JSON.stringify(current) !== JSON.stringify(parsed)) throw new Error("Project Task 消息 ID 冲突。");
+        return;
+      }
+      writeJsonAtomic(filePath, parsed, { onlyIfMissing: true });
     });
   }
 
   listMessages(projectName: string, taskId: string): ProjectTaskMessage[] {
     return this.paths.withProjectMutationLock(() => {
       const task = this.get(projectName, taskId);
-      const content = fs.readFileSync(this.messageFile(task.projectName, task.taskId), "utf8");
-      if (Buffer.byteLength(content, "utf8") > MAX_MESSAGES_BYTES) throw new Error("Project Task 消息记录超过 20 MB 限制。");
-      return content.split("\n").filter(Boolean).map((line) => ProjectTaskMessageSchema.parse(JSON.parse(line)));
+      const directory = this.messageDirectory(task.projectName, task.taskId, true);
+      fs.mkdirSync(directory, { recursive: true });
+      const allowedSessions = new Set<string | null>([task.sessionId, ...task.previousSessionIds]);
+      return fs.readdirSync(directory, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && !entry.isSymbolicLink() && /^[0-9a-f-]{36}\.json$/i.test(entry.name))
+        .map((entry) => {
+          const message = ProjectTaskMessageSchema.parse(JSON.parse(fs.readFileSync(path.join(directory, entry.name), "utf8")));
+          if (`${message.id}.json`.toLocaleLowerCase("en-US") !== entry.name.toLocaleLowerCase("en-US")) {
+            throw new Error(`Project Task 消息 ID 与文件名不一致：${entry.name}`);
+          }
+          if (!allowedSessions.has(message.sessionId)) {
+            throw new Error(`Project Task 消息的 Session 归属不一致：${message.id}`);
+          }
+          return message;
+        })
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
     });
   }
 
@@ -226,8 +257,16 @@ export class ProjectTaskService {
     return this.paths.resolveInsideProject(projectName, `tasks/${taskId}/task.json`, { allowedTopLevels: TASKS_TOP_LEVEL });
   }
 
-  private messageFile(projectName: string, taskId: string): string {
-    return this.paths.resolveInsideProject(projectName, `tasks/${taskId}/messages.jsonl`, { allowedTopLevels: TASKS_TOP_LEVEL });
+  private messageDirectory(projectName: string, taskId: string, allowMissingLeaf = false): string {
+    return this.paths.resolveInsideProject(projectName, `tasks/${taskId}/messages`, {
+      allowedTopLevels: TASKS_TOP_LEVEL,
+      allowMissingLeaf
+    });
+  }
+
+  private projectId(projectName: string): string {
+    const project = this.paths.resolveProject(projectName);
+    return ProjectManifestSchema.parse(JSON.parse(fs.readFileSync(path.join(project.rootPath, PROJECT_MANIFEST_FILE), "utf8"))).id;
   }
 }
 

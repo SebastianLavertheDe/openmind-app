@@ -6,8 +6,10 @@ import { RunScheduler } from "./scheduler";
 import type { AiEvent, AiRun, AiSession, AiSessionSkillSnapshotEntry, ProviderCapabilities } from "../../shared/contracts";
 import type { ProviderRunContext } from "./providers/types";
 import { SkillToolRegistry } from "./skill-tool-registry";
+import { ProjectService } from "../project/project-service";
 
 const roots: string[] = [];
+const workspaceScope = { type: "workspace" } as const;
 
 function createRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-scheduler-"));
@@ -112,15 +114,19 @@ describe("RunScheduler Project Task scope", () => {
     const workspace = createRoot();
     const stateRoot = createRoot();
     const contentRoot = createRoot();
-    const projectsRoot = path.join(contentRoot, "projects");
-    const projectRoot = path.join(projectsRoot, "AI安全");
-    fs.mkdirSync(path.join(projectRoot, "materials"), { recursive: true });
+    const projects = new ProjectService(contentRoot);
+    const project = projects.createProject({ name: "AI安全", description: "" }).project;
+    const task = projects.createProjectTask(project.name, "Project task", "claude-native");
+    const projectsRoot = projects.paths.projectsRoot;
+    const projectRoot = projects.resolveProjectRoot(project.name);
     return {
       workspace,
       stateRoot,
       projectsRoot,
       projectRoot,
       contentRoot,
+      project,
+      task,
       scheduler: new RunScheduler(workspace, () => undefined, undefined, undefined, stateRoot, contentRoot, 1, projectsRoot)
     };
   }
@@ -141,8 +147,9 @@ describe("RunScheduler Project Task scope", () => {
 
     const first = fixture.scheduler.startProjectRun({
       projectRoot: fixture.projectRoot,
-      projectName: "AI安全",
-      taskId: "task-1",
+      projectId: fixture.project.id,
+      projectName: fixture.project.name,
+      taskId: fixture.task.taskId,
       providerId: "claude-native",
       prompt: "根据资料写报告",
       contexts: [{ id: "cover", kind: "image", label: "cover", path: "materials/cover.png", mediaType: "image/png" }]
@@ -153,7 +160,7 @@ describe("RunScheduler Project Task scope", () => {
       projectRoot: fs.realpathSync.native(fixture.projectRoot),
       cwd: ".",
       permissionProfile: "read-only",
-      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      scope: { type: "project-task", projectId: fixture.project.id, projectName: fixture.project.name, taskId: fixture.task.taskId }
     });
     expect(first.run).toMatchObject({ projectId: first.session.projectId, scope: first.session.scope, permissionProfile: "read-only" });
     expect(executions[0].cwd).toBe(first.session.projectRoot);
@@ -208,22 +215,25 @@ describe("RunScheduler Project Task scope", () => {
 
     expect(() => fixture.scheduler.startProjectRun({
       projectRoot: outside,
-      projectName: "AI安全",
-      taskId: "task-1",
+      projectId: fixture.project.id,
+      projectName: fixture.project.name,
+      taskId: fixture.task.taskId,
       providerId: "claude-native",
       prompt: "unsafe"
     })).toThrow(/不匹配/);
     expect(() => fixture.scheduler.startProjectRun({
       projectRoot: fixture.projectRoot,
+      projectId: fixture.project.id,
       projectName: "wrong",
-      taskId: "task-1",
+      taskId: fixture.task.taskId,
       providerId: "claude-native",
       prompt: "unsafe"
     })).toThrow(/不匹配/);
     expect(() => fixture.scheduler.startProjectRun({
       projectRoot: alias,
+      projectId: fixture.project.id,
       projectName: "alias",
-      taskId: "task-1",
+      taskId: fixture.task.taskId,
       providerId: "claude-native",
       prompt: "unsafe"
     })).toThrow(/符号链接/);
@@ -239,8 +249,9 @@ describe("RunScheduler Project Task scope", () => {
     };
     const { session, run } = fixture.scheduler.startProjectRun({
       projectRoot: fixture.projectRoot,
-      projectName: "AI安全",
-      taskId: "task-prewarm",
+      projectId: fixture.project.id,
+      projectName: fixture.project.name,
+      taskId: fixture.task.taskId,
       providerId: "claude-native",
       prompt: "start"
     });
@@ -266,7 +277,7 @@ describe("RunScheduler 会话/运行管理", () => {
     const internals = schedulerInternals(scheduler);
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit", scope: workspaceScope });
     const run = internals.store.createRun(session, "p", []);
     internals.store.updateRun(run.id, { status: "running" });
     await expect(scheduler.forkSession(session.id)).rejects.toThrow("Cannot fork");
@@ -278,7 +289,7 @@ describe("RunScheduler 会话/运行管理", () => {
     const internals = schedulerInternals(scheduler);
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit", scope: workspaceScope });
     const fork = await scheduler.forkSession(session.id);
     expect(fork.id).not.toBe(session.id);
     expect(fork.providerId).toBe("claude-native");
@@ -296,7 +307,7 @@ describe("RunScheduler 会话/运行管理", () => {
     const internals = schedulerInternals(scheduler);
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit", scope: workspaceScope });
     // 用 startRun 创建一个排队的 run(adapter run 不 resolve 让它卡在 active)
     // 但更简单:直接造一个 queued run
     const run = internals.store.createRun(session, "p", []);
@@ -320,7 +331,7 @@ describe("RunScheduler 会话/运行管理", () => {
     const scheduler = new RunScheduler(root, () => undefined);
     const internals = schedulerInternals(scheduler);
     internals.adapters.claude = { run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "旧标题", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "旧标题", permissionProfile: "edit", scope: workspaceScope });
     const updated = scheduler.updateSession(session.id, { title: "新标题" });
     expect(updated.title).toBe("新标题");
     expect(scheduler.snapshot().sessions.find((s) => s.id === session.id)?.title).toBe("新标题");
@@ -362,6 +373,7 @@ describe("RunScheduler 会话/运行管理", () => {
       cwd: ".",
       title: "Frozen",
       permissionProfile: "edit",
+      scope: workspaceScope,
       skillSnapshot: snapshot
     });
     const listDefinitions = vi.fn(() => []);
@@ -409,6 +421,7 @@ describe("RunScheduler 会话/运行管理", () => {
       cwd: ".",
       title: "No legacy fallback",
       permissionProfile: "edit",
+      scope: workspaceScope,
       skillSnapshot: sessionSkillSnapshot()
     });
     const adapterRun = vi.fn(async () => undefined);
@@ -441,7 +454,8 @@ describe("RunScheduler 会话/运行管理", () => {
       providerId: "claude-native",
       cwd: ".",
       title: "Legacy",
-      permissionProfile: "edit"
+      permissionProfile: "edit",
+      scope: workspaceScope
     });
     const sessionFile = path.join(root, ".openmind", "ai", "sessions", legacy.id, "session.json");
     const persisted = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
@@ -458,7 +472,7 @@ describe("RunScheduler 会话/运行管理", () => {
     expect(JSON.parse(fs.readFileSync(sessionFile, "utf8")).skillSnapshot).toEqual(snapshot);
   });
 
-  it("scheduler startup skips installed package capture when no legacy session needs migration", () => {
+  it("scheduler startup refreshes an explicitly workspace-scoped Skill snapshot", () => {
     const root = createRoot();
     const first = new RunScheduler(root, () => undefined);
     schedulerInternals(first).store.createSession({
@@ -467,13 +481,14 @@ describe("RunScheduler 会话/运行管理", () => {
       cwd: ".",
       title: "Already frozen",
       permissionProfile: "edit",
+      scope: workspaceScope,
       skillSnapshot: []
     });
     const capture = vi.spyOn(SkillToolRegistry.prototype, "captureSessionSnapshot");
 
     new RunScheduler(root, () => undefined);
 
-    expect(capture).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledWith(true);
   });
 
   it("startRun:provider 不可用时抛错", () => {
@@ -495,7 +510,7 @@ describe("RunScheduler 会话/运行管理", () => {
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = { run: async () => undefined };
     // 先建一个 claude session
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit", scope: workspaceScope });
     // 用 codex providerId 启动同一 session → 抛"已锁定"
     const codexProvider = { ...claudeProvider, id: "codex-native", provider: "codex" as const, label: "Codex" };
     internals.registry.detect = () => [codexProvider];
@@ -533,7 +548,7 @@ describe("RunScheduler Claude prewarm", () => {
       },
       run: async () => undefined
     };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit", scope: workspaceScope });
 
     await expect(scheduler.prewarmClaude(session.id)).resolves.toBe(true);
 
@@ -547,7 +562,7 @@ describe("RunScheduler Claude prewarm", () => {
     const prewarm = vi.fn(async () => true);
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = { prewarm, run: async () => undefined };
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit", scope: workspaceScope });
     internals.store.createRun(session, "hello", []);
 
     await expect(scheduler.prewarmClaude(session.id)).resolves.toBe(false);
@@ -664,7 +679,7 @@ describe("RunScheduler Claude prewarm", () => {
         await context.emit("assistant-message", { text: "recovered" });
       }
     };
-    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
+    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit", scope: workspaceScope });
     session = internals.store.updateSession(session.id, { providerSessionId: "stale-session" });
     let oldRun = internals.store.createRun(session, "old prompt", []);
     await internals.store.beginTurn(oldRun);
@@ -701,7 +716,7 @@ describe("RunScheduler Claude prewarm", () => {
         await context.emit("assistant-message", { text: "recovered", phase: "final" });
       }
     };
-    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit" });
+    let session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Claude", permissionProfile: "edit", scope: workspaceScope });
     session = internals.store.updateSession(session.id, { providerSessionId: "legacy-global-session" });
     let oldRun = internals.store.createRun(session, "old prompt", []);
     await internals.store.beginTurn(oldRun);
@@ -738,7 +753,7 @@ type SchedulerInternals = {
     };
   };
   store: {
-    createSession(input: { provider: "claude"; providerId: string; cwd: string; title: string; permissionProfile: "edit"; skillSnapshot?: AiSessionSkillSnapshotEntry[] }): AiSession;
+    createSession(input: { provider: "claude"; providerId: string; cwd: string; title: string; permissionProfile: "edit"; scope: typeof workspaceScope; skillSnapshot?: AiSessionSkillSnapshotEntry[] }): AiSession;
     updateSession(sessionId: string, patch: Partial<AiSession>): AiSession;
     getSession(sessionId: string): AiSession;
     createRun(session: AiSession, prompt: string, contexts: []): AiRun;
@@ -818,7 +833,7 @@ describe("RunScheduler 公共委托方法", () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
     const internals = schedulerInternals(scheduler);
-    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit" });
+    const session = internals.store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "T", permissionProfile: "edit", scope: workspaceScope });
     const updated = scheduler.updateSession(session.id, { title: "新标题" });
     expect(updated.title).toBe("新标题");
   });

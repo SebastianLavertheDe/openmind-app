@@ -2682,6 +2682,17 @@ select:focus-visible,
   white-space: nowrap;
 }
 
+/* 项目详情页打开时，新对话将归属当前项目：徽标提示，替换工作区按钮 */
+.composer-workspace.is-project-target {
+  color: var(--accent-fg);
+  cursor: default;
+}
+
+.composer-workspace.is-project-target span,
+.composer-workspace.is-project-target strong {
+  color: var(--accent-fg);
+}
+
 .composer-toolbar .new-session-controls {
   border: 0;
   background: transparent;

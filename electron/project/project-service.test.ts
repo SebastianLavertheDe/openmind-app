@@ -137,6 +137,43 @@ describe("ProjectService", () => {
     expect(service.readProjectMaterial("Retry", ready.relativePath).content).toBe("# kept");
   });
 
+  it("serves preserved PDF originals for preview and rejects materials without one", async () => {
+    const pdfConverter: ProjectMaterialConverter = {
+      id: "test-pdf-v1",
+      supportedExtensions: [".pdf"],
+      supports: (source: ProjectMaterialConversionSource) => source.type === "file" && source.extension === ".pdf",
+      target: () => ({
+        kind: "document",
+        directory: "documents",
+        fileName: "converted.md",
+        title: "Converted",
+        preserveOriginal: true
+      }),
+      convert: async ({ source }) => {
+        if (source.type !== "file") throw new Error("expected file");
+        return { content: "# 提取文本", mimeType: "text/markdown" };
+      }
+    };
+    const { imports, service } = fixture({ materialConverters: [pdfConverter] });
+    service.createProject({ name: "Pdfs" });
+    const pdf = path.join(imports, "paper.pdf");
+    fs.writeFileSync(pdf, Buffer.from("%PDF-1.4", "latin1"));
+
+    const [material] = await service.addProjectFiles("Pdfs", [pdf]);
+    expect(service.readProjectMaterial("Pdfs", material.relativePath).content).toBe("# 提取文本");
+    const original = service.readProjectMaterialOriginal("Pdfs", material.relativePath);
+    expect(original).toMatchObject({ fileName: "paper.pdf", mimeType: "application/pdf", byteSize: 8 });
+    expect(Buffer.from(original.data).toString("latin1")).toBe("%PDF-1.4");
+
+    const markdown = path.join(imports, "notes.md");
+    fs.writeFileSync(markdown, "# Notes\n", "utf8");
+    const [textMaterial] = await service.addProjectFiles("Pdfs", [markdown]);
+    expect(() => service.readProjectMaterialOriginal("Pdfs", textMaterial.relativePath))
+      .toThrow("该资料没有保留原始文件。");
+    expect(() => service.readProjectMaterialOriginal("Pdfs", "materials/documents/missing.md"))
+      .toThrow("项目资料不存在。");
+  });
+
   it("renames and moves materials across projects on disk and in the index", async () => {
     const { imports, service } = fixture();
     service.createProject({ name: "Source" });
@@ -221,14 +258,15 @@ describe("ProjectService", () => {
     const sessionId = "session-project-1";
     service.bindProjectTaskSession("Transcript", task.taskId, sessionId);
     const message = {
-      id: "message-1",
+      id: "11111111-1111-4111-8111-111111111111",
+      runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       role: "user" as const,
       content: "Use the project materials",
       sourceMessageId: "message-1",
       createdAt: "2026-08-31T00:00:00.000Z"
     };
     service.appendProjectTaskMessage("Transcript", task.taskId, message);
-    service.appendProjectTaskMessage("Transcript", task.taskId, { ...message, id: "fallback-message-1" });
+    service.appendProjectTaskMessage("Transcript", task.taskId, message);
 
     const restarted = new ProjectService(root);
     expect(restarted.findProjectTaskBySessionId(sessionId)?.taskId).toBe(task.taskId);

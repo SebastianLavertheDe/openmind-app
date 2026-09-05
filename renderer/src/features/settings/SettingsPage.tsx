@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
+import { workspaceSessions } from "@shared/ai-session-scope";
 import { useAi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
@@ -175,8 +176,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
 
-  const archivedSessions = useMemo(() => ai.snapshot.sessions
-    .filter((session) => session.archived && session.scope?.type !== "project-task")
+  const archivedSessions = useMemo(() => workspaceSessions(ai.snapshot.sessions, true)
+    .filter((session) => session.archived)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions]);
 
   const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0];

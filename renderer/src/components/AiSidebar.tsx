@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Maximize2, MessageSquare, Minimize2, PanelRightClose, PanelRightOpen, Plus, Rows3 } from "lucide-react";
 import { messages as m } from "@shared/messages";
+import { workspaceSessions } from "@shared/ai-session-scope";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAi } from "../ai-context";
 import { Select, Tooltip, useModalFocusScope } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
+import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
+import { projectsApi } from "../features/projects/projects-api";
 import {
   AI_SIDEBAR_LAYOUT_KEY,
   AI_SIDEBAR_LAYOUT_SCHEMA_VERSION,
@@ -82,6 +85,18 @@ function setNumericAttribute(element: HTMLElement, name: string, value: number):
 export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkbench(): void; navCollapsed?: boolean }) {
   const ai = useAi();
   const responsiveLayout = useResponsiveLayout();
+  // 项目详情页打开时，侧栏里的新对话自动创建为当前项目的任务（归属该项目）；
+  // 已有会话的续聊保持原作用域，走默认 ai.send。
+  const projectComposeTarget = ai.projectComposeTarget;
+  const handleProjectDraftSubmit = useCallback(async (input: ChatDraftSubmitInput) => {
+    if (!projectComposeTarget) throw new Error("没有可归属的项目。");
+    const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
+    const result = await projectsApi.startTaskRun(projectComposeTarget.projectName, created.taskId, input.providerId, input.prompt, input.contexts);
+    ai.setDraft("");
+    ai.clearContexts();
+    await ai.refresh();
+    await ai.setActiveSession(result.session.id);
+  }, [ai, projectComposeTarget]);
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
   const floating = presentation === "overlay";
@@ -341,8 +356,7 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
             onChange={(value) => void ai.setActiveSession(value || null)}
             options={[
               { value: "" as const, label: m.ai.sidebar.newDraft },
-              ...ai.snapshot.sessions
-                .filter((session) => !session.archived && session.scope?.type !== "project-task")
+              ...workspaceSessions(ai.snapshot.sessions)
                 .map((session) => ({ value: session.id, label: session.title }))
             ]}
           />
@@ -356,7 +370,11 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
             <Tooltip content={m.ai.sidebar.collapse}><button data-motion="icon" aria-label={m.ai.sidebar.collapse} onClick={() => ai.setPanelMode("collapsed")}><PanelRightClose size={15} /></button></Tooltip>
           </div>
         </header>
-        <Chat compact />
+        <Chat compact onDraftSubmit={projectComposeTarget && !ai.activeSession ? handleProjectDraftSubmit : undefined} />
     </aside>
   );
+}
+
+function firstLine(value: string): string {
+  return value.trim().split(/\r?\n/)[0].slice(0, 80) || "未命名任务";
 }

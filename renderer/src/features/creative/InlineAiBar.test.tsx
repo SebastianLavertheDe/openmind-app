@@ -38,13 +38,13 @@ const snapshot: AiSnapshot = {
 function makeStartRunResult() {
   return {
     session: {
-      schemaVersion: 1, id: "sess-1", projectId: "p", projectRoot: "/project",
+      schemaVersion: 1, id: "sess-1", projectId: "p", scope: { type: "workspace" as const }, projectRoot: "/project",
       title: "t", provider: "codex", providerId: "codex-native", providerSessionId: null,
       cwd: "/project", permissionProfile: "read-only", status: "idle",
       pinned: false, archived: false, createdAt: "now", updatedAt: "now", lastRunId: null
     },
     run: {
-      schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p",
+      schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p", scope: { type: "workspace" as const },
       provider: "codex", providerId: "codex-native", permissionProfile: "read-only",
       status: "running", prompt: "x", contexts: [], turnContext: null,
       workspacePath: null, baseCommit: null, startedAt: "now", completedAt: null,
@@ -138,7 +138,7 @@ describe("InlineAiBar", () => {
     const completedSnapshot: AiSnapshot = {
       ...snapshot,
       runs: [{
-        schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p",
+        schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p", scope: { type: "workspace" },
         provider: "codex", providerId: "codex-native", permissionProfile: "read-only",
         status: "completed", prompt: "x", contexts: [], turnContext: null,
         workspacePath: null, baseCommit: null, startedAt: "now", completedAt: "now",
@@ -166,7 +166,7 @@ describe("InlineAiBar", () => {
     const completedSnapshot: AiSnapshot = {
       ...snapshot,
       runs: [{
-        schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p",
+        schemaVersion: 1, id: "run-1", sessionId: "sess-1", projectId: "p", scope: { type: "workspace" },
         provider: "codex", providerId: "codex-native", permissionProfile: "read-only",
         status: "completed", prompt: "x", contexts: [], turnContext: null,
         workspacePath: null, baseCommit: null, startedAt: "now", completedAt: "now",

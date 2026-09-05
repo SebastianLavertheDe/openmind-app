@@ -108,6 +108,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "renameProjectMaterial", channel: PROJECT_IPC.MATERIAL_RENAME },
   { method: "moveProjectMaterial", channel: PROJECT_IPC.MATERIAL_MOVE },
   { method: "readProjectMaterial", channel: PROJECT_IPC.MATERIAL_READ },
+  { method: "readProjectMaterialOriginal", channel: PROJECT_IPC.MATERIAL_READ_ORIGINAL },
   { method: "listProjectMaterials", channel: PROJECT_IPC.MATERIAL_LIST },
   { method: "createProjectTask", channel: PROJECT_IPC.TASK_CREATE },
   { method: "listProjectTasks", channel: PROJECT_IPC.TASK_LIST },

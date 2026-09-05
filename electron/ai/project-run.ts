@@ -12,6 +12,7 @@ const ProjectRunContextsSchema = z.array(ContextReferenceSchema).max(50).default
 export const TrustedProjectRunInputSchema = z.union([
   z.object({
     projectRoot: z.string().min(1),
+    projectId: z.string().uuid(),
     projectName: z.string().min(1).max(80),
     taskId: z.string().min(1).max(128),
     providerId: z.string().min(1).max(160),

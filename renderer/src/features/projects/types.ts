@@ -3,6 +3,7 @@ export type ProjectSection = "tasks" | "materials" | "outputs";
 export type ProjectColor = "neutral" | "gray" | "blue" | "cyan" | "green" | "indigo" | "purple" | "pink" | "red" | "orange" | "yellow" | "brown";
 
 export type ProjectSummary = {
+  id: string;
   name: string;
   description: string;
   status: ProjectStatus;
@@ -46,6 +47,8 @@ export type ProjectMaterial = {
   kind: ProjectMaterialKind;
   status: ProjectMaterialStatus;
   sourceUrl?: string;
+  /** Path of the preserved original inside materials/originals, when the converter kept one. */
+  originalPath?: string | null;
   content?: string;
   /** The renderer only received a prefix of the material content. */
   truncated?: boolean;
@@ -55,11 +58,21 @@ export type ProjectMaterial = {
   video?: ProjectVideo;
 };
 
+/** Binary original preserved beside the extracted Markdown; v1 only serves PDF. */
+export type ProjectMaterialOriginal = {
+  fileName: string;
+  mimeType: "application/pdf";
+  byteSize: number;
+  data: Uint8Array<ArrayBuffer>;
+};
+
 export type ProjectTask = {
   taskId: string;
+  projectId: string;
   projectName: string;
   title: string;
   sessionId: string | null;
+  previousSessionIds: string[];
   providerId?: string;
   status: "active" | "completed" | "failed" | "archived";
   createdAt: string;
@@ -68,6 +81,8 @@ export type ProjectTask = {
 
 export type ProjectTaskMessage = {
   id: string;
+  runId: string;
+  sessionId: string | null;
   role: "user" | "assistant";
   content: string;
   sourceMessageId?: string | null;

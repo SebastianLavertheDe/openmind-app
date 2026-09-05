@@ -3,10 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import {
+  ProjectMaterialOriginalReadSchema,
   ProjectMaterialSchema,
   ProjectVideoReadMetadataSchema,
   type ProjectMaterial,
   type ProjectMaterialKind,
+  type ProjectMaterialOriginalRead,
   type ProjectMaterialRead
 } from "../../shared/project-contracts";
 import { writeJsonAtomic, writeTextAtomic } from "../lib/fs-utils";
@@ -426,6 +428,33 @@ export class ProjectMaterialService {
         })
       } : {})
     };
+  }
+
+  /**
+   * Returns the preserved original file bytes for inline preview. V1 only serves
+   * PDF originals; the extracted Markdown stays the material of record for AI reads.
+   */
+  readOriginal(projectName: string, relativePath: string): ProjectMaterialOriginalRead {
+    const material = this.readIndex(projectName).find((item) => item.relativePath === relativePath);
+    if (!material) throw new Error("项目资料不存在。");
+    if (material.status !== "ready") throw new Error("项目资料尚未完成转换。");
+    if (!material.originalRelativePath) throw new Error("该资料没有保留原始文件。");
+    if (path.extname(material.originalRelativePath).toLocaleLowerCase() !== ".pdf") {
+      throw new Error("该资料类型暂不支持原件预览。");
+    }
+    const absolute = this.paths.resolveInsideProject(projectName, material.originalRelativePath, {
+      allowedTopLevels: MATERIALS_TOP_LEVEL
+    });
+    const stat = fs.lstatSync(absolute);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("项目资料原件无效。");
+    if (stat.size > MAX_SOURCE_BYTES) throw new Error("项目资料原件超过 100 MB 限制。");
+    const data = fs.readFileSync(absolute);
+    return ProjectMaterialOriginalReadSchema.parse({
+      fileName: path.basename(absolute),
+      mimeType: "application/pdf",
+      byteSize: stat.size,
+      data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+    });
   }
 
   renameProject(previousName: string, nextName: string): void {

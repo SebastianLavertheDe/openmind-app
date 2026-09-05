@@ -566,7 +566,7 @@ export const featureMessages = {
       edit: "编辑",
       auto: "自动执行",
       defaultLabel: "新会话默认权限",
-      defaultDescription: "只读最安全；编辑允许写文件；自动执行免审批。",
+      defaultDescription: "只读最安全；编辑允许写文件；自动执行全工具免审批，仅删除目录需审批。",
       destructiveLabel: "破坏性操作需审批",
       destructiveDescription: "应用文件工具会检查删除、覆盖、提权与 OpenMind 根目录外访问。",
       riskScanLabel: "风险扫描",

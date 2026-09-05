@@ -8,6 +8,7 @@ function makeSession(overrides: Partial<AiSession> = {}): AiSession {
     schemaVersion: 1,
     id: "sess-1",
     projectId: "p1",
+    scope: { type: "workspace" },
     projectRoot: "/project",
     title: "会话一",
     provider: "claude",
@@ -91,7 +92,7 @@ describe("globalSearch", () => {
     const ctx = makeCtx({
       searchSessions: async () => [
         makeSession({ id: "workspace", scope: { type: "workspace" } }),
-        makeSession({ id: "project", scope: { type: "project-task", projectName: "AI 安全", taskId: "task-1" } })
+        makeSession({ id: "project", scope: { type: "project-task", projectId: "5a111111-1111-4111-8111-111111111111", projectName: "AI 安全", taskId: "task-1" } })
       ]
     });
     const results = await globalSearch("test", ctx);

@@ -6,6 +6,7 @@ import {
 } from "../../shared/contracts";
 import type { ProductService } from "./product-service";
 import type { ProjectService } from "../project/project-service";
+import { workspaceSessions } from "../../shared/ai-session-scope";
 
 export type GlobalSearchContext = {
   ensureProductService(): ProductService;
@@ -39,10 +40,7 @@ export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext):
       status: project.status,
       targetId: project.name
     }));
-  const sessionResults: GlobalSearchResult[] = sessions
-    // Project Task conversations are owned by their Project page. They must
-    // not leak into the workspace-wide AI/session search surface.
-    .filter((session) => session.scope?.type !== "project-task")
+  const sessionResults: GlobalSearchResult[] = workspaceSessions(sessions, true)
     .slice(0, 16)
     .map((session) => ({
       id: `session:${session.id}`,

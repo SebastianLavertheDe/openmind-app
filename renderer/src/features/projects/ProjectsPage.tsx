@@ -74,6 +74,14 @@ export function ProjectsPage({
     setCompactListOpen(!hasActiveProject);
   }, [compactWorkspace, hasActiveProject]);
 
+  // 项目详情打开期间，把「新对话归属项目」告知全局 AI 侧栏：
+  // 在项目页发起的新对话会自动创建为当前项目的任务，而不是工作区会话。
+  const setProjectComposeTarget = ai.setProjectComposeTarget;
+  useEffect(() => {
+    setProjectComposeTarget(activeProject ? { projectId: activeProject.id, projectName: activeProject.name } : null);
+    return () => setProjectComposeTarget(null);
+  }, [activeProject?.id, activeProject?.name, setProjectComposeTarget]);
+
   useEffect(() => {
     const closeCreateMenu = (event: PointerEvent) => {
       const menu = createMenuRef.current;

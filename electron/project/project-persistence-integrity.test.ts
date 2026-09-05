@@ -91,14 +91,16 @@ describe("Project persisted identity validation", () => {
     service.bindProjectTaskSession("Provenance", first.taskId, "session-first");
     service.bindProjectTaskSession("Provenance", second.taskId, "session-second");
     service.appendProjectTaskMessage("Provenance", first.taskId, {
-      id: "message-first",
+      id: "11111111-1111-4111-8111-111111111111",
+      runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       role: "assistant",
       content: "first",
       sourceMessageId: "message-first",
       createdAt: "2026-08-31T00:00:00.000Z"
     });
     service.appendProjectTaskMessage("Provenance", second.taskId, {
-      id: "message-second",
+      id: "22222222-2222-4222-8222-222222222222",
+      runId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       role: "assistant",
       content: "second",
       sourceMessageId: "message-second",
@@ -150,7 +152,8 @@ describe("Project persisted identity validation", () => {
       content: "invalid"
     })).toThrow(/Session/);
     service.appendProjectTaskMessage("Provenance Renamed", first.taskId, {
-      id: "user-message-next",
+      id: "33333333-3333-4333-8333-333333333333",
+      runId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       role: "user",
       content: "prompt",
       sourceMessageId: "user-message-next",
@@ -341,9 +344,10 @@ describe("Project cross-process read-modify-write persistence", () => {
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
       }
       for (let index = 0; index < 5; index += 1) {
-        const id = \`worker-\${worker}-\${index}\`;
+        const id = \`00000000-0000-4000-800\${worker}-\${String(index).padStart(12, "0")}\`;
         service.appendProjectTaskMessage("Concurrent", process.env.PROJECT_TEST_TASK, {
           id,
+          runId: \`00000000-0000-4000-900\${worker}-\${String(index).padStart(12, "0")}\`,
           role: "user",
           content: id,
           sourceMessageId: null,

@@ -79,5 +79,6 @@ export function recoverInterruptedRuns(store: SessionStore): void {
     });
     void store.abortTurn(interrupted, interrupted.error);
     store.updateSession(run.sessionId, { status: "failed" });
+    store.setProjectTaskStatus(run.sessionId, "failed");
   }
 }

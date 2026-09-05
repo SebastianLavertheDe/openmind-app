@@ -69,6 +69,7 @@ export async function persistScheduledTurnAndPump(host: SchedulerExecutionHost, 
       error: error instanceof Error ? error.message : String(error)
     });
     host.store.updateSession(run.sessionId, { status: "failed" });
+    host.store.setProjectTaskStatus(run.sessionId, "failed");
     host.publishSnapshot();
   }
 }
@@ -284,6 +285,10 @@ async function finalizeScheduledRun(host: SchedulerExecutionHost, run: AiRun, ou
     changeSet: null,
     risks
   });
+  host.store.setProjectTaskStatus(
+    run.sessionId,
+    outcome.status === "completed" ? "completed" : "failed"
+  );
   if (outcome.status === "completed") {
     await appendScheduledEvent(host, updated, "status", { state: "completed" });
     await host.store.completeTurn(updated);

@@ -527,19 +527,30 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               ]}
               onChange={(value) => setPermissionProfile(value as PermissionProfile)}
             />
-            <button
-              data-motion="icon"
-              type="button"
-              className="composer-workspace"
-              aria-label={m.ai.composer.openWorkspace}
-              title={ai.snapshot.projectRoot}
-              onClick={() => void window.openmind.openPath(".")}
-            >
-              <FolderOpen size={16} />
-              <span>{m.ai.chat.currentProject}</span>
-              <strong>{projectName}</strong>
-              <ChevronDown size={13} aria-hidden />
-            </button>
+            {ai.projectComposeTarget && !ai.activeSession ? (
+              <span
+                className="composer-workspace is-project-target"
+                title={m.ai.composer.projectTargetHint(ai.projectComposeTarget.projectName)}
+              >
+                <FolderOpen size={16} />
+                <span>{m.ai.chat.currentProject}</span>
+                <strong>{ai.projectComposeTarget.projectName}</strong>
+              </span>
+            ) : (
+              <button
+                data-motion="icon"
+                type="button"
+                className="composer-workspace"
+                aria-label={m.ai.composer.openWorkspace}
+                title={ai.snapshot.projectRoot}
+                onClick={() => void window.openmind.openPath(".")}
+              >
+                <FolderOpen size={16} />
+                <span>{m.ai.chat.currentProject}</span>
+                <strong>{projectName}</strong>
+                <ChevronDown size={13} aria-hidden />
+              </button>
+            )}
             <ChipSelect
               className="provider-select"
               icon={<Sparkles size={15} />}

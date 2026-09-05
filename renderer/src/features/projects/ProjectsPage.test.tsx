@@ -7,6 +7,7 @@ import { ProjectsPage } from "./ProjectsPage";
 import type { ProjectDetail, ProjectSummary } from "./types";
 
 const summary: ProjectSummary = {
+  id: "5a111111-1111-4111-8111-111111111111",
   name: "AI 安全",
   description: "研究与写作",
   status: "active",
@@ -91,7 +92,8 @@ describe("ProjectsPage", () => {
     fireEvent.click(projectButton);
 
     await waitFor(() => expect(window.openmind.getProject).toHaveBeenCalledWith("AI 安全"));
-    expect(await screen.findByText("AI 安全")).toBeTruthy();
+    // 项目名会同时出现在详情标题和侧栏 composer 的归属徽标中
+    expect((await screen.findAllByText("AI 安全")).length).toBeGreaterThanOrEqual(1);
     const tabs = await screen.findAllByRole("tab", { name: /任务/ });
     expect(tabs.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("搜索任务")).toBeTruthy();
@@ -103,6 +105,7 @@ describe("ProjectsPage", () => {
       schemaVersion: 1,
       id: "workspace-session",
       projectId: "workspace",
+      scope: { type: "workspace" },
       projectRoot: "/project",
       title: "之前打开的会话",
       provider: "codex",
@@ -119,9 +122,11 @@ describe("ProjectsPage", () => {
     };
     const task = {
       taskId: "task-1",
+      projectId: summary.id,
       projectName: summary.name,
       title: "具体任务",
       sessionId: null,
+      previousSessionIds: [],
       providerId: "codex-native",
       status: "active",
       createdAt: "2026-08-30T00:00:00.000Z",

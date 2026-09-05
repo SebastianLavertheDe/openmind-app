@@ -98,7 +98,7 @@ export function FeedbackHost() {
             <strong>{stashed.title}</strong>
             {stashed.body ? <p id={descriptionId}>{stashed.body}</p> : null}
             <div className="modal-actions">
-              <button data-motion="action" ref={cancelRef} onClick={() => ai.resolveConfirm(false)}>{m.feedback.cancel}</button>
+              <button data-motion="action" className="settings-subtle-action" ref={cancelRef} onClick={() => ai.resolveConfirm(false)}>{m.feedback.cancel}</button>
               <button
                 ref={confirmRef}
                 className={stashed.danger ? "danger-button" : "primary-button"}

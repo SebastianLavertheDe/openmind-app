@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
-import { AiProvider } from "../ai-context";
+import { AiProvider, useAi } from "../ai-context";
 import { ResponsiveLayoutProvider } from "../app/responsive-layout";
 import { AiSidebar } from "./AiSidebar";
 
@@ -9,7 +10,7 @@ const snapshot: AiSnapshot = {
   projectRoot: "/project",
   providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false }],
   sessions: [{
-    schemaVersion: 1, id: "sess-1", projectId: "p", projectRoot: "/project", title: "我的会话",
+    schemaVersion: 1, id: "sess-1", projectId: "p", scope: { type: "workspace" }, projectRoot: "/project", title: "我的会话",
     provider: "codex", providerId: "codex-native", providerSessionId: null, cwd: ".", permissionProfile: "edit",
     status: "idle", pinned: false, archived: false, createdAt: "2026-07-07T00:00:00.000Z", updatedAt: "2026-07-07T00:00:00.000Z", lastRunId: null
   }],
@@ -77,7 +78,7 @@ describe("AiSidebar", () => {
       ...snapshot.sessions[0],
       id: "project-session",
       title: "项目内部会话",
-      scope: { type: "project-task" as const, projectName: "AI 安全", taskId: "task-1" }
+      scope: { type: "project-task" as const, projectId: "5a111111-1111-4111-8111-111111111111", projectName: "AI 安全", taskId: "task-1" }
     };
     render(
       <AiProvider initial={{ ...snapshot, sessions: [projectSession, snapshot.sessions[0]] }}>
@@ -360,5 +361,56 @@ describe("AiSidebar", () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+
+  it("routes a new conversation to the open project as a project task instead of a workspace session", async () => {
+    const projectTask = {
+      projectId: "5a111111-1111-4111-8111-111111111111", projectName: "2", taskId: "task-9", title: "帮我统计资料", providerId: "codex-native", sessionId: null, previousSessionIds: [],
+      status: "running", createdAt: "2026-09-05T00:00:00.000Z", updatedAt: "2026-09-05T00:00:00.000Z"
+    };
+    const projectSession = {
+      ...snapshot.sessions[0], id: "project-session-9",
+      scope: { type: "project-task" as const, projectId: projectTask.projectId, projectName: "2", taskId: "task-9" }
+    };
+    const createTask = vi.fn(async () => projectTask);
+    const startTaskRun = vi.fn(async () => ({ task: projectTask, session: projectSession, run: { id: "run-9" } }));
+    const startRun = vi.fn();
+    window.openmind = {
+      ...window.openmind,
+      createProjectTask: createTask,
+      projectStartTaskRun: startTaskRun,
+      aiStartRun: startRun
+    } as unknown as DesktopApi;
+    function TargetSetter() {
+      const ai = useAi();
+      const setTarget = ai.setProjectComposeTarget;
+      const setActiveSession = ai.setActiveSession;
+      useEffect(() => {
+        setTarget({ projectId: projectTask.projectId, projectName: "2" });
+        // AiProvider 挂载时会自动选中首个会话，推迟到其后再清空为新对话草稿
+        const timer = setTimeout(() => { void setActiveSession(null); }, 0);
+        return () => clearTimeout(timer);
+      }, [setTarget, setActiveSession]);
+      return null;
+    }
+    render(
+      <AiProvider initial={snapshot}>
+        <TargetSetter />
+        <AiSidebar openWorkbench={vi.fn()} />
+      </AiProvider>
+    );
+
+    // 新对话草稿态：占位文案从「继续 …」切回新建文案后再输入
+    const textarea = await waitFor(() => {
+      const el = screen.getByRole("combobox", { name: "AI 消息" }) as HTMLTextAreaElement;
+      if (!el.placeholder.startsWith("描述要整理")) throw new Error("still in continue-session state");
+      return el;
+    });
+    fireEvent.change(textarea, { target: { value: "帮我统计资料\n第二行" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledWith({ projectName: "2", title: "帮我统计资料", providerId: "codex-native" }));
+    await waitFor(() => expect(startTaskRun).toHaveBeenCalledWith({ projectName: "2", taskId: "task-9", providerId: "codex-native", prompt: "帮我统计资料\n第二行" }));
+    expect(startRun).not.toHaveBeenCalled();
   });
 });

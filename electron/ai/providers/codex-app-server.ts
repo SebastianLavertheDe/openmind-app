@@ -83,7 +83,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const browserInstructions = projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
       const projectInstructions = projectSessionInstructions(context.session);
       const developerInstructions = [
-        openmindFilesystemInstructions(openmindRoot),
+        openmindFilesystemInstructions(openmindRoot, projectScoped),
         projectInstructions,
         browserInstructions
       ].filter(Boolean).join("\n\n");
@@ -92,22 +92,21 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         runtimeWorkspaceRoots: [openmindRoot],
         ...(developerInstructions ? { developerInstructions } : {})
       };
+      const sandbox = projectScoped ? "read-only" : "danger-full-access";
       const threadResult = context.session.providerSessionId
         ? await rpc.request("thread/resume", {
           threadId: context.session.providerSessionId,
           cwd,
           approvalPolicy: projectScoped ? "never" : "on-request",
           approvalsReviewer: "user",
-          // Explicit full access disables Codex's OS/process sandbox. OpenMind
-          // keeps its own request/path admission checks at the app boundary.
-          sandbox: "danger-full-access",
+          sandbox,
           ...threadOptions
         })
         : await rpc.request("thread/start", {
           cwd,
           approvalPolicy: projectScoped ? "never" : "on-request",
           approvalsReviewer: "user",
-          sandbox: "danger-full-access",
+          sandbox,
           serviceName: "openmind-desktop",
           ...threadOptions
         });
@@ -133,7 +132,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         approvalPolicy: projectScoped ? "never" : "on-request",
         approvalsReviewer: "user",
         runtimeWorkspaceRoots: [openmindRoot],
-        sandboxPolicy: { type: "dangerFullAccess" },
+        sandboxPolicy: projectScoped ? { type: "readOnly" } : { type: "dangerFullAccess" },
         input: buildCodexTurnInput(context, nativeSkill),
         ...(collaborationMode ? { collaborationMode } : {})
       });

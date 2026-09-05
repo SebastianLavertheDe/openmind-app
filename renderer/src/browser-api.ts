@@ -25,6 +25,7 @@ export function installBrowserPreviewApi(): boolean {
   // The selected private repository is the content root itself. Keep the
   // preview contract identical to desktop: there is no nested `openmind/`.
   const previewOpenmindRoot = previewProjectRoot;
+  const previewManagedProjectId = "5a111111-1111-4111-8111-111111111111";
   const onboardingPreview = new URLSearchParams(window.location.search).get("preview") === "onboarding";
   let previewRootReady = !onboardingPreview;
   let previewSkillsReady = !onboardingPreview;
@@ -38,6 +39,7 @@ export function installBrowserPreviewApi(): boolean {
       schemaVersion: 1,
       id: "preview-session",
       projectId: "preview-project",
+      scope: { type: "workspace" },
       projectRoot: previewProjectRoot,
       provider: "claude",
       providerId: "claude-preview",
@@ -57,6 +59,7 @@ export function installBrowserPreviewApi(): boolean {
       id: "preview-run",
       sessionId: "preview-session",
       projectId: "preview-project",
+      scope: { type: "workspace" },
       provider: "claude",
       providerId: "claude-preview",
       permissionProfile: "edit",
@@ -228,7 +231,8 @@ export function installBrowserPreviewApi(): boolean {
   ];
   const projectCreatedAt = "2026-08-27T08:00:00.000Z";
   let previewProjects: ProjectSummary[] = [{
-    schemaVersion: 1,
+    schemaVersion: 2,
+    id: previewManagedProjectId,
     name: "AI 安全",
     description: "整理可信资料，并完成 AI 安全主题创作。",
     status: "active",
@@ -313,9 +317,11 @@ export function installBrowserPreviewApi(): boolean {
   };
   let previewProjectTasks: ProjectTask[] = [{
     taskId: "3c111111-1111-4111-8111-111111111111",
+    projectId: previewManagedProjectId,
     projectName: "AI 安全",
     title: "整理 AI 安全创作框架",
     sessionId: "preview-session",
+    previousSessionIds: [],
     providerId: "claude-preview",
     status: "active",
     createdAt: projectCreatedAt,
@@ -411,7 +417,7 @@ export function installBrowserPreviewApi(): boolean {
     createProject: async (input) => {
       if (previewProjects.some((project) => project.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) throw new Error("项目名已存在");
       const now = new Date().toISOString();
-      const project: ProjectSummary = { schemaVersion: 1, name: input.name, description: input.description || "", status: "active", icon: "database", color: "neutral", favorite: false, materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
+      const project: ProjectSummary = { schemaVersion: 2, id: crypto.randomUUID(), name: input.name, description: input.description || "", status: "active", icon: "database", color: "neutral", favorite: false, materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
       previewProjects = [project, ...previewProjects];
       return { project };
     },
@@ -490,10 +496,14 @@ export function installBrowserPreviewApi(): boolean {
       if (!material) throw new Error("资料不存在");
       return { material, content: previewProjectMaterialContent.get(relativePath) || "", truncated: false, ...(material.kind === "video" ? { video: previewProjectVideo } : {}) };
     },
+    readProjectMaterialOriginal: async () => {
+      throw new Error("预览环境没有保留的 PDF 原件，请使用桌面版查看。");
+    },
     listProjectMaterials: async (projectName) => previewProjectMaterials.filter((item) => item.projectName === projectName),
     createProjectTask: async ({ projectName, title, providerId }) => {
       const now = new Date().toISOString();
-      const task: ProjectTask = { taskId: crypto.randomUUID(), projectName, title, sessionId: null, providerId, status: "active", createdAt: now, updatedAt: now };
+      const projectId = previewProjectDetail(projectName).project.id;
+      const task: ProjectTask = { taskId: crypto.randomUUID(), projectId, projectName, title, sessionId: null, previousSessionIds: [], providerId, status: "active", createdAt: now, updatedAt: now };
       previewProjectTasks = [task, ...previewProjectTasks];
       previewProjectDetail(projectName);
       return task;

@@ -41,6 +41,7 @@ function makeRun(): AiRun {
     id: "run",
     sessionId: "session",
     projectId: "project",
+    scope: { type: "workspace" },
     provider: "codex",
     providerId: "codex-native",
     permissionProfile: "edit",

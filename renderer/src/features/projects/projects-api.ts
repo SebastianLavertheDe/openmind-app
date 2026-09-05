@@ -4,6 +4,7 @@ import type {
   ProjectColor,
   ProjectMaterial,
   ProjectMaterialKind,
+  ProjectMaterialOriginal,
   ProjectMaterialStatus,
   ProjectOutput,
   ProjectStatus,
@@ -24,6 +25,7 @@ type ProjectMethod =
   | "archiveProject"
   | "listProjectMaterials"
   | "readProjectMaterial"
+  | "readProjectMaterialOriginal"
   | "addProjectFiles"
   | "addProjectUrl"
   | "retryMaterialExtraction"
@@ -95,6 +97,7 @@ function project(value: unknown): ProjectSummary {
   const item = Object.keys(record(wrapper.project)).length ? record(wrapper.project) : wrapper;
   const counts = record(item.counts);
   return {
+    id: string(item.id),
     name: string(item.name || item.projectName),
     description: string(item.description),
     status: status(item.status),
@@ -178,6 +181,7 @@ function material(value: unknown): ProjectMaterial {
     kind: materialKind(item.kind, relativePath),
     status: materialStatus(item.status),
     sourceUrl,
+    originalPath: optionalString(item.originalRelativePath),
     content,
     truncated: wrapper.truncated === true || item.truncated === true,
     error: optionalString(item.error || item.errorMessage),
@@ -231,9 +235,13 @@ function task(value: unknown): ProjectTask {
   const normalizedStatus: ProjectTask["status"] = rawStatus === "completed" || rawStatus === "failed" || rawStatus === "archived" ? rawStatus : "active";
   return {
     taskId: string(item.taskId || item.id),
+    projectId: string(item.projectId),
     projectName: string(item.projectName),
     title: string(item.title, "未命名任务"),
     sessionId: optionalString(item.sessionId) || null,
+    previousSessionIds: Array.isArray(item.previousSessionIds)
+      ? item.previousSessionIds.map((entry) => string(entry)).filter(Boolean)
+      : [],
     providerId: optionalString(item.providerId),
     status: normalizedStatus,
     createdAt: string(item.createdAt),
@@ -245,6 +253,8 @@ function taskMessage(value: unknown): ProjectTaskMessage {
   const item = record(value);
   return {
     id: string(item.id),
+    runId: string(item.runId),
+    sessionId: optionalString(item.sessionId) || null,
     role: item.role === "assistant" ? "assistant" : "user",
     content: string(item.content),
     sourceMessageId: optionalString(item.sourceMessageId) || null,
@@ -299,6 +309,21 @@ export const projectsApi = {
 
   async readMaterial(projectName: string, relativePath: string): Promise<ProjectMaterial> {
     return material(await invoke("readProjectMaterial", { projectName, relativePath }));
+  },
+
+  async readMaterialOriginal(projectName: string, relativePath: string): Promise<ProjectMaterialOriginal> {
+    const raw = record(await invoke("readProjectMaterialOriginal", { projectName, relativePath }));
+    // IPC structured clone delivers an ArrayBuffer-backed view; copy into a
+    // fresh buffer so the Blob constructor gets an ArrayBuffer-backed part.
+    const source = raw.data instanceof Uint8Array ? raw.data : new Uint8Array(0);
+    const data = new Uint8Array(source.byteLength);
+    data.set(source);
+    return {
+      fileName: string(raw.fileName),
+      mimeType: "application/pdf",
+      byteSize: number(raw.byteSize, data.byteLength),
+      data
+    };
   },
 
   async addFiles(projectName: string, filePaths?: string[]): Promise<ProjectMaterial[]> {

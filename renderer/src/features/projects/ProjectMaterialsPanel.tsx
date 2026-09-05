@@ -5,6 +5,7 @@ import { useAi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState } from "../../design-system/components";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
+import { PdfMaterialViewer } from "./PdfMaterialViewer";
 import { ProjectDialog } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
 import { projectsApi } from "./projects-api";
@@ -125,6 +126,9 @@ export function ProjectMaterialsPanel({
     setAdding(true);
     try {
       const created = await projectsApi.addFiles(project.name, filePaths);
+      // 未传路径时主进程会打开原生选择器；用户取消返回空数组，
+      // 此时保持对话框打开，不能把整个「添加资料」一起关掉。
+      if (!filePaths && !created.length) return;
       setAddOpen(false);
       await load();
       if (created[0]?.relativePath) await openMaterial(created[0].relativePath);
@@ -266,7 +270,7 @@ export function ProjectMaterialsPanel({
   );
 
   const detail = reading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在读取资料…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
-    <MaterialDetail material={selected} retrying={retryingPath === selected.relativePath} onRetry={() => void retry(selected)} />
+    <MaterialDetail material={selected} projectName={project.name} retrying={retryingPath === selected.relativePath} onRetry={() => void retry(selected)} />
   ) : (
     <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
   );
@@ -288,8 +292,7 @@ export function ProjectMaterialsPanel({
   );
 }
 
-function MaterialDetail({ material, retrying, onRetry }: { material: ProjectMaterial; retrying: boolean; onRetry(): void }) {
-  const [raw, setRaw] = useState(false);
+function MaterialDetail({ material, projectName, retrying, onRetry }: { material: ProjectMaterial; projectName: string; retrying: boolean; onRetry(): void }) {
   return (
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
       <header className="project-detail-header">
@@ -299,14 +302,66 @@ function MaterialDetail({ material, retrying, onRetry }: { material: ProjectMate
       {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
       {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} /> : null}
-      {material.status === "ready" && material.kind !== "video" ? (
-        <div className="project-markdown-material">
-          <div className="project-preview-mode" role="group" aria-label="资料查看方式"><button className={!raw ? "active" : ""} aria-pressed={!raw} onClick={() => setRaw(false)}>阅读</button><button className={raw ? "active" : ""} aria-pressed={raw} onClick={() => setRaw(true)}>Markdown</button></div>
-          <div className="project-material-reader">{raw ? <pre>{material.content || ""}</pre> : <MarkdownReader content={material.content || ""} layout="file" />}</div>
-        </div>
-      ) : null}
+      {material.status === "ready" && material.kind !== "video" ? <DocumentMaterialDetail material={material} projectName={projectName} /> : null}
     </div>
   );
+}
+
+type DocumentViewMode = "pdf" | "read" | "markdown";
+
+function DocumentMaterialDetail({ material, projectName }: { material: ProjectMaterial; projectName: string }) {
+  const hasPdfOriginal = Boolean(material.originalPath?.toLowerCase().endsWith(".pdf"));
+  const [mode, setMode] = useState<DocumentViewMode>(hasPdfOriginal ? "pdf" : "read");
+  return (
+    <div className="project-markdown-material">
+      <div className="project-preview-mode" role="group" aria-label="资料查看方式">
+        {hasPdfOriginal ? <button className={mode === "pdf" ? "active" : ""} aria-pressed={mode === "pdf"} onClick={() => setMode("pdf")}>PDF</button> : null}
+        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} onClick={() => setMode("read")}>阅读</button>
+        <button className={mode === "markdown" ? "active" : ""} aria-pressed={mode === "markdown"} onClick={() => setMode("markdown")}>Markdown</button>
+      </div>
+      <div className="project-material-reader">
+        {mode === "pdf" && hasPdfOriginal
+          ? <PdfMaterialFrame projectName={projectName} material={material} onFallback={() => setMode("read")} />
+          : mode === "markdown"
+            ? <pre>{material.content || ""}</pre>
+            : <MarkdownReader content={material.content || ""} layout="file" />}
+      </div>
+    </div>
+  );
+}
+
+/** 拉取保留的 PDF 原件，交给内置 pdf.js 阅读器渲染。 */
+function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: string; material: ProjectMaterial; onFallback(): void }) {
+  const [data, setData] = useState<Uint8Array | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setData(null);
+    setFailed(null);
+    (async () => {
+      try {
+        const original = await projectsApi.readMaterialOriginal(projectName, material.relativePath);
+        if (!active) return;
+        setData(original.data);
+      } catch (cause) {
+        if (active) setFailed(errorText(cause));
+      }
+    })();
+    return () => { active = false; };
+  }, [projectName, material.relativePath]);
+  if (failed) {
+    return (
+      <div className="project-pdf-unavailable">
+        <FileText size={28} />
+        <strong>无法加载 PDF 原件</strong>
+        <p>{failed}</p>
+        <button type="button" onClick={onFallback}>查看提取文本</button>
+      </div>
+    );
+  }
+  return data
+    ? <PdfMaterialViewer data={data} title={material.title} onError={(message) => setFailed(message)} />
+    : <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />正在加载 PDF 原件…</div>;
 }
 
 function VideoMaterialDetail({ material }: { material: ProjectMaterial }) {

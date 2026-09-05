@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
+import { workspaceSessions } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
@@ -35,8 +36,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const recent = useMemo(() =>
-    [...ai.snapshot.sessions]
-      .filter((session) => !session.archived && session.scope?.type !== "project-task")
+    workspaceSessions(ai.snapshot.sessions)
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
     [ai.snapshot.sessions]
   );

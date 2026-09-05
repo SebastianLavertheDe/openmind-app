@@ -8,6 +8,7 @@ const session: AiSession = {
   schemaVersion: 1,
   id: "session-1",
   projectId: "project",
+  scope: { type: "workspace" },
   projectRoot: "/project",
   provider: "codex",
   providerId: "codex-native",
@@ -57,7 +58,7 @@ describe("SidebarRecent", () => {
       ...session,
       id: "project-session",
       title: "项目内部会话",
-      scope: { type: "project-task", projectName: "AI 安全", taskId: "task-1" }
+      scope: { type: "project-task", projectId: "5a111111-1111-4111-8111-111111111111", projectName: "AI 安全", taskId: "task-1" }
     };
     window.openmind = {
       aiRefresh: async () => ({ ...snapshot, sessions: [projectSession], pendingApprovals: [] }),

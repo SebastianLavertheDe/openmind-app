@@ -4,8 +4,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionStore } from "./session-store";
 import { scanRisks } from "./risk-scanner";
+import { ProjectService } from "../project/project-service";
 
 const roots: string[] = [];
+const workspaceScope = { type: "workspace" } as const;
 
 function createRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ai-store-"));
@@ -24,7 +26,7 @@ describe("SessionStore", () => {
     const store = new SessionStore(workspace, stateRoot);
 
     store.initialize();
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: workspace, title: "隔离状态", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: workspace, title: "隔离状态", permissionProfile: "edit", scope: workspaceScope });
 
     expect(store.root).toBe(path.join(stateRoot, ".openmind", "ai"));
     expect(fs.existsSync(path.join(store.root, "sessions", session.id, "session.json"))).toBe(true);
@@ -41,7 +43,8 @@ describe("SessionStore", () => {
       providerId: "codex-native",
       cwd: workspaceA,
       title: "workspace alpha only",
-      permissionProfile: "edit"
+      permissionProfile: "edit",
+      scope: workspaceScope
     });
     const runA = writerA.createRun(sessionA, "alpha run", []);
     const sharedSchemaFile = path.join(writerA.root, "schema.json");
@@ -53,7 +56,8 @@ describe("SessionStore", () => {
       providerId: "claude-native",
       cwd: workspaceB,
       title: "workspace beta only",
-      permissionProfile: "read-only"
+      permissionProfile: "read-only",
+      scope: workspaceScope
     });
     const runB = writerB.createRun(sessionB, "beta run", []);
 
@@ -91,13 +95,15 @@ describe("SessionStore", () => {
     expect(fs.existsSync(path.join(writerA.root, "sessions", sessionB.id, "session.json"))).toBe(true);
   });
 
-  it("persists Project Task scope/root per session and freezes the read-only boundary", () => {
+  it("persists Project Task identity while keeping message bodies canonical in Project storage", async () => {
     const workspace = createRoot();
     const stateRoot = createRoot();
     const openmindRoot = createRoot();
-    const projectsRoot = path.join(openmindRoot, "projects");
-    const projectRoot = path.join(projectsRoot, "AI安全");
-    fs.mkdirSync(path.join(projectRoot, "materials"), { recursive: true });
+    const projects = new ProjectService(openmindRoot);
+    const project = projects.createProject({ name: "AI安全", description: "" }).project;
+    const task = projects.createProjectTask(project.name, "Project research", "claude-native");
+    const projectsRoot = projects.paths.projectsRoot;
+    const projectRoot = projects.resolveProjectRoot(project.name);
     const store = new SessionStore(workspace, stateRoot, projectsRoot);
 
     const session = store.createSession({
@@ -107,9 +113,12 @@ describe("SessionStore", () => {
       title: "Project research",
       permissionProfile: "edit",
       projectRoot,
-      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: task.taskId }
     });
+    store.bindProjectSession(session);
     const run = store.createRun(session, "分析资料", []);
+    await store.beginTurn(run, "分析资料\n<derived-context>只用于模型</derived-context>");
+    const [answer] = await store.appendEvent(run, "assistant-message", { text: "分析完成", phase: "final" });
     const updated = store.updateSession(session.id, {
       projectRoot: workspace,
       projectId: store.projectId,
@@ -122,10 +131,20 @@ describe("SessionStore", () => {
       projectRoot: fs.realpathSync.native(projectRoot),
       cwd: ".",
       permissionProfile: "read-only",
-      scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: task.taskId }
     });
     expect(run.scope).toEqual(session.scope);
     expect(run.projectId).toBe(session.projectId);
+    expect(JSON.parse(fs.readFileSync(path.join(store.root, "sessions", session.id, "runs", run.id, "run.json"), "utf8")))
+      .toMatchObject({ prompt: "", promptMessageId: run.id });
+    const rollout = fs.readFileSync(path.join(store.root, "sessions", session.id, "rollout.jsonl"), "utf8");
+    expect(rollout).not.toContain("分析资料");
+    expect(rollout).not.toContain("分析完成");
+    expect(projects.listProjectTaskMessages(project.name, task.taskId)).toMatchObject([
+      { id: run.id, runId: run.id, role: "user", content: "分析资料", sessionId: session.id },
+      { id: answer.id, runId: run.id, role: "assistant", content: "分析完成", sessionId: session.id }
+    ]);
+    expect(store.readEvents(session.id).map((event) => event.payload.text)).toEqual(["分析资料", "分析完成"]);
     expect(updated).toMatchObject({
       projectId: session.projectId,
       projectRoot: session.projectRoot,
@@ -136,7 +155,7 @@ describe("SessionStore", () => {
 
     const restarted = new SessionStore(workspace, stateRoot, projectsRoot);
     expect(restarted.getSession(session.id)).toMatchObject({ projectRoot: session.projectRoot, scope: session.scope });
-    expect(restarted.getRun(run.id)).toMatchObject({ projectId: session.projectId, scope: session.scope });
+    expect(restarted.getRun(run.id)).toMatchObject({ projectId: session.projectId, scope: session.scope, prompt: "分析资料", promptMessageId: run.id });
   });
 
   it("persists a fresh Skill snapshot and protects it from generic session patches", () => {
@@ -148,6 +167,7 @@ describe("SessionStore", () => {
       cwd: ".",
       title: "Skill snapshot",
       permissionProfile: "edit",
+      scope: workspaceScope,
       skillSnapshot: snapshot
     });
 
@@ -167,7 +187,8 @@ describe("SessionStore", () => {
       serviceProviderRevision: "a".repeat(64),
       cwd: ".",
       title: "Rebind",
-      permissionProfile: "edit"
+      permissionProfile: "edit",
+      scope: workspaceScope
     });
 
     // 普通补丁（如归档、置顶）不得移动冻结的 Provider 绑定。
@@ -184,8 +205,8 @@ describe("SessionStore", () => {
   it("backfills only legacy null snapshots once and persists the compatibility catalog", () => {
     const root = createRoot();
     const writer = new SessionStore(root);
-    const legacy = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "legacy", permissionProfile: "edit" });
-    const frozen = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "frozen", permissionProfile: "edit" });
+    const legacy = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "legacy", permissionProfile: "edit", scope: workspaceScope });
+    const frozen = writer.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "frozen", permissionProfile: "edit", scope: workspaceScope });
     const legacyFile = path.join(writer.root, "sessions", legacy.id, "session.json");
     const legacyJson = JSON.parse(fs.readFileSync(legacyFile, "utf8"));
     delete legacyJson.skillSnapshot;
@@ -208,8 +229,8 @@ describe("SessionStore", () => {
 
   it("keeps session order anchored to creation when archiving or replying", () => {
     const store = new SessionStore(createRoot());
-    let older = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较早会话", permissionProfile: "edit" });
-    let newer = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较新会话", permissionProfile: "edit" });
+    let older = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较早会话", permissionProfile: "edit", scope: workspaceScope });
+    let newer = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "较新会话", permissionProfile: "edit", scope: workspaceScope });
     older = store.updateSession(older.id, { createdAt: "2026-01-01T00:00:00.000Z" });
     newer = store.updateSession(newer.id, { createdAt: "2026-01-02T00:00:00.000Z" });
 
@@ -224,7 +245,7 @@ describe("SessionStore", () => {
     const store = new SessionStore(root);
     store.initialize();
     expect(store.listSessions()).toEqual([]);
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "真实任务", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "真实任务", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "完成任务", []);
     expect(run.providerId).toBe("codex-native");
     expect(run.permissionProfile).toBe("edit");
@@ -238,7 +259,7 @@ describe("SessionStore", () => {
 
   it("skips malformed rollout records and reports parse errors without rewriting history", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "恢复", permissionProfile: "read-only" });
+    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "恢复", permissionProfile: "read-only", scope: workspaceScope });
     const run = store.createRun(session, "读取", []);
     await store.appendEvent(run, "user-message", { text: "保留我" });
     const rolloutFile = path.join(store.root, "sessions", session.id, "rollout.jsonl");
@@ -251,7 +272,7 @@ describe("SessionStore", () => {
 
   it("chunks large event payloads", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "大输出", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "大输出", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "输出", []);
     const events = await store.appendEvent(run, "tool-output", { text: "x".repeat(600_000) });
     expect(events.length).toBeGreaterThan(1);
@@ -263,7 +284,7 @@ describe("SessionStore", () => {
 
   it("persists one canonical append-only rollout with explicit turn boundaries", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Rollout", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Rollout", permissionProfile: "edit", scope: workspaceScope });
     let run = store.createRun(session, "hello", []);
     await store.beginTurn(run);
     run = store.updateRun(run.id, {
@@ -312,7 +333,7 @@ describe("SessionStore", () => {
 
   it("stores the raw user message separately from model-visible composed input", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Input", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Input", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "summarize", []);
 
     await store.beginTurn(run, "summarize\n<context>attached material</context>");
@@ -326,7 +347,7 @@ describe("SessionStore", () => {
   it("migrates legacy per-run event files once while preserving the originals", () => {
     const root = createRoot();
     const store = new SessionStore(root);
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Legacy", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Legacy", permissionProfile: "edit", scope: workspaceScope });
     let run = store.createRun(session, "old prompt", []);
     run = store.updateRun(run.id, { status: "completed", completedAt: "2026-07-01T00:00:02.000Z" });
     const legacyFile = path.join(store.root, "sessions", session.id, "runs", run.id, "events.jsonl");
@@ -350,7 +371,7 @@ describe("SessionStore", () => {
 
   it("records provider compaction with a bounded replacement-history checkpoint", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Compact", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "Compact", permissionProfile: "edit", scope: workspaceScope });
     let run = store.createRun(session, "keep this", []);
     await store.beginTurn(run);
     run = store.updateRun(run.id, {
@@ -384,7 +405,7 @@ describe("SessionStore", () => {
   it("reconciles materialized run metadata from durable turn lifecycle markers", async () => {
     const root = createRoot();
     const store = new SessionStore(root);
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Recover", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Recover", permissionProfile: "edit", scope: workspaceScope });
     let run = store.createRun(session, "recover", []);
     await store.beginTurn(run);
     await store.completeTurn({ ...run, status: "completed", completedAt: "2026-07-01T00:00:05.000Z" });
@@ -405,6 +426,7 @@ describe("SessionStore", () => {
       cwd: ".",
       title: "Source",
       permissionProfile: "edit",
+      scope: workspaceScope,
       skillSnapshot: sessionSkillSnapshot()
     });
     const first = await addCompletedTurn(store, source, "first prompt", "first answer");
@@ -426,7 +448,7 @@ describe("SessionStore", () => {
 
   it("does not persist Claude private token deltas and normalizes legacy init events", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "语义事件", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "claude", providerId: "claude-native", cwd: ".", title: "语义事件", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "运行", []);
     expect(await store.appendEvent(run, "system", { message: { type: "system", subtype: "thinking_tokens", estimated_tokens: 1 } })).toEqual([]);
     await store.appendEvent(run, "system", { message: { type: "system", subtype: "init", model: "test-model", claude_code_version: "1.0.0" } });
@@ -438,7 +460,7 @@ describe("SessionStore", () => {
 
   it("serializes concurrent appends with stable sequence numbers", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "并发", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "并发", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "并发写入", []);
     const appendSpy = vi.spyOn(fs, "appendFileSync");
     await Promise.all(Array.from({ length: 80 }, (_, index) => store.appendEvent(run, "tool-output", { text: `line-${index}` })));
@@ -453,7 +475,7 @@ describe("SessionStore", () => {
 
   it("writes approval audit records into the security report", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "审批审计", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "审批审计", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "删除前审批", []);
     const approval = {
       id: "approval-1",
@@ -489,7 +511,8 @@ describe("SessionStore", () => {
         providerId: index % 2 ? "claude-native" : "codex-native",
         cwd: ".",
         title: `session-${index}`,
-        permissionProfile: "edit"
+        permissionProfile: "edit",
+        scope: workspaceScope
       });
     }
     expect(store.listSessions()).toHaveLength(1_000);
@@ -498,7 +521,7 @@ describe("SessionStore", () => {
 
   it("defers search-index persistence until the turn boundary", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "搜索", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "搜索", permissionProfile: "edit", scope: workspaceScope });
     let run = store.createRun(session, "查找", []);
     const searchFile = path.join(store.root, "sessions", session.id, "search-index.json");
 
@@ -513,7 +536,7 @@ describe("SessionStore", () => {
 
   it("skips risk scans for tool output and usage events", async () => {
     const store = new SessionStore(createRoot());
-    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "风险", permissionProfile: "edit" });
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "风险", permissionProfile: "edit", scope: workspaceScope });
     const run = store.createRun(session, "检查", []);
     const secret = "API_KEY=super-secret-value-12345";
 

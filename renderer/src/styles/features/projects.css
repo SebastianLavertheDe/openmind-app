@@ -712,6 +712,31 @@
 .project-material-reader { min-height: 0; overflow: auto; }
 .project-material-reader > pre { min-height: 100%; margin: 0; padding: 30px 44px 70px; overflow: auto; color: var(--text-dim); font: 12px/1.65 var(--font-mono); white-space: pre-wrap; }
 .project-material-reader > .reader-markdown { margin: 0 auto; padding: 34px 48px 80px; }
+.project-pdf-loading { min-height: 100%; display: grid; place-items: center; align-content: center; gap: 10px; color: var(--muted); }
+
+/* 纸张式 PDF 阅读器：浅底居中白页 + 底部悬浮工具条 */
+.project-pdf-viewer { position: relative; height: 100%; min-height: 0; }
+.pdf-scroll { height: 100%; overflow: auto; background: var(--panel-muted); overscroll-behavior: contain; }
+.pdf-pages { display: flex; flex-direction: column; align-items: center; width: max-content; min-width: 100%; }
+.pdf-page-slot { position: relative; flex: none; background: #ffffff; border-radius: 3px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 6px 20px rgba(15, 23, 42, 0.12); overflow: hidden; }
+.pdf-page-slot > canvas { display: block; }
+.pdf-page-text { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-size-adjust: none; }
+.pdf-page-text > span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; cursor: text; }
+.pdf-page-text > span::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.pdf-toolbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--panel-bg); border: 1px solid var(--border-subtle); border-radius: 999px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16); white-space: nowrap; }
+.pdf-toolbar > button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-dim); cursor: pointer; }
+.pdf-toolbar > button:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
+.pdf-toolbar > button:disabled { color: var(--muted); opacity: 0.55; cursor: default; }
+.pdf-toolbar > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pdf-page-input { width: 42px; height: 26px; padding: 0 4px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); font: 12px/1 var(--font-mono); text-align: center; }
+.pdf-page-input:hover, .pdf-page-input:focus { border-color: var(--border-subtle); background: var(--control-bg); outline: none; }
+.pdf-page-total { min-width: 30px; margin-right: 4px; color: var(--muted); font-size: 12px; text-align: left; }
+.pdf-toolbar-divider { width: 1px; height: 16px; margin: 0 5px; background: var(--border-subtle); }
+.pdf-zoom-label { width: auto !important; min-width: 42px; border-radius: 7px !important; font-size: 12px; font-variant-numeric: tabular-nums; }
+.project-pdf-unavailable { width: min(430px, 100%); margin: 40px auto; display: grid; justify-items: center; gap: 9px; padding: 28px; border: 1px dashed var(--border-strong); border-radius: 12px; color: var(--muted); text-align: center; }
+.project-pdf-unavailable strong { color: var(--text); }
+.project-pdf-unavailable p { margin: 0; line-height: 1.5; }
+.project-pdf-unavailable button { display: inline-flex; align-items: center; gap: 6px; }
 
 .project-video-layout { min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: var(--border); }
 .project-video-detail { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-columns: minmax(400px, 2fr) minmax(280px, 1fr); gap: 1px; overflow: hidden; background: var(--border); }

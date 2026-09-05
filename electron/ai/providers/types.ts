@@ -94,6 +94,39 @@ export function classifyApproval(command: string, toolName = ""): {
   return { category: "command", title: "请求执行命令" };
 }
 
+/**
+ * 面向审批的启发式：判断一条命令是否带有「删除目录」语义。按 shell 分隔符
+ * （`&&`、`||`、`|`、`;`、`&`）分段后逐段检查，覆盖常见写法——`rm -r/-rf/--recursive`、
+ * `rmdir`/`rd`、`Remove-Item -Recurse`、`git clean -d`（含 `xargs rm -r`）。
+ * 它不是完整的 shell 语义解析；识别不出目录删除时按普通命令处理。
+ */
+export function commandDeletesDirectory(command: string): boolean {
+  return command
+    .toLowerCase()
+    .split(/(?:\|\||&&|[|;&])/)
+    .some((segment) => {
+      const tokens = segment.trim().split(/\s+/).filter(Boolean);
+      if (!tokens.length) return false;
+      if (tokens[0] === "rmdir" || tokens[0] === "rd") return true;
+      if (tokens[0] === "remove-item" || tokens[0] === "ri") {
+        return flagsAfter(tokens, 1).some((flag) => /^-(?:r|re|rec|recu|recur|recurse)$/.test(flag));
+      }
+      const rmIndex = tokens.indexOf("rm");
+      if (rmIndex >= 0) {
+        return flagsAfter(tokens, rmIndex + 1).some((flag) => flag === "--recursive" || (flag.startsWith("-") && flag.slice(1).includes("r")));
+      }
+      if (tokens[0] === "git" && tokens[1] === "clean") {
+        // -d、-fd、-xdf 等组合会连同未跟踪目录一起删；--dry-run 不算
+        return flagsAfter(tokens, 2).some((flag) => !flag.startsWith("--") && flag.includes("d"));
+      }
+      return false;
+    });
+}
+
+function flagsAfter(tokens: string[], start: number): string[] {
+  return tokens.slice(start).filter((token) => token.startsWith("-"));
+}
+
 export function canAutoApprove(
   context: ProviderRunContext,
   category: "command" | "file-change" | "delete" | "outside-workspace" | "network" | "elevation" | "tool",
@@ -101,10 +134,13 @@ export function canAutoApprove(
   paths: string[] = []
 ): boolean {
   if (context.session.permissionProfile === "read-only") return false;
-  if (category === "delete" || category === "outside-workspace" || category === "elevation") return false;
   if (paths.some((candidate) => isOutsideWorkspace(context.cwd, candidate))) return false;
+  // 自动执行：所有工具免审批，唯一例外是删除目录（仍交用户审批）。
+  if (context.session.permissionProfile === "auto") {
+    return !(category === "delete" && commandDeletesDirectory(command));
+  }
+  if (category === "delete" || category === "outside-workspace" || category === "elevation") return false;
   if (/\b(rm|rmdir|del|remove-item|git clean|unlink|sudo|runas|chmod 777|chown)\b/i.test(command)) return false;
-  if (context.session.permissionProfile === "auto") return true;
   return category === "command" || category === "file-change";
 }
 

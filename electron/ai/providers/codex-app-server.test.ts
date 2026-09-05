@@ -911,7 +911,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(response.result).toBeUndefined();
   });
 
-  it("Project read-only 使用隔离 CODEX_HOME 且关闭 Codex 沙箱", async () => {
+  it("Project read-only 使用隔离 CODEX_HOME 且启用 Codex 只读沙箱", async () => {
     const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-codex-project-test-"));
     const isolatedHome = path.join(stateRoot, ".openmind", "ai", "project-codex", "native");
     fs.mkdirSync(path.join(isolatedHome, "skills", "evil"), { recursive: true });
@@ -946,7 +946,7 @@ describe("CodexAppServerAdapter.run()", () => {
 
     const threadReq = child.writtenLines.map((l) => JSON.parse(l)).find((m) => m.method === "thread/start");
     const turnReq = child.writtenLines.map((l) => JSON.parse(l)).find((m) => m.method === "turn/start");
-    expect(threadReq.params.sandbox).toBe("danger-full-access");
+    expect(threadReq.params.sandbox).toBe("read-only");
     expect(threadReq.params.approvalPolicy).toBe("never");
     expect(threadReq.params.permissions).toBeUndefined();
     expect(threadReq.params.runtimeWorkspaceRoots).toEqual(["/openmind"]);
@@ -963,7 +963,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(threadReq.params.developerInstructions).toContain("项目“AI安全”");
     expect(threadReq.params.developerInstructions).toContain("不可信参考数据");
     expect(turnReq.params.cwd).toBe("/openmind/projects/AI安全");
-    expect(turnReq.params.sandboxPolicy).toEqual({ type: "dangerFullAccess" });
+    expect(turnReq.params.sandboxPolicy).toEqual({ type: "readOnly" });
     expect(turnReq.params.approvalPolicy).toBe("never");
     expect(turnReq.params.permissions).toBeUndefined();
     expect(turnReq.params.runtimeWorkspaceRoots).toEqual(["/openmind"]);

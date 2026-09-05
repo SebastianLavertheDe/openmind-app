@@ -14,6 +14,7 @@ import {
   type SessionPatch,
   type StartRunInput
 } from "../../shared/contracts";
+import { isProjectTaskScope } from "../../shared/ai-session-scope";
 import { ApprovalBroker } from "./approval-broker";
 import { ProviderRegistry } from "./provider-registry";
 import { SessionStore } from "./session-store";
@@ -273,7 +274,7 @@ export class RunScheduler {
 
   async forkSession(sessionId: string, throughRunId?: string): Promise<AiSession> {
     const source = this.store.getSession(sessionId);
-    if (source.scope?.type === "project-task") {
+    if (isProjectTaskScope(source.scope)) {
       throw new Error("Project Task 会话不能通过全局 AI fork；请在 Project 中创建新 Task。");
     }
     if (this.store.listRuns(sessionId).some((run) => ["queued", "running", "waiting-approval", "applying"].includes(run.status))) {
@@ -288,7 +289,7 @@ export class RunScheduler {
   startRun(raw: StartRunInput): { session: AiSession; run: AiRun } {
     const input = StartRunInputSchema.parse(raw);
     const session = input.sessionId ? this.store.getSession(input.sessionId) : null;
-    if (session?.scope?.type === "project-task") {
+    if (session && isProjectTaskScope(session.scope)) {
       throw new Error("Project Task 会话必须通过专用入口继续。");
     }
     const sessionRoot = session?.projectRoot ?? this.projectRoot;
@@ -336,7 +337,7 @@ export class RunScheduler {
     return this.scheduleRun({
       session: null,
       sessionRoot,
-      scope: { type: "project-task", projectName: input.projectName, taskId: input.taskId },
+      scope: { type: "project-task", projectId: input.projectId, projectName: input.projectName, taskId: input.taskId },
       providerId: input.providerId,
       permissionProfile: "read-only",
       interactionMode: "default",
@@ -360,7 +361,7 @@ export class RunScheduler {
   }): { session: AiSession; run: AiRun } {
     // New conversations refresh only the active catalog. Installed packages
     // are read on demand; legacy workspace discovery rescans when applicable.
-    const projectScoped = input.scope.type === "project-task";
+    const projectScoped = isProjectTaskScope(input.scope);
     if (!input.session && !projectScoped) this.skillTools.refresh();
     const contexts = normalizeContextReferences(input.sessionRoot, input.contexts);
     let session = input.session;
@@ -418,6 +419,14 @@ export class RunScheduler {
         projectRoot: input.sessionRoot,
         scope: input.scope
       });
+      if (projectScoped) {
+        try {
+          this.store.bindProjectSession(session);
+        } catch (error) {
+          this.store.discardEmptySession(session.id);
+          throw error;
+        }
+      }
     } else if (
       session.permissionProfile !== input.permissionProfile
       || session.interactionMode !== input.interactionMode
@@ -430,6 +439,7 @@ export class RunScheduler {
     const runId = crypto.randomUUID();
     const materializedContexts = materializeImages(session.projectRoot, runId, contexts, this.stateRoot);
     const run = this.store.createRun(session, input.prompt, materializedContexts, runId);
+    if (projectScoped) this.store.setProjectTaskStatus(session.id, "active");
     this.queue.push(run.id);
     this.publishSnapshot();
     void persistScheduledTurnAndPump(this.executionHost(), run);
@@ -438,7 +448,7 @@ export class RunScheduler {
 
   private assertProjectSession(session: AiSession): void {
     const scope = session.scope;
-    if (scope?.type !== "project-task") throw new Error("指定会话不是 Project Task 会话。");
+    if (!isProjectTaskScope(scope)) throw new Error("指定会话不是 Project Task 会话。");
     if (!this.projectsRoot) throw new Error("Project 内容根尚未初始化。");
     const root = canonicalizeTrustedProjectRoot(this.projectsRoot, scope.projectName, session.projectRoot);
     if (root !== session.projectRoot || session.cwd !== "." || session.permissionProfile !== "read-only") {
@@ -447,7 +457,7 @@ export class RunScheduler {
   }
 
   private validatedSessionRoot(session: AiSession): string {
-    if (session.scope?.type === "project-task") this.assertProjectSession(session);
+    if (isProjectTaskScope(session.scope)) this.assertProjectSession(session);
     return session.projectRoot;
   }
 

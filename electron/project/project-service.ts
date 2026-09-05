@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import {
   PROJECT_MANIFEST_FILE,
+  PROJECT_SCHEMA_VERSION,
   ProjectCreateInputSchema,
   ProjectCreateOutputInputSchema,
   ProjectManifestSchema,
@@ -17,6 +18,7 @@ import {
   type ProjectDetail,
   type ProjectManifest,
   type ProjectMaterial,
+  type ProjectMaterialOriginalRead,
   type ProjectMaterialRead,
   type ProjectOutput,
   type ProjectOutputRead,
@@ -75,6 +77,9 @@ const ProjectRenameJournalSchema = z.object({
 });
 type ProjectRenameJournal = z.infer<typeof ProjectRenameJournalSchema>;
 type ProjectDirectoryIdentity = z.infer<typeof ProjectDirectoryIdentitySchema>;
+const LegacyProjectManifestSchema = ProjectManifestSchema.omit({ id: true, schemaVersion: true }).extend({
+  schemaVersion: z.literal(1).optional()
+});
 
 export type ProjectServiceOptions = {
   materialConverters?: readonly ProjectMaterialConverter[];
@@ -86,6 +91,7 @@ export class ProjectService {
   readonly materials: ProjectMaterialService;
   readonly tasks: ProjectTaskService;
   readonly outputs: ProjectOutputService;
+  private readonly sessionTaskIndex = new Map<string, { projectName: string; taskId: string }>();
   private recoveringRename = false;
   private renameTransactionActive = false;
 
@@ -96,6 +102,8 @@ export class ProjectService {
     this.outputs = new ProjectOutputService(this.paths);
     this.paths.initialize();
     this.recoverInterruptedRename();
+    this.migrateProjectIdentities();
+    this.rebuildSessionTaskIndex();
   }
 
   listProjects(): ProjectSummary[] {
@@ -117,6 +125,7 @@ export class ProjectService {
       const project = this.paths.createProjectRoot(input.name);
       const timestamp = now();
       const manifest = ProjectManifestSchema.parse({
+        id: crypto.randomUUID(),
         name: project.name,
         description: input.description,
         status: "active",
@@ -189,6 +198,7 @@ export class ProjectService {
         this.materials.renameProject(previous.name, renamed.name);
         journal = this.advanceRenameJournal(journal, "materials-renamed");
         this.tasks.renameProject(previous.name, renamed.name);
+        this.rebuildSessionTaskIndex();
         journal = this.advanceRenameJournal(journal, "tasks-renamed");
         this.outputs.renameProject(previous.name, renamed.name);
         journal = this.advanceRenameJournal(journal, "outputs-renamed");
@@ -287,6 +297,10 @@ export class ProjectService {
     return this.materials.read(this.canonicalName(projectName), relativePath);
   }
 
+  readProjectMaterialOriginal(projectName: string, relativePath: string): ProjectMaterialOriginalRead {
+    return this.materials.readOriginal(this.canonicalName(projectName), relativePath);
+  }
+
   createProjectTask(projectName: string, title: string, providerId: string): ProjectTask {
     return this.paths.withProjectMutationLock(() => {
       const name = this.canonicalName(projectName);
@@ -308,14 +322,15 @@ export class ProjectService {
     if (!sessionId) return null;
     return this.paths.withProjectMutationLock(() => {
       this.recoverInterruptedRenameLocked();
-      for (const projectName of this.paths.listProjectNames()) {
-        try {
-          const match = this.tasks.list(projectName).find((task) => task.sessionId === sessionId);
-          if (match) return match;
-        } catch {
-          // Invalid externally-created directories are outside the Project domain.
-        }
+      const locator = this.sessionTaskIndex.get(sessionId);
+      if (!locator) return null;
+      try {
+        const task = this.tasks.get(locator.projectName, locator.taskId);
+        if (task.sessionId === sessionId) return task;
+      } catch {
+        // Drop stale cache entries caused by externally removed Project files.
       }
+      this.sessionTaskIndex.delete(sessionId);
       return null;
     });
   }
@@ -360,8 +375,10 @@ export class ProjectService {
   bindProjectTaskSession(projectName: string, taskId: string, sessionId: string, providerId?: string): ProjectTask {
     return this.paths.withProjectMutationLock(() => {
       const name = this.canonicalName(projectName);
+      const previous = this.tasks.get(name, taskId);
       const task = this.tasks.bindSession(name, taskId, sessionId, providerId);
-      this.touch(name);
+      this.sessionTaskIndex.set(sessionId, { projectName: task.projectName, taskId: task.taskId });
+      if (previous.sessionId !== sessionId) this.touch(name);
       return task;
     });
   }
@@ -767,7 +784,20 @@ export class ProjectService {
       if (!this.recoveringRename && !this.renameTransactionActive) this.recoverInterruptedRenameLocked();
       const project = this.paths.resolveProject(projectName);
       const filePath = this.paths.resolveInsideProject(project.name, PROJECT_MANIFEST_FILE);
-      const manifest = ProjectManifestSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf8")));
+      const raw: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      const current = ProjectManifestSchema.safeParse(raw);
+      let manifest: ProjectManifest;
+      if (current.success) {
+        manifest = current.data;
+      } else {
+        const legacy = LegacyProjectManifestSchema.parse(raw);
+        manifest = ProjectManifestSchema.parse({
+          ...legacy,
+          schemaVersion: PROJECT_SCHEMA_VERSION,
+          id: crypto.randomUUID()
+        });
+        writeJsonAtomic(filePath, manifest);
+      }
       if (manifest.name !== project.name) throw new Error("Project 清单名称与目录身份不一致。");
       return manifest;
     });
@@ -783,6 +813,29 @@ export class ProjectService {
       const manifest = this.readManifest(projectName);
       this.writeManifest(manifest.name, { ...manifest, updatedAt: now() });
     });
+  }
+
+  private rebuildSessionTaskIndex(): void {
+    this.sessionTaskIndex.clear();
+    for (const projectName of this.paths.listProjectNames()) {
+      try {
+        for (const task of this.tasks.list(projectName)) {
+          if (task.sessionId) this.sessionTaskIndex.set(task.sessionId, { projectName: task.projectName, taskId: task.taskId });
+        }
+      } catch {
+        // Invalid or obsolete Projects stay on disk but are outside the active index.
+      }
+    }
+  }
+
+  private migrateProjectIdentities(): void {
+    for (const projectName of this.paths.listProjectNames()) {
+      try {
+        this.readManifest(projectName);
+      } catch {
+        // Preserve malformed external directories without guessing how to repair them.
+      }
+    }
   }
 }
 

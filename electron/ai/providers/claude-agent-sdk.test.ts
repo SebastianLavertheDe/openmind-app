@@ -1152,7 +1152,13 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.permissionMode).toBe("dontAsk");
     expect(call.options.strictMcpConfig).toBe(true);
     expect(call.options.persistSession).toBe(false);
-    expect(call.options.sandbox).toEqual({ enabled: false });
+    expect(call.options.sandbox).toEqual({
+      enabled: true,
+      failIfUnavailable: true,
+      allowUnsandboxedCommands: false,
+      autoAllowBashIfSandboxed: false,
+      filesystem: { denyWrite: ["/openmind"] }
+    });
     expect(call.options.resume).toBeUndefined();
     expect(call.options.mcpServers).toBeUndefined();
     expect(ctx.updateProviderSession).not.toHaveBeenCalled();

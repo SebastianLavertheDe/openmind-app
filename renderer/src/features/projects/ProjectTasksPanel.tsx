@@ -59,16 +59,16 @@ export function ProjectTasksPanel({
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const setActiveSession = ai.setActiveSession;
   const selected = tasks.find((item) => item.taskId === selectedId) || null;
-  const activeProjectSession = matchesProjectTaskSession(ai.activeSession, project.name, selected);
+  const activeProjectSession = matchesProjectTaskSession(ai.activeSession, project.id, selected);
   const terminalProjectRunIds = useMemo(() => ai.snapshot.runs
     .filter((run) => {
       const scope = run.scope || ai.snapshot.sessions.find((session) => session.id === run.sessionId)?.scope;
       return scope?.type === "project-task"
-        && scope.projectName === project.name
+        && scope.projectId === project.id
         && isTerminalProjectTaskRunStatus(run.status);
     })
     .map((run) => run.id)
-    .sort(), [ai.snapshot.runs, ai.snapshot.sessions, project.name]);
+    .sort(), [ai.snapshot.runs, ai.snapshot.sessions, project.id]);
   const terminalProjectRunSignature = terminalProjectRunIds.join("|");
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -495,15 +495,16 @@ function errorText(cause: unknown): string {
 }
 
 export function matchesProjectTaskSession(
-  session: { id: string; scope?: { type: "workspace" } | { type: "project-task"; projectName: string; taskId: string } } | null,
-  projectName: string,
+  session: { id: string; scope: { type: "workspace" } | { type: "project-task"; projectId: string; projectName: string; taskId: string } } | null,
+  projectId: string,
   task: ProjectTask | null
 ): boolean {
   return Boolean(
     task?.sessionId
     && session?.id === task.sessionId
-    && session.scope?.type === "project-task"
-    && session.scope.projectName === projectName
+    && session.scope.type === "project-task"
+    && session.scope.projectId === projectId
+    && task.projectId === projectId
     && session.scope.taskId === task.taskId
   );
 }

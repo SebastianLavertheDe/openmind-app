@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import type { ProviderRunContext } from "./types";
-import { canAutoApprove, classifyApproval } from "./types";
+import { canAutoApprove, classifyApproval, commandDeletesDirectory } from "./types";
 import {
   buildCodexTurnInput,
   buildCodexAppServerArgs,
@@ -169,6 +169,37 @@ describe("provider contracts", () => {
     expect(classifyApproval("git push").category).toBe("network");
   });
 
+  it("auto-approves file deletions in auto mode but keeps directory deletion for approval", () => {
+    const auto = { ...context, session: { ...context.session, permissionProfile: "auto" } } as ProviderRunContext;
+    expect(canAutoApprove(auto, "delete", "rm a.ts", ["/project/a.ts"])).toBe(true);
+    expect(canAutoApprove(auto, "delete", "rm -rf build", [])).toBe(false);
+    expect(canAutoApprove(auto, "command", "sudo systemctl restart", [])).toBe(true);
+    expect(canAutoApprove(auto, "file-change", "", ["/outside/a.ts"])).toBe(false);
+  });
+
+  it("detects common directory-deletion forms in commands", () => {
+    expect(commandDeletesDirectory("rm -rf build")).toBe(true);
+    expect(commandDeletesDirectory("rm -r build")).toBe(true);
+    expect(commandDeletesDirectory("rm -fr dist && npm run build")).toBe(true);
+    expect(commandDeletesDirectory("rm build --recursive")).toBe(true);
+    expect(commandDeletesDirectory("find . -name '*.ts' | xargs rm -r")).toBe(true);
+    expect(commandDeletesDirectory("rmdir build")).toBe(true);
+    expect(commandDeletesDirectory("rd /s build")).toBe(true);
+    expect(commandDeletesDirectory("Remove-Item -Recurse -Force dist")).toBe(true);
+    expect(commandDeletesDirectory("git clean -fd")).toBe(true);
+    expect(commandDeletesDirectory("git clean -xdf")).toBe(true);
+  });
+
+  it("does not flag plain file deletions or unrelated commands as directory deletion", () => {
+    expect(commandDeletesDirectory("rm a.txt")).toBe(false);
+    expect(commandDeletesDirectory("unlink a.txt")).toBe(false);
+    expect(commandDeletesDirectory("del a.txt")).toBe(false);
+    expect(commandDeletesDirectory("git clean -f")).toBe(false);
+    expect(commandDeletesDirectory("git clean --dry-run")).toBe(false);
+    expect(commandDeletesDirectory("git ls-files | awk -F/ '{print $1}' | sort | uniq -c | sort -rn | head -20")).toBe(false);
+    expect(commandDeletesDirectory("echo rd && echo rm")).toBe(false);
+  });
+
   it("returns updatedInput on auto-approved Claude file tools so the SDK schema accepts the result", () => {
     const decision = decideClaudePermission(context, "Read", { file_path: "/project/a.md" });
     expect(decision.behavior).toBe("allow");
@@ -176,7 +207,7 @@ describe("provider contracts", () => {
     expect(decision.updatedInput).toEqual({ file_path: "/project/a.md" });
   });
 
-  it("never auto-approves a command tool, even in auto mode with a reported WSL path", () => {
+  it("auto-allows plain commands in auto mode, including with a reported WSL path", () => {
     const autoWslContext = {
       session: {
         permissionProfile: "auto",
@@ -190,24 +221,22 @@ describe("provider contracts", () => {
     const file = "//wsl.localhost/Ubuntu/home/test-user/work/openmind-data/.agent/skills/cctools/daily-topic-selector/SKILL.md";
     const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
 
-    expect(decision.behavior).toBe("ask");
+    expect(decision.behavior).toBe("allow");
   });
 
-  it("sends out-of-workspace command reads to explicit approval in auto mode", () => {
-    const autoWslContext = {
-      session: {
-        permissionProfile: "auto",
-        projectRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
-        cwd: ".",
-        scope: { type: "workspace" }
-      },
-      openmindRoot: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data",
-      cwd: "\\\\wsl$\\Ubuntu\\home\\test-user\\work\\openmind-data"
+  it("sends directory-deletion commands to explicit approval in auto mode while allowing file deletion", () => {
+    const auto = {
+      session: { permissionProfile: "auto", projectRoot: "/project", cwd: "/project", scope: { type: "workspace" } },
+      openmindRoot: "/project",
+      cwd: "/project"
     } as ProviderRunContext;
-    const file = "//wsl.localhost/Ubuntu/home/test-user/.ssh/id_rsa";
-    const decision = decideClaudePermission(autoWslContext, "Bash", { command: `cat "${file}"` }, file);
-
-    expect(decision).toMatchObject({ behavior: "ask", command: `cat "${file}"` });
+    expect(decideClaudePermission(auto, "Bash", { command: "git ls-files | awk -F/ '{print $1}' | sort | uniq -c | sort -rn | head -20" }).behavior).toBe("allow");
+    expect(decideClaudePermission(auto, "Bash", { command: "rm a.txt" }).behavior).toBe("allow");
+    expect(decideClaudePermission(auto, "Bash", { command: "rm -rf build" })).toMatchObject({ behavior: "ask", category: "delete" });
+    expect(decideClaudePermission(auto, "Bash", { command: "rmdir build" }).behavior).toBe("ask");
+    expect(decideClaudePermission(auto, "Bash", { command: "Remove-Item -Recurse -Force dist" }).behavior).toBe("ask");
+    expect(decideClaudePermission(auto, "Bash", { command: "git clean -fd" }).behavior).toBe("ask");
+    expect(decideClaudePermission(auto, "Bash", { command: "git clean -f" }).behavior).toBe("allow");
   });
 
   it("denies mutating tools in read-only Claude sessions", () => {

@@ -60,7 +60,7 @@ describe("composePrompt", () => {
 
     expect(out).toContain("项目“AI安全”");
     expect(out).toContain("./materials");
-    expect(out).toContain("./tasks/task-1/messages.jsonl");
+    expect(out).toContain("./tasks/task-1/messages/");
     expect(out).toContain("不可信参考数据");
     expect(out).toContain("根据项目资料写报告");
     expect(out).not.toContain("materials/documents/");

@@ -727,6 +727,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     {
+      channel: C.readProjectMaterialOriginal,
+      handler: (rawInput) => {
+        const input = ProjectMaterialLocatorSchema.parse(rawInput);
+        return projects().readProjectMaterialOriginal(input.projectName, input.relativePath);
+      }
+    },
+    {
       channel: C.listProjectMaterials,
       handler: (projectName) => projects().listProjectMaterials(ProjectNameSchema.parse(projectName))
     },
@@ -811,6 +818,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不一致。");
             trustedInput = {
               projectRoot,
+              projectId: task.projectId,
               projectName: input.projectName,
               taskId: input.taskId,
               providerId: task.providerId,
@@ -821,10 +829,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           try {
             const result = ProjectAiRunResultSchema.parse(await ai().call("start-project-run", trustedInput));
             if (result.session.scope?.type !== "project-task"
+              || result.session.scope.projectId !== task.projectId
               || result.session.scope.projectName !== input.projectName
               || result.session.scope.taskId !== input.taskId
               || result.run.sessionId !== result.session.id
               || result.run.scope?.type !== "project-task"
+              || result.run.scope.projectId !== task.projectId
               || result.run.scope.projectName !== input.projectName
               || result.run.scope.taskId !== input.taskId) {
               throw new Error("AI Worker 返回了不匹配的 Project Session。");
@@ -835,13 +845,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               result.session.id,
               result.session.providerId
             );
-            projectService.appendProjectTaskMessage(input.projectName, input.taskId, {
-              id: `${result.run.id}:user`,
-              role: "user",
-              content: input.prompt,
-              sourceMessageId: null,
-              createdAt: result.run.startedAt
-            });
             return ProjectTaskRunResultSchema.parse({ ...result, task: bound });
           } catch (error) {
             projectService.setProjectTaskStatus(input.projectName, input.taskId, "failed");
@@ -920,7 +923,10 @@ function reconcileProjectTaskStatus(
   const scope = session.scope && typeof session.scope === "object"
     ? session.scope as Record<string, unknown>
     : null;
-  if (scope?.type !== "project-task" || scope.projectName !== projectName || scope.taskId !== task.taskId) {
+  if (scope?.type !== "project-task"
+    || scope.projectId !== task.projectId
+    || scope.projectName !== projectName
+    || scope.taskId !== task.taskId) {
     return task;
   }
   const latest = runs

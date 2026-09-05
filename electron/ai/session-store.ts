@@ -21,6 +21,8 @@ import {
   type RiskFinding,
   type SessionPatch
 } from "../../shared/contracts";
+import type { ProjectTaskMessage, ProjectTaskStatus } from "../../shared/project-contracts";
+import { isProjectTaskScope, isWorkspaceScope, sameConversationScope } from "../../shared/ai-session-scope";
 import { scanRisks } from "./risk-scanner";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import {
@@ -36,12 +38,15 @@ import {
   turnStartedItem,
   worldStateItem
 } from "./rollout";
+import type { RolloutReconstruction } from "./rollout";
 import { writeSecurityReportFile } from "./security-report";
 import { SessionSearchIndex } from "./session-search-index";
 import { RolloutJournal } from "./rollout-journal";
 import { RolloutProjector } from "./rollout-projector";
 import { chunkPayload, isContextCompaction, isProviderPrivateDelta, normalizeLoadedEvent, reassembleEvents } from "./event-chunking";
 import { canonicalizeTrustedProjectRoot } from "./scheduler-paths";
+import { ProjectPathResolver } from "../project/project-path-resolver";
+import { ProjectTaskService } from "../project/task-service";
 
 export class SessionStore {
   readonly root: string;
@@ -55,6 +60,7 @@ export class SessionStore {
     writeAtomic: (file: string, value: unknown) => writeJsonAtomic(file, value)
   });
   private indexed = false;
+  private readonly projectTasks: ProjectTaskService | null;
   // rollout 落盘策略（缓存/追加/flush/原子重写/增量 tail）的单一拥有者（C1 抽出到 RolloutJournal）。
   private readonly journal = new RolloutJournal();
   // rollout 投影（reconstruct 的消费者：readEvents/listTurns/getContextState/getRisks，C1 抽出到 RolloutProjector）。
@@ -72,6 +78,9 @@ export class SessionStore {
     // argument preserves the legacy workspace layout for isolated callers.
     this.root = path.join(stateRoot ?? projectRoot, ".openmind", "ai");
     this.projectId = projectIdForRoot(projectRoot);
+    this.projectTasks = trustedProjectsRoot
+      ? new ProjectTaskService(new ProjectPathResolver(path.dirname(trustedProjectsRoot)))
+      : null;
   }
 
   initialize(): void {
@@ -119,16 +128,16 @@ export class SessionStore {
     forkedFromId?: string | null;
     skillSnapshot?: AiSessionSkillSnapshotEntry[];
     projectRoot?: string;
-    scope?: AiSessionScope;
+    scope: AiSessionScope;
   }): AiSession {
     this.initialize();
     const now = new Date().toISOString();
-    const scope = input.scope ?? { type: "workspace" };
+    const scope = input.scope;
     const sessionProjectRoot = this.resolveSessionRoot(scope, input.projectRoot);
     const session = AiSessionSchema.parse({
       schemaVersion: SCHEMA_VERSION,
       id: crypto.randomUUID(),
-      projectId: projectIdForRoot(sessionProjectRoot),
+      projectId: isProjectTaskScope(scope) ? scope.projectId : this.projectId,
       projectRoot: sessionProjectRoot,
       scope,
       title: input.title.slice(0, 120),
@@ -137,8 +146,8 @@ export class SessionStore {
       serviceProviderId: input.serviceProviderId || null,
       serviceProviderRevision: input.serviceProviderRevision || null,
       forkedFromId: input.forkedFromId || null,
-      cwd: scope.type === "project-task" ? "." : input.cwd,
-      permissionProfile: scope.type === "project-task" ? "read-only" : input.permissionProfile,
+      cwd: isProjectTaskScope(scope) ? "." : input.cwd,
+      permissionProfile: isProjectTaskScope(scope) ? "read-only" : input.permissionProfile,
       interactionMode: input.interactionMode || "default",
       // Every newly-created session has an explicit (possibly empty) frozen
       // Skill set. `null` is reserved for persisted sessions from before the
@@ -153,6 +162,26 @@ export class SessionStore {
     this.sessions.set(session.id, session);
     this.writeSearchIndex(session.id);
     return session;
+  }
+
+  /** Commit or repair the Project-side binding before the first Run is exposed. */
+  bindProjectSession(session: AiSession): void {
+    if (!isProjectTaskScope(session.scope) || !this.projectTasks) return;
+    const task = this.projectTasks.get(session.scope.projectName, session.scope.taskId);
+    if (task.projectId !== session.scope.projectId) throw new Error("Project Task 与 AI Session 的 Project ID 不一致。");
+    this.projectTasks.bindSession(session.scope.projectName, session.scope.taskId, session.id, session.providerId);
+  }
+
+  discardEmptySession(sessionId: string): void {
+    if (this.listRuns(sessionId).length) throw new Error("已有 Run 的 AI Session 不能作为空会话回滚。");
+    fs.rmSync(this.sessionRoot(sessionId), { recursive: true, force: true });
+    this.sessions.delete(sessionId);
+  }
+
+  setProjectTaskStatus(sessionId: string, status: ProjectTaskStatus): void {
+    const session = this.getSession(sessionId);
+    if (!isProjectTaskScope(session.scope) || !this.projectTasks) return;
+    this.projectTasks.setStatus(session.scope.projectName, session.scope.taskId, status);
   }
 
   async forkSession(sourceSessionId: string, throughRunId?: string): Promise<AiSession> {
@@ -175,7 +204,7 @@ export class SessionStore {
       forkedFromId: source.id,
       skillSnapshot: source.skillSnapshot ?? [],
       projectRoot: source.projectRoot,
-      scope: source.scope ?? { type: "workspace" }
+      scope: source.scope
     });
     const lines: AiRolloutLine[] = [];
     for (const sourceTurn of sourceTurns) {
@@ -237,7 +266,7 @@ export class SessionStore {
       id: current.id,
       projectId: current.projectId,
       projectRoot: current.projectRoot,
-      scope: current.scope ?? { type: "workspace" },
+      scope: current.scope,
       cwd: current.cwd,
       provider: current.provider,
       providerId: current.providerId,
@@ -248,7 +277,7 @@ export class SessionStore {
       // Skill availability is a conversation boundary. Generic UI/lifecycle
       // patches must never mutate the frozen snapshot.
       skillSnapshot: current.skillSnapshot ?? null,
-      permissionProfile: current.scope?.type === "project-task"
+      permissionProfile: isProjectTaskScope(current.scope)
         ? "read-only"
         : (patch as Partial<AiSession>).permissionProfile ?? current.permissionProfile,
       updatedAt: new Date().toISOString()
@@ -299,7 +328,7 @@ export class SessionStore {
     this.initialize();
     this.ensureIndex();
     const refreshable = [...this.sessions.values()]
-      .filter((session) => session.scope?.type !== "project-task");
+      .filter((session) => isWorkspaceScope(session.scope));
     if (!refreshable.length) return 0;
     const skillSnapshot = resolveSkillSnapshot();
     let refreshed = 0;
@@ -320,23 +349,43 @@ export class SessionStore {
 
   createRun(session: AiSession, prompt: string, contexts: AiRun["contexts"], id?: string): AiRun {
     const now = new Date().toISOString();
+    const runId = id ?? crypto.randomUUID();
     const run = AiRunSchema.parse({
       schemaVersion: SCHEMA_VERSION,
-      id: id ?? crypto.randomUUID(),
+      id: runId,
       sessionId: session.id,
       projectId: session.projectId,
-      scope: session.scope ?? { type: "workspace" },
+      scope: session.scope,
       provider: session.provider,
       providerId: session.providerId,
       permissionProfile: session.permissionProfile,
       interactionMode: session.interactionMode,
       status: "queued",
       prompt,
+      promptMessageId: isProjectTaskScope(session.scope) ? runId : null,
       contexts,
       startedAt: now
     });
     fs.mkdirSync(this.runRoot(session.id, run.id), { recursive: true });
-    writeJsonAtomic(this.runFile(session.id, run.id), run);
+    try {
+      // Stage the private reference first, then commit the canonical Project
+      // prompt before exposing either object through the in-memory index.
+      this.writeRunMetadata(run);
+      if (isProjectTaskScope(session.scope)) {
+        this.projectTasks?.appendMessage(session.scope.projectName, session.scope.taskId, {
+          id: run.id,
+          runId: run.id,
+          role: "user",
+          content: run.prompt,
+          sourceMessageId: run.id,
+          sessionId: session.id,
+          createdAt: run.startedAt
+        });
+      }
+    } catch (error) {
+      fs.rmSync(this.runRoot(session.id, run.id), { recursive: true, force: true });
+      throw error;
+    }
     this.runs.set(run.id, run);
     this.updateSession(session.id, { lastRunId: run.id, status: "running" });
     return run;
@@ -365,12 +414,12 @@ export class SessionStore {
       id: current.id,
       sessionId: current.sessionId,
       projectId: current.projectId,
-      scope: current.scope ?? { type: "workspace" },
+      scope: current.scope,
       provider: current.provider,
       providerId: current.providerId,
       permissionProfile: current.permissionProfile
     });
-    writeJsonAtomic(this.runFile(current.sessionId, runId), next);
+    this.writeRunMetadata(next);
     this.runs.set(runId, next);
     return next;
   }
@@ -381,7 +430,7 @@ export class SessionStore {
     await this.withLock(file, async () => {
       const event = AiEventSchema.parse({
         schemaVersion: SCHEMA_VERSION,
-        id: crypto.randomUUID(),
+        id: isProjectTaskScope(run.scope) ? run.id : crypto.randomUUID(),
         seq: 1,
         timestamp: run.startedAt,
         projectId: run.projectId,
@@ -393,9 +442,11 @@ export class SessionStore {
         risks: scanRisks({ text: run.prompt, contexts: run.contexts, modelInput })
       });
       events.push(event);
+      this.persistProjectMessage(event);
+      const durableEvent = this.projectMessageReference(event);
       const lines = [
         makeRolloutLine(turnStartedItem(run), run.startedAt),
-        ...rolloutItemsForEvent(event).map((item) => makeRolloutLine(item, event.timestamp))
+        ...rolloutItemsForEvent(durableEvent).map((item) => makeRolloutLine(item, event.timestamp))
       ];
       this.appendRolloutLines(file, lines);
       this.sequences.set(this.sequenceKey(run), 1);
@@ -426,6 +477,32 @@ export class SessionStore {
 
   async appendEvent(run: AiRun, kind: AiEvent["kind"], payload: Record<string, unknown>): Promise<AiEvent[]> {
     if (isProviderPrivateDelta(kind, payload)) return [];
+    const session = this.getSession(run.sessionId);
+    if (isProjectTaskScope(session.scope) && this.isProjectMessage(kind, payload)) {
+      const file = this.rolloutFile(run.sessionId);
+      const events: AiEvent[] = [];
+      await this.withLock(file, async () => {
+        const event = AiEventSchema.parse({
+          schemaVersion: SCHEMA_VERSION,
+          id: crypto.randomUUID(),
+          seq: this.lastSequenceForRun(run) + 1,
+          timestamp: new Date().toISOString(),
+          projectId: run.projectId,
+          sessionId: run.sessionId,
+          runId: run.id,
+          provider: run.provider,
+          kind,
+          payload,
+          risks: scanRisks(payload)
+        });
+        this.persistProjectMessage(event);
+        const durableEvent = this.projectMessageReference(event);
+        this.queueRolloutLines(file, rolloutItemsForEvent(durableEvent).map((item) => makeRolloutLine(item, event.timestamp)));
+        this.sequences.set(this.sequenceKey(run), event.seq);
+        events.push(event);
+      });
+      return events;
+    }
     const compactionReplacement = isContextCompaction(kind, payload)
       ? buildCompactionCheckpoint(this.getContextState(run.sessionId).history)
       : null;
@@ -489,7 +566,11 @@ export class SessionStore {
   }
 
   private writeSearchIndex(sessionId: string, additions: AiEvent[] = []): void {
-    this.searchIndex.write(sessionId, this.getSession(sessionId).title, additions, this.searchFile(sessionId));
+    const session = this.getSession(sessionId);
+    // Project message bodies have one canonical home under the Project Task;
+    // the workspace-wide Session search deliberately excludes this scope.
+    if (isProjectTaskScope(session.scope)) return;
+    this.searchIndex.write(sessionId, session.title, additions, this.searchFile(sessionId));
   }
 
   private ensureIndex(): void {
@@ -505,13 +586,19 @@ export class SessionStore {
         // index their metadata, search body, rollout, or runs into this
         // workspace's scheduler.
         if (!this.ownsSession(session)) continue;
-        this.sessions.set(session.id, session);
-        try {
-          const index = this.readJson(this.searchFile(session.id)) as { body?: string; text?: string };
-          this.searchIndex.load(session.id, session.title, index);
-        } catch {
-          this.searchIndex.load(session.id, session.title, null);
+        if (isProjectTaskScope(session.scope)) {
+          // Repairs an interrupted create after the Session file was committed
+          // but before task.json received the reverse binding.
+          this.bindProjectSession(session);
+        } else {
+          try {
+            const index = this.readJson(this.searchFile(session.id)) as { body?: string; text?: string };
+            this.searchIndex.load(session.id, session.title, index);
+          } catch {
+            this.searchIndex.load(session.id, session.title, null);
+          }
         }
+        this.sessions.set(session.id, session);
         const runsRoot = this.runsRoot(session.id);
         if (!fs.existsSync(runsRoot)) {
           this.ensureRollout(session);
@@ -519,10 +606,11 @@ export class SessionStore {
         }
         for (const runEntry of fs.readdirSync(runsRoot, { withFileTypes: true }).filter((item) => item.isDirectory())) {
           try {
-            const run = AiRunSchema.parse(this.readJson(this.runFile(session.id, runEntry.name)));
+            const storedRun = AiRunSchema.parse(this.readJson(this.runFile(session.id, runEntry.name)));
+            const run = this.hydrateProjectRunPrompt(session, storedRun);
             if (run.projectId !== session.projectId
               || run.sessionId !== session.id
-              || !sameScope(run.scope, session.scope)) continue;
+              || !sameConversationScope(run.scope, session.scope)) continue;
             this.runs.set(run.id, run);
           } catch {
             // Corrupt run metadata is ignored and remains available for manual recovery.
@@ -563,9 +651,81 @@ export class SessionStore {
     this.readRollout(sessionId);
     const entry = this.journal.getEntry(sessionId);
     if (entry?.reconstruction) return entry.reconstruction;
-    const reconstruction = reconstructRollout(sessionId, entry?.lines ?? [], entry?.parseErrors ?? 0);
+    const raw = reconstructRollout(sessionId, entry?.lines ?? [], entry?.parseErrors ?? 0);
+    const reconstruction = isProjectTaskScope(session.scope) ? this.hydrateProjectMessages(session, raw) : raw;
     if (entry) this.journal.setReconstruction(sessionId, reconstruction);
     return reconstruction;
+  }
+
+  private isProjectMessage(kind: AiEvent["kind"], payload: Record<string, unknown>): boolean {
+    if (kind === "user-message") return typeof payload.text === "string";
+    return kind === "assistant-message"
+      && payload.phase === "final"
+      && (typeof payload.text === "string" || typeof payload.message === "string");
+  }
+
+  private persistProjectMessage(event: AiEvent): void {
+    const session = this.getSession(event.sessionId);
+    if (!isProjectTaskScope(session.scope) || !this.projectTasks || !this.isProjectMessage(event.kind, event.payload)) return;
+    const role: ProjectTaskMessage["role"] = event.kind === "user-message" ? "user" : "assistant";
+    const content = String(event.payload.text || event.payload.message || "");
+    this.projectTasks.appendMessage(session.scope.projectName, session.scope.taskId, {
+      id: event.id,
+      runId: event.runId,
+      role,
+      content,
+      sourceMessageId: event.id,
+      sessionId: session.id,
+      createdAt: event.timestamp
+    });
+  }
+
+  private projectMessageReference(event: AiEvent): AiEvent {
+    const session = this.getSession(event.sessionId);
+    if (!isProjectTaskScope(session.scope) || !this.isProjectMessage(event.kind, event.payload)) return event;
+    const { text: _text, message: _message, modelInput: _modelInput, ...metadata } = event.payload;
+    return {
+      ...event,
+      payload: { ...metadata, projectMessageId: event.id }
+    };
+  }
+
+  private hydrateProjectMessages(session: AiSession, reconstruction: RolloutReconstruction): RolloutReconstruction {
+    if (!isProjectTaskScope(session.scope) || !this.projectTasks) return reconstruction;
+    const messages = new Map(this.projectTasks.listMessages(session.scope.projectName, session.scope.taskId).map((message) => [message.id, message]));
+    const hydratePayload = (payload: Record<string, unknown>): Record<string, unknown> => {
+      const message = messages.get(String(payload.projectMessageId || ""));
+      return message ? { ...payload, text: message.content } : payload;
+    };
+    const hydrateItem = (item: AiContextState["history"][number]) => {
+      const message = messages.get(String(item.payload.projectMessageId || ""));
+      return message ? { ...item, content: message.content, payload: hydratePayload(item.payload) } : item;
+    };
+    return {
+      turns: reconstruction.turns.map((turn) => ({
+        ...turn,
+        events: turn.events.map((event) => ({ ...event, payload: hydratePayload(event.payload) })),
+        responseItems: turn.responseItems.map(hydrateItem)
+      })),
+      context: {
+        ...reconstruction.context,
+        history: reconstruction.context.history.map(hydrateItem)
+      }
+    };
+  }
+
+  private hydrateProjectRunPrompt(session: AiSession, run: AiRun): AiRun {
+    if (!isProjectTaskScope(session.scope) || !run.promptMessageId || !this.projectTasks) return run;
+    const message = this.projectTasks.listMessages(session.scope.projectName, session.scope.taskId)
+      .find((candidate) => candidate.id === run.promptMessageId && candidate.runId === run.id && candidate.role === "user");
+    return message ? { ...run, prompt: message.content } : run;
+  }
+
+  private writeRunMetadata(run: AiRun): void {
+    const persisted = isProjectTaskScope(run.scope) && run.promptMessageId
+      ? { ...run, prompt: "" }
+      : run;
+    writeJsonAtomic(this.runFile(run.sessionId, run.id), persisted);
   }
 
   private async appendRolloutItems(
@@ -663,7 +823,7 @@ export class SessionStore {
       }
       if (!patch) continue;
       const next = AiRunSchema.parse({ ...current, ...patch });
-      writeJsonAtomic(this.runFile(sessionId, current.id), next);
+      this.writeRunMetadata(next);
       this.runs.set(current.id, next);
     }
   }
@@ -702,19 +862,22 @@ export class SessionStore {
   }
 
   private resolveSessionRoot(scope: AiSessionScope, requestedRoot?: string): string {
-    if (scope.type === "workspace") {
+    if (isWorkspaceScope(scope)) {
       if (requestedRoot && path.resolve(requestedRoot) !== path.resolve(this.projectRoot)) {
         throw new Error("Workspace 会话不能切换执行根。");
       }
       return this.projectRoot;
     }
-    if (!this.trustedProjectsRoot || !requestedRoot) throw new Error("Project 会话缺少可信执行根。");
-    return canonicalizeTrustedProjectRoot(this.trustedProjectsRoot, scope.projectName, requestedRoot);
+    if (!this.trustedProjectsRoot || !requestedRoot || !this.projectTasks) throw new Error("Project 会话缺少可信执行根。");
+    const root = canonicalizeTrustedProjectRoot(this.trustedProjectsRoot, scope.projectName, requestedRoot);
+    const task = this.projectTasks.get(scope.projectName, scope.taskId);
+    if (task.projectId !== scope.projectId) throw new Error("Project 会话的稳定 Project ID 无效。");
+    return root;
   }
 
   private ownsSession(session: AiSession): boolean {
-    const scope = session.scope ?? { type: "workspace" };
-    if (scope.type === "workspace") {
+    const scope = session.scope;
+    if (isWorkspaceScope(scope)) {
       return session.projectId === this.projectId
         && path.resolve(session.projectRoot) === path.resolve(this.projectRoot);
     }
@@ -722,7 +885,8 @@ export class SessionStore {
     try {
       const root = canonicalizeTrustedProjectRoot(this.trustedProjectsRoot, scope.projectName, session.projectRoot);
       return path.resolve(session.projectRoot) === root
-        && session.projectId === projectIdForRoot(root)
+        && session.projectId === scope.projectId
+        && this.projectTasks?.get(scope.projectName, scope.taskId).projectId === scope.projectId
         && session.cwd === "."
         && session.permissionProfile === "read-only";
     } catch {
@@ -743,11 +907,4 @@ export class SessionStore {
 
 function projectIdForRoot(projectRoot: string): string {
   return crypto.createHash("sha256").update(path.resolve(projectRoot)).digest("hex").slice(0, 16);
-}
-
-function sameScope(left: AiSessionScope | undefined, right: AiSessionScope | undefined): boolean {
-  const a = left ?? { type: "workspace" };
-  const b = right ?? { type: "workspace" };
-  return a.type === b.type
-    && (a.type === "workspace" || (b.type === "project-task" && a.projectName === b.projectName && a.taskId === b.taskId));
 }

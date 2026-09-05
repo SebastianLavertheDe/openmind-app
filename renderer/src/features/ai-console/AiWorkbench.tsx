@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { Eye, FileText, History, Pencil, Save, X } from "lucide-react";
 import type { AiSession, ContentRecord } from "@shared/contracts";
+import { workspaceSessions } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
 import { AUTO_MODEL, effectiveModelInfo } from "@shared/model-catalog";
 import { errorText, sessionStatusLabel } from "../../ai-utils";
@@ -546,8 +547,7 @@ function displaySessionPath(session: AiSession, fallbackRoot: string): string {
 
 export function AiSessionNavigation() {
   const ai = useAi();
-  const sessions = useMemo(() => ai.snapshot.sessions
-    .filter((session) => session.scope?.type !== "project-task")
+  const sessions = useMemo(() => workspaceSessions(ai.snapshot.sessions, true)
     .sort((left, right) => {
     if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
     return right.createdAt.localeCompare(left.createdAt);

@@ -4,9 +4,11 @@ import type { ProjectTask } from "./types";
 
 const task: ProjectTask = {
   taskId: "task-1",
+  projectId: "5a111111-1111-4111-8111-111111111111",
   projectName: "AI 安全",
   title: "整理报告",
   sessionId: "session-1",
+  previousSessionIds: [],
   providerId: "codex",
   status: "active",
   createdAt: "2026-08-30T00:00:00.000Z",
@@ -15,10 +17,10 @@ const task: ProjectTask = {
 
 describe("matchesProjectTaskSession", () => {
   it("accepts only the session scoped to the selected task and project", () => {
-    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "project-task", projectName: "AI 安全", taskId: "task-1" } }, "AI 安全", task)).toBe(true);
-    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "workspace" } }, "AI 安全", task)).toBe(false);
-    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "project-task", projectName: "其他项目", taskId: "task-1" } }, "AI 安全", task)).toBe(false);
-    expect(matchesProjectTaskSession({ id: "other-session", scope: { type: "project-task", projectName: "AI 安全", taskId: "task-1" } }, "AI 安全", task)).toBe(false);
+    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "project-task", projectId: task.projectId, projectName: "AI 安全", taskId: "task-1" } }, task.projectId, task)).toBe(true);
+    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "workspace" } }, task.projectId, task)).toBe(false);
+    expect(matchesProjectTaskSession({ id: "session-1", scope: { type: "project-task", projectId: "6a111111-1111-4111-8111-111111111111", projectName: "其他项目", taskId: "task-1" } }, task.projectId, task)).toBe(false);
+    expect(matchesProjectTaskSession({ id: "other-session", scope: { type: "project-task", projectId: task.projectId, projectName: "AI 安全", taskId: "task-1" } }, task.projectId, task)).toBe(false);
   });
 
   it("recognizes statuses that require a persisted task-list refresh", () => {

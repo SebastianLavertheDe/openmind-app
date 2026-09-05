@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
-import { canAutoApprove, classifyApproval } from "./types";
+import { canAutoApprove, classifyApproval, commandDeletesDirectory } from "./types";
 import { buildWslLoginCommand, decodeProcessOutput, resolveWslLoginExecutable, spawnInDirectory } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
@@ -92,9 +92,12 @@ export function decideClaudePermission(
   }
   if (/^(bash|powershell)$/i.test(toolName)) {
     if (projectScoped) return { behavior: "deny", message: "Project 会话为只读模式，不能执行命令工具。" };
-    // 命令字符串无法像文件工具那样做路径边界校验，也不做关键词自动放行；
-    // 每条命令都交用户审批，classifyApproval 仅决定弹窗的分类与标题。
+    // 命令字符串无法像文件工具那样做路径边界校验。自动执行档位下命令免审批，
+    // 唯一例外是删除目录（与 canAutoApprove 同一策略）；其余档位逐条交用户审批。
     const command = String(input.command || "");
+    if (runContext.session.permissionProfile === "auto" && !commandDeletesDirectory(command)) {
+      return { behavior: "allow", updatedInput: input };
+    }
     return { behavior: "ask", ...classifyApproval(command, toolName), command, paths: [] };
   }
   if (toolName.toLocaleLowerCase() === "glob") {
@@ -553,7 +556,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const browserInstructions = context.projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
     const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
     const systemAppend = [
-      openmindFilesystemInstructions(context.openmindRoot),
+      openmindFilesystemInstructions(context.openmindRoot, context.projectScoped),
       context.projectInstructions,
       browserInstructions,
       skillInstructions
@@ -595,9 +598,15 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           }
         }
       } : {}),
-      sandbox: {
-        // OpenMind owns file-tool admission in canUseTool. Do not ask Claude
-        // Code to create a second OS/process sandbox on any platform.
+      sandbox: context.projectScoped ? {
+        enabled: true,
+        failIfUnavailable: true,
+        allowUnsandboxedCommands: false,
+        autoAllowBashIfSandboxed: false,
+        filesystem: { denyWrite: [context.openmindRoot] }
+      } : {
+        // Workspace sessions retain their explicit application-level approval
+        // model; Project content additionally requires an OS/process sandbox.
         enabled: false
       },
       includePartialMessages: true,

@@ -75,6 +75,7 @@ const archivedSession: AiSession = {
   schemaVersion: 1,
   id: "archived-session",
   projectId: "project",
+  scope: { type: "workspace" },
   projectRoot: "/repo",
   provider: "codex",
   providerId: "codex-preview",

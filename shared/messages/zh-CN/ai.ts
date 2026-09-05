@@ -105,6 +105,7 @@ export const aiMessages = {
     /* P0-CMP-3: 自定义 select */
     provider: "Provider",
     openWorkspace: "打开当前项目",
+    projectTargetHint: (name: string) => `新对话将自动创建为项目「${name}」的任务`,
     moreActions: "更多操作",
     imageTooLarge: (size: string) => `图片过大（${size}MB），上限 2MB。`,
     imageReadFailed: "图片读取失败。",

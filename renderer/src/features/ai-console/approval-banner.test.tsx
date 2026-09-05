@@ -53,6 +53,7 @@ function makeSnapshot(approvals: ApprovalRequest[], sessionId?: string): AiSnaps
       schemaVersion: 1,
       id: sessionId,
       projectId: "project",
+      scope: { type: "workspace" },
       projectRoot: "/project",
       provider: "codex",
       providerId: "codex-native",

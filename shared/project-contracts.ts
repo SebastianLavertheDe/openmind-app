@@ -8,7 +8,7 @@ import {
   type ContextReference
 } from "./contracts";
 
-export const PROJECT_SCHEMA_VERSION = 1 as const;
+export const PROJECT_SCHEMA_VERSION = 2 as const;
 export const PROJECTS_LOGICAL_ROOT = "projects" as const;
 export const PROJECT_MANIFEST_FILE = ".openmind-project.json" as const;
 
@@ -76,6 +76,8 @@ export type ProjectIcon = z.infer<typeof ProjectIconSchema>;
 
 export const ProjectManifestSchema = z.object({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION).default(PROJECT_SCHEMA_VERSION),
+  /** Immutable identity; the directory/name may change without changing ownership. */
+  id: z.string().uuid(),
   name: ProjectNameSchema,
   description: z.string().max(20_000).default(""),
   status: ProjectStatusSchema.default("active"),
@@ -188,6 +190,15 @@ export const ProjectMaterialReadSchema = z.object({
 });
 export type ProjectMaterialRead = z.infer<typeof ProjectMaterialReadSchema>;
 
+/** Binary original of a preserved material (PDF v1); bytes ride the IPC structured clone. */
+export const ProjectMaterialOriginalReadSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  mimeType: z.literal("application/pdf"),
+  byteSize: z.number().int().nonnegative(),
+  data: z.custom<Uint8Array<ArrayBuffer>>((value) => value instanceof Uint8Array)
+});
+export type ProjectMaterialOriginalRead = z.infer<typeof ProjectMaterialOriginalReadSchema>;
+
 export const ProjectNameInputSchema = z.object({ projectName: ProjectNameSchema });
 export type ProjectNameInput = z.input<typeof ProjectNameInputSchema>;
 
@@ -224,6 +235,7 @@ export type ProjectTaskStatus = z.infer<typeof ProjectTaskStatusSchema>;
 
 export const ProjectTaskSchema = z.object({
   taskId: z.string().uuid(),
+  projectId: z.string().uuid(),
   projectName: ProjectNameSchema,
   title: z.string().min(1).max(160),
   sessionId: z.string().min(1).max(160).nullable().default(null),
@@ -236,11 +248,7 @@ export const ProjectTaskSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 });
-type ParsedProjectTask = z.infer<typeof ProjectTaskSchema>;
-export type ProjectTask = Omit<ParsedProjectTask, "previousSessionIds"> & {
-  /** Optional in callers during the additive schema rollout; persisted parses always materialize an array. */
-  previousSessionIds?: string[];
-};
+export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
 
 export const ProjectCreateTaskInputSchema = z.object({
   projectName: ProjectNameSchema,
@@ -261,12 +269,13 @@ export const ProjectRenameTaskInputSchema = ProjectTaskLocatorSchema.extend({
 export type ProjectRenameTaskInput = z.input<typeof ProjectRenameTaskInputSchema>;
 
 export const ProjectTaskMessageSchema = z.object({
-  id: z.string().min(1).max(160),
+  id: z.string().uuid(),
+  runId: z.string().uuid(),
   role: z.enum(["user", "assistant"]),
   content: z.string().max(10 * 1024 * 1024),
   sourceMessageId: z.string().min(1).max(160).nullable().default(null),
-  /** Captured from the bound Task by ProjectService; legacy rows may omit it. */
-  sessionId: z.string().min(1).max(160).nullable().optional(),
+  /** Captured from the bound Task so the canonical message cannot drift across Sessions. */
+  sessionId: z.string().min(1).max(160).nullable(),
   createdAt: z.string().datetime()
 });
 export type ProjectTaskMessage = z.infer<typeof ProjectTaskMessageSchema>;
@@ -388,6 +397,7 @@ export interface ProjectDesktopApi {
   renameProjectMaterial(input: ProjectRenameMaterialInput): Promise<ProjectMaterial>;
   moveProjectMaterial(input: ProjectMoveMaterialInput): Promise<ProjectMaterial>;
   readProjectMaterial(input: ProjectMaterialLocator): Promise<ProjectMaterialRead>;
+  readProjectMaterialOriginal(input: ProjectMaterialLocator): Promise<ProjectMaterialOriginalRead>;
   listProjectMaterials(projectName: string): Promise<ProjectMaterial[]>;
 
   createProjectTask(input: ProjectCreateTaskInput): Promise<ProjectTask>;
@@ -422,6 +432,7 @@ export const PROJECT_IPC = {
   MATERIAL_RENAME: "project:material-rename",
   MATERIAL_MOVE: "project:material-move",
   MATERIAL_READ: "project:material-read",
+  MATERIAL_READ_ORIGINAL: "project:material-read-original",
   MATERIAL_LIST: "project:material-list",
   TASK_CREATE: "project:task-create",
   TASK_LIST: "project:task-list",

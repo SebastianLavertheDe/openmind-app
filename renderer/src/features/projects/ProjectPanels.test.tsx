@@ -12,6 +12,7 @@ import { ProjectsPage } from "./ProjectsPage";
 import type { ProjectDetail } from "./types";
 
 const project: ProjectDetail = {
+  id: "5a111111-1111-4111-8111-111111111111",
   name: "AI 安全",
   description: "研究与写作",
   status: "active",
@@ -182,9 +183,11 @@ describe("Project task recovery", () => {
   it("creates a Project task from the reused conversation composer", async () => {
     const createdTask = {
       taskId: "task-1",
+      projectId: project.id,
       projectName: project.name,
       title: "生成项目报告",
       sessionId: null,
+      previousSessionIds: [],
       providerId: "codex-native",
       status: "active" as const,
       createdAt: "2026-08-31T00:00:00.000Z",
@@ -193,9 +196,9 @@ describe("Project task recovery", () => {
     const session: AiSession = {
       schemaVersion: 1,
       id: "session-1",
-      projectId: "project",
+      projectId: project.id,
       projectRoot: "/project/AI 安全",
-      scope: { type: "project-task", projectName: project.name, taskId: createdTask.taskId },
+      scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: createdTask.taskId },
       provider: "codex",
       providerId: "codex-native",
       providerSessionId: null,
@@ -321,8 +324,8 @@ describe("Project task recovery", () => {
         schemaVersion: 1,
         id: "run-terminal",
         sessionId: "session-other",
-        projectId: "project",
-        scope: { type: "project-task", projectName: project.name, taskId: "task-other" },
+        projectId: project.id,
+        scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: "task-other" },
         provider: "codex",
         providerId: "codex-native",
         permissionProfile: "edit",
@@ -366,6 +369,57 @@ describe("Project material truncation", () => {
     renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
 
     expect(await screen.findByText("当前只显示资料的部分内容")).toBeTruthy();
+  });
+});
+
+describe("Project material PDF original", () => {
+  const pdfMaterial = {
+    projectName: project.name,
+    relativePath: "materials/documents/Agentic Design Patterns.md",
+    title: "Agentic Design Patterns",
+    kind: "document",
+    status: "ready",
+    source: { type: "file", originalName: "Agentic Design Patterns.pdf" },
+    originalRelativePath: "materials/originals/Agentic Design Patterns.pdf",
+    createdAt: "2026-08-30T00:00:00.000Z",
+    updatedAt: "2026-08-31T00:00:00.000Z"
+  };
+
+  it("previews the preserved PDF original by default and still offers the extracted text", async () => {
+    const readProjectMaterialOriginal = vi.fn(async () => ({
+      fileName: "Agentic Design Patterns.pdf",
+      mimeType: "application/pdf" as const,
+      byteSize: 8,
+      data: new Uint8Array([0x25, 0x50, 0x44, 0x46])
+    }));
+    installApi({
+      listProjectMaterials: vi.fn(async () => [pdfMaterial]),
+      readProjectMaterial: vi.fn(async () => ({ material: pdfMaterial, content: "# 提取文本", truncated: false })),
+      readProjectMaterialOriginal
+    });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    expect((await screen.findByRole("button", { name: "PDF" })).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(readProjectMaterialOriginal).toHaveBeenCalledWith({ projectName: project.name, relativePath: pdfMaterial.relativePath }));
+    // jsdom 无法启动 pdf.js worker，阅读器初始化失败后回落到提取文本卡片。
+    expect(await screen.findByText("无法加载 PDF 原件")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "查看提取文本" }));
+    expect(await screen.findByText("提取文本")).toBeTruthy();
+  });
+
+  it("shows a fallback with a shortcut to the extracted text when the original cannot load", async () => {
+    installApi({
+      listProjectMaterials: vi.fn(async () => [pdfMaterial]),
+      readProjectMaterial: vi.fn(async () => ({ material: pdfMaterial, content: "# 提取文本", truncated: false })),
+      readProjectMaterialOriginal: vi.fn(async () => {
+        throw new Error("该资料没有保留原始文件。");
+      })
+    });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    expect(await screen.findByText("无法加载 PDF 原件")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "查看提取文本" }));
+    expect(await screen.findByText("提取文本")).toBeTruthy();
   });
 });
 
@@ -616,6 +670,19 @@ describe("Project material creation", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "上传文件" }));
     await waitFor(() => expect(addProjectFiles).toHaveBeenCalledWith({ projectName: project.name }));
+  });
+
+  it("keeps the add-material dialog open when the native file picker is canceled", async () => {
+    // 主进程在用户取消原生选择器时返回空数组；对话框必须保持打开。
+    const addProjectFiles = vi.fn(async () => []);
+    installApi({ listProjectMaterials: vi.fn(async () => []), addProjectFiles });
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "上传文件" }));
+    await waitFor(() => expect(addProjectFiles).toHaveBeenCalledWith({ projectName: project.name }));
+    const dialog = screen.getByRole("dialog", { name: "添加资料" });
+    expect(within(dialog).getByRole("button", { name: "上传文件" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "上传文件" }).getAttribute("disabled")).toBeNull();
   });
 
   it("adds dropped files through their resolved local paths", async () => {

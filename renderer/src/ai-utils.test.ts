@@ -31,6 +31,7 @@ function run(id: string, sessionId: string, status: AiRun["status"], startedAt: 
     id,
     sessionId,
     projectId: "project",
+    scope: { type: "workspace" },
     provider: "codex",
     providerId: "codex",
     permissionProfile: "edit",
