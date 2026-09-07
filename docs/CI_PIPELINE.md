@@ -25,8 +25,8 @@ unsigned, as required by the current scope.
   verifies the screenshot/layout contracts, including the responsive settings
   and companion layouts.
 - `cli:install:smoke` (Windows/macOS matrix jobs only) performs the real
-  one-click CLI install through `CliInstallerService` — the Claude official
-  install script and the Codex npm portable path — then asserts the launcher
+  one-click CLI install through `CliInstallerService` — the Claude and Codex
+  official standalone install scripts — then asserts the launcher
   exists and `--version` responds. This is the continuous clean-runner variant
   of the one-click install sub-check; packaged-app clean-machine scenarios in
   `docs/CLEAN_MACHINE_EVIDENCE.md` remain the release gate.

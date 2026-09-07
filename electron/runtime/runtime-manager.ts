@@ -200,8 +200,7 @@ export class RuntimeManager {
     return preparation;
   }
 
-  /** Resolve a verified active executable for app-owned auxiliary services
-   * (for example the npm CLI used by the app-private Codex installer). */
+  /** Resolve a verified active executable for app-owned auxiliary services. */
   resolveManagedPackExecutable(packId: RuntimePackId, target: RuntimeTarget, runtime: "node" | "python"): string {
     const pack = this.getActivePack(packId, target);
     if (!pack || pack.status !== "active") throw new RuntimeManagerError("pack-not-ready", `Runtime Pack 尚未 ready：${packId}@${target}`);

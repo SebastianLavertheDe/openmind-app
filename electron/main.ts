@@ -34,9 +34,7 @@ import { SkillPackageService } from "./skills/skill-package-service";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
 import { AppStateBackupService } from "./backup/app-state-backup";
-import { CliInstallerService, resolveNpmCliPath, type ManagedNodeRuntime } from "./install/cli-installer-service";
-import { RuntimeManager } from "./runtime/runtime-manager";
-import { detectRuntimeTarget } from "../shared/runtime-targets";
+import { CliInstallerService } from "./install/cli-installer-service";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
@@ -80,23 +78,9 @@ let cliInstallerService: CliInstallerService | null = null;
 function ensureCliInstallerService(): CliInstallerService {
   ensureAppPaths(getAppPaths());
   cliInstallerService ||= new CliInstallerService(getAppPaths(), {
-    resolveNodeRuntime: resolveManagedNodeRuntime,
     onProgress: (progress) => sendToRenderer(IPC.CLI_TOOL_INSTALL_EVENT, progress)
   });
   return cliInstallerService;
-}
-
-function resolveManagedNodeRuntime(): ManagedNodeRuntime | null {
-  const target = detectRuntimeTarget({ platform: process.platform, arch: process.arch });
-  if (!target) return null;
-  try {
-    const manager = new RuntimeManager(getAppPaths(), { target });
-    const nodeExecutable = manager.resolveManagedPackExecutable("node-22", target, "node");
-    const npmCliPath = resolveNpmCliPath(nodeExecutable);
-    return npmCliPath ? { nodeExecutable, npmCliPath } : null;
-  } catch {
-    return null;
-  }
 }
 
 function bundledPythonAssetRoot(): string {

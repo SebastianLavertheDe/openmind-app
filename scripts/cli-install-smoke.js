@@ -1,8 +1,8 @@
 /**
  * Clean-machine one-click CLI install smoke.
  *
- * Runs the real CliInstallerService (official Claude install script / npm
- * codex path) against the live network on the current machine. Intended for
+ * Runs the real CliInstallerService (official Claude and Codex standalone
+ * install scripts) against the live network on the current machine. Intended for
  * the windows-latest / macos-latest jobs of the multi-OS CI matrix — those
  * runners are clean Windows/macOS machines without a pre-installed Claude or
  * Codex CLI. Linux exits SKIP because one-click install is a Windows/macOS
@@ -27,7 +27,7 @@ Module._load = function loadWithElectronStub(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
-const { CliInstallerService, resolveNpmCliPath } = require("../.build/electron/electron/install/cli-installer-service.js");
+const { CliInstallerService } = require("../.build/electron/electron/install/cli-installer-service.js");
 const { buildAppPaths, ensureAppPaths } = require("../.build/electron/electron/paths/app-paths-service.js");
 Module._load = originalLoad;
 
@@ -51,13 +51,7 @@ if (targets.some((target) => target !== "claude" && target !== "codex")) {
 
 const paths = buildAppPaths(userData);
 ensureAppPaths(paths);
-// The smoke runs on the CI runner's own Node for the codex npm path; the
-// product resolves the App-managed runtime here.
-const npmCliPath = resolveNpmCliPath(process.execPath);
-if (!npmCliPath) fail("无法解析 npm-cli.js，codex 冒烟无法继续。");
-const service = new CliInstallerService(paths, {
-  resolveNodeRuntime: () => ({ nodeExecutable: process.execPath, npmCliPath })
-});
+const service = new CliInstallerService(paths);
 
 (async () => {
   for (const cli of targets) {
@@ -75,7 +69,9 @@ const service = new CliInstallerService(paths, {
     console.log(`cli-install-smoke[${cli}]: phases=${phases.join(">")}`);
     const launcher = service.executablePath(cli);
     if (!fs.existsSync(launcher)) fail(`${cli} launcher 不存在：${launcher}`);
-    const probe = spawnSync(launcher, ["--version"], { encoding: "utf8", timeout: 60_000 });
+    const probe = process.platform === "win32"
+      ? spawnSync("cmd.exe", ["/d", "/s", "/c", `"${launcher.replaceAll('"', '""')}" --version`], { encoding: "utf8", timeout: 60_000 })
+      : spawnSync(launcher, ["--version"], { encoding: "utf8", timeout: 60_000 });
     if (probe.status !== 0) fail(`${cli} --version 退出码 ${probe.status}：${(probe.stderr || probe.stdout || "").slice(0, 400)}`);
     console.log(`cli-install-smoke[${cli}]: --version → ${(probe.stdout || "").trim().slice(0, 80)}`);
   }

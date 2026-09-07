@@ -184,6 +184,9 @@ export function ProviderSettingsSection({
             const versionCheck = cliKind ? versionChecks[cliKind] : undefined;
             const boundProviderId = cliKind ? providerConfiguration?.cli?.[cliKind] ?? null : null;
             const boundProvider = boundProviderId ? providerConfiguration?.providers.find((entry) => entry.id === boundProviderId) ?? null : null;
+            const wslInstallCommand = provider.provider === "claude"
+              ? "npm install -g @anthropic-ai/claude-code"
+              : "curl -fsSL https://chatgpt.com/codex/install.sh | sh";
             return (
               <article key={provider.id} className={`settings-provider-card ${provider.available ? "available" : "unavailable"}`}>
                 <span className="settings-provider-dot" aria-hidden="true" />
@@ -215,7 +218,7 @@ export function ProviderSettingsSection({
                   {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
                     <summary>{m.settings.provider.wslStepsTitle}</summary>
                     <ol>
-                      <li><code>{provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "npm install -g @anthropic-ai/claude-code" : "npm install -g @openai/codex")}>{m.settings.provider.copyCommand}</button></li>
+                      <li><code>{wslInstallCommand}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(wslInstallCommand)}>{m.settings.provider.copyCommand}</button></li>
                       <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
                       <li>{m.settings.provider.wslStepsRecheck}</li>
                     </ol>

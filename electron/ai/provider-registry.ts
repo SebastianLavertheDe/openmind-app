@@ -306,11 +306,16 @@ async function locateWindowsCommands(command: string): Promise<string[]> {
   const found: string[] = [];
   const home = process.env.USERPROFILE || "";
   const appdata = process.env.APPDATA || "";
+  const localAppData = process.env.LOCALAPPDATA || "";
   const explicit = [
     ...appToolCandidates(command as ProviderKind),
     ...(command === "claude"
       ? [path.join(home, ".local\\bin\\claude.exe"), path.join(appdata, "npm\\claude.cmd")]
-      : [path.join(home, ".local\\bin\\codex.exe"), path.join(appdata, "npm\\codex.cmd")])
+      : [
+          path.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe"),
+          path.join(home, ".local\\bin\\codex.exe"),
+          path.join(appdata, "npm\\codex.cmd")
+        ])
   ];
   for (const candidate of explicit) {
     if (candidate && !found.includes(candidate)) {

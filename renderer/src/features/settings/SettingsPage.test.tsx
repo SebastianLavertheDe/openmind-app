@@ -272,9 +272,9 @@ describe("SettingsPage", () => {
 
   it("checks an installed CLI version and refreshes it after upgrade", async () => {
     const checkCliToolUpdate = vi.fn()
-      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-08-15T00:00:00Z", source: "npm" })
-      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.1.0", latestVersion: "1.1.0", updateAvailable: false, canUpgrade: true, checkedAt: "2026-08-15T00:01:00Z", source: "npm" });
-    const upgradeCliTool = vi.fn().mockResolvedValue({ cli: "codex", installed: true, version: "1.1.0", digest: "d".repeat(64), sourceUrl: "https://registry.npmjs.org/@openai%2fcodex", installedAt: "2026-08-15T00:01:00Z", executablePath: "/tools/bin/codex" });
+      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-08-15T00:00:00Z", source: "official" })
+      .mockResolvedValueOnce({ cli: "codex", installed: true, currentVersion: "1.1.0", latestVersion: "1.1.0", updateAvailable: false, canUpgrade: true, checkedAt: "2026-08-15T00:01:00Z", source: "official" });
+    const upgradeCliTool = vi.fn().mockResolvedValue({ cli: "codex", installed: true, version: "1.1.0", digest: "d".repeat(64), sourceUrl: "https://chatgpt.com/codex/install.sh", installedAt: "2026-08-15T00:01:00Z", executablePath: "/tools/bin/codex" });
     window.openmind = makeApi({ checkCliToolUpdate, upgradeCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
@@ -307,7 +307,7 @@ describe("SettingsPage", () => {
     openCategory("AI 与模型");
     expect(screen.queryByRole("button", { name: "一键安装" })).toBeNull();
     fireEvent.click(screen.getByText("查看 WSL 手动安装步骤"));
-    expect(screen.getByText("npm install -g @openai/codex")).toBeTruthy();
+    expect(screen.getByText("curl -fsSL https://chatgpt.com/codex/install.sh | sh")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "复制命令" })).toHaveLength(2);
   });
 

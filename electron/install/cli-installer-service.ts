@@ -7,7 +7,7 @@ import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
 
 /** The first distribution phase deliberately promises only native Windows/macOS. */
 export type CliToolId = "claude" | "codex";
-export type CliToolPlatform = "windows-x64" | "macos-arm64" | "macos-x64";
+export type CliToolPlatform = "windows-x64" | "windows-arm64" | "macos-arm64" | "macos-x64";
 export type CliInstallSource = "system-path" | "app-tools" | null;
 export type CliInstallPhase = "resolving" | "downloading" | "verifying" | "extracting" | "installing" | "done" | "cancelled";
 
@@ -55,7 +55,6 @@ export type CliInstallerErrorCode =
   | "digest-mismatch"
   | "archive-invalid"
   | "binary-not-found"
-  | "runtime-unavailable"
   | "install-command-failed"
   | "cancelled";
 
@@ -88,24 +87,9 @@ export type CliCommandRunner = (
   options: { cwd: string; env: NodeJS.ProcessEnv; signal: AbortSignal }
 ) => Promise<{ stdout: string; stderr: string }>;
 
-export type ManagedNodeRuntime = {
-  nodeExecutable: string;
-  npmCliPath: string;
-};
-
-export function resolveNpmCliPath(nodeExecutable: string): string | null {
-  const nodeDir = path.dirname(nodeExecutable);
-  const candidates = [
-    path.join(nodeDir, "npm-cli.js"),
-    path.join(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")
-  ].map((candidate) => path.resolve(candidate));
-  return candidates.find((candidate) => { try { return fs.statSync(candidate).isFile(); } catch { return false; } }) || null;
-}
-
 export type CliInstallerOptions = {
   transport?: CliInstallerTransport;
   commandRunner?: CliCommandRunner;
-  resolveNodeRuntime?: () => ManagedNodeRuntime | null;
   onProgress?: (progress: CliInstallProgress) => void;
   platform?: NodeJS.Platform;
   arch?: string;
@@ -118,7 +102,8 @@ type CliInstallManifest = {
   version: string;
   digest: string;
   sourceUrl: string;
-  method: "claude-native" | "codex-npm";
+  /** codex-npm is retained only so manifests from older builds stay readable. */
+  method: "claude-native" | "codex-standalone" | "codex-npm";
   installedAt: string;
 };
 
@@ -132,18 +117,21 @@ const CLAUDE_INSTALL_SCRIPT = {
 // plain text from this endpoint instead.
 const CLAUDE_VERSION_ENDPOINT = "https://downloads.claude.ai/claude-code-releases/latest";
 const CLAUDE_OFFICIAL_HOSTS = new Set(["claude.ai", "downloads.claude.ai"]);
-const CODEX_NPM_PACKAGE = "@openai/codex";
-const CODEX_NPM_REGISTRY = "https://registry.npmjs.org/@openai%2fcodex";
-const CODEX_NPM_REGISTRY_BASE = "https://registry.npmjs.org/";
+const CODEX_INSTALL_SCRIPT = {
+  darwin: "https://chatgpt.com/codex/install.sh",
+  win32: "https://chatgpt.com/codex/install.ps1"
+} as const;
+const CODEX_VERSION_ENDPOINT = "https://releases.openai.com/codex/channels/latest";
+const CODEX_OFFICIAL_HOSTS = new Set(["chatgpt.com", "releases.openai.com"]);
 const MAX_INSTALL_SCRIPT_BYTES = 16 * 1024 * 1024;
 
 export function detectCliToolPlatform(platform: NodeJS.Platform = process.platform, arch: string = process.arch): CliToolPlatform | null {
-  if (platform === "win32") return arch === "x64" || arch === "ia32" ? "windows-x64" : null;
+  if (platform === "win32") return arch === "x64" || arch === "ia32" ? "windows-x64" : arch === "arm64" ? "windows-arm64" : null;
   if (platform === "darwin") return arch === "arm64" ? "macos-arm64" : arch === "x64" ? "macos-x64" : null;
   return null;
 }
 
-/** Resolve the app-private launcher, including npm-generated Windows shims. */
+/** Resolve the app-private launcher, including generated Windows shims. */
 export function resolveAppToolExecutable(cli: CliToolId, paths: AppPaths = getAppPaths()): string | null {
   return existingExecutable(paths, cli, process.platform) || null;
 }
@@ -151,7 +139,6 @@ export function resolveAppToolExecutable(cli: CliToolId, paths: AppPaths = getAp
 export class CliInstallerService {
   private readonly transport: CliInstallerTransport;
   private readonly commandRunner: CliCommandRunner;
-  private readonly resolveNodeRuntime: () => ManagedNodeRuntime | null;
   private readonly progressListener: (progress: CliInstallProgress) => void;
   private readonly platform: NodeJS.Platform;
   private readonly arch: string;
@@ -162,7 +149,6 @@ export class CliInstallerService {
     if (typeof options === "function") {
       this.transport = options;
       this.commandRunner = defaultCommandRunner;
-      this.resolveNodeRuntime = () => null;
       this.progressListener = () => undefined;
       this.platform = process.platform;
       this.arch = process.arch;
@@ -170,7 +156,6 @@ export class CliInstallerService {
     } else {
       this.transport = options.transport || defaultTransport;
       this.commandRunner = options.commandRunner || defaultCommandRunner;
-      this.resolveNodeRuntime = options.resolveNodeRuntime || (() => null);
       this.progressListener = options.onProgress || (() => undefined);
       this.platform = options.platform || process.platform;
       this.arch = options.arch || process.arch;
@@ -221,7 +206,8 @@ export class CliInstallerService {
     const platform = detectCliToolPlatform(this.platform, this.arch);
     if (!platform) throw new CliInstallerError({ code: "platform-unsupported", message: "当前版本只支持 Windows 原生和 macOS 一键安装，请参考手动安装步骤。" });
     const current = this.status(cli);
-    if (current.installed && !options.force) return current;
+    const legacyCodexInstall = cli === "codex" && this.readManifest(cli)?.method === "codex-npm";
+    if (current.installed && !options.force && !legacyCodexInstall) return current;
     if (this.active.has(cli)) throw new CliInstallerError({ code: "install-command-failed", message: `${cli} 正在安装，请等待当前安装完成。` });
 
     const controller = new AbortController();
@@ -236,7 +222,7 @@ export class CliInstallerService {
       emit({ cli, phase: "resolving", message: "正在准备官方安装来源…" });
       const result = cli === "claude"
         ? await this.installClaudeNative(cli, stagingRoot, controller.signal, emit)
-        : await this.installCodexNpm(cli, platform, stagingRoot, controller.signal, emit);
+        : await this.installCodexStandalone(cli, stagingRoot, controller.signal, emit);
       emit({ cli, phase: "done", version: result.version, message: "安装完成。" });
       return this.status(cli);
     } catch (error) {
@@ -259,21 +245,21 @@ export class CliInstallerService {
     const current = this.status(cli);
     const detected = current.installed ? { installed: true, executablePath: current.executablePath } : this.detect(cli);
     const currentVersion = current.version || await this.probeExecutableVersion(detected.executablePath);
-    const source = cli === "codex" ? "npm" : "official";
+    const source = "official";
     let latestVersion: string | null = null;
     try {
       const url = cli === "codex"
-        ? CODEX_NPM_REGISTRY
+        ? CODEX_VERSION_ENDPOINT
         : CLAUDE_VERSION_ENDPOINT;
       const response = await this.transport(url);
       if (response.statusCode !== 200) throw new Error(`HTTP ${response.statusCode}`);
       if (cli === "codex") {
         let payload: unknown;
         try { payload = JSON.parse(response.body.toString("utf8")); } catch { payload = null; }
-        const distTags = payload && typeof payload === "object" && "dist-tags" in payload ? (payload as { "dist-tags"?: unknown })["dist-tags"] : null;
-        latestVersion = distTags && typeof distTags === "object" && typeof (distTags as { latest?: unknown }).latest === "string"
-          ? (distTags as { latest: string }).latest
-          : null;
+        const tagName = payload && typeof payload === "object" && typeof (payload as { tag_name?: unknown }).tag_name === "string"
+          ? (payload as { tag_name: string }).tag_name
+          : "";
+        latestVersion = parseVersion(tagName.replace(/^rust-v/, ""));
       } else {
         // The endpoint returns a plain-text version such as "2.1.233".
         latestVersion = parseVersion(response.body.toString("utf8"));
@@ -289,11 +275,7 @@ export class CliInstallerService {
     // version into OpenMind's private tools directory, which providers already
     // prefer over the user-managed executable. The system installation remains
     // untouched and no elevated permissions are required.
-    const canUpgrade = Boolean(
-      detected.installed
-      && managedPlatform
-      && (cli === "claude" || this.resolveNodeRuntime())
-    );
+    const canUpgrade = Boolean(detected.installed && managedPlatform);
     return {
       cli,
       installed: current.installed || detected.installed,
@@ -328,7 +310,7 @@ export class CliInstallerService {
   ): Promise<{ version: string }> {
     const scriptUrl = this.platform === "win32" ? CLAUDE_INSTALL_SCRIPT.win32 : CLAUDE_INSTALL_SCRIPT.darwin;
     emit({ cli, phase: "downloading", message: "正在下载 Claude Code 官方安装脚本…" });
-    const response = await this.downloadOfficial(scriptUrl, signal, MAX_INSTALL_SCRIPT_BYTES);
+    const response = await this.downloadOfficial(scriptUrl, signal, MAX_INSTALL_SCRIPT_BYTES, CLAUDE_OFFICIAL_HOSTS);
     const digest = sha256(response.body);
     emit({ cli, phase: "verifying", receivedBytes: response.body.length, totalBytes: response.body.length, message: `安装脚本 SHA-256：${digest.slice(0, 16)}…` });
     const scriptPath = path.join(stagingRoot, this.platform === "win32" ? "install.ps1" : "install.sh");
@@ -367,75 +349,98 @@ export class CliInstallerService {
     return { version };
   }
 
-  private async installCodexNpm(
+  private async installCodexStandalone(
     cli: CliToolId,
-    _platform: CliToolPlatform,
     stagingRoot: string,
     signal: AbortSignal,
     emit: (progress: CliInstallProgress) => void
   ): Promise<{ version: string }> {
-    const runtime = this.resolveNodeRuntime();
-    if (!runtime) throw new CliInstallerError({ code: "runtime-unavailable", message: "应用内置 Node Runtime Pack 尚未 ready，暂时不能安装 Codex CLI。请先在设置中准备内置运行时。" });
-    const prefix = path.join(stagingRoot, "npm-global", cli);
-    fs.mkdirSync(prefix, { recursive: true, mode: 0o700 });
-    emit({ cli, phase: "installing", message: "正在使用应用内置 Node 安装 Codex CLI（不调用系统 npm）…" });
+    const scriptUrl = this.platform === "win32" ? CODEX_INSTALL_SCRIPT.win32 : CODEX_INSTALL_SCRIPT.darwin;
+    emit({ cli, phase: "downloading", message: "正在下载 Codex CLI 官方独立安装脚本…" });
+    const response = await this.downloadOfficial(scriptUrl, signal, MAX_INSTALL_SCRIPT_BYTES, CODEX_OFFICIAL_HOSTS);
+    const scriptDigest = sha256(response.body);
+    emit({ cli, phase: "verifying", receivedBytes: response.body.length, totalBytes: response.body.length, message: `安装脚本 SHA-256：${scriptDigest.slice(0, 16)}…` });
+    const scriptPath = path.join(stagingRoot, this.platform === "win32" ? "install.ps1" : "install.sh");
+    fs.writeFileSync(scriptPath, response.body, { mode: 0o600 });
+
+    // CODEX_HOME stores the standalone release payload while CODEX_INSTALL_DIR
+    // is the official installer's visible command directory. Both paths are
+    // stable App-owned locations: the installer's symlinks/junctions therefore
+    // remain valid after this request's staging directory is removed.
+    const nativeRoot = path.join(this.paths.tools, "native", cli);
+    const installDir = path.join(nativeRoot, "bin");
+    const codexHome = path.join(nativeRoot, "home");
+    const installerHome = path.join(stagingRoot, "installer-home");
+    const hadNativeRoot = fs.existsSync(nativeRoot);
+    fs.mkdirSync(installDir, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(codexHome, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(installerHome, { recursive: true, mode: 0o700 });
+
+    emit({ cli, phase: "installing", message: "正在使用 OpenAI 官方独立安装器安装 Codex CLI…" });
+    const env: NodeJS.ProcessEnv = {
+      ...safeInstallerEnvironment(),
+      HOME: installerHome,
+      USERPROFILE: installerHome,
+      LOCALAPPDATA: path.join(installerHome, "AppData", "Local"),
+      CODEX_HOME: codexHome,
+      CODEX_INSTALL_DIR: installDir,
+      CODEX_NON_INTERACTIVE: "1",
+      ...(this.platform === "win32" ? { OS: "Windows_NT" } : {})
+    };
+    const command = this.platform === "win32" ? "powershell.exe" : "sh";
+    const args = this.platform === "win32"
+      ? ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath]
+      : [scriptPath];
     let output: { stdout: string; stderr: string };
     try {
-      const npmrc = path.join(stagingRoot, "npmrc");
-      fs.writeFileSync(npmrc, "", { encoding: "utf8", mode: 0o600 });
-      output = await this.commandRunner(runtime.nodeExecutable, [
-        runtime.npmCliPath,
-        "install",
-        "--prefix", prefix,
-        "--no-package-lock",
-        "--no-audit",
-        "--no-fund",
-        "--ignore-scripts",
-        "--registry", CODEX_NPM_REGISTRY_BASE,
-        CODEX_NPM_PACKAGE
-      ], { cwd: stagingRoot, env: managedNpmEnvironment(prefix, npmrc), signal });
+      output = await this.commandRunner(command, args, { cwd: stagingRoot, env, signal });
     } catch (error) {
-      throw new CliInstallerError({ code: "install-command-failed", message: `Codex CLI 便携安装失败：${redactCommandError(error)}` });
+      if (!hadNativeRoot) fs.rmSync(nativeRoot, { recursive: true, force: true });
+      throw new CliInstallerError({ code: "install-command-failed", message: `Codex CLI 官方安装器执行失败：${redactCommandError(error)}` });
     }
-    const packageRoot = path.join(prefix, "node_modules", "@openai", "codex");
-    const packageJsonPath = path.join(packageRoot, "package.json");
-    let packageJson: { version?: unknown; bin?: unknown };
-    try { packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as { version?: unknown; bin?: unknown }; }
-    catch { throw new CliInstallerError({ code: "binary-not-found", message: `Codex CLI 安装后缺少 package.json。${tailOutput(output.stderr || output.stdout)}` }); }
-    const binValue = typeof packageJson.bin === "string"
-      ? packageJson.bin
-      : packageJson.bin && typeof packageJson.bin === "object" && typeof (packageJson.bin as { codex?: unknown }).codex === "string"
-        ? (packageJson.bin as { codex: string }).codex
-        : null;
-    if (!binValue) throw new CliInstallerError({ code: "binary-not-found", message: "Codex CLI package 没有声明 codex 命令。" });
-    const entry = path.resolve(packageRoot, binValue);
-    if (!entry.startsWith(`${path.resolve(packageRoot)}${path.sep}`) || !fs.existsSync(entry)) {
-      throw new CliInstallerError({ code: "binary-not-found", message: "Codex CLI 命令入口不存在，已回滚临时目录。" });
+
+    const installed = findNativeCodexLauncher(installDir, this.platform);
+    if (!installed) {
+      if (!hadNativeRoot) fs.rmSync(nativeRoot, { recursive: true, force: true });
+      throw new CliInstallerError({ code: "binary-not-found", message: `Codex CLI 官方安装器未生成可执行文件。${tailOutput(output.stderr || output.stdout)}` });
     }
-    const version = typeof packageJson.version === "string" ? packageJson.version : parseVersion(output.stdout) || "latest";
-    const finalPrefix = path.join(this.paths.tools, "npm-global", cli);
+    let probe: { stdout: string; stderr: string };
+    try {
+      probe = await this.commandRunner(installed, ["--version"], { cwd: stagingRoot, env, signal });
+    } catch (error) {
+      if (!hadNativeRoot) fs.rmSync(nativeRoot, { recursive: true, force: true });
+      throw new CliInstallerError({ code: "install-command-failed", message: `Codex CLI 安装后校验失败：${redactCommandError(error)}` });
+    }
+    const version = parseVersion(probe.stdout) || parseVersion(probe.stderr) || parseVersion(output.stdout) || parseVersion(output.stderr);
+    if (!version) {
+      if (!hadNativeRoot) fs.rmSync(nativeRoot, { recursive: true, force: true });
+      throw new CliInstallerError({ code: "binary-not-found", message: "Codex CLI 已生成命令，但无法识别其版本，安装未提交。" });
+    }
+
     const launcher = primaryExecutable(this.paths, cli, this.platform);
+    const manifestFile = path.join(this.paths.toolBin, `${cli}-manifest.json`);
+    const launcherBackup = readFileSnapshot(launcher);
+    const manifestBackup = readFileSnapshot(manifestFile);
     try {
-      fs.mkdirSync(path.dirname(finalPrefix), { recursive: true });
-      if (fs.existsSync(finalPrefix)) fs.rmSync(finalPrefix, { recursive: true, force: true });
-      fs.renameSync(prefix, finalPrefix);
-      writeLauncher(launcher, runtime.nodeExecutable, path.join(finalPrefix, "node_modules", "@openai", "codex", binValue), this.platform);
+      // Runtime sessions provide their own CODEX_HOME, so the final launcher
+      // intentionally does not pin HOME/USERPROFILE to the installation tree.
+      writeNativeLauncher(launcher, installed, this.platform);
+      writeManifest(this.paths, cli, { schemaVersion: 1, cli, version, digest: sha256Tree(nativeRoot), sourceUrl: scriptUrl, method: "codex-standalone", installedAt: new Date().toISOString() });
     } catch (error) {
-      fs.rmSync(finalPrefix, { recursive: true, force: true });
-      throw new CliInstallerError({ code: "install-command-failed", message: `Codex CLI 安装提交失败：${redactCommandError(error)}` });
-    }
-    try {
-      writeManifest(this.paths, cli, { schemaVersion: 1, cli, version, digest: sha256Tree(finalPrefix), sourceUrl: CODEX_NPM_REGISTRY, method: "codex-npm", installedAt: new Date().toISOString() });
-    } catch (error) {
-      removeInstalledState(this.paths, cli, this.platform, "npm");
+      restoreFileSnapshot(launcher, launcherBackup);
+      restoreFileSnapshot(manifestFile, manifestBackup);
+      if (!hadNativeRoot) fs.rmSync(nativeRoot, { recursive: true, force: true });
       throw new CliInstallerError({ code: "install-command-failed", message: `Codex CLI 安装清单写入失败，已回滚：${redactCommandError(error)}` });
     }
+    // Successful standalone installs supersede the older App-managed npm
+    // layout. A user-managed global npm installation is never touched.
+    fs.rmSync(path.join(this.paths.tools, "npm-global", cli), { recursive: true, force: true });
     return { version };
   }
 
-  private async downloadOfficial(url: string, signal: AbortSignal, maxBytes: number): Promise<CliInstallerResponse> {
+  private async downloadOfficial(url: string, signal: AbortSignal, maxBytes: number, allowedHosts: ReadonlySet<string>): Promise<CliInstallerResponse> {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:" || parsed.hostname !== "claude.ai") {
+    if (parsed.protocol !== "https:" || !allowedHosts.has(parsed.hostname)) {
       throw new CliInstallerError({ code: "download-failed", message: "CLI 安装来源不在官方 HTTPS 白名单内，已拒绝下载。" });
     }
     let response: CliInstallerResponse;
@@ -446,7 +451,7 @@ export class CliInstallerService {
       let final: URL;
       try { final = new URL(response.finalUrl); }
       catch { throw new CliInstallerError({ code: "download-failed", message: "官方安装脚本重定向地址无效，已拒绝下载。" }); }
-      if (final.protocol !== "https:" || !CLAUDE_OFFICIAL_HOSTS.has(final.hostname)) {
+      if (final.protocol !== "https:" || !allowedHosts.has(final.hostname)) {
         throw new CliInstallerError({ code: "download-failed", message: "官方安装脚本重定向到了非白名单域名，已拒绝下载。" });
       }
     }
@@ -503,6 +508,13 @@ function findNativeClaudeLauncher(home: string, platform: NodeJS.Platform): stri
   return candidates.find((candidate) => { try { return fs.statSync(candidate).isFile(); } catch { return false; } }) || null;
 }
 
+function findNativeCodexLauncher(installDir: string, platform: NodeJS.Platform): string | null {
+  const names = platform === "win32" ? ["codex.exe", "codex.cmd", "codex.bat", "codex.ps1", "codex"] : ["codex"];
+  return names.map((name) => path.join(installDir, name)).find((candidate) => {
+    try { return fs.statSync(candidate).isFile(); } catch { return false; }
+  }) || null;
+}
+
 function promoteNativeInstall(paths: AppPaths, cli: CliToolId, home: string, launcher: string, platform: NodeJS.Platform): void {
   const destination = path.join(paths.tools, "native", cli);
   const target = primaryExecutable(paths, cli, platform);
@@ -511,29 +523,45 @@ function promoteNativeInstall(paths: AppPaths, cli: CliToolId, home: string, lau
     if (fs.existsSync(destination)) fs.rmSync(destination, { recursive: true, force: true });
     fs.renameSync(home, destination);
     const movedLauncher = path.join(destination, path.relative(home, launcher));
-    writeLauncher(target, "", movedLauncher, platform, true, destination);
+    writeNativeLauncher(target, movedLauncher, platform, destination);
   } catch (error) {
     fs.rmSync(destination, { recursive: true, force: true });
     throw new CliInstallerError({ code: "install-command-failed", message: `Claude Code 私有目录提交失败：${redactCommandError(error)}` });
   }
 }
 
-function writeLauncher(target: string, nodeExecutable: string, entry: string, platform: NodeJS.Platform, native = false, nativeHome?: string): void {
+function writeNativeLauncher(target: string, entry: string, platform: NodeJS.Platform, nativeHome?: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const temporary = `${target}.tmp-${process.pid}-${Date.now()}`;
   const quoteSh = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
   const quoteCmd = (value: string) => `"${value.replaceAll('"', '""')}"`;
-  const nativeRoot = nativeHome || path.dirname(path.dirname(entry));
   const contents = platform === "win32"
-    ? native
-      ? `@echo off\r\nset "HOME=${nativeRoot}"\r\nset "USERPROFILE=${nativeRoot}"\r\ncall ${quoteCmd(entry)} %*\r\n`
-      : `@echo off\r\n${quoteCmd(nodeExecutable)} ${quoteCmd(entry)} %*\r\n`
-    : native
-      ? `#!/bin/sh\nexport HOME=${quoteSh(nativeRoot)}\nexport USERPROFILE=$HOME\nexec ${quoteSh(entry)} "$@"\n`
-      : `#!/bin/sh\nexec ${quoteSh(nodeExecutable)} ${quoteSh(entry)} "$@"\n`;
+    ? `@echo off\r\n${nativeHome ? `set "HOME=${nativeHome}"\r\nset "USERPROFILE=${nativeHome}"\r\n` : ""}call ${quoteCmd(entry)} %*\r\n`
+    : `#!/bin/sh\n${nativeHome ? `export HOME=${quoteSh(nativeHome)}\nexport USERPROFILE=$HOME\n` : ""}exec ${quoteSh(entry)} "$@"\n`;
   fs.writeFileSync(temporary, contents, { encoding: "utf8", mode: platform === "win32" ? 0o600 : 0o700 });
   if (platform !== "win32") fs.chmodSync(temporary, 0o755);
   fs.renameSync(temporary, target);
+}
+
+type FileSnapshot = { contents: Buffer; mode: number } | null;
+
+function readFileSnapshot(file: string): FileSnapshot {
+  try {
+    const stat = fs.statSync(file);
+    return stat.isFile() ? { contents: fs.readFileSync(file), mode: stat.mode } : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreFileSnapshot(file: string, snapshot: FileSnapshot): void {
+  if (!snapshot) {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, snapshot.contents, { mode: snapshot.mode });
+  fs.chmodSync(file, snapshot.mode);
 }
 
 function sha256(value: Uint8Array): string {
@@ -605,20 +633,8 @@ async function defaultTransport(url: string, signal?: AbortSignal): Promise<CliI
 }
 
 function safeInstallerEnvironment(): NodeJS.ProcessEnv {
-  const allowed = ["PATH", "PATHEXT", "ComSpec", "SystemRoot", "TEMP", "TMP", "TMPDIR", "SHELL", "LANG", "LC_ALL", "LC_CTYPE"];
+  const allowed = ["PATH", "PATHEXT", "ComSpec", "SystemRoot", "OS", "PROCESSOR_ARCHITECTURE", "TEMP", "TMP", "TMPDIR", "SHELL", "LANG", "LC_ALL", "LC_CTYPE"];
   return Object.fromEntries(allowed.flatMap((key) => process.env[key] ? [[key, process.env[key]]] : []));
-}
-
-function managedNpmEnvironment(prefix: string, npmrc: string): NodeJS.ProcessEnv {
-  return {
-    ...safeInstallerEnvironment(),
-    npm_config_prefix: prefix,
-    npm_config_userconfig: npmrc,
-    npm_config_cache: path.join(path.dirname(prefix), "cache"),
-    npm_config_registry: CODEX_NPM_REGISTRY_BASE,
-    npm_config_update_notifier: "false",
-    npm_config_ignore_scripts: "true"
-  };
 }
 
 function defaultCommandRunner(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; signal: AbortSignal }): Promise<{ stdout: string; stderr: string }> {

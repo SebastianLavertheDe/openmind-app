@@ -64,6 +64,9 @@ const devServerUrl = await new Promise((resolve, reject) => {
 
 console.log(`[dev-electron] dev server: ${devServerUrl}`);
 const electronArgs = ["."];
+// Linux 下未正确配置 SUID sandbox helper 时 Electron 会拒绝启动（FATAL:setuid_sandbox_host），
+// 与 scripts/electron-e2e.js 的做法一致：开发模式直接禁用沙箱。
+if (process.platform === "linux") electronArgs.push("--no-sandbox");
 if (process.env.OPENMIND_DEVTOOLS_PORT) {
   electronArgs.push(`--remote-debugging-port=${process.env.OPENMIND_DEVTOOLS_PORT}`);
 }

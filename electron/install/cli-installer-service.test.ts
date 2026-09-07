@@ -9,7 +9,6 @@ import {
   CliInstallerService,
   detectCliToolPlatform,
   extractBinary,
-  resolveNpmCliPath,
   type CliInstallerTransport
 } from "./cli-installer-service";
 
@@ -24,6 +23,7 @@ afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 describe("detectCliToolPlatform", () => {
   it("limits the one-click phase to native Windows/macOS", () => {
     expect(detectCliToolPlatform("win32", "x64")).toBe("windows-x64");
+    expect(detectCliToolPlatform("win32", "arm64")).toBe("windows-arm64");
     expect(detectCliToolPlatform("darwin", "arm64")).toBe("macos-arm64");
     expect(detectCliToolPlatform("linux", "x64")).toBeNull();
     expect(detectCliToolPlatform("freebsd", "x64")).toBeNull();
@@ -81,60 +81,96 @@ describe("CliInstallerService", () => {
     expect(commandRunner).toHaveBeenCalledTimes(calls);
   });
 
-  it("installs Codex into an npm prefix using managed Node, never system npm", async () => {
+  it("runs Codex's official Windows standalone installer without Node/npm", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
-    const runtimeRoot = path.join(root, "runtime");
-    const node = path.join(runtimeRoot, "bin", "node");
-    const npmCli = path.join(runtimeRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js");
-    fs.mkdirSync(path.dirname(node), { recursive: true });
-    fs.mkdirSync(path.dirname(npmCli), { recursive: true });
-    fs.writeFileSync(node, "node");
-    fs.writeFileSync(npmCli, "npm");
-    const commandRunner = vi.fn(async (_command, args) => {
-      const prefix = String(args[args.indexOf("--prefix") + 1]);
-      const packageRoot = path.join(prefix, "node_modules", "@openai", "codex");
-      fs.mkdirSync(path.join(packageRoot, "bin"), { recursive: true });
-      fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.42.0", bin: { codex: "bin/codex.js" } }));
-      fs.writeFileSync(path.join(packageRoot, "bin", "codex.js"), "console.log('codex')\n");
-      return { stdout: "", stderr: "" };
+    const legacyRoot = seedLegacyCodexInstall(paths);
+    const transport: CliInstallerTransport = vi.fn(async (url) => {
+      expect(url).toBe("https://chatgpt.com/codex/install.ps1");
+      return { statusCode: 200, finalUrl: "https://releases.openai.com/codex/install.ps1", body: Buffer.from("Write-Host installer\n") };
     });
-    const service = new CliInstallerService(paths, { platform: "darwin", arch: "arm64", commandRunner, resolveNodeRuntime: () => ({ nodeExecutable: node, npmCliPath: npmCli }) });
+    const commandRunner = vi.fn(async (command, args, options) => {
+      if (command === "powershell.exe") {
+        const installDir = String(options.env.CODEX_INSTALL_DIR);
+        fs.mkdirSync(installDir, { recursive: true });
+        fs.writeFileSync(path.join(installDir, "codex.exe"), "native-codex");
+        return { stdout: "Codex CLI 0.42.0 installed successfully.", stderr: "" };
+      }
+      expect(command).toBe(path.join(paths.tools, "native", "codex", "bin", "codex.exe"));
+      expect(args).toEqual(["--version"]);
+      return { stdout: "codex-cli 0.42.0", stderr: "" };
+    });
+    const service = new CliInstallerService(paths, { platform: "win32", arch: "x64", transport, commandRunner });
     const status = await service.install("codex");
     expect(status.installed).toBe(true);
     expect(status.version).toBe("0.42.0");
-    expect(commandRunner).toHaveBeenCalledWith(node, expect.arrayContaining([npmCli, "install", "--prefix", expect.any(String), "@openai/codex"]), expect.anything());
-    expect(fs.readFileSync(status.executablePath, "utf8")).toContain(node);
+    expect(status.sourceUrl).toBe("https://chatgpt.com/codex/install.ps1");
+    expect(commandRunner).toHaveBeenNthCalledWith(
+      1,
+      "powershell.exe",
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", expect.stringMatching(/install\.ps1$/)],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          CODEX_NON_INTERACTIVE: "1",
+          OS: "Windows_NT",
+          CODEX_INSTALL_DIR: path.join(paths.tools, "native", "codex", "bin"),
+          CODEX_HOME: path.join(paths.tools, "native", "codex", "home")
+        })
+      })
+    );
+    const launcher = fs.readFileSync(status.executablePath, "utf8");
+    expect(launcher).toContain(path.join(paths.tools, "native", "codex", "bin", "codex.exe"));
+    expect(launcher).not.toMatch(/\bnode\b|\bnpm\b|set "HOME=/i);
+    expect(fs.existsSync(legacyRoot)).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(paths.toolBin, "codex-manifest.json"), "utf8"))).toMatchObject({ method: "codex-standalone", version: "0.42.0" });
   });
 
-  it("checks the official Codex version and forces an app-private upgrade", async () => {
+  it("preserves a legacy managed Codex install when standalone migration fails", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
-    const runtimeRoot = path.join(root, "runtime");
-    const node = path.join(runtimeRoot, "bin", "node");
-    const npmCli = path.join(runtimeRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js");
-    fs.mkdirSync(path.dirname(node), { recursive: true });
-    fs.mkdirSync(path.dirname(npmCli), { recursive: true });
-    fs.writeFileSync(node, "node");
-    fs.writeFileSync(npmCli, "npm");
+    const legacyRoot = seedLegacyCodexInstall(paths);
+    const oldLauncher = fs.readFileSync(path.join(paths.toolBin, "codex.cmd"), "utf8");
+    const service = new CliInstallerService(paths, {
+      platform: "win32",
+      arch: "x64",
+      transport: async () => ({ statusCode: 200, finalUrl: "https://releases.openai.com/codex/install.ps1", body: Buffer.from("script") }),
+      commandRunner: async (_command, _args, options) => {
+        fs.writeFileSync(path.join(String(options.env.CODEX_HOME), "partial"), "partial");
+        throw new Error("installer failed");
+      }
+    });
+
+    await expect(service.install("codex")).rejects.toMatchObject({ code: "install-command-failed" });
+
+    expect(fs.readFileSync(path.join(paths.toolBin, "codex.cmd"), "utf8")).toBe(oldLauncher);
+    expect(JSON.parse(fs.readFileSync(path.join(paths.toolBin, "codex-manifest.json"), "utf8"))).toMatchObject({ method: "codex-npm", version: "0.41.0" });
+    expect(fs.existsSync(legacyRoot)).toBe(true);
+    expect(fs.existsSync(path.join(paths.tools, "native", "codex"))).toBe(false);
+  });
+
+  it("checks OpenAI's release channel and upgrades with the official standalone installer", async () => {
+    const paths = buildAppPaths(path.join(root, "user-data"));
     let installedVersion = "0.42.0";
-    const commandRunner = vi.fn(async (_command, args) => {
-      const prefix = String(args[args.indexOf("--prefix") + 1]);
-      const packageRoot = path.join(prefix, "node_modules", "@openai", "codex");
-      fs.mkdirSync(path.join(packageRoot, "bin"), { recursive: true });
-      fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ name: "@openai/codex", version: installedVersion, bin: { codex: "bin/codex.js" } }));
-      fs.writeFileSync(path.join(packageRoot, "bin", "codex.js"), `console.log('${installedVersion}')\n`);
-      return { stdout: "", stderr: "" };
+    const commandRunner = vi.fn(async (command, _args, options) => {
+      if (command === "sh") {
+        const installDir = String(options.env.CODEX_INSTALL_DIR);
+        fs.mkdirSync(installDir, { recursive: true });
+        fs.writeFileSync(path.join(installDir, "codex"), "#!/bin/sh\n", { mode: 0o755 });
+        return { stdout: `Codex CLI ${installedVersion} installed successfully.`, stderr: "" };
+      }
+      return { stdout: `codex-cli ${installedVersion}`, stderr: "" };
     });
     const transport: CliInstallerTransport = vi.fn(async (url) => {
-      expect(url).toBe("https://registry.npmjs.org/@openai%2fcodex");
-      return { statusCode: 200, body: Buffer.from(JSON.stringify({ "dist-tags": { latest: "0.43.0" } })) };
+      if (url === "https://chatgpt.com/codex/install.sh") return { statusCode: 200, finalUrl: url, body: Buffer.from("#!/bin/sh\n") };
+      expect(url).toBe("https://releases.openai.com/codex/channels/latest");
+      return { statusCode: 200, body: Buffer.from(JSON.stringify({ tag_name: "rust-v0.43.0" })) };
     });
-    const service = new CliInstallerService(paths, { platform: "darwin", arch: "arm64", transport, commandRunner, resolveNodeRuntime: () => ({ nodeExecutable: node, npmCliPath: npmCli }) });
+    const service = new CliInstallerService(paths, { platform: "darwin", arch: "arm64", transport, commandRunner });
     await service.install("codex");
 
-    await expect(service.checkForUpdate("codex")).resolves.toMatchObject({ currentVersion: "0.42.0", latestVersion: "0.43.0", updateAvailable: true, canUpgrade: true, source: "npm" });
+    await expect(service.checkForUpdate("codex")).resolves.toMatchObject({ currentVersion: "0.42.0", latestVersion: "0.43.0", updateAvailable: true, canUpgrade: true, source: "official" });
     installedVersion = "0.43.0";
     await expect(service.upgrade("codex")).resolves.toMatchObject({ installed: true, version: "0.43.0" });
-    expect(commandRunner).toHaveBeenCalledTimes(2);
+    expect(commandRunner).toHaveBeenCalledTimes(4);
+    expect(transport).toHaveBeenCalledWith("https://chatgpt.com/codex/install.sh", expect.any(AbortSignal));
   });
 
   it("checks Claude's latest channel instead of parsing the bootstrap script", async () => {
@@ -208,6 +244,19 @@ describe("CliInstallerService", () => {
     expect(commandRunner).not.toHaveBeenCalled();
   });
 
+  it("rejects a redirect from the official Codex installer entrypoint", async () => {
+    const paths = buildAppPaths(path.join(root, "user-data"));
+    const commandRunner = vi.fn();
+    const service = new CliInstallerService(paths, {
+      platform: "win32",
+      arch: "x64",
+      transport: async () => ({ statusCode: 200, finalUrl: "https://attacker.example/install.ps1", body: Buffer.from("script") }),
+      commandRunner
+    });
+    await expect(service.install("codex")).rejects.toMatchObject<CliInstallerError>({ code: "download-failed" });
+    expect(commandRunner).not.toHaveBeenCalled();
+  });
+
   it("accepts Claude's official downloads redirect", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     const commandRunner = vi.fn(async (_command, _args, options) => {
@@ -239,23 +288,30 @@ describe("CliInstallerService", () => {
     expect(fs.readdirSync(paths.staging)).toHaveLength(0);
   });
 
-  it("fails closed when the platform or managed Node runtime is unavailable", async () => {
+  it("fails closed when the platform is unsupported or the official download is unavailable", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     await expect(new CliInstallerService(paths, { platform: "linux", arch: "x64" }).install("codex")).rejects.toMatchObject({ code: "platform-unsupported" });
-    await expect(new CliInstallerService(paths, { platform: "darwin", arch: "arm64" }).install("codex")).rejects.toMatchObject({ code: "runtime-unavailable" });
+    const service = new CliInstallerService(paths, { platform: "darwin", arch: "arm64", transport: async () => { throw new Error("offline"); } });
+    await expect(service.install("codex")).rejects.toMatchObject({ code: "download-failed" });
   });
 });
 
-describe("resolveNpmCliPath", () => {
-  it("finds npm next to a managed Node binary", () => {
-    const node = path.join(root, "bin", "node");
-    const npm = path.join(root, "bin", "npm-cli.js");
-    fs.mkdirSync(path.dirname(node), { recursive: true });
-    fs.writeFileSync(node, "node");
-    fs.writeFileSync(npm, "npm");
-    expect(resolveNpmCliPath(node)).toBe(npm);
-  });
-});
+function seedLegacyCodexInstall(paths: ReturnType<typeof buildAppPaths>): string {
+  const legacyRoot = path.join(paths.tools, "npm-global", "codex");
+  fs.mkdirSync(legacyRoot, { recursive: true });
+  fs.mkdirSync(paths.toolBin, { recursive: true });
+  fs.writeFileSync(path.join(paths.toolBin, "codex.cmd"), "@echo off\r\nold-node codex.js %*\r\n");
+  fs.writeFileSync(path.join(paths.toolBin, "codex-manifest.json"), JSON.stringify({
+    schemaVersion: 1,
+    cli: "codex",
+    version: "0.41.0",
+    digest: "a".repeat(64),
+    sourceUrl: "https://registry.npmjs.org/@openai%2fcodex",
+    method: "codex-npm",
+    installedAt: new Date().toISOString()
+  }));
+  return legacyRoot;
+}
 
 function buildTar(entries: Array<[string, Buffer]>): Buffer {
   const blocks: Buffer[] = [];

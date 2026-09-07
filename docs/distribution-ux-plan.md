@@ -53,14 +53,14 @@
   - Claude Code：官方 native installer
     - macOS/Linux: `curl -fsSL https://claude.ai/install.sh | bash`（下载解压到 `~/.local/bin/claude` 类路径）
     - Windows: PowerShell 安装脚本（`irm https://claude.ai/install.ps1 | iex`）
-  - Codex CLI：npm 分发为主，第一期采用**App 托管 npm 便携目录**方案——安装到 `userData/tools/npm-global/{claude-code,codex}`，通过 Runtime Pack 内的 Node 运行（Runtime Pack 已含 Node），不写系统 PATH
-- **安装位置**：App 私有目录 `userData/tools/`（与 ADR-001 的 userData 分区一致，新增 `tools` 子路径到 `AppPaths`）。理由：无需管理员权限、卸载 App 即清理、不污染宿主机
+  - Codex CLI：OpenAI 官方 standalone installer（Windows `https://chatgpt.com/codex/install.ps1`，macOS `https://chatgpt.com/codex/install.sh`），通过 `CODEX_NON_INTERACTIVE=1` 无人值守安装，不需要 Node/npm
+- **安装位置**：App 私有目录 `userData/tools/`（与 ADR-001 的 userData 分区一致，新增 `tools` 子路径到 `AppPaths`）。Codex 通过官方支持的 `CODEX_INSTALL_DIR` / `CODEX_HOME` 定向到 `userData/tools/native/codex`；Windows 官方安装器会按其标准行为把该命令目录登记到用户 PATH，无需管理员权限
 - **PATH 注入**：诊断/启动逻辑（`provider-registry.ts` 的探测顺序）在检测 CLI 时优先查 `userData/tools/` 及其 bin 子目录；仍保留系统 PATH 探测作为回退（用户自己装的仍可用）
 
 ### 任务拆解
 1. **W2.1 安装器服务（electron/install/cli-installer-service.ts，新建）** ✅ 已实现（实现与初稿有一处方案调整）
-   - 实际机制：**Claude Code 走官方安装脚本**（`https://claude.ai/install.ps1` / `install.sh`，下载后校验 SHA-256 并记录到安装清单，在隔离 HOME 下执行）；**Codex CLI 走 npm 便携安装**（App 内置 Node 运行 `npm install --prefix` 到 `userData/tools/npm-global`，`--ignore-scripts`，不碰系统 npm）
-   - 初稿的「GitHub release 资产匹配（assetHints）」方案已放弃：两个 CLI 的 release 资产命名不稳定且 codex release 混有 `codex-app-server-*` 等同前缀资产，官方脚本/npm 通道更稳
+   - 实际机制：**Claude Code 走官方安装脚本**（`https://claude.ai/install.ps1` / `install.sh`，下载后校验 SHA-256 并记录到安装清单，在隔离 HOME 下执行）；**Codex CLI 走 OpenAI 官方 standalone 安装脚本**（`https://chatgpt.com/codex/install.ps1` / `install.sh`，使用官方无人值守与自定义目录环境变量，安装后执行 `codex --version` 再提交清单）
+   - 初稿的「GitHub release 资产匹配（assetHints）」和过渡期 npm 便携方案已放弃：由官方脚本负责平台资产选择、校验和安装布局，应用只固定官方 HTTPS 入口并记录最终安装 digest
    - 进度事件经 IPC 推送到 renderer；幂等安装、`upgrade(force)`、`checkForUpdate`、取消（AbortController）、失败回滚
 2. **W2.2 诊断接线** ✅
    - `provider-registry.ts` / 现有 CLI 诊断（`shared/messages/zh-CN/electron.ts:72-77` 的判断来源）增加 app-tools 路径探测

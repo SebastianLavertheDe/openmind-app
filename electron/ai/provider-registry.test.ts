@@ -17,6 +17,7 @@ vi.mock(import("./provider-command-runner"), () => ({
 
 const roots: string[] = [];
 const originalPath = process.env.PATH;
+const originalLocalAppData = process.env.LOCALAPPDATA;
 function createRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-providers-"));
   roots.push(root);
@@ -27,6 +28,8 @@ afterEach(() => {
   spawnState.route = null;
   vi.restoreAllMocks();
   process.env.PATH = originalPath;
+  if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA;
+  else process.env.LOCALAPPDATA = originalLocalAppData;
 });
 
 /** 设置 spawn 命令路由表。 */
@@ -301,6 +304,26 @@ describe("ProviderRegistry", () => {
       mockSpawnByCommand({});
       const providers = await new ProviderRegistry("/project").refresh();
       expect(providers.filter((p) => p.runtime === "native").every((p) => p.installable === true)).toBe(true);
+    });
+
+    it("detects Codex in the official Windows standalone install directory", async () => {
+      const localAppData = createRoot();
+      process.env.LOCALAPPDATA = localAppData;
+      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      vi.spyOn(process, "arch", "get").mockReturnValue("x64");
+      const codex = path.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe");
+      fs.mkdirSync(path.dirname(codex), { recursive: true });
+      fs.writeFileSync(codex, "native-codex");
+      spawnState.route = (command, args) => command === codex
+        ? args[0] === "--version" ? "codex-cli 0.43.0" : "app-server help"
+        : null;
+
+      const providers = await new ProviderRegistry("/project").refresh();
+
+      expect(providers.find((provider) => provider.id === "codex-native")).toMatchObject({
+        available: true,
+        version: "codex-cli 0.43.0"
+      });
     });
 
     it("parseClaudeAuthStatus: 'not logged in' 返回 false", async () => {
