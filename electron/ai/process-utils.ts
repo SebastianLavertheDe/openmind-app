@@ -161,10 +161,13 @@ function spawnResolved(
     if (extension === ".cmd" || extension === ".bat") {
       const unc = cwd.startsWith("\\\\");
       const commandLine = unc ? `pushd ${quoteCmd(cwd)} && ${buildCmdCommand(candidate, args)}` : buildCmdCommand(candidate, args);
-      return spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+      return spawn("cmd.exe", ["/d", "/s", "/c", `"${commandLine}"`], {
         cwd: unc ? process.env.SystemRoot || "C:\\Windows" : cwd,
         windowsHide: true,
         ...options,
+        // cmd parses this command string itself. Node's default Windows argv
+        // escaping adds backslashes that cmd treats as part of the executable.
+        windowsVerbatimArguments: true,
         env: { ...process.env, ...options.env },
         stdio: ["pipe", "pipe", "pipe"]
       });
@@ -191,14 +194,25 @@ function spawnResolved(
 }
 
 function resolveWindowsCommand(command: string): string {
-  if (path.isAbsolute(command) && fs.existsSync(command)) return command;
+  const runnableExtensions = new Set([".exe", ".com", ".cmd", ".bat", ".ps1"]);
+  if (path.isAbsolute(command)) {
+    if (runnableExtensions.has(path.extname(command).toLowerCase()) && fs.existsSync(command)) return command;
+    // npm installs an extensionless POSIX shell script next to its Windows
+    // launchers. It exists on disk but CreateProcess cannot execute it.
+    if (!path.extname(command)) {
+      const launcher = [...runnableExtensions].map((extension) => `${command}${extension}`)
+        .find((candidate) => fs.existsSync(candidate));
+      if (launcher) return launcher;
+    }
+  }
   try {
     return String(execFileSync("where.exe", [command], {
       windowsHide: true,
       timeout: 5000,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"]
-    })).split(/\r?\n/).map((item) => item.trim()).find(Boolean) || command;
+    })).split(/\r?\n/).map((item) => item.trim())
+      .find((candidate) => runnableExtensions.has(path.extname(candidate).toLowerCase())) || command;
   } catch {
     return command;
   }

@@ -573,7 +573,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       const startInput = (acknowledgeProviderChange?: boolean) => ({
         sessionId: targetSession?.id,
         providerId,
-        permissionProfile: options.permissionProfile || targetSession?.permissionProfile || "edit",
+        permissionProfile: options.permissionProfile || targetSession?.permissionProfile || "auto",
         interactionMode: options.interactionMode || targetSession?.interactionMode || "default",
         cwd: targetSession?.cwd || ".",
         prompt,

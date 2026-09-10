@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { useAi } from "../../ai-context";
-import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
+import { EmptyState, ErrorState } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
-import { assistantPhase, selectRenderableTimelineEvents } from "../ai-console/timeline";
-import { ProjectListDetail } from "./ProjectListDetail";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { projectsApi } from "./projects-api";
-import type { ProjectDetail, ProjectTask, ProjectTaskMessage } from "./types";
+import { ProjectListDetail } from "./ProjectListDetail";
+import type { ProjectDetail, ProjectTask } from "./types";
 
 export type ProjectTaskSeed = { title?: string; prompt?: string };
 
@@ -48,8 +47,6 @@ export function ProjectTasksPanel({
   const [activatingSession, setActivatingSession] = useState(false);
   const [activationNonce, setActivationNonce] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [savedMessageId, setSavedMessageId] = useState<string | null>(null);
-  const [localMessages, setLocalMessages] = useState<ProjectTaskMessage[]>([]);
   const [taskMenu, setTaskMenu] = useState<{ taskId: string; left: number; top: number } | null>(null);
   const [renameTarget, setRenameTarget] = useState<ProjectTask | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
@@ -129,17 +126,6 @@ export function ProjectTasksPanel({
       .finally(() => { if (current) setActivatingSession(false); });
     return () => { current = false; };
   }, [activationNonce, selected?.sessionId]);
-  useEffect(() => {
-    if (!selected?.taskId) {
-      setLocalMessages([]);
-      return;
-    }
-    let current = true;
-    void projectsApi.listTaskMessages(project.name, selected.taskId)
-      .then((messages) => { if (current) setLocalMessages(messages); })
-      .catch(() => { if (current) setLocalMessages([]); });
-    return () => { current = false; };
-  }, [project.name, selected?.taskId, selected?.updatedAt]);
   useEffect(() => {
     if (!taskMenu) return;
     const close = (event: PointerEvent) => {
@@ -324,26 +310,6 @@ export function ProjectTasksPanel({
     }
   };
 
-  const finalAnswer = useMemo(() => [...selectRenderableTimelineEvents(ai.events, ai.snapshot.runs)].reverse().find((event) => event.sessionId === selected?.sessionId && event.kind === "assistant-message" && assistantPhase(event) === "final" && typeof event.payload?.text === "string"), [ai.events, ai.snapshot.runs, selected?.sessionId]);
-  const saveAnswer = async () => {
-    if (!selected || !finalAnswer || savedMessageId === finalAnswer.id) return;
-    const selection = window.getSelection()?.toString().trim();
-    const content = selection || String(finalAnswer.payload.text || "");
-    if (!content) return;
-    try {
-      await projectsApi.createOutput(project.name, selected.title, content, {
-        sourceTaskId: selected.taskId,
-        sourceSessionId: selected.sessionId || undefined,
-        sourceMessageId: finalAnswer.id
-      });
-      setSavedMessageId(finalAnswer.id);
-      onChanged();
-      ai.notify(selection ? "选中的回答已保存为项目文档。" : "AI 回答已保存为项目文档。", "success");
-    } catch (cause) {
-      ai.notify(errorText(cause), "error");
-    }
-  };
-
   const attached = Boolean(listHost && detailHost);
   const list = (
     <>
@@ -401,18 +367,15 @@ export function ProjectTasksPanel({
       onStart={() => void start()}
     />;
   const projectDraftWorkbench = <div className="project-task-session is-draft">
-    <AiWorkbench projectMode onDraftSubmit={startFromWorkbench} />
+    <AiWorkbench projectMode projectName={project.name} onDraftSubmit={startFromWorkbench} />
   </div>;
   const detail = creating ? projectDraftWorkbench : selected && !selected.sessionId ? (
     <div className="project-task-recovered">
-      {localMessages.length ? <TaskLocalHistory messages={localMessages} expanded /> : null}
       {starter}
     </div>
   ) : selected?.sessionId ? (
-    <div className={`project-task-session${localMessages.length ? " has-local-history" : ""}`}>
-      <div className="project-task-session-bar"><div><StatusBadge tone="info">项目任务</StatusBadge><strong>{selected.title}</strong></div>{activeProjectSession && finalAnswer ? <button disabled={savedMessageId === finalAnswer.id} onClick={() => void saveAnswer()}><FileOutput size={14} />{savedMessageId === finalAnswer.id ? "已保存文档" : "保存回答为文档"}</button> : null}</div>
-      {localMessages.length ? <TaskLocalHistory messages={localMessages} /> : null}
-      {activeProjectSession ? <AiWorkbench projectMode /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
+    <div className="project-task-session">
+      {activeProjectSession ? <AiWorkbench projectMode projectName={project.name} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>
   ) : error ? <ErrorState message={error} retry={() => void load()} /> : (
     projectDraftWorkbench
@@ -429,18 +392,6 @@ export function ProjectTasksPanel({
     );
   }
   return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />{taskMenuOverlay}{renameDialog}</>;
-}
-
-function TaskLocalHistory({ messages, expanded = false }: { messages: ProjectTaskMessage[]; expanded?: boolean }) {
-  const visible = messages.slice(-100);
-  return (
-    <details className="project-task-local-history" open={expanded}>
-      <summary>项目内任务记录 · {messages.length} 条</summary>
-      <p className="project-task-history-note">记录保存在当前 Project；重建会话时 AI 可按需读取，不会一次性塞入输入。</p>
-      {visible.length < messages.length ? <p className="project-task-history-note">这里只显示最近 {visible.length} 条，完整记录仍保存在任务目录。</p> : null}
-      <div>{visible.map((message) => <article key={message.id} data-role={message.role}><strong>{message.role === "assistant" ? "AI" : "你"}</strong><p>{message.content}</p></article>)}</div>
-    </details>
-  );
 }
 
 function TaskStarter({ project, title, prompt, providerId, providerLocked, providers, sending, error, onTitle, onPrompt, onProvider, onStart }: {

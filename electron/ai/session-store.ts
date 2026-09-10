@@ -79,7 +79,7 @@ export class SessionStore {
     this.root = path.join(stateRoot ?? projectRoot, ".openmind", "ai");
     this.projectId = projectIdForRoot(projectRoot);
     this.projectTasks = trustedProjectsRoot
-      ? new ProjectTaskService(new ProjectPathResolver(path.dirname(trustedProjectsRoot)))
+      ? new ProjectTaskService(new ProjectPathResolver(path.dirname(trustedProjectsRoot)), this.root)
       : null;
   }
 
@@ -549,7 +549,29 @@ export class SessionStore {
 
   readEvents(sessionId: string): AiEvent[] { return this.projector.readEvents(sessionId); }
   listTurns(sessionId: string, params: AiTurnListParams = {}): AiTurnPage { return this.projector.listTurns(sessionId, params); }
-  getContextState(sessionId: string): AiContextState { return this.projector.getContextState(sessionId); }
+  getContextState(sessionId: string): AiContextState {
+    const state = this.projector.getContextState(sessionId);
+    const session = this.getSession(sessionId);
+    if (!isProjectTaskScope(session.scope) || !this.projectTasks || state.windowNumber > 0) return state;
+    const task = this.projectTasks.get(session.scope.projectName, session.scope.taskId);
+    if (!task.previousSessionIds.length) return state;
+    const previous = new Set(task.previousSessionIds);
+    // A project rename changes the provider's cwd and starts a fresh Session.
+    // Recover its earlier Task conversation through the same private store;
+    // providers no longer have a transcript directory in their content sandbox.
+    const history: AiContextState["history"] = this.projectTasks.listMessages(task.projectName, task.taskId)
+      .filter((message) => message.sessionId !== null && previous.has(message.sessionId))
+      .map((message) => ({
+        id: message.id, turnId: message.runId, kind: "message", role: message.role,
+        name: null, callId: null, content: message.content, payload: {}
+      }));
+    return {
+      ...state,
+      history: [...history, ...state.history],
+      historyVersion: state.historyVersion + history.length,
+      estimatedTokens: state.estimatedTokens + Math.ceil(history.reduce((sum, item) => sum + item.content.length, 0) / 4)
+    };
+  }
   getRisks(runId: string): RiskFinding[] { return this.projector.getRisks(runId); }
 
   search(query: string): AiSession[] {

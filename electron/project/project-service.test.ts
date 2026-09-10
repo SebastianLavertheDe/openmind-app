@@ -14,18 +14,73 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0)) fs.rmSync(fixture, { recursive: true, force: true });
 });
 
-function fixture(options: ConstructorParameters<typeof ProjectService>[1] = {}): {
+function fixture(options: Partial<ConstructorParameters<typeof ProjectService>[1]> = {}): {
   root: string;
   imports: string;
   service: ProjectService;
 } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-service-"));
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-service-"));
+  const root = path.join(base, "content");
+  fs.mkdirSync(root);
   const imports = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-import-"));
-  fixtures.push(root, imports);
-  return { root, imports, service: new ProjectService(root, options) };
+  fixtures.push(base, imports);
+  return { root, imports, service: new ProjectService(root, { stateRoot: path.join(root, "..", "state"), ...options }) };
 }
 
 describe("ProjectService", () => {
+  it("discards old project transcripts while preserving materials and outputs across restart", () => {
+    const { root, service } = fixture();
+    const project = service.createProject({ name: "Legacy" }).project;
+    const legacyId = "ccf40fb8-6b12-48ce-8cf5-8dd9c362f883";
+    const projectRoot = service.resolveProjectRoot(project.name);
+    const legacy = path.join(projectRoot, "tasks", legacyId);
+    fs.mkdirSync(path.join(legacy, "messages"), { recursive: true });
+    fs.writeFileSync(path.join(legacy, "task.json"), "obsolete metadata");
+    fs.writeFileSync(path.join(legacy, "messages", "old.json"), "OLD_CONVERSATION");
+    const material = path.join(projectRoot, "materials", "keep.md");
+    fs.writeFileSync(material, "MATERIAL");
+    const output = service.outputs.create({ projectName: project.name, title: "Keep", content: "OUTPUT", sourceTaskId: legacyId });
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
+
+    expect(fs.existsSync(path.join(projectRoot, "tasks"))).toBe(false);
+    expect(restarted.getProject(project.name).project.taskCount).toBe(0);
+    expect(fs.readFileSync(material, "utf8")).toBe("MATERIAL");
+    expect(restarted.readProjectOutput(project.name, output.output.relativePath)).toMatchObject({
+      content: "OUTPUT", output: { sourceTaskId: null, sourceSessionId: null, sourceMessageId: null }
+    });
+    const task = restarted.createProjectTask(project.name, "New conversation", "provider-a");
+    expect(fs.existsSync(path.join(projectRoot, "tasks"))).toBe(false);
+    expect(restarted.tasks.taskFile(project.name, task.taskId)).toBe(path.join(
+      root, "..", "state", ".openmind", "ai", "project-tasks", project.id, task.taskId, "task.json"
+    ));
+    expect(new ProjectService(root, { stateRoot: path.join(root, "..", "state") }).listProjectTasks(project.name)).toEqual([task]);
+  });
+
+  it("requires task state outside the content root", () => {
+    const { root } = fixture();
+    expect(() => new ProjectService(root, { stateRoot: root })).toThrow("内容根目录之外");
+  });
+
+  it("does not follow a linked legacy task directory during cleanup", () => {
+    const { root, imports, service } = fixture();
+    service.createProject({ name: "Linked" });
+    const sentinel = path.join(imports, "keep.md");
+    fs.writeFileSync(sentinel, "KEEP");
+    fs.symlinkSync(imports, path.join(service.resolveProjectRoot("Linked"), "tasks"), process.platform === "win32" ? "junction" : "dir");
+    expect(() => new ProjectService(root, { stateRoot: path.join(root, "..", "state") })).toThrow();
+    expect(fs.readFileSync(sentinel, "utf8")).toBe("KEEP");
+  });
+
+  it("rejects links in the private task directory before writing", () => {
+    const { imports, service } = fixture();
+    service.createProject({ name: "Private link" });
+    const directory = service.tasks.projectDirectory("Private link");
+    fs.rmdirSync(directory);
+    fs.symlinkSync(imports, directory, process.platform === "win32" ? "junction" : "dir");
+    expect(() => service.createProjectTask("Private link", "Reject", "provider-a")).toThrow("符号链接");
+    expect(fs.readdirSync(imports)).toEqual([]);
+  });
+
   it("persists independent Project, Task and Output records across restart, rename and archive", () => {
     const { root, service } = fixture();
     expect(service.createProject({ name: "研究", description: "独立项目" }).project.name).toBe("研究");
@@ -37,7 +92,7 @@ describe("ProjectService", () => {
       sourceTaskId: task.taskId
     });
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(restarted.listProjectTasks("研究")).toEqual([task]);
     expect(restarted.readProjectOutput("研究", output.output.relativePath).content).toBe("# 初稿\n");
 
@@ -62,7 +117,7 @@ describe("ProjectService", () => {
       color: "pink",
       favorite: true
     });
-    expect(new ProjectService(root).getProject("Appearance").project).toMatchObject({
+    expect(new ProjectService(root, { stateRoot: path.join(root, "..", "state") }).getProject("Appearance").project).toMatchObject({
       icon: "gamepad",
       color: "pink",
       favorite: true
@@ -75,7 +130,7 @@ describe("ProjectService", () => {
     const task = service.createProjectTask("Task actions", "旧标题", "provider-a");
 
     expect(service.renameProjectTask("Task actions", task.taskId, "新标题").title).toBe("新标题");
-    expect(new ProjectService(root).listProjectTasks("Task actions")[0]?.title).toBe("新标题");
+    expect(new ProjectService(root, { stateRoot: path.join(root, "..", "state") }).listProjectTasks("Task actions")[0]?.title).toBe("新标题");
 
     service.archiveProjectTask("Task actions", task.taskId);
     expect(service.listProjectTasks("Task actions")).toEqual([]);
@@ -268,7 +323,7 @@ describe("ProjectService", () => {
     service.appendProjectTaskMessage("Transcript", task.taskId, message);
     service.appendProjectTaskMessage("Transcript", task.taskId, message);
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(restarted.findProjectTaskBySessionId(sessionId)?.taskId).toBe(task.taskId);
     expect(restarted.tasks.listMessages("Transcript", task.taskId)).toEqual([{ ...message, sessionId }]);
 

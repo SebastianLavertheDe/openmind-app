@@ -33,7 +33,13 @@ export function buildCliLoginInvocation(cli: CliToolId, platform: NodeJS.Platfor
 export function openCliLoginTerminal(cli: CliToolId): void {
   const invocation = buildCliLoginInvocation(cli);
   if (process.platform === "win32" || process.platform === "darwin") {
-    spawn(invocation.command, invocation.args, { detached: true, stdio: "ignore", windowsVerbatimArguments: false }).unref();
+    spawn(invocation.command, invocation.args, {
+      detached: true,
+      stdio: "ignore",
+      // cmd.exe parses the /k payload itself; Node's default escaping rewrites
+      // the quotes inside it into \" which cmd treats as literal characters.
+      windowsVerbatimArguments: process.platform === "win32"
+    }).unref();
     return;
   }
   for (const terminal of ["xdg-terminal-exec", "gnome-terminal", "konsole", "xterm"]) {

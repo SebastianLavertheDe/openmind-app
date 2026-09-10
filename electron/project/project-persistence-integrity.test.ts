@@ -13,11 +13,13 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0)) fs.rmSync(fixture, { recursive: true, force: true });
 });
 
-function fixture(options: ConstructorParameters<typeof ProjectService>[1] = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-integrity-"));
+function fixture(options: Partial<ConstructorParameters<typeof ProjectService>[1]> = {}) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-integrity-"));
+  const root = path.join(base, "content");
+  fs.mkdirSync(root);
   const imports = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-project-integrity-import-"));
-  fixtures.push(root, imports);
-  return { root, imports, service: new ProjectService(root, options) };
+  fixtures.push(base, imports);
+  return { root, imports, service: new ProjectService(root, { stateRoot: path.join(root, "..", "state"), ...options }) };
 }
 
 describe("Project persisted identity validation", () => {
@@ -25,7 +27,7 @@ describe("Project persisted identity validation", () => {
     const { root, service } = fixture();
     service.createProject({ name: "Identity" });
     const task = service.createProjectTask("Identity", "Draft", "provider-a");
-    const taskFile = path.join(root, "projects", "Identity", "tasks", task.taskId, "task.json");
+    const taskFile = service.tasks.taskFile("Identity", task.taskId);
     const baseline = readJson(taskFile);
     const message = {
       id: "identity-message",
@@ -208,7 +210,7 @@ describe("Project material restart reconciliation", () => {
       errorMessage: null
     })));
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     const reconciled = restarted.listProjectMaterials("Restart");
     expect(reconciled).toHaveLength(2);
     expect(reconciled.every((record) => record.status === "failed")).toBe(true);
@@ -273,11 +275,11 @@ describe("Project material restart reconciliation", () => {
     const old = new Date("2000-01-01T00:00:00.000Z");
     fs.utimesSync(markerPath, old, old);
 
-    const otherService = new ProjectService(root);
+    const otherService = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(otherService.listProjectMaterials("CrossProcess")[0].status).toBe("converting");
     expect(() => otherService.renameProject("CrossProcess", "Blocked")).toThrow(/正在转换/);
     fs.rmSync(markerDirectory, { recursive: true });
-    expect(new ProjectService(root).listProjectMaterials("CrossProcess")[0]).toMatchObject({
+    expect(new ProjectService(root, { stateRoot: path.join(root, "..", "state") }).listProjectMaterials("CrossProcess")[0]).toMatchObject({
       status: "failed",
       errorCode: "material-conversion-interrupted"
     });
@@ -306,7 +308,7 @@ describe("Project cross-process read-modify-write persistence", () => {
     };
     const { root, imports, service } = fixture({ materialConverters: [converter] });
     service.createProject({ name: "Concurrent Materials" });
-    const otherService = new ProjectService(root, { materialConverters: [converter] });
+    const otherService = new ProjectService(root, { stateRoot: path.join(root, "..", "state"), materialConverters: [converter] });
     const first = path.join(imports, "first.parallel");
     const second = path.join(imports, "second.parallel");
     fs.writeFileSync(first, "first", "utf8");
@@ -322,7 +324,7 @@ describe("Project cross-process read-modify-write persistence", () => {
       [expect.objectContaining({ status: "ready" })]
     ]);
 
-    const materials = new ProjectService(root).listProjectMaterials("Concurrent Materials");
+    const materials = new ProjectService(root, { stateRoot: path.join(root, "..", "state") }).listProjectMaterials("Concurrent Materials");
     expect(materials).toHaveLength(2);
     expect(materials.every((material) => material.status === "ready")).toBe(true);
     expect(new Set(materials.map((material) => material.relativePath)).size).toBe(2);
@@ -338,7 +340,7 @@ describe("Project cross-process read-modify-write persistence", () => {
       import fs from "node:fs";
       import { ProjectService } from ${JSON.stringify(moduleUrl)};
       const worker = Number(process.env.PROJECT_TEST_WORKER);
-      const service = new ProjectService(process.env.PROJECT_TEST_ROOT);
+      const service = new ProjectService(process.env.PROJECT_TEST_ROOT, { stateRoot: process.env.PROJECT_TEST_ROOT + "/../state" });
       fs.writeFileSync(process.env.PROJECT_TEST_READY, "ready");
       while (!fs.existsSync(process.env.PROJECT_TEST_GATE)) {
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
@@ -375,7 +377,7 @@ describe("Project cross-process read-modify-write persistence", () => {
     fs.writeFileSync(gate, "go", "utf8");
     await Promise.all(children.map(({ child }) => waitForExit(child)));
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(restarted.listProjectTaskMessages("Concurrent", task.taskId)).toHaveLength(10);
     const outputs = restarted.listProjectOutputs("Concurrent");
     expect(outputs).toHaveLength(10);
@@ -398,7 +400,7 @@ describe("Project rename transaction recovery", () => {
       manifest: readJson(path.join(projectRoot, ".openmind-project.json")),
       materials: readJson(path.join(projectRoot, "materials", ".openmind-materials.json")),
       outputs: readJson(path.join(projectRoot, "outputs", ".openmind-outputs.json")),
-      task: readJson(path.join(projectRoot, "tasks", task.taskId, "task.json"))
+      task: readJson(service.tasks.taskFile("Rollback", task.taskId))
     };
     vi.spyOn(service.outputs, "renameProject").mockImplementationOnce(() => {
       throw new Error("injected output migration failure");
@@ -410,7 +412,7 @@ describe("Project rename transaction recovery", () => {
     expect(readJson(path.join(restoredRoot, ".openmind-project.json"))).toEqual(snapshots.manifest);
     expect(readJson(path.join(restoredRoot, "materials", ".openmind-materials.json"))).toEqual(snapshots.materials);
     expect(readJson(path.join(restoredRoot, "outputs", ".openmind-outputs.json"))).toEqual(snapshots.outputs);
-    expect(readJson(path.join(restoredRoot, "tasks", task.taskId, "task.json"))).toEqual(snapshots.task);
+    expect(readJson(service.tasks.taskFile("Rollback", task.taskId))).toEqual(snapshots.task);
     expect(service.getProjectTask("Rollback", task.taskId).sessionId).toBe("session-before");
     expect(fs.existsSync(path.join(root, "projects", ".openmind-project-rename.json"))).toBe(false);
   });
@@ -427,7 +429,7 @@ describe("Project rename transaction recovery", () => {
     const moduleUrl = pathToFileURL(path.join(process.cwd(), "electron/project/project-service.ts")).href;
     const script = `
       import { ProjectService } from ${JSON.stringify(moduleUrl)};
-      const service = new ProjectService(process.env.PROJECT_TEST_ROOT);
+      const service = new ProjectService(process.env.PROJECT_TEST_ROOT, { stateRoot: process.env.PROJECT_TEST_ROOT + "/../state" });
       service.outputs.renameProject = () => process.exit(73);
       service.renameProject("Crash", "Crash Next");
     `;
@@ -443,7 +445,7 @@ describe("Project rename transaction recovery", () => {
     const old = new Date("2000-01-01T00:00:00.000Z");
     fs.utimesSync(lockPath, old, old);
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(restarted.getProjectTask("Crash", task.taskId).sessionId).toBe("session-crash");
     expect(restarted.listProjectMaterials("Crash")).toEqual([
       expect.objectContaining({ projectName: "Crash", status: "ready" })
@@ -463,7 +465,7 @@ describe("Project rename transaction recovery", () => {
     const moduleUrl = pathToFileURL(path.join(process.cwd(), "electron/project/project-service.ts")).href;
     const script = `
       import { ProjectService } from ${JSON.stringify(moduleUrl)};
-      const service = new ProjectService(process.env.PROJECT_TEST_ROOT);
+      const service = new ProjectService(process.env.PROJECT_TEST_ROOT, { stateRoot: process.env.PROJECT_TEST_ROOT + "/../state" });
       service.removeRenameJournal = () => process.exit(74);
       service.renameProject("Committed Crash", "Committed Crash Next");
     `;
@@ -478,7 +480,7 @@ describe("Project rename transaction recovery", () => {
     const old = new Date("2000-01-01T00:00:00.000Z");
     fs.utimesSync(lockPath, old, old);
 
-    const restarted = new ProjectService(root);
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
     expect(restarted.getProject("Committed Crash Next").project.name).toBe("Committed Crash Next");
     expect(restarted.getProjectTask("Committed Crash Next", task.taskId)).toMatchObject({
       sessionId: null,

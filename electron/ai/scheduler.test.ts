@@ -53,7 +53,7 @@ describe("RunScheduler input boundaries", () => {
     const projectsRoot = path.join(root, "projects");
     fs.mkdirSync(path.join(projectsRoot, "Research", "materials"), { recursive: true });
     fs.writeFileSync(path.join(projectsRoot, "Research", "materials", "note.md"), "private");
-    const scheduler = new RunScheduler(root, () => undefined, undefined, undefined, undefined, root, 1, projectsRoot);
+    const scheduler = new RunScheduler(root, () => undefined, undefined, undefined, createRoot(), root, 1, projectsRoot);
     const provider: ProviderCapabilities = {
       id: "claude-native", provider: "claude", label: "Claude Code", runtime: "native",
       available: true, version: "test", supportsApprovals: true, supportsResume: true,
@@ -114,7 +114,7 @@ describe("RunScheduler Project Task scope", () => {
     const workspace = createRoot();
     const stateRoot = createRoot();
     const contentRoot = createRoot();
-    const projects = new ProjectService(contentRoot);
+    const projects = new ProjectService(contentRoot, { stateRoot });
     const project = projects.createProject({ name: "AI安全", description: "" }).project;
     const task = projects.createProjectTask(project.name, "Project task", "claude-native");
     const projectsRoot = projects.paths.projectsRoot;

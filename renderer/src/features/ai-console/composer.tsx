@@ -148,7 +148,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const projectName = ai.snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || ai.snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
-  const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>("edit");
+  const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>("auto");
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("default");
   const [trigger, setTrigger] = useState<ComposerTrigger | null>(null);
   const [fileResults, setFileResults] = useState<ProjectFileMatch[]>([]);
@@ -178,7 +178,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     else if (!providerId && availableProviders[0]) setProviderId(availableProviders[0].id);
   }, [ai.activeSession?.providerId, availableProviders, providerId]);
   useEffect(() => {
-    if (ai.activeSession?.permissionProfile) setPermissionProfile(ai.activeSession.permissionProfile);
+    // 无活动会话（草稿态）时重置回默认档位，不残留上一个会话的选择。
+    setPermissionProfile(ai.activeSession?.permissionProfile ?? "auto");
   }, [ai.activeSession?.permissionProfile]);
   useEffect(() => {
     setInteractionMode(ai.activeSession?.interactionMode || "default");

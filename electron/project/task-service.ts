@@ -14,18 +14,22 @@ import {
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { ProjectPathResolver } from "./project-path-resolver";
 
-const TASKS_TOP_LEVEL = ["tasks"] as const;
-const LegacyProjectTaskSchema = ProjectTaskSchema.omit({ projectId: true });
-
 export class ProjectTaskService {
-  constructor(private readonly paths: ProjectPathResolver) {}
+  readonly root: string;
+
+  constructor(private readonly paths: ProjectPathResolver, aiStateRoot: string) {
+    if (!path.isAbsolute(aiStateRoot)) throw new Error("AI 状态目录必须是绝对路径。");
+    this.root = path.resolve(aiStateRoot, "project-tasks");
+    const relative = path.relative(paths.openmindRoot, this.root);
+    if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))) {
+      throw new Error("AI 任务状态必须保存在内容根目录之外。");
+    }
+  }
 
   initializeProject(projectName: string): void {
-    const tasks = this.paths.resolveInsideProject(projectName, "tasks", {
-      allowedTopLevels: TASKS_TOP_LEVEL,
-      allowMissingLeaf: true
+    this.paths.withProjectMutationLock(() => {
+      fs.mkdirSync(this.projectDirectory(projectName), { recursive: true });
     });
-    fs.mkdirSync(tasks, { recursive: true });
   }
 
   create(projectName: string, title: string, providerId: string): ProjectTask {
@@ -61,7 +65,7 @@ export class ProjectTaskService {
   list(projectName: string): ProjectTask[] {
     return this.paths.withProjectMutationLock(() => {
       this.initializeProject(projectName);
-      const tasksRoot = this.paths.resolveInsideProject(projectName, "tasks", { allowedTopLevels: TASKS_TOP_LEVEL });
+      const tasksRoot = this.projectDirectory(projectName);
       const result: ProjectTask[] = [];
       const taskIdentities = new Set<string>();
       for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
@@ -80,24 +84,7 @@ export class ProjectTaskService {
       const canonicalProjectName = this.paths.resolveProject(projectName).name;
       const filePath = this.taskFile(canonicalProjectName, taskId);
       const raw: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      const current = ProjectTaskSchema.safeParse(raw);
-      let task: ProjectTask;
-      if (current.success) {
-        task = current.data;
-      } else {
-        const legacy = LegacyProjectTaskSchema.parse(raw);
-        task = ProjectTaskSchema.parse({
-          ...legacy,
-          projectId: this.projectId(canonicalProjectName),
-          // Project identity can be migrated safely; old dual-written conversation
-          // history cannot. Start a fresh Session while preserving Task metadata.
-          sessionId: null,
-          previousSessionIds: []
-        });
-        writeJsonAtomic(filePath, task);
-        fs.mkdirSync(this.messageDirectory(canonicalProjectName, taskId, true), { recursive: true });
-        fs.rmSync(path.join(path.dirname(filePath), "messages.jsonl"), { force: true });
-      }
+      const task = ProjectTaskSchema.parse(raw);
       if (task.projectName !== canonicalProjectName) {
         throw new Error(`Project Task 的 projectName 与所在项目不一致：${task.taskId}`);
       }
@@ -178,7 +165,7 @@ export class ProjectTaskService {
   renameProject(previousName: string, nextName: string): void {
     this.paths.withProjectMutationLock(() => {
       this.initializeProject(nextName);
-      const tasksRoot = this.paths.resolveInsideProject(nextName, "tasks", { allowedTopLevels: TASKS_TOP_LEVEL });
+      const tasksRoot = this.projectDirectory(nextName);
       const taskIdentities = new Set<string>();
       for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
         if (!entry.isDirectory() || entry.isSymbolicLink() || !z.string().uuid().safeParse(entry.name).success) continue;
@@ -213,7 +200,7 @@ export class ProjectTaskService {
     this.paths.withProjectMutationLock(() => {
       const canonicalProjectName = this.paths.resolveProject(projectName).name;
       this.initializeProject(canonicalProjectName);
-      const tasksRoot = this.paths.resolveInsideProject(canonicalProjectName, "tasks", { allowedTopLevels: TASKS_TOP_LEVEL });
+      const tasksRoot = this.projectDirectory(canonicalProjectName);
       const directoryIds = fs.readdirSync(tasksRoot, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && z.string().uuid().safeParse(entry.name).success)
         .map((entry) => entry.name)
@@ -247,21 +234,39 @@ export class ProjectTaskService {
 
   private taskDirectory(projectName: string, taskId: string, allowMissingLeaf = false): string {
     z.string().uuid().parse(taskId);
-    return this.paths.resolveInsideProject(projectName, `tasks/${taskId}`, {
-      allowedTopLevels: TASKS_TOP_LEVEL,
-      allowMissingLeaf
-    });
+    return this.statePath(projectName, taskId, allowMissingLeaf);
   }
 
-  private taskFile(projectName: string, taskId: string): string {
-    return this.paths.resolveInsideProject(projectName, `tasks/${taskId}/task.json`, { allowedTopLevels: TASKS_TOP_LEVEL });
+  taskFile(projectName: string, taskId: string): string {
+    z.string().uuid().parse(taskId);
+    return this.statePath(projectName, `${taskId}/task.json`);
   }
 
   private messageDirectory(projectName: string, taskId: string, allowMissingLeaf = false): string {
-    return this.paths.resolveInsideProject(projectName, `tasks/${taskId}/messages`, {
-      allowedTopLevels: TASKS_TOP_LEVEL,
-      allowMissingLeaf
-    });
+    z.string().uuid().parse(taskId);
+    return this.statePath(projectName, `${taskId}/messages`, allowMissingLeaf);
+  }
+
+  projectDirectory(projectName: string): string {
+    return this.statePath(projectName, "", true);
+  }
+
+  private statePath(projectName: string, relativePath: string, allowMissing = false): string {
+    const target = path.join(this.root, this.projectId(projectName), relativePath);
+    // Unlike project content, this tree belongs to the application. Still reject
+    // links in every existing path component before any read/write/delete.
+    const parsed = path.parse(target);
+    let current = parsed.root;
+    for (const part of target.slice(parsed.root.length).split(path.sep)) {
+      current = path.join(current, part);
+      try {
+        if (fs.lstatSync(current).isSymbolicLink()) throw new Error("AI 任务状态路径不能包含符号链接。");
+      } catch (error) {
+        if (allowMissing && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+    }
+    return target;
   }
 
   private projectId(projectName: string): string {

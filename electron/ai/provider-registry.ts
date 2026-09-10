@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import type { ProviderCapabilities } from "../../shared/contracts";
 import { resolveModelSpec, type ProviderKind } from "../../shared/model-catalog";
 import { messages } from "../../shared/messages";
@@ -206,7 +207,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
       return messages.errors.provider.codexWslNoAppServer(distro);
     },
     probeNativeExtra: async (command) => {
-      if (await runCommand(command, ["app-server", "--help"])) return null;
+      if (await runWindowsCommand(command, ["app-server", "--help"])) return null;
       return messages.errors.provider.codexNoAppServer;
     },
     nativeFailureDiagnostic: messages.errors.provider.codexNativeMissing
@@ -219,7 +220,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
       return messages.errors.provider.claudeWslNotLoggedIn(distro);
     },
     probeNativeExtra: async (command) => {
-      if (parseClaudeAuthStatus(await runCommand(command, ["auth", "status"]))) return null;
+      if (parseClaudeAuthStatus(await runWindowsCommand(command, ["auth", "status"]))) return null;
       return messages.errors.provider.claudeNotLoggedIn;
     },
     nativeFailureDiagnostic: messages.errors.provider.claudeNativeMissing
@@ -337,9 +338,30 @@ async function runWindowsCommand(command: string, args: string[]): Promise<strin
     return runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", command, ...args]);
   }
   if (extension === ".cmd" || extension === ".bat") {
-    return runCommand("cmd.exe", ["/d", "/s", "/c", [quoteCmd(command), ...args.map(quoteCmd)].join(" ")]);
+    return runWindowsShellCommand(command, args);
   }
   return runCommand(command, args);
+}
+
+/**
+ * cmd.exe parses the /c payload itself, so it must reach cmd verbatim: Node's
+ * default Windows argv escaping rewrites the inner quotes into \", which cmd
+ * treats as part of the executable name and every .cmd probe silently fails.
+ */
+function runWindowsShellCommand(command: string, args: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    const commandLine = `"${[quoteCmd(command), ...args].join(" ")}"`;
+    const child = spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    let stdout = "";
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* 已经退出 */ } }, 15_000);
+    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+    child.on("error", () => { clearTimeout(timer); resolve(null); });
+    child.on("close", () => { clearTimeout(timer); resolve(stdout.trim() || null); });
+  });
 }
 
 function quoteCmd(value: string): string {

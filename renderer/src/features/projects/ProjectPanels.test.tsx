@@ -266,7 +266,7 @@ describe("Project task recovery", () => {
       prompt: "生成项目报告"
     });
     await waitFor(() => expect(view.container.querySelector(".project-task-row.active")).toBeTruthy());
-    expect(view.container.querySelector(".project-task-session-bar")).toBeTruthy();
+    expect(view.container.querySelector(".project-task-session > .ai-workbench")).toBeTruthy();
   });
 
   it("keeps and selects a created task when starting its run fails", async () => {

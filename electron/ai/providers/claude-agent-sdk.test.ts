@@ -1145,6 +1145,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.systemPrompt.append).toContain("项目“AI安全”");
     expect(call.options.systemPrompt.append).toContain("OpenMind 文件访问根目录是：/openmind");
     expect(call.options.systemPrompt.append).toContain("不可信参考数据");
+    expect(call.options.systemPrompt.append).toContain("<openmind_file_references>");
     expect(call.options.systemPrompt.excludeDynamicSections).toBe(true);
     expect(call.options.settingSources).toEqual([]);
     expect(call.options.skills).toEqual([]);
@@ -1152,13 +1153,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.permissionMode).toBe("dontAsk");
     expect(call.options.strictMcpConfig).toBe(true);
     expect(call.options.persistSession).toBe(false);
-    expect(call.options.sandbox).toEqual({
-      enabled: true,
-      failIfUnavailable: true,
-      allowUnsandboxedCommands: false,
-      autoAllowBashIfSandboxed: false,
-      filesystem: { denyWrite: ["/openmind"] }
-    });
+    expect(call.options.sandbox).toEqual({ enabled: false });
     expect(call.options.resume).toBeUndefined();
     expect(call.options.mcpServers).toBeUndefined();
     expect(ctx.updateProviderSession).not.toHaveBeenCalled();

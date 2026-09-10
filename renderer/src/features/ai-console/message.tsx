@@ -27,15 +27,19 @@ export function UserMessage({ event }: { event: AiEvent }) {
     <article className="message user-message">
       {/* P0-AI-1: 用户头像 */}
       <div className="message-body">
-        <MessageMeta label={m.ai.message.you} timestamp={event.timestamp}>
+        <div className="user-message-bubble">
+          <p>{text}</p>
+          {contexts.length ? <SentContexts contexts={contexts} /> : null}
+        </div>
+        {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
+            "你 + 时间"视觉隐藏，保留无障碍语义。 */}
+        <MessageMeta label={m.ai.message.you} timestamp={event.timestamp} visuallyHidden>
           <button data-motion="icon" aria-label={m.ai.message.quoteMessage} title={m.ai.message.quote} onClick={() => ai.addContext(messageContext(event, text))}><Quote size={13} /></button>
           <button data-motion="icon" aria-label={m.ai.message.editResend} title={m.ai.message.editResend} onClick={() => ai.editRun(event.runId)}><Pencil size={13} /></button>
           <button data-motion="icon" aria-label={m.ai.message.branchFromMessage} title={m.ai.message.branchFromMessage} onClick={() => void ai.branchRun(event.runId)}><GitFork size={13} /></button>
           <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void ai.rerun(event.runId)}><Redo2 size={13} /></button>
           <CopyButton text={text} />
         </MessageMeta>
-        <p>{text}</p>
-        {contexts.length ? <SentContexts contexts={contexts} /> : null}
       </div>
     </article>
   );
@@ -228,7 +232,11 @@ export function MarkdownLink({ href, onClick, ...props }: AnchorHTMLAttributes<H
 function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
   const openPreview = useFilePreview();
   const text = extractText(children).trim();
-  const looksLikeInlinePath = /[\\/]/.test(text) || !/\s/.test(text);
+  // 含路径分隔符、无空白，或以文件扩展名结尾（如 `Agentic Design Patterns.pdf`）
+  // 都视为可能的文件引用；纯 `hello world` 这类无扩展名文本不会误判。
+  const looksLikeInlinePath = /[\\/]/.test(text)
+    || !/\s/.test(text)
+    || /\.[a-z0-9][a-z0-9._-]{0,9}$/i.test(text);
   const localPath = !className && looksLikeInlinePath ? localFileReference(text) : null;
   if (!localPath) return <code {...props} className={className}>{children}</code>;
   return (

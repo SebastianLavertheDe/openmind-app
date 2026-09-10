@@ -470,19 +470,15 @@
 }
 .project-detail-back:hover { color: var(--text); }
 .project-header-actions { display: flex; align-items: center; gap: 6px; }
-.project-create-menu,
 .project-more-menu { position: relative; }
-.project-create-menu summary,
 .project-more-menu summary { list-style: none; cursor: pointer; }
-.project-create-menu summary::-webkit-details-marker,
 .project-more-menu summary::-webkit-details-marker { display: none; }
-.project-create-menu > div,
 .project-more-menu > div {
   position: absolute;
   z-index: var(--z-dropdown);
   top: calc(100% + 6px);
   right: 0;
-  width: 232px;
+  width: 160px;
   display: grid;
   gap: 3px;
   padding: 6px;
@@ -491,8 +487,6 @@
   background: var(--panel);
   box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
 }
-.project-more-menu > div { width: 160px; }
-.project-create-menu > div button,
 .project-more-menu > div button {
   min-width: 0;
   display: flex;
@@ -505,11 +499,23 @@
   color: var(--text-dim);
   text-align: left;
 }
-.project-create-menu > div button:hover,
 .project-more-menu > div button:hover { background: var(--control-hover); color: var(--text); }
-.project-create-menu > div button span { min-width: 0; display: grid; gap: 2px; }
-.project-create-menu > div button small { color: var(--muted); font-size: 10px; }
 .project-more-menu > div button.danger { color: var(--danger); }
+
+/* 项目头部「新建」菜单：portal 到 body 并按视口钳制，窄列表面板下不再被裁切。 */
+.project-pane-create .ui-dropdown-trigger {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.project-pane-create .ui-dropdown-trigger:hover { background: var(--control-hover); color: var(--text); }
+.project-create-menu { width: 200px; padding: 8px; border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-overlay); }
+.project-create-menu [role="menuitem"] { min-height: 40px; gap: 12px; padding-inline: 10px; font-size: var(--fs-md); }
+.project-create-menu [role="menuitem"] > svg { flex: 0 0 auto; }
 
 .project-section-content { min-width: 0; min-height: 0; overflow: hidden; }
 .project-section-content > * {
@@ -673,13 +679,7 @@
 .project-task-compose-footer select { min-height: 34px; max-width: 180px; }
 .project-material-scope { color: var(--muted); font-size: 11px; }
 .project-form-error { margin: 10px 0 0; color: var(--danger); font-size: 11px; }
-.project-task-session { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.project-task-session.is-draft { grid-template-rows: minmax(0, 1fr); }
-.project-task-session.has-local-history { grid-template-rows: auto auto minmax(0, 1fr); }
-.project-task-session-bar { min-height: 44px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
-.project-task-session-bar > div { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.project-task-session-bar strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-task-session-bar button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.project-task-session { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); }
 .project-task-session > .ai-workbench { min-height: 0; }
 .project-task-session .history-toggle { display: none; }
 
@@ -784,13 +784,6 @@
 .app-shell.page-projects > .ai-sidebar > .ai-sidebar-resizer:focus-visible::after { width: 2px; background: var(--border-strong); }
 
 .project-task-recovered { min-height: 0; overflow: auto; }
-.project-task-local-history { margin: 12px 16px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-.project-task-local-history summary { cursor: pointer; padding: 10px 12px; color: var(--muted); font-size: 11px; font-weight: 650; }
-.project-task-local-history > div { max-height: 320px; overflow: auto; padding: 0 12px 12px; }
-.project-task-local-history article { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
-.project-task-local-history article strong { color: var(--muted); font-size: 10px; }
-.project-task-local-history article p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
-.project-task-history-note { margin: 0; padding: 0 12px 8px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 
 .project-output-header { align-items: flex-start; }
 .project-output-title { width: min(560px, 62vw); margin-top: 3px; padding: 0; border: 0; background: transparent; color: var(--text); font: 700 19px/1.35 var(--font-display); outline: none; }

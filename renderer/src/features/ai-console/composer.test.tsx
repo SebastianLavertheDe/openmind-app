@@ -64,10 +64,12 @@ describe("ChatComposer permissions", () => {
   it("marks automatic execution as the active permission tone", () => {
     render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
 
-    fireEvent.click(screen.getByRole("button", { name: /权限.*编辑/ }));
-    fireEvent.click(screen.getByRole("option", { name: "自动执行" }));
-
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("auto");
+
+    fireEvent.click(screen.getByRole("button", { name: /权限.*自动执行/ }));
+    fireEvent.click(screen.getByRole("option", { name: "只读" }));
+
+    expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("read-only");
   });
 
   it("portals slash suggestions from a caret anchor while preserving combobox semantics", async () => {

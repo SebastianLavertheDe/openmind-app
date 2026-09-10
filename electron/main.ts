@@ -257,6 +257,7 @@ function ensureProjectService(): ProjectService {
   if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
   if (!projectService || projectServiceRoot !== openmindRoot) {
     projectService = new ProjectService(openmindRoot, {
+      stateRoot: resolveAiStateRoot(),
       materialConverters: createDefaultProjectMaterialConverters()
     });
     projectServiceRoot = openmindRoot;

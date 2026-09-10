@@ -95,11 +95,11 @@ describe("SessionStore", () => {
     expect(fs.existsSync(path.join(writerA.root, "sessions", sessionB.id, "session.json"))).toBe(true);
   });
 
-  it("persists Project Task identity while keeping message bodies canonical in Project storage", async () => {
+  it("keeps Project tasks, messages and workspace sessions together in private AI storage", async () => {
     const workspace = createRoot();
     const stateRoot = createRoot();
     const openmindRoot = createRoot();
-    const projects = new ProjectService(openmindRoot);
+    const projects = new ProjectService(openmindRoot, { stateRoot });
     const project = projects.createProject({ name: "AI安全", description: "" }).project;
     const task = projects.createProjectTask(project.name, "Project research", "claude-native");
     const projectsRoot = projects.paths.projectsRoot;
@@ -144,6 +144,9 @@ describe("SessionStore", () => {
       { id: run.id, runId: run.id, role: "user", content: "分析资料", sessionId: session.id },
       { id: answer.id, runId: run.id, role: "assistant", content: "分析完成", sessionId: session.id }
     ]);
+    expect(projects.tasks.root).toBe(path.join(store.root, "project-tasks"));
+    expect(fs.existsSync(path.join(projectRoot, "tasks"))).toBe(false);
+    expect(fs.existsSync(path.join(openmindRoot, ".openmind"))).toBe(false);
     expect(store.readEvents(session.id).map((event) => event.payload.text)).toEqual(["分析资料", "分析完成"]);
     expect(updated).toMatchObject({
       projectId: session.projectId,
@@ -156,6 +159,22 @@ describe("SessionStore", () => {
     const restarted = new SessionStore(workspace, stateRoot, projectsRoot);
     expect(restarted.getSession(session.id)).toMatchObject({ projectRoot: session.projectRoot, scope: session.scope });
     expect(restarted.getRun(run.id)).toMatchObject({ projectId: session.projectId, scope: session.scope, prompt: "分析资料", promptMessageId: run.id });
+
+    // Renaming preserves the private transcript while starting a fresh provider
+    // session at the new cwd. Its context must include the previous exchange.
+    projects.renameProject(project.name, "Renamed");
+    const renamedStore = new SessionStore(workspace, stateRoot, projectsRoot);
+    const next = renamedStore.createSession({
+      provider: "claude", providerId: "claude-native", cwd: ".", title: "Continue",
+      permissionProfile: "read-only", projectRoot: projects.resolveProjectRoot("Renamed"),
+      scope: { type: "project-task", projectId: project.id, projectName: "Renamed", taskId: task.taskId }
+    });
+    renamedStore.bindProjectSession(next);
+    const nextRun = renamedStore.createRun(next, "继续分析", []);
+    await renamedStore.beginTurn(nextRun, "继续分析");
+    expect(renamedStore.getContextState(next.id).history.map((item) => item.content))
+      .toEqual(["分析资料", "分析完成", "继续分析"]);
+    expect(fs.existsSync(path.join(projects.resolveProjectRoot("Renamed"), "tasks"))).toBe(false);
   });
 
   it("persists a fresh Skill snapshot and protects it from generic session patches", () => {

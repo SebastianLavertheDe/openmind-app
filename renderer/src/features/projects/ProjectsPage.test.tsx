@@ -97,7 +97,7 @@ describe("ProjectsPage", () => {
     const tabs = await screen.findAllByRole("tab", { name: /任务/ });
     expect(tabs.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("搜索任务")).toBeTruthy();
-    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
   });
 
   it("keeps the new-conversation view until a concrete task is selected", async () => {
@@ -139,7 +139,7 @@ describe("ProjectsPage", () => {
 
     const taskButton = (await screen.findByText("具体任务")).closest("button")!;
     expect(taskButton.closest(".project-task-row")?.classList.contains("active")).toBe(false);
-    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
     expect(screen.queryByText("之前打开的会话")).toBeNull();
     expect(container.querySelector(".project-task-session-bar")).toBeNull();
 
@@ -232,13 +232,11 @@ describe("ProjectsPage", () => {
     const trigger = await screen.findByLabelText("新建项目内容");
     fireEvent.click(trigger);
 
-    const menu = trigger.closest("details");
-    expect(menu?.hasAttribute("open")).toBe(true);
-    expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
+    expect(await screen.findByRole("menuitem", { name: "新建任务" })).toBeTruthy();
 
     fireEvent.pointerDown(document.body);
 
-    expect(menu?.hasAttribute("open")).toBe(false);
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "新建任务" })).toBeNull());
   });
 
   it("opens the reused AI conversation workbench when creating a task", async () => {
@@ -249,7 +247,7 @@ describe("ProjectsPage", () => {
     fireEvent.click(await screen.findByLabelText("新建项目内容"));
     fireEvent.click(screen.getByRole("menuitem", { name: "新建任务" }));
 
-    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
     expect(screen.getByText("从资料到创作，让 AI 帮你推进")).toBeTruthy();
     expect(screen.getByLabelText("AI 消息")).toBeTruthy();
     expect(screen.queryByText("基于“AI 安全”开始创作")).toBeNull();
@@ -304,7 +302,7 @@ describe("ProjectsPage", () => {
 
     await waitFor(() => expect(archiveProjectTask).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1" }));
     await waitFor(() => expect(screen.queryByText("暑期保养海报")).toBeNull());
-    expect(await screen.findByText("新会话")).toBeTruthy();
+    expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
   });
 
   it("edits a project name, color and icon from the three-dot menu", async () => {

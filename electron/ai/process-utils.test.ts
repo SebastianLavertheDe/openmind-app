@@ -21,6 +21,7 @@ const roots: string[] = [];
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -196,6 +197,45 @@ describe("execInProjectToFile", () => {
 });
 
 describe("spawnInDirectory / spawnNativeInDirectory", () => {
+  it.skipIf(process.platform !== "win32")("uses the Windows npm launcher when where lists a POSIX shim first", async () => {
+    const root = createRoot();
+    const command = "openmind-npm-shim-test";
+    fs.writeFileSync(path.join(root, command), "#!/bin/sh\nexit 99\n");
+    fs.writeFileSync(path.join(root, `${command}.cmd`), "@echo off\r\necho windows-launcher\r\n");
+    vi.stubEnv("PATH", `${root};${process.env.PATH || ""}`);
+    const child = spawnNativeInDirectory(root, command, []);
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+    expect(await waitForClose(child)).toBe(0);
+    expect(stdout.trim()).toBe("windows-launcher");
+  });
+
+  it.skipIf(process.platform !== "win32")("resolves an explicit extensionless npm shim to its Windows sibling", async () => {
+    const root = createRoot();
+    const command = path.join(root, "npm-tool");
+    fs.writeFileSync(command, "#!/bin/sh\nexit 99\n");
+    fs.writeFileSync(`${command}.cmd`, "@echo off\r\necho explicit-launcher\r\n");
+    const child = spawnNativeInDirectory(root, command, []);
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+    expect(await waitForClose(child)).toBe(0);
+    expect(stdout.trim()).toBe("explicit-launcher");
+  });
+
+  it.skipIf(process.platform !== "win32")("preserves spaces and quoted config values through a Windows launcher", async () => {
+    const root = path.join(createRoot(), "launcher with spaces");
+    fs.mkdirSync(root);
+    fs.writeFileSync(path.join(root, "args.cjs"), "console.log(JSON.stringify(process.argv.slice(2)))");
+    const command = path.join(root, "tool.cmd");
+    fs.writeFileSync(command, `@echo off\r\n"${process.execPath}" "%~dp0args.cjs" %*\r\n`);
+    const args = ["two words", "-c", 'name="provider with spaces"'];
+    const child = spawnNativeInDirectory(root, command, args);
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+    expect(await waitForClose(child)).toBe(0);
+    expect(JSON.parse(stdout.trim())).toEqual(args);
+  });
+
   it("spawnInDirectory 返回子进程,stdout 可读", async () => {
     const root = createRoot();
     const child = spawnInDirectory(root, process.execPath, ["-e", "process.stdout.write('spawned')"]);

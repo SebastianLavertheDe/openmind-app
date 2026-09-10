@@ -63,7 +63,6 @@ export function ProjectsPage({
   const [detailHost, setDetailHost] = useState<HTMLDivElement | null>(null);
   const layout = useListDetailLayout("openmind.list-detail.projects.v1", { listWidth: 264, listCollapsed: false });
   const outputNavigationGuardRef = useRef<ProjectOutputNavigationGuard | null>(null);
-  const createMenuRef = useRef<HTMLDetailsElement>(null);
   const confirmRef = useRef(ai.confirm);
   confirmRef.current = ai.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
@@ -81,17 +80,6 @@ export function ProjectsPage({
     setProjectComposeTarget(activeProject ? { projectId: activeProject.id, projectName: activeProject.name } : null);
     return () => setProjectComposeTarget(null);
   }, [activeProject?.id, activeProject?.name, setProjectComposeTarget]);
-
-  useEffect(() => {
-    const closeCreateMenu = (event: PointerEvent) => {
-      const menu = createMenuRef.current;
-      const target = event.target;
-      if (!menu?.open || !(target instanceof Node) || menu.contains(target)) return;
-      menu.removeAttribute("open");
-    };
-    document.addEventListener("pointerdown", closeCreateMenu);
-    return () => document.removeEventListener("pointerdown", closeCreateMenu);
-  }, []);
 
   const handleOutputNavigationGuard = useCallback((guard: ProjectOutputNavigationGuard | null) => {
     outputNavigationGuardRef.current = guard;
@@ -294,13 +282,15 @@ export function ProjectsPage({
               <header className="project-pane-project">
                 <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); ai.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
-                <details ref={createMenuRef} className="project-create-menu">
-                  <summary className="icon-button" aria-label="新建项目内容" title="新建"><Plus size={16} /></summary>
-                  <div role="menu">
-                    <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("tasks"); }}><ListTodo size={14} /><span>新建任务</span></button>
-                    <button role="menuitem" onClick={(event) => { closeOwningMenu(event.currentTarget); requestCreate("materials"); }}><Library size={14} /><span>添加资料</span></button>
-                  </div>
-                </details>
+                <DropdownMenu
+                  className="project-pane-create"
+                  ariaLabel="新建项目内容"
+                  menuLabel="新建项目内容"
+                  label={<Plus size={16} aria-hidden="true" />}
+                >
+                  <button type="button" role="menuitem" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>新建任务</span></button>
+                  <button type="button" role="menuitem" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>添加资料</span></button>
+                </DropdownMenu>
               </header>
               <div className="project-pane-tabs" role="tablist" aria-label="项目内容类型">
                 {PROJECT_VIEWS.map((value) => {
@@ -479,8 +469,4 @@ function ProjectListGroup({
 
 function errorText(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
-}
-
-function closeOwningMenu(target: HTMLElement): void {
-  target.closest("details")?.removeAttribute("open");
 }

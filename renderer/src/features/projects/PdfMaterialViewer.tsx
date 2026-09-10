@@ -68,7 +68,10 @@ export function PdfMaterialViewer({ data, title, onError }: { data: Uint8Array; 
     (async () => {
       try {
         const module = await loadPdfjs();
-        const load = module.getDocument({ data });
+        // pdf.js 会把 data 的 ArrayBuffer 转移给 worker（原 buffer 随即分离）。
+        // StrictMode 双挂载或组件重挂时会用同一 data 再次 getDocument，必须
+        // 每次传副本，否则第二次 postMessage 报 "ArrayBuffer is already detached"。
+        const load = module.getDocument({ data: data.slice() });
         task = load;
         loaded = await load.promise;
         if (!active) return;

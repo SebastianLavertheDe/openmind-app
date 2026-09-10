@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMarkdown } from "./message";
+import { localFileReference } from "./file-preview-context";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -62,5 +63,27 @@ describe("ChatMarkdown inline code", () => {
     const { container } = render(<ChatMarkdown text="`openmind/article/example.md`" />);
 
     expect(container.querySelector(".local-file-code")?.textContent).toBe("openmind/article/example.md");
+  });
+
+  it("treats spaced filenames ending in an extension as file references", () => {
+    const { container } = render(<ChatMarkdown text="`Agentic Design Patterns.pdf`" />);
+
+    expect(container.querySelector(".local-file-code")?.textContent).toBe("Agentic Design Patterns.pdf");
+  });
+
+  it("keeps plain multi-word inline code non-clickable", () => {
+    const { container } = render(<ChatMarkdown text="`hello world`" />);
+
+    expect(container.querySelector(".local-file-code")).toBeNull();
+  });
+
+  it("renders angle-bracket markdown links with spaces as file references", () => {
+    const { container } = render(<ChatMarkdown text="[Agentic Design Patterns.md](<materials/documents/Agentic Design Patterns.md>)" />);
+
+    const link = container.querySelector("a.local-file-link");
+    expect(link?.textContent).toBe("Agentic Design Patterns.md");
+    // Markdown 渲染器会把空格编码成 %20；localFileReference 解析时会解码还原。
+    expect(link?.getAttribute("href")).toBe("materials/documents/Agentic%20Design%20Patterns.md");
+    expect(localFileReference(link?.getAttribute("href") ?? "")).toBe("materials/documents/Agentic Design Patterns.md");
   });
 });

@@ -1811,6 +1811,20 @@ select:focus-visible,
   padding: 9px 22px;
 }
 
+/* 草稿态（无活动会话）不展示标题提示，仅保留“最近会话”入口并收起整条头部。 */
+.conversation-header.is-draft {
+  min-height: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 22px 0;
+  border-bottom-color: transparent;
+  background: transparent;
+}
+
+.conversation-header.is-draft > .conversation-header-actions { width: auto; }
+
+.conversation-pane:has(> .conversation-header.is-draft) { grid-template-rows: auto minmax(0, 1fr); }
+
 .ai-sidebar > header { min-height: 72px; }
 
 .conversation-header > div:first-child {

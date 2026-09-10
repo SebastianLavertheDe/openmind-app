@@ -15,7 +15,7 @@ import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser
 import { buildProviderSkillContext } from "./skill-bridge";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
-import { openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileReferenceInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 
 interface RpcMessage {
@@ -85,6 +85,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const developerInstructions = [
         openmindFilesystemInstructions(openmindRoot, projectScoped),
         projectInstructions,
+        fileReferenceInstructions(),
         browserInstructions
       ].filter(Boolean).join("\n\n");
       const threadOptions = {

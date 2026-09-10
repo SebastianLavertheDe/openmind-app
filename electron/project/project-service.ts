@@ -82,6 +82,8 @@ const LegacyProjectManifestSchema = ProjectManifestSchema.omit({ id: true, schem
 });
 
 export type ProjectServiceOptions = {
+  /** Same per-content-root private state directory used by SessionStore. */
+  stateRoot: string;
   materialConverters?: readonly ProjectMaterialConverter[];
 };
 
@@ -95,14 +97,15 @@ export class ProjectService {
   private recoveringRename = false;
   private renameTransactionActive = false;
 
-  constructor(openmindRoot: string, options: ProjectServiceOptions = {}) {
+  constructor(openmindRoot: string, options: ProjectServiceOptions) {
     this.paths = new ProjectPathResolver(openmindRoot);
     this.materials = new ProjectMaterialService(this.paths, options.materialConverters);
-    this.tasks = new ProjectTaskService(this.paths);
+    this.tasks = new ProjectTaskService(this.paths, path.join(options.stateRoot, ".openmind", "ai"));
     this.outputs = new ProjectOutputService(this.paths);
     this.paths.initialize();
     this.recoverInterruptedRename();
     this.migrateProjectIdentities();
+    this.discardLegacyTaskRecords();
     this.rebuildSessionTaskIndex();
   }
 
@@ -765,10 +768,12 @@ export class ProjectService {
       syncFile(this.paths.resolveInsideProject(project.name, relativePath));
     }
     for (const task of this.tasks.list(project.name)) {
-      syncFile(this.paths.resolveInsideProject(project.name, `tasks/${task.taskId}/task.json`));
-      syncDirectory(this.paths.resolveInsideProject(project.name, `tasks/${task.taskId}`));
+      const taskFile = this.tasks.taskFile(project.name, task.taskId);
+      syncFile(taskFile);
+      syncDirectory(path.dirname(taskFile));
     }
-    for (const relativeDirectory of ["materials", "outputs", "tasks"]) {
+    syncDirectory(this.tasks.projectDirectory(project.name));
+    for (const relativeDirectory of ["materials", "outputs"]) {
       syncDirectory(this.paths.resolveInsideProject(project.name, relativeDirectory));
     }
     syncDirectory(project.rootPath);
@@ -836,6 +841,33 @@ export class ProjectService {
         // Preserve malformed external directories without guessing how to repair them.
       }
     }
+  }
+
+  private discardLegacyTaskRecords(): void {
+    this.paths.withProjectMutationLock(() => {
+      for (const projectName of this.paths.listProjectNames()) {
+        try { this.readManifest(projectName); }
+        catch { continue; }
+        // Explicitly retire the old layout without importing conversations.
+        // Resolve inside the named Project before recursive removal; links at
+        // this boundary are rejected by the resolver.
+        const legacy = this.paths.resolveInsideProject(projectName, "tasks", {
+          allowedTopLevels: ["tasks"], allowMissingLeaf: true
+        });
+        if (!fs.existsSync(legacy)) continue;
+        const oldIds = new Set(fs.readdirSync(legacy));
+        const outputs = this.outputs.list(projectName);
+        const cleared = outputs.map((output) => output.sourceTaskId && oldIds.has(output.sourceTaskId)
+          ? { ...output, sourceTaskId: null, sourceSessionId: null, sourceMessageId: null }
+          : output);
+        // Clear obsolete references before deleting tasks so a restart cannot
+        // leave preserved outputs pointing at missing canonical transcripts.
+        if (cleared.some((output, index) => output !== outputs[index])) {
+          this.outputs.restoreProjectSnapshot(projectName, cleared);
+        }
+        fs.rmSync(legacy, { recursive: true });
+      }
+    });
   }
 }
 

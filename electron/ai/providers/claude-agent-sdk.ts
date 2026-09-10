@@ -15,7 +15,7 @@ import {
 } from "../browser-evidence";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
-import { openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileReferenceInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 import { buildProviderSkillContext } from "./skill-bridge";
 
@@ -556,8 +556,9 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const browserInstructions = context.projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
     const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
     const systemAppend = [
-      openmindFilesystemInstructions(context.openmindRoot, context.projectScoped),
+      openmindFilesystemInstructions(context.openmindRoot, false),
       context.projectInstructions,
+      fileReferenceInstructions(),
       browserInstructions,
       skillInstructions
     ].filter(Boolean).join("\n\n");
@@ -598,17 +599,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           }
         }
       } : {}),
-      sandbox: context.projectScoped ? {
-        enabled: true,
-        failIfUnavailable: true,
-        allowUnsandboxedCommands: false,
-        autoAllowBashIfSandboxed: false,
-        filesystem: { denyWrite: [context.openmindRoot] }
-      } : {
-        // Workspace sessions retain their explicit application-level approval
-        // model; Project content additionally requires an OS/process sandbox.
-        enabled: false
-      },
+      // 产品决定：所有平台一律不启用 OS 沙箱。Project 会话的只读与路径
+      // 边界完全依赖 decideClaudePermission 的应用层强制（工具白名单 +
+      // 逐次 canUseTool 校验），不得因省事恢复此处的第二道边界。
+      sandbox: { enabled: false },
       includePartialMessages: true,
       // Never read/write provider transcripts under ~/.claude/projects.
       persistSession: false,

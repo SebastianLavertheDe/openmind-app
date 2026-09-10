@@ -116,9 +116,40 @@
   max-width: none;
 }
 
-.chat-thread .user-message {
+.message.user-message {
   max-width: min(72%, 680px);
   margin-left: auto;
+  /* 气泡样式移到 .user-message-bubble 上，操作按钮落在气泡外的右下角。
+     复合选择器确保在任意时间线容器里都压过 workbuddy 的整行灰底。 */
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.message.user-message .user-message-bubble {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  padding: 9px 14px;
+  background: var(--panel-muted);
+  border-radius: 12px 12px 3px 12px;
+}
+
+/* 来源不明的整行灰底（workbuddy 时代的散在规则）：强制清透明，灰底只保留在气泡层。 */
+.message.user-message .message-body {
+  background: transparent !important;
+}
+
+.message.user-message .user-message-bubble > p {
+  margin: 0;
+}
+
+.message.user-message .message-meta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 3px;
 }
 
 .chat-thread .assistant-message {
@@ -1619,6 +1650,19 @@
   min-height: 0;
   overflow: auto;
   padding: 28px clamp(20px, 4vw, 56px);
+}
+
+/* 项目会话内嵌的 PDF 原件预览：填满预览体，滚动交给阅读器内部处理。 */
+.ai-file-preview-body:has(> .ai-file-preview-pdf) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ai-file-preview-body > .ai-file-preview-pdf {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .ai-file-preview-body > .reader-markdown,
