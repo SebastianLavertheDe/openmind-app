@@ -1,11 +1,24 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { createRequire } from "node:module";
+
+const resolveWorkerDependency = createRequire(import.meta.url).resolve;
 
 export default defineConfig({
   root: "renderer",
   base: "./",
   plugins: [react()],
+  worker: {
+    plugins: () => [{
+      name: "dom-free-document-parsing",
+      // Unified's entity and HTML parsers provide worker-safe exports. Their
+      // browser exports call document.createElement and cannot run in a Worker.
+      enforce: "pre",
+      resolveId: (id) => id === "decode-named-character-reference" || id === "hast-util-from-html-isomorphic"
+        ? resolveWorkerDependency(id) : undefined
+    }]
+  },
   resolve: {
     alias: {
       "@shared": path.resolve(__dirname, "shared")

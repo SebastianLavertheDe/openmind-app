@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { MarkdownEditor } from "../creative/MarkdownEditor";
 import { createPortal } from "react-dom";
 import { Eye, FileText, History, Pencil, Save, X } from "lucide-react";
 import type { AiSession, ContentRecord } from "@shared/contracts";
@@ -97,6 +98,7 @@ export function AiWorkbench({
   const restorePreviewFocusRef = useRef(false);
   const previewRatioRef = useRef(previewRatio);
   const previewResizeStartRatio = useRef(previewRatio);
+  const previewDragging = useRef(false);
   const previewRequest = useRef(0);
   const openingPreviewPathRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
@@ -108,7 +110,7 @@ export function AiWorkbench({
 
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => {
-    previewRatioRef.current = previewRatio;
+    if (!previewDragging.current) previewRatioRef.current = previewRatio;
     const timeout = window.setTimeout(() => {
       try {
         savePreviewRatio(window.localStorage, previewRatio);
@@ -378,13 +380,26 @@ export function AiWorkbench({
 
   const resizePreview = useCallback((delta: number) => {
     const width = workbenchLayout.inlineSize || workbenchElementRef.current?.getBoundingClientRect().width || FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE;
-    setPreviewRatio((value) => Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, value + delta / Math.max(1, width))));
+    const ratio = Math.min(MAX_PREVIEW_RATIO, Math.max(MIN_PREVIEW_RATIO, previewRatioRef.current + delta / Math.max(1, width)));
+    previewRatioRef.current = ratio;
+    if (previewDragging.current) {
+      workbenchElementRef.current?.style.setProperty("--workbench-columns", previewGridColumns(ratio));
+      workbenchElementRef.current?.querySelector(":scope > .column-splitter")?.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+    } else setPreviewRatio(ratio);
   }, [workbenchElementRef, workbenchLayout.inlineSize]);
   const startPreviewResize = useCallback(() => {
-    previewResizeStartRatio.current = previewRatio;
-  }, [previewRatio]);
+    previewResizeStartRatio.current = previewRatioRef.current;
+    previewDragging.current = true;
+  }, []);
   const cancelPreviewResize = useCallback(() => {
-    setPreviewRatio(previewResizeStartRatio.current);
+    previewRatioRef.current = previewResizeStartRatio.current;
+    workbenchElementRef.current?.style.setProperty("--workbench-columns", previewGridColumns(previewRatioRef.current));
+    setPreviewRatio(previewRatioRef.current);
+  }, [workbenchElementRef]);
+  const setPreviewResizeActive = useCallback((active: boolean) => {
+    previewDragging.current = active;
+    setPreviewResizing(active);
+    if (!active) setPreviewRatio(previewRatioRef.current);
   }, []);
 
   const savePreview = useCallback(async () => {
@@ -407,7 +422,7 @@ export function AiWorkbench({
 
   const previewColumns = previewVisible && previewLayoutMode === "split"
     ? previewActive
-      ? `minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${previewRatio.toFixed(3)}fr) ${FILE_PREVIEW_SPLITTER_INLINE_SIZE}px minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${(1 - previewRatio).toFixed(3)}fr)`
+      ? previewGridColumns(previewDragging.current ? previewRatioRef.current : previewRatio)
       : "minmax(0, 0fr) 0px minmax(0, 1fr)"
     : "minmax(0, 1fr)";
   const canEdit = Boolean(displayedPreview?.content && !displayedPreview.content.truncated) && !previewReadOnly;
@@ -532,7 +547,7 @@ export function AiWorkbench({
               reset={() => setPreviewRatio(DEFAULT_PREVIEW_RATIO)}
               onResizeStart={startPreviewResize}
               onResizeCancel={cancelPreviewResize}
-              onResizeActiveChange={setPreviewResizing}
+              onResizeActiveChange={setPreviewResizeActive}
               ariaValueMin={Math.round(MIN_PREVIEW_RATIO * 100)}
               ariaValueMax={Math.round(MAX_PREVIEW_RATIO * 100)}
               ariaValueNow={Math.round(previewRatio * 100)}
@@ -573,22 +588,20 @@ export function AiWorkbench({
                 }} /></div> : null}
                 {!previewPdf && displayedPreview.content && previewMode === "preview" ? <ContentPreview content={{ ...displayedPreview.content, content: dirty ? draft : displayedPreview.content.content }} layout="file" /> : null}
                 {!previewPdf && displayedPreview.content && previewMode === "edit" && canEdit ? (
-                  <div className="ai-file-editor-shell">
-                    <textarea
-                      aria-label={m.ai.workbench.editFileContent}
+                  <div className="ai-file-editor-shell" onKeyDownCapture={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                      event.preventDefault(); event.stopPropagation(); void savePreview();
+                    }
+                  }}>
+                    <MarkdownEditor
+                      ariaLabel={m.ai.workbench.editFileContent}
                       value={draft}
-                      spellCheck={false}
-                      onChange={(event) => {
-                        setDraft(event.target.value);
+                      onSelectionChange={() => {}}
+                      onChange={(value) => {
+                        setDraft(value);
                         setDirty(true);
                         setSaveError(null);
                         setSaveNotice(null);
-                      }}
-                      onKeyDown={(event) => {
-                        if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") {
-                          event.preventDefault();
-                          void savePreview();
-                        }
                       }}
                     />
                   </div>
@@ -609,6 +622,10 @@ function sessionStatusTone(status: AiSession["status"]): "neutral" | "success" |
     failed: "danger"
   };
   return tones[status];
+}
+
+function previewGridColumns(ratio: number): string {
+  return `minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${ratio.toFixed(4)}fr) ${FILE_PREVIEW_SPLITTER_INLINE_SIZE}px minmax(${FILE_PREVIEW_PANE_MIN_INLINE_SIZE}px, ${(1 - ratio).toFixed(4)}fr)`;
 }
 
 function previewErrorText(cause: unknown): string {

@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ColumnSplitter } from "./ColumnSplitter";
 
 beforeAll(() => {
@@ -8,7 +8,13 @@ beforeAll(() => {
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => undefined;
 });
 
-afterEach(cleanup);
+let frameCallback: FrameRequestCallback | null = null;
+beforeEach(() => {
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frameCallback = callback; return 1; });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => { frameCallback = null; });
+});
+afterEach(() => { cleanup(); vi.restoreAllMocks(); frameCallback = null; });
+function frame() { const callback = frameCallback; frameCallback = null; act(() => callback?.(16)); }
 
 function setupLeft(overrides: Partial<{
   collapsed: boolean;
@@ -158,6 +164,8 @@ describe("ColumnSplitter", () => {
     expect(onResizeActiveChange).toHaveBeenLastCalledWith(true);
 
     window.dispatchEvent(pointerEvent("pointermove", 118));
+    expect(resize).not.toHaveBeenCalled();
+    frame();
     expect(resize).toHaveBeenLastCalledWith(18);
 
     window.dispatchEvent(pointerEvent("pointerup", 118));
@@ -174,6 +182,7 @@ describe("ColumnSplitter", () => {
     const separator = screen.getByRole("separator", { name: "筛选栏宽度" });
     fireEvent(separator, pointerEvent("pointerdown", 100));
     window.dispatchEvent(pointerEvent("pointermove", 300));
+    frame();
     const escape = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
     window.dispatchEvent(escape);
 
@@ -193,6 +202,27 @@ describe("ColumnSplitter", () => {
     window.dispatchEvent(pointerEvent("pointercancel", 100));
 
     expect(onResizeCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces pointer moves and commits the last position on release", () => {
+    const { resize } = setupLeft();
+    fireEvent(screen.getByRole("separator"), pointerEvent("pointerdown", 100));
+    window.dispatchEvent(pointerEvent("pointermove", 110));
+    window.dispatchEvent(pointerEvent("pointermove", 130));
+    frame();
+    expect(resize).toHaveBeenCalledExactlyOnceWith(30);
+    window.dispatchEvent(pointerEvent("pointerup", 145));
+    expect(resize).toHaveBeenLastCalledWith(15);
+  });
+
+  it("discards uncommitted movement when Escape cancels", () => {
+    const { resize, onResizeCancel } = setupLeft();
+    fireEvent(screen.getByRole("separator"), pointerEvent("pointerdown", 100));
+    window.dispatchEvent(pointerEvent("pointermove", 300));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    frame();
+    expect(resize).not.toHaveBeenCalled();
+    expect(onResizeCancel).toHaveBeenCalledOnce();
   });
 });
 

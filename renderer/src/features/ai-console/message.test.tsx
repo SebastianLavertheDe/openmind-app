@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMarkdown } from "./message";
 import { localFileReference } from "./file-preview-context";
@@ -37,6 +37,20 @@ describe("ChatMarkdown streaming", () => {
 });
 
 describe("ChatMarkdown code blocks", () => {
+  it("copies the complete code block from a virtual document fragment", async () => {
+    const code = "line of code\n".repeat(700);
+    const writeText = vi.fn(async () => {});
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      render(<ChatMarkdown text={`\`\`\`text\n${code}\`\`\``}/>);
+      await act(async () => { fireEvent.click(screen.getAllByRole("button", { name: "复制" })[1]); });
+      expect(writeText).toHaveBeenCalledWith(code);
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
   it("renders the full block without a terminal titlebar or expand control", () => {
     const { container } = render(
       <ChatMarkdown text={'```text\nfirst line\nsecond line\nthird line\n```'} />

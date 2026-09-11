@@ -717,12 +717,6 @@
 /* 纸张式 PDF 阅读器：浅底居中白页 + 底部悬浮工具条 */
 .project-pdf-viewer { position: relative; height: 100%; min-height: 0; }
 .pdf-scroll { height: 100%; overflow: auto; background: var(--panel-muted); overscroll-behavior: contain; }
-.pdf-pages { display: flex; flex-direction: column; align-items: center; width: max-content; min-width: 100%; }
-.pdf-page-slot { position: relative; flex: none; background: #ffffff; border-radius: 3px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 6px 20px rgba(15, 23, 42, 0.12); overflow: hidden; }
-.pdf-page-slot > canvas { display: block; }
-.pdf-page-text { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-size-adjust: none; }
-.pdf-page-text > span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; cursor: text; }
-.pdf-page-text > span::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
 .pdf-toolbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--panel-bg); border: 1px solid var(--border-subtle); border-radius: 999px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16); white-space: nowrap; }
 .pdf-toolbar > button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-dim); cursor: pointer; }
 .pdf-toolbar > button:hover:not(:disabled) { background: var(--control-hover); color: var(--text); }
@@ -1036,4 +1030,3 @@
   .project-list-reopen { animation: none; }
   .project-item-skeleton { animation: none; }
 }
-

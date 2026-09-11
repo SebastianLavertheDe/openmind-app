@@ -13,6 +13,7 @@ import { useAi } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
+import { DocumentReader, useDocumentCodeText, type ReaderComponents } from "../../components/document/DocumentReader";
 
 const MARKDOWN_CACHE_LIMIT = 96;
 const STREAMING_MARKDOWN_INTERVAL_MS = 96;
@@ -28,7 +29,7 @@ export function UserMessage({ event }: { event: AiEvent }) {
       {/* P0-AI-1: 用户头像 */}
       <div className="message-body">
         <div className="user-message-bubble">
-          <p>{text}</p>
+          {text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT ? <DocumentReader content={text} plain/> : <p>{text}</p>}
           {contexts.length ? <SentContexts contexts={contexts} /> : null}
         </div>
         {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
@@ -76,12 +77,23 @@ export function ChatMarkdown({
   className?: string;
 }) {
   const classes = ["chat-markdown", className].filter(Boolean).join(" ");
+  if (!streaming && text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
+    return <DocumentReader content={text} math className={classes} customComponents={documentComponents}/>;
+  }
   return (
     <div className={classes}>
       {streaming ? <StreamingMarkdown text={text} /> : <CachedMarkdown text={text} />}
     </div>
   );
 }
+
+const documentComponents: ReaderComponents = {
+  a: ({ node: _node, ...props }) => <MarkdownLink {...props}/>,
+  pre: function DocumentCode({ node, ...props }) {
+    return <MarkdownPre {...props} copyText={useDocumentCodeText(node)}/>;
+  },
+  code: ({ node: _node, ...props }) => <MarkdownCode {...props}/>
+};
 
 function CachedMarkdown({ text }: { text: string }) {
   const cacheKey = useMemo(() => markdownCacheKey(text), [text]);
@@ -143,10 +155,9 @@ function renderCachedMarkdown(cacheKey: string, text: string): ReactNode {
 function renderStreamingMarkdown(text: string): ReactNode {
   // 流式期间最多每 96ms 解析一次，并跳过 rehype-highlight（代码高亮是 CPU 大头）；
   // 同时不写入 markdownCache，避免中途 key 撑爆 96 项 LRU。超长输出在落定前
-  // 使用一个纯文本节点，避免对不断增长的全文反复构造数千个 Markdown DOM 节点；
-  // streaming=false 后仍会立即走完整 Markdown + syntax highlight 渲染。
+  // 使用增量纯文本分块，避免整段文本参与换行；落定后后台解析完整 Markdown。
   if (text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
-    return <span className="streaming-markdown-plain">{text}</span>;
+    return <DocumentReader content={text} plain className="streaming-markdown-plain"/>;
   }
   // 数学公式（remark-math + rehype-katex）开销可控，流式期间保留实时渲染，
   // 避免 $$...$$ 在生成过程中以裸文本闪烁。落定（streaming=false）后由
@@ -259,8 +270,8 @@ export function SafeMarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageEleme
   return <a className="safe-image-link" href={src} target="_blank" rel="noreferrer">{m.ai.message.viewImage(String(alt || ""), String(src || ""))}</a>;
 }
 
-function MarkdownPre({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
-  const text = extractText(children);
+function MarkdownPre({ children, copyText, ...props }: HTMLAttributes<HTMLPreElement> & { copyText?: string }) {
+  const text = copyText ?? extractText(children);
   return (
     <div className="markdown-code-block">
       <CopyButton text={text} />

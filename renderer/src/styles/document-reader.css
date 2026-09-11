@@ -1,0 +1,26 @@
+.document-reader { position: relative; outline: none; }
+.document-flow { position: relative; min-width: 0; }
+.document-block { display: flow-root; min-width: 0; overflow-wrap: anywhere; }
+.document-block > :first-child { margin-top: 0; }
+.document-block > :last-child { margin-bottom: 0; }
+.document-block { padding-block: 0 18px; }
+.document-block.is-continuation { padding-top: 0; }
+.document-block.has-continuation { padding-bottom: 0; }
+.document-plain .document-block { white-space: pre-wrap; }
+.plain-text-reader .document-block { font-family: var(--font-mono); }
+.document-flow.is-virtual { overflow-anchor: none; }
+.document-block .markdown-table-scroll { margin: 0; }
+.document-block table { table-layout: fixed; }
+.document-block pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.document-reader-tools { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; gap: 4px; height: 30px; background: var(--panel-bg); }
+.document-reader-tools > button { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.document-findbar { position: absolute; top: 0; right: 0; z-index: 5; max-width: 100%; display: flex; align-items: center; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); box-shadow: var(--shadow-1); }
+.document-findbar input { width: 160px; min-width: 40px; flex: 1; height: 28px; }
+.document-findbar span { flex: none; font: 12px var(--font-ui); white-space: nowrap; }
+.document-findbar button { flex: none; width: 26px; height: 26px; display: inline-flex; justify-content: center; align-items: center; padding: 0; }
+.project-pdf-viewer > .pdf-scroll { position: absolute; inset: 0; height: auto; overflow: auto; }
+.project-pdf-viewer .pdfViewer { padding-block: 16px 60px; }
+.project-pdf-viewer .pdfViewer .page { box-sizing: content-box; }
+.project-pdf-viewer > .project-pdf-loading { position: absolute; inset: 0; pointer-events: none; }
+.project-pdf-viewer > .document-findbar { top: 8px; right: 8px; }
+.ai-file-editor-shell > .markdown-editor-shell { height: 100%; }

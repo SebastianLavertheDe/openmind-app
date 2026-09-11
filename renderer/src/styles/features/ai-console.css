@@ -1431,44 +1431,8 @@
   color: var(--accent-fg);
 }
 
-.ai-workbench.with-file-preview .conversation-header > div,
-.ai-workbench.with-file-preview .chat-thread,
-.ai-workbench.with-file-preview .composer,
-.ai-workbench.with-file-preview .ai-file-preview > header > div:not(.ai-file-preview-actions),
-.ai-workbench.with-file-preview .ai-file-preview-body > .reader-markdown,
-.ai-workbench.with-file-preview .ai-file-preview-body > .html-preview,
-.ai-workbench.with-file-preview .ai-file-editor-shell,
-.ai-workbench.with-file-preview .preview-inline-state {
-  transition: opacity var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)), transform var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1));
-}
-
-.ai-workbench.with-file-preview .ai-file-preview-body > .content-selection-surface {
-  transition: opacity var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)), transform var(--dur-normal, 200ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1));
-}
-
-.ai-workbench.with-file-preview.is-resizing-preview .conversation-header > div,
-.ai-workbench.with-file-preview.is-resizing-preview .chat-thread,
-.ai-workbench.with-file-preview.is-resizing-preview .composer {
-  opacity: .94;
-  transform: translateX(2px);
-  will-change: opacity, transform;
-}
-
-.ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview > header > div:not(.ai-file-preview-actions),
-.ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .reader-markdown,
-.ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .html-preview,
-.ai-workbench.with-file-preview.is-resizing-preview .ai-file-editor-shell,
-.ai-workbench.with-file-preview.is-resizing-preview .preview-inline-state {
-  opacity: .94;
-  transform: translateX(2px);
-  will-change: opacity, transform;
-}
-
-.ai-workbench.with-file-preview.is-resizing-preview .ai-file-preview-body > .content-selection-surface {
-  opacity: .94;
-  transform: translateX(2px);
-  will-change: opacity, transform;
-}
+/* Width changes must not promote the entire long document to an animated
+   compositing layer. Only the separator itself receives drag feedback. */
 
 .ai-workbench.with-file-preview.is-resizing-preview > .column-splitter::after {
   background: var(--accent);
@@ -1695,27 +1659,7 @@
   margin: 0;
 }
 
-.ai-file-editor-shell textarea {
-  width: 100%;
-  min-height: calc(100vh - 168px);
-  height: 100%;
-  resize: none;
-  padding: 22px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  outline: 0;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: inset 0 1px 0 rgba(15, 23, 42, .03);
-  font: 13px/1.72 var(--font-mono);
-  white-space: pre;
-  tab-size: 2;
-}
-
-.ai-file-editor-shell textarea:focus {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
+.ai-file-editor-shell .cm-content { padding: 22px; }
 
 .preview-state {
   height: 100%;

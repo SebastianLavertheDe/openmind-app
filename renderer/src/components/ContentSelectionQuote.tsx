@@ -5,6 +5,7 @@ import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
 import { useAnchoredPopover } from "../design-system/use-anchored-popover";
+import { readingSelectionText } from "./document/document-selection";
 
 type SelectionAction = {
   text: string;
@@ -43,7 +44,7 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
       return;
     }
 
-    const text = selection.toString().trim();
+    const text = (readingSelectionText(selection, surface) ?? selection.toString()).trim();
     if (!text) {
       setAction(null);
       return;
