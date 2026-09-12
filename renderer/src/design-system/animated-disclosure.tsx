@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { useExitPresence } from "./use-exit-presence";
 
 /**
  * Accessible animated disclosure (replaces native `<details>` where height
@@ -7,8 +8,9 @@ import { useId, type ReactNode } from "react";
  * - Trigger is a real button element with `aria-expanded` / `aria-controls`.
  * - Content height animates via `grid-template-rows: 0fr -> 1fr` plus an opacity
  *   crossfade, on `--dur-slow` / `--ease-emphasized` (audit: 220–240ms).
- * - While closed the content stays mounted for the exit animation but is marked
+ * - While closing the content stays mounted for the exit animation but is marked
  *   `inert`, so it is removed from the accessibility tree and the Tab order.
+ * - Expensive disclosure bodies can opt into unmounting after that animation.
  * - `prefers-reduced-motion` is handled by the global `transition: none` override.
  */
 export function AnimatedDisclosure({
@@ -19,7 +21,9 @@ export function AnimatedDisclosure({
   className,
   triggerClassName,
   contentClassName,
-  triggerAriaLabel
+  triggerAriaLabel,
+  unmountOnExit = false,
+  exitMs = 200
 }: {
   open: boolean;
   onOpenChange(next: boolean): void;
@@ -29,8 +33,12 @@ export function AnimatedDisclosure({
   triggerClassName?: string;
   contentClassName?: string;
   triggerAriaLabel?: string;
+  unmountOnExit?: boolean;
+  exitMs?: number;
 }) {
   const contentId = useId();
+  const bodyPresence = useExitPresence(open || !unmountOnExit, exitMs);
+  const renderBody = !unmountOnExit || open || bodyPresence.visible;
   return (
     <div className={`ui-disclosure${className ? ` ${className}` : ""}`} data-open={open || undefined}>
       <button
@@ -50,8 +58,12 @@ export function AnimatedDisclosure({
         data-open={open || undefined}
         aria-hidden={!open}
       >
-        <div className="ui-disclosure-content-inner" inert={!open || undefined}>
-          {children}
+        <div
+          className="ui-disclosure-content-inner"
+          data-leaving={(unmountOnExit && bodyPresence.leaving) || undefined}
+          inert={!open || undefined}
+        >
+          {renderBody ? children : null}
         </div>
       </div>
     </div>

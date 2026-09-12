@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
-import { useAi } from "../../ai-context";
+import { useAi, useSetAiDraft } from "../../ai-context";
 import { EmptyState, ErrorState } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
@@ -35,6 +35,7 @@ export function ProjectTasksPanel({
   detailHost?: HTMLElement | null;
 }) {
   const ai = useAi();
+  const setDraft = useSetAiDraft();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [selectedId, setSelectedId] = useState(initialTaskId || "");
   const [creating, setCreating] = useState(false);
@@ -108,14 +109,14 @@ export function ProjectTasksPanel({
     if (!createRequested) return;
     void setActiveSession(null);
     ai.clearContexts();
-    ai.setDraft(seed?.prompt || "");
+    setDraft(seed?.prompt || "");
     setCreating(true);
     setSelectedId("");
     setTitle(seed?.title || "");
     setPrompt(seed?.prompt || "");
     setError(null);
     onCreateHandled();
-  }, [createRequested, onCreateHandled, seed, setActiveSession]);
+  }, [ai.clearContexts, createRequested, onCreateHandled, seed, setActiveSession, setDraft]);
   useEffect(() => {
     if (!selected?.sessionId) return;
     let current = true;
@@ -152,7 +153,7 @@ export function ProjectTasksPanel({
   const newTask = () => {
     void setActiveSession(null);
     ai.clearContexts();
-    ai.setDraft("");
+    setDraft("");
     setCreating(true);
     setSelectedId("");
     setTitle("");
@@ -285,7 +286,7 @@ export function ProjectTasksPanel({
       );
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
-      ai.setDraft("");
+      setDraft("");
       ai.clearContexts();
       await ai.refresh();
       await ai.setActiveSession(result.session.id);

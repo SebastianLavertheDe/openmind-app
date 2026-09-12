@@ -3,18 +3,96 @@ import { messages as m } from "@shared/messages";
 
 export const NEW_SESSION_DRAFT = "__new-session__";
 
+type EventIndex = {
+  byRun: Map<string, AiEvent[]>;
+  runAnchors: Map<string, string>;
+  runIds: string[];
+};
+
+// mergeEvents owns the ordering invariant for renderer event arrays. Keeping a
+// weak index beside each immutable result lets the frequent streaming path
+// reuse all untouched run buckets instead of rebuilding a history-wide key map.
+const eventIndexes = new WeakMap<AiEvent[], EventIndex>();
+
 export function mergeEvents(current: AiEvent[], incoming: AiEvent[]): AiEvent[] {
-  const byKey = new Map(current.map((event) => [eventKey(event), event]));
-  for (const event of incoming) byKey.set(eventKey(event), event);
-  return orderEventsByRun([...byKey.values()]);
+  const base = indexedEvents(current);
+  if (incoming.length === 0) return base.events;
+
+  const incomingByRun = new Map<string, Map<number, AiEvent>>();
+  for (const event of incoming) {
+    let runEvents = incomingByRun.get(event.runId);
+    if (!runEvents) {
+      runEvents = new Map<number, AiEvent>();
+      incomingByRun.set(event.runId, runEvents);
+    }
+    // A later durable event replaces an optimistic event with the same
+    // (runId, seq), including when both appear in one flush.
+    runEvents.set(event.seq, event);
+  }
+
+  let byRun = base.index.byRun;
+  let runAnchors = base.index.runAnchors;
+  let runOrderChanged = false;
+  let changed = false;
+
+  for (const [runId, runEventMap] of incomingByRun) {
+    const existing = byRun.get(runId) || [];
+    const additions = [...runEventMap.values()].sort(compareEvents);
+    const merged = mergeOrderedRunEvents(existing, additions);
+    if (merged === existing) continue;
+
+    if (!changed) {
+      byRun = new Map(byRun);
+      runAnchors = new Map(runAnchors);
+      changed = true;
+    }
+    byRun.set(runId, merged);
+    const previousAnchor = runAnchors.get(runId);
+    const nextAnchor = runAnchor(merged);
+    runAnchors.set(runId, nextAnchor);
+    if (previousAnchor !== nextAnchor) runOrderChanged = true;
+  }
+
+  if (!changed) return base.events;
+
+  const runIds = runOrderChanged
+    ? [...byRun.keys()].sort((a, b) => compareRunIds(a, b, runAnchors))
+    : base.index.runIds;
+  const events = flattenRunEvents(runIds, byRun);
+  eventIndexes.set(events, { byRun, runAnchors, runIds });
+  return events;
 }
 
 /**
  * 事件以 (runId, seq) 作为唯一身份——同一 run 内 seq 单调递增、user-message 恒为 seq 1。
  * 用它而非随机 id 去重，能让乐观插入的合成事件被后端真事件覆盖，避免重复气泡。
  */
-function eventKey(event: AiEvent): string {
-  return `${event.runId}:${event.seq}`;
+function mergeOrderedRunEvents(current: AiEvent[], incoming: AiEvent[]): AiEvent[] {
+  const merged: AiEvent[] = [];
+  let currentIndex = 0;
+  let incomingIndex = 0;
+
+  while (currentIndex < current.length || incomingIndex < incoming.length) {
+    const currentEvent = current[currentIndex];
+    const incomingEvent = incoming[incomingIndex];
+    if (!incomingEvent || (currentEvent && currentEvent.seq < incomingEvent.seq)) {
+      merged.push(currentEvent);
+      currentIndex += 1;
+      continue;
+    }
+    if (!currentEvent || incomingEvent.seq < currentEvent.seq) {
+      merged.push(incomingEvent);
+      incomingIndex += 1;
+      continue;
+    }
+    merged.push(incomingEvent);
+    currentIndex += 1;
+    incomingIndex += 1;
+  }
+
+  return merged.length === current.length && merged.every((event, index) => event === current[index])
+    ? current
+    : merged;
 }
 
 export function compareEvents(a: AiEvent, b: AiEvent): number {
@@ -26,47 +104,71 @@ export function compareEvents(a: AiEvent, b: AiEvent): number {
 
 /**
  * Select history by complete runs (our durable turn boundary), never by an
- * arbitrary event cut. One large final turn may exceed the requested budget.
+ * arbitrary event cut. Input is kept in mergeEvents order (filtering that
+ * array is also safe), so selection can walk only the newest run suffix. One
+ * large final turn may exceed the requested budget.
  */
 export function selectRecentTurnEvents(events: AiEvent[], eventBudget: number): AiEvent[] {
   if (eventBudget <= 0 || events.length === 0) return [];
-  const ordered = orderEventsByRun(events);
-  const runIds: string[] = [];
-  const byRun = new Map<string, AiEvent[]>();
-  for (const event of ordered) {
-    const runEvents = byRun.get(event.runId);
-    if (runEvents) runEvents.push(event);
-    else {
-      runIds.push(event.runId);
-      byRun.set(event.runId, [event]);
-    }
-  }
-
-  const selected = new Set<string>();
+  let selectedStart = events.length;
+  let runEnd = events.length;
   let selectedCount = 0;
-  for (let index = runIds.length - 1; index >= 0; index--) {
-    const runId = runIds[index];
-    const runEvents = byRun.get(runId) || [];
-    if (selectedCount > 0 && selectedCount + runEvents.length > eventBudget) break;
-    selected.add(runId);
-    selectedCount += runEvents.length;
+
+  while (runEnd > 0) {
+    const runId = events[runEnd - 1].runId;
+    let runStart = runEnd - 1;
+    while (runStart > 0 && events[runStart - 1].runId === runId) runStart -= 1;
+    const runLength = runEnd - runStart;
+    if (selectedCount > 0 && selectedCount + runLength > eventBudget) break;
+    selectedStart = runStart;
+    selectedCount += runLength;
     if (selectedCount >= eventBudget) break;
+    runEnd = runStart;
   }
-  return ordered.filter((event) => selected.has(event.runId));
+  return events.slice(selectedStart);
 }
 
-function orderEventsByRun(events: AiEvent[]): AiEvent[] {
-  const byRun = new Map<string, AiEvent[]>();
+function indexedEvents(events: AiEvent[]): { events: AiEvent[]; index: EventIndex } {
+  const cached = eventIndexes.get(events);
+  if (cached) return { events, index: cached };
+
+  // This path is paid only for an array not produced by mergeEvents. It also
+  // normalizes legacy/caller-provided input and preserves last-write-wins.
+  const eventsByRunAndSeq = new Map<string, Map<number, AiEvent>>();
   for (const event of events) {
-    const runEvents = byRun.get(event.runId);
-    if (runEvents) runEvents.push(event);
-    else byRun.set(event.runId, [event]);
+    let runEvents = eventsByRunAndSeq.get(event.runId);
+    if (!runEvents) {
+      runEvents = new Map<number, AiEvent>();
+      eventsByRunAndSeq.set(event.runId, runEvents);
+    }
+    runEvents.set(event.seq, event);
   }
-  return [...byRun.entries()]
-    .sort(([aId, aEvents], [bId, bEvents]) => {
-      return runAnchor(aEvents).localeCompare(runAnchor(bEvents)) || aId.localeCompare(bId);
-    })
-    .flatMap(([, runEvents]) => runEvents.slice().sort(compareEvents));
+
+  const byRun = new Map<string, AiEvent[]>();
+  const runAnchors = new Map<string, string>();
+  for (const [runId, runEventMap] of eventsByRunAndSeq) {
+    const runEvents = [...runEventMap.values()].sort(compareEvents);
+    byRun.set(runId, runEvents);
+    runAnchors.set(runId, runAnchor(runEvents));
+  }
+  const runIds = [...byRun.keys()].sort((a, b) => compareRunIds(a, b, runAnchors));
+  const ordered = flattenRunEvents(runIds, byRun);
+  const normalized = ordered.length === events.length && ordered.every((event, index) => event === events[index])
+    ? events
+    : ordered;
+  const index = { byRun, runAnchors, runIds };
+  eventIndexes.set(normalized, index);
+  return { events: normalized, index };
+}
+
+function compareRunIds(a: string, b: string, runAnchors: Map<string, string>): number {
+  return (runAnchors.get(a) || "").localeCompare(runAnchors.get(b) || "") || a.localeCompare(b);
+}
+
+function flattenRunEvents(runIds: string[], byRun: Map<string, AiEvent[]>): AiEvent[] {
+  const events: AiEvent[] = [];
+  for (const runId of runIds) events.push(...(byRun.get(runId) || []));
+  return events;
 }
 
 function runAnchor(events: AiEvent[]): string {

@@ -101,6 +101,15 @@ async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中�
   if (count > 0) throw new Error(message);
 }
 
+async function assertNoActiveProjectTaskRun(
+  ctx: IpcMainContext,
+  projectId: string,
+  taskId: string
+): Promise<void> {
+  const count = Number(await ctx.ensureAiWorker().call("active-project-task-count", projectId, taskId)) || 0;
+  if (count > 0) throw new Error("这个 Project Task 仍有运行中的 AI 任务，暂时不能归档。");
+}
+
 class AsyncSerialGate {
   private tail: Promise<void> = Promise.resolve();
 
@@ -783,8 +792,19 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async (rawInput) => {
         const input = ProjectTaskLocatorSchema.parse(rawInput);
         return projectAdmission.run(async () => {
-          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能归档 Project Task。");
-          return projects().archiveProjectTask(input.projectName, input.taskId);
+          const projectService = projects();
+          const task = projectService.getProjectTask(input.projectName, input.taskId);
+          await assertNoActiveProjectTaskRun(ctx, task.projectId, task.taskId);
+          const archived = projectService.archiveProjectTask(input.projectName, input.taskId);
+          try {
+            await ai().call("archive-project-task-sessions", task.projectId, task.taskId);
+          } catch (cause) {
+            // Keep Task/session visibility atomic if the worker fails between
+            // the two app-private stores.
+            projectService.setProjectTaskStatus(input.projectName, input.taskId, task.status);
+            throw cause;
+          }
+          return archived;
         });
       }
     },

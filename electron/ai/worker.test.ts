@@ -18,6 +18,8 @@ const hoisted = vi.hoisted(() => ({
     searchSessions: vi.fn(() => []),
     listSkills: vi.fn(() => []),
     activeTaskCount: vi.fn(() => 0),
+    activeProjectTaskRunCount: vi.fn(() => 0),
+    archiveProjectTaskSessions: vi.fn(() => 0),
     prewarmClaude: vi.fn(async () => true),
     startRun: vi.fn(async () => "run-1"),
     startProjectRun: vi.fn(async () => "project-run-1"),
@@ -95,6 +97,20 @@ describe("worker dispatch", () => {
     await sendMessage("active-count");
     expect(hoisted.schedulerMethods.activeTaskCount).toHaveBeenCalled();
     expect(hoisted.posted).toContainEqual({ type: "response", id: "1", result: 2 });
+  });
+
+  it("active-project-task-count 只转发目标 Project Task 身份", async () => {
+    hoisted.schedulerMethods.activeProjectTaskRunCount.mockReturnValue(1);
+    await sendMessage("active-project-task-count", ["project-1", "task-1"]);
+    expect(hoisted.schedulerMethods.activeProjectTaskRunCount).toHaveBeenCalledWith("project-1", "task-1");
+    expect(hoisted.posted).toContainEqual({ type: "response", id: "1", result: 1 });
+  });
+
+  it("archive-project-task-sessions 同步归档目标 Task 的会话", async () => {
+    hoisted.schedulerMethods.archiveProjectTaskSessions.mockReturnValue(1);
+    await sendMessage("archive-project-task-sessions", ["project-1", "task-1"]);
+    expect(hoisted.schedulerMethods.archiveProjectTaskSessions).toHaveBeenCalledWith("project-1", "task-1");
+    expect(hoisted.posted).toContainEqual({ type: "response", id: "1", result: 1 });
   });
 
   it("credential revoke/replace 状态转发到 scheduler", async () => {

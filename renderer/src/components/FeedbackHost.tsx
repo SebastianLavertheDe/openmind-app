@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
@@ -59,6 +60,32 @@ export function FeedbackHost() {
   }, [ai.confirmState, ai.resolveConfirm]);
 
   const toastList = useExitingList(ai.toasts, (toast) => String(toast.id), 160);
+  const confirmDialog = confirmVisible && stashed ? (
+    <div className="modal-scrim ui-overlay" data-leaving={confirmLeaving || undefined} onClick={() => ai.resolveConfirm(false)}>
+      <div
+        ref={dialogRef}
+        className="modal-card"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={stashed.title}
+        aria-describedby={stashed.body ? descriptionId : undefined}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <strong>{stashed.title}</strong>
+        {stashed.body ? <p id={descriptionId}>{stashed.body}</p> : null}
+        <div className="modal-actions">
+          <button data-motion="action" className="settings-subtle-action" ref={cancelRef} onClick={() => ai.resolveConfirm(false)}>{m.feedback.cancel}</button>
+          <button
+            ref={confirmRef}
+            className={stashed.danger ? "danger-button" : "primary-button"}
+            onClick={() => ai.resolveConfirm(true)}
+          >
+            {stashed.confirmText || m.designSystem.confirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
   return (
     <>
       <div className="toast-stack" aria-live="polite">
@@ -84,32 +111,7 @@ export function FeedbackHost() {
           </div>
         ))}
       </div>
-      {confirmVisible && stashed ? (
-        <div className="modal-scrim ui-overlay" data-leaving={confirmLeaving || undefined} onClick={() => ai.resolveConfirm(false)}>
-          <div
-            ref={dialogRef}
-            className="modal-card"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label={stashed.title}
-            aria-describedby={stashed.body ? descriptionId : undefined}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <strong>{stashed.title}</strong>
-            {stashed.body ? <p id={descriptionId}>{stashed.body}</p> : null}
-            <div className="modal-actions">
-              <button data-motion="action" className="settings-subtle-action" ref={cancelRef} onClick={() => ai.resolveConfirm(false)}>{m.feedback.cancel}</button>
-              <button
-                ref={confirmRef}
-                className={stashed.danger ? "danger-button" : "primary-button"}
-                onClick={() => ai.resolveConfirm(true)}
-              >
-                {stashed.confirmText || m.designSystem.confirm}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {confirmDialog && typeof document !== "undefined" ? createPortal(confirmDialog, document.body) : confirmDialog}
     </>
   );
 }

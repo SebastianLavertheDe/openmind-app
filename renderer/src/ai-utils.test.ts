@@ -85,6 +85,45 @@ describe("AI renderer state helpers", () => {
     ]);
   });
 
+  it("replaces an optimistic event with its durable event identity", () => {
+    const optimistic = event("optimistic", "2026-01-01T00:00:01.000Z", 1, "run", "user-message");
+    const durable = event("durable", "2026-01-01T00:00:01.100Z", 1, "run", "user-message");
+
+    const merged = mergeEvents([optimistic], [durable]);
+
+    expect(merged).toEqual([durable]);
+  });
+
+  it("inserts delayed lower-sequence events without reordering the rest of the run", () => {
+    const first = event("first", "2026-01-01T00:00:01.000Z", 1);
+    const fourth = event("fourth", "2026-01-01T00:00:04.000Z", 4);
+    const current = mergeEvents([], [first, fourth]);
+
+    const merged = mergeEvents(current, [event("third", "2026-01-01T00:00:03.000Z", 3)]);
+
+    expect(merged.map((item) => item.id)).toEqual(["first", "third", "fourth"]);
+  });
+
+  it("prepends an older history run while retaining chronological run order", () => {
+    const current = mergeEvents([], [
+      event("new-user", "2026-01-01T01:00:01.000Z", 1, "new-run", "user-message"),
+      event("new-answer", "2026-01-01T01:00:02.000Z", 2, "new-run")
+    ]);
+
+    const merged = mergeEvents(current, [
+      event("old-answer", "2026-01-01T00:00:02.000Z", 2, "old-run"),
+      event("old-user", "2026-01-01T00:00:01.000Z", 1, "old-run", "user-message")
+    ]);
+
+    expect(merged.map((item) => item.id)).toEqual(["old-user", "old-answer", "new-user", "new-answer"]);
+  });
+
+  it("preserves the event array for a duplicate streaming flush", () => {
+    const current = mergeEvents([], [event("status", "2026-01-01T00:00:01.000Z", 1)]);
+
+    expect(mergeEvents(current, [current[0]])).toBe(current);
+  });
+
   it("keeps the newest prompt by selecting complete turns instead of the last event count", () => {
     const oldRun = Array.from({ length: 301 }, (_, index) =>
       event(`old-${index}`, `2026-01-01T00:00:${String(index % 60).padStart(2, "0")}.000Z`, index + 1, "old-run",

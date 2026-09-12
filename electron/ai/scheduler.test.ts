@@ -207,6 +207,38 @@ describe("RunScheduler Project Task scope", () => {
     expect(executions[1].prompt).toContain("done");
   });
 
+  it("counts active work only for the matching Project Task", async () => {
+    const fixture = projectScheduler();
+    const otherTaskId = crypto.randomUUID();
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    let releaseRun!: () => void;
+    const runBarrier = new Promise<void>((resolve) => { releaseRun = resolve; });
+    internals.adapters.claude = {
+      run: async (context) => {
+        await runBarrier;
+        await context.emit("assistant-message", { text: "done", phase: "final" });
+      }
+    };
+
+    const { run } = fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot,
+      projectId: fixture.project.id,
+      projectName: fixture.project.name,
+      taskId: fixture.task.taskId,
+      providerId: "claude-native",
+      prompt: "start"
+    });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "running");
+
+    expect(fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, fixture.task.taskId)).toBe(1);
+    expect(fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, otherTaskId)).toBe(0);
+
+    releaseRun();
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === run.id)?.status === "completed");
+    expect(fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, fixture.task.taskId)).toBe(0);
+  });
+
   it("rejects untrusted, mismatched and symlink Project roots before provider startup", () => {
     const fixture = projectScheduler();
     const outside = createRoot();

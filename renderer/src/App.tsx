@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
@@ -168,7 +168,10 @@ function Workspace({
     if (settingsOpen) void window.openmind.aiRefreshProviders?.().catch(() => undefined);
   }, [settingsOpen]);
   useEffect(() => setWorkspaceFilePath(null), [route.page, route.nonce, settingsOpen]);
-  const routeRenderProps = {
+  // 导航收起是 AppShell/AiSidebar 关心的状态，路由内容与其无关。缓存这些
+  // 元素让 React 在 navCollapsed 变化时整树跳过重渲染（性能：收起导航不应
+  // 重新渲染 184 行文件列表 + 预览阅读器 + AI 工作台）。
+  const routeRenderProps = useMemo(() => ({
     bootstrap,
     navigate,
     providers: ai.snapshot.providers,
@@ -177,25 +180,34 @@ function Workspace({
     confirmAction: ai.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  };
-  return (
-    <FilePreviewProvider open={openWorkspaceFile}>
-      <AppShell
-      page={settingsOpen ? "settings" : route.page}
-      navigate={navigate}
-      onOpenSearch={openSearch}
-      navCollapsed={navCollapsed}
-      setNavCollapsed={setNavCollapsed}
-      repoRoot={bootstrap.repoRoot}
-      runtime={bootstrap.runtime}
-      environment={bootstrap.environment}
-      pendingApprovals={ai.snapshot.pendingApprovals.length}
-      aiSessionOpen={Boolean(ai.activeSession)}
-      aiMode={showAiCompanion ? ai.panelMode : "collapsed"}
-      aiSidebar={showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} openWorkbench={() => navigate("ai")} /> : null}
-      recentTasks={<SidebarRecent activeSessionId={route.page === "ai" ? ai.activeSession?.id || null : null} onOpen={(id) => { void ai.setActiveSession(id); navigate("ai"); }} />}
-      onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
-      >
+  }), [bootstrap, navigate, ai.snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, ai.confirm, refreshBootstrap, exitSettings]);
+  const aiSidebarElement = useMemo(
+    () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
+    [showAiCompanion, navCollapsed]
+  );
+  const recentTasksElement = useMemo(() => <SidebarRecent
+    activeSessionId={
+      route.page === "ai" && ai.activeSession?.scope.type === "workspace"
+        ? ai.activeSession.id
+        : route.page === "projects" && ai.activeSession?.scope.type === "project-task"
+          ? ai.activeSession.id
+          : null
+    }
+    onOpen={(session) => {
+      if (session.scope.type === "project-task") {
+        navigate("projects", {
+          projectName: session.scope.projectName,
+          projectSection: "tasks",
+          projectItem: session.scope.taskId
+        });
+        return;
+      }
+      void ai.setActiveSession(session.id);
+      navigate("ai");
+    }}
+  />, [route.page, ai.activeSession?.id, ai.activeSession?.scope.type, ai.setActiveSession, navigate]);
+  const routeContent = useMemo(() => (
+    <>
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
         <div
           className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`}
@@ -211,6 +223,27 @@ function Workspace({
           {renderActiveRoute({ route: { page: "settings", state: settingsRouteState, nonce: 0 }, ...routeRenderProps })}
         </Suspense>
       ) : null}
+    </>
+  ), [route, routeRenderProps, settingsOpen, settingsRouteState, workspaceFilePath, closeWorkspaceFile]);
+  return (
+    <FilePreviewProvider open={openWorkspaceFile}>
+      <AppShell
+      page={settingsOpen ? "settings" : route.page}
+      navigate={navigate}
+      onOpenSearch={openSearch}
+      navCollapsed={navCollapsed}
+      setNavCollapsed={setNavCollapsed}
+      repoRoot={bootstrap.repoRoot}
+      runtime={bootstrap.runtime}
+      environment={bootstrap.environment}
+      pendingApprovals={ai.snapshot.pendingApprovals.length}
+      aiSessionOpen={Boolean(ai.activeSession)}
+      aiMode={showAiCompanion ? ai.panelMode : "collapsed"}
+      aiSidebar={aiSidebarElement}
+      recentTasks={recentTasksElement}
+      onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
+      >
+      {routeContent}
       <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />
       <FeedbackHost />
       </AppShell>

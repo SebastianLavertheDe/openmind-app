@@ -106,7 +106,8 @@ describe("App bootstrap", () => {
   it("opens the global search on Cmd/Ctrl+K after bootstrap", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "搜索资料、创作和会话" }).length).toBeGreaterThan(0));
+    // 品牌区搜索按钮已移除，以主导航就绪作为应用壳就绪信号。
+    await waitFor(() => expect(screen.getByRole("button", { name: "新建任务" })).toBeTruthy());
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeTruthy();
@@ -458,7 +459,8 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
     expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
-    expect(document.querySelector(".global-toolbar")).toBeTruthy();
+    // 桌面壳的全局工具条已移除，返回后以主导航恢复作为应用壳还原的标志。
+    expect(document.querySelector(".app-nav")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
   }, 15_000);
 
@@ -506,7 +508,7 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
   });
 
-  it("opens the AI companion by default on the daily brief page and respects a manual collapse", async () => {
+  it("opens the AI companion by default on the daily brief page without a header toolbar", async () => {
     installApi({ listContent: async () => [] });
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
@@ -517,10 +519,8 @@ describe("App bootstrap", () => {
       expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
       expect(document.querySelector(".ai-sidebar.mode-default")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "展开 AI 侧栏" })).toBeNull();
+      expect(document.querySelector(".ai-sidebar > header")).toBeNull();
     }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
-
-    fireEvent.click(screen.getByRole("button", { name: "收起" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
   }, 15_000);
 
   it("docks the AI companion beside Project files and closes it for Project tasks", async () => {
@@ -771,7 +771,7 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(readContent).toHaveBeenCalledTimes(2));
   });
 
-  it("keeps a fullscreen AI companion underneath the body-level global search", async () => {
+  it("keeps an expanded AI companion underneath the body-level global search", async () => {
     window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
     const view = render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
@@ -780,8 +780,6 @@ describe("App bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
     await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /^全屏$/ }));
-    await waitFor(() => expect(document.querySelector(".ai-sidebar.mode-full")).toBeTruthy());
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     await waitFor(() => expect(document.querySelector(".global-search-dialog")).toBeTruthy());
 
@@ -793,7 +791,7 @@ describe("App bootstrap", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(document.querySelector(".global-search-scrim")).toBeNull());
-    expect(document.querySelector(".ai-sidebar.mode-full")).toBeTruthy();
+    expect(document.querySelector(".ai-sidebar")).toBeTruthy();
   });
 
   it("clears the recent-session selection when navigating to a feature page", async () => {
@@ -838,6 +836,80 @@ describe("App bootstrap", () => {
       expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
       expect(recentSession?.classList.contains("active")).toBe(false);
       expect(recentSession?.getAttribute("aria-current")).toBeNull();
+    });
+  });
+
+  it("opens a recent Project Task in its owning Project conversation", async () => {
+    window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
+    const projectId = "5a111111-1111-4111-8111-111111111111";
+    const taskId = "7f43fc74-10a1-4e71-97cd-ec90d2660c1c";
+    const projectSession = {
+      schemaVersion: 1 as const,
+      id: "project-session-1",
+      projectId,
+      scope: { type: "project-task" as const, projectId, projectName: "AI 安全", taskId },
+      projectRoot: "/project/openmind/projects/AI 安全",
+      title: "项目内部对话",
+      provider: "codex" as const,
+      providerId: "codex-native",
+      providerSessionId: null,
+      cwd: ".",
+      permissionProfile: "read-only" as const,
+      status: "idle" as const,
+      pinned: false,
+      archived: false,
+      createdAt: "2026-09-10T00:00:00.000Z",
+      updatedAt: "2026-09-10T00:01:00.000Z",
+      lastRunId: null
+    };
+    const project = {
+      schemaVersion: 2 as const,
+      id: projectId,
+      name: "AI 安全",
+      description: "研究与写作",
+      status: "active" as const,
+      icon: "database",
+      color: "neutral" as const,
+      favorite: false,
+      materialCount: 0,
+      taskCount: 1,
+      outputCount: 0,
+      createdAt: "2026-09-09T00:00:00.000Z",
+      updatedAt: "2026-09-10T00:01:00.000Z"
+    };
+    const task = {
+      taskId,
+      projectId,
+      projectName: project.name,
+      title: projectSession.title,
+      sessionId: projectSession.id,
+      previousSessionIds: [],
+      providerId: projectSession.providerId,
+      status: "completed" as const,
+      createdAt: projectSession.createdAt,
+      updatedAt: projectSession.updatedAt
+    };
+    const projectSnapshot = { ...snapshot, sessions: [projectSession] };
+    const getProject = vi.fn(async (_projectName: string) => project);
+    const listProjectTasks = vi.fn(async () => [task]);
+    installApi({
+      getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: projectSnapshot }),
+      aiRefresh: async () => projectSnapshot,
+      listProjects: async () => [project],
+      getProject: async (projectName) => ({ project: await getProject(projectName) }),
+      listProjectTasks
+    });
+
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    fireEvent.click(await screen.findByText(projectSession.title));
+
+    await waitFor(() => expect(getProject).toHaveBeenCalledWith(project.name));
+    await waitFor(() => expect(listProjectTasks).toHaveBeenCalledWith(project.name));
+    await waitFor(() => {
+      const selected = document.querySelector(".project-task-row.active");
+      expect(selected?.textContent).toContain(projectSession.title);
+      expect(screen.getByRole("button", { name: "项目" }).getAttribute("aria-current")).toBe("page");
     });
   });
 });

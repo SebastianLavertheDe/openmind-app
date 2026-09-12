@@ -4,8 +4,18 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const resolveWorkerDependency = createRequire(import.meta.url).resolve;
+const domFreeDocumentDependencies = [
+  "decode-named-character-reference",
+  "hast-util-from-html-isomorphic"
+] as const;
 
-export default defineConfig({
+function resolveDomFreeDocumentDependency(id: string): string | undefined {
+  return domFreeDocumentDependencies.includes(id as typeof domFreeDocumentDependencies[number])
+    ? resolveWorkerDependency(id)
+    : undefined;
+}
+
+export default defineConfig(({ command }) => ({
   root: "renderer",
   base: "./",
   plugins: [react()],
@@ -15,13 +25,16 @@ export default defineConfig({
       // Unified's entity and HTML parsers provide worker-safe exports. Their
       // browser exports call document.createElement and cannot run in a Worker.
       enforce: "pre",
-      resolveId: (id) => id === "decode-named-character-reference" || id === "hast-util-from-html-isomorphic"
-        ? resolveWorkerDependency(id) : undefined
+      resolveId: resolveDomFreeDocumentDependency
     }]
   },
   resolve: {
     alias: {
-      "@shared": path.resolve(__dirname, "shared")
+      "@shared": path.resolve(__dirname, "shared"),
+      // worker.plugins only participates in Rollup's production worker build.
+      // During dev, optimizeDeps otherwise pre-bundles the browser exports into
+      // the worker module graph before that hook can run.
+      ...(command === "serve" ? Object.fromEntries(domFreeDocumentDependencies.map(id => [id, resolveWorkerDependency(id)])) : {})
     }
   },
   // Production artifacts must not contain React's development JSX source
@@ -73,4 +86,4 @@ export default defineConfig({
     environment: "jsdom",
     include: ["../electron/**/*.test.ts", "./**/*.test.ts", "./**/*.test.tsx", "../shared/**/*.test.ts"]
   }
-});
+}));

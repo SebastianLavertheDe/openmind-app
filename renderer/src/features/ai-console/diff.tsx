@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, Files, FolderOpen } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -7,7 +7,7 @@ import { CopyButton } from "./message";
 import { fileIcon, fileIconColor } from "./file-icon";
 import { useFilePreview } from "./file-preview-context";
 import { PatchView } from "./patch-view";
-import { asRecord, changePaths, numeric, scalar } from "./timeline";
+import { asRecord, numeric, scalar } from "./timeline";
 
 type ChangeFileView = {
   path: string;
@@ -17,8 +17,18 @@ type ChangeFileView = {
   patch: string;
 };
 
+function useStableEventSequence(events: AiEvent[]): AiEvent[] {
+  const stable = useRef(events);
+  if (stable.current !== events && (
+    stable.current.length !== events.length
+    || stable.current.some((event, index) => event !== events[index])
+  )) stable.current = events;
+  return stable.current;
+}
+
 export function ChangeTraceCard({ event, run }: { event: AiEvent; run: AiRun }) {
-  return <ChangeCard events={[event]} run={run} variant="trace" />;
+  const events = useMemo(() => [event], [event]);
+  return <ChangeCard events={events} run={run} variant="trace" />;
 }
 
 /**
@@ -35,8 +45,8 @@ export function ChangeReviewCard({ events, run }: { events: AiEvent[]; run: AiRu
 function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; variant: "trace" | "review" }) {
   const [open, setOpen] = useState(false);
   const openPreview = useFilePreview();
-  const paths = changePaths(run, events);
-  const files = changeFiles(run, events, paths);
+  const stableEvents = useStableEventSequence(events);
+  const files = useMemo(() => changeFiles(run.changeSet, stableEvents), [run.changeSet, stableEvents]);
   const fileLabel = files.length ? m.ai.diff.editedFiles(files.length) : m.ai.diff.editedFile;
   if (variant === "review") {
     const visibleFiles = open ? files : files.slice(0, 3);
@@ -98,6 +108,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
       className="change-trace-card"
       open={open}
       onOpenChange={setOpen}
+      unmountOnExit
       summary={
         <>
           <span><strong>{fileLabel}</strong><small>{files.length ? files.map((file) => file.path).join(", ") : m.ai.diff.changesUpdated}</small></span>
@@ -127,7 +138,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
   );
 }
 
-function changeFiles(run: AiRun, events: AiEvent[], fallbackPaths: string[]): ChangeFileView[] {
+function changeFiles(changeSet: AiRun["changeSet"], events: AiEvent[]): ChangeFileView[] {
   const files = new Map<string, ChangeFileView>();
   const add = (value: unknown) => {
     const record = asRecord(value);
@@ -147,8 +158,13 @@ function changeFiles(run: AiRun, events: AiEvent[], fallbackPaths: string[]): Ch
     });
   };
 
-  for (const file of run.changeSet?.files || []) add(file);
+  for (const file of changeSet?.files || []) add(file);
   for (const event of events) {
+    if (event.kind === "tool-start") {
+      add(event.payload.input || event.payload);
+      continue;
+    }
+    if (event.kind !== "changes") continue;
     const payload = asRecord(event.payload);
     const changeSet = asRecord(payload.changeSet);
     for (const collection of [payload.files, payload.changes, changeSet.files]) {
@@ -157,7 +173,6 @@ function changeFiles(run: AiRun, events: AiEvent[], fallbackPaths: string[]): Ch
     const unifiedDiff = scalar(payload.diff || payload.patch || changeSet.patch);
     for (const file of parseUnifiedDiffFiles(unifiedDiff)) add(file);
   }
-  for (const path of fallbackPaths) add(path);
   return [...files.values()];
 }
 

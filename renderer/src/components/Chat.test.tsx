@@ -503,6 +503,21 @@ describe("chat timeline", () => {
     expect(document.body.textContent).toContain('"a.tsx"');
   });
 
+  it("defers large payload serialization until a tool card is opened", () => {
+    const output = { toJSON: vi.fn(() => ({ matches: ["a.tsx", "b.tsx"] })) };
+    const start = makeEvent("lazy-start", "tool-start", { itemId: "lazy-1", tool: "Analyze", input: { subject: "workspace" } });
+    const complete = makeEvent("lazy-complete", "tool-complete", { itemId: "lazy-1", output });
+    const events = [start, complete];
+    const view = render(<ToolCallCard events={events} />);
+
+    expect(output.toJSON).not.toHaveBeenCalled();
+    fireEvent.click(disclosureTrigger(disclosureFor(screen.getByText("Analyze"))));
+    expect(output.toJSON).toHaveBeenCalledTimes(1);
+
+    view.rerender(<ToolCallCard events={[...events]} />);
+    expect(output.toJSON).toHaveBeenCalledTimes(1);
+  });
+
   it("shows read tool output without the old detail controls", async () => {
     const user = userEvent.setup();
     const openPreview = vi.fn();
@@ -548,6 +563,7 @@ describe("chat timeline", () => {
     render(<ToolCallCard events={[start, complete]} />);
 
     expect(screen.getAllByText("npm test").length).toBeGreaterThan(0);
+    fireEvent.click(disclosureTrigger(disclosureFor(screen.getByText("命令失败"))));
     expect(screen.getByLabelText("退出码 1").classList.contains("failed")).toBe(true);
     expect(document.querySelector(".command-terminal-titlebar")).toBeNull();
     expect(document.querySelector(".terminal-line.command")?.textContent).toContain("$ npm test");

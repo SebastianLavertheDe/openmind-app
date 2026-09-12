@@ -83,11 +83,13 @@ export function isUserVisibleSystemEvent(event: AiEvent): boolean {
  */
 export function selectRenderableTimelineEvents(events: AiEvent[], runs: AiRun[]): AiEvent[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
+  const eventRunIds = new Set<string>();
   const latestStatusByRun = new Map<string, string>();
   const explicitFinalIdByRun = new Map<string, string>();
   const unknownMessageIdByRun = new Map<string, string>();
 
   for (const event of events) {
+    eventRunIds.add(event.runId);
     if (event.kind === "status") {
       const status = scalar(event.payload.state) || scalar(event.payload.status);
       if (status) latestStatusByRun.set(event.runId, status);
@@ -100,7 +102,7 @@ export function selectRenderableTimelineEvents(events: AiEvent[], runs: AiRun[])
   }
 
   const authoritativeFinalIdByRun = new Map<string, string>();
-  for (const runId of new Set(events.map((event) => event.runId))) {
+  for (const runId of eventRunIds) {
     const status = runById.get(runId)?.status || latestStatusByRun.get(runId);
     const finalId = status === "completed"
       ? explicitFinalIdByRun.get(runId) || unknownMessageIdByRun.get(runId)
@@ -120,18 +122,37 @@ export function selectRenderableTimelineEvents(events: AiEvent[], runs: AiRun[])
 
 export function groupTimeline(events: AiEvent[], runs: AiRun[]): TimelineItem[] {
   const result: TimelineItem[] = [];
-  const semanticEvents = selectRenderableTimelineEvents(events, runs)
-    .filter((event) => event.kind !== "reasoning-delta")
-    .slice();
-  const runOrder = orderedRunIds(semanticEvents, runs);
+  const runById = new Map(runs.map((run) => [run.id, run]));
+  const runStartedAt = new Map(runs.map((run) => [run.id, run.startedAt]));
+  const firstEventAt = new Map<string, string>();
+  const eventsByRun = new Map<string, AiEvent[]>();
+  const unorderedRuns = new Set<string>();
+
+  for (const event of selectRenderableTimelineEvents(events, runs)) {
+    if (event.kind === "reasoning-delta") continue;
+    const firstTimestamp = firstEventAt.get(event.runId);
+    if (!firstTimestamp || event.timestamp < firstTimestamp) firstEventAt.set(event.runId, event.timestamp);
+    const runEvents = eventsByRun.get(event.runId);
+    if (runEvents) {
+      if ((runEvents.at(-1)?.seq || 0) > event.seq) unorderedRuns.add(event.runId);
+      runEvents.push(event);
+    } else {
+      eventsByRun.set(event.runId, [event]);
+    }
+  }
+
+  const runOrder = [...eventsByRun.keys()].sort((a, b) => {
+    const aStartedAt = runStartedAt.get(a) || firstEventAt.get(a) || "";
+    const bStartedAt = runStartedAt.get(b) || firstEventAt.get(b) || "";
+    return aStartedAt.localeCompare(bStartedAt) || a.localeCompare(b);
+  });
 
   for (const runId of runOrder) {
-    const runEvents = semanticEvents.filter((event) => event.runId === runId).sort((a, b) => a.seq - b.seq);
-    const run = runs.find((item) => item.id === runId);
+    const bucket = eventsByRun.get(runId) || [];
+    const runEvents = unorderedRuns.has(runId) ? bucket.slice().sort((a, b) => a.seq - b.seq) : bucket;
+    const run = runById.get(runId);
     if (!run) {
-      for (const event of runEvents.filter(orphanEventVisible)) {
-        result.push({ type: "event", event });
-      }
+      for (const event of runEvents) if (orphanEventVisible(event)) result.push({ type: "event", event });
       continue;
     }
     const { steps } = buildTraceSteps(runEvents);
@@ -317,20 +338,6 @@ export function compactEvents(events: AiEvent[], activeRunId?: string): AiEvent[
     ].includes(event.kind);
   });
   return selectRecentTurnEvents(useful, 80);
-}
-
-function orderedRunIds(events: AiEvent[], runs: AiRun[]): string[] {
-  const runStartedAt = new Map(runs.map((run) => [run.id, run.startedAt]));
-  const firstEventAt = new Map<string, string>();
-  for (const event of events) {
-    const current = firstEventAt.get(event.runId);
-    if (!current || event.timestamp < current) firstEventAt.set(event.runId, event.timestamp);
-  }
-  return [...new Set(events.map((event) => event.runId))].sort((a, b) => {
-    const aStartedAt = runStartedAt.get(a) || firstEventAt.get(a) || "";
-    const bStartedAt = runStartedAt.get(b) || firstEventAt.get(b) || "";
-    return aStartedAt.localeCompare(bStartedAt) || a.localeCompare(b);
-  });
 }
 
 export function firstLine(value: string): string {

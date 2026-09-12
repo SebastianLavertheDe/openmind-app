@@ -1,8 +1,9 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { memo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { AiProvider, useAi, useAiStreaming, type AiController } from "./ai-context";
+import { AiProvider, useAi, useAiDraft, useAiStreaming, type AiController } from "./ai-context";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -59,8 +60,9 @@ function VisibleSkillIds() {
 
 function DraftContextState() {
   const ai = useAi();
+  const { draft } = useAiDraft();
   return <output data-testid="draft-context-state">{JSON.stringify({
-    draft: ai.draft,
+    draft,
     contexts: ai.pendingContexts.map((context) => context.path)
   })}</output>;
 }
@@ -170,6 +172,60 @@ function flushTimers(): void {
 }
 
 describe("AiProvider streaming store via event pump", () => {
+  it("keeps the main controller stable while draft subscribers update and persistence is debounced", () => {
+    let controller: AiController | null = null;
+    let setDraft: ((value: string) => void) | null = null;
+    let controllerRenders = 0;
+    let draftRenders = 0;
+    const storageWrites = vi.spyOn(Storage.prototype, "setItem");
+    const ControllerProbe = memo(function ControllerProbe() {
+      controller = useAi();
+      controllerRenders++;
+      return null;
+    });
+    const DraftProbe = memo(function DraftProbe() {
+      const state = useAiDraft();
+      setDraft = state.setDraft;
+      draftRenders++;
+      return <output data-testid="isolated-draft">{state.draft}</output>;
+    });
+    const tree = () => (
+      <AiProvider initial={snapshot} skills={skills} storageScope="render-isolation">
+        <ControllerProbe />
+        <DraftProbe />
+      </AiProvider>
+    );
+    const view = render(tree());
+    const initialController = controller;
+    expect(controllerRenders).toBe(1);
+    expect(draftRenders).toBe(1);
+
+    view.rerender(tree());
+    expect(controllerRenders).toBe(1);
+
+    act(() => {
+      setDraft?.("a");
+      setDraft?.("ab");
+    });
+    expect(screen.getByTestId("isolated-draft").textContent).toBe("ab");
+    expect(controller).toBe(initialController);
+    expect(controllerRenders).toBe(1);
+    expect(draftRenders).toBe(2);
+
+    const draftWrites = () => storageWrites.mock.calls.filter(([key]) => key === "openmind.ai.drafts.v1:render-isolation");
+    expect(draftWrites()).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(119));
+    expect(draftWrites()).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(1));
+    expect(draftWrites()).toHaveLength(1);
+    expect(draftWrites()[0][1]).toContain('"__new-session__":"ab"');
+
+    act(() => setDraft?.("flush-on-unmount"));
+    view.unmount();
+    expect(draftWrites()).toHaveLength(2);
+    expect(draftWrites()[1][1]).toContain("flush-on-unmount");
+  });
+
   it("isolates blank drafts and file contexts by openmind/workspace scope", () => {
     const draftKey = "__new-session__";
     window.localStorage.setItem("openmind.ai.drafts.v1:scope-a", JSON.stringify({ [draftKey]: "draft from A" }));
@@ -298,6 +354,28 @@ describe("AiProvider streaming store via event pump", () => {
     flushTimers();
 
     expect(screen.getByTestId("streaming").textContent).toBe("Hello world");
+  });
+
+  it("does not rerender main-context consumers for transient stream batches", () => {
+    let controllerRenders = 0;
+    const ControllerProbe = memo(function ControllerProbe() {
+      useAi();
+      controllerRenders++;
+      return null;
+    });
+    render(
+      <AiProvider initial={snapshot} skills={skills}>
+        <ControllerProbe />
+        <StreamingText runId="run-isolated" />
+      </AiProvider>
+    );
+
+    emit({ kind: "transient", event: { kind: "assistant-delta", runId: "run-isolated", payload: { text: "one" } } });
+    emit({ kind: "transient", event: { kind: "assistant-delta", runId: "run-isolated", payload: { text: " two" } } });
+    flushTimers();
+
+    expect(screen.getByTestId("streaming").textContent).toBe("one two");
+    expect(controllerRenders).toBe(1);
   });
 
   it("keeps reasoning-delta chunks separate from streaming text", () => {

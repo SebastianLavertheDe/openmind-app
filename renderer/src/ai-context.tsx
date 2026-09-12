@@ -62,8 +62,6 @@ export interface AiController {
   loadOlderTurns(): Promise<void>;
   pendingContexts: ContextReference[];
   skills: SkillDefinition[];
-  draft: string;
-  setDraft(value: string): void;
   isSending: boolean;
   error: string | null;
   clearError(): void;
@@ -113,14 +111,32 @@ interface AiStreamingStore {
   clearAll(): void;
 }
 
+interface AiDraftStore {
+  subscribe(key: string, listener: () => void): () => void;
+  getSnapshot(key: string): string;
+  set(key: string, value: string): void;
+  flush(): void;
+  dispose(): void;
+}
+
+export type AiDraftController = {
+  draft: string;
+  setDraft(value: string): void;
+};
+
 const Context = createContext<AiController | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
+const DraftStoreContext = createContext<AiDraftStore | null>(null);
+const DraftKeyContext = createContext(NEW_SESSION_DRAFT);
 const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "" });
 const EMPTY_STREAMING_SUBSCRIBE = () => () => undefined;
+const EMPTY_EVENTS: AiEvent[] = [];
+const EMPTY_CONTEXTS: ContextReference[] = [];
 const DRAFTS_KEY = "openmind.ai.drafts.v1";
 const CONTEXTS_KEY = "openmind.ai.contexts.v1";
 const PANEL_KEY = "openmind.ai.panel-mode.v1";
 const FEEDBACK_LOG_KEY = "openmind.feedback.log.v1";
+const DRAFT_PERSIST_DELAY_MS = 120;
 
 function scopedStorageKey(base: string, scope: string): string {
   return scope ? `${base}:${encodeURIComponent(scope)}` : base;
@@ -149,6 +165,44 @@ function scopedStorageJson<T>(base: string, scope: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function createAiDraftStore(storageKey: string, initial: Record<string, string>): AiDraftStore {
+  let drafts = initial;
+  let persistTimer = 0;
+  const listeners = new Map<string, Set<() => void>>();
+  const flush = () => {
+    if (persistTimer) window.clearTimeout(persistTimer);
+    persistTimer = 0;
+    writeStorage(storageKey, drafts);
+  };
+  const schedulePersistence = () => {
+    if (persistTimer) window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(flush, DRAFT_PERSIST_DELAY_MS);
+  };
+  return {
+    subscribe(key, listener) {
+      const subscribers = listeners.get(key) || new Set<() => void>();
+      subscribers.add(listener);
+      listeners.set(key, subscribers);
+      return () => {
+        subscribers.delete(listener);
+        if (!subscribers.size) listeners.delete(key);
+      };
+    },
+    getSnapshot: key => drafts[key] || "",
+    set(key, value) {
+      if ((drafts[key] || "") === value) return;
+      drafts = { ...drafts, [key]: value };
+      for (const listener of listeners.get(key) || []) listener();
+      schedulePersistence();
+    },
+    flush,
+    dispose() {
+      if (persistTimer) flush();
+      listeners.clear();
+    }
+  };
 }
 
 // 流式/事件泵：onAiEvent 的推送分两类整理——结构化事件用 rAF 批量 flush，
@@ -321,7 +375,10 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [eventsBySession, setEventsBySession] = useState<Record<string, AiEvent[]>>({});
   const [turnCursorBySession, setTurnCursorBySession] = useState<Record<string, string | null>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, string>>(() => scopedStorageJson(DRAFTS_KEY, storageScope, {}));
+  const [draftStore] = useState<AiDraftStore>(() => createAiDraftStore(
+    draftsStorageKey,
+    scopedStorageJson(DRAFTS_KEY, storageScope, {})
+  ));
   const [contextsByDraft, setContextsByDraft] = useState<Record<string, ContextReference[]>>(() => scopedStorageJson(CONTEXTS_KEY, storageScope, {}));
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => storageJson(PANEL_KEY, "collapsed"));
   const [projectComposeTarget, setProjectComposeTarget] = useState<{ projectId: string; projectName: string } | null>(null);
@@ -349,14 +406,13 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const selectedRun = snapshot.runs.find((run) => run.id === activeRunId && run.sessionId === activeSessionId) || null;
   const activeRun = selectedRun || latestRunForSession(snapshot.runs, activeSessionId);
   const sessionActiveRun = activeRunForSession(snapshot.runs, activeSessionId);
-  const queuedRuns = snapshot.runs
+  const queuedRuns = useMemo(() => snapshot.runs
     .filter((run) => run.sessionId === activeSessionId && run.status === "queued")
-    .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  const events = activeSession ? eventsBySession[activeSession.id] || [] : [];
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt)), [activeSessionId, snapshot.runs]);
+  const events = activeSession ? eventsBySession[activeSession.id] || EMPTY_EVENTS : EMPTY_EVENTS;
   const hasOlderTurns = Boolean(activeSession && turnCursorBySession[activeSession.id]);
   const draftKey = activeSessionId || NEW_SESSION_DRAFT;
-  const draft = drafts[draftKey] || "";
-  const pendingContexts = contextsByDraft[draftKey] || [];
+  const pendingContexts = contextsByDraft[draftKey] || EMPTY_CONTEXTS;
   const providerSignature = snapshot.providers.map((provider) => `${provider.id}:${provider.available}`).join("|");
 
   const replaceSession = useCallback((nextSession: AiSession) => {
@@ -535,14 +591,16 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
 
   useEffect(() => createAiEventPump({ streamingStore, setSnapshot: commitSnapshot, setEventsBySession, setError }), [commitSnapshot, streamingStore]);
 
-  useEffect(() => writeStorage(draftsStorageKey, drafts), [drafts, draftsStorageKey]);
+  useEffect(() => {
+    const flushDrafts = () => draftStore.flush();
+    window.addEventListener("pagehide", flushDrafts);
+    return () => {
+      window.removeEventListener("pagehide", flushDrafts);
+      draftStore.dispose();
+    };
+  }, [draftStore]);
   useEffect(() => writeStorage(contextsStorageKey, contextsByDraft), [contextsByDraft, contextsStorageKey]);
   useEffect(() => writeStorage(PANEL_KEY, panelMode), [panelMode]);
-
-  const setDraft = useCallback((value: string) => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-    setDrafts((current) => ({ ...current, [key]: value }));
-  }, []);
 
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
     confirmResolver.current = resolve;
@@ -596,7 +654,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
         if (!acknowledged) throw new Error(change.message);
         result = await window.openmind.aiStartRun(startInput(true));
       }
-      setDrafts((current) => ({ ...current, [sourceKey]: "" }));
+      draftStore.set(sourceKey, "");
       setContextsByDraft((current) => ({ ...current, [sourceKey]: [] }));
       activeSessionRef.current = result.session.id;
       setActiveSessionId(result.session.id);
@@ -642,7 +700,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       sendingRef.current = false;
       setIsSending(false);
     }
-  }, [loadEvents, confirm]);
+  }, [loadEvents, confirm, draftStore]);
 
   const rerun = useCallback(async (runId: string) => {
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
@@ -659,9 +717,9 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const editRun = useCallback((runId: string) => {
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
     if (!run) return;
-    setDrafts((current) => ({ ...current, [run.sessionId]: run.prompt }));
+    draftStore.set(run.sessionId, run.prompt);
     setContextsByDraft((current) => ({ ...current, [run.sessionId]: run.contexts }));
-  }, []);
+  }, [draftStore]);
 
   const branchRun = useCallback(async (runId: string) => {
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
@@ -674,10 +732,10 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       await setActiveSession(fork.id);
       return;
     }
-    setDrafts((current) => ({ ...current, [NEW_SESSION_DRAFT]: run.prompt }));
+    draftStore.set(NEW_SESSION_DRAFT, run.prompt);
     setContextsByDraft((current) => ({ ...current, [NEW_SESSION_DRAFT]: run.contexts }));
     await setActiveSession(null);
-  }, [setActiveSession]);
+  }, [draftStore, setActiveSession]);
 
   const notify = useCallback((text: string, tone: ToastTone = "info", options: NotifyOptions = {}) => {
     const id = ++toastSeq.current;
@@ -698,6 +756,83 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     setToasts((current) => current.filter((item) => item.id !== id));
   }, []);
 
+  const clearError = useCallback(() => setError(null), []);
+  const addContext = useCallback((context: ContextReference) => {
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => {
+      const existing = current[key] || EMPTY_CONTEXTS;
+      return existing.some((item) => item.id === context.id)
+        ? current
+        : { ...current, [key]: [...existing, context] };
+    });
+  }, []);
+  const removeContext = useCallback((id: string) => {
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => {
+      const existing = current[key] || EMPTY_CONTEXTS;
+      const next = existing.filter((item) => item.id !== id);
+      return next.length === existing.length ? current : { ...current, [key]: next };
+    });
+  }, []);
+  const moveContext = useCallback((id: string, direction: -1 | 1) => {
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => {
+      const items = [...(current[key] || EMPTY_CONTEXTS)];
+      const index = items.findIndex((item) => item.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= items.length) return current;
+      [items[index], items[target]] = [items[target], items[index]];
+      return { ...current, [key]: items };
+    });
+  }, []);
+  const reorderContexts = useCallback((fromId: string, toId: string) => {
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => {
+      const items = [...(current[key] || EMPTY_CONTEXTS)];
+      const from = items.findIndex((item) => item.id === fromId);
+      const to = items.findIndex((item) => item.id === toId);
+      if (from < 0 || to < 0 || from === to) return current;
+      const [moved] = items.splice(from, 1);
+      items.splice(to, 0, moved);
+      return { ...current, [key]: items };
+    });
+  }, []);
+  const clearContexts = useCallback(() => {
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => current[key]?.length ? { ...current, [key]: [] } : current);
+  }, []);
+  const addFiles = useCallback(async () => {
+    const files = await window.openmind.selectFiles();
+    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+    setContextsByDraft((current) => {
+      const existing = current[key] || EMPTY_CONTEXTS;
+      const additions = files
+        .filter((file) => !existing.some((item) => item.path === file))
+        .map((file) => ({
+          id: `file:${file}`,
+          kind: "file" as const,
+          label: file.split(/[\\/]/).at(-1) || file,
+          path: file
+        }));
+      return additions.length ? { ...current, [key]: [...existing, ...additions] } : current;
+    });
+  }, []);
+  const focusComposer = useCallback(() => {
+    setPanelModeState((current) => current === "collapsed" ? "default" : current);
+    setComposerFocusRequest((current) => current + 1);
+  }, []);
+  const cancel = useCallback(async (runId: string) => {
+    setError(null);
+    try {
+      await window.openmind.aiCancelRun(runId);
+      streamingStore.clearRun(runId);
+      await refresh();
+    } catch (cause) {
+      setError(errorText(cause));
+      throw cause;
+    }
+  }, [refresh, streamingStore]);
+
   const value = useMemo<AiController>(() => ({
     snapshot,
     activeSession,
@@ -710,88 +845,25 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     loadOlderTurns,
     pendingContexts,
     skills,
-    draft,
-    setDraft,
     isSending,
     error,
-    clearError: () => setError(null),
+    clearError,
     setActiveSession,
     updateSession,
     setActiveRun: selectRun,
-    addContext: (context) => {
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => ({
-        ...current,
-        [key]: (current[key] || []).some((item) => item.id === context.id) ? current[key] : [...(current[key] || []), context]
-      }));
-    },
-    removeContext: (id) => {
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => ({ ...current, [key]: (current[key] || []).filter((item) => item.id !== id) }));
-    },
-    moveContext: (id, direction) => {
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => {
-        const items = [...(current[key] || [])];
-        const index = items.findIndex((item) => item.id === id);
-        const target = index + direction;
-        if (index < 0 || target < 0 || target >= items.length) return current;
-        [items[index], items[target]] = [items[target], items[index]];
-        return { ...current, [key]: items };
-      });
-    },
-    reorderContexts: (fromId, toId) => {
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => {
-        const items = [...(current[key] || [])];
-        const from = items.findIndex((item) => item.id === fromId);
-        const to = items.findIndex((item) => item.id === toId);
-        if (from < 0 || to < 0 || from === to) return current;
-        const [moved] = items.splice(from, 1);
-        items.splice(to, 0, moved);
-        return { ...current, [key]: items };
-      });
-    },
-    clearContexts: () => {
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => ({ ...current, [key]: [] }));
-    },
-    addFiles: async () => {
-      const files = await window.openmind.selectFiles();
-      const key = activeSessionRef.current || NEW_SESSION_DRAFT;
-      setContextsByDraft((current) => {
-        const existing = current[key] || [];
-        const additions = files
-          .filter((file) => !existing.some((item) => item.path === file))
-          .map((file) => ({
-            id: `file:${file}`,
-            kind: "file" as const,
-            label: file.split(/[\\/]/).at(-1) || file,
-            path: file
-          }));
-        return { ...current, [key]: [...existing, ...additions] };
-      });
-    },
+    addContext,
+    removeContext,
+    moveContext,
+    reorderContexts,
+    clearContexts,
+    addFiles,
     composerFocusRequest,
-    focusComposer: () => {
-      setPanelModeState((current) => current === "collapsed" ? "default" : current);
-      setComposerFocusRequest((current) => current + 1);
-    },
+    focusComposer,
     send,
     rerun,
     editRun,
     branchRun,
-    cancel: async (runId) => {
-      setError(null);
-      try {
-        await window.openmind.aiCancelRun(runId);
-        streamingStore.clearRun(runId);
-        await refresh();
-      } catch (cause) {
-        setError(errorText(cause));
-        throw cause;
-      }
-    },
+    cancel,
     refresh,
     refreshSkills,
     panelMode,
@@ -816,33 +888,45 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     loadOlderTurns,
     pendingContexts,
     skills,
-    draft,
-    setDraft,
     isSending,
     error,
+    clearError,
     setActiveSession,
     updateSession,
     selectRun,
+    addContext,
+    removeContext,
+    moveContext,
+    reorderContexts,
+    clearContexts,
+    addFiles,
+    focusComposer,
     send,
     rerun,
     editRun,
     branchRun,
+    cancel,
     refresh,
     refreshSkills,
     panelMode,
     composerFocusRequest,
     projectComposeTarget,
     setProjectComposeTarget,
+    toasts,
     notify,
     dismissToast,
+    confirmState,
     confirm,
-    resolveConfirm,
-    streamingStore
+    resolveConfirm
   ]);
 
   return (
     <Context.Provider value={value}>
-      <StreamingContext.Provider value={streamingStore}>{children}</StreamingContext.Provider>
+      <DraftStoreContext.Provider value={draftStore}>
+        <DraftKeyContext.Provider value={draftKey}>
+          <StreamingContext.Provider value={streamingStore}>{children}</StreamingContext.Provider>
+        </DraftKeyContext.Provider>
+      </DraftStoreContext.Provider>
     </Context.Provider>
   );
 }
@@ -851,6 +935,27 @@ export function useAi(): AiController {
   const value = useContext(Context);
   if (!value) throw new Error("useAi must be used within AiProvider");
   return value;
+}
+
+function useDraftStoreAndKey(): [AiDraftStore, string] {
+  const store = useContext(DraftStoreContext);
+  const key = useContext(DraftKeyContext);
+  if (!store) throw new Error("useAiDraft must be used within AiProvider");
+  return [store, key];
+}
+
+export function useSetAiDraft(): (value: string) => void {
+  const [store, key] = useDraftStoreAndKey();
+  return useCallback((value: string) => store.set(key, value), [key, store]);
+}
+
+export function useAiDraft(): AiDraftController {
+  const [store, key] = useDraftStoreAndKey();
+  const subscribe = useCallback((listener: () => void) => store.subscribe(key, listener), [key, store]);
+  const getSnapshot = useCallback(() => store.getSnapshot(key), [key, store]);
+  const draft = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const setDraft = useCallback((value: string) => store.set(key, value), [key, store]);
+  return useMemo(() => ({ draft, setDraft }), [draft, setDraft]);
 }
 
 export function useAiStreaming(runId: string | null): AiStreamingState {

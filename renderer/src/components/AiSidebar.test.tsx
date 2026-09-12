@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
@@ -50,72 +50,24 @@ afterEach(() => {
 });
 
 function renderSidebar() {
-  const openWorkbench = vi.fn();
-  render(<AiProvider initial={snapshot}><AiSidebar openWorkbench={openWorkbench} /></AiProvider>);
-  return { openWorkbench };
+  return render(<AiProvider initial={snapshot}><AiSidebar /></AiProvider>);
 }
 
 describe("AiSidebar", () => {
-  it("renders the active session title and header actions", () => {
-    const { openWorkbench } = renderSidebar();
-    // the title appears in the sidebar header <strong> (and again as a select option)
-    expect(screen.getAllByText("我的会话").length).toBeGreaterThanOrEqual(1);
-    const wb = screen.getByRole("button", { name: /在 AI 工作台打开/ });
-    fireEvent.click(wb);
-    expect(openWorkbench).toHaveBeenCalled();
-  });
-
-  it("lists non-archived sessions in the session switcher and offers a new-draft option", () => {
+  it("renders the conversation without the former header toolbar", () => {
     renderSidebar();
-    const select = screen.getByRole("combobox", { name: /切换 AI 会话/ }) as HTMLSelectElement;
-    const options = Array.from(select.options).map((o) => o.textContent);
-    expect(options).toContain("我的会话");
-    expect(options).toContain("新会话草稿");
-  });
-
-  it("does not expose Project Task sessions in the global session switcher", () => {
-    const projectSession = {
-      ...snapshot.sessions[0],
-      id: "project-session",
-      title: "项目内部会话",
-      scope: { type: "project-task" as const, projectId: "5a111111-1111-4111-8111-111111111111", projectName: "AI 安全", taskId: "task-1" }
-    };
-    render(
-      <AiProvider initial={{ ...snapshot, sessions: [projectSession, snapshot.sessions[0]] }}>
-        <AiSidebar openWorkbench={vi.fn()} />
-      </AiProvider>
-    );
-    const select = screen.getByRole("combobox", { name: /切换 AI 会话/ }) as HTMLSelectElement;
-    const options = Array.from(select.options).map((option) => option.textContent);
-    expect(options).toContain("我的会话");
-    expect(options).not.toContain("项目内部会话");
-  });
-
-  it("renders readable custom session options inside the sidebar header", () => {
-    renderSidebar();
-    fireEvent.click(screen.getByRole("button", { name: /切换 AI 会话.*下拉菜单/ }));
-
-    const listbox = screen.getByRole("listbox", { name: /切换 AI 会话/ });
-    const option = within(listbox).getByRole("option", { name: "我的会话" });
-    expect(option.querySelector(".ui-select-option-label")?.textContent).toBe("我的会话");
-  });
-
-  it("toggles wide mode via the toggleWide button", () => {
-    renderSidebar();
-    const wideBtn = screen.getByRole("button", { name: /切换宽屏/ });
-    fireEvent.click(wideBtn);
-    fireEvent.click(wideBtn);
+    expect(document.querySelector(".ai-sidebar > header")).toBeNull();
+    expect(document.querySelector(".ai-sidebar > .chat")).toBeTruthy();
   });
 
   it("treats fullscreen as a focus-contained modal over the whole shell", async () => {
+    window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("full"));
     render(
       <AiProvider initial={snapshot}>
         <div data-testid="covered-workspace"><button>工作区操作</button></div>
-        <AiSidebar openWorkbench={vi.fn()} />
+        <AiSidebar />
       </AiProvider>
     );
-    const fullscreenBtn = screen.getByRole("button", { name: /全屏/ });
-    fireEvent.click(fullscreenBtn);
 
     const dialog = screen.getByRole("dialog", { name: "AI Assistant" });
     expect(dialog.classList.contains("mode-full")).toBe(true);
@@ -128,15 +80,15 @@ describe("AiSidebar", () => {
   });
 
   it("does not restore stale background isolation over a newer responsive state", async () => {
+    window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("full"));
     render(
       <AiProvider initial={snapshot}>
         <div data-testid="responsive-workspace" inert={true} aria-hidden="true">
           <button>Workspace action</button>
         </div>
-        <AiSidebar openWorkbench={vi.fn()} />
+        <AiSidebar />
       </AiProvider>
     );
-    fireEvent.click(screen.getByRole("button", { name: /\u5168\u5c4f/ }));
 
     const workspace = screen.getByTestId("responsive-workspace") as HTMLElement;
     await waitFor(() => expect(workspace.inert).toBe(true));
@@ -152,12 +104,6 @@ describe("AiSidebar", () => {
       expect(workspace.inert).toBe(false);
       expect(workspace.getAttribute("aria-hidden")).toBeNull();
     });
-  });
-
-  it("collapses to the rail via the collapse button", () => {
-    renderSidebar();
-    fireEvent.click(screen.getByRole("button", { name: /收起/ }));
-    expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
   });
 
   it("persists adaptive sidebar ratios to localStorage on mount without synchronous resize writes", async () => {
@@ -217,7 +163,7 @@ describe("AiSidebar", () => {
     });
   });
 
-  it("resets both modes to their real defaults and exposes separator values", () => {
+  it("resets the default mode to its real default and exposes separator values", () => {
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
     window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({ schemaVersion: 1, ratios: { default: 600 / 1_940, wide: 900 / 1_940 } }));
@@ -234,9 +180,19 @@ describe("AiSidebar", () => {
       expect(separator.getAttribute("aria-valuenow")).toBe("685");
       fireEvent.keyDown(separator, { key: "Home" });
       expect(separator.getAttribute("aria-valuenow")).toBe("647");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
+  });
 
-      fireEvent.click(screen.getByRole("button", { name: /切换宽屏/ }));
-      separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
+  it("resets the wide mode to its real default", () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 2_200 });
+    window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("wide"));
+    window.localStorage.setItem("openmind.ai.sidebar-layout.v2", JSON.stringify({ schemaVersion: 1, ratios: { default: 600 / 1_940, wide: 900 / 1_940 } }));
+    try {
+      renderSidebar();
+      const separator = screen.getByRole("separator", { name: /AI 侧栏宽度/ });
       expect(separator.getAttribute("aria-valuenow")).toBe("900");
       fireEvent.doubleClick(separator);
       expect(separator.getAttribute("aria-valuenow")).toBe("970");
@@ -269,7 +225,7 @@ describe("AiSidebar", () => {
     try {
       const { container } = render(
         <div className="app-shell">
-          <AiProvider initial={snapshot}><AiSidebar openWorkbench={vi.fn()} /></AiProvider>
+          <AiProvider initial={snapshot}><AiSidebar /></AiProvider>
         </div>
       );
       const shell = container.querySelector(".app-shell") as HTMLElement;
@@ -288,8 +244,10 @@ describe("AiSidebar", () => {
       Object.defineProperties(pointerMove, { pointerId: { value: 1 }, clientX: { value: 900 } });
       fireEvent(window, pointerMove);
       await waitFor(() => expect(separator.getAttribute("aria-valuenow")).toBe("700"));
+      expect(shell.style.gridTemplateColumns).toContain("700px");
       fireEvent.keyDown(window, { key: "Escape" });
       expect(separator.getAttribute("aria-valuenow")).toBe("600");
+      expect(shell.style.gridTemplateColumns).toBe("");
       expect(shell.classList.contains("ai-sidebar-resizing")).toBe(false);
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
@@ -315,7 +273,7 @@ describe("AiSidebar", () => {
           <AiProvider initial={snapshot}>
             <div>
               <button data-testid="covered-workspace">底层工作区</button>
-              <AiSidebar openWorkbench={vi.fn()} />
+              <AiSidebar />
             </div>
           </AiProvider>
         </ResponsiveLayoutProvider>
@@ -354,7 +312,7 @@ describe("AiSidebar", () => {
     } as MediaQueryList));
 
     try {
-      const { container } = render(<ResponsiveLayoutProvider><AiProvider initial={snapshot}><AiSidebar openWorkbench={vi.fn()} /></AiProvider></ResponsiveLayoutProvider>);
+      const { container } = render(<ResponsiveLayoutProvider><AiProvider initial={snapshot}><AiSidebar /></AiProvider></ResponsiveLayoutProvider>);
       expect(container.querySelector(".ai-sidebar")?.classList.contains("layout-companion-compact")).toBe(true);
       expect(container.querySelector(".ai-sidebar-scrim")).toBeNull();
       expect(container.querySelector(".ai-sidebar-resizer")).toBeTruthy();
@@ -396,7 +354,7 @@ describe("AiSidebar", () => {
     render(
       <AiProvider initial={snapshot}>
         <TargetSetter />
-        <AiSidebar openWorkbench={vi.fn()} />
+        <AiSidebar />
       </AiProvider>
     );
 

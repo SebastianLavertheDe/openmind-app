@@ -57,7 +57,9 @@ if (DESKTOP_E2E_TEST) {
   app.commandLine.appendSwitch("no-sandbox");
   app.commandLine.appendSwitch("disable-gpu");
 }
-const DEFAULT_WINDOW_SIZE = { width: 1600, height: 1000 };
+// 1.55–1.65 的桌面工作区宽高比（1536×960 = 1.6），与四栏横向信息架构匹配；
+// 首次启动在小于该尺寸的 workArea 上按比例等比缩小（见 window-state.ts）。
+const DEFAULT_WINDOW_SIZE = { width: 1536, height: 960 };
 const WINDOW_STATE_SAVE_DELAY_MS = 240;
 
 let mainWindow: BrowserWindow | null = null;

@@ -32,26 +32,40 @@ app.whenReady().then(async () => {
     const initial = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
     await delay(500);
     const idle = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
-    await js(`window.sample={frames:[],longTasks:[],active:true,last:0};function tick(t){const s=window.sample;if(!s.active)return;if(s.last)s.frames.push(t-s.last);s.last=t;requestAnimationFrame(tick)}requestAnimationFrame(tick);new PerformanceObserver(l=>{if(window.sample.active)window.sample.longTasks.push(...l.getEntries().map(e=>e.duration))}).observe({type:'longtask'});window.stats.renders=0;`);
+    await js(`window.sample={frames:[],longTasks:[],active:true,last:0};function tick(t){const s=window.sample;if(!s.active)return;if(s.last)s.frames.push(t-s.last);s.last=t;requestAnimationFrame(tick)}requestAnimationFrame(tick);new PerformanceObserver(l=>{if(window.sample.active)window.sample.longTasks.push(...l.getEntries().map(e=>e.duration))}).observe({type:'longtask'});`);
     if (process.env.OPENMIND_DOCUMENT_PROFILE) { await win.webContents.debugger.sendCommand("Profiler.enable"); await win.webContents.debugger.sendCommand("Profiler.start"); }
-    const before = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
-    const position = await js("(()=>{const r=document.querySelector('.column-splitter').getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:400}})()");
-    const widths = [];
-    const contentSizes = [];
-    win.webContents.sendInputEvent({ type: "mouseMove", ...position });
-    win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...position });
-    await delay(50);
-    for (let i = 1; i <= 24; i++) {
-      win.webContents.sendInputEvent({ type: "mouseMove", x: position.x - i * 6, y: position.y, movementX: -6, movementY: 0, modifiers: ["leftButtonDown"] });
-      await js("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-      widths.push(await js("document.querySelector('.ai-file-preview').getBoundingClientRect().width"));
-      contentSizes.push(await js(mode === "pdf" ? "document.querySelector('.pdfViewer .page').getBoundingClientRect().width" : "document.querySelector('[data-document-block] p').getBoundingClientRect().height"));
+    let before, after, result, widths, contentSizes, flowIntegrity;
+    // A desktop focus hand-off can legitimately cancel a captured pointer.
+    // Retry the isolated sample rather than mixing a cancelled gesture into
+    // the measurements or failing the remaining document-size matrix.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await js("window.sample.frames=[];window.sample.longTasks=[];window.sample.last=performance.now();window.stats.renders=0;window.stats.resizes=0;window.stats.cancels=0;");
+      win.focus();
+      await delay(80);
+      before = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
+      const position = await js("(()=>{const r=document.querySelector('.column-splitter').getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:400}})()");
+      widths = [];
+      contentSizes = [];
+      flowIntegrity = [];
+      win.webContents.sendInputEvent({ type: "mouseMove", ...position });
+      win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...position });
+      await delay(50);
+      for (let i = 1; i <= 24; i++) {
+        win.webContents.sendInputEvent({ type: "mouseMove", x: position.x - i * 6, y: position.y, movementX: -6, movementY: 0, modifiers: ["leftButtonDown"] });
+        await js("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+        widths.push(await js("document.querySelector('.ai-file-preview').getBoundingClientRect().width"));
+        contentSizes.push(await js(mode === "pdf" ? "document.querySelector('.pdfViewer .page').getBoundingClientRect().width" : "document.querySelector('[data-document-block] p').getBoundingClientRect().height"));
+        if (mode === "markdown") flowIntegrity.push(await js(`(()=>{const rows=Array.from(document.querySelectorAll('[data-document-block]'));return rows.every((row,index)=>!rows[index+1]||Number(rows[index+1].dataset.documentBlock)!==Number(row.dataset.documentBlock)+1||row.getBoundingClientRect().bottom<=rows[index+1].getBoundingClientRect().top+1)})()`));
+      }
+      win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: position.x - 144, y: position.y });
+      await delay(200);
+      after = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
+      result = await js("({fixture:window.fixture,stats:window.stats,sample:window.sample,nodes:document.querySelectorAll('*').length,blocks:document.querySelectorAll('[data-document-block]').length,canvases:document.querySelectorAll('canvas').length,error:window.error})");
+      if (Math.abs(widths.at(-1) - widths[0]) > 100) break;
+      if (attempt < 3) console.warn(`${mode} ${pages}: pointer resize cancelled; retrying performance sample (${attempt}/3)`);
     }
-    win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, x: position.x - 144, y: position.y });
-    await delay(200);
-    const after = metrics(await win.webContents.debugger.sendCommand("Performance.getMetrics"));
     if (process.env.OPENMIND_DOCUMENT_PROFILE) fs.writeFileSync(path.join(directory, `${mode}-${pages}.cpuprofile`), JSON.stringify((await win.webContents.debugger.sendCommand("Profiler.stop")).profile));
-    const result = await js("window.sample.active=false;({fixture:window.fixture,stats:window.stats,sample:window.sample,nodes:document.querySelectorAll('*').length,blocks:document.querySelectorAll('[data-document-block]').length,canvases:document.querySelectorAll('canvas').length,error:window.error})");
+    await js("window.sample.active=false");
     const report = { ...result, errors, widths, contentSizes, idleScriptMs: (idle.ScriptDuration - initial.ScriptDuration) * 1000, layoutMs: (after.LayoutDuration - before.LayoutDuration) * 1000,
       scriptMs: (after.ScriptDuration - before.ScriptDuration) * 1000, p95FrameMs: percentile(result.sample.frames, .95), maxFrameMs: Math.max(...result.sample.frames) };
     reports.push(report);
@@ -64,9 +78,10 @@ app.whenReady().then(async () => {
     assert(mode !== "markdown" || report.blocks < 50, "Markdown DOM must be viewport bounded");
     assert(mode !== "pdf" || report.canvases <= 10, "PDF canvases must be cache bounded");
     assert(report.idleScriptMs < 20, "An idle document must not keep scheduling rendering work");
-    if (report.p95FrameMs >= 50) violations.push(`${mode} ${pages}: drag P95 ${report.p95FrameMs.toFixed(1)}ms exceeds 50ms`);
+    if (report.p95FrameMs >= 24) violations.push(`${mode} ${pages}: drag P95 ${report.p95FrameMs.toFixed(1)}ms exceeds 24ms`);
     if (mode === "markdown") {
-      await js("document.querySelector('[aria-label=搜索文档]').click()");
+      assert(flowIntegrity.every(Boolean), "Mounted Markdown blocks must not overlap during resize");
+      await js("document.querySelector('.document-reader').dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))");
       await js(`(()=>{const input=document.querySelector('[aria-label=搜索文档内容]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'END-OF-DOCUMENT-SEARCH-TARGET');input.dispatchEvent(new Event('input',{bubbles:true}))})()`);
       await delay(400);
       assert.equal(await js("window.selectionText()"), "END-OF-DOCUMENT-SEARCH-TARGET", "Search must find unmounted content");

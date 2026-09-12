@@ -50,9 +50,25 @@ function centeredBounds(workArea: WindowBounds, size: WindowSize, minimumSize: W
   };
 }
 
+/**
+ * First launch keeps the desktop workspace aspect ratio: the default only
+ * shrinks proportionally to the work area (independent clamping would inflate
+ * the height on short displays), never grows, and stays visible on displays
+ * smaller than the minimum size.
+ */
+export function fittedDefaultSize(defaultSize: WindowSize, workArea: WindowBounds, minimumSize: WindowSize): WindowSize {
+  const scale = Math.min(1, workArea.width / defaultSize.width, workArea.height / defaultSize.height);
+  if (scale >= 1) return { ...defaultSize };
+  const proportional = {
+    width: Math.max(minimumSize.width, Math.floor(defaultSize.width * scale)),
+    height: Math.max(minimumSize.height, Math.floor(defaultSize.height * scale))
+  };
+  return fitSize(proportional, workArea, minimumSize);
+}
+
 function fallbackBounds(workAreas: WindowBounds[], defaultSize: WindowSize, minimumSize: WindowSize): WindowBounds {
   const primary = workAreas[0];
-  if (primary) return centeredBounds(primary, defaultSize, minimumSize);
+  if (primary) return centeredBounds(primary, fittedDefaultSize(defaultSize, primary, minimumSize), minimumSize);
   return {
     x: 0,
     y: 0,

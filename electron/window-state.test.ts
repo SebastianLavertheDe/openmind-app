@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
+import { fittedDefaultSize, loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
 
 const primary: WindowBounds = { x: 0, y: 0, width: 1920, height: 1040 };
 const secondary: WindowBounds = { x: 1920, y: 0, width: 1440, height: 900 };
@@ -71,5 +71,26 @@ describe("window state", () => {
     fs.writeFileSync(filePath, "{broken", "utf8");
 
     expect(loadWindowState(filePath, [primary], defaults, minimums).bounds).toEqual({ x: 160, y: 20, width: 1600, height: 1000 });
+  });
+
+  it("keeps the default size untouched on work areas larger than the default", () => {
+    expect(fittedDefaultSize(defaults, primary, minimums)).toEqual({ width: 1600, height: 1000 });
+  });
+
+  it("shrinks the default proportionally so short displays keep the workspace ratio", () => {
+    const shortDisplay: WindowBounds = { x: 0, y: 0, width: 1280, height: 720 };
+    expect(fittedDefaultSize(defaults, shortDisplay, minimums)).toEqual({ width: 1152, height: 720 });
+  });
+
+  it("never drops below the minimum size and still fits displays smaller than it", () => {
+    const tinyDisplay: WindowBounds = { x: 0, y: 0, width: 800, height: 500 };
+    expect(fittedDefaultSize(defaults, tinyDisplay, minimums)).toEqual({ width: 800, height: 500 });
+  });
+
+  it("centers the proportionally fitted default on first launch", () => {
+    const shortDisplay: WindowBounds = { x: 0, y: 0, width: 1280, height: 720 };
+    const state = normalizeWindowState(null, [shortDisplay], defaults, minimums);
+
+    expect(state.bounds).toEqual({ x: 64, y: 0, width: 1152, height: 720 });
   });
 });

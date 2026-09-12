@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi, useAiStreaming } from "../../ai-context";
+import { useAi, useAiStreaming, useSetAiDraft } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useExitingList } from "../../design-system/use-exiting-list";
@@ -30,7 +30,6 @@ import {
   changePaths,
   compactEvents,
   groupTimeline,
-  selectRenderableTimelineEvents,
   technicalEventText,
   toolCategory,
   toolEventFailed,
@@ -70,6 +69,7 @@ export type { ChatDraftSubmitHandler } from "./composer";
 
 export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { compact?: boolean; onDraftSubmit?: ChatDraftSubmitHandler }) {
   const ai = useAi();
+  const setDraft = useSetAiDraft();
   const [nearBottom, setNearBottom] = useState(true);
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
   const [historyLimit, setHistoryLimit] = useState(compact ? 80 : 300);
@@ -88,13 +88,9 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   }, [ai.events, ai.sessionActiveRun?.id, compact, historyLimit]);
   const hiddenEvents = compact ? 0 : Math.max(0, ai.events.length - timelineEvents.length);
   const canLoadHistory = !compact && (hiddenEvents > 0 || ai.hasOlderTurns);
-  const renderableTimelineEvents = useMemo(
-    () => selectRenderableTimelineEvents(timelineEvents, ai.snapshot.runs),
-    [ai.snapshot.runs, timelineEvents]
-  );
   const visible = useMemo(
-    () => groupTimeline(renderableTimelineEvents, ai.snapshot.runs),
-    [ai.snapshot.runs, renderableTimelineEvents]
+    () => groupTimeline(timelineEvents, ai.snapshot.runs),
+    [ai.snapshot.runs, timelineEvents]
   );
   const processRuns = useMemo(() => {
     const runs = new Map(ai.snapshot.runs.map((run) => [run.id, run]));
@@ -273,7 +269,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
           aria-label={m.ai.chat.transcriptLabel}
         >
           {!visible.length && !ai.sessionActiveRun
-            ? <EmptyChat onPick={(prompt) => ai.setDraft(prompt)} />
+            ? <EmptyChat onPick={setDraft} />
             : null}
           {canLoadHistory ? (
             <button

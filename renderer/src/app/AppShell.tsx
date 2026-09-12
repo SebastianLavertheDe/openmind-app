@@ -13,7 +13,6 @@ import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
-import packageJson from "../../../package.json";
 
 export function AppShell({
   page,
@@ -61,6 +60,9 @@ export function AppShell({
   const reportComposition = useResponsiveCompositionReporter();
   const compactShell = responsiveLayout.shell === "drawer";
   const railShell = responsiveLayout.shell === "rail";
+  // 顶栏只保留给抽屉壳：桌面布局下搜索、待审批入口已由侧边导航承载，
+  // 保留这条 48px 工具条只会挤占正文高度。
+  const showGlobalToolbar = !fullPageMode && compactShell;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
@@ -176,7 +178,7 @@ export function AppShell({
       >
         <div className="app-brand">
           <div className="brand-mark">CC</div>
-          <div className="brand-copy"><strong>OpenMind</strong><span>v{packageJson.version}</span></div>
+          <div className="brand-copy"><strong>OpenMind</strong></div>
           {!railShell ? (
             <Tooltip content={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse} side="bottom">
               <button
@@ -189,11 +191,6 @@ export function AppShell({
               </button>
             </Tooltip>
           ) : null}
-          <Tooltip content={m.shell.searchPlaceholder} side="bottom">
-            <button className="icon-button nav-search-button" data-motion="icon" aria-label={m.shell.searchPlaceholder} onClick={onOpenSearch}>
-              <Search size={16} />
-            </button>
-          </Tooltip>
         </div>
         <div className="app-nav-body">
           <nav aria-label={m.shell.navMain}>
@@ -225,8 +222,8 @@ export function AppShell({
           <div><strong>{runtime}</strong><span title={repoRoot}>{repoRoot}</span></div>
         </footer>
       </aside> : null}
-      <section className="app-stage">
-        {!fullPageMode ? <header className="global-toolbar">
+      <section className={`app-stage${showGlobalToolbar ? "" : " app-stage-without-toolbar"}`}>
+        {showGlobalToolbar ? <header className="global-toolbar">
           <Tooltip content={m.shell.navMenu} side="bottom">
             <button
               ref={navTriggerRef}

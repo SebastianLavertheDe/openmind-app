@@ -18,3 +18,10 @@ export const DESKTOP_WINDOW_MIN_SIZE = {
   width: RESPONSIVE_LAYOUT_BREAKPOINTS.narrowDensity,
   height: 600
 } as const;
+
+/**
+ * Compact desktop top chrome (Codex-like): one value drives both the native
+ * Windows title-bar overlay height and the renderer's drag region / shell
+ * padding so the strip never disagrees with the caption buttons.
+ */
+export const DESKTOP_WINDOW_TITLEBAR_HEIGHT = 34;

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { WINDOWS_TITLEBAR_HEIGHT, windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 
@@ -23,5 +25,12 @@ describe("windowAppearance", () => {
     expect(windowAppearance("linux", false)).toEqual({
       backgroundColor: "#f6f7f9"
     });
+  });
+
+  it("keeps the renderer titlebar strip in sync with the native overlay height", () => {
+    // vitest 从仓库根目录运行，renderer CSS 以根相对路径读取。
+    const css = readFileSync(path.resolve(process.cwd(), "renderer/src/styles/workbuddy-refactor.css"), "utf8");
+    const declared = css.match(/--window-titlebar-height:\s*(\d+)px/);
+    expect(declared?.[1]).toBe(String(WINDOWS_TITLEBAR_HEIGHT));
   });
 });

@@ -10,7 +10,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AppShell", () => {
-  it("renders fixed primary navigation and opens global search", () => {
+  it("renders fixed primary navigation without a brand search entry", () => {
     const navigate = vi.fn();
     const openSearch = vi.fn();
     const setNavCollapsed = vi.fn();
@@ -34,11 +34,11 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
     expect(screen.queryByRole("button", { name: "资料库" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Skills" })).toBeNull();
-    expect(screen.getByRole("button", { name: "每日简报" })).toBeTruthy();
+    // 品牌区的版本号与搜索入口已移除，全局搜索仅由 App 层 Ctrl/⌘+K 触发。
+    expect(screen.queryByRole("button", { name: /搜索资料/ })).toBeNull();
+    expect(screen.queryByText(/^v\d/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
     expect(navigate).toHaveBeenCalledWith("ai");
-    fireEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: /搜索资料/ }));
-    expect(openSearch).toHaveBeenCalled();
   });
 
   it("collapses navigation with an accessible icon button", () => {
@@ -310,29 +310,49 @@ describe("AppShell", () => {
   });
 
   it("uses structured environment state instead of parsing the runtime label", () => {
-    const props = {
-      page: "brief" as const,
-      navigate: vi.fn(),
-      onOpenSearch: vi.fn(),
-      navCollapsed: false,
-      setNavCollapsed: vi.fn(),
-      repoRoot: "/repo",
-      pendingApprovals: 0,
-      aiMode: "collapsed"
-    };
-    const { rerender } = render(
-      <AppShell {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
-        <div>Sources</div>
-      </AppShell>
-    );
-    expect(screen.getByRole("status").textContent).toContain("已连接");
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query.includes("840px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+      addListener: vi.fn(),
+      removeListener: vi.fn()
+    } as MediaQueryList));
+    try {
+      const props = {
+        page: "brief" as const,
+        navigate: vi.fn(),
+        onOpenSearch: vi.fn(),
+        navCollapsed: false,
+        setNavCollapsed: vi.fn(),
+        repoRoot: "/repo",
+        pendingApprovals: 0,
+        aiMode: "collapsed" as const
+      };
+      const { rerender } = render(
+        <ResponsiveLayoutProvider>
+          <AppShell {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
+            <div>Sources</div>
+          </AppShell>
+        </ResponsiveLayoutProvider>
+      );
+      // 桌面壳没有全局工具条，连接状态徽章随之移除；抽屉壳里次要徽章也不可见。
+      expect(screen.queryByRole("status")).toBeNull();
 
-    rerender(
-      <AppShell {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
-        <div>Sources</div>
-      </AppShell>
-    );
-    expect(screen.getByRole("status").textContent).toContain("Preview");
+      rerender(
+        <ResponsiveLayoutProvider>
+          <AppShell {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
+            <div>Sources</div>
+          </AppShell>
+        </ResponsiveLayoutProvider>
+      );
+      expect(screen.getByRole("status").textContent).toContain("Preview");
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it("renders recent tasks slot between core nav and settings", () => {

@@ -2,7 +2,7 @@ import { Fragment, createContext, memo, useCallback, useContext, useEffect, useL
 import type { Element } from "hast";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
-import { ChevronLeft, ChevronRight, Copy, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { DocumentBlock, DocumentMatch } from "@shared/document-view";
 import { useReadingDocument } from "./use-reading-document";
 import { documentPoint, readingSelectionText, registerReadingDocument, textPoint } from "./document-selection";
@@ -134,12 +134,8 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
       const block = model.anchors[id];
       if (typeof block === "number") { event.preventDefault(); jump({ block, start: blocks[block].start, end: blocks[block].start + blocks[block].text.length }); }
     }}>
-    {flow.enabled || findOpen ? <div className="document-reader-tools">
-      <button aria-label="搜索文档" title="搜索文档" onClick={() => setFindOpen(true)}><Search size={14}/></button>
-      <button aria-label="复制全文" title="复制全文" onClick={() => { if (model) void navigator.clipboard.writeText(model.text).catch(() => {
-        setPinned([0, blocks.length - 1]); setTarget({ from: 0, to: blocks.length - 1, start: 0, end: blocks.at(-1)?.text.length || 0 });
-      }); }}><Copy size={14}/></button>
-      {findOpen ? <div className="document-findbar">
+    {findOpen ? <div className="document-reader-tools">
+      <div className="document-findbar">
         <input autoFocus aria-label="搜索文档内容" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
           if (event.key === "Escape") { event.stopPropagation(); setFindOpen(false); root.current?.focus(); }
           if (event.key === "Enter" && matches.length) {
@@ -151,13 +147,13 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
         <button aria-label="上一个匹配" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
         <button aria-label="下一个匹配" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
         <button aria-label="关闭搜索" onClick={() => setFindOpen(false)}><X size={14}/></button>
-      </div> : null}
+      </div>
     </div> : null}
     {error ? <p role="alert">{error}</p> : !model ? <p role="status">正在打开文档…</p> : null}
     <CodeTextContext.Provider value={model?.code || emptyCode}>
     <div ref={flow.ref} className={`document-flow${flow.enabled ? " is-virtual" : ""}`} style={flow.enabled ? { height: flow.virtualizer.getTotalSize() } : undefined}>
       {visible.map(item => <div key={item.key} data-index={item.index} data-document-block={item.index}
-        ref={flow.enabled ? flow.virtualizer.measureElement : undefined}
+        ref={flow.enabled ? flow.measureElement : undefined}
         className={`document-block${blocks[item.index].continuation ? " is-continuation" : ""}${blocks[item.index + 1]?.continuation ? " has-continuation" : ""}`}
         style={flow.enabled ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start - flow.margin}px)` } : undefined}>
         <BlockView block={blocks[item.index]} custom={customComponents}/>

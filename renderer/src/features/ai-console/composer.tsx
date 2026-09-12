@@ -4,7 +4,7 @@ import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen,
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../../ai-context";
+import { useAi, useAiDraft } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { ComposerSuggestionMenu } from "./composer-suggestion-menu";
@@ -145,6 +145,7 @@ export type ChatDraftSubmitHandler = (input: ChatDraftSubmitInput) => Promise<vo
 
 export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmitHandler } = {}) {
   const ai = useAi();
+  const { draft, setDraft } = useAiDraft();
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const projectName = ai.snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || ai.snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
@@ -167,7 +168,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const menuSnapRef = useRef(false);
   const menuStashRef = useRef<ReactNode>(null);
   const visibleActiveRun = ai.sessionActiveRun;
-  const draftSkillInvocation = parseSkillSlashInvocation(ai.draft, ai.skills);
+  const draftSkillInvocation = parseSkillSlashInvocation(draft, ai.skills);
   const errorMessage = localError || ai.error || null;
   const { visible: errorVisible, leaving: errorLeaving } = useExitPresence(Boolean(errorMessage), 160);
   const [stashedError, setStashedError] = useState(errorMessage);
@@ -193,7 +194,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(230, el.scrollHeight)}px`;
-  }, [ai.draft]);
+  }, [draft]);
   useEffect(() => {
     if (!ai.composerFocusRequest) return;
     const frame = window.requestAnimationFrame(() => textareaRef.current?.focus());
@@ -251,9 +252,9 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   }, [activeSuggestion, suggestionCount]);
 
   const submit = async () => {
-    if (!ai.draft.trim() || ai.isSending || customSending) return;
-    const skillInvocation = parseSkillSlashInvocation(ai.draft, ai.skills);
-    const validationError = skillInvocation ? null : slashCommandValidationError(ai.draft, ai.pendingContexts);
+    if (!draft.trim() || ai.isSending || customSending) return;
+    const skillInvocation = parseSkillSlashInvocation(draft, ai.skills);
+    const validationError = skillInvocation ? null : slashCommandValidationError(draft, ai.pendingContexts);
     if (validationError) {
       setLocalError(validationError);
       return;
@@ -264,14 +265,14 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       if (onDraftSubmit) {
         setCustomSending(true);
         await onDraftSubmit({
-          prompt: ai.draft,
+          prompt: draft,
           providerId,
           permissionProfile,
           interactionMode,
           contexts: ai.pendingContexts
         });
       } else {
-        await ai.send(ai.draft, { providerId, permissionProfile, interactionMode });
+        await ai.send(draft, { providerId, permissionProfile, interactionMode });
       }
     } catch (cause) {
       if (onDraftSubmit) setLocalError(cause instanceof Error ? cause.message : String(cause));
@@ -302,7 +303,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   };
 
   const applyDraftAtCaret = (next: { value: string; caret: number }) => {
-    ai.setDraft(next.value);
+    setDraft(next.value);
     setTrigger(null);
     setLocalError(null);
     window.requestAnimationFrame(() => {
@@ -320,13 +321,13 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       label: file.name,
       path: file.path
     });
-    applyDraftAtCaret(removeMentionTrigger(ai.draft, trigger));
+    applyDraftAtCaret(removeMentionTrigger(draft, trigger));
   };
 
   const chooseSkill = (skill: SkillDefinition) => {
     if (!trigger || trigger.kind !== "command") return;
     menuSnapRef.current = true;
-    applyDraftAtCaret(replaceComposerTrigger(ai.draft, trigger, `/${skill.id} `));
+    applyDraftAtCaret(replaceComposerTrigger(draft, trigger, `/${skill.id} `));
   };
 
   const browseFiles = async () => {
@@ -339,7 +340,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
         path: file
       });
     }
-    if (files.length && trigger?.kind === "mention") { menuSnapRef.current = true; applyDraftAtCaret(removeMentionTrigger(ai.draft, trigger)); }
+    if (files.length && trigger?.kind === "mention") { menuSnapRef.current = true; applyDraftAtCaret(removeMentionTrigger(draft, trigger)); }
   };
 
   const chooseActiveSuggestion = () => {
@@ -400,7 +401,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       window.visualViewport?.removeEventListener("resize", updateSuggestionAnchor);
       window.visualViewport?.removeEventListener("scroll", updateSuggestionAnchor);
     };
-  }, [ai.draft, showMenu, trigger?.end, updateSuggestionAnchor]);
+  }, [draft, showMenu, trigger?.end, updateSuggestionAnchor]);
   useLayoutEffect(() => {
     if (showMenu) suggestionPopover.updatePosition();
   }, [showMenu, suggestionAnchor, suggestionPopover.updatePosition]);
@@ -436,9 +437,9 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             aria-expanded={Boolean(trigger)}
             aria-controls={trigger ? "composer-suggestions" : undefined}
             aria-activedescendant={trigger && suggestionCount ? `composer-suggestion-${activeSuggestion}` : undefined}
-            value={ai.draft}
+            value={draft}
             onChange={(event) => {
-              ai.setDraft(event.target.value);
+              setDraft(event.target.value);
               updateTrigger(event.target.value, event.target.selectionStart);
             }}
             onSelect={(event) => updateTrigger(event.currentTarget.value, event.currentTarget.selectionStart)}
@@ -560,14 +561,14 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               options={availableProviders.map((provider) => ({ value: provider.id, label: provider.label }))}
               onChange={setProviderId}
             />
-            {ai.draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(ai.draft.length)}</span> : null}
+            {draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(draft.length)}</span> : null}
             <div className="composer-send-wrap">
               <button
                 type="button"
                 className={`composer-send${visibleActiveRun ? " danger" : ""}`}
                 disabled={visibleActiveRun
                   ? visibleActiveRun.status === "applying"
-                  : ai.isSending || customSending || !ai.draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
+                  : ai.isSending || customSending || !draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
                 aria-label={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.send}
                 title={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.sendShortcut}
                 onClick={() => visibleActiveRun ? void ai.cancel(visibleActiveRun.id) : void submit()}

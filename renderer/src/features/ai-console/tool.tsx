@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -24,16 +24,34 @@ const s = m.ai.status;
 type TerminalLine = { kind: "command" | "meta" | "stdout" | "stderr" | "result"; text: string };
 
 export type CommandCall = { key: string; events: AiEvent[] };
-
-export function CommandGroup({
-  calls,
-  runStatus,
-  standaloneWhenSingle = false
-}: {
+type CommandGroupProps = {
   calls: CommandCall[];
   runStatus?: RunStatus;
   standaloneWhenSingle?: boolean;
-}) {
+};
+type ToolCallCardProps = {
+  events: AiEvent[];
+  runStatus?: RunStatus;
+  grouped?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+function sameEventSequence(left: AiEvent[], right: AiEvent[]): boolean {
+  return left === right || (left.length === right.length && left.every((event, index) => event === right[index]));
+}
+
+function useStableEventSequence(events: AiEvent[]): AiEvent[] {
+  const stable = useRef(events);
+  if (!sameEventSequence(stable.current, events)) stable.current = events;
+  return stable.current;
+}
+
+export const CommandGroup = memo(function CommandGroup({
+  calls,
+  runStatus,
+  standaloneWhenSingle = false
+}: CommandGroupProps) {
   const callStates = calls.map((call) => ({ call, state: toolCallState(call.events, runStatus) }));
   const commandsOnly = calls.every((call) => {
     const first = call.events[0];
@@ -84,6 +102,7 @@ export function CommandGroup({
       open={open}
       onOpenChange={setGroupOpen}
       triggerAriaLabel={accessibleLabel}
+      unmountOnExit
       summary={
         <>
           <span className="command-group-icon" aria-hidden="true"><SquareTerminal size={15} /></span>
@@ -114,7 +133,11 @@ export function CommandGroup({
       </div>
     </AnimatedDisclosure>
   );
-}
+}, (previous, next) => previous.runStatus === next.runStatus
+  && previous.standaloneWhenSingle === next.standaloneWhenSingle
+  && previous.calls.length === next.calls.length
+  && previous.calls.every((call, index) => call.key === next.calls[index].key
+    && sameEventSequence(call.events, next.calls[index].events)));
 
 export function ToolCallCard({
   events,
@@ -122,30 +145,40 @@ export function ToolCallCard({
   grouped = false,
   open,
   onOpenChange
-}: {
-  events: AiEvent[];
-  runStatus?: RunStatus;
-  grouped?: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-}) {
-  const first = events[0];
-  const last = events.at(-1) || first;
-  const tool = String(first.payload.tool || first.payload.command || first.payload.skillId || t.call);
-  const failedEvent = events.find(toolEventFailed);
-  const callState = toolCallState(events, runStatus);
+}: ToolCallCardProps) {
+  const stableEvents = useStableEventSequence(events);
+  const derived = useMemo(() => {
+    const first = stableEvents[0];
+    const last = stableEvents.at(-1) || first;
+    const tool = String(first.payload.tool || first.payload.command || first.payload.skillId || t.call);
+    const failedEvent = stableEvents.find(toolEventFailed);
+    const callState = toolCallState(stableEvents, runStatus);
+    const input = first.payload.input || first.payload.command || first.payload;
+    const category = toolCategory(tool);
+    const failureValue = failedEvent
+      ? failedEvent.payload.error || failedEvent.payload.message || failedEvent.payload.output || failedEvent.payload
+      : null;
+    return {
+      first,
+      last,
+      tool,
+      callState,
+      input,
+      outputs: stableEvents.filter((event) => event.kind === "tool-output" || event.kind === "tool-complete"),
+      failureValue,
+      failureText: failureValue && category !== "command"
+        ? toolValueText(failureValue)
+        : "",
+      operation: toolOperationSummary(tool, input),
+      category
+    };
+  }, [runStatus, stableEvents]);
+  const { first, last, tool, callState, input, outputs, failureValue, failureText, operation, category } = derived;
   const failed = callState === "failed" || callState === "conflicted";
   const conflicted = callState === "conflicted";
   const cancelled = callState === "cancelled";
   const incomplete = callState === "incomplete";
   const running = callState === "running";
-  const input = first.payload.input || first.payload.command || first.payload;
-  const outputs = events.filter((event) => event.kind === "tool-output" || event.kind === "tool-complete");
-  const failureText = failedEvent
-    ? toolValueText(failedEvent.payload.error || failedEvent.payload.message || failedEvent.payload.output || failedEvent.payload)
-    : "";
-  const operation = toolOperationSummary(tool, input);
-  const category = toolCategory(tool);
   const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
   const liveNow = useLiveNow(running);
   const elapsed = formatDuration(first.timestamp, running ? new Date(liveNow).toISOString() : last.timestamp);
@@ -178,6 +211,7 @@ export function ToolCallCard({
       open={disclosureOpen}
       onOpenChange={setDisclosureOpen}
       triggerAriaLabel={`${displayActionLabel} ${grouped ? groupedAriaSummary : summaryLabel}`}
+      unmountOnExit
       summary={
         <>
           <span className="tool-event-icon" aria-hidden="true">{toolIcon(tool, running, failed || incomplete, cancelled)}</span>
@@ -205,9 +239,10 @@ export function ToolCallCard({
           input={input}
           operation={operation}
           outputs={outputs}
-          events={events}
+          events={stableEvents}
           failed={failed}
           running={running}
+          failureValue={failureValue}
           failureText={failureText}
         />
       </div>
@@ -267,7 +302,7 @@ function ChunkedText({ lines }: { lines: TerminalLine[] }) {
   );
 }
 
-function ToolResultTerminal({
+const ToolResultTerminal = memo(function ToolResultTerminal({
   tool,
   category,
   input,
@@ -276,6 +311,7 @@ function ToolResultTerminal({
   events,
   failed,
   running,
+  failureValue,
   failureText
 }: {
   tool: string;
@@ -286,10 +322,15 @@ function ToolResultTerminal({
   events: AiEvent[];
   failed: boolean;
   running: boolean;
+  failureValue: unknown;
   failureText: string;
 }) {
   const inputRecord = asRecord(input);
   const outputRecords = outputs.map((event) => asRecord(event.payload.output || event.payload));
+  const detailFailureText = failureText || (failed && failureValue ? toolValueText(failureValue) : "");
+  if (category === "read") {
+    return <ReadFileSummary path={readFilePath(input, outputRecords)} failed={failed} failureText={detailFailureText} />;
+  }
   const command = commandText(tool, input);
   const streams = collectStreams(outputs);
   const exitCode = firstScalar([
@@ -301,10 +342,7 @@ function ToolResultTerminal({
     ? command || t.viewCommandDetail
     : [tool, operation].filter(Boolean).join(" ");
   const lines: TerminalLine[] = [];
-  const result = category === "command" ? "" : finalToolResult(outputs, running, failed, failureText);
-  if (category === "read") {
-    return <ReadFileSummary path={readFilePath(input, outputRecords)} failed={failed} failureText={failureText} />;
-  }
+  const result = category === "command" ? "" : finalToolResult(outputs, running, failed, detailFailureText);
   if (category === "command") lines.push({ kind: "command", text: `$ ${invocation}` });
   if (category === "command" && cwd) lines.push({ kind: "meta", text: `# cwd: ${cwd}` });
   if (category === "command") {
@@ -314,7 +352,7 @@ function ToolResultTerminal({
     lines.push(...terminalLines(result, failed ? "stderr" : "result"));
   }
   const lineText = lines.map((line) => line.text).join("\n");
-  if (failed && failureText && !lineText.includes(failureText)) lines.push(...terminalLines(failureText, "stderr"));
+  if (failed && detailFailureText && !lineText.includes(detailFailureText)) lines.push(...terminalLines(detailFailureText, "stderr"));
   const displayLines = trimTrailingEmptyTerminalLines(lines);
   if (!displayLines.length) return null;
   const exitStatus = exitCode && exitCode !== "0" ? "failed" : "success";
@@ -324,7 +362,7 @@ function ToolResultTerminal({
       <ChunkedText lines={displayLines} />
     </section>
   );
-}
+});
 
 function ReadFileSummary({ path, failed, failureText }: { path: string; failed: boolean; failureText: string }) {
   const openPreview = useFilePreview();

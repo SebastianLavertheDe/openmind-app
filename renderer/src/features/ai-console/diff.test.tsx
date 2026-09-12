@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun } from "@shared/contracts";
-import { ChangeReviewCard } from "./diff";
+import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { FilePreviewProvider } from "./file-preview-context";
 
 afterEach(cleanup);
@@ -108,5 +108,21 @@ describe("ChangeReviewCard", () => {
   it("does not render an empty artifact", () => {
     const { container } = render(<ChangeReviewCard events={[]} run={run()} />);
     expect(container.childElementCount).toBe(0);
+  });
+
+  it("derives a unified diff once while opening and closing its trace card", () => {
+    const patch = "diff --git a/src/app.ts b/src/app.ts\n--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1 +1 @@\n-old\n+new";
+    const readPatch = vi.fn(() => patch);
+    const payload: Record<string, unknown> = {};
+    Object.defineProperty(payload, "diff", { enumerable: true, get: readPatch });
+    const diffEvent = { ...event("change-4", []), payload } as AiEvent;
+
+    render(<ChangeTraceCard event={diffEvent} run={run()} />);
+    expect(readPatch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.getAllByText("src/app.ts").length).toBeGreaterThan(0);
+    expect(readPatch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { expanded: true }));
+    expect(readPatch).toHaveBeenCalledTimes(1);
   });
 });

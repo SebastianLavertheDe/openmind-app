@@ -910,17 +910,81 @@ describe("handler forwarding — Project domain", () => {
     })).toThrow();
   });
 
-  it("blocks Task archive while any AI run is active", async () => {
+  it("blocks Task archive while that Task has an active AI run", async () => {
     const archiveProjectTask = vi.fn();
+    const ai = { call: vi.fn(async () => 1) };
     const ctx = makeCtx({
-      ensureProjectService: () => ({ archiveProjectTask }) as never,
-      getActiveRunCount: async () => 1
+      ensureProjectService: () => ({
+        getProjectTask: () => ({
+          projectId: "b7376314-cbb0-4e14-8f01-a2d3bc9e5e12",
+          taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c"
+        }),
+        archiveProjectTask
+      }) as never,
+      ensureAiWorker: () => ai
     });
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveProjectTask, {
       projectName: "Research",
       taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c"
     })).rejects.toThrow("运行中的 AI 任务");
+    expect(ai.call).toHaveBeenCalledWith(
+      "active-project-task-count",
+      "b7376314-cbb0-4e14-8f01-a2d3bc9e5e12",
+      "7f43fc74-10a1-4e71-97cd-ec90d2660c1c"
+    );
     expect(archiveProjectTask).not.toHaveBeenCalled();
+  });
+
+  it("allows Task archive while unrelated AI or Skill work is active", async () => {
+    const archived = {
+      projectId: "b7376314-cbb0-4e14-8f01-a2d3bc9e5e12",
+      taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c",
+      status: "archived"
+    };
+    const archiveProjectTask = vi.fn(() => archived);
+    const ai = { call: vi.fn(async () => 0) };
+    const ctx = makeCtx({
+      ensureProjectService: () => ({
+        getProjectTask: () => ({ ...archived, status: "completed" }),
+        archiveProjectTask
+      }) as never,
+      ensureAiWorker: () => ai,
+      getActiveRunCount: async () => 3
+    });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveProjectTask, {
+      projectName: "Research",
+      taskId: archived.taskId
+    })).resolves.toEqual(archived);
+    expect(archiveProjectTask).toHaveBeenCalledWith("Research", archived.taskId);
+    expect(ai.call).toHaveBeenNthCalledWith(1, "active-project-task-count", archived.projectId, archived.taskId);
+    expect(ai.call).toHaveBeenNthCalledWith(2, "archive-project-task-sessions", archived.projectId, archived.taskId);
+  });
+
+  it("restores Task status if its AI session archive fails", async () => {
+    const task = {
+      projectId: "b7376314-cbb0-4e14-8f01-a2d3bc9e5e12",
+      taskId: "7f43fc74-10a1-4e71-97cd-ec90d2660c1c",
+      status: "completed"
+    };
+    const archiveProjectTask = vi.fn(() => ({ ...task, status: "archived" }));
+    const setProjectTaskStatus = vi.fn();
+    const ai = {
+      call: vi.fn(async (method: string) => {
+        if (method === "active-project-task-count") return 0;
+        throw new Error("worker unavailable");
+      })
+    };
+    const ctx = makeCtx({
+      ensureProjectService: () => ({ getProjectTask: () => task, archiveProjectTask, setProjectTaskStatus }) as never,
+      ensureAiWorker: () => ai
+    });
+
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveProjectTask, {
+      projectName: "Research",
+      taskId: task.taskId
+    })).rejects.toThrow("worker unavailable");
+    expect(setProjectTaskStatus).toHaveBeenCalledWith("Research", task.taskId, "completed");
   });
 
   it("validates and forwards Task rename input", async () => {

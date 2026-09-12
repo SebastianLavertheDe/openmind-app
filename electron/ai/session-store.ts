@@ -109,6 +109,56 @@ export class SessionStore {
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt.localeCompare(a.createdAt));
   }
 
+  /** Keep AI session visibility aligned with the owning Project Task archive. */
+  archiveProjectTaskSessions(projectId: string, taskId: string): number {
+    this.initialize();
+    this.ensureIndex();
+    let archived = 0;
+    for (const current of this.sessions.values()) {
+      if (
+        current.archived
+        || !isProjectTaskScope(current.scope)
+        || current.scope.projectId !== projectId
+        || current.scope.taskId !== taskId
+      ) continue;
+      const next = AiSessionSchema.parse({
+        ...current,
+        archived: true,
+        // Archiving changes visibility, not the conversation's recency.
+        updatedAt: current.updatedAt
+      });
+      writeJsonAtomic(this.sessionFile(current.id), next);
+      this.sessions.set(current.id, next);
+      archived += 1;
+    }
+    return archived;
+  }
+
+  /** Repairs sessions left visible by builds that archived only the Task record. */
+  reconcileArchivedProjectTaskSessions(): number {
+    if (!this.projectTasks) return 0;
+    this.initialize();
+    this.ensureIndex();
+    const archivedScopes = new Map<string, { projectId: string; taskId: string }>();
+    for (const session of this.sessions.values()) {
+      if (session.archived || !isProjectTaskScope(session.scope)) continue;
+      try {
+        const task = this.projectTasks.get(session.scope.projectName, session.scope.taskId);
+        if (task.status === "archived") {
+          archivedScopes.set(`${task.projectId}\u0000${task.taskId}`, { projectId: task.projectId, taskId: task.taskId });
+        }
+      } catch {
+        // Invalid or externally removed Project state remains an integrity issue;
+        // do not silently rewrite its AI session here.
+      }
+    }
+    let archived = 0;
+    for (const scope of archivedScopes.values()) {
+      archived += this.archiveProjectTaskSessions(scope.projectId, scope.taskId);
+    }
+    return archived;
+  }
+
   getSession(id: string): AiSession {
     this.ensureIndex();
     const session = this.sessions.get(id);

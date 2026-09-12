@@ -1,15 +1,27 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { AnimatedDisclosure } from "./animated-disclosure";
 
-afterEach(cleanup);
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
 
 function Harness({ initial = false }: { initial?: boolean }) {
   const [open, setOpen] = useState(initial);
   return (
     <AnimatedDisclosure open={open} onOpenChange={setOpen} summary="更多">
       <button>内部按钮</button>
+    </AnimatedDisclosure>
+  );
+}
+
+function UnmountingHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <AnimatedDisclosure open={open} onOpenChange={setOpen} summary="详情" unmountOnExit exitMs={200}>
+      <span>昂贵内容</span>
     </AnimatedDisclosure>
   );
 }
@@ -56,5 +68,21 @@ describe("AnimatedDisclosure", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     const content = document.getElementById(trigger.getAttribute("aria-controls") as string) as HTMLElement;
     expect(content.hasAttribute("data-open")).toBe(true);
+  });
+
+  it("unmounts opted-in content after its exit animation", () => {
+    vi.useFakeTimers();
+    render(<UnmountingHarness />);
+    const trigger = screen.getByRole("button", { name: "详情" });
+    expect(screen.queryByText("昂贵内容")).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(screen.getByText("昂贵内容")).toBeTruthy();
+    fireEvent.click(trigger);
+    expect(screen.getByText("昂贵内容")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(199));
+    expect(screen.getByText("昂贵内容")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText("昂贵内容")).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import type { BrowserWindowConstructorOptions, TitleBarOverlay } from "electron";
+import { DESKTOP_WINDOW_TITLEBAR_HEIGHT } from "../shared/responsive-policy";
 
-export const WINDOWS_TITLEBAR_HEIGHT = 38;
+export const WINDOWS_TITLEBAR_HEIGHT = DESKTOP_WINDOW_TITLEBAR_HEIGHT;
 
 export function windowsTitleBarOverlay(dark: boolean): TitleBarOverlay {
   return {

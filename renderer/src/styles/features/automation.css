@@ -371,6 +371,12 @@
   display: grid;
 }
 
+/* 列表与详情同卡相连（列间无间隔），左侧不再叠加页面级留白，使行到侧栏的
+   距离与行到详情区的距离一致。双类名提高优先级以压过 late-pass .feature-page。 */
+.automation-rules-page.feature-page {
+  padding-left: 0;
+}
+
 .automation-rules-page .automation-rules-layout {
   min-height: 680px;
   grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
-import { workspaceSessions } from "@shared/ai-session-scope";
+import { isProjectTaskScope } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
@@ -30,13 +30,14 @@ function statusClass(status: AiSession["status"]): string {
   return "";
 }
 
-export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: string | null; onOpen(sessionId: string): void }) {
+export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: string | null; onOpen(session: AiSession): void }) {
   const ai = useAi();
   const [collapsed, setCollapsed] = useState(() => storageJson(COLLAPSED_KEY, false));
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const recent = useMemo(() =>
-    workspaceSessions(ai.snapshot.sessions)
+    ai.snapshot.sessions
+      .filter((session) => !session.archived)
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
     [ai.snapshot.sessions]
   );
@@ -97,21 +98,26 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
           {recent.map((session) => {
             const waitingApproval = session.status === "waiting-approval" || pendingSessionIds.has(session.id);
             const dot = waitingApproval ? "waiting-approval" : statusClass(session.status);
+            const projectName = isProjectTaskScope(session.scope) ? session.scope.projectName : null;
             return (
               <div className="nav-recent-row" key={session.id}>
                 <button
                   type="button"
-                  className={`nav-recent-item${activeSessionId === session.id ? " active" : ""}`}
+                  className={`nav-recent-item${dot ? " has-status" : ""}${activeSessionId === session.id ? " active" : ""}`}
                   aria-current={activeSessionId === session.id ? "true" : undefined}
                   title={m.shell.recentOpen}
-                  onClick={() => onOpen(session.id)}
+                  onClick={() => onOpen(session)}
                 >
                   {/* 仅运行、待批准或失败时显示状态点；idle 不渲染，不占横向空间 */}
-                  {dot ? <span className={`nav-recent-dot ${dot}`} aria-hidden /> : <span aria-hidden />}
+                  {dot ? <span className={`nav-recent-dot ${dot}`} aria-hidden /> : null}
                   <span className="nav-recent-item-main">
                     <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
                     <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>
-                      {waitingApproval ? m.ai.status.session.waitingApproval : relativeTime(session.createdAt)}
+                      {waitingApproval
+                        ? m.ai.status.session.waitingApproval
+                        : projectName
+                          ? `${projectName} · ${relativeTime(session.createdAt)}`
+                          : relativeTime(session.createdAt)}
                     </span>
                   </span>
                 </button>

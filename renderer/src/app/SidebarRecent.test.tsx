@@ -53,27 +53,35 @@ afterEach(() => {
 });
 
 describe("SidebarRecent", () => {
-  it("keeps Project Task sessions out of the global recent list", () => {
+  it("shows workspace and Project Task sessions in one recent list", () => {
     const projectSession: AiSession = {
       ...session,
       id: "project-session",
       title: "项目内部会话",
       scope: { type: "project-task", projectId: "5a111111-1111-4111-8111-111111111111", projectName: "AI 安全", taskId: "task-1" }
     };
+    const onOpen = vi.fn();
     window.openmind = {
-      aiRefresh: async () => ({ ...snapshot, sessions: [projectSession], pendingApprovals: [] }),
+      aiRefresh: async () => ({ ...snapshot, sessions: [session, projectSession], pendingApprovals: [] }),
       aiGetEvents: async () => [],
       onAiEvent: () => () => undefined
     } as unknown as DesktopApi;
 
-    const { container } = render(
-      <AiProvider initial={{ ...snapshot, sessions: [projectSession], pendingApprovals: [] }}>
-        <SidebarRecent activeSessionId={null} onOpen={() => undefined} />
+    render(
+      <AiProvider initial={{ ...snapshot, sessions: [session, projectSession], pendingApprovals: [] }}>
+        <SidebarRecent activeSessionId={null} onOpen={onOpen} />
       </AiProvider>
     );
 
-    expect(container.querySelector(".nav-recent")).toBeNull();
-    expect(screen.queryByText("项目内部会话")).toBeNull();
+    expect(screen.getByText("读取下载目录文件")).toBeTruthy();
+    expect(screen.getByText("项目内部会话")).toBeTruthy();
+    expect(screen.getByText(/AI 安全 ·/)).toBeTruthy();
+    const idleItem = screen.getByText("项目内部会话").closest("button")!;
+    expect(idleItem.classList.contains("has-status")).toBe(false);
+    expect(idleItem.firstElementChild?.classList.contains("nav-recent-item-main")).toBe(true);
+
+    fireEvent.click(idleItem);
+    expect(onOpen).toHaveBeenCalledWith(projectSession);
   });
 
   it("keeps the visible session time anchored to creation after later replies", () => {

@@ -75,6 +75,8 @@ describe("FeedbackHost confirmation dialog", () => {
     const trigger = screen.getByRole("button", { name: "危险操作" });
     await user.click(trigger);
 
+    const dialog = screen.getByRole("alertdialog", { name: "删除记录" });
+    expect(dialog.closest(".modal-scrim")?.parentElement).toBe(document.body);
     const cancel = screen.getByRole("button", { name: "取消" });
     await waitFor(() => expect(document.activeElement).toBe(cancel));
     await user.keyboard("{Enter}");

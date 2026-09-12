@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Maximize2, MessageSquare, Minimize2, PanelRightClose, PanelRightOpen, Plus, Rows3 } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { workspaceSessions } from "@shared/ai-session-scope";
 import { storageJson, writeStorage } from "../ai-utils";
-import { useAi } from "../ai-context";
-import { Select, Tooltip, useModalFocusScope } from "../design-system/components";
+import { useAi, useSetAiDraft } from "../ai-context";
+import { useModalFocusScope } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
@@ -82,8 +81,9 @@ function setNumericAttribute(element: HTMLElement, name: string, value: number):
   if (element.getAttribute(name) !== next) element.setAttribute(name, next);
 }
 
-export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkbench(): void; navCollapsed?: boolean }) {
+export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) {
   const ai = useAi();
+  const setDraft = useSetAiDraft();
   const responsiveLayout = useResponsiveLayout();
   // 项目详情页打开时，侧栏里的新对话自动创建为当前项目的任务（归属该项目）；
   // 已有会话的续聊保持原作用域，走默认 ai.send。
@@ -92,11 +92,11 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
     if (!projectComposeTarget) throw new Error("没有可归属的项目。");
     const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
     const result = await projectsApi.startTaskRun(projectComposeTarget.projectName, created.taskId, input.providerId, input.prompt, input.contexts);
-    ai.setDraft("");
+    setDraft("");
     ai.clearContexts();
     await ai.refresh();
     await ai.setActiveSession(result.session.id);
-  }, [ai, projectComposeTarget]);
+  }, [ai.clearContexts, ai.refresh, ai.setActiveSession, projectComposeTarget, setDraft]);
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
   const floating = presentation === "overlay";
@@ -205,14 +205,19 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
         floating: modal || floating,
         floatingInlineGutter: floating ? floatingInlineGutter : 0
       });
-      const width = sidebar.getBoundingClientRect().width
-        || sidebarWidthForRatio(ratiosRef.current[mode], liveBounds);
+      // 拖拽改变宽度时本回调每帧触发：此处读 getBoundingClientRect 会强制
+      // 整个工作区同步布局（大文档一次几十毫秒），改用与渲染一致的比值计算。
+      const width = sidebarWidthForRatio(ratiosRef.current[mode], liveBounds);
       setNumericAttribute(sidebar, "data-layout-width", width);
       setNumericAttribute(separator, "aria-valuemin", liveBounds.minInlineSize);
       setNumericAttribute(separator, "aria-valuemax", liveBounds.maxInlineSize);
       setNumericAttribute(separator, "aria-valuenow", width);
     };
     const schedule = () => {
+      // Pointer resizing owns the live pixel geometry and updates the final
+      // attributes itself. Avoid running a second, stale ratio-based geometry
+      // writer in parallel with every drag frame.
+      if (sidebar.closest(".app-shell")?.classList.contains("ai-sidebar-resizing")) return;
       if (!frame) frame = window.requestAnimationFrame(syncGeometry);
     };
     syncGeometry();
@@ -281,7 +286,7 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
               event.preventDefault();
               const element = event.currentTarget;
               element.setPointerCapture?.(event.pointerId);
-              const shell = element.closest(".app-shell");
+              const shell = element.closest<HTMLElement>(".app-shell");
               shell?.classList.add("ai-sidebar-resizing");
               const startX = event.clientX;
               const startBounds = liveSidebarBounds({
@@ -293,19 +298,20 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
               const startWidth = sidebarRef.current?.getBoundingClientRect().width
                 || sidebarWidthForRatio(ratiosRef.current[mode], startBounds);
               let latestX = startX;
+              let liveWidth = startWidth;
               let moveFrame = 0;
               const commitMove = () => {
                 moveFrame = 0;
-                const currentBounds = liveSidebarBounds({
-                  layout: responsiveLayout,
-                  navCollapsed,
-                  floating: modal || floating,
-                  floatingInlineGutter: floating ? floatingInlineGutter : 0
-                });
-                const ratio = sidebarRatioForWidth(startWidth + startX - latestX, currentBounds);
-                setRatios((current) => current[mode] === ratio ? current : { ...current, [mode]: ratio });
+                // 拖拽期间绕过 React 与根级 CSS 变量：根变量每帧变化会让全文档
+                // 样式失效（219 个 SVG 图标全部重排，实测拖动 1 秒 10 万+ 次
+                // "SVG changed" 失效、单次布局 35ms+）。把像素列直接内联写到
+                // shell 上，失效范围限定在网格轨道本身；松手后恢复变量并提交比例。
+                liveWidth = Math.max(startBounds.minInlineSize, Math.min(startBounds.maxInlineSize, startWidth + startX - latestX));
+                shell?.style.setProperty("grid-template-columns", `var(--nav-width, 260px) minmax(0, 1fr) ${Math.round(liveWidth)}px`);
+                element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
               };
               const move = (moveEvent: PointerEvent) => {
+                if (moveEvent.pointerId !== event.pointerId) return;
                 latestX = moveEvent.clientX;
                 if (!moveFrame) moveFrame = window.requestAnimationFrame(commitMove);
               };
@@ -319,16 +325,16 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
                 window.removeEventListener("keydown", key);
               };
               const finish = (restore: boolean) => {
-                if (restore) {
-                  const currentBounds = liveSidebarBounds({
-                    layout: responsiveLayout,
-                    navCollapsed,
-                    floating: modal || floating,
-                    floatingInlineGutter: floating ? floatingInlineGutter : 0
-                  });
-                  const ratio = sidebarRatioForWidth(startWidth, currentBounds);
-                  setRatios((current) => ({ ...current, [mode]: ratio }));
-                } else if (moveFrame) commitMove();
+                if (restore) liveWidth = startWidth;
+                else if (moveFrame) commitMove();
+                // 先把最终宽度同步为根变量（全文档失效只在松手时发生一次），
+                // 再移除拖拽期的内联网格覆盖；随后的 setRatios 提交比例状态，
+                // layout effect 会把变量重写为 calc 形式（宽度不变）。
+                document.documentElement.style.setProperty("--ai-sidebar-preferred-width", `${Math.round(liveWidth)}px`);
+                shell?.style.removeProperty("grid-template-columns");
+                setRatios((current) => ({ ...current, [mode]: sidebarRatioForWidth(liveWidth, startBounds) }));
+                element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
+                sidebarRef.current?.setAttribute("data-layout-width", String(Math.round(liveWidth)));
                 cleanup();
               };
               const key = (keyEvent: KeyboardEvent) => {
@@ -345,31 +351,6 @@ export function AiSidebar({ openWorkbench, navCollapsed = false }: { openWorkben
             }}
           />
         ) : null}
-        <header>
-          <button className="sidebar-session-title" title={m.ai.sidebar.viewInWorkbench} onClick={openWorkbench}><span className="eyebrow">AI Assistant</span><strong>{ai.activeSession?.title || m.ai.session.new}</strong>{ai.pendingContexts.length ? <small>{m.ai.sidebar.pendingContexts(ai.pendingContexts.length)}</small> : null}</button>
-          <Select
-            className="sidebar-session-select"
-            size="rect"
-            menuAlign="end"
-            ariaLabel={m.ai.sidebar.switchSession}
-            value={ai.activeSession?.id || ""}
-            onChange={(value) => void ai.setActiveSession(value || null)}
-            options={[
-              { value: "" as const, label: m.ai.sidebar.newDraft },
-              ...workspaceSessions(ai.snapshot.sessions)
-                .map((session) => ({ value: session.id, label: session.title }))
-            ]}
-          />
-          <div>
-            <Tooltip content={m.ai.sidebar.openWorkbench}><button className="sidebar-open-workbench" data-motion="icon" aria-label={m.ai.sidebar.openWorkbench} onClick={openWorkbench}><PanelRightOpen size={15} /></button></Tooltip>
-            <Tooltip content={m.ai.session.new}><button data-motion="icon" aria-label={m.ai.session.new} onClick={() => void ai.setActiveSession(null)}><Plus size={15} /></button></Tooltip>
-            {!detached ? <>
-              <Tooltip content={m.ai.sidebar.toggleWide}><button data-motion="icon" aria-label={m.ai.sidebar.toggleWide} onClick={() => ai.setPanelMode(ai.panelMode === "wide" ? "default" : "wide")}><Rows3 size={15} /></button></Tooltip>
-              <Tooltip content={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen}><button data-motion="icon" aria-label={full ? m.ai.sidebar.exitFullscreen : m.ai.sidebar.fullscreen} onClick={() => ai.setPanelMode(full ? previousMode.current : "full")}>{full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></Tooltip>
-            </> : null}
-            <Tooltip content={m.ai.sidebar.collapse}><button data-motion="icon" aria-label={m.ai.sidebar.collapse} onClick={() => ai.setPanelMode("collapsed")}><PanelRightClose size={15} /></button></Tooltip>
-          </div>
-        </header>
         <Chat compact onDraftSubmit={projectComposeTarget && !ai.activeSession ? handleProjectDraftSubmit : undefined} />
     </aside>
   );

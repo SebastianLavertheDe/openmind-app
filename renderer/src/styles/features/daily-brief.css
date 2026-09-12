@@ -10,6 +10,63 @@
   /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
   --file-reader-max-width: 1120px;
   --daily-brief-prose-max-width: 920px;
+  /* Keep the master column continuous while the AI companion is dragged.
+     The former 54rem breakpoint jumped directly from 272px to 224px. */
+  grid-template-columns: clamp(10rem, 32cqw, 17rem) minmax(0, 1fr);
+}
+
+.brief-library-page .document-detail-header {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.brief-library-page .document-library-detail {
+  container: daily-brief-detail / inline-size;
+}
+
+.brief-library-page .document-detail-header > div:first-child {
+  flex: 1 1 220px;
+}
+
+.brief-library-page .document-detail-header p {
+  max-width: 100%;
+}
+
+.brief-library-page .document-detail-actions {
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.brief-library-page .document-library-list {
+  contain: layout style;
+}
+
+.brief-library-page .document-library-list > header {
+  min-height: clamp(64px, 9.3cqw, 86px);
+  padding-block: clamp(10px, 1.95cqw, 18px) clamp(8px, 1.3cqw, 12px);
+}
+
+.brief-library-page .document-library-search {
+  min-height: clamp(34px, 4.1cqw, 38px);
+  margin-bottom: clamp(8px, 1.3cqw, 12px);
+}
+
+.brief-library-page .document-file-list {
+  padding-bottom: clamp(8px, 1.5cqw, 14px);
+}
+
+.brief-library-page .document-file-list > button {
+  min-height: clamp(52px, 6.7cqw, 62px);
+  padding-block: clamp(8px, 1.2cqw, 11px);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 58px;
+}
+
+.brief-library-page .document-content .reader-markdown,
+.brief-library-page .document-content textarea {
+  /* Fluid padding avoids a 32px prose-width jump at the old 58rem switch. */
+  padding-inline: clamp(18px, 5cqw, 58px);
 }
 
 .brief-library-page .document-content .reader-markdown.file-reader > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
@@ -17,63 +74,34 @@
   margin-inline: auto;
 }
 
-/* The brief responds to its allocated workspace rather than the application
-   viewport. This also covers split-screen windows and OS display scaling. */
-@container daily-brief (max-width: 58rem) {
-  .brief-library-page .document-detail-header {
-    min-height: 0;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-    padding-block: 14px;
-  }
+.brief-library-page .document-content .reader-markdown.file-reader > :where(h1, h2, h3) {
+  text-wrap: balance;
+}
 
-  .brief-library-page .document-detail-header p {
-    max-width: 100%;
+/* The detail pane can become narrow independently from the viewport while the
+   AI companion is dragged. Let its header wrap within its own allocation. */
+@container daily-brief-detail (max-width: 30rem) {
+  .brief-library-page .document-detail-header {
+    column-gap: 12px;
+    padding-inline: clamp(12px, 4cqw, 18px);
   }
 
   .brief-library-page .document-detail-actions {
     width: 100%;
-    justify-content: space-between;
+    min-width: 0;
+    margin-left: 0;
+    gap: 2px;
+    justify-content: flex-start;
   }
 
-  .brief-library-page .document-content .reader-markdown,
-  .brief-library-page .document-content textarea {
-    padding-inline: clamp(18px, 5cqw, 42px);
-  }
-}
-
-@container daily-brief (max-width: 54rem) {
-  .brief-library-container > .brief-library-page {
-    grid-template-columns: clamp(10rem, 32cqw, 14rem) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .brief-library-page .document-library-list {
-    border-right: 1px solid var(--border-subtle);
-    border-bottom: 0;
-  }
-
-  .brief-library-page .document-library-list > header {
-    min-height: 64px;
-    padding-block: 10px 8px;
-  }
-
-  .brief-library-page .document-library-search {
-    min-height: 34px;
-    margin-bottom: 8px;
-  }
-
-  .brief-library-page .document-file-list {
-    padding-bottom: 8px;
-  }
-
-  .brief-library-page .document-file-list > button {
-    min-height: 52px;
-    padding-block: 8px;
+  .brief-library-page .document-detail-actions .preview-mode-toggle button,
+  .brief-library-page .document-file-actions .ui-responsive-action {
+    padding-inline: 8px;
   }
 }
 
+/* The brief responds to its allocated workspace rather than the application
+   viewport. This also covers split-screen windows and OS display scaling. */
 @container daily-brief (max-width: 34rem) {
   .brief-library-page .document-detail-actions {
     align-items: stretch;

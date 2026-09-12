@@ -45,6 +45,8 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "search": return scheduler.searchSessions(String(first || ""));
     case "skills": return scheduler.listSkills();
     case "active-count": return scheduler.activeTaskCount();
+    case "active-project-task-count": return scheduler.activeProjectTaskRunCount(String(first), String(second));
+    case "archive-project-task-sessions": return scheduler.archiveProjectTaskSessions(String(first), String(second));
     case "credential-revoked": return scheduler.revokeCredential(String(first));
     case "credential-available": return scheduler.restoreCredential(String(first));
     case "credential-replaced": return scheduler.rotateCredential(String(first));

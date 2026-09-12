@@ -151,6 +151,7 @@ export class RunScheduler {
     }) : null;
     this.approvals = new ApprovalBroker((request) => void handleApprovalRequest(this.executionHost(), request));
     this.store.initialize();
+    this.store.reconcileArchivedProjectTaskSessions();
     // Old sessions predate the enabled preference and therefore behaved as if
     // every usable installed Skill was on. Freeze that compatibility catalog
     // synchronously before the worker accepts any request. This path never
@@ -197,6 +198,27 @@ export class RunScheduler {
   /** Root switching must account for queued, provider and manual Skill work. */
   activeTaskCount(): number {
     return this.queue.length + this.active.size + this.skillTools.activeCount();
+  }
+
+  /** Project Task archive only needs to wait for work owned by that Task. */
+  activeProjectTaskRunCount(projectId: string, taskId: string): number {
+    const runIds = new Set([...this.queue, ...this.active.keys()]);
+    let count = 0;
+    for (const runId of runIds) {
+      const run = this.active.get(runId)?.run ?? this.store.getRun(runId);
+      if (
+        isProjectTaskScope(run.scope)
+        && run.scope.projectId === projectId
+        && run.scope.taskId === taskId
+      ) count += 1;
+    }
+    return count;
+  }
+
+  archiveProjectTaskSessions(projectId: string, taskId: string): number {
+    const archived = this.store.archiveProjectTaskSessions(projectId, taskId);
+    if (archived) this.publishSnapshot();
+    return archived;
   }
 
   revokeCredential(credentialId: string): Promise<number> {

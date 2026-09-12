@@ -4,6 +4,9 @@
   initial-value: 236px;
 }
 
+/* 导航收起/展开保留网格轨道过渡动画（设计动效）。此前它表现为卡顿的真正
+ * 原因是动画期间叠加了一次整树 React 重渲染（已由 App.tsx 的元素缓存消除），
+ * 而非过渡本身；若未来再出现掉帧，优先排查渲染层而非直接移除动效。 */
 .app-shell {
   transition: grid-template-columns var(--dur-slow, 280ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
@@ -86,7 +89,8 @@ details[open] > :not(summary) {
 
 /* AnimatedDisclosure (replaces native <details> in AI workbench cards).
    Height animates 0 -> auto via interpolate-size, opacity crossfades.
-   Closed content stays mounted for the exit animation but is `inert`. */
+   Closing content stays `inert` through the exit animation; heavy bodies may
+   unmount after the transition. */
 .ui-disclosure-trigger { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 /* D3/E1: 展开用 emphasized、收起用 exit;dur 240→200ms,与 timeline-presence 统一。 */
 .ui-disclosure-content { interpolate-size: allow-keywords; height: 0; opacity: 0; overflow: hidden; transition: height var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), opacity var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
@@ -110,53 +114,6 @@ details[open] > :not(summary) {
 
 body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger, .tool-event-meta, .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .app-project-status span, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
   color: var(--muted);
-}
-
-.ai-sidebar > header {
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 190px) max-content;
-}
-
-.ai-sidebar.mode-full > header {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 260px) max-content;
-}
-
-.ai-sidebar > header > .sidebar-session-title {
-  width: 100%;
-  height: auto;
-  min-height: 34px;
-  min-width: 0;
-  max-width: 100%;
-  display: grid;
-  place-items: start;
-  justify-items: start;
-  align-content: center;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-dim);
-  text-align: left;
-}
-
-.ai-sidebar > header > .sidebar-session-title :is(.eyebrow, strong, small) {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-sidebar > header .sidebar-session-title:hover {
-  background: transparent;
-  color: var(--text);
-}
-
-.ai-sidebar > header > div:last-child > button {
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-  padding: 0;
 }
 
 .ai-sidebar .chat {
@@ -315,7 +272,6 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
 .icon-button:active:not(:disabled),
 .pane-header button:active:not(:disabled),
 .conversation-header button:active:not(:disabled),
-.ai-sidebar header button:active:not(:disabled),
 .message-meta button:active:not(:disabled),
 .markdown-code-block > button:active:not(:disabled),
 .nav-collapse-button:active:not(:disabled),

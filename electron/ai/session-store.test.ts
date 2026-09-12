@@ -177,6 +177,42 @@ describe("SessionStore", () => {
     expect(fs.existsSync(path.join(projects.resolveProjectRoot("Renamed"), "tasks"))).toBe(false);
   });
 
+  it("archives Project sessions whose owning Task was archived", () => {
+    const workspace = createRoot();
+    const stateRoot = createRoot();
+    const openmindRoot = createRoot();
+    const projects = new ProjectService(openmindRoot, { stateRoot });
+    const project = projects.createProject({ name: "Research", description: "" }).project;
+    const archivedTask = projects.createProjectTask(project.name, "Archived", "codex-native");
+    const currentTask = projects.createProjectTask(project.name, "Current", "codex-native");
+    const store = new SessionStore(workspace, stateRoot, projects.paths.projectsRoot);
+    const createProjectSession = (taskId: string, title: string) => {
+      const session = store.createSession({
+        provider: "codex",
+        providerId: "codex-native",
+        cwd: ".",
+        title,
+        permissionProfile: "read-only",
+        projectRoot: projects.resolveProjectRoot(project.name),
+        scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId }
+      });
+      store.bindProjectSession(session);
+      return session;
+    };
+    const staleSession = createProjectSession(archivedTask.taskId, "Archived");
+    const currentSession = createProjectSession(currentTask.taskId, "Current");
+    projects.archiveProjectTask(project.name, archivedTask.taskId);
+
+    expect(store.getSession(staleSession.id).archived).toBe(false);
+    expect(store.reconcileArchivedProjectTaskSessions()).toBe(1);
+    expect(store.getSession(staleSession.id).archived).toBe(true);
+    expect(store.getSession(currentSession.id).archived).toBe(false);
+    expect(store.reconcileArchivedProjectTaskSessions()).toBe(0);
+
+    const restarted = new SessionStore(workspace, stateRoot, projects.paths.projectsRoot);
+    expect(restarted.getSession(staleSession.id).archived).toBe(true);
+  });
+
   it("persists a fresh Skill snapshot and protects it from generic session patches", () => {
     const store = new SessionStore(createRoot());
     const snapshot = sessionSkillSnapshot();
