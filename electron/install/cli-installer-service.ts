@@ -124,6 +124,7 @@ const CODEX_INSTALL_SCRIPT = {
 const CODEX_VERSION_ENDPOINT = "https://releases.openai.com/codex/channels/latest";
 const CODEX_OFFICIAL_HOSTS = new Set(["chatgpt.com", "releases.openai.com"]);
 const MAX_INSTALL_SCRIPT_BYTES = 16 * 1024 * 1024;
+const SYSTEM_PATH_RESOLVE_TIMEOUT_MS = 5_000;
 
 export function detectCliToolPlatform(platform: NodeJS.Platform = process.platform, arch: string = process.arch): CliToolPlatform | null {
   if (platform === "win32") return arch === "x64" || arch === "ia32" ? "windows-x64" : arch === "arm64" ? "windows-arm64" : null;
@@ -622,7 +623,10 @@ function isAbortError(error: unknown): boolean {
 function defaultSystemPathResolver(cli: CliToolId): string | null {
   try {
     const command = process.platform === "win32" ? "where.exe" : "which";
-    const output = require("node:child_process").execFileSync(command, [cli], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    // `where`/`which` normally return in milliseconds, but a broken PATH or
+    // antivirus interference can stall the child; the timeout keeps the
+    // synchronous detect() IPC path from blocking the main process forever.
+    const output = require("node:child_process").execFileSync(command, [cli], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, timeout: SYSTEM_PATH_RESOLVE_TIMEOUT_MS });
     return String(output).split(/\r?\n/).map((line) => line.trim()).find(Boolean) || null;
   } catch { return null; }
 }

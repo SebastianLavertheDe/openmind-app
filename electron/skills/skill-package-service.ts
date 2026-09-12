@@ -183,6 +183,44 @@ type WalkResult = {
   issues: SkillPackageIssue[];
 };
 
+type InstalledInspectionCacheEntry = {
+  signature: PackageContentSignature;
+  inspection: SkillPackageInspection;
+};
+
+/**
+ * 逐文件 lstat 指纹（相对路径、类型、大小、mtime），用于判断已装包自上次
+ * 全量检查后是否被改动。只 stat 不读取内容：命中时省掉全部字节读取与
+ * sha256，任何真实的增删改都会反映在路径集合、size 或 mtime 上。
+ */
+type PackageContentSignature = string;
+
+function packageContentSignature(root: string): PackageContentSignature | null {
+  const parts: string[] = [];
+  const visit = (absoluteDir: string, logicalDir: string): boolean => {
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(absoluteDir, { withFileTypes: true }); } catch { return false; }
+    for (const entry of entries) {
+      const logicalPath = logicalDir ? `${logicalDir}/${entry.name}` : entry.name;
+      const absolutePath = path.join(absoluteDir, entry.name);
+      let linkStat: fs.Stats;
+      try { linkStat = fs.lstatSync(absolutePath); } catch { return false; }
+      if (linkStat.isDirectory()) {
+        parts.push(`d\0${logicalPath}\0${linkStat.mtimeMs}\n`);
+        if (!visit(absolutePath, logicalPath)) return false;
+        continue;
+      }
+      parts.push(`${linkStat.isSymbolicLink() ? "l" : "f"}\0${logicalPath}\0${linkStat.size}\0${linkStat.mtimeMs}\n`);
+    }
+    return true;
+  };
+  return visit(root, "") ? parts.join("") : null;
+}
+
+function samePackageSignature(left: PackageContentSignature, right: PackageContentSignature): boolean {
+  return left === right;
+}
+
 /**
  * Phase 2 static package boundary.
  *
@@ -194,6 +232,14 @@ export class SkillPackageService {
   private readonly paths: AppPaths;
   private readonly repository: InstalledSkillRepository;
   private readonly preferences: InstalledSkillPreferencesRepository;
+  /**
+   * 最近一次全量检查通过后的包内容签名 → 检查结果。列表类 IPC
+   * （listInstalledViews/listInstalledRunnableViews）每次都会对全部已装包
+   * 重跑 walkPackage + digestPackage（读入并 sha256 全部字节）；内容签名
+   * （逐文件 lstat）未变时复用上次结果，避免重复哈希。任何文件的增删、
+   * 替换或修改都会改变签名并触发下一次全量重查。
+   */
+  private readonly installedInspectionCache = new Map<string, InstalledInspectionCacheEntry>();
 
   constructor(paths: AppPaths = getAppPaths()) {
     this.paths = paths;
@@ -488,7 +534,14 @@ export class SkillPackageService {
   }
 
   listInstalledViews(): InstalledSkillView[] {
-    return this.listInstalled().map((record) => this.toInstalledView(record));
+    return this.listInstalled().map((record) => ({
+      ...record,
+      enabled: this.isEnabled(record),
+      // This catalog field is informational only. Execution admission always
+      // goes through inspectInstalledCopy(), which deliberately bypasses this
+      // metadata cache and re-hashes the package bytes.
+      usable: this.isInstalledCopyUsableForDisplay(record)
+    }));
   }
 
   /**
@@ -499,7 +552,7 @@ export class SkillPackageService {
   listInstalledRunnableViews(): InstalledRunnableSkillView[] {
     return this.listInstalled().flatMap((record) => {
       try {
-        const inspection = this.inspectInstalledCopy(record);
+        const inspection = this.inspectInstalledCopyForDisplay(record);
         const manifest = inspection.manifest;
         if (!manifest || manifest.kind === "agent") return [];
         return [{
@@ -540,18 +593,50 @@ export class SkillPackageService {
     return target;
   }
 
-  /** Re-inspect the managed package copy and bind it to its registry identity. */
+  /**
+   * Re-inspect the managed package copy and bind it to its registry identity.
+   * This method is an execution/admission boundary, so it always hashes the
+   * current bytes. File metadata cannot safely prove content identity because
+   * size and timestamps can be preserved while replacing a file.
+   */
   inspectInstalledCopy(record: InstalledSkillRecord): SkillPackageInspection {
+    this.assertInstalledPackageExists(record);
+    return this.validateInstalledInspection(record, this.reinspectInstalledCopy(record.packagePath));
+  }
+
+  /** Metadata-cached inspection for non-authoritative catalog rendering only. */
+  private inspectInstalledCopyForDisplay(record: InstalledSkillRecord): SkillPackageInspection {
+    this.assertInstalledPackageExists(record);
+    const cached = this.installedInspectionCache.get(record.packagePath);
+    if (cached) {
+      const signature = packageContentSignature(record.packagePath);
+      if (signature && samePackageSignature(signature, cached.signature)) {
+        return this.validateInstalledInspection(record, cached.inspection);
+      }
+    }
+    const inspection = this.reinspectInstalledCopy(record.packagePath);
+    const signature = packageContentSignature(record.packagePath);
+    if (signature) this.installedInspectionCache.set(record.packagePath, { signature, inspection });
+    return this.validateInstalledInspection(record, inspection);
+  }
+
+  private assertInstalledPackageExists(record: InstalledSkillRecord): void {
     this.assertManagedPackagePath(record.packagePath);
     if (!fs.existsSync(record.packagePath)) {
       throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体不存在。", record.packagePath);
     }
-    let inspection: SkillPackageInspection;
+  }
+
+  private reinspectInstalledCopy(packagePath: string): SkillPackageInspection {
     try {
-      inspection = this.inspect(record.packagePath);
+      return this.inspect(packagePath);
     } catch (error) {
-      throw new SkillPackageError("installed-path-invalid", `Installed Skill 包体无法重新检查：${error instanceof Error ? error.message : String(error)}`, record.packagePath);
+      throw new SkillPackageError("installed-path-invalid", `Installed Skill 包体无法重新检查：${error instanceof Error ? error.message : String(error)}`, packagePath);
     }
+  }
+
+  /** Bind an inspection result to a registry record; shared by fresh and cached paths. */
+  private validateInstalledInspection(record: InstalledSkillRecord, inspection: SkillPackageInspection): SkillPackageInspection {
     const manifest = inspection.manifest;
     if (!inspection.valid || !manifest || inspection.digest !== record.digest) {
       throw new SkillPackageError("installed-path-invalid", "Installed Skill 包体或 digest 校验失败。", record.packagePath);
@@ -574,11 +659,21 @@ export class SkillPackageService {
     }
   }
 
+  private isInstalledCopyUsableForDisplay(record: InstalledSkillRecord): boolean {
+    try {
+      this.inspectInstalledCopyForDisplay(record);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Remove the skill's single installed copy; never deletes openmind/output data. */
   uninstall(key: string, digest?: string): boolean {
     const target = this.repository.get(key, digest);
     if (!target) return false;
     this.assertManagedPackagePath(target.packagePath);
+    this.installedInspectionCache.delete(target.packagePath);
     fs.mkdirSync(this.paths.staging, { recursive: true });
     const trashPath = path.join(this.paths.staging, `skill-uninstall-${target.digest}-${Date.now()}`);
     const nativeAlias = path.join(this.paths.skills!, target.id);

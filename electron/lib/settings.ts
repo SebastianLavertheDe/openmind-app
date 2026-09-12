@@ -47,6 +47,17 @@ function appPaths(): AppPaths {
 let cachedOpenmindRoot: string | null = null;
 let cachedFingerprint: string | null = null;
 
+// settings.json 的解析结果同样按 mtime 指纹缓存：getPreferences 被
+// 多个高频 IPC 间接调用，readFileSync+JSON.parse 不应每次都发生。进程内
+// 写入（saveSettings）后立即同步缓存；外部编辑依赖指纹变化失效。
+let cachedSettings: RawSettings | null = null;
+let cachedSettingsMtime = 0;
+
+function settingsCacheFingerprint(): number {
+  try { return fs.statSync(settingsFile()).mtimeMs; } catch { /* settings.json 尚不存在 */ }
+  return 0;
+}
+
 function repoCacheFingerprint(): string {
   let mtime = 0;
   try { mtime = fs.statSync(settingsFile()).mtimeMs; } catch { /* settings.json 尚不存在 */ }
@@ -68,6 +79,15 @@ function legacySettingsFile(): string {
 }
 
 function loadSettings(): RawSettings {
+  const mtime = settingsCacheFingerprint();
+  if (cachedSettings && cachedSettingsMtime === mtime) return cachedSettings;
+  const loaded = readSettingsFromDisk();
+  cachedSettings = loaded;
+  cachedSettingsMtime = mtime;
+  return loaded;
+}
+
+function readSettingsFromDisk(): RawSettings {
   for (const file of [settingsFile(), legacySettingsFile()]) {
     try {
       return JSON.parse(fs.readFileSync(file, "utf8")) as RawSettings;
@@ -101,6 +121,10 @@ function saveSettings(next: RawSettings): RawSettings {
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   fs.writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
   fs.renameSync(tmp, file);
+  // 写入的内容即最新解析结果，直接同步缓存，避免同毫秒内的下一次读取
+  // 命中旧 mtime 指纹而拿到过期值。
+  cachedSettings = next;
+  cachedSettingsMtime = settingsCacheFingerprint();
   return next;
 }
 
@@ -410,13 +434,22 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   workflowAutoArchiveEnabled: false
 };
 
+// normalizePreferences 的结果与 loadSettings 返回的对象一一对应；对象引用
+// 不变（缓存命中）时直接复用，迁移写回只在首次或外部改动后发生一次。
+let cachedPreferences: { source: RawSettings; value: UserPreferences } | null = null;
+
 function getPreferences(): UserPreferences {
   const raw = loadSettings();
+  if (cachedPreferences?.source === raw) return cachedPreferences.value;
   const migrated = normalizePreferences(raw, false);
   const persisted = { ...raw, ...migrated };
   if (JSON.stringify(persisted) !== JSON.stringify(raw)) {
     saveSettings({ ...raw, ...migrated });
+    // 一次性迁移写回后不建立缓存：下一次调用以写回后的最新内容重建基准。
+    cachedPreferences = null;
+    return migrated;
   }
+  cachedPreferences = { source: raw, value: migrated };
   return migrated;
 }
 

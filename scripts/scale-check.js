@@ -36,7 +36,8 @@ async function run() {
         providerId: `${index % 2 ? "claude" : "codex"}:scale:${index}`,
         cwd: ".",
         title: `Scale Session ${String(index).padStart(4, "0")}`,
-        permissionProfile: index % 3 === 0 ? "read-only" : index % 3 === 1 ? "edit" : "auto"
+        permissionProfile: index % 3 === 0 ? "read-only" : index % 3 === 1 ? "edit" : "auto",
+        scope: { type: "workspace" }
       }));
     }
   });

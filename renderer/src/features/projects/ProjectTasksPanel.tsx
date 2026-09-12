@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
-import { useAi, useSetAiDraft } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
 import { EmptyState, ErrorState } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
@@ -34,7 +34,9 @@ export function ProjectTasksPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
-  const ai = useAi();
+  const ai = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const setDraft = useSetAiDraft();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [selectedId, setSelectedId] = useState(initialTaskId || "");
@@ -55,7 +57,7 @@ export function ProjectTasksPanel({
   const refreshedTerminalRunsRef = useRef(new Set<string>());
 
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
-  const setActiveSession = ai.setActiveSession;
+  const setActiveSession = actions.setActiveSession;
   const selected = tasks.find((item) => item.taskId === selectedId) || null;
   const activeProjectSession = matchesProjectTaskSession(ai.activeSession, project.id, selected);
   const terminalProjectRunIds = useMemo(() => ai.snapshot.runs
@@ -108,7 +110,7 @@ export function ProjectTasksPanel({
   useEffect(() => {
     if (!createRequested) return;
     void setActiveSession(null);
-    ai.clearContexts();
+    actions.clearContexts();
     setDraft(seed?.prompt || "");
     setCreating(true);
     setSelectedId("");
@@ -116,13 +118,13 @@ export function ProjectTasksPanel({
     setPrompt(seed?.prompt || "");
     setError(null);
     onCreateHandled();
-  }, [ai.clearContexts, createRequested, onCreateHandled, seed, setActiveSession, setDraft]);
+  }, [actions.clearContexts, createRequested, onCreateHandled, seed, setActiveSession, setDraft]);
   useEffect(() => {
     if (!selected?.sessionId) return;
     let current = true;
     setActivatingSession(true);
     setError(null);
-    void ai.setActiveSession(selected.sessionId)
+    void actions.setActiveSession(selected.sessionId)
       .catch((cause) => { if (current) setError(errorText(cause)); })
       .finally(() => { if (current) setActivatingSession(false); });
     return () => { current = false; };
@@ -152,7 +154,7 @@ export function ProjectTasksPanel({
 
   const newTask = () => {
     void setActiveSession(null);
-    ai.clearContexts();
+    actions.clearContexts();
     setDraft("");
     setCreating(true);
     setSelectedId("");
@@ -193,12 +195,12 @@ export function ProjectTasksPanel({
       setRenameTarget(null);
       onChanged();
       if (updated.sessionId && ai.snapshot.sessions.some((session) => session.id === updated.sessionId)) {
-        try { await ai.updateSession(updated.sessionId, { title: updated.title }); }
-        catch { ai.notify("任务已重命名，但会话标题暂未同步。", "error"); }
+        try { await actions.updateSession(updated.sessionId, { title: updated.title }); }
+        catch { ui.notify("任务已重命名，但会话标题暂未同步。", "error"); }
       }
-      ai.notify(`任务已重命名为“${updated.title}”。`, "success");
+      ui.notify(`任务已重命名为“${updated.title}”。`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setTaskActionBusy(false);
     }
@@ -206,7 +208,7 @@ export function ProjectTasksPanel({
 
   const removeTask = async (task: ProjectTask) => {
     setTaskMenu(null);
-    const confirmed = await ai.confirm({
+    const confirmed = await ui.confirm({
       title: "删除任务",
       body: `确定删除“${task.title}”吗？任务将从列表中移除。`,
       confirmText: "删除",
@@ -221,9 +223,9 @@ export function ProjectTasksPanel({
         setSelectedId("");
       }
       onChanged();
-      ai.notify("任务已删除。", "success");
+      ui.notify("任务已删除。", "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     }
   };
 
@@ -242,8 +244,8 @@ export function ProjectTasksPanel({
         onChanged();
       }
       const result = await projectsApi.startTaskRun(project.name, task.taskId, providerId, prompt.trim());
-      await ai.refresh();
-      await ai.setActiveSession(result.session.id);
+      await actions.refresh();
+      await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
       setSelectedId(result.task.taskId);
       setCreating(false);
@@ -287,9 +289,9 @@ export function ProjectTasksPanel({
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
       setDraft("");
-      ai.clearContexts();
-      await ai.refresh();
-      await ai.setActiveSession(result.session.id);
+      actions.clearContexts();
+      await actions.refresh();
+      await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
       setSelectedId(result.task.taskId);
       setCreating(false);

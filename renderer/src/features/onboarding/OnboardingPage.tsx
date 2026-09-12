@@ -4,7 +4,7 @@ import type { AppBootstrap, OpenmindRootStatus, OnboardingState } from "@shared/
 import { messages } from "@shared/messages";
 import { OPENMIND_SKILLS_REPO_URL } from "@shared/skill-package-sources";
 import type { Navigate } from "../../app/routes";
-import { useAi } from "../../ai-context";
+import { useAiSnapshot, useAiUi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 
 const m = messages.onboarding;
@@ -17,7 +17,8 @@ type Props = {
 };
 
 export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
-  const ai = useAi();
+  const ai = useAiSnapshot();
+  const ui = useAiUi();
   const [root, setRoot] = useState<OpenmindRootStatus | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState>(DEFAULT_ONBOARDING);
   const [skillsRepoReady, setSkillsRepoReady] = useState(bootstrap.skillsInstalled);
@@ -59,7 +60,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       if (!selected) return;
       const preview = await window.openmind.previewOpenmindRoot(selected);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: messages.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: messages.openmindRoot.confirm })) return;
+      if (!await ui.confirm({ title: messages.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: messages.openmindRoot.confirm })) return;
       await window.openmind.setOpenmindRoot(selected);
       await refresh();
     } catch (cause) {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { MessageSquare } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
-import { useAi, useSetAiDraft } from "../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-context";
 import { useModalFocusScope } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
@@ -82,21 +82,23 @@ function setNumericAttribute(element: HTMLElement, name: string, value: number):
 }
 
 export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) {
-  const ai = useAi();
+  const { activeSession } = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const setDraft = useSetAiDraft();
   const responsiveLayout = useResponsiveLayout();
   // 项目详情页打开时，侧栏里的新对话自动创建为当前项目的任务（归属该项目）；
-  // 已有会话的续聊保持原作用域，走默认 ai.send。
-  const projectComposeTarget = ai.projectComposeTarget;
+  // 已有会话的续聊保持原作用域，走默认 actions.send。
+  const projectComposeTarget = ui.projectComposeTarget;
   const handleProjectDraftSubmit = useCallback(async (input: ChatDraftSubmitInput) => {
     if (!projectComposeTarget) throw new Error("没有可归属的项目。");
     const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
     const result = await projectsApi.startTaskRun(projectComposeTarget.projectName, created.taskId, input.providerId, input.prompt, input.contexts);
     setDraft("");
-    ai.clearContexts();
-    await ai.refresh();
-    await ai.setActiveSession(result.session.id);
-  }, [ai.clearContexts, ai.refresh, ai.setActiveSession, projectComposeTarget, setDraft]);
+    actions.clearContexts();
+    await actions.refresh();
+    await actions.setActiveSession(result.session.id);
+  }, [actions.clearContexts, actions.refresh, actions.setActiveSession, projectComposeTarget, setDraft]);
   const presentation = responsiveLayout.companion;
   const detached = presentation === "canvas";
   const floating = presentation === "overlay";
@@ -106,14 +108,14 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   const [preferencesReady, setPreferencesReady] = useState(initialPreferences.legacyWidths === null);
   const [floatingInlineGutter, setFloatingInlineGutter] = useState(0);
   const previousMode = useRef<SidebarMode>("default");
-  const panelModeRef = useRef(ai.panelMode);
+  const panelModeRef = useRef(ui.panelMode);
   const sidebarRef = useRef<HTMLElement>(null);
   const railTriggerRef = useRef<HTMLButtonElement>(null);
-  const full = ai.panelMode === "full";
+  const full = ui.panelMode === "full";
   const modal = detached || full;
-  const mode: SidebarMode = ai.panelMode === "default"
+  const mode: SidebarMode = ui.panelMode === "default"
     ? "default"
-    : ai.panelMode === "wide" ? "wide" : previousMode.current;
+    : ui.panelMode === "wide" ? "wide" : previousMode.current;
   const bounds = liveSidebarBounds({
     layout: responsiveLayout,
     navCollapsed,
@@ -122,15 +124,15 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   });
   const preferredRatio = ratios[mode];
   const renderedWidth = sidebarWidthForRatio(preferredRatio, bounds);
-  panelModeRef.current = ai.panelMode;
+  panelModeRef.current = ui.panelMode;
 
   const dismissModal = useCallback(() => {
-    if (panelModeRef.current === "full") ai.setPanelMode(previousMode.current);
-    else ai.setPanelMode("collapsed");
-  }, [ai.setPanelMode]);
+    if (panelModeRef.current === "full") ui.setPanelMode(previousMode.current);
+    else ui.setPanelMode("collapsed");
+  }, [ui.setPanelMode]);
 
   useModalFocusScope({
-    open: modal && ai.panelMode !== "collapsed",
+    open: modal && ui.panelMode !== "collapsed",
     containerRef: sidebarRef,
     triggerRef: railTriggerRef,
     onDismiss: dismissModal
@@ -176,10 +178,10 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     });
   }, []);
   useEffect(() => {
-    if (ai.panelMode === "default" || ai.panelMode === "wide") previousMode.current = ai.panelMode;
-  }, [ai.panelMode]);
+    if (ui.panelMode === "default" || ui.panelMode === "wide") previousMode.current = ui.panelMode;
+  }, [ui.panelMode]);
   useLayoutEffect(() => {
-    if (ai.panelMode === "default" || ai.panelMode === "wide") {
+    if (ui.panelMode === "default" || ui.panelMode === "wide") {
       const navigationInlineSize = fallbackNavigationWidth(responsiveLayout.shell, navCollapsed);
       // Keep the computed CSS expression stable while the native window is
       // resized. Its percentage resolves directly against the live shell, so
@@ -190,7 +192,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
       );
       document.documentElement.style.setProperty("--ai-workspace-min-width", `${responsiveLayout.workspaceMinWidth}px`);
     }
-  }, [ai.panelMode, navCollapsed, preferredRatio, responsiveLayout.shell, responsiveLayout.workspaceMinWidth]);
+  }, [ui.panelMode, navCollapsed, preferredRatio, responsiveLayout.shell, responsiveLayout.workspaceMinWidth]);
 
   useLayoutEffect(() => {
     const sidebar = sidebarRef.current;
@@ -230,14 +232,14 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     };
   }, [floating, floatingInlineGutter, modal, mode, navCollapsed, responsiveLayout]);
 
-  if (ai.panelMode === "collapsed") return <button ref={railTriggerRef} className="ai-rail" data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ai.setPanelMode("default")}><MessageSquare size={18} /></button>;
+  if (ui.panelMode === "collapsed") return <button ref={railTriggerRef} className="ai-rail" data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ui.setPanelMode("default")}><MessageSquare size={18} /></button>;
   // Once the viewport selects a single canvas it remains the visual surface,
   // even if a persisted/fullscreen panel mode is active.
   const presentationClass = detached ? " layout-companion-canvas" : full ? "" : ` layout-companion-${presentation}`;
   return (
     <aside
       ref={sidebarRef}
-      className={`ai-sidebar mode-${ai.panelMode}${presentationClass}`}
+      className={`ai-sidebar mode-${ui.panelMode}${presentationClass}`}
       data-layout-width={Math.round(renderedWidth)}
       data-layout-ratio={preferredRatio}
       data-layout-min-width={SIDEBAR_MIN_WIDTH}
@@ -351,7 +353,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
             }}
           />
         ) : null}
-        <Chat compact onDraftSubmit={projectComposeTarget && !ai.activeSession ? handleProjectDraftSubmit : undefined} />
+        <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
     </aside>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Download, FilePenLine, FileText, Files, FolderInput, Globe2, MoreHorizontal, PencilLine, Search, Trash2, Video } from "lucide-react";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
@@ -41,7 +41,7 @@ export function ProjectFilesPanel({
   listHost: HTMLElement;
   detailHost: HTMLElement;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selection, setSelection] = useState<ProjectFileSelection | null>(() => initialItem ? {
@@ -61,8 +61,8 @@ export function ProjectFilesPanel({
   const [moveOptionsLoading, setMoveOptionsLoading] = useState(false);
   const selectionRef = useRef(selection);
   const guardRef = useRef<ProjectOutputNavigationGuard | null>(null);
-  const confirmRef = useRef(ai.confirm);
-  confirmRef.current = ai.confirm;
+  const confirmRef = useRef(ui.confirm);
+  confirmRef.current = ui.confirm;
 
   const updateSelection = useCallback((next: ProjectFileSelection | null) => {
     const current = selectionRef.current;
@@ -168,10 +168,10 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection({ kind: target.kind, relativePath: next.relativePath });
       await load();
       onChanged();
-      ai.notify(`已重命名为“${next.title}”。`, "success");
+      ui.notify(`已重命名为“${next.title}”。`, "success");
     } catch (cause) {
       setActionError(errorText(cause));
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -187,7 +187,7 @@ export function ProjectFilesPanel({
       setMoveOptions(options);
       setMoveDestination(options[0]?.name || "");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
       setMoveTarget(null);
     } finally {
       setMoveOptionsLoading(false);
@@ -206,10 +206,10 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection(null);
       await load();
       onChanged();
-      ai.notify(`已移动到项目“${moveDestination}”。`, "success");
+      ui.notify(`已移动到项目“${moveDestination}”。`, "success");
     } catch (cause) {
       setActionError(errorText(cause));
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -220,9 +220,9 @@ export function ProjectFilesPanel({
     setActionBusy(`${entry.kind}:${entry.relativePath}`);
     try {
       const result = await projectsApi.downloadFile(project.name, entry.kind, entry.relativePath);
-      if (!result.canceled && result.savedPath) ai.notify(`文件已保存到 ${result.savedPath}`, "success");
+      if (!result.canceled && result.savedPath) ui.notify(`文件已保存到 ${result.savedPath}`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -244,9 +244,9 @@ export function ProjectFilesPanel({
       if (isSelected(entry)) updateSelection(null);
       await load();
       onChanged();
-      ai.notify("文件已删除。", "success");
+      ui.notify("文件已删除。", "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }

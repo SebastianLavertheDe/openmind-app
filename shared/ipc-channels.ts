@@ -93,3 +93,42 @@ export const IPC = {
   AI_FORK_SESSION: "ai:fork-session",
   AI_RESOLVE_APPROVAL: "ai:resolve-approval",
 } as const;
+
+/**
+ * Project invoke 通道。与 PROJECT 领域契约（project-contracts.ts）同源演进，
+ * 但刻意放在这个零依赖常量模块：preload 桥（ipc-registry → ipc-bridge →
+ * preload.ts）只需要通道字符串，若从 project-contracts 取值会把整张 Zod
+ * schema 表拖进 preload bundle。
+ */
+export const PROJECT_IPC = {
+  LIST: "project:list",
+  CREATE: "project:create",
+  GET: "project:get",
+  RENAME: "project:rename",
+  UPDATE: "project:update",
+  ARCHIVE: "project:archive",
+  MATERIAL_ADD_FILES: "project:material-add-files",
+  MATERIAL_ADD_URL: "project:material-add-url",
+  MATERIAL_RETRY: "project:material-retry",
+  MATERIAL_REMOVE: "project:material-remove",
+  MATERIAL_RENAME: "project:material-rename",
+  MATERIAL_MOVE: "project:material-move",
+  MATERIAL_READ: "project:material-read",
+  MATERIAL_READ_ORIGINAL: "project:material-read-original",
+  MATERIAL_LIST: "project:material-list",
+  TASK_CREATE: "project:task-create",
+  TASK_LIST: "project:task-list",
+  TASK_MESSAGES: "project:task-messages",
+  TASK_RENAME: "project:task-rename",
+  TASK_ARCHIVE: "project:task-archive",
+  TASK_START_RUN: "project:task-start-run",
+  OUTPUT_LIST: "project:output-list",
+  OUTPUT_CREATE: "project:output-create",
+  OUTPUT_READ: "project:output-read",
+  OUTPUT_SAVE: "project:output-save",
+  OUTPUT_RENAME: "project:output-rename",
+  OUTPUT_MOVE: "project:output-move",
+  OUTPUT_REMOVE: "project:output-remove",
+  FILE_DOWNLOAD: "project:file-download"
+} as const;
+

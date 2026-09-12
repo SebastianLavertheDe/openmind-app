@@ -4,7 +4,7 @@ import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } fro
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import type { Navigate } from "./routes";
-import { useAi } from "../ai-context";
+import { useAiActions, useAiSnapshot } from "../ai-context";
 import { Tooltip } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
 import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
@@ -75,7 +75,8 @@ export function GlobalSearch({
   navigate: Navigate;
   onOpenContent(path: string): void;
 }) {
-  const ai = useAi();
+  const { activeSession } = useAiSnapshot();
+  const actions = useAiActions();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GlobalSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -136,8 +137,8 @@ export function GlobalSearch({
       // A global palette action always creates/continues a workspace task. A
       // Project task can be active while the palette is opened from Projects,
       // but that must not absorb unrelated global actions.
-      if (ai.activeSession?.scope?.type === "project-task") await ai.setActiveSession(null);
-      await ai.send(target.prompt, { permissionProfile: target.permissionProfile });
+      if (activeSession?.scope?.type === "project-task") await actions.setActiveSession(null);
+      await actions.send(target.prompt, { permissionProfile: target.permissionProfile });
       setQuery("");
       onClose();
       navigate("ai");
@@ -157,7 +158,7 @@ export function GlobalSearch({
     } else if (result.kind === "creative-project") {
       navigate("creative", { projectDir: result.targetId });
     } else if (result.kind === "session") {
-      await ai.setActiveSession(result.targetId);
+      await actions.setActiveSession(result.targetId);
       navigate("ai");
     } else {
       navigate("skills", { skillId: result.targetId });

@@ -5,8 +5,12 @@ import { XMLParser } from "fast-xml-parser";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import TurndownService from "turndown";
+import { SUPPORTED_DOCUMENT_EXTENSIONS } from "./document-extensions";
 
-export const SUPPORTED_DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".pptx", ".xlsx"] as const;
+// Re-exported for existing callers; the canonical definition lives in the
+// dependency-free document-extensions module so the main process never has
+// to load this file's heavy conversion libraries for the extension list.
+export { SUPPORTED_DOCUMENT_EXTENSIONS };
 
 const MAX_SOURCE_BYTES = 100 * 1024 * 1024;
 const MAX_ARCHIVE_EXPANDED_BYTES = 256 * 1024 * 1024;

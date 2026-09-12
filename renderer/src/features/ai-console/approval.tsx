@@ -3,12 +3,14 @@ import { ChevronDown, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, ApprovalRequest, RiskFinding } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { errorText, formatDateTime } from "../../ai-utils";
-import { useAi } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { asRecord, scalar } from "./timeline";
 
 export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalRequest; risks?: RiskFinding[] }) {
-  const ai = useAi();
+  const { snapshot } = useAiSnapshot();
+  const actions = useAiActions();
+  const ui = useAiUi();
   const [busyAction, setBusyAction] = useState<"accept" | "accept-session" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -21,12 +23,12 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
   const [stashedRisks, setStashedRisks] = useState(risks);
   useEffect(() => () => { mountedRef.current = false; }, []);
   useEffect(() => { if (detailsOpen) { setStashedApproval(approval); setStashedRisks(risks); } }, [detailsOpen, approval, risks]);
-  const current = ai.snapshot.pendingApprovals.find((item) => item.id === approval.id);
+  const current = snapshot.pendingApprovals.find((item) => item.id === approval.id);
   if (!current) return null;
   const commitResolution = async (value: "accept" | "accept-session" | "decline") => {
     const resolved = await window.openmind.aiResolveApproval(approval.id, value);
     if (!resolved) throw new Error(m.ai.approval.alreadyHandled);
-    await ai.refresh();
+    await actions.refresh();
   };
   const resolve = async (value: "accept" | "accept-session" | "decline") => {
     const busy = Boolean(busyAction);
@@ -43,13 +45,13 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
           if (mountedRef.current) setBusyAction(null);
         });
       }, 5_000);
-      ai.notify(m.ai.approval.declinedToast(subject), "info", {
+      ui.notify(m.ai.approval.declinedToast(subject), "info", {
         durationMs: 5_000,
         action: {
           label: m.ai.approval.undo,
           onClick: () => {
             if (!declineTimerRef.current) {
-              ai.notify(m.ai.approval.undoExpired, "info");
+              ui.notify(m.ai.approval.undoExpired, "info");
               return;
             }
             window.clearTimeout(declineTimerRef.current);

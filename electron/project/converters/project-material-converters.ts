@@ -4,7 +4,10 @@ import type {
   ProjectMaterialConverter,
   ProjectMaterialConversionTarget
 } from "../material-service";
-import { SUPPORTED_DOCUMENT_EXTENSIONS } from "./document-converter-core";
+// Import the extension list from the dependency-free module: pulling it from
+// document-converter-core would load mammoth/pdf-parse/turndown into the main
+// process even though document conversion runs in a worker thread.
+import { SUPPORTED_DOCUMENT_EXTENSIONS } from "./document-extensions";
 import { convertDocumentInWorker } from "./document-converter";
 import { convertVideoUrlToMarkdown, extractYoutubeVideoId } from "./video-converter";
 import { convertWebPageToMarkdown } from "./web-converter";

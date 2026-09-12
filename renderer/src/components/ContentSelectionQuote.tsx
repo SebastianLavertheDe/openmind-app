@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Quote } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../ai-context";
+import { useAiActions, useAiUi } from "../ai-context";
 import { useAnchoredPopover } from "../design-system/use-anchored-popover";
 import { readingSelectionText } from "./document/document-selection";
 
@@ -15,7 +15,8 @@ type SelectionAction = {
 };
 
 export function ContentSelectionQuote({ content, children }: { content: ContentRecord; children: ReactNode }) {
-  const ai = useAi();
+  const actions = useAiActions();
+  const ui = useAiUi();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const actionRef = useRef<HTMLButtonElement>(null);
@@ -66,18 +67,18 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
     if (!action) return;
     const source = selectionSourceLabel(content);
     const label = m.designSystem.selectionQuote.contextLabel(source, action.lineCount);
-    ai.addContext({
+    actions.addContext({
       id: `selection:${crypto.randomUUID()}`,
       kind: "selection",
       label,
       path: content.path,
       content: action.text
     });
-    ai.focusComposer();
+    ui.focusComposer();
     setAnnouncement(m.designSystem.selectionQuote.announced(action.lineCount));
     setAction(null);
     window.getSelection()?.removeAllRanges();
-  }, [action, ai, content]);
+  }, [action, actions.addContext, ui, content]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

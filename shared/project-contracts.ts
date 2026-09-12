@@ -417,38 +417,10 @@ export interface ProjectDesktopApi {
   downloadProjectFile(input: ProjectDownloadFileInput): Promise<ProjectDownloadFileResult>;
 }
 
-/** Project invoke channels are kept with their independent domain contract. */
-export const PROJECT_IPC = {
-  LIST: "project:list",
-  CREATE: "project:create",
-  GET: "project:get",
-  RENAME: "project:rename",
-  UPDATE: "project:update",
-  ARCHIVE: "project:archive",
-  MATERIAL_ADD_FILES: "project:material-add-files",
-  MATERIAL_ADD_URL: "project:material-add-url",
-  MATERIAL_RETRY: "project:material-retry",
-  MATERIAL_REMOVE: "project:material-remove",
-  MATERIAL_RENAME: "project:material-rename",
-  MATERIAL_MOVE: "project:material-move",
-  MATERIAL_READ: "project:material-read",
-  MATERIAL_READ_ORIGINAL: "project:material-read-original",
-  MATERIAL_LIST: "project:material-list",
-  TASK_CREATE: "project:task-create",
-  TASK_LIST: "project:task-list",
-  TASK_MESSAGES: "project:task-messages",
-  TASK_RENAME: "project:task-rename",
-  TASK_ARCHIVE: "project:task-archive",
-  TASK_START_RUN: "project:task-start-run",
-  OUTPUT_LIST: "project:output-list",
-  OUTPUT_CREATE: "project:output-create",
-  OUTPUT_READ: "project:output-read",
-  OUTPUT_SAVE: "project:output-save",
-  OUTPUT_RENAME: "project:output-rename",
-  OUTPUT_MOVE: "project:output-move",
-  OUTPUT_REMOVE: "project:output-remove",
-  FILE_DOWNLOAD: "project:file-download"
-} as const;
+// Project invoke channels live with the schema-free channel constants
+// (ipc-channels.ts) so the preload bridge never pulls this Zod schema module;
+// re-exported here for the domain single-import convenience.
+export { PROJECT_IPC } from "./ipc-channels";
 
 declare module "./contracts" {
   interface DesktopApi extends ProjectDesktopApi {}

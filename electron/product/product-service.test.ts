@@ -238,9 +238,9 @@ sources:
     expect(overviewReads).toBe(2);
   });
 
-  it("searchContent 委托 contentIndex", () => {
+  it("searchContent 委托 contentIndex", async () => {
     const service = createService();
-    const results = service.searchContent("正文", 10);
+    const results = await service.searchContent("正文", 10);
     expect(Array.isArray(results)).toBe(true);
   });
 

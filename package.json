@@ -24,6 +24,7 @@
     "perf:check": "node scripts/perf-check.js",
     "perf:resize": "node scripts/resize-performance.js",
     "perf:documents": "node scripts/document-performance.js",
+    "perf:ai-context": "node scripts/ai-context-performance.js",
     "perf:stream": "node scripts/stream-performance.js",
     "audit:evidence": "node scripts/audit-evidence.js",
     "audit:responsive-hardcode": "node scripts/audit-responsive-hardcode.js",

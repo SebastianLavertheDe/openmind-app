@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../../ai-context";
+import { useAiActions, useAiEvents, useAiSnapshot, useAiUi } from "../../ai-context";
 import { useExitingList } from "../../design-system/use-exiting-list";
 import { ApprovalCard } from "./approval";
 
@@ -10,9 +10,10 @@ import { ApprovalCard } from "./approval";
  * 同时保留输入框，并为长命令和批量审批提供独立的纵向空间。
  */
 export function ApprovalBanner() {
-  const ai = useAi();
-  const pendingApprovals = ai.snapshot.pendingApprovals.filter(
-    (approval) => !ai.activeSession || approval.sessionId === ai.activeSession.id
+  const { snapshot, activeSession } = useAiSnapshot();
+  const { events } = useAiEvents();
+  const pendingApprovals = snapshot.pendingApprovals.filter(
+    (approval) => !activeSession || approval.sessionId === activeSession.id
   );
   const approvalList = useExitingList(pendingApprovals, (approval) => String(approval.id), 200);
   if (!approvalList.length) return null;
@@ -21,7 +22,7 @@ export function ApprovalBanner() {
       {approvalList.length > 1 ? <ApprovalBatchBar approvals={pendingApprovals} /> : null}
       <div className="approval-banner-list">
         {approvalList.map(({ item: approval, leaving }) => {
-          const requestEvent = ai.events.find((event) => {
+          const requestEvent = events.find((event) => {
             if (event.kind !== "approval-request") return false;
             const request = event.payload.approval as ApprovalRequest | undefined;
             return request?.id === approval.id || event.payload.approvalId === approval.id;
@@ -39,7 +40,8 @@ export function ApprovalBanner() {
 
 /** P1-APR-4: 多审批批量操作。 */
 function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
-  const ai = useAi();
+  const actions = useAiActions();
+  const ui = useAiUi();
   const [busy, setBusy] = useState(false);
   const declineTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -51,17 +53,17 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
       declineTimerRef.current = window.setTimeout(() => {
         declineTimerRef.current = null;
         void Promise.all(approvals.map((approval) => window.openmind.aiResolveApproval(approval.id, "decline")))
-          .then(() => ai.refresh())
+          .then(() => actions.refresh())
           .catch(() => undefined)
           .finally(() => { if (mountedRef.current) setBusy(false); });
       }, 5_000);
-      ai.notify(m.ai.approval.declinedToast(m.ai.approval.batchSummary(approvals.length)), "info", {
+      ui.notify(m.ai.approval.declinedToast(m.ai.approval.batchSummary(approvals.length)), "info", {
         durationMs: 5_000,
         action: {
           label: m.ai.approval.undo,
           onClick: () => {
             if (!declineTimerRef.current) {
-              ai.notify(m.ai.approval.undoExpired, "info");
+              ui.notify(m.ai.approval.undoExpired, "info");
               return;
             }
             window.clearTimeout(declineTimerRef.current);
@@ -74,7 +76,7 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
     }
     try {
       await Promise.all(approvals.map((approval) => window.openmind.aiResolveApproval(approval.id, value)));
-      await ai.refresh();
+      await actions.refresh();
     } catch {
       // 单个失败由卡片自身展示错误。
     } finally {

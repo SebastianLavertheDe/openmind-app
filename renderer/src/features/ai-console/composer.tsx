@@ -4,7 +4,7 @@ import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen,
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
-import { useAi, useAiDraft } from "../../ai-context";
+import { useAiActions, useAiDraft, useAiSnapshot, useAiUi } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { ComposerSuggestionMenu } from "./composer-suggestion-menu";
@@ -144,11 +144,25 @@ export type ChatDraftSubmitInput = {
 export type ChatDraftSubmitHandler = (input: ChatDraftSubmitInput) => Promise<void>;
 
 export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmitHandler } = {}) {
-  const ai = useAi();
+  // Slices instead of the full controller: the composer must not re-render on
+  // every streamed event flush, only on the snapshot/UI/actions values it renders.
+  const { snapshot, activeSession, sessionActiveRun, queuedRuns, pendingContexts, skills } = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const { draft, setDraft } = useAiDraft();
-  const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
-  const projectName = ai.snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || ai.snapshot.projectRoot;
+  const availableProviders = snapshot.providers.filter((provider) => provider.available);
+  const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
+  // 设置页"设为默认"的 agent provider：新会话的默认选中项，与设置页展示一致。
+  const [preferredProviderId, setPreferredProviderId] = useState("");
+  const userChoseProviderRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    window.openmind.getPreferences?.().then((preferences) => {
+      if (!cancelled) setPreferredProviderId(preferences.defaultProvider || "");
+    }).catch(() => { /* 读不到偏好时回退到第一个可用 provider。 */ });
+    return () => { cancelled = true; };
+  }, []);
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>("auto");
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("default");
   const [trigger, setTrigger] = useState<ComposerTrigger | null>(null);
@@ -167,28 +181,35 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const searchRequest = useRef(0);
   const menuSnapRef = useRef(false);
   const menuStashRef = useRef<ReactNode>(null);
-  const visibleActiveRun = ai.sessionActiveRun;
-  const draftSkillInvocation = parseSkillSlashInvocation(draft, ai.skills);
-  const errorMessage = localError || ai.error || null;
+  const visibleActiveRun = sessionActiveRun;
+  const draftSkillInvocation = parseSkillSlashInvocation(draft, skills);
+  const errorMessage = localError || ui.error || null;
   const { visible: errorVisible, leaving: errorLeaving } = useExitPresence(Boolean(errorMessage), 160);
   const [stashedError, setStashedError] = useState(errorMessage);
   useEffect(() => { if (errorMessage) setStashedError(errorMessage); }, [errorMessage]);
 
   useEffect(() => {
-    if (ai.activeSession?.providerId) setProviderId(ai.activeSession.providerId);
-    else if (!providerId && availableProviders[0]) setProviderId(availableProviders[0].id);
-  }, [ai.activeSession?.providerId, availableProviders, providerId]);
+    if (activeSession?.providerId) {
+      setProviderId(activeSession.providerId);
+      return;
+    }
+    // 会话没带 provider（或草稿态）时：优先设置页默认 provider，用户手动
+    // 选过之后（userChoseProviderRef）不再覆盖其选择。
+    if (userChoseProviderRef.current) return;
+    const fallback = availableProviders.find((provider) => provider.id === preferredProviderId) || availableProviders[0];
+    if (fallback) setProviderId(fallback.id);
+  }, [activeSession?.providerId, availableProviders, preferredProviderId]);
   useEffect(() => {
     // 无活动会话（草稿态）时重置回默认档位，不残留上一个会话的选择。
-    setPermissionProfile(ai.activeSession?.permissionProfile ?? "auto");
-  }, [ai.activeSession?.permissionProfile]);
+    setPermissionProfile(activeSession?.permissionProfile ?? "auto");
+  }, [activeSession?.permissionProfile]);
   useEffect(() => {
-    setInteractionMode(ai.activeSession?.interactionMode || "default");
-  }, [ai.activeSession?.interactionMode]);
+    setInteractionMode(activeSession?.interactionMode || "default");
+  }, [activeSession?.interactionMode]);
   useEffect(() => {
     setTrigger(null);
     setLocalError(null);
-  }, [ai.activeSession?.id]);
+  }, [activeSession?.id]);
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -196,10 +217,10 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     el.style.height = `${Math.min(230, el.scrollHeight)}px`;
   }, [draft]);
   useEffect(() => {
-    if (!ai.composerFocusRequest) return;
+    if (!ui.composerFocusRequest) return;
     const frame = window.requestAnimationFrame(() => textareaRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [ai.composerFocusRequest]);
+  }, [ui.composerFocusRequest]);
   useEffect(() => {
     if (trigger?.kind !== "mention" || !trigger.query) {
       setFileResults([]);
@@ -236,13 +257,13 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
 
   const skillResults = useMemo(() => {
     if (trigger?.kind !== "command") return [];
-    if (!trigger.query) return [...ai.skills];
-    return ai.skills
+    if (!trigger.query) return [...skills];
+    return skills
       .map((skill) => ({ skill, score: skillMatchScore(skill, trigger.query) }))
       .filter((candidate) => candidate.score >= 0)
       .sort((left, right) => right.score - left.score || left.skill.id.localeCompare(right.skill.id))
       .map((candidate) => candidate.skill);
-  }, [ai.skills, trigger]);
+  }, [skills, trigger]);
   const suggestionCount = trigger?.kind === "mention" ? fileResults.length : trigger?.kind === "command" ? skillResults.length : 0;
   useEffect(() => {
     setActiveSuggestion(0);
@@ -252,9 +273,9 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   }, [activeSuggestion, suggestionCount]);
 
   const submit = async () => {
-    if (!draft.trim() || ai.isSending || customSending) return;
-    const skillInvocation = parseSkillSlashInvocation(draft, ai.skills);
-    const validationError = skillInvocation ? null : slashCommandValidationError(draft, ai.pendingContexts);
+    if (!draft.trim() || ui.isSending || customSending) return;
+    const skillInvocation = parseSkillSlashInvocation(draft, skills);
+    const validationError = skillInvocation ? null : slashCommandValidationError(draft, pendingContexts);
     if (validationError) {
       setLocalError(validationError);
       return;
@@ -269,10 +290,10 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
           providerId,
           permissionProfile,
           interactionMode,
-          contexts: ai.pendingContexts
+          contexts: pendingContexts
         });
       } else {
-        await ai.send(draft, { providerId, permissionProfile, interactionMode });
+        await actions.send(draft, { providerId, permissionProfile, interactionMode });
       }
     } catch (cause) {
       if (onDraftSubmit) setLocalError(cause instanceof Error ? cause.message : String(cause));
@@ -290,7 +311,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       if (item.type.startsWith("image/")) {
         hasImage = true;
         const file = item.getAsFile();
-        if (file) void ingestPastedImage(file, ai.addContext, setLocalError);
+        if (file) void ingestPastedImage(file, actions.addContext, setLocalError);
       }
     }
     if (hasImage) event.preventDefault();
@@ -315,7 +336,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const chooseFile = (file: ProjectFileMatch) => {
     if (!trigger || trigger.kind !== "mention") return;
     menuSnapRef.current = true; // snap-close on selection (no exit animation that would linger on the chosen item)
-    ai.addContext({
+    actions.addContext({
       id: `file:${file.path}`,
       kind: "file",
       label: file.name,
@@ -333,7 +354,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const browseFiles = async () => {
     const files = await window.openmind.selectOpenmindFiles();
     for (const file of files) {
-      ai.addContext({
+      actions.addContext({
         id: `file:${file}`,
         kind: "file",
         label: file.split(/[\\/]/).at(-1) || file,
@@ -409,21 +430,21 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   return (
     <footer className="composer" ref={composerRef}>
       <div className="composer-flow">
-        {ai.pendingContexts.length ? <ContextTray contexts={ai.pendingContexts} /> : null}
+        {pendingContexts.length ? <ContextTray contexts={pendingContexts} /> : null}
         {errorVisible && stashedError ? (
           <div className="composer-error ui-overlay" data-leaving={errorLeaving || undefined} role="alert">
             <span>{stashedError}</span>
-            <button data-motion="icon" aria-label={m.ai.composer.closeError} onClick={() => { setLocalError(null); ai.clearError(); }}><X size={13} /></button>
+            <button data-motion="icon" aria-label={m.ai.composer.closeError} onClick={() => { setLocalError(null); ui.clearError(); }}><X size={13} /></button>
           </div>
         ) : null}
-        {ai.queuedRuns.length ? (
+        {queuedRuns.length ? (
           <AnimatedDisclosure
             className="queue-tray"
             open={queueOpen}
             onOpenChange={setQueueOpen}
-            summary={m.ai.composer.queuedSummary(ai.queuedRuns.length)}
+            summary={m.ai.composer.queuedSummary(queuedRuns.length)}
           >
-            {ai.queuedRuns.map((run, index) => <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><button data-motion="icon" aria-label={m.ai.composer.cancelQueued} onClick={() => void ai.cancel(run.id)}><X size={12} /></button></div>)}
+            {queuedRuns.map((run, index) => <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><button data-motion="icon" aria-label={m.ai.composer.cancelQueued} onClick={() => void actions.cancel(run.id)}><X size={12} /></button></div>)}
           </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
@@ -468,7 +489,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 void submit();
               }
             }}
-            placeholder={ai.activeSession ? m.ai.composer.placeholderContinue(ai.activeSession.title) : m.ai.composer.placeholderNew}
+            placeholder={activeSession ? m.ai.composer.placeholderContinue(activeSession.title) : m.ai.composer.placeholderNew}
           />
           {/* P2-CMP-2: 空状态 prompt 提示 chip —— 空 draft 时显示快捷入口 */}
           {/* P2-CMP-3: textarea 到底渐变遮罩 —— 由 CSS 控制 */}
@@ -500,7 +521,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             <button
               type="button"
               className="composer-add-context"
-              onClick={() => void ai.addFiles()}
+              onClick={() => void actions.addFiles()}
               aria-label={m.ai.composer.addAttachment}
               title={m.ai.composer.addAttachment}
             >
@@ -529,14 +550,14 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               ]}
               onChange={(value) => setPermissionProfile(value as PermissionProfile)}
             />
-            {ai.projectComposeTarget && !ai.activeSession ? (
+            {ui.projectComposeTarget && !activeSession ? (
               <span
                 className="composer-workspace is-project-target"
-                title={m.ai.composer.projectTargetHint(ai.projectComposeTarget.projectName)}
+                title={m.ai.composer.projectTargetHint(ui.projectComposeTarget.projectName)}
               >
                 <FolderOpen size={16} />
                 <span>{m.ai.chat.currentProject}</span>
-                <strong>{ai.projectComposeTarget.projectName}</strong>
+                <strong>{ui.projectComposeTarget.projectName}</strong>
               </span>
             ) : (
               <button
@@ -544,7 +565,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 type="button"
                 className="composer-workspace"
                 aria-label={m.ai.composer.openWorkspace}
-                title={ai.snapshot.projectRoot}
+                title={snapshot.projectRoot}
                 onClick={() => void window.openmind.openPath(".")}
               >
                 <FolderOpen size={16} />
@@ -559,7 +580,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               label={m.ai.composer.provider}
               value={providerId}
               options={availableProviders.map((provider) => ({ value: provider.id, label: provider.label }))}
-              onChange={setProviderId}
+              onChange={(id) => { userChoseProviderRef.current = true; setProviderId(id); }}
             />
             {draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(draft.length)}</span> : null}
             <div className="composer-send-wrap">
@@ -568,15 +589,15 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 className={`composer-send${visibleActiveRun ? " danger" : ""}`}
                 disabled={visibleActiveRun
                   ? visibleActiveRun.status === "applying"
-                  : ai.isSending || customSending || !draft.trim() || (!draftSkillInvocation && !ai.activeSession && !providerId)}
+                  : ui.isSending || customSending || !draft.trim() || (!draftSkillInvocation && !activeSession && !providerId)}
                 aria-label={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.send}
                 title={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.sendShortcut}
-                onClick={() => visibleActiveRun ? void ai.cancel(visibleActiveRun.id) : void submit()}
+                onClick={() => visibleActiveRun ? void actions.cancel(visibleActiveRun.id) : void submit()}
               >
                 {visibleActiveRun ? (
                   <span key="stop" className="composer-send-icon" aria-hidden="true"><Square size={16} /></span>
                 ) : (
-                  <ComposerSendIcon loading={ai.isSending || customSending} />
+                  <ComposerSendIcon loading={ui.isSending || customSending} />
                 )}
               </button>
             </div>
@@ -596,7 +617,7 @@ function ComposerSendIcon({ loading }: { loading: boolean }) {
 }
 
 export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
-  const ai = useAi();
+  const actions = useAiActions();
   const [dragId, setDragId] = useState<string | null>(null);
   const [chipOverflow, setChipOverflow] = useState({ start: false, end: false });
   const [enlargedId, setEnlargedId] = useState<string | null>(null);
@@ -719,7 +740,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
           context.kind === "image" ? (
             <div className="context-chip image-chip" key={context.id} title={context.label}>
               <button aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></button>
-              <button aria-label={m.ai.context.remove} title={m.ai.context.remove} className="image-chip-remove" onClick={() => ai.removeContext(context.id)}><X size={11} /></button>
+              <button aria-label={m.ai.context.remove} title={m.ai.context.remove} className="image-chip-remove" onClick={() => actions.removeContext(context.id)}><X size={11} /></button>
             </div>
           ) : (
             <ContextReferenceChip
@@ -731,7 +752,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
               onDragStart={() => setDragId(context.id)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {
-                if (dragId && dragId !== context.id) ai.reorderContexts(dragId, context.id);
+                if (dragId && dragId !== context.id) actions.reorderContexts(dragId, context.id);
                 setDragId(null);
               }}
               onDragEnd={() => setDragId(null)}
@@ -744,7 +765,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
         className="context-tray-clear"
         data-motion="icon"
         aria-label={`${m.ai.context.clear} ${m.ai.context.count(contexts.length)}`}
-        onClick={ai.clearContexts}
+        onClick={actions.clearContexts}
       >
         <Trash2 size={12} />
         {m.ai.context.clear}
@@ -854,7 +875,7 @@ function ContextReferenceChip({
   onDrop(): void;
   onDragEnd(): void;
 }) {
-  const ai = useAi();
+  const actions = useAiActions();
   const [open, setOpen] = useState(false);
   const detailId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -926,8 +947,8 @@ function ContextReferenceChip({
               <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
               {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
               <footer>
-                <button data-motion="icon" disabled={index === 0} onClick={() => ai.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
-                <button data-motion="icon" disabled={index === total - 1} onClick={() => ai.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
+                <button data-motion="icon" disabled={index === 0} onClick={() => actions.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
+                <button data-motion="icon" disabled={index === total - 1} onClick={() => actions.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
               </footer>
             </div>
           </div>,
@@ -943,7 +964,7 @@ function ContextReferenceChip({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
-          ai.removeContext(context.id);
+          actions.removeContext(context.id);
         }}
       >
         <X size={12} aria-hidden />

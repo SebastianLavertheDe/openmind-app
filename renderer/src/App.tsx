@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
-import { AiProvider, useAi } from "./ai-context";
+import { AiProvider, useAiActions, useAiSnapshot, useAiUi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
 import { AppShell } from "./app/AppShell";
 import { ResponsiveLayoutProvider } from "./app/responsive-layout";
@@ -81,7 +81,12 @@ function Workspace({
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
   const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
-  const ai = useAi();
+  // Slice subscriptions instead of the full useAi() controller: the workspace
+  // shell only needs snapshot data plus UI/actions, so a streaming event
+  // flush (events slice) must not re-render the entire route content tree.
+  const { snapshot, activeSession } = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
@@ -134,29 +139,29 @@ function Workspace({
       if (route.page === "onboarding") return;
       const key = event.key.toLowerCase();
       if (key === "k") { event.preventDefault(); openSearch(); }
-      else if (key === "n") { event.preventDefault(); void ai.setActiveSession(null); navigate("ai"); }
+      else if (key === "n") { event.preventDefault(); void actions.setActiveSession(null); navigate("ai"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ai.setActiveSession, navigate, openSearch, route.page]);
+  }, [actions.setActiveSession, navigate, openSearch, route.page]);
   useEffect(() => {
     const enteredPage = previousRoutePage.current !== route.page;
     previousRoutePage.current = route.page;
     if (!showAiCompanion) {
-      if (ai.panelMode !== "collapsed") ai.setPanelMode("collapsed");
+      if (ui.panelMode !== "collapsed") ui.setPanelMode("collapsed");
       return;
     }
     // 每日简报首次进入时直接提供对话框；同页手动收起后保持用户选择。
-    if (route.page === "brief" && enteredPage && ai.panelMode === "collapsed") ai.setPanelMode("default");
-  }, [route.page, showAiCompanion, ai.panelMode, ai.setPanelMode]);
+    if (route.page === "brief" && enteredPage && ui.panelMode === "collapsed") ui.setPanelMode("default");
+  }, [route.page, showAiCompanion, ui.panelMode, ui.setPanelMode]);
   useEffect(() => {
     // Project sessions are only valid inside the Project task surface. Clear
     // the global selection when leaving Projects so Creative, Brief and the
     // ordinary AI workbench cannot accidentally render or continue it.
-    if (route.page !== "projects" && ai.activeSession?.scope?.type === "project-task") {
-      void ai.setActiveSession(null);
+    if (route.page !== "projects" && activeSession?.scope?.type === "project-task") {
+      void actions.setActiveSession(null);
     }
-  }, [ai.activeSession?.id, ai.activeSession?.scope?.type, ai.setActiveSession, route.page]);
+  }, [activeSession?.id, activeSession?.scope?.type, actions.setActiveSession, route.page]);
   // 窗口重新获焦时异步重探 provider：登录在后、换模型、新装 CLI 都能被捡起。
   // 探测在 worker 进程用 spawn 跑、非阻塞，完成后自动推送 snapshot，绝不卡 send。
   useEffect(() => {
@@ -174,23 +179,23 @@ function Workspace({
   const routeRenderProps = useMemo(() => ({
     bootstrap,
     navigate,
-    providers: ai.snapshot.providers,
+    providers: snapshot.providers,
     aiFilePreviewPath,
     onAiFilePreviewPathChange: setAiFilePreviewPath,
-    confirmAction: ai.confirm,
+    confirmAction: ui.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  }), [bootstrap, navigate, ai.snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, ai.confirm, refreshBootstrap, exitSettings]);
+  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, ui.confirm, refreshBootstrap, exitSettings]);
   const aiSidebarElement = useMemo(
     () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
     [showAiCompanion, navCollapsed]
   );
   const recentTasksElement = useMemo(() => <SidebarRecent
     activeSessionId={
-      route.page === "ai" && ai.activeSession?.scope.type === "workspace"
-        ? ai.activeSession.id
-        : route.page === "projects" && ai.activeSession?.scope.type === "project-task"
-          ? ai.activeSession.id
+      route.page === "ai" && activeSession?.scope.type === "workspace"
+        ? activeSession.id
+        : route.page === "projects" && activeSession?.scope.type === "project-task"
+          ? activeSession.id
           : null
     }
     onOpen={(session) => {
@@ -202,10 +207,10 @@ function Workspace({
         });
         return;
       }
-      void ai.setActiveSession(session.id);
+      void actions.setActiveSession(session.id);
       navigate("ai");
     }}
-  />, [route.page, ai.activeSession?.id, ai.activeSession?.scope.type, ai.setActiveSession, navigate]);
+  />, [route.page, activeSession?.id, activeSession?.scope.type, actions.setActiveSession, navigate]);
   const routeContent = useMemo(() => (
     <>
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
@@ -236,12 +241,12 @@ function Workspace({
       repoRoot={bootstrap.repoRoot}
       runtime={bootstrap.runtime}
       environment={bootstrap.environment}
-      pendingApprovals={ai.snapshot.pendingApprovals.length}
-      aiSessionOpen={Boolean(ai.activeSession)}
-      aiMode={showAiCompanion ? ai.panelMode : "collapsed"}
+      pendingApprovals={snapshot.pendingApprovals.length}
+      aiSessionOpen={Boolean(activeSession)}
+      aiMode={showAiCompanion ? ui.panelMode : "collapsed"}
       aiSidebar={aiSidebarElement}
       recentTasks={recentTasksElement}
-      onNewTask={() => { void ai.setActiveSession(null); navigate("ai"); }}
+      onNewTask={() => { void actions.setActiveSession(null); navigate("ai"); }}
       >
       {routeContent}
       <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />

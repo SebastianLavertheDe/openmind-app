@@ -1,12 +1,20 @@
 .brief-library-container {
-  --daily-brief-workspace-min: 34rem;
+  /* Floor reported to the shell (useResponsiveWorkspaceMinimum): the AI
+     companion can never squeeze this page past it. At 40rem the master column
+     yields width first (see the clamp below), leaving the brief document a
+     readable ~27rem instead of collapsing to an unreadable sliver. */
+  --daily-brief-workspace-min: 40rem;
   height: 100%;
   min-width: 0;
   min-height: 0;
   container: daily-brief / inline-size;
 }
 
-.brief-library-page {
+/* Two classes on purpose: workbuddy-refactor.css also styles
+   .document-library-page { grid-template-columns: 272px } and is imported
+   after this file, so the single-class selector would lose the cascade and
+   the master column would never shrink. */
+.document-library-page.brief-library-page {
   /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
   --file-reader-max-width: 1120px;
   --daily-brief-prose-max-width: 920px;

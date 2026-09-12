@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, FileOutput, LoaderCircle, Pencil, Plus, Save, Search } from "lucide-react";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
 import { MarkdownEditor, type EditorSelectionSnapshot } from "../creative/MarkdownEditor";
@@ -42,7 +42,7 @@ export function ProjectOutputsPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialOutputPath || "");
   const [selected, setSelected] = useState<ProjectOutput | null>(null);
@@ -68,15 +68,15 @@ export function ProjectOutputsPanel({
   const saveRef = useRef<() => Promise<boolean>>(async () => true);
   const savedTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
-  const notifyRef = useRef(ai.notify);
-  const confirmRef = useRef(ai.confirm);
+  const notifyRef = useRef(ui.notify);
+  const confirmRef = useRef(ui.confirm);
   selectedRef.current = selected;
   selectedPathRef.current = selectedPath;
   dirtyRef.current = dirty;
   draftRef.current = draft;
   titleRef.current = title;
-  notifyRef.current = ai.notify;
-  confirmRef.current = ai.confirm;
+  notifyRef.current = ui.notify;
+  confirmRef.current = ui.confirm;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -277,7 +277,7 @@ export function ProjectOutputsPanel({
       onChanged();
       window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".project-output-editor .cm-content")?.focus());
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setCreating(false);
     }

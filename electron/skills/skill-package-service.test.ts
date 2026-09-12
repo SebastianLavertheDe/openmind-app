@@ -635,6 +635,27 @@ describe("SkillPackageService", () => {
     expect(() => service.inspectInstalledCopy(refreshed)).toThrow(/digest/);
   });
 
+  it("re-hashes execution inspections when tampering preserves size and mtime", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    const installed = service.install(source);
+
+    // Populate the catalog-only metadata cache before replacing package bytes.
+    expect(service.listInstalledViews()).toEqual([
+      expect.objectContaining({ key: installed.key, usable: true })
+    ]);
+    const script = path.join(installed.packagePath, "run.sh");
+    const before = fs.statSync(script);
+    const replacement = "echo modified\n";
+    expect(Buffer.byteLength(replacement)).toBe(before.size);
+    fs.writeFileSync(script, replacement);
+    fs.utimesSync(script, before.atime, before.mtime);
+
+    expect(() => service.inspectInstalledCopy(installed)).toThrow(/digest/);
+  });
+
   it("defaults installed Skills to enabled and persists an independent disable override", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);

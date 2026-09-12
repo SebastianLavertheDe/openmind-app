@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { PanelLeftOpen, RefreshCw } from "lucide-react";
 import type { ContextReference, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../../ai-context";
+import { useAiActions, useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
@@ -35,7 +35,8 @@ export function CreativeWorkspacePage({
   initialStage?: Stage;
   initialProjectDir?: string;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
   const [date] = useState(() => displayDate(initialDate) || today());
@@ -162,16 +163,16 @@ export function CreativeWorkspacePage({
           setAutoSaveStatus("saved");
         } catch (cause) {
           setAutoSaveStatus("failed");
-          ai.notify(m.creativeUi.workspace.autoSaveFailed(cause instanceof Error ? cause.message : String(cause)), "error");
+          ui.notify(m.creativeUi.workspace.autoSaveFailed(cause instanceof Error ? cause.message : String(cause)), "error");
         }
       })();
     }, workflowPolicy.autoSaveIntervalMs);
     return () => window.clearTimeout(timer);
-  }, [draft, dirty, activeFile, detail?.dir, stage, ai, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
+  }, [draft, dirty, activeFile, detail?.dir, stage, ui, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;
-    if (dirty && !await ai.confirm({ title: m.creativeUi.workspace.switchFile.title, body: m.creativeUi.workspace.switchFile.body, confirmText: m.creativeUi.workspace.switchFile.confirm, danger: true })) return;
+    if (dirty && !await ui.confirm({ title: m.creativeUi.workspace.switchFile.title, body: m.creativeUi.workspace.switchFile.body, confirmText: m.creativeUi.workspace.switchFile.confirm, danger: true })) return;
     setActiveFile(file);
     setDraft(detail?.files?.[file] || "");
     setDirty(false);
@@ -185,9 +186,9 @@ export function CreativeWorkspacePage({
       const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: m.creativeUi.workspace.editorVersionNote });
       setDetail(next);
       setDirty(false);
-      ai.notify(m.creativeUi.workspace.savedWithVersion, "success");
+      ui.notify(m.creativeUi.workspace.savedWithVersion, "success");
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
       setSaving(false);
     }
@@ -219,9 +220,9 @@ export function CreativeWorkspacePage({
           await window.openmind.updateCreativeManifest(created.dir, { platforms: { [platform.id]: "draft" } });
         } catch { /* platform seed optional */ }
       }
-      ai.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
+      ui.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
   };
 
@@ -232,20 +233,20 @@ export function CreativeWorkspacePage({
     if (dirty) await save();
     try {
       const moved = await window.openmind.advanceCreativeProject(detail.dir, nextStage);
-      ai.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");
+      ui.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");
       await load();
       setStage(nextStage);
       setSelectedProject({ ...selectedProject, dir: moved.dir, stage: nextStage });
       setDetail(moved);
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
   };
 
   const exportDraft = async () => {
     if (!detail || !selectedProject) return;
     const publish = ((detail.manifest as Record<string, unknown> | undefined)?.publish as Record<string, unknown> | undefined) || {};
-    if (!publish.platform) { ai.notify(m.creativeUi.workspace.platformRequired, "error"); return; }
+    if (!publish.platform) { ui.notify(m.creativeUi.workspace.platformRequired, "error"); return; }
     setExporting(true);
     try {
       const safeTopic = selectedProject.topic.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "draft";
@@ -253,10 +254,10 @@ export function CreativeWorkspacePage({
       const file = await window.openmind.exportText(`${normalizeDate(selectedProject.date || date)}-${safeTopic.slice(0, 80)}${platform ? `.${platform}` : ""}.md`, draft);
       const updated = await window.openmind.updateCreativeManifest(detail.dir, { publish: { status: "exported", exportedPath: file || null } });
       setDetail(updated);
-      ai.notify(file ? m.creativeUi.workspace.exportedTo(file) : m.creativeUi.workspace.exportCancelled, file ? "success" : "info");
+      ui.notify(file ? m.creativeUi.workspace.exportedTo(file) : m.creativeUi.workspace.exportCancelled, file ? "success" : "info");
       await load();
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
       setExporting(false);
     }
@@ -264,14 +265,14 @@ export function CreativeWorkspacePage({
 
   const copyProject = async () => {
     if (!detail) return;
-    try { await window.openmind.copyCreativeProject(detail.dir); ai.notify(m.creativeUi.workspace.copied, "success"); await load(); }
-    catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    try { await window.openmind.copyCreativeProject(detail.dir); ui.notify(m.creativeUi.workspace.copied, "success"); await load(); }
+    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const archiveProject = async () => {
     if (!detail) return;
-    if (!await ai.confirm({ title: m.creativeUi.workspace.archive.title, body: m.creativeUi.workspace.archive.body, confirmText: m.creativeUi.workspace.archive.confirm, danger: true })) return;
-    try { await window.openmind.archiveCreativeProject(detail.dir); ai.notify(m.creativeUi.workspace.archive.success, "success"); setSelectedProject(null); setDetail(null); await load(); }
-    catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    if (!await ui.confirm({ title: m.creativeUi.workspace.archive.title, body: m.creativeUi.workspace.archive.body, confirmText: m.creativeUi.workspace.archive.confirm, danger: true })) return;
+    try { await window.openmind.archiveCreativeProject(detail.dir); ui.notify(m.creativeUi.workspace.archive.success, "success"); setSelectedProject(null); setDetail(null); await load(); }
+    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
 
   const addContext = () => {
@@ -284,9 +285,9 @@ export function CreativeWorkspacePage({
       content: JSON.stringify({ date: topicDate, topic: selectedTopic }, null, 2)
     } : null;
     if (!context) return;
-    ai.addContext(context);
-    ai.setPanelMode("wide");
-    ai.notify(m.creativeUi.editor.addedContextNotify, "success");
+    actions.addContext(context);
+    ui.setPanelMode("wide");
+    ui.notify(m.creativeUi.editor.addedContextNotify, "success");
   };
 
   const insertAtCursor = (before: string, after = "", placeholder = "") => {
@@ -310,15 +311,15 @@ export function CreativeWorkspacePage({
       if (!files.length) return;
       const file = files[0];
       insertAtCursor("[", `](${file})`, file.split(/[\\/]/).at(-1) || file);
-      ai.notify(m.creativeUi.editor.localFileNotify, "success");
-    } catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+      ui.notify(m.creativeUi.editor.localFileNotify, "success");
+    } catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const updateManifest = async (patch: Record<string, unknown>) => {
     if (!detail) return;
     try {
       setDetail(await window.openmind.updateCreativeManifest(detail.dir, { publish: patch }));
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
   };
   const creativeDetailMotionKey = selectedTopicFilePath

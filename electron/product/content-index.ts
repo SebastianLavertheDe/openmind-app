@@ -19,6 +19,12 @@ import {
 import { CONTENT_DATE_ROOTS, CONTENT_FILE_ROOTS } from "../../shared/content-kinds";
 import { quarantineCorruptState, statePath } from "./state-directory";
 
+// 单个日期的列表/索引结果在搜索键入期间的最短复用窗口。searchContent 会对
+// 最多 120 个日期逐一 ensureDateIndexed，而 getContent 对 creative 等目录做
+// 递归遍历——逐键全量重扫不可接受。TTL 内直接复用内存索引；与
+// openmind-file-search 的索引 TTL 语义一致，内容改动最迟一个窗口后可见。
+const SEARCH_DATE_REFRESH_INTERVAL_MS = 30_000;
+
 export class ContentIndexStore {
   private readonly contentIndexPath: string;
   // readContentIndex 解析结果按索引文件 mtime 缓存，避免每次 IPC/搜索按键都 readFileSync+逐条 Zod。
@@ -27,6 +33,11 @@ export class ContentIndexStore {
   // availableContentDates 按 5 个内容根目录的 mtime 指纹缓存，避免每次都 readdir 5 个目录。
   private datesCache: string[] | null = null;
   private datesFingerprint = "";
+  // 每日期的搜索索引条目，按 TTL 复用；显式 refreshDate 立即刷新。
+  private readonly dateSearchCache = new Map<string, { items: IndexedContent[]; indexedAtMs: number }>();
+  // 冷搜索会对最多 120 天连续 ensureDateIndexed；写盘推迟到整轮 sweep 结束，
+  // 否则每个变化日期都把不断增大的完整索引原子写一次（120 天 ≈ 120 次全量写）。
+  private indexDirty = false;
 
   constructor(
     private readonly repoRoot: string,
@@ -44,31 +55,45 @@ export class ContentIndexStore {
    * 单天刷新：ensureDateIndexed 按 modifiedAt/size 自检过期，只重建传入的那一天。
    */
   refreshDate(date: string): void {
-    this.ensureDateIndexed(compactDate(date));
+    const normalized = compactDate(date);
+    const items = this.ensureDateIndexed(normalized);
+    this.dateSearchCache.set(normalized, { items, indexedAtMs: Date.now() });
+    this.flushIndexWrite();
   }
 
   searchContent(rawQuery: string, limit = 20): GlobalSearchResult[] {
     const query = rawQuery.trim();
     if (!query) return [];
-    const normalizedQuery = query.toLocaleLowerCase();
-    const results: GlobalSearchResult[] = [];
-    for (const date of this.availableContentDates()) {
-      for (const item of this.ensureDateIndexed(date)) {
-        if (!item.searchText.includes(normalizedQuery)) continue;
-        results.push({
-          id: `content:${item.id}`,
-          kind: "content",
-          title: item.title,
-          subtitle: `${item.source} · ${contentKindLabel(item.kind)}`,
-          path: item.path,
-          date,
-          status: null,
-          targetId: item.id
-        });
-        if (results.length >= limit) return results;
+    try {
+      const normalizedQuery = query.toLocaleLowerCase();
+      const results: GlobalSearchResult[] = [];
+      const now = Date.now();
+      for (const date of this.availableContentDates()) {
+        let cached = this.dateSearchCache.get(date);
+        if (!cached || now - cached.indexedAtMs >= SEARCH_DATE_REFRESH_INTERVAL_MS) {
+          cached = { items: this.ensureDateIndexed(date), indexedAtMs: now };
+          this.dateSearchCache.set(date, cached);
+        }
+        for (const item of cached.items) {
+          if (!item.searchText.includes(normalizedQuery)) continue;
+          results.push({
+            id: `content:${item.id}`,
+            kind: "content",
+            title: item.title,
+            subtitle: `${item.source} · ${contentKindLabel(item.kind)}`,
+            path: item.path,
+            date,
+            status: null,
+            targetId: item.id
+          });
+          if (results.length >= limit) return results;
+        }
       }
+      return results;
+    } finally {
+      // 提前命中 limit 也要落盘，保证已重建的日期不丢。
+      this.flushIndexWrite();
     }
-    return results;
   }
 
   availableContentDates(): string[] {
@@ -158,14 +183,19 @@ export class ContentIndexStore {
       changed = true;
     }
 
-    if (changed) {
-      index.updatedAt = new Date().toISOString();
-      writeJsonAtomic(this.contentIndexPath, index);
-      // 写入后把缓存同步为刚写入的对象 + 新 mtime，保证后续 readContentIndex 命中且与磁盘一致。
-      try { this.indexCacheMtime = fs.statSync(this.contentIndexPath).mtimeMs; } catch { this.indexCacheMtime = 0; }
-      this.indexCache = index;
-    }
+    if (changed) this.indexDirty = true;
     return Object.values(index.items).filter((record) => record.date === date);
+  }
+
+  /** 把本轮累积的索引变更一次性原子落盘；无变更时零 IO。写失败时保留 dirty 以便下轮重试。 */
+  private flushIndexWrite(): void {
+    if (!this.indexDirty || !this.indexCache) return;
+    const index = this.indexCache;
+    index.updatedAt = new Date().toISOString();
+    writeJsonAtomic(this.contentIndexPath, index);
+    this.indexDirty = false;
+    // 写入后把缓存 mtime 同步为磁盘值，保证后续 readContentIndex 命中且与磁盘一致。
+    try { this.indexCacheMtime = fs.statSync(this.contentIndexPath).mtimeMs; } catch { this.indexCacheMtime = 0; }
   }
 
   private readContentIndex(): ContentIndexFile {

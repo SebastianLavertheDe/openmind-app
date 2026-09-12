@@ -152,14 +152,19 @@ const projectDetail = {
   ]
 };
 
+// ADR 会话作用域：AiSessionSchema/AiRunSchema 现要求必填 scope（workspace 或
+// project-task）。渲染进程直接读 session.scope.type，缺失会在 .app-shell 前崩溃。
+const workspaceScope = { type: "workspace" };
+
 const sessions = [
-  { schemaVersion: 1, id: "session-1", projectId: "visual", projectRoot: repoRoot, title: "真实 Provider E2E 验收：Claude/Codex 权限与审批", provider: "claude", providerId: "claude:wsl", providerSessionId: null, cwd: ".", permissionProfile: "edit", status: "waiting-approval", pinned: true, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-1" },
-  { schemaVersion: 1, id: "session-2", projectId: "visual", projectRoot: repoRoot, title: "长会话性能验证 10000 events", provider: "codex", providerId: "codex:native", providerSessionId: null, cwd: ".", permissionProfile: "read-only", status: "idle", pinned: false, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-2" },
+  { schemaVersion: 1, id: "session-1", projectId: "visual", projectRoot: repoRoot, scope: workspaceScope, title: "真实 Provider E2E 验收：Claude/Codex 权限与审批", provider: "claude", providerId: "claude:wsl", providerSessionId: null, cwd: ".", permissionProfile: "edit", status: "waiting-approval", pinned: true, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-1" },
+  { schemaVersion: 1, id: "session-2", projectId: "visual", projectRoot: repoRoot, scope: workspaceScope, title: "长会话性能验证 10000 events", provider: "codex", providerId: "codex:native", providerSessionId: null, cwd: ".", permissionProfile: "read-only", status: "idle", pinned: false, archived: false, createdAt: now, updatedAt: now, lastRunId: "run-ai-2" },
   ...Array.from({ length: 24 }, (_, index) => ({
     schemaVersion: 1,
     id: `session-history-${index + 1}`,
     projectId: "visual",
     projectRoot: repoRoot,
+    scope: workspaceScope,
     title: `响应式历史会话 ${index + 1}：超长标题与窗口重定位验证`,
     provider: "codex",
     providerId: "codex:native",
@@ -178,8 +183,8 @@ const sessions = [
 const changePatch = "diff --git a/todo.md b/todo.md\n--- a/todo.md\n+++ b/todo.md\n@@ -1,2 +1,2 @@\n- pending\n+ visual evidence\n";
 const longUserPrompt = `请总结规模验证报告，并核对这个长 URL：https://example.com/${"user-segment-".repeat(30)}end、这个 UNC 路径：\\\\wsl.localhost\\Ubuntu\\${"user-long-directory\\".repeat(20)}input.md，以及标识 ${"USER0123456789".repeat(24)}。`;
 const runs = [
-  { schemaVersion: 1, id: "run-ai-1", sessionId: "session-1", projectId: "visual", provider: "claude", providerId: "claude:wsl", permissionProfile: "edit", status: "waiting-approval", prompt: "验证删除操作必须暂停审批", contexts: [{ id: "content-long", kind: "content", label: contentItems[0].title, path: contentItems[0].path, content: contentItems[0].excerpt }], workspacePath: null, baseCommit: null, startedAt: now, completedAt: null, error: null, changeSet: { id: "change-1", runId: "run-ai-1", baseCommit: "abc123", files: [{ path: "todo.md", status: "modified", additions: 1, deletions: 1, patch: changePatch }], patch: changePatch, createdAt: now, status: "pending", appliedPatches: [], appliedFiles: [] }, risks: [] },
-  { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: longUserPrompt, contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
+  { schemaVersion: 1, id: "run-ai-1", sessionId: "session-1", projectId: "visual", scope: workspaceScope, provider: "claude", providerId: "claude:wsl", permissionProfile: "edit", status: "waiting-approval", prompt: "验证删除操作必须暂停审批", contexts: [{ id: "content-long", kind: "content", label: contentItems[0].title, path: contentItems[0].path, content: contentItems[0].excerpt }], workspacePath: null, baseCommit: null, startedAt: now, completedAt: null, error: null, changeSet: { id: "change-1", runId: "run-ai-1", baseCommit: "abc123", files: [{ path: "todo.md", status: "modified", additions: 1, deletions: 1, patch: changePatch }], patch: changePatch, createdAt: now, status: "pending", appliedPatches: [], appliedFiles: [] }, risks: [] },
+  { schemaVersion: 1, id: "run-ai-2", sessionId: "session-2", projectId: "visual", scope: workspaceScope, provider: "codex", providerId: "codex:native", permissionProfile: "read-only", status: "completed", prompt: longUserPrompt, contexts: [], workspacePath: null, baseCommit: null, startedAt: "2026-06-17T02:16:46.000Z", completedAt: now, error: null, changeSet: null, risks: [] }
 ];
 
 if (streamPerfEnabled) {
@@ -189,6 +194,7 @@ if (streamPerfEnabled) {
     id: "run-ai-stream",
     sessionId: "session-2",
     projectId: "visual",
+    scope: workspaceScope,
     provider: "codex",
     providerId: "codex:native",
     permissionProfile: "read-only",

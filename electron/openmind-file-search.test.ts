@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Worker } from "node:worker_threads";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { OpenmindFileSearch, normalizeOpenmindSelection } from "./openmind-file-search";
+import { OpenmindFileSearchEngine, normalize, scoreFile, type IndexedFile } from "./openmind-file-search-engine";
 
 const roots: string[] = [];
 
@@ -105,6 +108,19 @@ describe("OpenmindFileSearch", () => {
     expect(result).toEqual({ items: [], indexedCount: 0, truncated: false });
   });
 
+  it("invalidation makes the next query pick up newly added files", async () => {
+    const root = createRoot();
+    const search = new OpenmindFileSearch(root);
+    write(root, "openmind/existing.md");
+    await search.search("existing", 20);
+
+    write(root, "openmind/brand-new.md");
+    search.invalidate();
+
+    const result = await search.search("brand-new", 20);
+    expect(result.items.map((item) => item.path)).toEqual(["openmind/brand-new.md"]);
+  });
+
   it("returns an empty index when openmind is missing or is a symlink", async () => {
     const missingRoot = createRoot();
     const linkedRoot = createRoot();
@@ -148,6 +164,96 @@ describe("OpenmindFileSearch", () => {
     expect(() => normalizeOpenmindSelection(root, path.join(root, "openmind"))).toThrow("只能通过 @ 引用 openmind");
     expect(() => normalizeOpenmindSelection(root, path.join(linked, path.basename(outsideTarget)))).toThrow("只能通过 @ 引用 openmind");
   });
+});
+
+describe("OpenmindFileSearchEngine", () => {
+  it("rebuilds the index once the TTL expires", async () => {
+    const root = createRoot();
+    const engine = new OpenmindFileSearchEngine(path.join(root, "openmind"), "openmind");
+    write(root, "openmind/existing.md");
+    await engine.search("existing", 20);
+
+    write(root, "openmind/brand-new.md");
+    const state = engine as unknown as { cache: { createdAt: number } | null };
+    expect(state.cache).not.toBeNull();
+    state.cache!.createdAt = 0;
+
+    const result = await engine.search("brand-new", 20);
+    expect(result.items.map((item) => item.path)).toEqual(["openmind/brand-new.md"]);
+  });
+
+  it("bounded top-K equals a full stable sort over all broad-query matches", async () => {
+    const root = createRoot();
+    for (let index = 0; index < 300; index++) {
+      write(root, `openmind/docs/segment-${index % 7}/note-alpha-${index}.md`);
+    }
+    write(root, "openmind/alpha.md");
+    const engine = new OpenmindFileSearchEngine(path.join(root, "openmind"), "openmind");
+    const result = await engine.search("alpha", 12);
+
+    // 参考实现：全量收集 + 稳定排序 + slice，与 bounded top-K 输出必须逐项一致。
+    const files = (engine as unknown as { cache: { files: IndexedFile[] } }).cache!.files;
+    const tokens = normalize("alpha").split(/\s+/).filter(Boolean);
+    const ranked = files
+      .flatMap((file) => {
+        const score = scoreFile(file, tokens);
+        return score === null ? [] : [{ file, score }];
+      })
+      .sort((left, right) =>
+        right.score - left.score
+        || left.file.path.length - right.file.path.length
+        || left.file.path.localeCompare(right.file.path)
+      );
+    expect(ranked.length).toBeGreaterThan(12);
+    expect(result.items.map((item) => item.path)).toEqual(ranked.slice(0, 12).map(({ file }) => file.path));
+  });
+});
+
+describe("OpenmindFileSearch worker transport", () => {
+  const workerPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    ".build",
+    "electron",
+    "electron",
+    "openmind-file-search.worker.js"
+  );
+
+  it.skipIf(!fs.existsSync(workerPath))("round-trips search and invalidate through worker_threads", async () => {
+    const root = createRoot();
+    write(root, "openmind/notes/composer.md");
+    const worker = new Worker(workerPath);
+    try {
+      const first = await request(worker, root, "composer");
+      expect(first.map((item) => item.path)).toEqual(["openmind/notes/composer.md"]);
+
+      worker.postMessage({ kind: "invalidate" });
+      write(root, "openmind/brand-new.md");
+      const second = await request(worker, root, "brand-new");
+      expect(second.map((item) => item.path)).toEqual(["openmind/brand-new.md"]);
+    } finally {
+      await worker.terminate();
+    }
+  });
+
+  function request(worker: Worker, root: string, query: string): Promise<Array<{ path: string }>> {
+    return new Promise((resolve, reject) => {
+      const onMessage = (message: { kind: string; id?: number; result?: { items: Array<{ path: string }> }; message?: string }) => {
+        if (message.kind === "result" && message.id === 1) {
+          worker.off("message", onMessage);
+          resolve(message.result!.items);
+        }
+        if (message.kind === "error" && message.id === 1) {
+          worker.off("message", onMessage);
+          reject(new Error(message.message));
+        }
+      };
+      worker.on("message", onMessage);
+      worker.on("error", reject);
+      worker.postMessage({ kind: "init", openmindRoot: path.join(root, "openmind"), logicalPrefix: "openmind" });
+      worker.postMessage({ kind: "search", id: 1, query, limit: 10 });
+    });
+  }
 });
 
 function createRoot(): string {

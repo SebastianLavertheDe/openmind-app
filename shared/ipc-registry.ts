@@ -1,6 +1,5 @@
 import type { DesktopApi } from "./contracts";
-import { IPC } from "./ipc-channels";
-import { PROJECT_IPC } from "./project-contracts";
+import { IPC, PROJECT_IPC } from "./ipc-channels";
 
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractWebPageMarkdown } from "./web-converter";
+import { extractWebPageMarkdown } from "./web-extract";
 
 describe("Project web material conversion", () => {
   it("extracts readable Markdown and strips executable HTML", () => {

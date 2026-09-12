@@ -19,13 +19,14 @@ export type GlobalSearchContext = {
 export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext): Promise<GlobalSearchResult[]> {
   const query = z.string().max(500).parse(rawQuery || "").trim();
   if (!query) return [];
-  const [sessions, skillDefinitions] = await Promise.all([
+  // 内容索引的冷构建/评分在 worker 里执行，这里与其他扇出并发等待。
+  const product = ctx.ensureProductService();
+  const [sessions, skillDefinitions, contentResults] = await Promise.all([
     ctx.searchSessions(query),
-    ctx.listSkillDefinitions()
+    ctx.listSkillDefinitions(),
+    product.searchContent(query, 24)
   ]);
   const normalizedQuery = query.toLocaleLowerCase();
-  const product = ctx.ensureProductService();
-  const contentResults = product.searchContent(query, 24);
   const projectResults = product.searchCreativeProjects(query, 16);
   const independentProjectResults: GlobalSearchResult[] = ctx.ensureProjectService().listProjects()
     .filter((project) => `${project.name} ${project.description}`.toLocaleLowerCase().includes(normalizedQuery))

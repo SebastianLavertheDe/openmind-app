@@ -3,7 +3,7 @@ import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Route, Search, Server, Se
 import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
-import { useAi } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
@@ -48,7 +48,9 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
 export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean }) {
-  const ai = useAi();
+  const ai = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try { setProvidersYaml(await window.openmind.getProviders()); }
     catch (error) {
       setProvidersYaml({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] });
-      ai.notify(error instanceof Error ? error.message : m.settings.notify.providersLoadFailed, "error");
+      ui.notify(error instanceof Error ? error.message : m.settings.notify.providersLoadFailed, "error");
     }
   }, [ai]);
 
@@ -124,9 +126,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setProvidersYamlBusy(true);
     try {
       setProvidersYaml(await window.openmind.saveProviders(input));
-      ai.notify(m.settings.notify.providersSaved, "success");
+      ui.notify(m.settings.notify.providersSaved, "success");
     } catch (error) {
-      ai.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
+      ui.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
       await loadProvidersYaml();
     } finally {
       setProvidersYamlBusy(false);
@@ -142,10 +144,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setRuntimeBusy(enabled ? "shared-python-enable" : "shared-python-disable");
     try {
       setSharedPythonRuntime(await window.openmind.setSharedPythonRuntimeEnabled(enabled));
-      ai.notify(enabled ? m.settings.notify.pythonEnabled : m.settings.notify.pythonDisabled, "success");
+      ui.notify(enabled ? m.settings.notify.pythonEnabled : m.settings.notify.pythonDisabled, "success");
     } catch {
       await loadSharedPythonRuntime();
-      ai.notify(enabled ? m.settings.notify.pythonEnableFailed : m.settings.notify.pythonDisableFailed, "error");
+      ui.notify(enabled ? m.settings.notify.pythonEnableFailed : m.settings.notify.pythonDisableFailed, "error");
     } finally {
       setRuntimeBusy(null);
     }
@@ -166,7 +168,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     });
     saveQueue.current = operation.catch(() => undefined);
     return operation.catch(() => {
-      ai.notify(m.settings.notify.saveFailed, "error");
+      ui.notify(m.settings.notify.saveFailed, "error");
       return loadPrefs();
     }).finally(() => {
       pendingSaves.current -= 1;
@@ -193,18 +195,18 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       if (!root) return;
       const preview = await window.openmind.previewOpenmindRoot(root);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ai.confirm({ title: m.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: m.openmindRoot.confirm })) return;
+      if (!await ui.confirm({ title: m.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: m.openmindRoot.confirm })) return;
       await window.openmind.setOpenmindRoot(root);
       await onRepo(root);
       await loadPrefs();
-      ai.notify(m.settings.notify.openmindRootUpdated, "success");
+      ui.notify(m.settings.notify.openmindRootUpdated, "success");
     } catch {
-      ai.notify(m.settings.notify.openmindRootSelectFailed, "error");
+      ui.notify(m.settings.notify.openmindRootSelectFailed, "error");
     }
   };
 
   const resetWorkflow = async () => {
-    const ok = await ai.confirm({ title: m.settings.workflow.resetToDefaults, body: m.settings.workflow.resetConfirm, confirmText: m.settings.workflow.resetToDefaults, danger: true });
+    const ok = await ui.confirm({ title: m.settings.workflow.resetToDefaults, body: m.settings.workflow.resetConfirm, confirmText: m.settings.workflow.resetToDefaults, danger: true });
     if (!ok) return;
     setSaving(true);
     try {
@@ -212,9 +214,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.resetPreferences("workflow");
       setPrefs(next);
       applyTheme(next);
-      ai.notify(m.settings.notify.workflowReset, "success");
+      ui.notify(m.settings.notify.workflowReset, "success");
     } catch {
-      ai.notify(m.settings.notify.saveFailed, "error");
+      ui.notify(m.settings.notify.saveFailed, "error");
     } finally {
       setSaving(false);
     }
@@ -222,16 +224,16 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const openNotesDir = async () => {
     try { await window.openmind.openPath(prefs?.notesDir || "openmind"); }
-    catch { ai.notify(m.settings.notify.notesOpenFailed, "error"); }
+    catch { ui.notify(m.settings.notify.notesOpenFailed, "error"); }
   };
 
   const refreshSkills = async () => {
     if (refreshingSkills) return;
     setRefreshingSkills(true);
     try {
-      const [next, servers] = await Promise.all([ai.refreshSkills(), loadMcpServers()]);
-      if (next) ai.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
-      else ai.notify(m.settings.skills.scanFailed, "error");
+      const [next, servers] = await Promise.all([actions.refreshSkills(), loadMcpServers()]);
+      if (next) ui.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
+      else ui.notify(m.settings.skills.scanFailed, "error");
     } finally {
       setRefreshingSkills(false);
     }
@@ -240,15 +242,15 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const copySkillInvocation = async (skillId: string) => {
     try {
       await navigator.clipboard.writeText(`/${skillId}`);
-      ai.notify(m.settings.skills.copySuccess(skillId), "success");
+      ui.notify(m.settings.skills.copySuccess(skillId), "success");
     } catch {
-      ai.notify(m.settings.skills.copyFailed, "error");
+      ui.notify(m.settings.skills.copyFailed, "error");
     }
   };
 
   const openSkillDirectory = async (path: string) => {
     try { await window.openmind.openPath(path); }
-    catch { ai.notify(m.settings.skills.openFailed, "error"); }
+    catch { ui.notify(m.settings.skills.openFailed, "error"); }
   };
 
   const saveBrowserToken = async (token: string) => {
@@ -257,9 +259,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try {
       setBrowserStatus(await window.openmind.saveBrowserExtensionToken(token));
       await loadMcpServers();
-      ai.notify(m.settings.browser.tokenSaved, "success");
+      ui.notify(m.settings.browser.tokenSaved, "success");
     } catch {
-      ai.notify(m.settings.browser.tokenFailed, "error");
+      ui.notify(m.settings.browser.tokenFailed, "error");
       throw new Error(m.settings.browser.tokenFailed);
     } finally {
       setSavingBrowserToken(false);
@@ -272,9 +274,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try {
       setBrowserStatus(await window.openmind.clearBrowserExtensionToken());
       await loadMcpServers();
-      ai.notify(m.settings.browser.tokenCleared, "success");
+      ui.notify(m.settings.browser.tokenCleared, "success");
     } catch {
-      ai.notify(m.settings.browser.tokenFailed, "error");
+      ui.notify(m.settings.browser.tokenFailed, "error");
     } finally {
       setSavingBrowserToken(false);
     }
@@ -282,17 +284,17 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const openBrowserExtensionDocs = async () => {
     try { await window.openmind.openExternal("https://github.com/microsoft/playwright-mcp#browser-extension"); }
-    catch { ai.notify(m.settings.browser.loadFailed, "error"); }
+    catch { ui.notify(m.settings.browser.loadFailed, "error"); }
   };
 
   const restoreArchivedSession = async (sessionId: string) => {
     if (sessionBusyId) return;
     setSessionBusyId(sessionId);
     try {
-      await ai.updateSession(sessionId, { archived: false });
-      ai.notify(m.ai.session.unarchived, "success");
+      await actions.updateSession(sessionId, { archived: false });
+      ui.notify(m.ai.session.unarchived, "success");
     } catch {
-      ai.notify(m.settings.notify.sessionRestoreFailed, "error");
+      ui.notify(m.settings.notify.sessionRestoreFailed, "error");
     } finally {
       setSessionBusyId(null);
     }
@@ -302,10 +304,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (sessionBusyId) return;
     setSessionBusyId(sessionId);
     try {
-      await ai.setActiveSession(sessionId);
+      await actions.setActiveSession(sessionId);
       onOpenSession?.();
     } catch {
-      ai.notify(m.settings.notify.sessionOpenFailed, "error");
+      ui.notify(m.settings.notify.sessionOpenFailed, "error");
     } finally {
       setSessionBusyId(null);
     }
@@ -344,9 +346,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ai.notify} /></> : null}
+              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ui.notify} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
-              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={ai.refreshSkills} /> : null}
+              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}

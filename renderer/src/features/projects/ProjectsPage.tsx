@@ -13,7 +13,7 @@ import {
   Search,
   Star
 } from "lucide-react";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
@@ -42,7 +42,7 @@ export function ProjectsPage({
   initialSection?: ProjectSection;
   initialItem?: string;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -63,8 +63,8 @@ export function ProjectsPage({
   const [detailHost, setDetailHost] = useState<HTMLDivElement | null>(null);
   const layout = useListDetailLayout("openmind.list-detail.projects.v1", { listWidth: 264, listCollapsed: false });
   const outputNavigationGuardRef = useRef<ProjectOutputNavigationGuard | null>(null);
-  const confirmRef = useRef(ai.confirm);
-  confirmRef.current = ai.confirm;
+  const confirmRef = useRef(ui.confirm);
+  confirmRef.current = ui.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
   const hasActiveProject = Boolean(activeProject);
 
@@ -75,7 +75,7 @@ export function ProjectsPage({
 
   // 项目详情打开期间，把「新对话归属项目」告知全局 AI 侧栏：
   // 在项目页发起的新对话会自动创建为当前项目的任务，而不是工作区会话。
-  const setProjectComposeTarget = ai.setProjectComposeTarget;
+  const setProjectComposeTarget = ui.setProjectComposeTarget;
   useEffect(() => {
     setProjectComposeTarget(activeProject ? { projectId: activeProject.id, projectName: activeProject.name } : null);
     return () => setProjectComposeTarget(null);
@@ -107,11 +107,11 @@ export function ProjectsPage({
   const presentProjectView = useCallback((next: ProjectView) => {
     setView(next);
     if (next === "files") {
-      if (ai.panelMode === "collapsed") ai.setPanelMode("default");
-    } else if (ai.panelMode !== "collapsed") {
-      ai.setPanelMode("collapsed");
+      if (ui.panelMode === "collapsed") ui.setPanelMode("default");
+    } else if (ui.panelMode !== "collapsed") {
+      ui.setPanelMode("collapsed");
     }
-  }, [ai.panelMode, ai.setPanelMode]);
+  }, [ui.panelMode, ui.setPanelMode]);
 
   const requestCreate = useCallback((action: ProjectCreateAction) => {
     void navigateProject(() => {
@@ -181,9 +181,9 @@ export function ProjectsPage({
       presentProjectView("tasks");
       setCreateProjectOpen(false);
       setName("");
-      ai.notify(`项目“${next.name}”已创建。`, "success");
+      ui.notify(`项目“${next.name}”已创建。`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setBusy(false);
     }
@@ -204,9 +204,9 @@ export function ProjectsPage({
       next = await projectsApi.updateProject(next.name, { icon: input.icon, color: input.color });
       replaceProject(current.name, next);
       setEditProject(null);
-      ai.notify(`项目“${next.name}”已更新。`, "success");
+      ui.notify(`项目“${next.name}”已更新。`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
       void loadProjects();
     } finally {
       setBusy(false);
@@ -219,9 +219,9 @@ export function ProjectsPage({
     try {
       const next = await projectsApi.updateProject(project.name, { favorite: !project.favorite });
       replaceProject(project.name, next);
-      ai.notify(next.favorite ? `已收藏“${next.name}”。` : `已取消收藏“${next.name}”。`, "success");
+      ui.notify(next.favorite ? `已收藏“${next.name}”。` : `已取消收藏“${next.name}”。`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setProjectActionBusy(null);
     }
@@ -233,9 +233,9 @@ export function ProjectsPage({
     try {
       const next = await projectsApi.archiveProject(project.name, true);
       replaceProject(project.name, next);
-      ai.notify(`项目“${project.name}”已归档。`, "success");
+      ui.notify(`项目“${project.name}”已归档。`, "success");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setProjectActionBusy(null);
     }
@@ -280,7 +280,7 @@ export function ProjectsPage({
           {activeProject ? (
             <>
               <header className="project-pane-project">
-                <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); ai.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
+                <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
                 <DropdownMenu
                   className="project-pane-create"

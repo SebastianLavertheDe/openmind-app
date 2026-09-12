@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { useAi, useAiStreaming } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useAiStreaming, useAiUi } from "../../ai-context";
 import type { EditorSelectionSnapshot } from "./MarkdownEditor";
 
 type ActionKey = "rewrite" | "extend" | "shorten" | "tone" | "translate";
@@ -22,8 +22,10 @@ export function InlineAiBar({
   disabled?: boolean;
   onReplace(start: number, end: number, replacement: string): void;
 }) {
-  const ai = useAi();
-  const streamingRunId = ai.sessionActiveRun?.id || ai.activeRun?.id || null;
+  const { snapshot, activeRun, sessionActiveRun } = useAiSnapshot();
+  const actions = useAiActions();
+  const ui = useAiUi();
+  const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
   const { streaming } = useAiStreaming(streamingRunId);
   const [sel, setSel] = useState<{ start: number; end: number; text: string } | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -41,28 +43,28 @@ export function InlineAiBar({
 
   // send 之后捕获本次 run 的 id（send 不返回 run id，靠 activeRun 兜底）
   useEffect(() => {
-    if (pendingRef.current && ai.activeRun?.id && !runId) {
-      setRunId(ai.activeRun.id);
+    if (pendingRef.current && activeRun?.id && !runId) {
+      setRunId(activeRun.id);
       pendingRef.current = false;
     }
-  }, [ai.activeRun, runId]);
+  }, [activeRun, runId]);
 
   // 镜像流式文本 + 检测完成
   useEffect(() => {
     if (!runId) return;
-    if (ai.activeRun?.id === runId && streaming) lastStream.current = streaming;
-    const run = ai.snapshot.runs.find((item) => item.id === runId);
+    if (activeRun?.id === runId && streaming) lastStream.current = streaming;
+    const run = snapshot.runs.find((item) => item.id === runId);
     if (run && ["completed", "failed", "cancelled"].includes(run.status) && !done) {
       setDone(true);
       setFinalText(lastStream.current);
       if (run.status === "failed") setError(run.error || m.creativeUi.inlineAi.generateFailed);
     }
-  }, [runId, ai.activeRun, streaming, ai.snapshot.runs, done]);
+  }, [runId, activeRun, streaming, snapshot.runs, done]);
 
   const busy = Boolean(runId) && !done;
 
   const start = async (instruction: string) => {
-    if (!sel || disabled || ai.isSending) return;
+    if (!sel || disabled || ui.isSending) return;
     const text = sel.text;
     setError(null);
     lastStream.current = "";
@@ -73,7 +75,7 @@ export function InlineAiBar({
     setRunId(null);
     const prompt = `${instruction}${m.creativeUi.inlineAi.promptSuffix}${m.creativeUi.inlineAi.originalPrefix}${text}`;
     try {
-      await ai.send(prompt, { permissionProfile: "read-only" });
+      await actions.send(prompt, { permissionProfile: "read-only" });
     } catch (cause) {
       pendingRef.current = false;
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -90,7 +92,7 @@ export function InlineAiBar({
 
   const cancel = async () => {
     if (runId && !done) {
-      try { await ai.cancel(runId); } catch { /* 取消失败忽略 */ }
+      try { await actions.cancel(runId); } catch { /* 取消失败忽略 */ }
     }
     reset();
   };
@@ -105,7 +107,7 @@ export function InlineAiBar({
     setSel(null);
   };
 
-  const preview = done ? finalText : (ai.activeRun?.id === runId ? streaming || lastStream.current : lastStream.current);
+  const preview = done ? finalText : (activeRun?.id === runId ? streaming || lastStream.current : lastStream.current);
   const showSelectionBar = Boolean(sel) && !disabled && !runId;
 
   return (
@@ -119,7 +121,7 @@ export function InlineAiBar({
               key={key}
               className="inline-ai-action"
               onClick={() => void start(m.creativeUi.inlineAi[`${key}Instruction`])}
-              disabled={ai.isSending}
+              disabled={ui.isSending}
               title={m.creativeUi.inlineAi[`${key}Instruction`]}
             >
               {m.creativeUi.inlineAi[key]}

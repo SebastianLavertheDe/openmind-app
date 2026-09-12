@@ -12,7 +12,7 @@ import type {
   SourcePatch,
   UserPreferences
 } from "../../shared/contracts";
-import { ContentIndexStore } from "./content-index";
+import { ContentIndexService } from "./content-index-service";
 import { SourceRegistry } from "./source-registry";
 import type { ContentServiceApi, CreativeServiceApi, LegacyCreativeProject } from "./common";
 import { getPreferences } from "../lib/settings";
@@ -26,7 +26,7 @@ export class ProductService {
   private readonly openmindRoot: string;
   private readonly content: ContentServiceApi;
   private readonly creative: CreativeServiceApi;
-  private readonly contentIndex: ContentIndexStore;
+  private readonly contentIndex: ContentIndexService;
   private readonly sources: SourceRegistry;
   // getOverview / listContent 按 date 缓存，按当天内容根目录 mtime 指纹失效。
   // 避免每次 IPC（含冷启动 getBootstrap）都裸 readdirSync+statSync 重扫当天文件。
@@ -48,10 +48,15 @@ export class ProductService {
     this.openmindRoot = openmindRoot;
     this.content = content;
     this.creative = creative;
-    this.contentIndex = new ContentIndexStore(openmindRoot, content, opts.stateRoot);
+    this.contentIndex = new ContentIndexService(openmindRoot, content, opts.stateRoot);
     // Skill descriptors come from the installed store; mutable source
     // configuration is owned by the per-Skill data directory.
     this.sources = new SourceRegistry(openmindRoot, content, opts.stateRoot);
+  }
+
+  /** openmindRoot 切换重建实例时释放 worker 线程，避免残留。 */
+  dispose(): void {
+    this.contentIndex.dispose();
   }
 
   private overviewFingerprint(date: string): string {
@@ -155,7 +160,8 @@ export class ProductService {
     return record;
   }
 
-  searchContent(query: string, limit = 20): GlobalSearchResult[] {
+  /** 冷索引构建与评分在 worker 里执行（编译产物存在时），结果异步返回。 */
+  searchContent(query: string, limit = 20): Promise<GlobalSearchResult[]> {
     return this.contentIndex.searchContent(query, limit);
   }
 

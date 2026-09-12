@@ -7,7 +7,7 @@ import { workspaceSessions } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
 import { AUTO_MODEL, effectiveModelInfo } from "@shared/model-catalog";
 import { errorText, sessionStatusLabel } from "../../ai-utils";
-import { useAi } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { ResponsiveActionBar, ResponsiveContextBadge, VirtualList, type ResponsiveAction } from "../../design-system/components";
 import { useResponsiveLayout } from "../../app/responsive-layout";
@@ -58,7 +58,9 @@ export function AiWorkbench({
    * its own task creation and persistence boundary. */
   onDraftSubmit?: ChatDraftSubmitHandler;
 } = {}) {
-  const ai = useAi();
+  const { snapshot, activeSession } = useAiSnapshot();
+  const ui = useAiUi();
+  const actions = useAiActions();
   const responsiveLayout = useResponsiveLayout();
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [previewRatio, setPreviewRatio] = useState(() => {
@@ -141,31 +143,31 @@ export function AiWorkbench({
 
   // 头部只展示当前会话所绑定运行时的 CLI 配置模型，不再应用应用内模型覆盖。
   const modelInfo = useMemo(() => {
-    const session = ai.activeSession;
+    const session = activeSession;
     if (!session) return null;
-    const caps = ai.snapshot.providers.find((item) => item.id === session.providerId) ?? null;
+    const caps = snapshot.providers.find((item) => item.id === session.providerId) ?? null;
     return effectiveModelInfo(session.provider, AUTO_MODEL, caps);
-  }, [ai.activeSession, ai.snapshot.providers]);
+  }, [activeSession, snapshot.providers]);
 
   const canLeavePreview = useCallback(async () => {
-    return !dirtyRef.current || await ai.confirm({
+    return !dirtyRef.current || await ui.confirm({
       title: m.ai.workbench.unsavedTitle,
       body: m.ai.workbench.unsavedConfirm,
       confirmText: m.ai.workbench.unsavedConfirmText,
       danger: true
     });
-  }, [ai]);
+  }, [ui]);
 
   // P2-PRV-2: edit 模式 dirty 时切回 preview 需确认丢弃改动
   const switchToPreview = useCallback(async () => {
-    if (previewMode === "edit" && dirty && !await ai.confirm({
+    if (previewMode === "edit" && dirty && !await ui.confirm({
       title: m.ai.workbench.discardDirtyTitle,
       body: m.ai.workbench.discardDirtyConfirm,
       confirmText: m.ai.workbench.discardDirtyConfirmText,
       danger: true
     })) return;
     setPreviewMode("preview");
-  }, [ai, previewMode, dirty]);
+  }, [ui, previewMode, dirty]);
 
   const openPreview = useCallback(async (path: string) => {
     if (openingPreviewPathRef.current === path) return;
@@ -272,13 +274,13 @@ export function AiWorkbench({
           }
         } catch { /* 原件不可用时回退到提示 */ }
       }
-      ai.notify(isBinaryPreviewPath(targetPath)
+      ui.notify(isBinaryPreviewPath(targetPath)
         ? "该文件是二进制格式（如 PDF/图片），请在项目“文件”页查看。"
         : "未能在当前项目中找到该文件；请在项目“文件”页确认文件名。", "error");
       return;
     }
     await openPreview(targetPath);
-  }, [ai, openPreview, projectMode, resolveInProject]);
+  }, [ui, openPreview, projectMode, resolveInProject]);
 
   const closePreview = useCallback(async () => {
     if (!await canLeavePreview()) return;
@@ -482,29 +484,29 @@ export function AiWorkbench({
         style={{ "--workbench-columns": previewColumns } as React.CSSProperties}
       >
         {!previewOnly ? <main ref={conversationRef} className="conversation-pane" tabIndex={-1}>
-          <header className={`conversation-header${ai.activeSession ? "" : " is-draft"}`}>
-            {ai.activeSession ? (
+          <header className={`conversation-header${activeSession ? "" : " is-draft"}`}>
+            {activeSession ? (
               <div>
                 {/* P1-HDR-2: provider 改 segmented control + 彩色 dot */}
                 <span className="provider-segmented">
-                  <span className={`provider-dot ${ai.activeSession.provider === "claude" ? "claude" : "codex"}`} aria-hidden="true" />
-                  <span className="provider-name">{ai.activeSession.provider === "claude" ? "Claude Code" : "Codex"}</span>
+                  <span className={`provider-dot ${activeSession.provider === "claude" ? "claude" : "codex"}`} aria-hidden="true" />
+                  <span className="provider-name">{activeSession.provider === "claude" ? "Claude Code" : "Codex"}</span>
                   {modelInfo ? <span className="provider-model" title={modelInfo.label}>{modelInfo.label}{modelInfo.oneMillion ? " · 1M" : ""}</span> : null}
                   <span className="provider-sep" aria-hidden="true">·</span>
-                  <span className="provider-perm">{ai.activeSession.permissionProfile}</span>
-                  {ai.activeSession.interactionMode === "plan" ? <span className="provider-mode">{m.ai.mode.planActive}</span> : null}
+                  <span className="provider-perm">{activeSession.permissionProfile}</span>
+                  {activeSession.interactionMode === "plan" ? <span className="provider-mode">{m.ai.mode.planActive}</span> : null}
                 </span>
-                <h2>{ai.activeSession.title}</h2>
-                <small title={displaySessionPath(ai.activeSession, ai.snapshot.projectRoot)}>{responsiveLayout.actions === "full" ? displaySessionPath(ai.activeSession, ai.snapshot.projectRoot) : compactPath(displaySessionPath(ai.activeSession, ai.snapshot.projectRoot))}</small>
+                <h2>{activeSession.title}</h2>
+                <small title={displaySessionPath(activeSession, snapshot.projectRoot)}>{responsiveLayout.actions === "full" ? displaySessionPath(activeSession, snapshot.projectRoot) : compactPath(displaySessionPath(activeSession, snapshot.projectRoot))}</small>
               </div>
             ) : null}
             <div className="conversation-header-actions">
-              {ai.activeSession ? (
+              {activeSession ? (
                 <ResponsiveContextBadge
                   presentation={responsiveLayout.actions}
                   priority="essential"
-                  label={sessionStatusLabel(ai.activeSession.status)}
-                  tone={sessionStatusTone(ai.activeSession.status)}
+                  label={sessionStatusLabel(activeSession.status)}
+                  tone={sessionStatusTone(activeSession.status)}
                 />
               ) : null}
               {!projectMode ? <button
@@ -691,12 +693,13 @@ function displaySessionPath(session: AiSession, fallbackRoot: string): string {
 }
 
 export function AiSessionNavigation() {
-  const ai = useAi();
-  const sessions = useMemo(() => workspaceSessions(ai.snapshot.sessions, true)
+  const { snapshot, activeSession } = useAiSnapshot();
+  const actions = useAiActions();
+  const sessions = useMemo(() => workspaceSessions(snapshot.sessions, true)
     .sort((left, right) => {
     if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
     return right.createdAt.localeCompare(left.createdAt);
-    }), [ai.snapshot.sessions]);
+    }), [snapshot.sessions]);
 
   const onSessionListKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -739,9 +742,10 @@ export function AiSessionNavigation() {
 }
 
 function SessionItem({ session }: { session: AiSession }) {
-  const ai = useAi();
-  const active = ai.activeSession?.id === session.id;
-  const waitingApproval = session.status === "waiting-approval" || ai.snapshot.pendingApprovals.some((approval) => approval.sessionId === session.id);
+  const { snapshot, activeSession } = useAiSnapshot();
+  const actions = useAiActions();
+  const active = activeSession?.id === session.id;
+  const waitingApproval = session.status === "waiting-approval" || snapshot.pendingApprovals.some((approval) => approval.sessionId === session.id);
   const dot = waitingApproval ? "waiting-approval" : session.status === "running" ? "running" : session.status === "failed" ? "failed" : "";
   return (
     <article
@@ -749,11 +753,11 @@ function SessionItem({ session }: { session: AiSession }) {
       role="option"
       aria-selected={active}
       tabIndex={0}
-      onClick={() => void ai.setActiveSession(session.id)}
+      onClick={() => void actions.setActiveSession(session.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          void ai.setActiveSession(session.id);
+          void actions.setActiveSession(session.id);
         }
       }}
     >

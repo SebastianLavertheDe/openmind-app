@@ -14,9 +14,18 @@ vi.mock("./document.worker?worker&inline", () => ({ default: class {
 afterEach(() => { cleanup(); workerState.instances.length = 0; });
 const long = "long document paragraph\n\n".repeat(2000);
 
+// The worker constructor module resolves asynchronously; drain the microtask
+// queue inside act until the hook has created the worker instance.
+async function flushWorkerBoot() {
+  await act(async () => {
+    for (let index = 0; index < 10; index += 1) await Promise.resolve();
+  });
+}
+
 describe("document parsing lifecycle", () => {
-  it("does not restart parsing on unrelated rerenders; replaces and terminates on content change", () => {
+  it("does not restart parsing on unrelated rerenders; replaces and terminates on content change", async () => {
     const { result, rerender, unmount } = renderHook(({ text, width }) => { void width; return useReadingDocument(text); }, { initialProps: { text: long, width: 800 } });
+    await flushWorkerBoot();
     const first = workerState.instances[0];
     expect(first.postMessage).toHaveBeenCalledTimes(1);
     const model = buildReadingDocument("ready");
@@ -28,6 +37,7 @@ describe("document parsing lifecycle", () => {
     rerender({ text: long + "replacement", width: 400 });
     expect(first.terminate).toHaveBeenCalledOnce();
     expect(result.current.document).toBeNull();
+    await flushWorkerBoot();
     act(() => first.onmessage({ data: { type: "document", document: model } }));
     expect(result.current.document).toBeNull();
     unmount();
@@ -35,6 +45,7 @@ describe("document parsing lifecycle", () => {
   });
   it("resolves pending searches on worker failure and does not block subsequent searches", async () => {
     const { result } = renderHook(() => useReadingDocument(long));
+    await flushWorkerBoot();
     const worker = workerState.instances[0];
     act(() => worker.onmessage({ data: { type: "document", document: buildReadingDocument("ready") } }));
     const pending = result.current.find("ready");

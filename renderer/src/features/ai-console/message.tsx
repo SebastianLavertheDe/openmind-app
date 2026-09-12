@@ -1,4 +1,4 @@
-import { isValidElement, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
+import { isValidElement, memo, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -9,7 +9,7 @@ import { CheckCircle2, Copy, GitFork, Image as ImageIcon, LoaderCircle, Pencil, 
 import type { AiEvent, ContextReference } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDateTime } from "../../ai-utils";
-import { useAi } from "../../ai-context";
+import { useAiActions } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
@@ -20,8 +20,12 @@ const STREAMING_MARKDOWN_INTERVAL_MS = 96;
 const STREAMING_MARKDOWN_RICH_TEXT_LIMIT = 8_192;
 const markdownCache = new Map<string, { text: string; node: ReactNode }>();
 
-export function UserMessage({ event }: { event: AiEvent }) {
-  const ai = useAi();
+// Memoized message rows: the chat timeline re-renders on every streamed
+// event flush, but a row only needs to re-render when its own event changes.
+// Event objects keep a stable identity (mergeEvents), so memo skips sibling
+// rows. Actions come from the stable AiActionsValue slice.
+export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent }) {
+  const actions = useAiActions();
   const text = String(event.payload.text || "");
   const contexts = Array.isArray(event.payload.contexts) ? event.payload.contexts as ContextReference[] : [];
   return (
@@ -35,28 +39,28 @@ export function UserMessage({ event }: { event: AiEvent }) {
         {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
             "你 + 时间"视觉隐藏，保留无障碍语义。 */}
         <MessageMeta label={m.ai.message.you} timestamp={event.timestamp} visuallyHidden>
-          <button data-motion="icon" aria-label={m.ai.message.quoteMessage} title={m.ai.message.quote} onClick={() => ai.addContext(messageContext(event, text))}><Quote size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.editResend} title={m.ai.message.editResend} onClick={() => ai.editRun(event.runId)}><Pencil size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.branchFromMessage} title={m.ai.message.branchFromMessage} onClick={() => void ai.branchRun(event.runId)}><GitFork size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void ai.rerun(event.runId)}><Redo2 size={13} /></button>
+          <button data-motion="icon" aria-label={m.ai.message.quoteMessage} title={m.ai.message.quote} onClick={() => actions.addContext(messageContext(event, text))}><Quote size={13} /></button>
+          <button data-motion="icon" aria-label={m.ai.message.editResend} title={m.ai.message.editResend} onClick={() => actions.editRun(event.runId)}><Pencil size={13} /></button>
+          <button data-motion="icon" aria-label={m.ai.message.branchFromMessage} title={m.ai.message.branchFromMessage} onClick={() => void actions.branchRun(event.runId)}><GitFork size={13} /></button>
+          <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void actions.rerun(event.runId)}><Redo2 size={13} /></button>
           <CopyButton text={text} />
         </MessageMeta>
       </div>
     </article>
   );
-}
+});
 
-export function AssistantMessage({ text, streaming = false, event }: { text: string; streaming?: boolean; event?: AiEvent }) {
-  const ai = useAi();
+export const AssistantMessage = memo(function AssistantMessage({ text, streaming = false, event }: { text: string; streaming?: boolean; event?: AiEvent }) {
+  const actions = useAiActions();
   return (
     <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
       <div className="message-body">
         <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>
-              {event ? <button data-motion="icon" aria-label={m.ai.message.quoteReply} title={m.ai.message.quote} onClick={() => ai.addContext(messageContext(event, text))}><Quote size={13} /></button> : null}
-              {event ? <button data-motion="icon" aria-label={m.ai.message.branchFromReply} title={m.ai.message.branchFromReply} onClick={() => void ai.branchRun(event.runId)}><GitFork size={13} /></button> : null}
-              {event ? <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void ai.rerun(event.runId)}><Redo2 size={13} /></button> : null}
+              {event ? <button data-motion="icon" aria-label={m.ai.message.quoteReply} title={m.ai.message.quote} onClick={() => actions.addContext(messageContext(event, text))}><Quote size={13} /></button> : null}
+              {event ? <button data-motion="icon" aria-label={m.ai.message.branchFromReply} title={m.ai.message.branchFromReply} onClick={() => void actions.branchRun(event.runId)}><GitFork size={13} /></button> : null}
+              {event ? <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void actions.rerun(event.runId)}><Redo2 size={13} /></button> : null}
               <CopyButton text={text} />
             </>
           )}
@@ -65,7 +69,7 @@ export function AssistantMessage({ text, streaming = false, event }: { text: str
       </div>
     </article>
   );
-}
+});
 
 export function ChatMarkdown({
   text,

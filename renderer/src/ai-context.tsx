@@ -50,21 +50,54 @@ type SendOptions = {
   contexts?: ContextReference[];
 };
 
-export interface AiController {
+/**
+ * Context slices, split by churn frequency. A single 40-field context
+ * broadcast every value change (event flush, toast, snapshot push) to every
+ * `useAi()` consumer, re-rendering the whole workspace per streamed chunk.
+ * Each slice changes on its own cadence; hot surfaces subscribe to slices:
+ *
+ * - AiSnapshotValue: worker-pushed session/run/provider data (per snapshot push).
+ * - AiEventsValue: live transcript events (per rAF flush while streaming).
+ * - AiUiValue: local interaction state (toasts, confirm dialog, panel mode…).
+ * - AiActionsValue: stable callbacks (never change identity).
+ */
+export interface AiSnapshotValue {
   snapshot: AiSnapshot;
   activeSession: AiSession | null;
   activeRun: AiRun | null;
   sessionActiveRun: AiRun | null;
   queuedRuns: AiRun[];
+  pendingContexts: ContextReference[];
+  skills: SkillDefinition[];
+}
+
+export interface AiEventsValue {
   events: AiEvent[];
   hasOlderTurns: boolean;
   historyLoading: boolean;
   loadOlderTurns(): Promise<void>;
-  pendingContexts: ContextReference[];
-  skills: SkillDefinition[];
-  isSending: boolean;
+}
+
+export interface AiUiValue {
+  toasts: Toast[];
+  notify(text: string, tone?: ToastTone, options?: NotifyOptions): void;
+  dismissToast(id: number): void;
+  confirmState: ConfirmOptions | null;
+  confirm: ConfirmAction;
+  resolveConfirm(value: boolean): void;
   error: string | null;
   clearError(): void;
+  isSending: boolean;
+  panelMode: PanelMode;
+  setPanelMode(mode: PanelMode): void;
+  composerFocusRequest: number;
+  focusComposer(): void;
+  /** 项目详情页打开时选定的「新对话归属项目」；null = 常规工作区会话。 */
+  projectComposeTarget: { projectId: string; projectName: string } | null;
+  setProjectComposeTarget(target: { projectId: string; projectName: string } | null): void;
+}
+
+export interface AiActionsValue {
   setActiveSession(id: string | null): Promise<void>;
   updateSession(id: string, patch: SessionPatch): Promise<AiSession>;
   setActiveRun(id: string | null): void;
@@ -74,11 +107,6 @@ export interface AiController {
   reorderContexts(fromId: string, toId: string): void;
   clearContexts(): void;
   addFiles(): Promise<void>;
-  /** 项目详情页打开时选定的「新对话归属项目」；null = 常规工作区会话。 */
-  projectComposeTarget: { projectId: string; projectName: string } | null;
-  setProjectComposeTarget(target: { projectId: string; projectName: string } | null): void;
-  composerFocusRequest: number;
-  focusComposer(): void;
   send(prompt: string, options?: SendOptions): Promise<void>;
   rerun(runId: string): Promise<void>;
   editRun(runId: string): void;
@@ -86,15 +114,9 @@ export interface AiController {
   cancel(runId: string): Promise<void>;
   refresh(): Promise<void>;
   refreshSkills(): Promise<SkillDefinition[] | null>;
-  panelMode: PanelMode;
-  setPanelMode(mode: PanelMode): void;
-  toasts: Toast[];
-  notify(text: string, tone?: ToastTone, options?: NotifyOptions): void;
-  dismissToast(id: number): void;
-  confirmState: ConfirmOptions | null;
-  confirm: ConfirmAction;
-  resolveConfirm(value: boolean): void;
 }
+
+export type AiController = AiSnapshotValue & AiEventsValue & AiUiValue & AiActionsValue;
 
 interface AiStreamingState {
   streaming: string;
@@ -124,7 +146,10 @@ export type AiDraftController = {
   setDraft(value: string): void;
 };
 
-const Context = createContext<AiController | null>(null);
+const SnapshotContext = createContext<AiSnapshotValue | null>(null);
+const EventsContext = createContext<AiEventsValue | null>(null);
+const UiContext = createContext<AiUiValue | null>(null);
+const ActionsContext = createContext<AiActionsValue | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
 const DraftStoreContext = createContext<AiDraftStore | null>(null);
 const DraftKeyContext = createContext(NEW_SESSION_DRAFT);
@@ -140,6 +165,17 @@ const DRAFT_PERSIST_DELAY_MS = 120;
 
 function scopedStorageKey(base: string, scope: string): string {
   return scope ? `${base}:${encodeURIComponent(scope)}` : base;
+}
+
+/** Shallow per-element comparison; keeps the previous array identity when the
+ * provider list content is unchanged across snapshot pushes. */
+function sameProviderList(current: AiSnapshot["providers"], incoming: AiSnapshot["providers"]): boolean {
+  return current.length === incoming.length && current.every((provider, index) => {
+    const next = incoming[index];
+    if (!next) return false;
+    const currentKeys = Object.keys(provider) as (keyof typeof provider)[];
+    return currentKeys.every((key) => provider[key] === next[key]);
+  });
 }
 
 function scopedStorageJson<T>(base: string, scope: string, fallback: T): T {
@@ -436,7 +472,11 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
         sessions: incoming.sessions.map((session) => {
           const existing = currentSessions.get(session.id);
           return existing && existing.updatedAt.localeCompare(session.updatedAt) > 0 ? existing : session;
-        })
+        }),
+        // Worker 每次推送都反序列化出新的 providers 数组；内容未变时保留原
+        // 引用，否则下游依赖 providers 的 useMemo（路由渲染属性等）会随每次
+        // 推送整体失效。
+        providers: sameProviderList(current.providers, incoming.providers) ? current.providers : incoming.providers
       };
       snapshotRef.current = next;
       return next;
@@ -833,21 +873,57 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     }
   }, [refresh, streamingStore]);
 
-  const value = useMemo<AiController>(() => ({
+  const snapshotValue = useMemo<AiSnapshotValue>(() => ({
     snapshot,
     activeSession,
     activeRun,
     sessionActiveRun,
     queuedRuns,
+    pendingContexts,
+    skills
+  }), [snapshot, activeSession, activeRun, sessionActiveRun, queuedRuns, pendingContexts, skills]);
+
+  const eventsValue = useMemo<AiEventsValue>(() => ({
     events,
     hasOlderTurns,
     historyLoading,
-    loadOlderTurns,
-    pendingContexts,
-    skills,
-    isSending,
+    loadOlderTurns
+  }), [events, hasOlderTurns, historyLoading, loadOlderTurns]);
+
+  const uiValue = useMemo<AiUiValue>(() => ({
+    toasts,
+    notify,
+    dismissToast,
+    confirmState,
+    confirm,
+    resolveConfirm,
     error,
     clearError,
+    isSending,
+    panelMode,
+    setPanelMode: setPanelModeState,
+    composerFocusRequest,
+    focusComposer,
+    projectComposeTarget,
+    setProjectComposeTarget
+  }), [
+    toasts,
+    notify,
+    dismissToast,
+    confirmState,
+    confirm,
+    resolveConfirm,
+    error,
+    clearError,
+    isSending,
+    panelMode,
+    composerFocusRequest,
+    focusComposer,
+    projectComposeTarget,
+    setProjectComposeTarget
+  ]);
+
+  const actionsValue = useMemo<AiActionsValue>(() => ({
     setActiveSession,
     updateSession,
     setActiveRun: selectRun,
@@ -857,40 +933,14 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     reorderContexts,
     clearContexts,
     addFiles,
-    composerFocusRequest,
-    focusComposer,
     send,
     rerun,
     editRun,
     branchRun,
     cancel,
     refresh,
-    refreshSkills,
-    panelMode,
-    setPanelMode: setPanelModeState,
-    projectComposeTarget,
-    setProjectComposeTarget,
-    toasts,
-    notify,
-    dismissToast,
-    confirmState,
-    confirm,
-    resolveConfirm
+    refreshSkills
   }), [
-    snapshot,
-    activeSession,
-    activeRun,
-    sessionActiveRun,
-    queuedRuns,
-    events,
-    hasOlderTurns,
-    historyLoading,
-    loadOlderTurns,
-    pendingContexts,
-    skills,
-    isSending,
-    error,
-    clearError,
     setActiveSession,
     updateSession,
     selectRun,
@@ -900,41 +950,71 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     reorderContexts,
     clearContexts,
     addFiles,
-    focusComposer,
     send,
     rerun,
     editRun,
     branchRun,
     cancel,
     refresh,
-    refreshSkills,
-    panelMode,
-    composerFocusRequest,
-    projectComposeTarget,
-    setProjectComposeTarget,
-    toasts,
-    notify,
-    dismissToast,
-    confirmState,
-    confirm,
-    resolveConfirm
+    refreshSkills
   ]);
 
   return (
-    <Context.Provider value={value}>
-      <DraftStoreContext.Provider value={draftStore}>
-        <DraftKeyContext.Provider value={draftKey}>
-          <StreamingContext.Provider value={streamingStore}>{children}</StreamingContext.Provider>
-        </DraftKeyContext.Provider>
-      </DraftStoreContext.Provider>
-    </Context.Provider>
+    <SnapshotContext.Provider value={snapshotValue}>
+      <EventsContext.Provider value={eventsValue}>
+        <UiContext.Provider value={uiValue}>
+          <ActionsContext.Provider value={actionsValue}>
+            <DraftStoreContext.Provider value={draftStore}>
+              <DraftKeyContext.Provider value={draftKey}>
+                <StreamingContext.Provider value={streamingStore}>{children}</StreamingContext.Provider>
+              </DraftKeyContext.Provider>
+            </DraftStoreContext.Provider>
+          </ActionsContext.Provider>
+        </UiContext.Provider>
+      </EventsContext.Provider>
+    </SnapshotContext.Provider>
   );
 }
 
-export function useAi(): AiController {
-  const value = useContext(Context);
-  if (!value) throw new Error("useAi must be used within AiProvider");
+export function useAiSnapshot(): AiSnapshotValue {
+  const value = useContext(SnapshotContext);
+  if (!value) throw new Error("useAiSnapshot must be used within AiProvider");
   return value;
+}
+
+export function useAiEvents(): AiEventsValue {
+  const value = useContext(EventsContext);
+  if (!value) throw new Error("useAiEvents must be used within AiProvider");
+  return value;
+}
+
+export function useAiUi(): AiUiValue {
+  const value = useContext(UiContext);
+  if (!value) throw new Error("useAiUi must be used within AiProvider");
+  return value;
+}
+
+export function useAiActions(): AiActionsValue {
+  const value = useContext(ActionsContext);
+  if (!value) throw new Error("useAiActions must be used within AiProvider");
+  return value;
+}
+
+/**
+ * Full controller view over every slice. Subscribes to all contexts, so it
+ * re-renders on any change — prefer the slice hooks (useAiSnapshot /
+ * useAiEvents / useAiUi / useAiActions) in hot surfaces such as the chat
+ * timeline, the composer, or the workspace shell.
+ */
+export function useAi(): AiController {
+  const snapshotValue = useContext(SnapshotContext);
+  const eventsValue = useContext(EventsContext);
+  const uiValue = useContext(UiContext);
+  const actionsValue = useContext(ActionsContext);
+  if (!snapshotValue || !eventsValue || !uiValue || !actionsValue) {
+    throw new Error("useAi must be used within AiProvider");
+  }
+  return { ...snapshotValue, ...eventsValue, ...uiValue, ...actionsValue };
 }
 
 function useDraftStoreAndKey(): [AiDraftStore, string] {

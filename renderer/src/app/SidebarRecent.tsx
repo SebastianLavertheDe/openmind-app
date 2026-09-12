@@ -3,7 +3,7 @@ import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
 import { isProjectTaskScope } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../ai-context";
+import { useAiActions, useAiSnapshot, useAiUi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
 import { Tooltip } from "../design-system/components";
 
@@ -31,19 +31,21 @@ function statusClass(status: AiSession["status"]): string {
 }
 
 export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: string | null; onOpen(session: AiSession): void }) {
-  const ai = useAi();
+  const { snapshot } = useAiSnapshot();
+  const actions = useAiActions();
+  const ui = useAiUi();
   const [collapsed, setCollapsed] = useState(() => storageJson(COLLAPSED_KEY, false));
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const recent = useMemo(() =>
-    ai.snapshot.sessions
+    snapshot.sessions
       .filter((session) => !session.archived)
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
-    [ai.snapshot.sessions]
+    [snapshot.sessions]
   );
   const pendingSessionIds = useMemo(
-    () => new Set(ai.snapshot.pendingApprovals.map((approval) => approval.sessionId)),
-    [ai.snapshot.pendingApprovals]
+    () => new Set(snapshot.pendingApprovals.map((approval) => approval.sessionId)),
+    [snapshot.pendingApprovals]
   );
 
   if (!recent.length) return null;
@@ -57,13 +59,13 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
     if (busyId) return;
     setBusyId(session.id);
     try {
-      const operation = ai.updateSession(session.id, { archived: true });
-      if (activeSessionId === session.id) await ai.setActiveSession(null);
+      const operation = actions.updateSession(session.id, { archived: true });
+      if (activeSessionId === session.id) await actions.setActiveSession(null);
       await operation;
-      ai.notify(m.ai.session.archived, "success");
+      ui.notify(m.ai.session.archived, "success");
     } catch {
-      if (activeSessionId === session.id) await ai.setActiveSession(session.id);
-      ai.notify(m.ai.session.archiveFailed, "error");
+      if (activeSessionId === session.id) await actions.setActiveSession(session.id);
+      ui.notify(m.ai.session.archiveFailed, "error");
     } finally {
       setBusyId(null);
     }
@@ -73,10 +75,10 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
     if (busyId) return;
     setBusyId(session.id);
     try {
-      await ai.updateSession(session.id, { pinned: !session.pinned });
-      ai.notify(session.pinned ? m.ai.session.unpinned : m.ai.session.pinned, "success");
+      await actions.updateSession(session.id, { pinned: !session.pinned });
+      ui.notify(session.pinned ? m.ai.session.unpinned : m.ai.session.pinned, "success");
     } catch {
-      ai.notify(m.ai.session.updateFailed, "error");
+      ui.notify(m.ai.session.updateFailed, "error");
     } finally {
       setBusyId(null);
     }

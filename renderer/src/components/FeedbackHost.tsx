@@ -2,33 +2,33 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../ai-context";
+import { useAiUi } from "../ai-context";
 import { useExitPresence } from "../design-system/use-exit-presence";
 import { useExitingList } from "../design-system/use-exiting-list";
 
 export function FeedbackHost() {
-  const ai = useAi();
+  const ui = useAiUi();
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const descriptionId = useId();
-  const confirmOpen = Boolean(ai.confirmState);
+  const confirmOpen = Boolean(ui.confirmState);
   const { visible: confirmVisible, leaving: confirmLeaving } = useExitPresence(confirmOpen, 160);
-  const [stashed, setStashed] = useState(ai.confirmState);
-  useEffect(() => { if (ai.confirmState) setStashed(ai.confirmState); }, [ai.confirmState]);
+  const [stashed, setStashed] = useState(ui.confirmState);
+  useEffect(() => { if (ui.confirmState) setStashed(ui.confirmState); }, [ui.confirmState]);
 
   useEffect(() => {
-    if (!ai.confirmState) return;
+    if (!ui.confirmState) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = window.requestAnimationFrame(() => {
-      (ai.confirmState?.danger ? cancelRef.current : confirmRef.current)?.focus();
+      (ui.confirmState?.danger ? cancelRef.current : confirmRef.current)?.focus();
     });
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        ai.resolveConfirm(false);
+        ui.resolveConfirm(false);
         return;
       }
       if (event.key !== "Tab") return;
@@ -57,11 +57,11 @@ export function FeedbackHost() {
       previousFocusRef.current?.focus();
       previousFocusRef.current = null;
     };
-  }, [ai.confirmState, ai.resolveConfirm]);
+  }, [ui.confirmState, ui.resolveConfirm]);
 
-  const toastList = useExitingList(ai.toasts, (toast) => String(toast.id), 160);
+  const toastList = useExitingList(ui.toasts, (toast) => String(toast.id), 160);
   const confirmDialog = confirmVisible && stashed ? (
-    <div className="modal-scrim ui-overlay" data-leaving={confirmLeaving || undefined} onClick={() => ai.resolveConfirm(false)}>
+    <div className="modal-scrim ui-overlay" data-leaving={confirmLeaving || undefined} onClick={() => ui.resolveConfirm(false)}>
       <div
         ref={dialogRef}
         className="modal-card"
@@ -74,11 +74,11 @@ export function FeedbackHost() {
         <strong>{stashed.title}</strong>
         {stashed.body ? <p id={descriptionId}>{stashed.body}</p> : null}
         <div className="modal-actions">
-          <button data-motion="action" className="settings-subtle-action" ref={cancelRef} onClick={() => ai.resolveConfirm(false)}>{m.feedback.cancel}</button>
+          <button data-motion="action" className="settings-subtle-action" ref={cancelRef} onClick={() => ui.resolveConfirm(false)}>{m.feedback.cancel}</button>
           <button
             ref={confirmRef}
             className={stashed.danger ? "danger-button" : "primary-button"}
-            onClick={() => ai.resolveConfirm(true)}
+            onClick={() => ui.resolveConfirm(true)}
           >
             {stashed.confirmText || m.designSystem.confirm}
           </button>
@@ -101,13 +101,13 @@ export function FeedbackHost() {
                 className="toast-action"
                 onClick={() => {
                   toast.action?.onClick();
-                  ai.dismissToast(toast.id);
+                  ui.dismissToast(toast.id);
                 }}
               >
                 {toast.action.label}
               </button>
             ) : null}
-            <button data-motion="icon" aria-label={m.designSystem.dismissToast} onClick={() => ai.dismissToast(toast.id)}><X size={13} /></button>
+            <button data-motion="icon" aria-label={m.designSystem.dismissToast} onClick={() => ui.dismissToast(toast.id)}><X size={13} /></button>
           </div>
         ))}
       </div>

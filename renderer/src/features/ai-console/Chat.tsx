@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi, useAiStreaming, useSetAiDraft } from "../../ai-context";
+import { useAiEvents, useAiSnapshot, useAiStreaming, useSetAiDraft } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useExitingList } from "../../design-system/use-exiting-list";
@@ -68,7 +68,8 @@ const CHAT_SCROLL_UP_EPSILON = 1;
 export type { ChatDraftSubmitHandler } from "./composer";
 
 export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { compact?: boolean; onDraftSubmit?: ChatDraftSubmitHandler }) {
-  const ai = useAi();
+  const { events, hasOlderTurns, historyLoading, loadOlderTurns } = useAiEvents();
+  const { snapshot, activeSession, activeRun, sessionActiveRun } = useAiSnapshot();
   const setDraft = useSetAiDraft();
   const [nearBottom, setNearBottom] = useState(true);
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
@@ -79,28 +80,28 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const restoreTarget = useRef<ChatScrollRestore | null>(null);
   const followLatest = useRef(true);
   const lastScrollTop = useRef(0);
-  const sessionId = ai.activeSession?.id || "__draft";
+  const sessionId = activeSession?.id || "__draft";
   const currentScrollSession = useRef(sessionId);
-  const streamingRunId = ai.sessionActiveRun?.id || ai.activeRun?.id || null;
+  const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
   const timelineEvents = useMemo(() => {
-    if (compact) return compactEvents(ai.events, ai.sessionActiveRun?.id);
-    return selectRecentTurnEvents(ai.events, historyLimit);
-  }, [ai.events, ai.sessionActiveRun?.id, compact, historyLimit]);
-  const hiddenEvents = compact ? 0 : Math.max(0, ai.events.length - timelineEvents.length);
-  const canLoadHistory = !compact && (hiddenEvents > 0 || ai.hasOlderTurns);
+    if (compact) return compactEvents(events, sessionActiveRun?.id);
+    return selectRecentTurnEvents(events, historyLimit);
+  }, [events, sessionActiveRun?.id, compact, historyLimit]);
+  const hiddenEvents = compact ? 0 : Math.max(0, events.length - timelineEvents.length);
+  const canLoadHistory = !compact && (hiddenEvents > 0 || hasOlderTurns);
   const visible = useMemo(
-    () => groupTimeline(timelineEvents, ai.snapshot.runs),
-    [ai.snapshot.runs, timelineEvents]
+    () => groupTimeline(timelineEvents, snapshot.runs),
+    [snapshot.runs, timelineEvents]
   );
   const processRuns = useMemo(() => {
-    const runs = new Map(ai.snapshot.runs.map((run) => [run.id, run]));
-    if (ai.sessionActiveRun) runs.set(ai.sessionActiveRun.id, ai.sessionActiveRun);
+    const runs = new Map(snapshot.runs.map((run) => [run.id, run]));
+    if (sessionActiveRun) runs.set(sessionActiveRun.id, sessionActiveRun);
     return runs;
-  }, [ai.sessionActiveRun, ai.snapshot.runs]);
+  }, [sessionActiveRun, snapshot.runs]);
   const renderItems = useMemo(
     () => {
       const folded = foldProcessSteps(visible, processRuns);
-      const activeRun = ai.sessionActiveRun;
+      const activeRun = sessionActiveRun;
       if (activeRun && !folded.some((item) => item.type === "process" && item.run.id === activeRun.id)) {
         folded.push({
           type: "process",
@@ -113,17 +114,17 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       }
       return groupChatToolItems(folded);
     },
-    [ai.sessionActiveRun, processRuns, visible]
+    [sessionActiveRun, processRuns, visible]
   );
-  const activeRunId = ai.sessionActiveRun?.id || null;
+  const activeRunId = sessionActiveRun?.id || null;
   const activeTodoEvents = useMemo(
-    () => selectRunTodoEvents(ai.events, activeRunId),
-    [activeRunId, ai.events]
+    () => selectRunTodoEvents(events, activeRunId),
+    [activeRunId, events]
   );
   const activeRunHasTool = useMemo(() => hasOpenTool(timelineEvents, activeRunId), [activeRunId, timelineEvents]);
   const pendingThoughtEligible = Boolean(
-    ai.sessionActiveRun
-    && ai.sessionActiveRun.status === "running"
+    sessionActiveRun
+    && sessionActiveRun.status === "running"
     && !activeRunHasTool
   );
   const activeProcessVisible = Boolean(
@@ -252,7 +253,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     raf = window.requestAnimationFrame(attempt);
     return () => window.cancelAnimationFrame(raf);
   }, [sessionId, timelineEvents.length]);
-  useEffect(() => setHistoryLimit(compact ? 80 : 300), [ai.activeSession?.id, compact]);
+  useEffect(() => setHistoryLimit(compact ? 80 : 300), [activeSession?.id, compact]);
 
   return (
     <section className={`chat ${compact ? "compact" : ""}`}>
@@ -268,22 +269,22 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
           aria-relevant="additions text"
           aria-label={m.ai.chat.transcriptLabel}
         >
-          {!visible.length && !ai.sessionActiveRun
+          {!visible.length && !sessionActiveRun
             ? <EmptyChat onPick={setDraft} />
             : null}
           {canLoadHistory ? (
             <button
               className="load-history"
-              disabled={ai.historyLoading}
+              disabled={historyLoading}
               onClick={() => {
                 if (hiddenEvents) setHistoryLimit((value) => value + 300);
                 else {
                   setHistoryLimit((value) => value + 300);
-                  void ai.loadOlderTurns();
+                  void loadOlderTurns();
                 }
               }}
             >
-              {ai.historyLoading
+              {historyLoading
                 ? m.ai.chat.loadingHistory
                 : hiddenEvents
                   ? m.ai.chat.loadMoreEvents(Math.min(300, hiddenEvents))
@@ -326,7 +327,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         ) : null}
       </div>
       <div className="chat-bottom-stack">
-        <ActiveTodoFloat events={activeTodoEvents} active={Boolean(ai.sessionActiveRun)} />
+        <ActiveTodoFloat events={activeTodoEvents} active={Boolean(sessionActiveRun)} />
         <ApprovalBanner />
         <ChatComposer onDraftSubmit={onDraftSubmit} />
       </div>
@@ -573,12 +574,12 @@ function toolEventKey(event: AiEvent): string {
 }
 
 function EmptyChat({ onPick }: { onPick?: (prompt: string) => void }) {
-  const ai = useAi();
+  const { snapshot } = useAiSnapshot();
   const prompts = m.ai.chat.emptyPrompts;
-  const projectName = ai.snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || ai.snapshot.projectRoot;
+  const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   return (
     <div className="chat-empty">
-      <div className="chat-project-context" title={ai.snapshot.projectRoot}>
+      <div className="chat-project-context" title={snapshot.projectRoot}>
         <FolderCode size={14} aria-hidden />
         <span>{m.ai.chat.currentProject}</span>
         <b>{projectName}</b>

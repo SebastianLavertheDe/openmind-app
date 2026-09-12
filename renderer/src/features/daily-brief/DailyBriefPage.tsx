@@ -3,7 +3,7 @@ import { Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "luci
 import type { ContentEntry, ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { ContentPreview } from "../../components/ContentPreview";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
 
@@ -15,7 +15,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
   // container queries stack the file list and document at this component-owned
   // boundary instead of forcing a global navigation change.
   useResponsiveWorkspaceMinimum("--daily-brief-workspace-min", layoutRef);
-  const ai = useAi();
+  const ui = useAiUi();
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
@@ -80,7 +80,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
 
   const selectFile = async (path: string) => {
     if (path === selectedPath) return;
-    if (dirty && !await ai.confirm({ title: m.brief.library.switchTitle, body: m.brief.library.switchBody, confirmText: m.brief.library.switchConfirm, danger: true })) return;
+    if (dirty && !await ui.confirm({ title: m.brief.library.switchTitle, body: m.brief.library.switchBody, confirmText: m.brief.library.switchConfirm, danger: true })) return;
     await openFile(path);
   };
 
@@ -93,10 +93,10 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
       setDraft(next.content || draft);
       setDirty(false);
       setMode("preview");
-      ai.notify(m.brief.library.saved, "success");
+      ui.notify(m.brief.library.saved, "success");
       setFiles((current) => current.map((file) => file.path === next.path ? { ...file, modifiedAt: new Date().toISOString(), size: new Blob([draft]).size } : file));
     } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
       setSaving(false);
     }

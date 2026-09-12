@@ -10,8 +10,12 @@ const reportPath = path.join(appRoot, ".build", "stream-performance-report.json"
 const eventCount = Math.max(30, Number(process.env.OPENMIND_RESIZE_PERF_EVENTS) || 1_000);
 const commentaryChars = Math.max(4_096, Number(process.env.OPENMIND_STREAM_PERF_CHARS) || 49_152);
 const reasoningChars = Math.max(4_096, Number(process.env.OPENMIND_REASONING_PERF_CHARS) || 24_576);
-const commentarySentinel = "COMMENTARY_STREAM_COMPLETE";
-const reasoningSentinel = "REASONING_STREAM_COMPLETE";
+// 长输出超过 8KiB 后渲染层走虚拟 DocumentReader，尾块不会挂载进 DOM，因此
+// 尾部文本无法作为等待信号。改等 durable 完成事件：事件泵会把 durable
+// assistant-message 排到 transient 缓冲完全排空之后，reasoning-summary 则
+// 与最后一批 delta 同一帧提交。marker 出现 == 整段流式内容已被渲染层处理。
+const commentaryDoneMarker = "COMMENTARY_STREAM_DRAIN_COMPLETE";
+const reasoningDoneMarker = "REASONING_STREAM_DRAIN_COMPLETE";
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const temporaryUserData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-stream-performance-"));
 
@@ -74,15 +78,25 @@ async function run() {
   await delay(300);
   const fixtureExpanded = await domFixture(win);
   await installRendererSampler(win);
-  const commentaryText = markdownText(commentaryChars, commentarySentinel, "Commentary");
+  const commentaryText = markdownText(commentaryChars, "Commentary");
   const commentary = await measurePhase(win, "commentary", async () => {
     await emitEvent(win, "assistant-delta", commentaryText, 2);
-    await waitForText(win, commentarySentinel, 60_000);
+    // durable marker：事件泵在 transient 缓冲排空后才追加 durable 消息，
+    // 因此它在 DOM 出现即代表完整 commentary 已流过渲染层。
+    await emitDurableEvent(win, "stream-perf-commentary-done", 3, "assistant-message", {
+      text: commentaryDoneMarker,
+      phase: "commentary"
+    });
+    await waitForText(win, commentaryDoneMarker, 60_000);
   });
-  const reasoningText = markdownText(reasoningChars, reasoningSentinel, "Reasoning");
+  const reasoningText = markdownText(reasoningChars, "Reasoning");
+  const reasoningChunkCount = Math.ceil(reasoningText.length / 512);
   const reasoning = await measurePhase(win, "reasoning", async () => {
     await emitReasoningChunks(win, reasoningText, 512, 24);
-    await waitForText(win, reasoningSentinel, 60_000);
+    await emitDurableEvent(win, "stream-perf-reasoning-done", 4 + reasoningChunkCount, "reasoning-summary", {
+      text: reasoningDoneMarker
+    });
+    await waitForText(win, reasoningDoneMarker, 60_000);
   });
   const fixtureAfter = await domFixture(win);
   const checks = [
@@ -233,6 +247,16 @@ async function emitEvent(win, kind, text, seq) {
   if (!emitted) throw new Error("Stream performance event bridge is unavailable");
 }
 
+/** durable 事件：进入会话时间线并渲染，作为流式阶段的完成信号。 */
+async function emitDurableEvent(win, id, seq, kind, payload) {
+  const message = {
+    kind: "event",
+    event: { ...streamEvent(id, seq, kind, ""), payload }
+  };
+  const emitted = await win.webContents.executeJavaScript(`window.openmind.__emitAiEvent(${JSON.stringify(message)})`);
+  if (!emitted) throw new Error("Stream performance event bridge is unavailable");
+}
+
 async function emitReasoningChunks(win, text, chunkSize, intervalMs) {
   const chunks = [];
   for (let index = 0; index < text.length; index += chunkSize) chunks.push(text.slice(index, index + chunkSize));
@@ -242,7 +266,7 @@ async function emitReasoningChunks(win, text, chunkSize, intervalMs) {
       let index = 0;
       const emit = () => {
         if (index >= chunks.length) { resolve(true); return; }
-        const seq = index + 3;
+        const seq = index + 4;
         const emitted = window.openmind.__emitAiEvent({
           kind: 'transient',
           event: {
@@ -284,10 +308,9 @@ function streamEvent(id, seq, kind, text) {
   };
 }
 
-function markdownText(characters, sentinel, title) {
+function markdownText(characters, title) {
   const unit = `## ${title} update\n\n- parsed Markdown content\n- **live text** remains readable\n\n`;
-  const bodyLength = Math.max(0, characters - sentinel.length - 2);
-  return `${unit.repeat(Math.ceil(bodyLength / unit.length)).slice(0, bodyLength)}\n\n${sentinel}`;
+  return unit.repeat(Math.ceil(characters / unit.length)).slice(0, characters);
 }
 
 async function domFixture(win) {
@@ -309,6 +332,7 @@ async function waitFor(win, selector) {
   throw new Error(`Timed out waiting for ${selector}`);
 }
 
+/** 等待 durable 完成事件的 marker 出现在进行中 process 块的已挂载 DOM 里。 */
 async function waitForText(win, text, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

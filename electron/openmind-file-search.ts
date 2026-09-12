@@ -1,56 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ProjectFileMatch, ProjectFileSearchResult } from "../shared/contracts";
-
-const IGNORED_DIRECTORIES = new Set([
-  ".agent",
-  ".build",
-  ".cache",
-  ".claude",
-  ".claudian",
-  ".git",
-  ".idea",
-  ".mypy_cache",
-  ".next",
-  ".obsidian",
-  ".openmind",
-  ".pytest_cache",
-  ".ruff_cache",
-  ".tox",
-  ".venv",
-  ".zcode",
-  "__pycache__",
-  "build",
-  "config",
-  "coverage",
-  "dist",
-  "node_modules",
-  "out",
-  "scripts",
-  "target",
-  "venv"
-]);
-
-const MAX_INDEXED_FILES = 200_000;
-const CACHE_TTL_MS = 30_000;
-
-type IndexedFile = {
-  path: string;
-  name: string;
-  directory: string;
-  extension: string;
-  normalizedPath: string;
-  normalizedName: string;
-};
+import { Worker } from "node:worker_threads";
+import type { ProjectFileSearchResult } from "../shared/contracts";
+import { OpenmindFileSearchEngine } from "./openmind-file-search-engine";
 
 type OpenmindFileSearchOptions = {
   /** New path-boundary mode: the constructor argument is the actual root. */
   rootKind?: "openmind" | "legacy-project";
 };
 
+type SearchRequest = { kind: "search"; id: number; query: string; limit: number };
+type WorkerReply =
+  | { kind: "result"; id: number; result: ProjectFileSearchResult }
+  | { kind: "error"; id: number; message: string };
+
+const WORKER_FILE = "openmind-file-search.worker.js";
+
+/**
+ * @ 文件引用搜索。评分检索跑在 worker_threads 里（编译产物存在时），宽泛查询
+ * 在 20 万文件规模下也不再制造主进程长任务；找不到编译好的 worker 文件时
+ * （vitest 直接执行 TS 源码）回退到进程内同一引擎，行为完全一致。
+ */
 export class OpenmindFileSearch {
-  private cache: { files: IndexedFile[]; truncated: boolean; createdAt: number } | null = null;
-  private pending: Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> | null = null;
+  private worker: Worker | null = null;
+  private readonly requests = new Map<number, { resolve(result: ProjectFileSearchResult): void; reject(error: Error): void }>();
+  private requestSeq = 0;
+  private fallbackEngine: OpenmindFileSearchEngine | null = null;
   private readonly projectRoot: string;
   private readonly openmindRoot: string;
   private readonly logicalPrefix: string;
@@ -69,96 +44,72 @@ export class OpenmindFileSearch {
   }
 
   async search(rawQuery: string, rawLimit = 40): Promise<ProjectFileSearchResult> {
-    const query = normalize(rawQuery.trim());
-    const limit = Math.max(1, Math.min(100, Math.floor(rawLimit)));
-    if (!query) return { items: [], indexedCount: 0, truncated: false };
-    const index = await this.getIndex();
-    const tokens = query.split(/\s+/).filter(Boolean);
-    const ranked: Array<{ file: IndexedFile; score: number }> = [];
-    for (const file of index.files) {
-      const score = scoreFile(file, tokens);
-      if (score === null) continue;
-      ranked.push({ file, score });
-    }
-    ranked.sort((left, right) =>
-      right.score - left.score
-      || left.file.path.length - right.file.path.length
-      || left.file.path.localeCompare(right.file.path)
-    );
-    return {
-      items: ranked.slice(0, limit).map(({ file }) => ({
-        path: file.path,
-        name: file.name,
-        directory: file.directory,
-        extension: file.extension
-      } satisfies ProjectFileMatch)),
-      indexedCount: index.files.length,
-      truncated: index.truncated
-    };
+    const worker = this.ensureWorker();
+    if (!worker) return this.fallbackEngine!.search(rawQuery, rawLimit);
+    const id = ++this.requestSeq;
+    return new Promise<ProjectFileSearchResult>((resolve, reject) => {
+      this.requests.set(id, { resolve, reject });
+      worker.postMessage({ kind: "search", id, query: rawQuery.trim(), limit: Math.max(1, Math.min(100, Math.floor(rawLimit))) } satisfies SearchRequest);
+    });
   }
 
   invalidate(): void {
-    this.cache = null;
+    if (this.worker) this.worker.postMessage({ kind: "invalidate" });
+    else this.fallbackEngine?.invalidate();
   }
 
-  private async getIndex(): Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> {
-    if (this.cache && Date.now() - this.cache.createdAt < CACHE_TTL_MS) return this.cache;
-    if (this.pending) return this.pending;
-    this.pending = this.buildIndex();
-    try {
-      this.cache = await this.pending;
-      return this.cache;
-    } finally {
-      this.pending = null;
+  /** 释放 worker；openmindRoot 切换重建实例时由调用方调用，避免残留线程。 */
+  dispose(): void {
+    this.rejectAll(new Error("OpenmindFileSearch 已释放。"));
+    this.worker?.terminate();
+    this.worker = null;
+    this.fallbackEngine = null;
+  }
+
+  private ensureWorker(): Worker | null {
+    if (this.worker) return this.worker;
+    if (this.fallbackEngine) return null;
+    // 编译产物（.build/electron/**）里 worker 文件与本模块同目录；vitest 直接
+    // 执行 TS 源码时不存在，回退进程内引擎。
+    const workerPath = path.join(__dirname, WORKER_FILE);
+    if (!fs.existsSync(workerPath)) {
+      this.fallbackEngine = new OpenmindFileSearchEngine(this.openmindRoot, this.logicalPrefix);
+      return null;
     }
-  }
-
-  private async buildIndex(): Promise<{ files: IndexedFile[]; truncated: boolean; createdAt: number }> {
-    const files: IndexedFile[] = [];
     try {
-      const rootStat = await fs.promises.lstat(this.openmindRoot);
-      if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) return { files, truncated: false, createdAt: Date.now() };
+      const worker = new Worker(workerPath);
+      worker.on("message", (message: WorkerReply) => {
+        const pending = this.requests.get(message.id);
+        if (!pending) return;
+        this.requests.delete(message.id);
+        if (message.kind === "result") pending.resolve(message.result);
+        else pending.reject(new Error(message.message));
+      });
+      const fail = (error: Error) => {
+        this.rejectAll(error);
+        if (this.worker === worker) this.worker = null;
+      };
+      worker.on("error", fail);
+      worker.on("exit", (code) => {
+        const exitError = code === 0 ? null : new Error(`文件搜索 worker 退出（code ${code}）。`);
+        if (exitError) this.rejectAll(exitError);
+        if (this.worker === worker) this.worker = null;
+      });
+      // 端口保序：init 先于任何 search 抵达 worker。
+      worker.postMessage({ kind: "init", openmindRoot: this.openmindRoot, logicalPrefix: this.logicalPrefix });
+      this.worker = worker;
+      return worker;
     } catch {
-      return { files, truncated: false, createdAt: Date.now() };
+      this.fallbackEngine = new OpenmindFileSearchEngine(this.openmindRoot, this.logicalPrefix);
+      return null;
     }
-    const directories = [this.openmindRoot];
-    let truncated = false;
-    while (directories.length && files.length < MAX_INDEXED_FILES) {
-      const directory = directories.pop()!;
-      let entries: fs.Dirent[];
-      try {
-        entries = await fs.promises.readdir(directory, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (files.length >= MAX_INDEXED_FILES) {
-          truncated = true;
-          break;
-        }
-        if (entry.isSymbolicLink()) continue;
-        const absolute = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-          if (!IGNORED_DIRECTORIES.has(entry.name)) directories.push(absolute);
-          continue;
-        }
-        if (!entry.isFile()) continue;
-        if (isSensitiveFile(entry.name)) continue;
-        const relative = path.relative(this.openmindRoot, absolute);
-        if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) continue;
-        const portablePath = `${this.logicalPrefix}/${relative.split(path.sep).join("/")}`;
-        const portableDirectory = path.posix.dirname(portablePath);
-        files.push({
-          path: portablePath,
-          name: entry.name,
-          directory: portableDirectory === "." ? "" : portableDirectory,
-          extension: path.extname(entry.name).slice(1).toLocaleLowerCase(),
-          normalizedPath: normalize(portablePath),
-          normalizedName: normalize(entry.name)
-        });
-      }
+  }
+
+  private rejectAll(error: Error): void {
+    for (const [id, pending] of this.requests) {
+      pending.reject(error);
+      this.requests.delete(id);
     }
-    return { files, truncated, createdAt: Date.now() };
   }
 }
 
@@ -189,55 +140,4 @@ export function normalizeOpenmindSelection(rootInput: string, candidate: string,
   }
   const logicalRelative = path.relative(openmindRoot, resolved);
   return `openmind/${logicalRelative.split(path.sep).join("/")}`;
-}
-
-function normalize(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase().replaceAll("\\", "/");
-}
-
-function scoreFile(file: IndexedFile, tokens: string[]): number | null {
-  let score = 0;
-  for (const token of tokens) {
-    if (file.normalizedName === token) score += 140;
-    else if (file.normalizedName.startsWith(token)) score += 110;
-    else if (file.normalizedName.includes(token)) score += 85;
-    else if (pathSegments(file.normalizedPath).some((segment) => segment.startsWith(token))) score += 62;
-    else if (file.normalizedPath.includes(token)) score += 48;
-    else if (isSubsequence(token, file.normalizedPath)) score += 16;
-    else return null;
-  }
-  if (file.extension === "md") score += 5;
-  if (!file.directory) score += 4;
-  score -= Math.min(20, file.path.length / 40);
-  return score;
-}
-
-function pathSegments(value: string): string[] {
-  return value.split("/");
-}
-
-function isSubsequence(query: string, value: string): boolean {
-  let queryIndex = 0;
-  for (let index = 0; index < value.length && queryIndex < query.length; index++) {
-    if (value[index] === query[queryIndex]) queryIndex++;
-  }
-  return queryIndex === query.length;
-}
-
-function isSensitiveFile(fileName: string): boolean {
-  const normalized = fileName.toLocaleLowerCase();
-  if (
-    normalized === ".npmrc"
-    || normalized === ".pypirc"
-    || normalized === ".netrc"
-    || normalized === ".git-credentials"
-    || normalized === "credentials"
-    || normalized === "credentials.json"
-    || normalized === "secrets.json"
-    || normalized === "providers.yaml"
-  ) return true;
-  if (normalized === ".env" || normalized.startsWith(".env.")) {
-    return !/\.(example|sample|template)$/u.test(normalized);
-  }
-  return [".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"].some((extension) => normalized.endsWith(extension));
 }

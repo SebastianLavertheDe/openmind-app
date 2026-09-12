@@ -8,7 +8,7 @@ import type {
   CreativeVersion
 } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { EmptyState, LoadingState, Select, StatusBadge } from "../../design-system/components";
 import { actionLabel, platformLabel, stageLabel } from "./types";
 
@@ -22,7 +22,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   onVersionsChange(versions: CreativeVersion[]): void;
   onRestored(detail: CreativeProjectDetail): void;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
   const [leftContent, setLeftContent] = useState("");
@@ -36,7 +36,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
     const version = versions.find((item) => item.id === id);
     if (!version) return;
     try { setter((await window.openmind.readCreativeVersion(version.path)).content); }
-    catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const diff = useMemo(() => {
     if (!leftContent && !rightContent) return [];
@@ -45,13 +45,13 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   const diffTruncated = diff.length > 600;
   const visibleDiff = diffTruncated ? diff.slice(0, 600) : diff;
   const restore = async (version: CreativeVersion) => {
-    if (!detail || !await ai.confirm({ title: m.creativeUi.history.restoreTitle, body: m.creativeUi.history.restoreBody(version.note), confirmText: m.creativeUi.history.restoreConfirm, danger: true })) return;
+    if (!detail || !await ui.confirm({ title: m.creativeUi.history.restoreTitle, body: m.creativeUi.history.restoreBody(version.note), confirmText: m.creativeUi.history.restoreConfirm, danger: true })) return;
     try {
       const next = await window.openmind.restoreCreativeVersion(detail.dir, activeFile, version.path);
       onRestored(next);
       onVersionsChange(await window.openmind.listCreativeVersions(detail.dir, activeFile));
-      ai.notify(m.creativeUi.history.restored, "success");
-    } catch (cause) { ai.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+      ui.notify(m.creativeUi.history.restored, "success");
+    } catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   if (!detail || !selectedProject) return <EmptyState title={m.creativeUi.history.pickProject} description={m.creativeUi.history.pickProjectDesc} icon={<History size={28} />} />;
   return (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, ExternalLink, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Search, Upload, Video } from "lucide-react";
-import { useAi } from "../../ai-context";
+import { useAiUi } from "../../ai-context";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState } from "../../design-system/components";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
@@ -40,7 +40,7 @@ export function ProjectMaterialsPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
-  const ai = useAi();
+  const ui = useAiUi();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialMaterialPath || "");
   const [selected, setSelected] = useState<ProjectMaterial | null>(null);
@@ -132,10 +132,10 @@ export function ProjectMaterialsPanel({
       setAddOpen(false);
       await load();
       if (created[0]?.relativePath) await openMaterial(created[0].relativePath);
-      if (created.length) ai.notify(`已添加并转换 ${created.length} 项资料。`, "success");
+      if (created.length) ui.notify(`已添加并转换 ${created.length} 项资料。`, "success");
       onChanged();
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
       // Converters persist a failed record before surfacing the error so it
       // can be retried. Refresh immediately instead of hiding that record
       // behind a page reload (also exposes partial success in a batch import).
@@ -156,7 +156,7 @@ export function ProjectMaterialsPanel({
       .map((file) => typeof window.openmind.pathForFile === "function" ? window.openmind.pathForFile(file) : "")
       .filter(Boolean);
     if (!paths.length) {
-      ai.notify("无法读取拖入文件的路径，请改用点击上传。", "error");
+      ui.notify("无法读取拖入文件的路径，请改用点击上传。", "error");
       return;
     }
     void addFiles(paths);
@@ -173,9 +173,9 @@ export function ProjectMaterialsPanel({
         created += 1;
         first ??= material;
       }
-      ai.notify(created > 1 ? `已添加 ${created} 个链接并完成转换。` : "链接已加入项目并完成转换。", "success");
+      ui.notify(created > 1 ? `已添加 ${created} 个链接并完成转换。` : "链接已加入项目并完成转换。", "success");
     } catch (cause) {
-      ai.notify(created ? `已添加 ${created} 个链接，其余添加失败：${errorText(cause)}` : errorText(cause), "error");
+      ui.notify(created ? `已添加 ${created} 个链接，其余添加失败：${errorText(cause)}` : errorText(cause), "error");
     } finally {
       setAddOpen(false);
       setUrl("");
@@ -197,9 +197,9 @@ export function ProjectMaterialsPanel({
       setSelected(next);
       if (next.status === "ready") await openMaterial(next.relativePath);
       onChanged();
-      ai.notify(next.status === "ready" ? "资料转换已完成。" : next.error || "资料转换仍然失败。", next.status === "ready" ? "success" : "error");
+      ui.notify(next.status === "ready" ? "资料转换已完成。" : next.error || "资料转换仍然失败。", next.status === "ready" ? "success" : "error");
     } catch (cause) {
-      ai.notify(errorText(cause), "error");
+      ui.notify(errorText(cause), "error");
     } finally {
       setRetryingPath("");
     }

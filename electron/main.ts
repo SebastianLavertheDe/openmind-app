@@ -72,6 +72,10 @@ let openmindFileSearch: OpenmindFileSearch | null = null;
 let openmindFileSearchRoot = "";
 let skillPackageService: SkillPackageService | null = null;
 let skillSourceService: SkillSourceService | null = null;
+// `.claude` 链接与 native alias 只依赖当前 openmind 根绑定，完成后不会因
+// 后续 IPC 而变化；记住已处理过的根，避免每个 skill 类 IPC 都同步扫描整棵
+// skills 目录树。根切换经 restartAiWorker() 失效。
+let claudeAgentLinkEnsuredRoot: string | null = null;
 let browserTokenStore: BrowserExtensionTokenStore | null = null;
 let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
 
@@ -248,6 +252,7 @@ function ensureProductService(): ProductService {
     // userData state root, so app-private state no longer lands inside
     // openmind (ADR-001 §1.3). Skill-backed sources come from the installed
     // store under the root, not from any workspace scan.
+    productService?.dispose();
     productService = new ProductService(openmindRoot, content, creative, { stateRoot });
     productServiceRoot = cacheKey;
   }
@@ -271,6 +276,7 @@ function ensureOpenmindFileSearch(): OpenmindFileSearch {
   const openmindRoot = settings.resolveOpenmindRoot();
   if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) throw new Error(messages.errors.repo.selectValidFirst);
   if (!openmindFileSearch || openmindFileSearchRoot !== openmindRoot) {
+    openmindFileSearch?.dispose();
     openmindFileSearch = new OpenmindFileSearch(openmindRoot, { rootKind: "openmind" });
     openmindFileSearchRoot = openmindRoot;
   }
@@ -291,9 +297,10 @@ function ensureSkillPackageService(): SkillPackageService {
   const paths = buildCurrentAppPaths();
   ensureAppPaths(paths);
   const openmindRoot = settings.resolveOpenmindRoot();
-  if (openmindRoot && paths.skills) {
+  if (openmindRoot && paths.skills && claudeAgentLinkEnsuredRoot !== openmindRoot) {
     ensureClaudeAgentLink(openmindRoot);
     ensureClaudeSkillAliases(paths.skills);
+    claudeAgentLinkEnsuredRoot = openmindRoot;
   }
   if (!skillPackageService) skillPackageService = new SkillPackageService(paths);
   return skillPackageService;
@@ -356,6 +363,7 @@ function restartAiWorker(): void {
   // the previous root so the next ensure* rebuilds against the new one.
   skillPackageService = null;
   skillSourceService = null;
+  claudeAgentLinkEnsuredRoot = null;
   sharedPythonRuntimeService = null;
   const openmindRoot = settings.resolveOpenmindRoot();
   if (openmindRoot && hasRequiredStartupConfiguration()) {
