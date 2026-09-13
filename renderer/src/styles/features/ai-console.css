@@ -471,7 +471,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 4px 4px 8px 0;
+  padding: 2px 4px 4px 0;
 }
 
 .chat-thread .completed-process-body .command-group-list:focus-visible {
@@ -492,9 +492,9 @@
 
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command > .ui-disclosure-trigger,
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command[data-open] > .ui-disclosure-trigger {
-  min-height: 34px;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  gap: 10px;
+  min-height: 30px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command {
@@ -507,8 +507,8 @@
 }
 
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   color: var(--muted-2);
@@ -521,9 +521,9 @@
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-title strong,
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-title small {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-meta small {

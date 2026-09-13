@@ -163,7 +163,6 @@ export function DailyBriefPage({
           {!loading && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
           {filteredFiles.map((file) => (
             <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
-              <FileText size={16} />
               <span><strong>{briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)}</strong><small>{formatBytes(file.size || 0)} · {file.modifiedAt ? formatModified(file.modifiedAt) : ""}</small></span>
             </button>
           ))}

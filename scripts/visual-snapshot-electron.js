@@ -2582,7 +2582,7 @@ async function captureCompletedAiResponse(win, report) {
   // mounted. A bare querySelector therefore cannot prove that a click happened
   // or that the content reached a visible, interactive open state.
   await expandDisclosure(win, ".completed-process");
-  await waitForDisclosureState(win, ".completed-process .command-group", true);
+  await waitForDisclosureState(win, ".completed-process .command-group", false);
   const expandedToolCount = await win.webContents.executeJavaScript(
     "document.querySelectorAll('.completed-process .tool-event[data-open]').length"
   );
@@ -2592,9 +2592,14 @@ async function captureCompletedAiResponse(win, report) {
   const expandedGroupCount = await win.webContents.executeJavaScript(
     "document.querySelectorAll('.completed-process .command-group[data-open]').length"
   );
-  if (expandedGroupCount !== 2) {
-    throw new Error(`Completed process expected 2 expanded tool groups, found ${expandedGroupCount}.`);
+  if (expandedGroupCount !== 0) {
+    throw new Error(`Completed process opened with ${expandedGroupCount} expanded tool groups.`);
   }
+  await win.webContents.executeJavaScript(`
+    [...document.querySelectorAll('.completed-process .command-group > .ui-disclosure-trigger')]
+      .forEach((trigger) => trigger.click());
+  `);
+  await waitForDisclosureState(win, ".completed-process .command-group", true);
   await settle();
   const compactToolGeometry = await win.webContents.executeJavaScript(`
     (() => {
@@ -2606,7 +2611,7 @@ async function captureCompletedAiResponse(win, report) {
       const checks = {
         groupFound: true,
         groupedTools: rows.length === 10 && group.classList.contains('tools'),
-        compactRows: rowHeights.every((height) => height >= 30 && height <= 40),
+        compactRows: rowHeights.every((height) => height >= 30 && height <= 32),
         boundedScroll: getComputedStyle(list).maxHeight === '304px' && list.scrollHeight > list.clientHeight,
         scrollSemantics: list.getAttribute('role') === 'region' && list.tabIndex === 0,
         rowIcons: rows.every((row) => {

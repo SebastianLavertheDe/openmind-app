@@ -1471,7 +1471,7 @@ describe("chat timeline", () => {
     expect(Boolean(process.compareDocumentPosition(finalAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
-  it("groups completed commands and collapses open tool details with the group", async () => {
+  it("keeps completed command groups collapsed by default and collapses open tool details with the group", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
     window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "check project" }, 1),
@@ -1487,8 +1487,11 @@ describe("chat timeline", () => {
 
     openDisclosure(disclosureFor(await screen.findByText("已处理")));
     const group = disclosureFor(screen.getByText("命令执行失败 · 共 3 条"));
-    expectDisclosureOpen(group, true);
+    expectDisclosureOpen(group, false);
     expect(within(group).getByText("1 条失败")).toBeTruthy();
+
+    fireEvent.click(disclosureTrigger(group));
+    expectDisclosureOpen(group, true);
 
     const [pwd, failed, git] = Array.from(group.querySelectorAll<HTMLElement>(".tool-event"));
     expectDisclosureOpen(pwd, false);
@@ -1550,8 +1553,10 @@ describe("chat timeline", () => {
 
     openDisclosure(disclosureFor(await screen.findByText(m.ai.chat.processed)));
     const group = disclosureFor(screen.getByText(m.ai.tool.toolGroupRan(3)));
-    expectDisclosureOpen(group, true);
+    expectDisclosureOpen(group, false);
     expect(group.classList.contains("tools")).toBe(true);
+    fireEvent.click(disclosureTrigger(group));
+    expectDisclosureOpen(group, true);
     expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
     expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*openmind/ })).toBeTruthy();
     expect(within(group).getByRole("button", { name: /Read.*openmind\/today\.md/ })).toBeTruthy();

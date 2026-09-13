@@ -62,7 +62,9 @@ export const CommandGroup = memo(function CommandGroup({
   const cancelledCalls = callStates.filter(({ state }) => state === "cancelled");
   const incompleteCalls = callStates.filter(({ state }) => state === "incomplete");
   const groupState = commandGroupState(callStates.map(({ state }) => state));
-  const [open, setOpen] = useState(true);
+  // Completed history should stay compact when its process disclosure is opened.
+  // Keep only a live group expanded so current tool progress remains visible.
+  const [open, setOpen] = useState(() => groupState === "running");
   // P1-PRC-3: 改手风琴为多开——用 Set 跟踪展开的卡片,允许同时对比多个命令输出。
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
 

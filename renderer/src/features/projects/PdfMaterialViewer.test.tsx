@@ -31,7 +31,15 @@ vi.mock("pdfjs-dist/web/pdf_viewer.mjs", () => ({
     constructor(public options: any) { state.viewers.push(this); }
   }
 }));
-afterEach(() => { cleanup(); state.tasks.length = 0; state.viewers.length = 0; state.options.length = 0; });
+afterEach(() => {
+  cleanup();
+  state.tasks.length = 0;
+  state.viewers.length = 0;
+  state.options.length = 0;
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("PDF viewer lifecycle", () => {
   it("lets the viewer own all pages and reuses it across unrelated React renders", async () => {
@@ -60,5 +68,58 @@ describe("PDF viewer lifecycle", () => {
     await waitFor(() => expect(state.viewers).toHaveLength(2));
     expect(state.tasks[0].destroy).toHaveBeenCalledOnce();
     expect(state.viewers[0].options.abortSignal.aborted).toBe(true);
+  });
+  it("keeps the centered page geometry stable while resizing without refreshing pdf.js per frame", async () => {
+    let resize: ResizeObserverCallback | undefined;
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) { resize = callback; }
+      observe() { /* no-op */ }
+      disconnect() { /* no-op */ }
+      unobserve() { /* no-op */ }
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const id = ++frameId;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id); });
+
+    let width = 640;
+    const view = render(<PdfMaterialViewer data={new Uint8Array([1])} title="Resizable PDF" onError={vi.fn()}/>);
+    const scroll = view.container.querySelector<HTMLElement>(".pdf-scroll")!;
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, get: () => width });
+    await waitFor(() => expect(resize).toBeTypeOf("function"));
+    const surface = scroll.querySelector<HTMLElement>(".pdfViewer")!;
+    const viewer = state.viewers[0];
+    vi.useFakeTimers();
+
+    for (const nextWidth of [700, 760, 820, 880, 940]) {
+      width = nextWidth;
+      resize?.([], {} as ResizeObserver);
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(performance.now());
+      }
+    }
+
+    // The page has already centered itself in the wider layout, so scaling around
+    // that center keeps it stationary without freezing width or forcing layout.
+    expect(surface.style.width).toBe("");
+    expect(surface.style.transformOrigin).toBe("top center");
+    expect(surface.style.transform).toBe("scale(1.5)");
+    expect(surface.style.transition).toBe("transform 120ms linear");
+    expect(viewer.updateScale).not.toHaveBeenCalled();
+    expect(viewer.update).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(140);
+    expect(surface.style.transform).toBe("");
+    expect(surface.style.transition).toBe("");
+    expect(surface.style.transformOrigin).toBe("");
+    expect(viewer.updateScale).toHaveBeenCalledOnce();
+    expect(viewer.updateScale).toHaveBeenCalledWith({ scaleFactor: 1.5, drawingDelay: 120 });
+    expect(viewer.update).toHaveBeenCalledOnce();
   });
 });

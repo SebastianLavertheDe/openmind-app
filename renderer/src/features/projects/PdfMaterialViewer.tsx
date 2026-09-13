@@ -53,6 +53,7 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
     let lastWidth = 0;
     let settleTimer = 0;
     let gestureZoom = 1;
+    let gestureAnchor = "";
     setReady(false); setPage(1); setPages(0); setDraft(null); setQuery("");
     fit.current = true;
     void (async () => {
@@ -65,8 +66,6 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
         const find = new ui.PDFFindController({ eventBus: bus, linkService: links });
         const surfaceElement = document.createElement("div");
         surfaceElement.className = "pdfViewer";
-        // 拖拽手势用 transform:scale 跟手；左上锚点保证缩放时页面顶端不漂移。
-        surfaceElement.style.transformOrigin = "top left";
         surface = surfaceElement;
         container.replaceChildren(surfaceElement);
         const viewerOptions = {
@@ -114,9 +113,22 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
               // transform 则每帧都触发合成器重新光栅大面积 canvas，软件渲染下
               // 仍然跳帧。改为 transform 过渡动画：动画期间合成器冻结光栅
               // scale、逐帧只重采样既有位图；落定后再一次性做真实缩放。
-              gestureZoom *= width / lastWidth;
+              // pdfViewer 是普通块元素，容器变宽时会先按新宽度重排，内部 page
+              // 的 auto margin 随之重新居中；若再从左上角缩放整个块，居中偏移
+              // 也会被放大，页面就会在拖拽时漂向右侧。页面能放进新容器时
+              // 围绕容器中心缩放，保持已居中的页不动；缩窄到页面溢出时则从
+              // 左侧缩放并补上适应宽度的边距。两条路径都只改合成属性。
+              const targetPageWidth = Math.max(40, width - 40);
+              gestureZoom = targetPageWidth / pageWidth;
+              const centered = pageWidth <= width;
+              const nextAnchor = centered ? "top center" : "top left";
+              if (nextAnchor !== gestureAnchor) {
+                gestureAnchor = nextAnchor;
+                surface?.style.setProperty("transform-origin", gestureAnchor);
+              }
+              const translate = centered ? "" : `translateX(${Math.max(0, (width - targetPageWidth) / 2)}px) `;
               surface?.style.setProperty("transition", "transform 120ms linear");
-              surface?.style.setProperty("transform", `scale(${gestureZoom})`);
+              surface?.style.setProperty("transform", `${translate}scale(${gestureZoom})`);
             }
             lastWidth = width;
             if (settleTimer) window.clearTimeout(settleTimer);
@@ -126,7 +138,9 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
               if (!viewer || !finalWidth) return;
               surface?.style.removeProperty("transform");
               surface?.style.removeProperty("transition");
+              surface?.style.removeProperty("transform-origin");
               gestureZoom = 1;
+              gestureAnchor = "";
               if (fit.current && viewer.currentScale > 0) {
                 const settledPage = viewer.getPageView(viewer.currentPageNumber - 1);
                 // 手势期间 pdf.js 未缩放，viewport.width 仍是落定前逻辑宽度，
@@ -149,6 +163,8 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
       abort.abort(); observer?.disconnect(); cancelAnimationFrame(frame);
       if (settleTimer) window.clearTimeout(settleTimer);
       surface?.style.removeProperty("transform");
+      surface?.style.removeProperty("transition");
+      surface?.style.removeProperty("transform-origin");
       controller.current = null;
       // The JS API accepts null to dispose; its declaration omits that overload.
       viewer?.setDocument(null as unknown as PDFDocumentProxy);

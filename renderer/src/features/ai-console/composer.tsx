@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
@@ -576,7 +576,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             )}
             <ChipSelect
               className="provider-select"
-              icon={<Sparkles size={15} />}
               label={m.ai.composer.provider}
               value={providerId}
               options={availableProviders.map((provider) => ({ value: provider.id, label: provider.label }))}
