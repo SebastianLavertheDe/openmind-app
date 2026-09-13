@@ -154,6 +154,20 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("heading", { name: "外观" })).toBeNull();
   });
 
+  it("supports the compact settings master-detail back path", async () => {
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    const page = document.querySelector<HTMLElement>(".settings-page")!;
+    expect(page.hasAttribute("data-compact-detail-open")).toBe(false);
+
+    openCategory("AI 与模型");
+    expect(page.getAttribute("data-compact-detail-open")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+
+    expect(page.hasAttribute("data-compact-detail-open")).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "AI 与模型" })));
+  });
+
   it("returns to the application from the dedicated settings sidebar", async () => {
     const onBack = vi.fn();
     renderSettings(vi.fn(), snapshot, vi.fn(), onBack);

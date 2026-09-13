@@ -381,7 +381,7 @@ export function CreativeWorkspacePage({
             onResizeCancel={layout.cancelListResize}
             onResizeActiveChange={layout.onResizeActiveChange}
           />
-          <main className={`creative-main-pane${listVisible ? "" : " list-collapsed"}`}>
+          <section className={`creative-main-pane${listVisible ? "" : " list-collapsed"}`}>
             {!listVisible ? (
               <button
                 type="button"
@@ -437,7 +437,7 @@ export function CreativeWorkspacePage({
                 updateManifest={updateManifest}
               />
             </div>
-          </main>
+          </section>
       </div>
     </div>
   );

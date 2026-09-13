@@ -7,7 +7,7 @@ import { ContentPreview } from "./ContentPreview";
 import { ResponsiveActionBar, type ResponsiveAction } from "../design-system/components";
 import { useResponsiveLayout } from "../app/responsive-layout";
 
-export function WorkspaceFilePreview({ path, onClose }: { path: string; onClose(): void }) {
+export function WorkspaceFilePreview({ path, onClose, embedded = false }: { path: string; onClose(): void; embedded?: boolean }) {
   const responsiveLayout = useResponsiveLayout();
   const [content, setContent] = useState<ContentRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export function WorkspaceFilePreview({ path, onClose }: { path: string; onClose(
   }], [onClose, path]);
 
   return (
-    <section className="workspace-file-preview ai-file-preview" role="complementary" aria-label={m.ai.workbench.filePreview}>
+    <section className={`workspace-file-preview ai-file-preview${embedded ? " is-embedded" : ""}`} role="complementary" aria-label={m.ai.workbench.filePreview}>
       <header>
         <FileText size={16} />
         <div>

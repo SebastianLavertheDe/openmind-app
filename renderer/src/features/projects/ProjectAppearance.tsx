@@ -243,6 +243,7 @@ export function ProjectEditDialog({
             ref={iconTriggerRef}
             type="button"
             className="project-icon-picker-trigger"
+            data-motion="selection"
             aria-haspopup="dialog"
             aria-expanded={iconPickerOpen}
             onClick={() => setIconPickerOpen((current) => !current)}
@@ -259,6 +260,7 @@ export function ProjectEditDialog({
                 key={option.id}
                 type="button"
                 className={color === option.id ? "selected" : ""}
+                data-motion="selection"
                 aria-label={option.label}
                 aria-pressed={color === option.id}
                 title={option.label}
@@ -286,6 +288,7 @@ export function ProjectEditDialog({
                 key={option.id}
                 type="button"
                 className={icon === option.id ? "selected" : ""}
+                data-motion="selection"
                 aria-label={option.label}
                 aria-pressed={icon === option.id}
                 title={option.label}

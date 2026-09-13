@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
+import { ResponsiveLayoutProvider } from "../../app/responsive-layout";
 import { ProjectsPage } from "./ProjectsPage";
 import type { ProjectDetail, ProjectSummary } from "./types";
 
@@ -98,6 +99,55 @@ describe("ProjectsPage", () => {
     expect(tabs.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("搜索任务")).toBeTruthy();
     expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
+  });
+
+  it("supports arrow-key navigation across the project content tabs", async () => {
+    installApi();
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
+    const tasksTab = await screen.findByRole("tab", { name: "任务" });
+    tasksTab.focus();
+    fireEvent.keyDown(tasksTab, { key: "ArrowRight" });
+
+    const filesTab = await screen.findByRole("tab", { name: "文件" });
+    await waitFor(() => expect(filesTab.getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(document.activeElement).toBe(filesTab));
+    expect(tasksTab.tabIndex).toBe(-1);
+    expect(filesTab.tabIndex).toBe(0);
+  });
+
+  it("moves focus to the list restore control when a compact file selection opens detail", async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query === "(max-width: 1480px)",
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true)
+    } as MediaQueryList));
+    installApi({
+      listProjectMaterials: vi.fn(async () => [existingMaterial]),
+      readProjectMaterial: vi.fn(async () => ({ material: existingMaterial, content: "# 研究资料", truncated: false }))
+    });
+
+    try {
+      render(<ResponsiveLayoutProvider><AiProvider initial={snapshot}><ProjectsPage /></AiProvider></ResponsiveLayoutProvider>);
+      fireEvent.click(await screen.findByRole("button", { name: "AI 安全" }));
+      fireEvent.click(await screen.findByRole("button", { name: "展开项目列表" }));
+
+      const tasksTab = await screen.findByRole("tab", { name: "任务" });
+      tasksTab.focus();
+      fireEvent.keyDown(tasksTab, { key: "ArrowRight" });
+
+      const reopen = await screen.findByRole("button", { name: "展开项目列表" });
+      await waitFor(() => expect(document.activeElement).toBe(reopen));
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it("keeps the new-conversation view until a concrete task is selected", async () => {

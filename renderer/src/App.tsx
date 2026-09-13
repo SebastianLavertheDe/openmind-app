@@ -3,7 +3,7 @@ import { messages as m } from "@shared/messages";
 import { AiProvider, useAiActions, useAiSnapshot, useAiUi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
 import { AppShell } from "./app/AppShell";
-import { ResponsiveLayoutProvider } from "./app/responsive-layout";
+import { ResponsiveLayoutProvider, useResponsiveLayout } from "./app/responsive-layout";
 import { SidebarRecent } from "./app/SidebarRecent";
 import { GlobalSearch } from "./app/GlobalSearch";
 import type { AppRoute, AppRouteState, Navigate } from "./app/routes";
@@ -71,6 +71,7 @@ function Workspace({
   route: AppRoute;
   setRoute: Dispatch<SetStateAction<AppRoute>>;
 }) {
+  const responsiveLayout = useResponsiveLayout();
   // A valid openmind root plus the official cctools-skills repository installed
   // are the actual first-start gate. The checklist remains available during
   // setup, while an already configured workspace still opens directly on a
@@ -89,6 +90,7 @@ function Workspace({
   const actions = useAiActions();
   const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
+  const searchTriggerRef = useRef<HTMLElement | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
     const next = await window.openmind.getBootstrap();
     setBootstrap(next);
@@ -118,10 +120,18 @@ function Workspace({
       document.querySelector<HTMLButtonElement>(`button[aria-label="${m.nav.settings}"]`)?.focus({ preventScroll: true });
     });
   }, []);
-  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const openSearch = useCallback(() => {
+    const activeElement = document.activeElement;
+    searchTriggerRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement
+      : document.querySelector<HTMLElement>('[data-action-id="search"]');
+    setSearchOpen(true);
+  }, []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   const openWorkspaceFile = useCallback((path: string) => setWorkspaceFilePath(path), []);
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
+  const embeddedFilePreviewPath = route.page === "brief" ? workspaceFilePath : null;
+  const standaloneFilePreviewPath = route.page === "brief" ? null : workspaceFilePath;
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
   useEffect(() => { void window.openmind.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
@@ -152,8 +162,10 @@ function Workspace({
       return;
     }
     // 每日简报首次进入时直接提供对话框；同页手动收起后保持用户选择。
-    if (route.page === "brief" && enteredPage && ui.panelMode === "collapsed") ui.setPanelMode("default");
-  }, [route.page, showAiCompanion, ui.panelMode, ui.setPanelMode]);
+    if (route.page === "brief" && enteredPage && ui.panelMode === "collapsed" && responsiveLayout.companion !== "canvas") {
+      ui.setPanelMode("default");
+    }
+  }, [responsiveLayout.companion, route.page, showAiCompanion, ui.panelMode, ui.setPanelMode]);
   useEffect(() => {
     // Project sessions are only valid inside the Project task surface. Clear
     // the global selection when leaving Projects so Creative, Brief and the
@@ -182,10 +194,12 @@ function Workspace({
     providers: snapshot.providers,
     aiFilePreviewPath,
     onAiFilePreviewPathChange: setAiFilePreviewPath,
+    embeddedFilePreviewPath,
+    onCloseEmbeddedFilePreview: closeWorkspaceFile,
     confirmAction: ui.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, ui.confirm, refreshBootstrap, exitSettings]);
+  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, ui.confirm, refreshBootstrap, exitSettings]);
   const aiSidebarElement = useMemo(
     () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
     [showAiCompanion, navCollapsed]
@@ -216,13 +230,13 @@ function Workspace({
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
         <div
           className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`}
-          aria-hidden={settingsOpen || Boolean(workspaceFilePath) || undefined}
-          inert={settingsOpen || Boolean(workspaceFilePath)}
+          aria-hidden={settingsOpen || Boolean(standaloneFilePreviewPath) || undefined}
+          inert={settingsOpen || Boolean(standaloneFilePreviewPath)}
         >
           {renderActiveRoute({ route, ...routeRenderProps })}
         </div>
       </Suspense>
-      {workspaceFilePath && !settingsOpen ? <WorkspaceFilePreview path={workspaceFilePath} onClose={closeWorkspaceFile} /> : null}
+      {standaloneFilePreviewPath && !settingsOpen ? <WorkspaceFilePreview path={standaloneFilePreviewPath} onClose={closeWorkspaceFile} /> : null}
       {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
           {renderActiveRoute({ route: { page: "settings", state: settingsRouteState, nonce: 0 }, ...routeRenderProps })}
@@ -249,7 +263,7 @@ function Workspace({
       onNewTask={() => { void actions.setActiveSession(null); navigate("ai"); }}
       >
       {routeContent}
-      <GlobalSearch open={searchOpen} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />
+      <GlobalSearch open={searchOpen} triggerRef={searchTriggerRef} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />
       <FeedbackHost />
       </AppShell>
     </FilePreviewProvider>

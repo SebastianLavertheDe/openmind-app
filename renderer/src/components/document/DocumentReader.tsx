@@ -144,9 +144,9 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
           }
         }}/>
         <span>{matches.length ? matchIndex + 1 : 0} / {matches.length}</span>
-        <button aria-label="上一个匹配" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
-        <button aria-label="下一个匹配" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
-        <button aria-label="关闭搜索" onClick={() => setFindOpen(false)}><X size={14}/></button>
+        <button aria-label="上一个匹配" data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
+        <button aria-label="下一个匹配" data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
+        <button aria-label="关闭搜索" data-motion="icon" onClick={() => setFindOpen(false)}><X size={14}/></button>
       </div>
     </div> : null}
     {error ? <p role="alert">{error}</p> : !model ? <p role="status">正在打开文档…</p> : null}

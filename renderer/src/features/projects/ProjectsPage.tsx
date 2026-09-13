@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Archive,
@@ -63,6 +63,7 @@ export function ProjectsPage({
   const [detailHost, setDetailHost] = useState<HTMLDivElement | null>(null);
   const layout = useListDetailLayout("openmind.list-detail.projects.v1", { listWidth: 264, listCollapsed: false });
   const outputNavigationGuardRef = useRef<ProjectOutputNavigationGuard | null>(null);
+  const restoreCompactFocusRef = useRef(false);
   const confirmRef = useRef(ui.confirm);
   confirmRef.current = ui.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
@@ -72,6 +73,15 @@ export function ProjectsPage({
     if (!compactWorkspace) return;
     setCompactListOpen(!hasActiveProject);
   }, [compactWorkspace, hasActiveProject]);
+
+  useEffect(() => {
+    if (compactListOpen || !restoreCompactFocusRef.current) return;
+    restoreCompactFocusRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(".project-list-reopen")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [compactListOpen]);
 
   // 项目详情打开期间，把「新对话归属项目」告知全局 AI 侧栏：
   // 在项目页发起的新对话会自动创建为当前项目的任务，而不是工作区会话。
@@ -257,6 +267,40 @@ export function ProjectsPage({
     presentProjectView(next);
   }, [activeProject?.name, presentProjectView]);
 
+  const handleViewKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>, current: ProjectView) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = PROJECT_VIEWS.indexOf(current);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? PROJECT_VIEWS.length - 1
+        : event.key === "ArrowRight"
+          ? (currentIndex + 1) % PROJECT_VIEWS.length
+          : (currentIndex - 1 + PROJECT_VIEWS.length) % PROJECT_VIEWS.length;
+    const next = PROJECT_VIEWS[nextIndex];
+    void navigateProject(() => {
+      selectView(next);
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLButtonElement>(`[data-project-view="${next}"]`)?.focus();
+      });
+    });
+  }, [navigateProject, selectView]);
+
+  const handleTaskSelectionChange = useCallback((taskId?: string) => {
+    if (compactWorkspace && taskId) {
+      restoreCompactFocusRef.current = true;
+      setCompactListOpen(false);
+    }
+  }, [compactWorkspace]);
+
+  const handleFileSelectionChange = useCallback((selected: boolean) => {
+    if (compactWorkspace && selected) {
+      restoreCompactFocusRef.current = true;
+      setCompactListOpen(false);
+    }
+  }, [compactWorkspace]);
+
   const activeProjectName = activeProject?.name;
   const filteredProjects = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -280,7 +324,7 @@ export function ProjectsPage({
           {activeProject ? (
             <>
               <header className="project-pane-project">
-                <button type="button" className="project-pane-back" aria-label="返回项目列表" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
+                <button type="button" className="project-pane-back" aria-label="返回项目列表" data-motion="icon" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
                 <DropdownMenu
                   className="project-pane-create"
@@ -288,8 +332,8 @@ export function ProjectsPage({
                   menuLabel="新建项目内容"
                   label={<Plus size={16} aria-hidden="true" />}
                 >
-                  <button type="button" role="menuitem" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>新建任务</span></button>
-                  <button type="button" role="menuitem" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>添加资料</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>新建任务</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>添加资料</span></button>
                 </DropdownMenu>
               </header>
               <div className="project-pane-tabs" role="tablist" aria-label="项目内容类型">
@@ -301,9 +345,15 @@ export function ProjectsPage({
                       key={value}
                       type="button"
                       role="tab"
+                      id={`project-view-tab-${value}`}
                       className={view === value ? "active" : ""}
                       aria-selected={view === value}
+                      aria-controls="project-section-panel"
+                      tabIndex={view === value ? 0 : -1}
+                      data-project-view={value}
+                      data-motion="selection"
                       onClick={() => void navigateProject(() => selectView(value))}
+                      onKeyDown={(event) => handleViewKeyDown(event, value)}
                     >
                       <Icon aria-hidden="true" />
                       <span>{meta.label}</span>
@@ -311,7 +361,7 @@ export function ProjectsPage({
                   );
                 })}
               </div>
-              <div className="project-pane-section" ref={setSectionListHost} />
+              <div className="project-pane-section" id="project-section-panel" role="tabpanel" aria-labelledby={`project-view-tab-${view}`} ref={setSectionListHost} />
             </>
           ) : (
             <>
@@ -370,7 +420,7 @@ export function ProjectsPage({
           onResizeCancel={layout.cancelListResize}
           onResizeActiveChange={layout.onResizeActiveChange}
         />
-        <main className={`project-main-pane${listVisible ? "" : " list-collapsed"}`}>
+        <section className={`project-main-pane${listVisible ? "" : " list-collapsed"}`}>
           {!listVisible ? (
             <button
               type="button"
@@ -389,12 +439,12 @@ export function ProjectsPage({
               action={!query ? <button className="primary-button" onClick={openCreateDialog}><Plus size={15} />创建项目</button> : undefined}
             />
           )}
-        </main>
+        </section>
       </div>
       {attachedPanelsReady ? (
         <>
-          {view === "tasks" ? <ProjectTasksPanel key={`tasks:${activeProject!.name}`} project={activeProject!} initialTaskId={initialSection === "tasks" ? initialItem : undefined} createRequested={createAction === "tasks"} seed={taskSeed} onCreateHandled={() => { setCreateAction(null); setTaskSeed(null); }} onChanged={() => void refreshActive()} listHost={sectionListHost} detailHost={detailHost} /> : null}
-          {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
+          {view === "tasks" ? <ProjectTasksPanel key={`tasks:${activeProject!.name}`} project={activeProject!} initialTaskId={initialSection === "tasks" ? initialItem : undefined} createRequested={createAction === "tasks"} seed={taskSeed} onCreateHandled={() => { setCreateAction(null); setTaskSeed(null); }} onChanged={() => void refreshActive()} onSelectionChange={handleTaskSelectionChange} listHost={sectionListHost} detailHost={detailHost} /> : null}
+          {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onSelectionChange={handleFileSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
         </>
       ) : null}
       <ProjectDialog open={createProjectOpen} title="创建项目" description="项目名会作为本地目录名，请使用清晰且稳定的名称。" confirmLabel="创建项目" busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
@@ -442,6 +492,7 @@ function ProjectListGroup({
             <button
               type="button"
               className="project-list-project"
+              data-motion="selection"
               aria-current={activeProjectName === project.name ? "true" : undefined}
               onClick={() => onOpen(project)}
             >
@@ -456,9 +507,9 @@ function ProjectListGroup({
               disabled={busyProjectName === project.name}
               label={<MoreHorizontal size={17} aria-hidden="true" />}
             >
-              <button type="button" role="menuitem" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />编辑</button>
-              <button type="button" role="menuitem" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? "取消收藏" : "收藏"}</button>
-              <button type="button" role="menuitem" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />编辑</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? "取消收藏" : "收藏"}</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
             </DropdownMenu>
           </div>
         ))}

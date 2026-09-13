@@ -431,7 +431,10 @@ export const aiMessages = {
   risk: { detected: "检测到风险内容" },
 
   sidebar: {
+    dialogLabel: "AI 助手",
+    close: "关闭 AI 助手",
     expand: "展开 AI 侧栏",
+    providerSelect: "AI 提供方",
     width: "AI 侧栏宽度",
     viewInWorkbench: "在工作台查看会话",
     pendingContexts: (n: number) => `${n} 项待发送上下文`,

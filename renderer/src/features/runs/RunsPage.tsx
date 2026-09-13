@@ -166,7 +166,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
           })}
         </aside>
 
-        <main className="workspace-card run-detail">
+        <section className="workspace-card run-detail">
           {!selected ? <p className="runs-empty">{m.runs.list.select}</p> : <>
             <header className="run-detail-header">
               <div><span className="eyebrow">{selected.kind.toUpperCase()}</span><h2>{selected.kind === "skill" ? selected.record.request.skillId : selected.record.workflowSkillId}</h2><p>{selected.record.id}</p></div>
@@ -200,7 +200,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
               <section className="run-section"><h3>{m.runs.events.title}</h3><EventList events={events} /></section>
             </>}
           </>}
-        </main>
+        </section>
       </section>
     </div>
   );

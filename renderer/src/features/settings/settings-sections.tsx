@@ -5,7 +5,7 @@ import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProvide
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
-import { DropdownMenu, SegmentedControl, Select, StatusBadge, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
+import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
 
 const m = messages;
 
@@ -391,14 +391,16 @@ export function SkillSettingsSection({
         </button>
       )}
     >
-      {!mode ? <div className="settings-capability-tabs" role="tablist" aria-label={m.settings.skills.catalogAria}>
-        <button type="button" role="tab" data-motion="selection" aria-selected={catalog === "skills"} onClick={() => setCatalog("skills")}>
-          <Package size={14} aria-hidden />{m.settings.skills.skillsTab}<span>{skills.length}</span>
-        </button>
-        <button type="button" role="tab" data-motion="selection" aria-selected={catalog === "mcp"} onClick={() => setCatalog("mcp")}>
-          <Server size={14} aria-hidden />{m.settings.skills.mcpTab}<span>{mcpServers.length}</span>
-        </button>
-      </div> : null}
+      {!mode ? <Tabs<"skills" | "mcp">
+        className="settings-capability-tabs"
+        value={catalog}
+        label={m.settings.skills.catalogAria}
+        tabs={[
+          { value: "skills" as const, label: m.settings.skills.skillsTab, count: skills.length, icon: <Package size={14} aria-hidden /> },
+          { value: "mcp" as const, label: m.settings.skills.mcpTab, count: mcpServers.length, icon: <Server size={14} aria-hidden /> }
+        ]}
+        onChange={setCatalog}
+      /> : null}
 
       {catalog === "skills" ? <>
         <div className="settings-skill-toolbar">

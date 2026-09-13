@@ -21,6 +21,6 @@ export function applyTheme(p: UserPreferences | null | undefined): void {
   else if (p?.density === "comfortable") root.style.setProperty("--space-3", "16px");
   else root.style.removeProperty("--space-3");
   if (p?.fontSize === "large") { root.style.setProperty("--fs-body", "15px"); root.style.setProperty("--fs-caption", "12px"); }
-  else if (p?.fontSize === "small") { root.style.setProperty("--fs-body", "12px"); root.style.setProperty("--fs-caption", "10px"); }
+  else if (p?.fontSize === "small") { root.style.setProperty("--fs-body", "12px"); root.style.setProperty("--fs-caption", "12px"); }
   else { root.style.removeProperty("--fs-body"); root.style.removeProperty("--fs-caption"); }
 }

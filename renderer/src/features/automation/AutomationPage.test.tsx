@@ -111,6 +111,21 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
+  it("offers an announced retry path when the initial rule load fails", async () => {
+    const listAutomationRules = vi.fn()
+      .mockRejectedValueOnce(new Error("automation unavailable"))
+      .mockResolvedValueOnce([]);
+    window.openmind = makeApi({ listAutomationRules });
+
+    render(<AutomationPage />);
+
+    expect((await screen.findByRole("alert")).textContent).toContain("automation unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(listAutomationRules).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByText(messages.automation.empty)).toBeTruthy();
+  });
+
   it("loads the installed runnable catalog and shows formal Process metadata", async () => {
     const listInstalledRunnableSkills = vi.fn(async () => skillCatalog);
     window.openmind = makeApi({ listInstalledRunnableSkills });

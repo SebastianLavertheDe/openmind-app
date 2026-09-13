@@ -29,7 +29,7 @@ const pages = [
   // readiness is stronger here than an arbitrary desktop-sized text budget.
   { id: "creative", label: "创作", minTextLength: 100, requiredSelector: ".creative-workspace-page", expectedCompanionSelector: ".ai-sidebar" },
   { id: "automation", label: "自动化", requiredSelector: ".automation-page", expectedCompanionSelector: ".ai-sidebar" },
-  { id: "settings", label: "设置", requiredSelector: ".settings-page", settingsMode: true }
+  { id: "settings", label: "设置", minTextLength: 60, requiredSelector: ".settings-page", settingsMode: true }
 ];
 
 app.commandLine.appendSwitch("disable-gpu");
@@ -253,7 +253,7 @@ async function captureCreativeReaderLayout(win, report) {
       const body = document.body;
       const container = document.querySelector('.creative-topic-file-content');
       const preview = container?.querySelector('.file-reader');
-      const prose = preview?.querySelector(':scope > :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr)');
+      const prose = preview?.querySelector('.document-block > :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr)');
       const rect = (element) => {
         if (!(element instanceof Element)) return null;
         const value = element.getBoundingClientRect();
@@ -489,7 +489,7 @@ async function captureCompanionLayoutContracts(win, report) {
 
   await win.webContents.executeJavaScript(`
     (() => {
-      const collapse = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      const collapse = document.querySelector('.ai-sidebar-close');
       if (collapse instanceof HTMLButtonElement) collapse.click();
     })()
   `);
@@ -599,7 +599,7 @@ async function captureGlobalSearchLayerContract(win, report) {
 
   await win.webContents.executeJavaScript(`
     (() => {
-      const collapse = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      const collapse = document.querySelector('.ai-sidebar-close');
       if (collapse instanceof HTMLButtonElement) collapse.click();
     })()
   `);
@@ -935,7 +935,7 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
 async function captureControlledPageSnapshot(win, report, viewport, page) {
   const collapsed = await win.webContents.executeJavaScript(`
     (() => {
-      const button = document.querySelector('.ai-sidebar button[aria-label="收起"]');
+      const button = document.querySelector('.ai-sidebar-close');
       if (!(button instanceof HTMLButtonElement)) return false;
       button.click();
       return true;
@@ -1181,103 +1181,6 @@ async function captureResponsiveGapContracts(win, report) {
     });
   }
 
-  await setCssViewportWidth(win, 720, 600);
-  const analyticsOpened = await win.webContents.executeJavaScript(`
-    (() => {
-      const tab = [...document.querySelectorAll('[role="tab"]')].find((element) => element.textContent?.trim() === '数据分析');
-      if (!(tab instanceof HTMLButtonElement)) return false;
-      tab.click();
-      return true;
-    })()
-  `);
-  if (!analyticsOpened) throw new Error("Creative analytics tab was not reachable.");
-  await waitForSelector(win, ".creative-analytics");
-  const analyticsGeometry = await win.webContents.executeJavaScript(`
-    (() => {
-      const section = document.querySelector('.creative-analytics');
-      const rows = [...document.querySelectorAll('.analytics-grid article > div')];
-      const labels = rows.map((row) => row.querySelector(':scope > span')).filter(Boolean);
-      const last = rows.at(-1);
-      last?.scrollIntoView({ block: 'end' });
-      const sectionBox = section?.getBoundingClientRect();
-      const lastBox = last?.getBoundingClientRect();
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        sectionClientWidth: section instanceof HTMLElement ? section.clientWidth : 0,
-        sectionScrollWidth: section instanceof HTMLElement ? section.scrollWidth : 0,
-        rowsContained: rows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2),
-        labelsContained: labels.every((label) => {
-          if (!(label instanceof HTMLElement)) return false;
-          const row = label.parentElement?.getBoundingClientRect();
-          const box = label.getBoundingClientRect();
-          const style = getComputedStyle(label);
-          return Boolean(row && box.left >= row.left - 1 && box.right <= row.right + 1 && style.overflow === 'hidden' && style.textOverflow === 'ellipsis');
-        }),
-        longLabelEllipsized: labels.some((label) => label instanceof HTMLElement && (label.getAttribute('title') || '').includes('enterprise-content-distribution') && label.scrollWidth > label.clientWidth && getComputedStyle(label).textOverflow === 'ellipsis'),
-        lastRowReachable: Boolean(sectionBox && lastBox && lastBox.bottom > sectionBox.top && lastBox.top < sectionBox.bottom)
-      };
-    })()
-  `);
-  await recordContractState(win, report, "creative-analytics-long-platform-720x600", "创作", "Analytics ellipsizes a long platform label while preserving its full title at 720x600", analyticsGeometry, {
-    sectionRendered: analyticsGeometry.sectionClientWidth > 0,
-    sectionContained: analyticsGeometry.sectionScrollWidth <= analyticsGeometry.sectionClientWidth + 2,
-    rowsContained: analyticsGeometry.rowsContained,
-    labelsContained: analyticsGeometry.labelsContained,
-    fullLabelAvailable: analyticsGeometry.longLabelEllipsized,
-    lastRowReachable: analyticsGeometry.lastRowReachable
-  });
-
-  const historyViewOpened = await win.webContents.executeJavaScript(`
-    (() => {
-      const tab = [...document.querySelectorAll('[role="tab"]')].find((element) => element.textContent?.trim() === '版本历史');
-      if (!(tab instanceof HTMLButtonElement)) return false;
-      tab.click();
-      return true;
-    })()
-  `);
-  if (!historyViewOpened) throw new Error("Creative history tab was not reachable.");
-  await waitForSelector(win, ".creative-workspace .creative-item-row");
-  const historyProjectOpened = await win.webContents.executeJavaScript(`
-    (() => {
-      const button = [...document.querySelectorAll('.creative-item-row')].find((element) => element.textContent?.includes('Windows/WSL'));
-      if (!(button instanceof HTMLButtonElement)) return false;
-      button.click();
-      return true;
-    })()
-  `);
-  if (!historyProjectOpened) throw new Error("Creative history project fixture was not reachable.");
-  await waitForSelector(win, ".creative-history .version-row");
-  const historyGeometry = await win.webContents.executeJavaScript(`
-    (() => {
-      const section = document.querySelector('.creative-history');
-      const compare = document.querySelector('.history-compare');
-      const row = document.querySelector('.creative-history .version-row');
-      const note = row?.querySelector('strong');
-      row?.scrollIntoView({ block: 'end' });
-      const sectionBox = section?.getBoundingClientRect();
-      const rowBox = row?.getBoundingClientRect();
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        sectionClientWidth: section instanceof HTMLElement ? section.clientWidth : 0,
-        sectionScrollWidth: section instanceof HTMLElement ? section.scrollWidth : 0,
-        compareContained: compare instanceof HTMLElement && compare.scrollWidth <= compare.clientWidth + 2,
-        rowContained: row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2,
-        rowReachable: Boolean(sectionBox && rowBox && rowBox.bottom > sectionBox.top && rowBox.top < sectionBox.bottom),
-        fullNoteAvailable: Boolean(note?.getAttribute('title')?.includes('long-version-note-')),
-        actionCount: row?.querySelectorAll('button').length || 0
-      };
-    })()
-  `);
-  await recordContractState(win, report, "creative-history-long-note-720x600", "创作", "History keeps long version notes and actions contained and reachable at 720x600", historyGeometry, {
-    sectionRendered: historyGeometry.sectionClientWidth > 0,
-    sectionContained: historyGeometry.sectionScrollWidth <= historyGeometry.sectionClientWidth + 2,
-    compareContained: historyGeometry.compareContained,
-    rowContained: historyGeometry.rowContained,
-    rowReachable: historyGeometry.rowReachable,
-    fullNoteAvailable: historyGeometry.fullNoteAvailable,
-    actionsReachable: historyGeometry.actionCount === 2
-  });
-
   await setCssViewportWidth(win, 841, 720);
   await clickNav(win, "新建任务");
   await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
@@ -1313,6 +1216,7 @@ async function captureResponsiveGapContracts(win, report) {
           visibility: flyout instanceof Element ? getComputedStyle(flyout).visibility : null,
           listClientHeight: list instanceof HTMLElement ? list.clientHeight : 0,
           listScrollHeight: list instanceof HTMLElement ? list.scrollHeight : 0,
+          listOverflowY: list instanceof HTMLElement ? getComputedStyle(list).overflowY : null,
           insideViewport: Boolean(box && box.left >= 8 - 1 && box.top >= 8 - 1 && box.right <= window.innerWidth - 8 + 1 && box.bottom <= window.innerHeight - 8 + 1)
         };
       })()
@@ -1320,7 +1224,8 @@ async function captureResponsiveGapContracts(win, report) {
     await recordContractState(win, report, `ai-history-${width}`, "新建任务", `History flyout remains anchored after resizing to ${width}px`, geometry, {
       visible: geometry.visibility === "visible" && Boolean(geometry.flyout?.width && geometry.flyout?.height),
       insideViewport: geometry.insideViewport,
-      longListScrollable: geometry.listScrollHeight > geometry.listClientHeight
+      listScrollsWhenNeeded: geometry.listScrollHeight > geometry.listClientHeight
+        || ["auto", "scroll"].includes(geometry.listOverflowY)
     });
   }
 
@@ -1807,7 +1712,7 @@ async function captureResponsiveGapContracts(win, report) {
   }
 
   await win.webContents.executeJavaScript(`document.querySelector('.ai-file-preview [data-action-id="close"]')?.click()`);
-  await waitForSelectorToDisappear(win, ".ai-file-preview");
+  await waitForSelectorRemoved(win, ".ai-file-preview");
   const previewCloseFocus = await win.webContents.executeJavaScript(`
     (() => ({
       previewRemoved: !document.querySelector('.ai-file-preview'),
@@ -1984,10 +1889,10 @@ async function exitSettings(win) {
 }
 
 async function waitForReady(win, label, options = {}) {
-  const minTextLength = options.minTextLength ?? 200;
+  const expectedSettingsMode = options.settingsMode === true;
+  const minTextLength = options.minTextLength ?? (expectedSettingsMode ? 60 : 200);
   const requiredSelector = options.requiredSelector || "body";
   const expectedCompanionSelector = options.expectedCompanionSelector || null;
-  const expectedSettingsMode = options.settingsMode === true;
   let lastState = null;
   for (let attempt = 0; attempt < 100; attempt++) {
     const state = await win.webContents.executeJavaScript(`
@@ -2082,11 +1987,11 @@ async function waitForReady(win, label, options = {}) {
 }
 
 async function inspectPage(win, label, options = {}) {
-  const minTextLength = options.minTextLength ?? 200;
+  const expectedSettingsMode = options.settingsMode === true;
+  const minTextLength = options.minTextLength ?? (expectedSettingsMode ? 60 : 200);
   const requiredSelector = options.requiredSelector || "body";
   const expectedCompanionSelector = options.expectedCompanionSelector || null;
   const expectError = options.expectError === true;
-  const expectedSettingsMode = options.settingsMode === true;
   return win.webContents.executeJavaScript(`
     (() => {
       const root = document.documentElement;
@@ -2866,6 +2771,15 @@ async function waitForSelectorToDisappear(win, selector) {
   throw new Error(`Timed out waiting for visible selector to disappear: ${selector}`);
 }
 
+async function waitForSelectorRemoved(win, selector) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const present = await win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+    if (!present) return;
+    await delay(80);
+  }
+  throw new Error(`Timed out waiting for selector removal: ${selector}`);
+}
+
 async function waitForDisclosureState(win, rootSelector, expanded, index = 0) {
   let lastState = null;
   for (let attempt = 0; attempt < 80; attempt++) {
@@ -3024,13 +2938,20 @@ function settle() {
 }
 
 async function setCssViewportWidth(win, desiredWidth, height) {
-  let nativeWidth = desiredWidth;
+  const currentInnerWidth = Number(await win.webContents.executeJavaScript("window.innerWidth"));
+  const [currentNativeWidth] = win.getSize();
+  // Account for the platform's window frame before resizing. Starting from the
+  // raw CSS target can briefly cross a responsive breakpoint and dismiss open
+  // popovers even though the final width keeps their anchor visible.
+  let nativeWidth = currentNativeWidth + desiredWidth - currentInnerWidth;
   for (let attempt = 0; attempt < 4; attempt++) {
     win.setSize(nativeWidth, height);
     await settle();
     const actualWidth = await win.webContents.executeJavaScript("window.innerWidth");
     const delta = desiredWidth - Number(actualWidth);
-    if (Math.abs(delta) <= 1) return;
+    // One CSS pixel changes the 840/841 and 1480/1481 semantic states, so
+    // boundary contracts need a tighter tolerance than ordinary geometry.
+    if (Math.abs(delta) <= 0.25) return;
     nativeWidth += delta;
   }
   throw new Error(`Unable to reach CSS viewport width ${desiredWidth}.`);

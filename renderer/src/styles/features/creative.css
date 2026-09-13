@@ -9,7 +9,7 @@
   grid-template-rows: auto minmax(0, 1fr);
 }
 
-.creative-workspace-page .reader-markdown.file-reader > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
+.creative-workspace-page .reader-markdown.file-reader .document-block > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
   max-width: var(--creative-prose-max-width);
   margin-inline: auto;
 }
@@ -248,7 +248,7 @@
 .stream-date-file small {
   margin-top: 4px;
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 .stream-date-file > b {
@@ -394,7 +394,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
 }
 
@@ -425,7 +425,7 @@
   display: -webkit-box;
   margin: 5px 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -627,7 +627,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .editor-mode-bar button.active {
@@ -690,7 +690,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .inline-review-panel .review-issues li.error {
@@ -709,7 +709,7 @@
 .inline-review-panel .review-clean {
   margin: 8px 0 0;
   color: var(--green);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .inline-review-panel .review-status {
@@ -720,7 +720,7 @@
   margin: 0;
   padding: 10px 16px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .inline-review-panel .review-actions {
@@ -815,7 +815,7 @@
   display: grid;
   gap: 7px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .notes-panel textarea {
@@ -912,7 +912,7 @@
   align-items: center;
   gap: 5px;
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: .03em;
 }
@@ -957,7 +957,7 @@
   margin: 0;
   padding: 6px 14px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* Phase 2 mockup alignment */
@@ -1012,7 +1012,7 @@
 
 .creative-document-header p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .creative-main-pane .document-tabs {
@@ -1247,7 +1247,7 @@
 .markdown-slash-menu small {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .markdown-editor-test-proxy {

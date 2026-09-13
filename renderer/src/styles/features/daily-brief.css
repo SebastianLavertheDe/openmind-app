@@ -32,6 +32,10 @@
   container: daily-brief-detail / inline-size;
 }
 
+.brief-detail-back {
+  display: none;
+}
+
 .brief-library-page .document-detail-header > div:first-child {
   flex: 1 1 220px;
 }
@@ -77,12 +81,12 @@
   padding-inline: clamp(18px, 5cqw, 58px);
 }
 
-.brief-library-page .document-content .reader-markdown.file-reader > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
+.brief-library-page .document-content .reader-markdown.file-reader .document-block > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
   max-width: var(--daily-brief-prose-max-width);
   margin-inline: auto;
 }
 
-.brief-library-page .document-content .reader-markdown.file-reader > :where(h1, h2, h3) {
+.brief-library-page .document-content .reader-markdown.file-reader .document-block > :where(h1, h2, h3) {
   text-wrap: balance;
 }
 
@@ -111,6 +115,33 @@
 /* The brief responds to its allocated workspace rather than the application
    viewport. This also covers split-screen windows and OS display scaling. */
 @container daily-brief (max-width: 34rem) {
+  .document-library-page.brief-library-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .brief-library-page[data-detail-open] .document-library-list,
+  .brief-library-page:not([data-detail-open]) .document-library-detail {
+    display: none;
+  }
+
+  .brief-library-page .brief-detail-back {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .brief-library-page .brief-detail-back:hover {
+    background: var(--control-hover);
+    color: var(--text);
+  }
+
   .brief-library-page .document-detail-actions {
     align-items: stretch;
     flex-direction: column;

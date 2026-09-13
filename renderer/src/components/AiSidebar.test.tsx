@@ -69,13 +69,13 @@ describe("AiSidebar", () => {
       </AiProvider>
     );
 
-    const dialog = screen.getByRole("dialog", { name: "AI Assistant" });
+    const dialog = screen.getByRole("dialog", { name: "AI 助手" });
     expect(dialog.classList.contains("mode-full")).toBe(true);
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     await waitFor(() => expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(true));
 
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "AI Assistant" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "AI 助手" })).toBeNull());
     expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);
   });
 
@@ -100,7 +100,7 @@ describe("AiSidebar", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "AI Assistant" })).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "AI 助手" })).toBeNull();
       expect(workspace.inert).toBe(false);
       expect(workspace.getAttribute("aria-hidden")).toBeNull();
     });
@@ -278,17 +278,18 @@ describe("AiSidebar", () => {
           </AiProvider>
         </ResponsiveLayoutProvider>
       );
-      const canvas = screen.getByRole("dialog", { name: "AI Assistant" });
+      const canvas = screen.getByRole("dialog", { name: "AI 助手" });
       expect(canvas.classList.contains("layout-companion-canvas")).toBe(true);
       expect(canvas.getAttribute("aria-modal")).toBe("true");
       expect(container.querySelector(".ai-sidebar-scrim")).toBeNull();
       expect(container.querySelector(".ai-sidebar-resizer")).toBeNull();
       expect(screen.queryByRole("button", { name: /切换宽屏/ })).toBeNull();
       expect(screen.queryByRole("button", { name: /^全屏$/ })).toBeNull();
+      expect(screen.getByRole("button", { name: "关闭 AI 助手" })).toBeTruthy();
       expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(true);
       expect(screen.getByTestId("covered-workspace").getAttribute("aria-hidden")).toBe("true");
 
-      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(screen.getByRole("button", { name: "关闭 AI 助手" }));
 
       expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
       expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);

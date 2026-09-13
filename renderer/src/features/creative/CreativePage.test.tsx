@@ -420,9 +420,13 @@ describe("CreativeWorkspacePage", () => {
     renderCreative(api);
     fireEvent.click(await screen.findByRole("button", { name: /创作中/ }));
     fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    // 切到预览
+    const editTab = await screen.findByRole("tab", { name: /编辑/ });
     const previewTab = await screen.findByRole("tab", { name: /预览/ });
-    fireEvent.click(previewTab);
+    fireEvent.click(editTab);
+    editTab.focus();
+    fireEvent.keyDown(editTab, { key: "ArrowRight" });
+    await waitFor(() => expect(previewTab.getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(document.activeElement).toBe(previewTab));
     // 预览模式不应显示 textarea 编辑器
     await waitFor(() => expect(screen.queryByLabelText("Markdown 草稿编辑器")).toBeNull(), { timeout: 2000 });
   });

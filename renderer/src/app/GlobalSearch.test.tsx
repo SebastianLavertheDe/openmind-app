@@ -191,4 +191,20 @@ describe("GlobalSearch", () => {
     fireEvent.keyDown(screen.getByLabelText(INPUT_LABEL), { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("restores focus to the explicit search trigger after the exit finishes", () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "搜索";
+    document.body.append(trigger);
+    const triggerRef = { current: trigger };
+    const onClose = vi.fn();
+    const view = render(<AiProvider initial={snapshot}><GlobalSearch open triggerRef={triggerRef} onClose={onClose} navigate={navigate} onOpenContent={openContent} /></AiProvider>);
+
+    view.rerender(<AiProvider initial={snapshot}><GlobalSearch open={false} triggerRef={triggerRef} onClose={onClose} navigate={navigate} onOpenContent={openContent} /></AiProvider>);
+    act(() => { vi.advanceTimersByTime(250); });
+    act(() => { vi.advanceTimersByTime(20); });
+
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
 });

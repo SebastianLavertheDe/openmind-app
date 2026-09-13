@@ -333,7 +333,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
           </div>
         </aside>
 
-        <main ref={detailRef} className="workspace-card skills-detail">
+        <section ref={detailRef} className="workspace-card skills-detail">
           {!selected || !selectedSummary ? <div className="skills-detail-empty"><Package size={24} aria-hidden /><p>{m.detailEmpty}</p></div> : <div key={selected.id} className="skills-detail-content" data-skill-detail-id={selected.id}>
             <header className="skills-detail-header">
               <div className="skills-detail-title">
@@ -376,7 +376,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
               <SkillRunHistory runs={selectedRuns} unavailable={runHistoryUnavailable} />
             </>}
           </div>}
-        </main>
+        </section>
       </section>
     </div>
   );

@@ -150,7 +150,7 @@
   margin: 4px 0 0;
   overflow: hidden;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -232,7 +232,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-artifact-actions button:hover {
@@ -243,7 +243,7 @@
 .automation-artifacts-note {
   padding: 8px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-params-body {
@@ -282,7 +282,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-param-field button:hover {
@@ -292,7 +292,7 @@
 
 .automation-params-hint {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-params-config {
@@ -312,7 +312,7 @@
 
 .automation-params-config dt {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-params-config dd {
@@ -335,7 +335,7 @@
 .automation-config-note {
   color: var(--orange);
   font-style: normal;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-console {
@@ -362,7 +362,7 @@
   padding: 16px;
   background: var(--panel-muted);
   color: var(--text-dim);
-  font: 11px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: var(--fs-xs)/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
   white-space: pre-wrap;
 }
 
@@ -493,7 +493,7 @@
 .rule-copy small {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-detail-pane {
@@ -850,7 +850,7 @@
 
 .automation-subsection-heading span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.45;
 }
 
@@ -897,7 +897,7 @@
   padding: 0 10px;
   border-left: 1px solid var(--hairline);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-schedule-empty {
@@ -927,7 +927,7 @@
   min-height: 74px;
   resize: vertical;
   padding: 9px 11px;
-  font: 11px/1.55 var(--font-mono);
+  font: var(--fs-xs)/1.55 var(--font-mono);
 }
 
 .automation-editor-meta {
@@ -954,7 +954,7 @@
 
 .automation-editor-meta dt {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 .automation-editor-meta dd {
@@ -986,7 +986,7 @@
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--panel-muted) 52%, var(--panel));
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .automation-history-row code,
@@ -1136,7 +1136,7 @@
   border-radius: 999px;
   background: var(--panel-muted);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 650;
 }
 

@@ -82,6 +82,27 @@ describe("design system controls", () => {
     expect(dropdownSummary.closest(".ui-dropdown")?.hasAttribute("data-open")).toBe(false);
     await waitFor(() => expect(document.activeElement).toBe(dropdownSummary));
   });
+
+  it("opens a dropdown from arrow keys and applies the menu roving-focus model", async () => {
+    render(
+      <DropdownMenu label="更多">
+        <button role="menuitem">重命名</button>
+        <button role="menuitem">删除</button>
+      </DropdownMenu>
+    );
+
+    const trigger = screen.getByRole("button", { name: "更多" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowUp" });
+
+    const menu = await screen.findByRole("menu");
+    const first = screen.getByRole("menuitem", { name: "重命名" });
+    const last = screen.getByRole("menuitem", { name: "删除" });
+    await waitFor(() => expect(document.activeElement).toBe(last));
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(first);
+  });
 });
 
 function MenuHarness({ onRename = () => undefined }: { onRename?: () => void }) {

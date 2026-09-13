@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { messages } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
-import { EmptyState, ErrorState } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { projectsApi } from "./projects-api";
 import { ProjectListDetail } from "./ProjectListDetail";
 import type { ProjectDetail, ProjectTask } from "./types";
+
+const m = messages;
 
 export type ProjectTaskSeed = { title?: string; prompt?: string };
 
@@ -50,11 +53,11 @@ export function ProjectTasksPanel({
   const [activatingSession, setActivatingSession] = useState(false);
   const [activationNonce, setActivationNonce] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [taskMenu, setTaskMenu] = useState<{ taskId: string; left: number; top: number } | null>(null);
   const [renameTarget, setRenameTarget] = useState<ProjectTask | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [taskActionBusy, setTaskActionBusy] = useState(false);
   const refreshedTerminalRunsRef = useRef(new Set<string>());
+  const handledCreateRequestRef = useRef(false);
 
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const setActiveSession = actions.setActiveSession;
@@ -108,7 +111,12 @@ export function ProjectTasksPanel({
     if (selected && !selected.sessionId && selected.providerId) setProviderId(selected.providerId);
   }, [selected?.providerId, selected?.sessionId]);
   useEffect(() => {
-    if (!createRequested) return;
+    if (!createRequested) {
+      handledCreateRequestRef.current = false;
+      return;
+    }
+    if (handledCreateRequestRef.current) return;
+    handledCreateRequestRef.current = true;
     void setActiveSession(null);
     actions.clearContexts();
     setDraft(seed?.prompt || "");
@@ -129,29 +137,6 @@ export function ProjectTasksPanel({
       .finally(() => { if (current) setActivatingSession(false); });
     return () => { current = false; };
   }, [activationNonce, selected?.sessionId]);
-  useEffect(() => {
-    if (!taskMenu) return;
-    const close = (event: PointerEvent) => {
-      const target = event.target as Element | null;
-      if (target?.closest(".project-task-menu, [data-task-menu-trigger]")) return;
-      setTaskMenu(null);
-    };
-    const closeOnKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setTaskMenu(null);
-    };
-    const closeOnViewportChange = () => setTaskMenu(null);
-    document.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", closeOnKey);
-    window.addEventListener("resize", closeOnViewportChange);
-    window.addEventListener("scroll", closeOnViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", closeOnKey);
-      window.removeEventListener("resize", closeOnViewportChange);
-      window.removeEventListener("scroll", closeOnViewportChange, true);
-    };
-  }, [taskMenu]);
-
   const newTask = () => {
     void setActiveSession(null);
     actions.clearContexts();
@@ -163,24 +148,7 @@ export function ProjectTasksPanel({
     setError(null);
   };
 
-  const openTaskMenu = (button: HTMLButtonElement, taskId: string) => {
-    if (taskMenu?.taskId === taskId) {
-      setTaskMenu(null);
-      return;
-    }
-    const bounds = button.getBoundingClientRect();
-    const menuWidth = 168;
-    const menuHeight = 104;
-    const gap = 6;
-    const left = window.innerWidth - bounds.right >= menuWidth + gap
-      ? bounds.right + gap
-      : Math.max(8, bounds.left - menuWidth - gap);
-    const top = Math.min(Math.max(8, bounds.top), Math.max(8, window.innerHeight - menuHeight - 8));
-    setTaskMenu({ taskId, left, top });
-  };
-
   const beginRenameTask = (task: ProjectTask) => {
-    setTaskMenu(null);
     setRenameTarget(task);
     setRenameTitle(task.title);
   };
@@ -207,7 +175,6 @@ export function ProjectTasksPanel({
   };
 
   const removeTask = async (task: ProjectTask) => {
-    setTaskMenu(null);
     const confirmed = await ui.confirm({
       title: "删除任务",
       body: `确定删除“${task.title}”吗？任务将从列表中移除。`,
@@ -323,19 +290,19 @@ export function ProjectTasksPanel({
         {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? "没有匹配的任务" : "还没有任务"} description={tasks.length ? "换一个标题关键词后再试。" : "新建任务，让 AI 在当前项目资料中搜索和创作。"} /> : null}
         {filtered.map((item, index) => {
           const active = item.taskId === selectedId && !creating;
-          const menuOpen = taskMenu?.taskId === item.taskId;
           return (
-            <div key={item.taskId} className={`project-task-row${active ? " active" : ""}${menuOpen ? " menu-open" : ""}`} style={{ "--project-list-index": index } as CSSProperties}>
-              <button className="project-task-select" onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><Sparkles size={15} /><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
-              <button
-                type="button"
+            <div key={item.taskId} className={`project-task-row${active ? " active" : ""}`} style={{ "--project-list-index": index } as CSSProperties}>
+              <button className="project-task-select" data-motion="selection" onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><Sparkles size={15} /><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
+              <DropdownMenu
                 className="project-task-more"
-                data-task-menu-trigger
-                aria-label={`任务操作：${item.title}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                onClick={(event) => openTaskMenu(event.currentTarget, item.taskId)}
-              ><MoreHorizontal size={16} /></button>
+                menuClassName="project-task-menu"
+                ariaLabel={`任务操作：${item.title}`}
+                menuLabel={`${item.title}的任务操作`}
+                label={<MoreHorizontal size={16} aria-hidden="true" />}
+              >
+                <button type="button" role="menuitem" data-motion="action" onClick={() => beginRenameTask(item)}><Pencil size={15} aria-hidden="true" />重命名</button>
+                <button type="button" role="menuitem" data-motion="action" className="danger" onClick={() => void removeTask(item)}><Trash2 size={15} aria-hidden="true" />删除</button>
+              </DropdownMenu>
             </div>
           );
         })}
@@ -343,14 +310,6 @@ export function ProjectTasksPanel({
     </>
   );
 
-  const menuTask = taskMenu ? tasks.find((item) => item.taskId === taskMenu.taskId) || null : null;
-  const taskMenuOverlay = menuTask && taskMenu ? createPortal(
-    <div className="project-task-menu" role="menu" aria-label={`${menuTask.title}的任务操作`} style={{ left: taskMenu.left, top: taskMenu.top }}>
-      <button role="menuitem" onClick={() => beginRenameTask(menuTask)}><Pencil size={15} />重命名</button>
-      <button role="menuitem" className="danger" onClick={() => void removeTask(menuTask)}><Trash2 size={15} />删除</button>
-    </div>,
-    document.body
-  ) : null;
   const renameDialog = <ProjectDialog open={Boolean(renameTarget)} title="重命名任务" confirmLabel="保存" busy={taskActionBusy} onClose={() => setRenameTarget(null)} onConfirm={renameTask}>
     <ProjectTextField label="任务名称" value={renameTitle} autoFocus onChange={setRenameTitle} />
   </ProjectDialog>;
@@ -389,12 +348,11 @@ export function ProjectTasksPanel({
       <>
         {createPortal(list, listHost!)}
         {createPortal(detail, detailHost!)}
-        {taskMenuOverlay}
         {renameDialog}
       </>
     );
   }
-  return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />{taskMenuOverlay}{renameDialog}</>;
+  return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />{renameDialog}</>;
 }
 
 function TaskStarter({ project, title, prompt, providerId, providerLocked, providers, sending, error, onTitle, onPrompt, onProvider, onStart }: {
@@ -419,7 +377,7 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
         <label><span className="ui-visually-hidden">任务内容</span><textarea autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder="描述你要研究、整理或创作的内容…" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
         <div className="project-task-compose-footer">
           <span className="project-material-scope">项目资料 · 可按需读取</span>
-          <div><select aria-label="AI Provider" value={providerId} disabled={providerLocked} title={providerLocked ? "任务创建后 Provider 保持不变" : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? "正在创建…" : "开始任务"}</button></div>
+          <div><select aria-label={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? "任务创建后 Provider 保持不变" : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? "正在创建…" : "开始任务"}</button></div>
         </div>
         {error ? <p className="project-form-error">{error}</p> : null}
       </div>

@@ -24,6 +24,12 @@ beforeEach(() => { window.openmind = makeApi(); });
 afterEach(() => cleanup());
 
 describe("DailyBriefPage", () => {
+  it("gives the brief search field an explicit accessible name", async () => {
+    render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+
+    expect(await screen.findByRole("textbox", { name: "搜索简报文件" })).toBeTruthy();
+  });
+
   it("lists brief files, previews by default, and saves edits", async () => {
     const writeContent = vi.fn(async (_path: string, content: string) => ({ path, name: "20260630_daily_summary.md", content, truncated: false }));
     const api = makeApi(writeContent);
@@ -42,6 +48,19 @@ describe("DailyBriefPage", () => {
 
     await waitFor(() => expect(writeContent).toHaveBeenCalledWith(path, "# 修改后的简报"));
     expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active");
+  });
+
+  it("provides a compact master-detail return path and exposes the full file label", async () => {
+    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
+
+    const file = await screen.findByRole("button", { name: /2026-06-30 每日简报/ });
+    const page = container.querySelector<HTMLElement>(".brief-library-page")!;
+    await waitFor(() => expect(page.getAttribute("data-detail-open")).toBe("true"));
+    expect(file.title).toBe("2026-06-30 每日简报");
+
+    fireEvent.click(screen.getByRole("button", { name: "简报文件" }));
+    expect(page.hasAttribute("data-detail-open")).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(file));
   });
 
   it("quotes the full preview selection into the AI composer and focuses the prompt", async () => {

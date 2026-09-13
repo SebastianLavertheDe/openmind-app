@@ -1,15 +1,5 @@
-@property --nav-width {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 236px;
-}
-
-/* 导航收起/展开保留网格轨道过渡动画（设计动效）。此前它表现为卡顿的真正
- * 原因是动画期间叠加了一次整树 React 重渲染（已由 App.tsx 的元素缓存消除），
- * 而非过渡本身；若未来再出现掉帧，优先排查渲染层而非直接移除动效。 */
-.app-shell {
-  transition: grid-template-columns var(--dur-slow, 280ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
-}
+/* 导航宽度是整个壳层的网格轨道。离散切换只触发一次最终布局；若插值轨道，
+ * 中间文档和 AI 面板会在每一帧重新换行、布局和绘制，大文档下会冻结数秒。 */
 
 .app-nav,
 .app-nav nav button,

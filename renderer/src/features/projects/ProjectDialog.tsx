@@ -46,7 +46,7 @@ export function ProjectDialog({
           </header>
           <div className="project-dialog-body">{children}</div>
           {showFooter ? <footer>
-            {cancelLabel ? <button type="button" className="settings-subtle-action" onClick={onClose}>{cancelLabel}</button> : null}
+            {cancelLabel ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={onClose}>{cancelLabel}</button> : null}
             <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? "处理中…" : confirmLabel}</button>
           </footer> : null}
         </form>

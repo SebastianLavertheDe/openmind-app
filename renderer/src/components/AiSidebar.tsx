@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { MessageSquare } from "lucide-react";
+import { Columns2, Maximize2, MessageSquare, Minimize2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-context";
@@ -245,9 +245,39 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
       data-layout-min-width={SIDEBAR_MIN_WIDTH}
       role={modal ? "dialog" : undefined}
       aria-modal={modal ? "true" : undefined}
-      aria-label={modal ? "AI Assistant" : undefined}
+      aria-label={modal ? m.ai.sidebar.dialogLabel : undefined}
       tabIndex={modal ? -1 : undefined}
     >
+        <div className="ai-sidebar-actions">
+          {!detached && !full ? (
+            <button
+              type="button"
+              data-motion="icon"
+              aria-label={m.ai.sidebar.toggleWide}
+              title={m.ai.sidebar.toggleWide}
+              aria-pressed={ui.panelMode === "wide"}
+              onClick={() => ui.setPanelMode(ui.panelMode === "wide" ? "default" : "wide")}
+            ><Columns2 size={17} aria-hidden="true" /></button>
+          ) : null}
+          {!detached && !full ? (
+            <button type="button" data-motion="icon" aria-label={m.ai.sidebar.fullscreen} title={m.ai.sidebar.fullscreen} onClick={() => ui.setPanelMode("full")}>
+              <Maximize2 size={17} aria-hidden="true" />
+            </button>
+          ) : null}
+          {full ? (
+            <button type="button" data-motion="icon" aria-label={m.ai.sidebar.exitFullscreen} title={m.ai.sidebar.exitFullscreen} onClick={dismissModal}>
+              <Minimize2 size={17} aria-hidden="true" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="ai-sidebar-close"
+            data-motion="icon"
+            aria-label={m.ai.sidebar.close}
+            title={m.ai.sidebar.close}
+            onClick={() => ui.setPanelMode("collapsed")}
+          ><X size={18} aria-hidden="true" /></button>
+        </div>
         {!full && !detached ? (
           <div
             className="ai-sidebar-resizer"

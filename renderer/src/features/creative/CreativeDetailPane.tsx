@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { EmptyState, StatusBadge } from "../../design-system/components";
+import { EmptyState, StatusBadge, Tabs } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { PublishForm, TopicWorkspace, WritingStats } from "./panels";
 import { InlineAiBar } from "./InlineAiBar";
@@ -253,10 +253,16 @@ function CreativeDocumentEditor({
       <div className="creative-editor">
         {published ? <MarkdownReader content={draft} layout="file" /> : (
           <>
-            <div className="editor-mode-bar" role="tablist" aria-label={m.creativeUi.editor.modeBar}>
-              <button data-motion="selection" role="tab" aria-selected={editorMode === "edit"} className={editorMode === "edit" ? "active" : ""} onClick={() => setEditorMode("edit")}>{m.creativeUi.editor.edit}</button>
-              <button data-motion="selection" role="tab" aria-selected={editorMode === "preview"} className={editorMode === "preview" ? "active" : ""} onClick={() => setEditorMode("preview")}>{m.creativeUi.editor.preview}</button>
-            </div>
+            <Tabs
+              className="editor-mode-bar"
+              value={editorMode}
+              label={m.creativeUi.editor.modeBar}
+              tabs={[
+                { value: "edit", label: m.creativeUi.editor.edit },
+                { value: "preview", label: m.creativeUi.editor.preview }
+              ]}
+              onChange={setEditorMode}
+            />
             <div key={editorMode} className="view-fade">
               {editorMode === "preview" ? draft.trim() ? <MarkdownReader content={draft} layout="file" className="creative-preview" /> : <EmptyState title={m.creativeUi.editor.previewEmptyTitle} description={m.creativeUi.editor.previewEmptyDesc} /> : (
                 <>

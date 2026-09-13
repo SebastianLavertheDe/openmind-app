@@ -4,7 +4,7 @@ import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, Automati
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import { matchesSemverRange } from "@shared/skill-manifest-schema";
 import { messages } from "@shared/messages";
-import { LogViewer, Select, ToggleSwitch } from "../../design-system/components";
+import { ErrorState, LogViewer, Select, ToggleSwitch } from "../../design-system/components";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 import type { ConfirmAction } from "../../ai-context";
 
@@ -143,7 +143,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
     <div className="feature-page automation-page">
       <section className="workspace-card automation-empty-state">
         <h2>{m.automation.title}</h2>
-        <p>{error || m.automation.empty}</p>
+        {error ? <ErrorState message={error} retry={() => void load()} /> : <p>{m.automation.empty}</p>}
       </section>
     </div>
   );
@@ -209,7 +209,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
           </div>
         </aside>
 
-        <main key={selected.id} className="automation-main automation-detail-pane automation-detail-transition">
+        <section key={selected.id} className="automation-main automation-detail-pane automation-detail-transition">
           <section className="workspace-card rule-detail">
             <header>
               <div><span className="eyebrow">{selected.target.type}:{selected.target.id}</span><h1>{selected.name}</h1><p>{selected.description || m.automation.noDescription}</p></div>
@@ -241,7 +241,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
           <section className="workspace-card console-box automation-console-box">
             <LogViewer text={consoleText} label={m.automation.console.title} status={<span className={`rule-pill ${runtimeTone(runState)}`}>{detailStatus(runState)}</span>} actions={<button type="button" data-motion="action" onClick={() => void copyLogs()} aria-label={m.common.copy}>{copied ? <Check size={13} /> : m.automation.console.copy}{copied ? m.automation.console.copied : m.common.copy}</button>} />
           </section>
-        </main>
+        </section>
       </section>
     </div>
   );

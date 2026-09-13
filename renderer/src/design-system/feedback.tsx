@@ -39,8 +39,8 @@ export function LoadingState({ label = m.designSystem.loadingDefault }: { label?
 
 export function ErrorState({ message, retry }: { message: string; retry?(): void }) {
   return (
-    <div className="ui-error-state">
-      <AlertTriangle size={20} />
+    <div className="ui-error-state" role="alert">
+      <AlertTriangle size={20} aria-hidden="true" />
       <div><strong>{m.designSystem.loadFailed}</strong><p>{message}</p></div>
       {retry ? <button data-motion="action" onClick={retry}>{m.common.retry}</button> : null}
     </div>

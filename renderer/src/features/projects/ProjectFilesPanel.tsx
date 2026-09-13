@@ -26,6 +26,7 @@ export function ProjectFilesPanel({
   onCreateHandled,
   onCreateTask,
   onChanged,
+  onSelectionChange,
   onNavigationGuardChange,
   listHost,
   detailHost
@@ -37,6 +38,7 @@ export function ProjectFilesPanel({
   onCreateHandled(): void;
   onCreateTask(seed: ProjectTaskSeed): void;
   onChanged(): void;
+  onSelectionChange?(selected: boolean): void;
   onNavigationGuardChange?(guard: ProjectOutputNavigationGuard | null): void;
   listHost: HTMLElement;
   detailHost: HTMLElement;
@@ -69,7 +71,8 @@ export function ProjectFilesPanel({
     if ((!current && !next) || (current && next && sameSelection(current, next))) return;
     selectionRef.current = next;
     setSelection(next);
-  }, []);
+    onSelectionChange?.(Boolean(next));
+  }, [onSelectionChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -274,6 +277,7 @@ export function ProjectFilesPanel({
               <button
                 type="button"
                 className={active ? "active" : ""}
+                data-motion="selection"
                 onClick={() => void openFile(item)}
               >
                 <Icon aria-hidden="true" />
@@ -286,18 +290,18 @@ export function ProjectFilesPanel({
                 disabled={actionBusy === `${item.kind}:${item.relativePath}`}
                 label={<MoreHorizontal size={15} aria-hidden="true" />}
               >
-                <button type="button" role="menuitem" onClick={() => { setRenameTitle(item.title); setActionError(null); setRenameTarget(item); }}>
+                <button type="button" role="menuitem" data-motion="action" onClick={() => { setRenameTitle(item.title); setActionError(null); setRenameTarget(item); }}>
                   <PencilLine size={15} aria-hidden="true" /><span>重命名</span>
                 </button>
-                <button type="button" role="menuitem" onClick={() => void beginMove(item)}>
+                <button type="button" role="menuitem" data-motion="action" onClick={() => void beginMove(item)}>
                   <FolderInput size={15} aria-hidden="true" /><span>移动到其他项目</span>
                 </button>
                 {item.materialKind !== "video" ? (
-                  <button type="button" role="menuitem" onClick={() => void downloadEntry(item)}>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => void downloadEntry(item)}>
                     <Download size={15} aria-hidden="true" /><span>下载</span>
                   </button>
                 ) : null}
-                <button type="button" role="menuitem" onClick={() => void deleteEntry(item)}>
+                <button type="button" role="menuitem" data-motion="action" onClick={() => void deleteEntry(item)}>
                   <Trash2 size={15} aria-hidden="true" /><span>删除</span>
                 </button>
               </DropdownMenu>

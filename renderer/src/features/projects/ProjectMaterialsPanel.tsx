@@ -220,6 +220,7 @@ export function ProjectMaterialsPanel({
       <button
         type="button"
         className={`project-material-upload${dragOver ? " drag-over" : ""}`}
+        data-motion="action"
         aria-label="上传文件"
         disabled={adding}
         onClick={() => void addFiles()}
@@ -254,8 +255,8 @@ export function ProjectMaterialsPanel({
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
       <label className="project-local-search"><Search size={14} /><input aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" /></label>
-      <div className="project-material-filters" role="tablist" aria-label="资料类型">
-        {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
+      <div className="project-material-filters" role="group" aria-label="资料类型">
+        {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button type="button" aria-pressed={filter === item} data-motion="selection" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
       </div>
       <div className="project-local-count">{materialFilterLabel(filter)} <span>{filtered.length}</span></div>
       <div className="project-item-list">
@@ -263,7 +264,7 @@ export function ProjectMaterialsPanel({
         {!loading && !error && !filtered.length ? <EmptyState title={materials.length ? "没有匹配的资料" : "还没有资料"} description={materials.length ? "调整搜索词或资料类型后再试。" : "添加 Markdown、文档、网页或受支持的视频链接。"} /> : null}
         {filtered.map((item) => {
           const Icon = materialIcon(item.kind);
-          return <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
+          return <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
         })}
       </div>
     </>
@@ -299,7 +300,7 @@ function MaterialDetail({ material, projectName, retrying, onRetry }: { material
         <div><span className="eyebrow">{materialKindLabel(material.kind)} · {materialStatusLabel(material.status)}</span><h2>{material.title}</h2><p title={material.relativePath}>{material.sourceUrl || material.relativePath}</p></div>
       </header>
       {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接转为文档；项目任务仍可按需读取原资料。</p></div></div> : null}
-      {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
+      {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
       {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} /> : null}
       {material.status === "ready" && material.kind !== "video" ? <DocumentMaterialDetail material={material} projectName={projectName} /> : null}
@@ -315,9 +316,9 @@ function DocumentMaterialDetail({ material, projectName }: { material: ProjectMa
   return (
     <div className="project-markdown-material">
       <div className="project-preview-mode" role="group" aria-label="资料查看方式">
-        {hasPdfOriginal ? <button className={mode === "pdf" ? "active" : ""} aria-pressed={mode === "pdf"} onClick={() => setMode("pdf")}>PDF</button> : null}
-        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} onClick={() => setMode("read")}>阅读</button>
-        <button className={mode === "markdown" ? "active" : ""} aria-pressed={mode === "markdown"} onClick={() => setMode("markdown")}>Markdown</button>
+        {hasPdfOriginal ? <button className={mode === "pdf" ? "active" : ""} aria-pressed={mode === "pdf"} data-motion="selection" onClick={() => setMode("pdf")}>PDF</button> : null}
+        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} data-motion="selection" onClick={() => setMode("read")}>阅读</button>
+        <button className={mode === "markdown" ? "active" : ""} aria-pressed={mode === "markdown"} data-motion="selection" onClick={() => setMode("markdown")}>Markdown</button>
       </div>
       <div className="project-material-reader">
         {mode === "pdf" && hasPdfOriginal
@@ -355,7 +356,7 @@ function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: 
         <FileText size={28} />
         <strong>无法加载 PDF 原件</strong>
         <p>{failed}</p>
-        <button type="button" onClick={onFallback}>查看提取文本</button>
+        <button type="button" data-motion="action" onClick={onFallback}>查看提取文本</button>
       </div>
     );
   }
@@ -411,7 +412,7 @@ function VideoMaterialDetail({ material }: { material: ProjectMaterial }) {
       <div className="project-video-detail">
         <div className="project-video-media-column">
           <section className="project-video-player">
-            {embedUrl ? <iframe ref={frameRef} title={material.title} src={embedUrl} onLoad={connectEmbeddedPlayer} sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : <div className="project-video-unavailable"><Video size={28} /><strong>当前链接无法安全内嵌播放</strong><p>字幕仍可阅读；可以在浏览器中打开原视频。</p>{material.sourceUrl ? <button onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={14} />浏览器打开</button> : null}</div>}
+            {embedUrl ? <iframe ref={frameRef} title={material.title} src={embedUrl} onLoad={connectEmbeddedPlayer} sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : <div className="project-video-unavailable"><Video size={28} /><strong>当前链接无法安全内嵌播放</strong><p>字幕仍可阅读；可以在浏览器中打开原视频。</p>{material.sourceUrl ? <button data-motion="action" onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={14} />浏览器打开</button> : null}</div>}
           </section>
         </div>
         <div className="project-video-inspector-column">
@@ -420,7 +421,7 @@ function VideoMaterialDetail({ material }: { material: ProjectMaterial }) {
               {!segments.length ? <EmptyState title="暂无字幕" description="当前视频没有可用的平台字幕；原始链接仍会保留在项目资料中。" /> : null}
               {segments.map((item) => {
                 const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
-                return <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}><button className="project-timecode" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button><span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span></div>;
+                return <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}><button className="project-timecode" data-motion="selection" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button><span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span></div>;
               })}
             </div>
           </section>

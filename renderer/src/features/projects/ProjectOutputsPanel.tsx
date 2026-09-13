@@ -304,7 +304,7 @@ export function ProjectOutputsPanel({
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的文档" : "还没有文档"} description={outputs.length ? "换一个标题关键词后再试。" : "创建空白 Markdown，或从项目任务保存 AI 回答。"} /> : null}
-        {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} onClick={() => void readOutput(item.relativePath)}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
+        {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void readOutput(item.relativePath)}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
   );
@@ -315,8 +315,8 @@ export function ProjectOutputsPanel({
         <div><span className="eyebrow">项目文档</span><input className="project-output-title" value={title} aria-label="文档标题" onChange={(event) => { const value = event.target.value; editVersionRef.current += 1; titleRef.current = value; dirtyRef.current = true; setTitle(value); setDirty(true); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
         <div className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saveState === "saving" ? "info" : "neutral"}>{saveLabel(saveState, dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}><Pencil size={14} />编辑</button><button className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} onClick={() => setMode("preview")}><Eye size={14} />预览</button></div>
-          <button disabled={!dirty || saveState === "saving"} onClick={() => void save()}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
+          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} data-motion="selection" onClick={() => setMode("edit")}><Pencil size={14} />编辑</button><button className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} data-motion="selection" onClick={() => setMode("preview")}><Eye size={14} />预览</button></div>
+          <button data-motion="action" disabled={!dirty || saveState === "saving"} onClick={() => void save()}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
         </div>
       </header>
       <div className={`project-output-editor ${mode}`}>

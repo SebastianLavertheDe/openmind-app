@@ -184,20 +184,20 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
         if (event.key === "Escape") { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }
       }} />
       <span>{matches.current} / {matches.total}</span>
-      <button aria-label="上一个匹配" onClick={() => search(query, true, true)}><ChevronLeft size={14} /></button>
-      <button aria-label="下一个匹配" onClick={() => search(query, true)}><ChevronRight size={14} /></button>
-      <button aria-label="关闭搜索" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }}><X size={14} /></button>
+      <button aria-label="上一个匹配" data-motion="icon" onClick={() => search(query, true, true)}><ChevronLeft size={14} /></button>
+      <button aria-label="下一个匹配" data-motion="icon" onClick={() => search(query, true)}><ChevronRight size={14} /></button>
+      <button aria-label="关闭搜索" data-motion="icon" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }}><X size={14} /></button>
     </div> : null}
     <div className="pdf-toolbar">
-      <button aria-label="搜索 PDF" onClick={() => setFindOpen(true)}><Search size={15}/></button>
-      <button aria-label="上一页" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft size={15}/></button>
+      <button aria-label="搜索 PDF" data-motion="icon" onClick={() => setFindOpen(true)}><Search size={15}/></button>
+      <button aria-label="上一页" data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft size={15}/></button>
       <input className="pdf-page-input" aria-label="当前页码" value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
       <span className="pdf-page-total">/ {pages}</span>
-      <button aria-label="下一页" disabled={page >= pages} onClick={() => go(page + 1)}><ChevronRight size={15}/></button>
+      <button aria-label="下一页" data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)}><ChevronRight size={15}/></button>
       <span className="pdf-toolbar-divider"/>
-      <button aria-label="缩小" disabled={percent <= 25} onClick={() => zoom(-.1)}><Minus size={15}/></button>
-      <button className="pdf-zoom-label" title="适应宽度" onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</button>
-      <button aria-label="放大" disabled={percent >= 400} onClick={() => zoom(.1)}><Plus size={15}/></button>
+      <button aria-label="缩小" data-motion="icon" disabled={percent <= 25} onClick={() => zoom(-.1)}><Minus size={15}/></button>
+      <button className="pdf-zoom-label" data-motion="action" title="适应宽度" onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</button>
+      <button aria-label="放大" data-motion="icon" disabled={percent >= 400} onClick={() => zoom(.1)}><Plus size={15}/></button>
     </div>
   </div>;
 });

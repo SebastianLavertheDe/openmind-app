@@ -65,12 +65,16 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
+  const [compactDetailOpen, setCompactDetailOpen] = useState(Boolean(initialSection));
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
   const detailRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (initialSection) setActiveSection(initialSection);
+    if (initialSection) {
+      setActiveSection(initialSection);
+      setCompactDetailOpen(true);
+    }
   }, [initialSection, initialSkillId]);
 
   const loadMcpServers = useCallback(async (): Promise<McpServerDefinition[]> => {
@@ -186,8 +190,19 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const selectSection = useCallback((section: SettingsSectionId) => {
     setActiveSection(section);
+    setCompactDetailOpen(true);
     if (detailRef.current) detailRef.current.scrollTop = 0;
+    if (window.matchMedia?.("(max-width: 720px)").matches) {
+      window.requestAnimationFrame(() => detailRef.current?.querySelector<HTMLElement>("#settings-detail-title")?.focus());
+    }
   }, []);
+
+  const showSettingsNavigation = useCallback(() => {
+    setCompactDetailOpen(false);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`.settings-nav-button[data-section-id="${activeSection}"]`)?.focus();
+    });
+  }, [activeSection]);
 
   const selectOpenmindRoot = async () => {
     try {
@@ -314,7 +329,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   };
 
   return (
-    <div className="settings-page" data-settings-section={activeSection}>
+    <div className="settings-page" data-settings-section={activeSection} data-compact-detail-open={compactDetailOpen || undefined}>
       <SettingsNavigation
         activeSection={activeSection}
         onBack={onBack}
@@ -322,10 +337,14 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       />
       <section className="settings-detail" id="settings-detail-panel" ref={detailRef} aria-labelledby="settings-detail-title">
         <div className="settings-detail-inner">
+          <button type="button" className="settings-detail-back" data-motion="action" onClick={showSettingsNavigation}>
+            <ArrowLeft size={15} aria-hidden />
+            <span>{m.settings.page.title}</span>
+          </button>
           <header className="settings-detail-header">
             <div>
               <span>{m.settings.page.title}</span>
-              <h1 id="settings-detail-title">{activeDefinition.title}</h1>
+              <h1 id="settings-detail-title" tabIndex={-1}>{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
             {!["skills", "mcp", "runtime"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
@@ -400,6 +419,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
                     type="button"
                     className="settings-nav-button"
                     data-motion="selection"
+                    data-section-id={section.id}
                     key={section.id}
                     aria-current={activeSection === section.id ? "page" : undefined}
                     aria-controls="settings-detail-panel"

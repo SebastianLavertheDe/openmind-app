@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
+import { ArrowLeft, Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry, ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAiUi } from "../../ai-context";
 import { ContentPreview } from "../../components/ContentPreview";
+import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
 
 type ViewMode = "preview" | "edit";
 
-export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
+export function DailyBriefPage({
+  initialDate,
+  embeddedFilePreviewPath = null,
+  onCloseEmbeddedFilePreview
+}: {
+  initialDate?: string;
+  embeddedFilePreviewPath?: string | null;
+  onCloseEmbeddedFilePreview?(): void;
+}) {
   const layoutRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLElement>(null);
   // The brief can remain usable below the generic split-workspace minimum: its
   // container queries stack the file list and document at this component-owned
   // boundary instead of forcing a global navigation change.
@@ -28,6 +38,16 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const closeEmbeddedFilePreview = useCallback(() => onCloseEmbeddedFilePreview?.(), [onCloseEmbeddedFilePreview]);
+
+  const showBriefList = useCallback(() => {
+    const returnTarget = listRef.current?.querySelector<HTMLButtonElement>('[data-brief-selected="true"]');
+    setSelectedPath("");
+    setRecord(null);
+    setMode("preview");
+    setDirty(false);
+    window.requestAnimationFrame(() => returnTarget?.focus());
+  }, []);
 
   const openFile = useCallback(async (path: string) => {
     if (!path) return;
@@ -79,8 +99,12 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
   }, [files, query]);
 
   const selectFile = async (path: string) => {
-    if (path === selectedPath) return;
+    if (path === selectedPath) {
+      if (embeddedFilePreviewPath) closeEmbeddedFilePreview();
+      return;
+    }
     if (dirty && !await ui.confirm({ title: m.brief.library.switchTitle, body: m.brief.library.switchBody, confirmText: m.brief.library.switchConfirm, danger: true })) return;
+    if (embeddedFilePreviewPath) closeEmbeddedFilePreview();
     await openFile(path);
   };
 
@@ -126,29 +150,32 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
 
   return (
     <div ref={layoutRef} className="brief-library-container">
-      <div className="document-library-page brief-library-page">
-      <aside className="document-library-list">
+      <div className="document-library-page brief-library-page" data-detail-open={Boolean(record) || Boolean(embeddedFilePreviewPath) || undefined}>
+      <aside className="document-library-list" ref={listRef}>
         <header>
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
           <Tooltip content={m.brief.library.refresh}><button className="icon-button" aria-label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
         </header>
-        <label className="document-library-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={m.brief.library.search} /></label>
+          <label className="document-library-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} /></label>
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
         <div className="document-file-list entrance-stagger">
           {loading ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
           {!loading && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
           {filteredFiles.map((file) => (
-            <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}`} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
+            <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
               <FileText size={16} />
               <span><strong>{briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)}</strong><small>{formatBytes(file.size || 0)} · {file.modifiedAt ? formatModified(file.modifiedAt) : ""}</small></span>
             </button>
           ))}
         </div>
       </aside>
-      <main className="document-library-detail">
-        {error ? <ErrorState message={error} retry={() => void load()} /> : record ? (
+      <section className="document-library-detail">
+        {embeddedFilePreviewPath ? (
+          <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={closeEmbeddedFilePreview} embedded />
+        ) : error ? <ErrorState message={error} retry={() => void load()} /> : record ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">
+              <button type="button" className="brief-detail-back" data-motion="action" onClick={showBriefList}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>
               <div><span className="eyebrow">{mode === "preview" ? m.brief.library.previewMode : dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
               <div className="document-detail-actions">
                 <div className="preview-mode-toggle" role="group" aria-label={m.brief.library.viewMode}>
@@ -171,7 +198,7 @@ export function DailyBriefPage({ initialDate }: { initialDate?: string }) {
             </section>
           </div>
         ) : <EmptyState icon={<FileText size={30} />} title={m.brief.library.selectTitle} description={m.brief.library.selectDescription} />}
-      </main>
+      </section>
       </div>
     </div>
   );

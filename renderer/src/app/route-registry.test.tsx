@@ -15,6 +15,8 @@ function props(bootstrap: AppBootstrap): RouteRenderProps {
     providers: [],
     aiFilePreviewPath: null,
     onAiFilePreviewPathChange: () => undefined,
+    embeddedFilePreviewPath: null,
+    onCloseEmbeddedFilePreview: () => undefined,
     onRepo: async () => bootstrap,
     onExitSettings: () => undefined
   };

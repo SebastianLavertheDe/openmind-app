@@ -49,7 +49,7 @@ export function ProjectListDetail({
       /> : null}
       {showDetail ? (
         <section className="project-local-detail">
-          {single ? <button className="project-detail-back" onClick={onBack}><ArrowLeft size={15} />返回{detailLabel}列表</button> : null}
+          {single ? <button className="project-detail-back" data-motion="action" onClick={onBack}><ArrowLeft size={15} />返回{detailLabel}列表</button> : null}
           {detail}
         </section>
       ) : null}

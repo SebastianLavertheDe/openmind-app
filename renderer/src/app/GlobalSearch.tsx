@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } from "lucide-react";
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
@@ -66,11 +66,13 @@ function interpretAction(raw: string): PaletteAction | null {
 
 export function GlobalSearch({
   open,
+  triggerRef,
   onClose,
   navigate,
   onOpenContent
 }: {
   open: boolean;
+  triggerRef?: RefObject<HTMLElement | null>;
   onClose(): void;
   navigate: Navigate;
   onOpenContent(path: string): void;
@@ -89,6 +91,7 @@ export function GlobalSearch({
   useModalFocusScope({
     open: visible,
     containerRef: scopeRef,
+    triggerRef,
     onDismiss: onClose,
     layer: "global"
   });

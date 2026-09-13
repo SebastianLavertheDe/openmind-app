@@ -53,6 +53,8 @@ export type RouteRenderProps = {
   providers: AiSnapshot["providers"];
   aiFilePreviewPath: string | null;
   onAiFilePreviewPathChange: (path: string | null) => void;
+  embeddedFilePreviewPath: string | null;
+  onCloseEmbeddedFilePreview: () => void;
   onRepo: (root?: string) => Promise<RouteBootstrap>;
   onExitSettings: () => void;
   confirmAction?: ConfirmAction;
@@ -73,7 +75,7 @@ export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
   { page: "ai", needsRepo: true, nav: { label: navLabel("ai"), icon: SquarePen, group: "create" }, render: ({ route, aiFilePreviewPath, onAiFilePreviewPathChange }) => <AiWorkbench key={route.nonce} restoredPreviewPath={aiFilePreviewPath} onPreviewPathChange={onAiFilePreviewPathChange} /> },
   { page: "projects", needsRepo: true, nav: { label: "项目", icon: FolderKanban, group: "core" }, render: ({ route }) => <ProjectsPage key={route.nonce} initialProjectName={route.state.projectName} initialSection={route.state.projectSection} initialItem={route.state.projectItem} /> },
   { page: "creative", needsRepo: true, nav: { label: navLabel("creative"), icon: FilePenLine, group: "core" }, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
-  { page: "brief", needsRepo: true, nav: { label: navLabel("brief"), icon: CalendarDays, group: "core" }, render: ({ route }) => <DailyBriefPage key={route.nonce} initialDate={route.state.date} /> },
+  { page: "brief", needsRepo: true, nav: { label: navLabel("brief"), icon: CalendarDays, group: "core" }, render: ({ route, embeddedFilePreviewPath, onCloseEmbeddedFilePreview }) => <DailyBriefPage key={route.nonce} initialDate={route.state.date} embeddedFilePreviewPath={embeddedFilePreviewPath} onCloseEmbeddedFilePreview={onCloseEmbeddedFilePreview} /> },
   { page: "sources", needsRepo: true, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> },
   { page: "skills", needsRepo: false, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> },
   { page: "automation", needsRepo: true, nav: { label: navLabel("automation"), icon: Command, group: "core" }, render: ({ route, confirmAction }) => <AutomationPage key={route.nonce} initialSkillId={route.state.skillId} confirmAction={confirmAction} /> },

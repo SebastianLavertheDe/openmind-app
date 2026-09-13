@@ -21,7 +21,7 @@
 
 .inspector-section p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.65;
 }
 
@@ -745,7 +745,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .approval-detail-toggle:hover {
@@ -933,7 +933,7 @@
   margin: 0;
   padding-left: 16px;
   color: var(--orange);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
 }
 
@@ -1040,7 +1040,7 @@
 
 .composer-suggestion-menu > header small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .composer-suggestion-list {
@@ -1109,14 +1109,14 @@
 .suggestion-copy strong em {
   margin-left: 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-style: normal;
   font-weight: 500;
 }
 
 .suggestion-copy small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .composer-suggestion-list code {
@@ -1176,7 +1176,7 @@
 .composer-suggestion-empty small {
   max-width: 420px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
 }
 
@@ -1251,7 +1251,7 @@
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .new-session-controls select {
@@ -1502,7 +1502,7 @@
 
 .app-session-navigation > header strong {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 650;
 }
 
@@ -1542,6 +1542,15 @@
   height: 100%;
   overflow: hidden;
   animation: workspace-file-preview-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both;
+}
+
+.workspace-file-preview.ai-file-preview.is-embedded {
+  position: relative;
+  z-index: auto;
+  inset: auto;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
 }
 
 @keyframes workspace-file-preview-in {
@@ -1681,7 +1690,7 @@
   border-radius: 8px;
   background: var(--panel);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .preview-inline-state.error {
@@ -2060,7 +2069,7 @@
 
 .context-tray-count {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
 }
 
@@ -2075,7 +2084,7 @@
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .context-tray-clear:hover {

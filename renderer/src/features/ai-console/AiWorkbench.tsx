@@ -483,7 +483,7 @@ export function AiWorkbench({
         data-preview-layout={previewVisible ? previewLayoutMode : undefined}
         style={{ "--workbench-columns": previewColumns } as React.CSSProperties}
       >
-        {!previewOnly ? <main ref={conversationRef} className="conversation-pane" tabIndex={-1}>
+        {!previewOnly ? <section ref={conversationRef} className="conversation-pane" tabIndex={-1}>
           <header className={`conversation-header${activeSession ? "" : " is-draft"}`}>
             {activeSession ? (
               <div>
@@ -523,7 +523,7 @@ export function AiWorkbench({
             </div>
           </header>
           <Chat onDraftSubmit={onDraftSubmit} />
-        </main> : null}
+        </section> : null}
         {!projectMode && historyPresence.visible ? createPortal(
           <div
             ref={historyFlyoutRef}

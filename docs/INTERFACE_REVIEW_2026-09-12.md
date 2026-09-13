@@ -30,6 +30,7 @@
 | 交互/行为 | renderer 全部 diff、electron diff、11 个新增文件、removed lines 逐项核对 | 2 项 Introduced(见下) |
 | 无障碍 | diff 中全部 aria-label/focus/role 行的 − 侧与 + 侧对照 | Clear(所有 aria 属性原样保留,无新增无名控件) |
 | 布局/自适应 | daily-brief.css 地板变更及其 shell 联动 | Clear(注释完整的预期修复) |
+| 动效 | 变更内唯一新增动效:PDF 手势 `transition: transform 120ms linear` 与 `styles.css:1242` 全局 reduced-motion 覆盖的级联交互;diff 内 `data-motion` 属性、退场时序、流式 spinner 逐项对照 | Clear(内联 transition 无 `!important`,被全局 `transition-duration: 0s !important` 正确压制;直接操纵反馈,触发器不成立;其余动效代码等价替换) |
 | 文案 | 新增用户可见字符串(worker 错误信息、网页转换超时) | Clear(沿用现有中文错误文案风格) |
 | 排版 / 色彩 | — | Not reviewed:变更范围内无证据 |
 | 安全(点名一次) | web-extract 清洗器逐行比对旧实现 | 移除的 sanitizer(script/img/on*/srcset/链接白名单)在新文件中完整保留;Skill `usable` 展示缓存仅影响目录展示、执行准入仍全量哈希(有测试)。正确性/安全细节归项目常规代码评审 |

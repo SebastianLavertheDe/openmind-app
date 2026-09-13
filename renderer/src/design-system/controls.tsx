@@ -36,17 +36,19 @@ export function Tabs<T extends string>({
   value,
   tabs,
   onChange,
-  label
+  label,
+  className = ""
 }: {
   value: T;
-  tabs: Array<{ value: T; label: string; count?: number }>;
+  tabs: Array<{ value: T; label: string; count?: number; icon?: ReactNode }>;
   onChange(value: T): void;
   label: string;
+  className?: string;
 }) {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, tabs.map((tab) => tab.value), value, onChange);
   return (
-    <div className="ui-tabs" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
-      {tabs.map((tab) => <button data-motion="selection" key={tab.value} data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} className={value === tab.value ? "active" : ""} onClick={() => onChange(tab.value)}>{tab.label}{tab.count == null ? null : <span>{tab.count}</span>}</button>)}
+    <div className={className || "ui-tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+      {tabs.map((tab) => <button data-motion="selection" key={tab.value} data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} className={value === tab.value ? "active" : ""} onClick={() => onChange(tab.value)}>{tab.icon}{tab.label}{tab.count == null ? null : <span>{tab.count}</span>}</button>)}
     </div>
   );
 }
@@ -128,6 +130,7 @@ export function DropdownMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef(false);
+  const initialFocusRef = useRef<"first" | "last">("first");
   const { visible, leaving } = useExitPresence(open, 140);
   const popover = useAnchoredPopover({
     open: visible,
@@ -143,7 +146,12 @@ export function DropdownMenu({
 
   useLayoutEffect(() => {
     if (!open || !visible) return;
-    const frame = requestAnimationFrame(() => getEnabledMenuItems(menuRef.current).at(0)?.focus());
+    const frame = requestAnimationFrame(() => {
+      const items = getEnabledMenuItems(menuRef.current);
+      const target = initialFocusRef.current === "last" ? items.at(-1) : items.at(0);
+      target?.focus();
+      initialFocusRef.current = "first";
+    });
     return () => cancelAnimationFrame(frame);
   }, [open, visible]);
 
@@ -209,6 +217,12 @@ export function DropdownMenu({
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          initialFocusRef.current = event.key === "ArrowUp" ? "last" : "first";
+          setOpen(true);
+        }}
       >
         {label}
       </button>
