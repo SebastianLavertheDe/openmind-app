@@ -96,6 +96,7 @@ export const aiMessages = {
     placeholderNew: "描述要整理、创作或自动化的内容任务…",
     addAttachment: "添加附件",
     stop: "停止",
+    stopping: "正在停止",
     enqueue: "加入队列",
     send: "发送",
     /* P2-CMP-1: token / 字符计数 */

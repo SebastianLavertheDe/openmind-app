@@ -8,6 +8,7 @@ import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { StatusBadge, useModalFocusScope } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
+import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 
 const m = messages.skillCenter;
@@ -395,8 +396,9 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const [failure, setFailure] = useState<string | null>(null);
   const inspectRequestId = useRef<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const dialogPresence = useExitPresence(open, 160);
 
-  useModalFocusScope({ open, containerRef: dialogRef, onDismiss: onToggle, layer: "global" });
+  useModalFocusScope({ open: open && dialogPresence.visible, containerRef: dialogRef, onDismiss: onToggle, layer: "global" });
 
   const inspectSource = useCallback(async (source: SkillPackageSourceInput) => {
     const requestId = `skill-source-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -495,8 +497,16 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
       <Plus size={15} aria-hidden />
       <span>{open ? picker.close : picker.open}</span>
     </button>
-    {open && typeof document !== "undefined" ? createPortal(
-      <div ref={dialogRef} className="modal-scrim settings-provider-dialog-scrim skills-source-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={onToggle}>
+    {dialogPresence.visible && typeof document !== "undefined" ? createPortal(
+      <div
+        ref={dialogRef}
+        className="modal-scrim settings-provider-dialog-scrim skills-source-dialog-scrim ui-overlay"
+        data-focus-scope-backdrop
+        data-leaving={dialogPresence.leaving || undefined}
+        aria-hidden={dialogPresence.leaving || undefined}
+        inert={dialogPresence.leaving || undefined}
+        onMouseDown={onToggle}
+      >
         <section className="settings-provider-dialog skills-source-dialog" role="dialog" aria-modal="true" aria-labelledby="skills-source-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
           <header>
             <div><span>SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
@@ -848,6 +858,10 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<SkillToggleFeedback | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const editorPresence = useExitPresence(Boolean(editor), 160);
+  const lastEditor = useRef<SourceEditorState | null>(editor);
+  if (editor) lastEditor.current = editor;
+  const renderedEditor = editor ?? lastEditor.current;
   const isRss = summary.id === "rss-article-saver";
   const isReddit = summary.id === "reddit-fetcher";
   const canEditSources = isRss || isReddit;
@@ -945,14 +959,17 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
       {rulesOpen ? <p>{m.ownedSources.redditRules.detail}</p> : null}
     </div> : null}
 
-    {editor ? <SkillSourceEditor
-      state={editor}
+    {editorPresence.visible && renderedEditor ? <SkillSourceEditor
+      key={renderedEditor.mode === "edit" ? `edit:${renderedEditor.source.id}` : "add"}
+      state={renderedEditor}
       kind={isReddit ? "reddit" : "rss"}
+      active={Boolean(editor)}
+      leaving={editorPresence.leaving}
       onClose={() => setEditor(null)}
       onSaved={async () => {
         setEditor(null);
         await onReloadSources();
-        setFeedback({ tone: "success", message: m.ownedSources.saved(isReddit, editor.mode === "add") });
+        setFeedback({ tone: "success", message: m.ownedSources.saved(isReddit, renderedEditor.mode === "add") });
       }}
     /> : null}
   </section>;
@@ -968,6 +985,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   const [curl, setCurl] = useState("");
   const [curlState, setCurlState] = useState<"loading" | "configured" | "missing">("loading");
   const [editorOpen, setEditorOpen] = useState(false);
+  const editorPresence = useExitPresence(editorOpen, 160);
   const copy = skillSourceCopy(summary, source ? 1 : 0);
 
   const loadCurl = useCallback(async () => {
@@ -1015,8 +1033,10 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
       <ol>{m.xCurl.helpSteps.map((step) => <li key={step}>{step}</li>)}</ol>
     </div>
 
-    {editorOpen ? <SkillXCurlEditor
+    {editorPresence.visible ? <SkillXCurlEditor
       initialCurl={curl}
+      active={editorOpen}
+      leaving={editorPresence.leaving}
       onClose={() => setEditorOpen(false)}
       onSaved={async (next) => {
         setCurl(next);
@@ -1027,18 +1047,18 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   </section>;
 }
 
-function SkillXCurlEditor({ initialCurl, onClose, onSaved }: { initialCurl: string; onClose(): void; onSaved(curl: string): Promise<void> }) {
+function SkillXCurlEditor({ initialCurl, active, leaving, onClose, onSaved }: { initialCurl: string; active: boolean; leaving: boolean; onClose(): void; onSaved(curl: string): Promise<void> }) {
   const [draft, setDraft] = useState(initialCurl);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    if (!active) return;
     textareaRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [active]);
+  useModalFocusScope({ open: active, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
 
   const save = async () => {
     const next = draft.trim();
@@ -1058,8 +1078,8 @@ function SkillXCurlEditor({ initialCurl, onClose, onSaved }: { initialCurl: stri
     }
   };
 
-  return createPortal(<div className="skills-source-editor-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="skills-source-editor skills-x-curl-editor" role="dialog" aria-modal="true" aria-labelledby="skills-x-curl-editor-title">
+  return createPortal(<div className="skills-source-editor-scrim" role="presentation" data-leaving={leaving || undefined} aria-hidden={leaving || undefined} inert={leaving || undefined} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section ref={dialogRef} className="skills-source-editor skills-x-curl-editor" role="dialog" aria-modal="true" aria-labelledby="skills-x-curl-editor-title" tabIndex={-1}>
       <header><div><h3 id="skills-x-curl-editor-title">{m.xCurl.editorTitle}</h3><p>{m.xCurl.editorDescription}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <label>{m.xCurl.fullCurl}<textarea ref={textareaRef} value={draft} onChange={(event) => { setDraft(event.target.value); setFailure(null); }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} /></label>
@@ -1071,7 +1091,7 @@ function SkillXCurlEditor({ initialCurl, onClose, onSaved }: { initialCurl: stri
   </div>, document.body);
 }
 
-function SkillSourceEditor({ state, kind, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; onClose(): void; onSaved(): Promise<void> }) {
+function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; active: boolean; leaving: boolean; onClose(): void; onSaved(): Promise<void> }) {
   const editing = state.mode === "edit" ? state.source : null;
   const isReddit = kind === "reddit";
   const [name, setName] = useState(editing?.name || "");
@@ -1080,13 +1100,13 @@ function SkillSourceEditor({ state, kind, onClose, onSaved }: { state: SourceEdi
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    if (!active) return;
     inputRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [active]);
+  useModalFocusScope({ open: active, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
 
   const save = async () => {
     setSaving(true);
@@ -1103,8 +1123,8 @@ function SkillSourceEditor({ state, kind, onClose, onSaved }: { state: SourceEdi
     }
   };
 
-  return createPortal(<div className="skills-source-editor-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="skills-source-editor" role="dialog" aria-modal="true" aria-labelledby="skill-source-editor-title">
+  return createPortal(<div className="skills-source-editor-scrim" role="presentation" data-leaving={leaving || undefined} aria-hidden={leaving || undefined} inert={leaving || undefined} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section ref={dialogRef} className="skills-source-editor" role="dialog" aria-modal="true" aria-labelledby="skill-source-editor-title" tabIndex={-1}>
       <header><div><h3 id="skill-source-editor-title">{m.sourceEditor.title(Boolean(editing), isReddit)}</h3><p>{m.sourceEditor.description(isReddit)}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <label>{m.sourceEditor.name(isReddit)}<input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></label>

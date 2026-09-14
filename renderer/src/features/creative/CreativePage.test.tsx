@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UserPreferencesSchema, type AiSnapshot, type CreativeAnalytics, type CreativeProjectDetail, type CreativeProjectSummary, type CreativeStage, type DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -185,6 +185,35 @@ describe("CreativeWorkspacePage", () => {
       content: expect.stringContaining("更新后的正文")
     })), { timeout: 2500 });
     expect(screen.getByText("已自动保存")).toBeTruthy();
+  });
+
+  it("shows a project-bound loading state instead of the unselected empty state", async () => {
+    const summary = project("drafting", "慢速稿件");
+    let resolveDetail!: (value: CreativeProjectDetail) => void;
+    const pending = new Promise<CreativeProjectDetail>((resolve) => { resolveDetail = resolve; });
+    const getCreativeProject = vi.fn(() => pending);
+    const api = makeApi({ getCreativeProjects: async () => [summary], getCreativeProject });
+    renderCreative(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: /慢速稿件/ }));
+    const loadingText = await screen.findByText(/正在读取“慢速稿件”/);
+    expect(loadingText.closest('[role="status"]')).toBeTruthy();
+    expect(screen.queryByText(m.creativeUi.editor.selectLeftTitle)).toBeNull();
+
+    await act(async () => resolveDetail(detailFor(summary)));
+    expect(await screen.findByRole("heading", { name: "慢速稿件" })).toBeTruthy();
+    expect(getCreativeProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens an initial project only once when its stage becomes active", async () => {
+    const summary = project("review", "路由稿件");
+    const getCreativeProject = vi.fn(async () => detailFor(summary));
+    const api = makeApi({ getCreativeProjects: async () => [summary], getCreativeProject });
+
+    renderCreative(api, { initialProjectDir: summary.dir });
+
+    expect(await screen.findByRole("heading", { name: "路由稿件" })).toBeTruthy();
+    await waitFor(() => expect(getCreativeProject).toHaveBeenCalledTimes(1));
   });
 
   it("keeps edits local when workflow autosave is disabled", async () => {

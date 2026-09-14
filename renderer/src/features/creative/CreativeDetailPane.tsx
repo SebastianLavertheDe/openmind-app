@@ -15,6 +15,7 @@ import {
   Link as LinkIcon,
   List,
   ListOrdered,
+  LoaderCircle,
   Quote,
   Save
 } from "lucide-react";
@@ -48,6 +49,8 @@ export function CreativeDetailPane({
   setDetail,
   setDraft,
   createProject,
+  creatingProjectKey,
+  detailLoading,
   addContext,
   dirty,
   autoSaveStatus,
@@ -90,6 +93,8 @@ export function CreativeDetailPane({
   setDetail: Dispatch<SetStateAction<CreativeProjectDetail | null>>;
   setDraft: Dispatch<SetStateAction<string>>;
   createProject(platform?: PlatformOption, topicOverride?: CreativeTopic): Promise<void>;
+  creatingProjectKey: string | null;
+  detailLoading: boolean;
   addContext(): void;
   dirty: boolean;
   autoSaveStatus: "idle" | "saving" | "saved" | "failed";
@@ -132,7 +137,11 @@ export function CreativeDetailPane({
       date={selectedTopicDate}
       createProject={createProject}
       addContext={addContext}
+      creatingKey={creatingProjectKey}
     />;
+  }
+  if (detailLoading && selectedProject) {
+    return <div className="creative-project-loading" role="status" aria-live="polite"><LoaderCircle size={18} className="spin" /><div><strong>{selectedProject.topic}</strong><span>{m.creativeUi.topic.loadingProject(selectedProject.topic)}</span></div></div>;
   }
   if (!detail || !selectedProject) {
     return <EmptyState title={m.creativeUi.editor.selectLeftTitle} description={m.creativeUi.editor.selectLeftDesc} icon={<FileText size={28} />} />;

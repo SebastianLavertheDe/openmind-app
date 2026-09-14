@@ -55,7 +55,7 @@ export function Select<T extends string>({
   const listRef = useRef<HTMLDivElement>(null);
   const focusFrameRef = useRef<number | null>(null);
   const shouldRestoreFocusRef = useRef(false);
-  const { visible, leaving } = useExitPresence(menuMounted, 140);
+  const { visible, leaving } = useExitPresence(menuMounted, 160);
   const popover = useAnchoredPopover({
     open: visible,
     anchorRef: triggerRef,
@@ -230,6 +230,8 @@ export function Select<T extends string>({
           role="listbox"
           aria-label={accessibleName}
           data-leaving={leaving || undefined}
+          aria-hidden={leaving || undefined}
+          inert={leaving || undefined}
           data-open={open || undefined}
           data-side={popover.side}
           style={popover.style}

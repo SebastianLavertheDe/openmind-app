@@ -1,6 +1,7 @@
-import { useRef, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useModalFocusScope } from "../../design-system/components";
+import { useExitPresence } from "../../design-system/use-exit-presence";
 
 export function ProjectDialog({
   open,
@@ -30,24 +31,36 @@ export function ProjectDialog({
   onClose(): void;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
-  useModalFocusScope({ open, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
-  if (!open) return null;
+  const { visible, leaving } = useExitPresence(open, 160);
+  const [stashed, setStashed] = useState({ title, description, confirmLabel, cancelLabel, children });
+  useEffect(() => {
+    if (open) setStashed({ title, description, confirmLabel, cancelLabel, children });
+  }, [cancelLabel, children, confirmLabel, description, open, title]);
+  useModalFocusScope({ open: open && visible, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
+  if (!visible) return null;
+  const content = open ? { title, description, confirmLabel, cancelLabel, children } : stashed;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!busy) void onConfirm();
   };
   return (
-    <div className={`project-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`} onMouseDown={onClose}>
+    <div
+      className={`project-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`}
+      data-leaving={leaving || undefined}
+      aria-hidden={leaving || undefined}
+      inert={leaving || undefined}
+      onMouseDown={onClose}
+    >
       <section ref={dialogRef} className={`project-dialog${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
         <form onSubmit={submit}>
           <header>
-            <div><h2 id="project-dialog-title">{title}</h2>{description ? <p>{description}</p> : null}</div>
+            <div><h2 id="project-dialog-title">{content.title}</h2>{content.description ? <p>{content.description}</p> : null}</div>
             <button type="button" className="icon-button" aria-label="关闭" onClick={onClose}><X size={16} /></button>
           </header>
-          <div className="project-dialog-body">{children}</div>
+          <div className="project-dialog-body">{content.children}</div>
           {showFooter ? <footer>
-            {cancelLabel ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={onClose}>{cancelLabel}</button> : null}
-            <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? "处理中…" : confirmLabel}</button>
+            {content.cancelLabel ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={onClose}>{content.cancelLabel}</button> : null}
+            <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? "处理中…" : content.confirmLabel}</button>
           </footer> : null}
         </form>
       </section>

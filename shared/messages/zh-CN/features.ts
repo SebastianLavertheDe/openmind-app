@@ -744,7 +744,7 @@ export const featureMessages = {
     },
     schedule: { daily0800: "每天 08:00", afterCapture: "抓取后触发", every15min: "每 15 分钟" },
     trigger: { scheduled: "定时", event: "事件", afterCaptureDetail: "RSS / X / Reddit 抓取成功后", every15minDetail: "每 15 分钟检查订阅源" },
-    actions: { stop: "停止运行", run: "立即运行" },
+    actions: { stop: "停止运行", run: "立即运行", starting: "正在启动…", stopping: "正在停止…" },
     status: {
       running: "运行中",
       ready: "就绪",
@@ -870,14 +870,15 @@ export const featureMessages = {
       results: (count: number) => `${count} 条结果`
     },
     list: { aria: "运行记录列表", loading: "正在加载运行记录…", empty: "没有符合筛选条件的运行记录。", select: "选择一条运行记录查看详情。" },
-    actions: { cancel: "取消", retry: "重试", resuming: "恢复中…", resumeWorkflow: "恢复 Workflow", deleteHistory: "删除历史" },
+    actions: { cancel: "取消", cancelling: "取消中…", retry: "重试", retrying: "重试中…", resuming: "恢复中…", resumeWorkflow: "恢复 Workflow", deleteHistory: "删除历史", deleting: "删除中…" },
     fields: { state: "状态", createdAt: "创建时间", completedAt: "完成时间", snapshot: "数据快照", generation: (value: number) => `第 ${value} 代`, trigger: "触发方式", steps: "步骤", usage: "用量" },
     failure: { title: "失败原因", hint: "可先重试；如果再次失败，请展开下方事件查看失败阶段与诊断信息。" },
     orphan: { title: "可能残留进程", body: (pid: number) => `应用重启时发现该 Run 关联的进程可能仍在运行（PID ${pid}）。App 不会根据复用风险自动终止它，请在系统进程工具中人工确认后处理。` },
     resume: { title: "恢复输入", body: "应用重启后不会保存 Workflow 输入。确认已安装的 Workflow 版本和 root snapshot 未变化后，重新提供本次恢复所需的非 Secret JSON 输入。", aria: "Workflow 恢复输入", action: "使用这些输入恢复" },
     artifacts: { title: "运行产物", count: (value: number) => `${value} 个 Artifact`, empty: "没有记录到产物。", openAria: (name: string) => `打开 ${name}`, open: "打开", revealAria: (name: string) => `定位 ${name}`, reveal: "定位", external: "外部导出绑定：", unavailable: "不可用" },
-    events: { title: "事件", empty: "没有事件。" },
+    events: { title: "事件", loading: "正在读取事件…", empty: "没有事件。" },
     retryStep: "重试 Step",
+    retryingStep: "正在重试…",
     state: { succeeded: "成功", failed: "失败", timedOut: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", preparing: "准备运行环境", running: "运行中", cancelling: "取消中", pending: "待运行", skipped: "已跳过" },
     cost: { estimate: "估算 ", mixed: "混合 " },
     deleteHistory: {

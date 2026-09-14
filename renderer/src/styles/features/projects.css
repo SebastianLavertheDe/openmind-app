@@ -361,6 +361,14 @@
 }
 .project-list-row:hover { background: var(--control-hover); color: var(--text); }
 .project-list-row.active { background: var(--nav-selected-bg, var(--control-hover)); color: var(--text); }
+.project-list-row.pending { background: var(--nav-selected-bg, var(--control-hover)); color: var(--text); }
+.project-list-row.pending .project-list-project { cursor: wait; }
+.project-opening-spinner { color: var(--accent); }
+.project-detail-fill { transition: opacity var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)); }
+.project-detail-fill.is-opening-project { opacity: .55; pointer-events: none; }
+.project-opening-state { animation: project-opening-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+.project-opening-overlay { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; background: color-mix(in srgb, var(--bg) 72%, transparent); color: var(--muted); animation: project-opening-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+@keyframes project-opening-in { from { opacity: 0; } to { opacity: 1; } }
 .project-list-project {
   min-width: 0;
   min-height: 32px;
@@ -546,6 +554,16 @@
 .project-local-list { display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .project-local-detail { position: relative; display: flex; flex-direction: column; background: var(--bg); }
 .project-list-detail.single .project-local-list { border-right: 0; }
+.project-list-detail.single .project-local-list,
+.project-list-detail.single .project-local-detail { grid-area: 1 / 1; }
+.project-list-detail.single .project-local-list[data-entering] { animation: project-list-pane-in var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+.project-list-detail.single .project-local-detail[data-entering] { animation: project-detail-pane-in var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+.project-list-detail.single .project-local-list[data-leaving] { z-index: 2; animation: project-list-pane-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
+.project-list-detail.single .project-local-detail[data-leaving] { z-index: 2; animation: project-detail-pane-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
+@keyframes project-list-pane-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes project-detail-pane-in { from { opacity: 0; transform: translateX(4px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes project-list-pane-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-4px); } }
+@keyframes project-detail-pane-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(4px); } }
 .project-detail-back { min-height: 36px; padding: 0 16px; border-bottom: 1px solid var(--border); }
 .project-local-list-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 14px 10px; }
 .project-local-list-header h2 { margin-top: 3px; font-size: 17px; }
@@ -789,10 +807,14 @@
 .project-output-editor .cm-scroller { min-height: 100%; padding: 24px 30px 70px; }
 .project-output-editor > .reader-markdown { margin: 0 auto; padding: 36px 50px 90px; }
 
-.project-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-global-modal); display: grid; place-items: center; padding: 20px; background: rgba(6, 8, 12, .52); backdrop-filter: blur(3px); animation: project-backdrop-in var(--dur-fast, 150ms) ease-out both; }
+.project-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-global-modal); display: grid; place-items: center; padding: 20px; background: rgba(6, 8, 12, .52); backdrop-filter: blur(3px); animation: project-backdrop-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
 .project-dialog { width: min(500px, calc(100vw - 32px)); max-height: min(680px, calc(100vh - 40px)); overflow: auto; border: 1px solid var(--border-strong); border-radius: 15px; background: var(--panel); box-shadow: 0 28px 80px rgba(0, 0, 0, .35); animation: project-dialog-in var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both; }
 @keyframes project-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes project-dialog-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+.project-dialog-backdrop[data-leaving] { animation: project-backdrop-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
+.project-dialog-backdrop[data-leaving] .project-dialog { animation: project-dialog-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
+@keyframes project-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes project-dialog-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(4px) scale(.99); } }
 .project-dialog-error { margin: 0; color: var(--danger-500); font-size: 12px; line-height: 1.5; }
 .project-dialog form { display: grid; }
 .project-dialog header,
@@ -805,7 +827,7 @@
 .project-field { display: grid; gap: 7px; color: var(--muted); font-size: var(--fs-xs); }
 .project-field input,
 .project-field select,
-.project-field textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; }
+.project-field textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .project-field textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
 .project-field input:focus,
 .project-field input:focus-visible,
@@ -813,9 +835,9 @@
 .project-field select:focus-visible,
 .project-field textarea:focus,
 .project-field textarea:focus-visible {
-  border-color: var(--border);
+  border-color: var(--focus-ring);
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 16%, transparent);
 }
 
 .project-dialog-backdrop-clear { background: transparent; backdrop-filter: none; }

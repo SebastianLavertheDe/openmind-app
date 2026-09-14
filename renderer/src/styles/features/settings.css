@@ -2087,6 +2087,7 @@
   overflow-y: auto;
   background: rgba(25, 25, 24, .46);
   backdrop-filter: blur(3px);
+  animation: settings-provider-scrim-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both;
 }
 
 .settings-provider-dialog {
@@ -2188,6 +2189,18 @@
   from { opacity: 0; transform: translateY(10px) scale(.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+.settings-provider-dialog-scrim[data-leaving] {
+  animation: settings-provider-scrim-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards;
+}
+
+.settings-provider-dialog-scrim[data-leaving] .settings-provider-dialog {
+  animation: settings-provider-dialog-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards;
+}
+
+@keyframes settings-provider-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes settings-provider-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes settings-provider-dialog-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(4px) scale(.99); } }
 
 .settings-note {
   color: var(--muted-2);

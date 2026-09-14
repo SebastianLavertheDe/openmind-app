@@ -6,6 +6,7 @@ import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
+import { useExitPresence } from "../../design-system/use-exit-presence";
 
 const m = messages;
 
@@ -82,16 +83,20 @@ export function ProviderSettingsSection({
   const [selectedCliProvider, setSelectedCliProvider] = useState<string | null>(null);
   const [bindingBusy, setBindingBusy] = useState(false);
   const providerDialogRef = useRef<HTMLDivElement | null>(null);
+  const lastConfiguringCli = useRef<"claude" | "codex" | null>(configuringCli);
+  if (configuringCli) lastConfiguringCli.current = configuringCli;
+  const providerDialogPresence = useExitPresence(Boolean(configuringCli), 160);
+  const renderedCli = configuringCli ?? lastConfiguringCli.current;
 
   const closeProviderDialog = () => {
     if (!bindingBusy) setConfiguringCli(null);
   };
 
-  useModalFocusScope({ open: Boolean(configuringCli), containerRef: providerDialogRef, onDismiss: closeProviderDialog, layer: "global" });
+  useModalFocusScope({ open: Boolean(configuringCli) && providerDialogPresence.visible, containerRef: providerDialogRef, onDismiss: closeProviderDialog, layer: "global" });
 
-  const compatibleProviders = useMemo(() => configuringCli && providerConfiguration
-    ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(configuringCli, entry.protocol))
-    : [], [configuringCli, providerConfiguration]);
+  const compatibleProviders = useMemo(() => renderedCli && providerConfiguration
+    ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(renderedCli, entry.protocol))
+    : [], [providerConfiguration, renderedCli]);
 
   useEffect(() => window.openmind.onCliInstallProgress?.((progress) => {
     setInstallProgress(progress);
@@ -259,14 +264,22 @@ export function ProviderSettingsSection({
         </div>
       </SettingsPanel>
 
-      {configuringCli && typeof document !== "undefined" ? createPortal(
-        <div ref={providerDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={closeProviderDialog}>
+      {providerDialogPresence.visible && renderedCli && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={providerDialogRef}
+          className="modal-scrim settings-provider-dialog-scrim ui-overlay"
+          data-focus-scope-backdrop
+          data-leaving={providerDialogPresence.leaving || undefined}
+          aria-hidden={providerDialogPresence.leaving || undefined}
+          inert={providerDialogPresence.leaving || undefined}
+          onMouseDown={closeProviderDialog}
+        >
           <section className="settings-provider-dialog settings-cli-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="cli-provider-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
               <div>
                 <span>{m.settings.provider.providerDialogEyebrow}</span>
-                <h2 id="cli-provider-dialog-title">{m.settings.provider.providerDialogTitle(configuringCli === "claude" ? "Claude Code" : "Codex CLI")}</h2>
-                <p>{m.settings.provider.providerDialogDescription(configuringCli === "claude" ? "anthropic-messages" : "openai-responses")}</p>
+                <h2 id="cli-provider-dialog-title">{m.settings.provider.providerDialogTitle(renderedCli === "claude" ? "Claude Code" : "Codex CLI")}</h2>
+                <p>{m.settings.provider.providerDialogDescription(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")}</p>
               </div>
               <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.provider.closeProviderDialog} onClick={closeProviderDialog}><X size={16} /></button>
             </header>
@@ -274,13 +287,13 @@ export function ProviderSettingsSection({
               <div className="settings-provider-dialog-body settings-cli-provider-options" role="radiogroup" aria-label={m.settings.provider.providerOptionsAria}>
                 <label className="settings-cli-provider-option">
                   <input type="radio" name="cli-provider-binding" checked={selectedCliProvider === null} onChange={() => setSelectedCliProvider(null)} autoFocus />
-                  <span><strong>{m.settings.provider.ownConfiguration(configuringCli === "claude" ? "Claude Code" : "Codex CLI")}</strong><small>{m.settings.provider.ownConfigurationDescription}</small></span>
+                  <span><strong>{m.settings.provider.ownConfiguration(renderedCli === "claude" ? "Claude Code" : "Codex CLI")}</strong><small>{m.settings.provider.ownConfigurationDescription}</small></span>
                 </label>
                 {compatibleProviders.map((entry) => <label key={entry.id} className="settings-cli-provider-option">
                   <input type="radio" name="cli-provider-binding" checked={selectedCliProvider === entry.id} onChange={() => setSelectedCliProvider(entry.id)} />
                   <span><strong>{entry.name}</strong><small>{entry.protocol} · {entry.model}</small></span>
                 </label>)}
-                {!compatibleProviders.length ? <p className="settings-note settings-cli-provider-empty">{m.settings.provider.noCompatibleProviders(configuringCli === "claude" ? "anthropic-messages" : "openai-responses")}</p> : null}
+                {!compatibleProviders.length ? <p className="settings-note settings-cli-provider-empty">{m.settings.provider.noCompatibleProviders(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")}</p> : null}
               </div>
               <footer>
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={closeProviderDialog}>{m.settings.provider.cancel}</button>

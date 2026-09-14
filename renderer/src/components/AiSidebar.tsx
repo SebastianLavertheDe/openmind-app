@@ -4,6 +4,7 @@ import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-context";
 import { useModalFocusScope } from "../design-system/components";
+import { useExitPresence } from "../design-system/use-exit-presence";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
@@ -125,6 +126,19 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   const preferredRatio = ratios[mode];
   const renderedWidth = sidebarWidthForRatio(preferredRatio, bounds);
   panelModeRef.current = ui.panelMode;
+  const panelOpen = ui.panelMode !== "collapsed";
+  const animatedSurface = modal || floating;
+  const panelPresence = useExitPresence(panelOpen && animatedSurface, 200);
+  const livePresentationClass = detached ? " layout-companion-canvas" : full ? "" : ` layout-companion-${presentation}`;
+  const liveRenderState = { panelMode: ui.panelMode, full, detached, modal, presentationClass: livePresentationClass };
+  const lastOpenRenderState = useRef(liveRenderState);
+  const lastOpenWasAnimated = useRef(animatedSurface);
+  if (panelOpen) {
+    lastOpenRenderState.current = liveRenderState;
+    lastOpenWasAnimated.current = animatedSurface;
+  }
+  const exitingPanel = !panelOpen && lastOpenWasAnimated.current && panelPresence.visible;
+  const renderState = exitingPanel ? lastOpenRenderState.current : liveRenderState;
 
   const dismissModal = useCallback(() => {
     if (panelModeRef.current === "full") ui.setPanelMode(previousMode.current);
@@ -232,24 +246,29 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     };
   }, [floating, floatingInlineGutter, modal, mode, navCollapsed, responsiveLayout]);
 
-  if (ui.panelMode === "collapsed") return <button ref={railTriggerRef} className="ai-rail" data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ui.setPanelMode("default")}><MessageSquare size={18} /></button>;
+  const rail = <button ref={railTriggerRef} className="ai-rail" data-entering={exitingPanel || undefined} data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ui.setPanelMode("default")}><MessageSquare size={18} /></button>;
+  if (!panelOpen && !exitingPanel) return rail;
   // Once the viewport selects a single canvas it remains the visual surface,
   // even if a persisted/fullscreen panel mode is active.
-  const presentationClass = detached ? " layout-companion-canvas" : full ? "" : ` layout-companion-${presentation}`;
   return (
-    <aside
-      ref={sidebarRef}
-      className={`ai-sidebar mode-${ui.panelMode}${presentationClass}`}
-      data-layout-width={Math.round(renderedWidth)}
-      data-layout-ratio={preferredRatio}
-      data-layout-min-width={SIDEBAR_MIN_WIDTH}
-      role={modal ? "dialog" : undefined}
-      aria-modal={modal ? "true" : undefined}
-      aria-label={modal ? m.ai.sidebar.dialogLabel : undefined}
-      tabIndex={modal ? -1 : undefined}
-    >
+    <>
+      {exitingPanel ? rail : null}
+      <aside
+        ref={sidebarRef}
+        className={`ai-sidebar mode-${renderState.panelMode}${renderState.presentationClass}`}
+        data-layout-width={Math.round(renderedWidth)}
+        data-layout-ratio={preferredRatio}
+        data-layout-min-width={SIDEBAR_MIN_WIDTH}
+        data-leaving={exitingPanel || undefined}
+        aria-hidden={exitingPanel || undefined}
+        inert={exitingPanel || undefined}
+        role={renderState.modal ? "dialog" : undefined}
+        aria-modal={renderState.modal ? "true" : undefined}
+        aria-label={renderState.modal ? m.ai.sidebar.dialogLabel : undefined}
+        tabIndex={renderState.modal ? -1 : undefined}
+      >
         <div className="ai-sidebar-actions">
-          {!detached && !full ? (
+          {!renderState.detached && !renderState.full ? (
             <button
               type="button"
               data-motion="icon"
@@ -259,12 +278,12 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
               onClick={() => ui.setPanelMode(ui.panelMode === "wide" ? "default" : "wide")}
             ><Columns2 size={17} aria-hidden="true" /></button>
           ) : null}
-          {!detached && !full ? (
+          {!renderState.detached && !renderState.full ? (
             <button type="button" data-motion="icon" aria-label={m.ai.sidebar.fullscreen} title={m.ai.sidebar.fullscreen} onClick={() => ui.setPanelMode("full")}>
               <Maximize2 size={17} aria-hidden="true" />
             </button>
           ) : null}
-          {full ? (
+          {renderState.full ? (
             <button type="button" data-motion="icon" aria-label={m.ai.sidebar.exitFullscreen} title={m.ai.sidebar.exitFullscreen} onClick={dismissModal}>
               <Minimize2 size={17} aria-hidden="true" />
             </button>
@@ -278,7 +297,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
             onClick={() => ui.setPanelMode("collapsed")}
           ><X size={18} aria-hidden="true" /></button>
         </div>
-        {!full && !detached ? (
+        {!renderState.full && !renderState.detached ? (
           <div
             className="ai-sidebar-resizer"
             role="separator"
@@ -384,7 +403,8 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
           />
         ) : null}
         <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
-    </aside>
+      </aside>
+    </>
   );
 }
 

@@ -17,12 +17,15 @@ export function SegmentedControl<T extends string>({
   const rootRef = useRef<HTMLDivElement>(null);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, options.map((option) => option.value), value, onChange);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = rootRef.current;
     const active = root?.querySelector<HTMLButtonElement>("button.active");
     if (!root || !active) return;
     root.style.setProperty("--seg-thumb-left", `${active.offsetLeft}px`);
     root.style.setProperty("--seg-thumb-width", `${active.offsetWidth}px`);
+    if (root.hasAttribute("data-motion-ready")) return;
+    const frame = window.requestAnimationFrame(() => root.setAttribute("data-motion-ready", "true"));
+    return () => window.cancelAnimationFrame(frame);
   }, [options, value]);
 
   return (

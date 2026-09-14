@@ -535,8 +535,14 @@ describe("SkillsPage", () => {
     renderPage({ inspectSkillSource: vi.fn(), installSkillSource: vi.fn() }, undefined, true);
     const dialog = await screen.findByRole("dialog", { name: "添加 Skill 来源" });
     expect(within(dialog).getByPlaceholderText("https://github.com/org/skill.git")).toBeTruthy();
-    expect(within(dialog).getByRole("button", { name: "取消" })).toBeTruthy();
+    const cancel = within(dialog).getByRole("button", { name: "取消" });
+    expect(cancel).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "检查 Git 来源" })).toBeTruthy();
+
+    fireEvent.click(cancel);
+    await waitFor(() => expect(document.querySelector(".skills-source-dialog-scrim")?.getAttribute("data-leaving")).toBe("true"));
+    expect(document.querySelector(".skills-source-dialog-scrim")?.hasAttribute("inert")).toBe(true);
+    await waitFor(() => expect(document.querySelector(".skills-source-dialog-scrim")).toBeNull());
   });
 
   it("inspects a local directory or ZIP before enabling install", async () => {

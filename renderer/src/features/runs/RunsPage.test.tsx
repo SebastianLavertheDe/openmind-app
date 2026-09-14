@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION, WorkflowRunRecordSchema } from "@shared/execution-contracts";
@@ -68,6 +68,52 @@ describe("RunsPage", () => {
     expect(screen.getByText(/test-model · 15 tokens · \$0\.0100 · 1\.2s/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /重试/ }));
     await waitFor(() => expect(retrySkillRun).toHaveBeenCalledWith("skill-run-1"));
+  });
+
+  it("shows retry pending in the same turn and blocks duplicate requests", async () => {
+    let resolveRetry!: (value: typeof skillRun) => void;
+    const pending = new Promise<typeof skillRun>((resolve) => { resolveRetry = resolve; });
+    const retrySkillRun = vi.fn(() => pending);
+    window.openmind = makeApi({ retrySkillRun });
+    render(<RunsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "重试" }));
+    const pendingButton = screen.getByRole("button", { name: /重试中/ }) as HTMLButtonElement;
+    expect(pendingButton.disabled).toBe(true);
+    expect(pendingButton.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(pendingButton);
+    expect(retrySkillRun).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveRetry(skillRun));
+    await waitFor(() => expect(screen.getByRole("button", { name: "重试" })).toBeTruthy());
+  });
+
+  it("never displays events from the previous run under a newly selected run", async () => {
+    const secondRun = BrokerRunRecordSchema.parse({
+      ...skillRun,
+      id: "skill-run-2",
+      request: { ...skillRun.request, skillId: "other-skill" },
+      createdAt: "2026-08-06T08:00:00.000Z"
+    });
+    type Events = Awaited<ReturnType<DesktopApi["getSkillRunEvents"]>>;
+    let resolveEvents!: (events: Events) => void;
+    const pendingEvents = new Promise<Events>((resolve) => { resolveEvents = resolve; });
+    window.openmind = makeApi({
+      listSkillRuns: async () => [skillRun, secondRun],
+      listWorkflowRuns: async () => [],
+      getSkillRunEvents: vi.fn((runId: string) => runId === skillRun.id
+        ? Promise.resolve<Events>([{ schemaVersion: 1, runId, sequence: 1, timestamp: "2026-08-05T08:00:01.000Z", state: "failed", text: "old event" }])
+        : pendingEvents)
+    });
+    render(<RunsPage initialRunId={skillRun.id} />);
+
+    expect(await screen.findByText("old event")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /other-skill/ }));
+    expect(screen.queryByText("old event")).toBeNull();
+    expect(screen.getByText(/正在读取事件/).closest('[role="status"]')).toBeTruthy();
+
+    await act(async () => resolveEvents([{ schemaVersion: 1, runId: secondRun.id, sequence: 1, timestamp: "2026-08-06T08:00:01.000Z", state: "failed", text: "new event" }]));
+    expect(await screen.findByText("new event")).toBeTruthy();
   });
 
   it("exposes failed Workflow Step retry and history deletion", async () => {

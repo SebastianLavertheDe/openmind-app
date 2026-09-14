@@ -45,9 +45,11 @@ export const creativeUiMessages = {
     score: (score: number) => `推荐指数 ${score}`,
     askAi: "询问 AI",
     createDraft: "创建草稿",
+    creatingDraft: "正在创建…",
     hasDraft: "该选题已有草稿，可在「创作中」阶段继续。",
     pickPlatform: "选择平台与模板",
     genericDraft: "通用草稿",
+    loadingProject: (title: string) => `正在读取“${title}”…`,
     noBody: "该选题没有更多说明。",
     reasonHeading: "推荐理由与创作角度",
     outline: {

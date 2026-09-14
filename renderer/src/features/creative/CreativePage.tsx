@@ -46,6 +46,8 @@ export function CreativeWorkspacePage({
   const [selectedTopic, setSelectedTopic] = useState<CreativeTopic | null>(null);
   const [selectedProject, setSelectedProject] = useState<CreativeProjectSummary | null>(null);
   const [detail, setDetail] = useState<CreativeProjectDetail | null>(null);
+  const [detailLoadingProjectDir, setDetailLoadingProjectDir] = useState<string | null>(null);
+  const [creatingProjectKey, setCreatingProjectKey] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState("");
   const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -66,6 +68,11 @@ export function CreativeWorkspacePage({
   const [editorSelection, setEditorSelection] = useState<EditorSelectionSnapshot>({ start: 0, end: 0, text: "" });
   const [compactListOpen, setCompactListOpen] = useState(true);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
+  const projectOpenIntentRef = useRef(0);
+  const initialProjectOpenRef = useRef<string | null>(null);
+  const creatingProjectRef = useRef(false);
+  const creativeSelectionRef = useRef({ selectedTopic, selectedProject, detail, activeFile, draft, dirty, stage });
+  creativeSelectionRef.current = { selectedTopic, selectedProject, detail, activeFile, draft, dirty, stage };
   const layout = useListDetailLayout(
     "openmind.list-detail.creative.v1",
     { listWidth: 280, listCollapsed: false },
@@ -125,28 +132,45 @@ export function CreativeWorkspacePage({
 
   const openProject = useCallback(async (project: CreativeProjectSummary) => {
     if (!await resetTopicFile()) return;
+    const intent = ++projectOpenIntentRef.current;
+    const previous = creativeSelectionRef.current;
     if (compactWorkspace) setCompactListOpen(false);
     setSelectedTopic(null);
     setSelectedProject(project);
     setDetail(null);
     setDirty(false);
+    setDetailLoadingProjectDir(project.dir);
     const targetStage = (project.stage as Stage) || stage;
     setStage(targetStage);
     try {
       const next = await window.openmind.getCreativeProject(project.dir);
+      if (intent !== projectOpenIntentRef.current) return;
       setDetail(next);
       const firstFile = preferredFile(Object.keys(next.files || {}), targetStage);
       setActiveFile(firstFile);
       setDraft(next.files?.[firstFile] || "");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (intent === projectOpenIntentRef.current) {
+        setSelectedTopic(previous.selectedTopic);
+        setSelectedProject(previous.selectedProject);
+        setDetail(previous.detail);
+        setActiveFile(previous.activeFile);
+        setDraft(previous.draft);
+        setDirty(previous.dirty);
+        setStage(previous.stage);
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally {
+      if (intent === projectOpenIntentRef.current) setDetailLoadingProjectDir(null);
     }
   }, [compactWorkspace, stage, resetTopicFile]);
 
   useEffect(() => {
     if (!initialProjectDir || !projects.length) return;
+    if (initialProjectOpenRef.current === initialProjectDir) return;
     const requested = projects.find((project) => project.dir === initialProjectDir);
     if (!requested) return;
+    initialProjectOpenRef.current = initialProjectDir;
     setStage(requested.stage as Stage);
     void openProject(requested);
   }, [initialProjectDir, projects, openProject]);
@@ -196,8 +220,10 @@ export function CreativeWorkspacePage({
 
   const createProject = async (platform?: PlatformOption, topicOverride?: CreativeTopic) => {
     const topic = topicOverride || selectedTopic;
-    if (!topic) return;
+    if (!topic || creatingProjectRef.current) return;
     const topicDate = (topic as TopicWithDate).sourceDate || normalizeDate(date);
+    creatingProjectRef.current = true;
+    setCreatingProjectKey(platform?.id || "generic");
     try {
       const created = await window.openmind.createCreativeProject({ date: topicDate, topic, sourceTopicId: topic.id || undefined });
       const reused = Boolean((created as { reused?: boolean }).reused);
@@ -223,6 +249,9 @@ export function CreativeWorkspacePage({
       ui.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
     } catch (cause) {
       ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
+    } finally {
+      creatingProjectRef.current = false;
+      setCreatingProjectKey(null);
     }
   };
 
@@ -392,7 +421,7 @@ export function CreativeWorkspacePage({
                 onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
               ><PanelLeftOpen size={17} /></button>
             ) : null}
-            <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}`} data-stage={stage}>
+            <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}${detail && !detailLoadingProjectDir ? " is-ready" : ""}`} data-stage={stage} aria-busy={Boolean(detailLoadingProjectDir) || undefined}>
               <CreativeDetailPane
                 stage={stage}
                 detail={detail}
@@ -413,6 +442,8 @@ export function CreativeWorkspacePage({
                 setDetail={setDetail}
                 setDraft={setDraft}
                 createProject={createProject}
+                creatingProjectKey={creatingProjectKey}
+                detailLoading={detailLoadingProjectDir === selectedProject?.dir}
                 addContext={addContext}
                 dirty={dirty}
                 autoSaveStatus={autoSaveStatus}

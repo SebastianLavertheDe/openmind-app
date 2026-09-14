@@ -441,6 +441,8 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(saveProviders).toHaveBeenLastCalledWith(expect.objectContaining({
       cli: { claude: "claude-a", codex: "codex-a" }
     })));
+    await waitFor(() => expect(document.querySelector(".settings-cli-provider-dialog")?.parentElement?.getAttribute("data-leaving")).toBe("true"));
+    expect(document.querySelector(".settings-cli-provider-dialog")?.parentElement?.hasAttribute("inert")).toBe(true);
     expect(await screen.findByText("Provider · Codex A")).toBeTruthy();
   });
 

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DropdownMenu, Tabs } from "./controls";
+import { DropdownMenu, SegmentedControl, Tabs } from "./controls";
 import { VirtualList } from "./VirtualList";
 
 afterEach(() => {
@@ -10,6 +10,28 @@ afterEach(() => {
 });
 
 describe("design system controls", () => {
+  it("positions the segmented thumb before enabling later selection transitions", async () => {
+    let paint: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => { paint = callback; return 1; }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { container } = render(
+      <SegmentedControl
+        label="密度"
+        value="default"
+        options={[{ value: "compact", label: "紧凑" }, { value: "default", label: "默认" }]}
+        onChange={vi.fn()}
+      />
+    );
+
+    const segmented = container.querySelector(".ui-segmented") as HTMLElement;
+    expect(segmented.hasAttribute("data-motion-ready")).toBe(false);
+    expect(segmented.style.getPropertyValue("--seg-thumb-left")).toBe("0px");
+    expect(segmented.style.getPropertyValue("--seg-thumb-width")).toBe("0px");
+
+    paint?.(0);
+    await waitFor(() => expect(segmented.getAttribute("data-motion-ready")).toBe("true"));
+  });
+
   it("supports arrow-key tab navigation with roving tabindex", () => {
     const onChange = vi.fn();
     render(

@@ -688,6 +688,8 @@
   box-shadow: var(--shadow-lg);
   animation: skills-editor-in var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both;
 }
+.skills-source-editor-scrim[data-leaving] { animation: skills-editor-scrim-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; pointer-events: none; }
+.skills-source-editor-scrim[data-leaving] .skills-source-editor { animation: skills-editor-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
 .skills-source-editor > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px; border-bottom: 1px solid var(--hairline); }
 .skills-source-editor > header h3 { margin: 0; color: var(--text); font-size: 15px; font-weight: 600; }
 .skills-source-editor > header p { margin: 4px 0 0; color: var(--muted); font-size: var(--fs-xs); }
@@ -706,6 +708,8 @@
 
 @keyframes skills-editor-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes skills-editor-in { from { opacity: 0; transform: translateY(9px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes skills-editor-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes skills-editor-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(4px) scale(.99); } }
 
 @container (max-width: 720px) {
   .skills-owned-sources-header { flex-direction: column; }

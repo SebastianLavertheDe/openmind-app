@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ExternalLink, FolderOpen, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord } from "@shared/contracts";
 import { WORKFLOW_INTERRUPTED_ERROR } from "@shared/execution-contracts";
 import { messages as m } from "@shared/messages";
@@ -13,11 +13,12 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
   const [entries, setEntries] = useState<RunEntry[]>([]);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
-  const [events, setEvents] = useState<BrokerRunEvent[]>([]);
+  const [eventState, setEventState] = useState<{ runId: string; events: BrokerRunEvent[]; loading: boolean }>({ runId: "", events: [], loading: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resumeInputs, setResumeInputs] = useState("{}");
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<{ runKey: string; action: string } | null>(null);
   const [kindFilter, setKindFilter] = useState<"all" | "skill" | "workflow">("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [skillFilter, setSkillFilter] = useState(initialSkillId || "all");
@@ -75,57 +76,88 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
     if (!selected || selected.kind !== "skill") return [];
     return artifacts.filter((artifact) => artifact.runId === selected.record.id);
   }, [artifacts, selected]);
+  const selectedEventRunId = selected?.kind === "skill" ? selected.record.id : "";
+  const eventsLoading = Boolean(selectedEventRunId) && (eventState.runId !== selectedEventRunId || eventState.loading);
+  const events = eventState.runId === selectedEventRunId ? eventState.events : [];
+  const selectedActionBusy = actionBusy?.runKey === selectedKey ? actionBusy.action : null;
 
   useEffect(() => {
     let cancelled = false;
-    if (!selected || selected.kind !== "skill") {
-      setEvents([]);
+    if (!selectedEventRunId) {
+      setEventState({ runId: "", events: [], loading: false });
       return () => { cancelled = true; };
     }
-    void window.openmind.getSkillRunEvents(selected.record.id)
-      .then((next) => { if (!cancelled) setEvents(next); })
-      .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause)); });
+    const runId = selectedEventRunId;
+    setEventState({ runId, events: [], loading: true });
+    void window.openmind.getSkillRunEvents(runId)
+      .then((next) => { if (!cancelled) setEventState({ runId, events: next, loading: false }); })
+      .catch((cause) => {
+        if (!cancelled) {
+          setEventState({ runId, events: [], loading: false });
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      });
     return () => { cancelled = true; };
-  }, [selected]);
+  }, [selectedEventRunId]);
 
   const cancel = async () => {
-    if (!selected || selected.kind !== "skill") return;
-    await window.openmind.cancelSkillRun(selected.record.id);
-    await load();
+    if (!selected || selected.kind !== "skill" || actionBusy) return;
+    setActionBusy({ runKey: selectedKey, action: "cancel" });
+    setError(null);
+    try {
+      await window.openmind.cancelSkillRun(selected.record.id);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setActionBusy(null);
+    }
   };
 
   const retry = async () => {
-    if (!selected || selected.kind !== "skill") return;
+    if (!selected || selected.kind !== "skill" || actionBusy) return;
+    setActionBusy({ runKey: selectedKey, action: "retry" });
+    setError(null);
     try {
       await window.openmind.retrySkillRun(selected.record.id);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setActionBusy(null);
     }
   };
 
   const deleteHistory = async () => {
-    if (!selected || !await confirmAction({ ...m.runs.deleteHistory, confirmText: m.runs.deleteHistory.confirm, danger: true })) return;
+    if (!selected || actionBusy || !await confirmAction({ ...m.runs.deleteHistory, confirmText: m.runs.deleteHistory.confirm, danger: true })) return;
+    setActionBusy({ runKey: selectedKey, action: "delete" });
+    setError(null);
     try {
       await window.openmind.deleteRunHistory(selected.record.id);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setActionBusy(null);
     }
   };
 
   const retryStep = async (stepId: string) => {
-    if (!selected || selected.kind !== "workflow") return;
+    if (!selected || selected.kind !== "workflow" || actionBusy) return;
+    setActionBusy({ runKey: selectedKey, action: `step:${stepId}` });
+    setError(null);
     try {
       await window.openmind.retryWorkflowStep(selected.record.id, stepId);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setActionBusy(null);
     }
   };
 
   const resumeWorkflow = async () => {
-    if (!selected || selected.kind !== "workflow" || selected.record.error !== WORKFLOW_INTERRUPTED_ERROR) return;
+    if (!selected || selected.kind !== "workflow" || selected.record.error !== WORKFLOW_INTERRUPTED_ERROR || resumeBusy || actionBusy) return;
     try {
       const parsed = JSON.parse(resumeInputs);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(m.runs.resumeInputInvalid);
@@ -171,10 +203,10 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
             <header className="run-detail-header">
               <div><span className="eyebrow">{selected.kind.toUpperCase()}</span><h2>{selected.kind === "skill" ? selected.record.request.skillId : selected.record.workflowSkillId}</h2><p>{selected.record.id}</p></div>
               <div className="run-actions">
-                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" onClick={() => void cancel()}><X size={14} />{m.runs.actions.cancel}</button> : null}
-                {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void retry()}><RotateCcw size={14} />{m.runs.actions.retry}</button> : null}
-                {selected.kind === "workflow" && selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}><RotateCcw size={14} />{resumeBusy ? m.runs.actions.resuming : m.runs.actions.resumeWorkflow}</button> : null}
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteHistory()}><Trash2 size={14} />{m.runs.actions.deleteHistory}</button>
+                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" aria-busy={selectedActionBusy === "cancel" || undefined} disabled={Boolean(actionBusy)} onClick={() => void cancel()}>{selectedActionBusy === "cancel" ? <LoaderCircle size={14} className="spin" /> : <X size={14} />}{selectedActionBusy === "cancel" ? m.runs.actions.cancelling : m.runs.actions.cancel}</button> : null}
+                {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={selectedActionBusy === "retry" || undefined} disabled={Boolean(actionBusy)} onClick={() => void retry()}>{selectedActionBusy === "retry" ? <LoaderCircle size={14} className="spin" /> : <RotateCcw size={14} />}{selectedActionBusy === "retry" ? m.runs.actions.retrying : m.runs.actions.retry}</button> : null}
+                {selected.kind === "workflow" && selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}><RotateCcw size={14} />{resumeBusy ? m.runs.actions.resuming : m.runs.actions.resumeWorkflow}</button> : null}
+                <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={selectedActionBusy === "delete" || undefined} disabled={Boolean(actionBusy) || resumeBusy} onClick={() => void deleteHistory()}>{selectedActionBusy === "delete" ? <LoaderCircle size={14} className="spin" /> : <Trash2 size={14} />}{selectedActionBusy === "delete" ? m.runs.actions.deleting : m.runs.actions.deleteHistory}</button>
               </div>
             </header>
             <dl className="run-overview">
@@ -193,11 +225,11 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
               </section>
             ) : null}
             {selected.kind === "workflow" ? <>
-              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
-              <WorkflowSteps record={selected.record} onRetry={retryStep} />
+              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
+              <WorkflowSteps record={selected.record} onRetry={retryStep} actionBusy={selectedActionBusy} />
             </> : <>
               <section className="run-section"><h3>{m.runs.artifacts.title}</h3><ArtifactList artifacts={selectedArtifacts} /></section>
-              <section className="run-section"><h3>{m.runs.events.title}</h3><EventList events={events} /></section>
+              <section className="run-section"><h3>{m.runs.events.title}</h3><EventList events={events} loading={eventsLoading} /></section>
             </>}
           </>}
         </section>
@@ -210,8 +242,11 @@ function rejectConfirmation(): Promise<boolean> {
   return Promise.resolve(false);
 }
 
-function WorkflowSteps({ record, onRetry }: { record: WorkflowRunRecord; onRetry: (stepId: string) => Promise<void> }) {
-  return <section className="run-section"><h3>Workflow Steps</h3><div className="workflow-step-list">{record.stepRuns.map((step) => <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void onRetry(step.stepId)}>{m.runs.retryStep}</button> : null}</div>)}</div></section>;
+function WorkflowSteps({ record, onRetry, actionBusy }: { record: WorkflowRunRecord; onRetry: (stepId: string) => Promise<void>; actionBusy: string | null }) {
+  return <section className="run-section"><h3>Workflow Steps</h3><div className="workflow-step-list">{record.stepRuns.map((step) => {
+    const retrying = actionBusy === `step:${step.stepId}`;
+    return <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={retrying || undefined} disabled={Boolean(actionBusy)} onClick={() => void onRetry(step.stepId)}>{retrying ? <LoaderCircle size={14} className="spin" /> : null}{retrying ? m.runs.retryingStep : m.runs.retryStep}</button> : null}</div>;
+  })}</div></section>;
 }
 
 function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
@@ -231,9 +266,10 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
   })}</div>;
 }
 
-function EventList({ events }: { events: BrokerRunEvent[] }) {
+function EventList({ events, loading }: { events: BrokerRunEvent[]; loading: boolean }) {
+  if (loading) return <p className="runs-muted run-events-loading" role="status" aria-live="polite"><LoaderCircle size={14} className="spin" />{m.runs.events.loading}</p>;
   if (!events.length) return <p className="runs-muted">{m.runs.events.empty}</p>;
-  return <div className="run-event-list">{events.slice(-80).map((event) => <div key={`${event.runId}-${event.sequence}`} className="run-event-row"><time>{formatTime(event.timestamp)}</time><strong>{event.state}</strong><span>{event.text || event.reason || event.error || ""}</span></div>)}</div>;
+  return <div className="run-event-list run-events-ready">{events.slice(-80).map((event) => <div key={`${event.runId}-${event.sequence}`} className="run-event-row"><time>{formatTime(event.timestamp)}</time><strong>{event.state}</strong><span>{event.text || event.reason || event.error || ""}</span></div>)}</div>;
 }
 
 function entryKey(entry: RunEntry): string { return `${entry.kind}:${entry.record.id}`; }

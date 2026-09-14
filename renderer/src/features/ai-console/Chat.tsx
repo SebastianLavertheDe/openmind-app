@@ -68,7 +68,7 @@ const CHAT_SCROLL_UP_EPSILON = 1;
 export type { ChatDraftSubmitHandler } from "./composer";
 
 export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { compact?: boolean; onDraftSubmit?: ChatDraftSubmitHandler }) {
-  const { events, hasOlderTurns, historyLoading, loadOlderTurns } = useAiEvents();
+  const { events, loadingSessionId, hasOlderTurns, historyLoading, loadOlderTurns } = useAiEvents();
   const { snapshot, activeSession, activeRun, sessionActiveRun } = useAiSnapshot();
   const setDraft = useSetAiDraft();
   const [nearBottom, setNearBottom] = useState(true);
@@ -81,6 +81,8 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const followLatest = useRef(true);
   const lastScrollTop = useRef(0);
   const sessionId = activeSession?.id || "__draft";
+  const sessionLoading = Boolean(activeSession && loadingSessionId === activeSession.id);
+  const [showSessionSkeleton, setShowSessionSkeleton] = useState(false);
   const currentScrollSession = useRef(sessionId);
   const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
   const timelineEvents = useMemo(() => {
@@ -254,6 +256,14 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     return () => window.cancelAnimationFrame(raf);
   }, [sessionId, timelineEvents.length]);
   useEffect(() => setHistoryLimit(compact ? 80 : 300), [activeSession?.id, compact]);
+  useEffect(() => {
+    if (!sessionLoading) {
+      setShowSessionSkeleton(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowSessionSkeleton(true), 100);
+    return () => window.clearTimeout(timer);
+  }, [sessionId, sessionLoading]);
 
   return (
     <section className={`chat ${compact ? "compact" : ""}`}>
@@ -263,16 +273,17 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         onScroll={handleScroll}
       >
         <div
-          className="chat-thread"
+          className={`chat-thread${sessionLoading ? " session-loading" : " session-ready"}`}
           role="log"
           aria-live="polite"
           aria-relevant="additions text"
           aria-label={m.ai.chat.transcriptLabel}
         >
-          {!visible.length && !sessionActiveRun
+          {sessionLoading ? <SessionLoading visible={showSessionSkeleton} /> : null}
+          {!sessionLoading && !visible.length && !sessionActiveRun
             ? <EmptyChat onPick={setDraft} />
             : null}
-          {canLoadHistory ? (
+          {!sessionLoading && canLoadHistory ? (
             <button
               className="load-history"
               disabled={historyLoading}
@@ -291,16 +302,16 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
                   : m.ai.chat.loadOlderTurns}
             </button>
           ) : null}
-          <TimelineItems
+          {!sessionLoading ? <TimelineItems
             key={sessionId}
             items={renderItems}
             activeRunId={activeRunId}
             activeRunHasTool={activeRunHasTool}
-          />
-          <StandaloneLiveProcess
+          /> : null}
+          {!sessionLoading ? <StandaloneLiveProcess
             runId={activeProcessVisible ? null : streamingRunId}
             pendingEligible={!activeProcessVisible && pendingThoughtEligible}
-          />
+          /> : null}
           <StreamAutoPin runId={streamingRunId} pinToLatest={pinToLatest} />
         </div>
         {/* P1-CHAT-2: compact jump-to-bottom control */}
@@ -334,6 +345,13 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     </section>
   );
 });
+
+function SessionLoading({ visible }: { visible: boolean }) {
+  return <div className="chat-session-loading" data-visible={visible || undefined} role="status" aria-live="polite" aria-label={m.ai.chat.loadingHistory}>
+    <span>{m.ai.chat.loadingHistory}</span>
+    <i /><i /><i />
+  </div>;
+}
 
 const TIMELINE_EXIT_MS = 240;
 
@@ -627,6 +645,12 @@ function CompletedProcess({
   const forceOpen = processing || missingFinal || run.status === "failed" || run.status === "conflicted";
   const [open, setOpen] = useState(forceOpen);
   const bodyPresence = useExitPresence(open, 220);
+  const commentaryPresence = useExitPresence(Boolean(liveCommentary), 160);
+  const reasoningPresence = useExitPresence(Boolean(liveReasoning), 160);
+  const stashedCommentary = useRef(liveCommentary);
+  const stashedReasoning = useRef(liveReasoning);
+  if (liveCommentary) stashedCommentary.current = liveCommentary;
+  if (liveReasoning) stashedReasoning.current = liveReasoning;
   const [liveNow, setLiveNow] = useState(Date.now());
   useEffect(() => {
     setOpen(forceOpen);
@@ -668,12 +692,12 @@ function CompletedProcess({
           steps={steps}
           run={run}
           processing={processing}
-          liveCurrent={Boolean(liveReasoning || liveCommentary || pending)}
+          liveCurrent={Boolean(reasoningPresence.visible || commentaryPresence.visible || pending)}
         />
-        {liveCommentary ? <ProcessNarrative text={liveCommentary} streaming /> : null}
-        {liveReasoning ? (
-          <div className="trace-step reasoning live">
-            <ReasoningCard text={liveReasoning} streaming />
+        {commentaryPresence.visible && stashedCommentary.current ? <div className="transient-process-presence" data-leaving={commentaryPresence.leaving || undefined} aria-hidden={commentaryPresence.leaving || undefined} inert={commentaryPresence.leaving || undefined}><ProcessNarrative text={liveCommentary || stashedCommentary.current} streaming={!commentaryPresence.leaving} /></div> : null}
+        {reasoningPresence.visible && stashedReasoning.current ? (
+          <div className="trace-step reasoning live transient-process-presence" data-leaving={reasoningPresence.leaving || undefined} aria-hidden={reasoningPresence.leaving || undefined} inert={reasoningPresence.leaving || undefined}>
+            <ReasoningCard text={liveReasoning || stashedReasoning.current} streaming={!reasoningPresence.leaving} />
           </div>
         ) : pending ? (
           <div className="trace-step reasoning live">

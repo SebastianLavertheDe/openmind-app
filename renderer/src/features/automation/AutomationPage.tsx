@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { CalendarClock, Check, Clock3, Play, Save, Square, Target } from "lucide-react";
+import { CalendarClock, Check, Clock3, LoaderCircle, Play, Save, Square, Target } from "lucide-react";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, InstalledRunnableSkillView, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import { matchesSemverRange } from "@shared/skill-manifest-schema";
@@ -29,6 +29,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const [liveEvents, setLiveEvents] = useState<Record<string, BrokerRunEvent[]>>({});
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [runCommand, setRunCommand] = useState<{ ruleId: string; phase: "starting" | "stopping" } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const copyTimer = useRef<number>(0);
 
@@ -156,9 +157,13 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const runState = observedState || latestRun?.state || (selectedRuntime?.running ? "running" : "ready");
   const isActive = isActiveAutomationRunState(latestRun?.state);
   const isRunning = isActive && Boolean(latestRun?.childRunId);
+  const selectedRunCommand = runCommand?.ruleId === selected.id ? runCommand.phase : null;
 
   const run = async () => {
-    if (!isActive && !selectedEnabled) return;
+    if (runCommand || (!isActive && !selectedEnabled)) return;
+    const command = isActive ? "stopping" : "starting";
+    setRunCommand({ ruleId: selected.id, phase: command });
+    setError(null);
     try {
       if (isActive) {
         if (!latestRun?.childRunId) return;
@@ -170,6 +175,8 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRunCommand(null);
     }
   };
 
@@ -214,8 +221,8 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
             <header>
               <div><span className="eyebrow">{selected.target.type}:{selected.target.id}</span><h1>{selected.name}</h1><p>{selected.description || m.automation.noDescription}</p></div>
               <div className="settings-inline-controls">
-                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={isActive || undefined} disabled={isActive ? !latestRun?.childRunId : !selectedEnabled} onClick={() => void run()}>
-                  {isRunning ? <><Square size={14} />{m.automation.actions.stop}</> : isActive ? <>{m.automation.running}</> : <><Play size={14} />{m.automation.actions.run}</>}
+                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={Boolean(selectedRunCommand) || undefined} disabled={Boolean(runCommand) || (isActive ? !latestRun?.childRunId : !selectedEnabled)} onClick={() => void run()}>
+                  {selectedRunCommand ? <><LoaderCircle size={14} className="spin" />{selectedRunCommand === "stopping" ? m.automation.actions.stopping : m.automation.actions.starting}</> : isRunning ? <><Square size={14} />{m.automation.actions.stop}</> : isActive ? <>{m.automation.running}</> : <><Play size={14} />{m.automation.actions.run}</>}
                 </button>
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteRule(selected, load, setError, confirmAction)}>{m.automation.delete}</button>
               </div>

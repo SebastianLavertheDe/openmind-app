@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AutomationRule, AutomationRunRecord, BrokerRunRecord, DesktopApi, InstalledRunnableSkillView, SourceRun, WorkflowRunRecord } from "@shared/contracts";
 import type { BrokerRunEvent } from "@shared/execution-contracts";
@@ -235,11 +235,45 @@ describe("AutomationPage", () => {
     render(<AutomationPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
-    expect(runAutomationNow).toHaveBeenCalledWith("daily-brief");
+    await waitFor(() => expect(runAutomationNow).toHaveBeenCalledWith("daily-brief"));
+    await waitFor(() => expect(screen.getByRole("button", { name: /立即运行/ })).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /RSS 定时抓取/ }));
     fireEvent.click(screen.getByRole("button", { name: /立即运行/ }));
-    expect(runAutomationNow).toHaveBeenCalledWith("rss-capture");
+    await waitFor(() => expect(runAutomationNow).toHaveBeenCalledWith("rss-capture"));
+  });
+
+  it("acknowledges a run command immediately and prevents duplicate submission", async () => {
+    let resolveRun!: (value: AutomationRunRecord) => void;
+    const pending = new Promise<AutomationRunRecord>((resolve) => { resolveRun = resolve; });
+    const runAutomationNow = vi.fn(() => pending);
+    window.openmind = makeApi({ runAutomationNow });
+    render(<AutomationPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /立即运行/ }));
+
+    const pendingButton = screen.getByRole("button", { name: /正在启动/ }) as HTMLButtonElement;
+    expect(pendingButton.disabled).toBe(true);
+    expect(pendingButton.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(pendingButton);
+    expect(runAutomationNow).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveRun({
+      schemaVersion: 1,
+      id: "automation-run",
+      ruleId: "daily-brief",
+      target: seedRules[0].target,
+      state: "running",
+      attempt: 1,
+      retryAt: null,
+      childRunId: "child-run",
+      triggerReason: "manual",
+      scheduledFor: null,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      error: null
+    }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /立即运行/ })).toBeTruthy());
   });
 
   it("remounts the detail pane so rule changes replay the transition", async () => {

@@ -149,6 +149,10 @@ describe("ApprovalBanner", () => {
     fireEvent.click(within(card).getByRole("button", { name: "允许" }));
     await waitFor(() => expect(resolveApproval).toHaveBeenCalledWith("long-command", "accept"));
     expect(screen.queryByText(/已允许/)).toBeNull();
+    await waitFor(() => expect(document.querySelector(".approval-banner-list > .ui-overlay")?.getAttribute("data-leaving")).toBe("true"));
+    expect(document.querySelector(".approval-banner-list > .ui-overlay")?.hasAttribute("inert")).toBe(true);
+    expect(screen.getByText(command)).toBeTruthy();
+    await waitFor(() => expect(document.querySelector(".approval-banner-list > .ui-overlay")).toBeNull());
   });
 
   it("allows declining a single approval", async () => {

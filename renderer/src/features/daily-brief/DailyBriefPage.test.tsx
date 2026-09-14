@@ -51,6 +51,38 @@ describe("DailyBriefPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active"));
   });
 
+  it("shows the target file as pending without flashing the unselected empty state", async () => {
+    const nextPath = "openmind/daily-summary/20260701_daily_summary.md";
+    type ReadResult = Awaited<ReturnType<DesktopApi["readContent"]>>;
+    let resolveNext!: (value: ReadResult) => void;
+    const pending = new Promise<ReadResult>((resolve) => { resolveNext = resolve; });
+    const api = makeApi();
+    window.openmind = {
+      ...api,
+      listContent: async () => [
+        { path, name: "20260630_daily_summary.md", size: 1280, modifiedAt: "2026-06-30T22:10:03.000Z" },
+        { path: nextPath, name: "20260701_daily_summary.md", size: 980, modifiedAt: "2026-07-01T22:10:03.000Z" }
+      ],
+      readContent: vi.fn((requestedPath: string) => requestedPath === nextPath
+        ? pending
+        : Promise.resolve({ path, name: "20260630_daily_summary.md", content: "# 每日简报\n\n旧内容。", truncated: false }))
+    } as DesktopApi;
+    render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
+
+    await screen.findByText("旧内容。");
+    const nextFile = screen.getByRole("button", { name: /2026-07-01 每日简报/ });
+    fireEvent.click(nextFile);
+
+    expect(nextFile.getAttribute("aria-busy")).toBe("true");
+    expect(nextFile.classList.contains("pending")).toBe(true);
+    expect(screen.queryByText("选择一个简报文件")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("正在打开“2026-07-01 每日简报”");
+
+    await act(async () => resolveNext({ path: nextPath, name: "20260701_daily_summary.md", content: "# 新简报\n\n新内容。", truncated: false }));
+    expect(await screen.findByText("新内容。")).toBeTruthy();
+    expect(nextFile.getAttribute("aria-busy")).toBeNull();
+  });
+
   it("provides a compact master-detail return path and exposes the full file label", async () => {
     const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
 

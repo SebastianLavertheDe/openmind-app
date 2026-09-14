@@ -24,6 +24,9 @@
 .run-overview div { display: grid; gap: 4px; }.run-overview dt { color: var(--text-tertiary); font-size: 12px; }.run-overview dd { margin: 0; font-size: 13px; }
 .run-pill { display: inline-flex; border-radius: 999px; padding: 3px 8px; font-size: 12px; background: var(--surface-hover); }.run-pill.success { color: var(--success-fg); }.run-pill.danger { color: var(--danger-fg); }.run-pill.running { color: var(--accent-fg); }
 .run-section { margin-top: 22px; }.run-section h3 { margin: 0 0 10px; font-size: 14px; }.artifact-list, .workflow-step-list, .run-event-list { display: grid; gap: 8px; }
+.run-events-loading { display: flex; align-items: center; gap: 7px; min-height: 44px; }
+.run-events-ready { animation: run-events-ready var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+@keyframes run-events-ready { from { opacity: 0; } to { opacity: 1; } }
 .run-failure-summary { display: grid; gap: 8px; margin-top: -6px; padding: 12px; border: 1px solid color-mix(in srgb, var(--danger-fg) 34%, var(--border-subtle)); border-radius: 10px; background: color-mix(in srgb, var(--danger-fg) 6%, transparent); }
 .run-failure-summary strong { color: var(--danger-fg); }
 .run-failure-summary p { margin: 4px 0 0; color: var(--text-primary); line-height: 1.5; }

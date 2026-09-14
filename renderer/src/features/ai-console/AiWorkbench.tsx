@@ -270,7 +270,7 @@ function SessionItem({ session }: { session: AiSession }) {
         }
       }}
     >
-      {dot ? <span className={`nav-recent-dot ${dot}`} aria-hidden /> : <span aria-hidden />}
+      <span className={`nav-recent-dot${dot ? ` ${dot}` : ""}`} aria-hidden />
       <span className="nav-recent-item-main">
         <span className="nav-recent-item-title">{session.title || m.common.unnamedTopic}</span>
         <span className={`nav-recent-item-meta${waitingApproval ? " waiting-approval" : ""}`}>

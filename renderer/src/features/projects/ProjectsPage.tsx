@@ -6,6 +6,7 @@ import {
   FolderKanban,
   Library,
   ListTodo,
+  LoaderCircle,
   MoreHorizontal,
   PanelLeftOpen,
   PencilLine,
@@ -53,6 +54,7 @@ export function ProjectsPage({
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [editProject, setEditProject] = useState<ProjectSummary | null>(null);
   const [projectActionBusy, setProjectActionBusy] = useState<string | null>(null);
+  const [openingProjectName, setOpeningProjectName] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -154,11 +156,14 @@ export function ProjectsPage({
     if (!initialProjectName || activeProject?.name === initialProjectName) return;
     void (async () => {
       if (!await canLeaveCurrentOutput()) return;
+      setOpeningProjectName(initialProjectName);
       try {
         setActiveProject(await projectsApi.getProject(initialProjectName));
         presentProjectView(initialSection === "tasks" ? "tasks" : "files");
       } catch (cause) {
         setError(errorText(cause));
+      } finally {
+        setOpeningProjectName(null);
       }
     })();
   }, [activeProject?.name, canLeaveCurrentOutput, initialProjectName, initialSection, presentProjectView]);
@@ -169,15 +174,19 @@ export function ProjectsPage({
   };
 
   const openProject = async (project: ProjectSummary) => {
-    if (!await canLeaveCurrentOutput()) return;
+    if (openingProjectName) return;
+    if (outputNavigationGuardRef.current?.isDirty() && !await canLeaveCurrentOutput()) return;
     setError(null);
+    setOpeningProjectName(project.name);
     try {
       setActiveProject(await projectsApi.getProject(project.name));
       presentProjectView("tasks");
+      if (compactWorkspace) setCompactListOpen(false);
     } catch (cause) {
       setError(errorText(cause));
+    } finally {
+      setOpeningProjectName(null);
     }
-    if (compactWorkspace) setCompactListOpen(false);
   };
 
   const createProject = async () => {
@@ -381,6 +390,7 @@ export function ProjectsPage({
                       projects={favoriteProjects}
                       activeProjectName={activeProjectName}
                       busyProjectName={projectActionBusy}
+                      openingProjectName={openingProjectName}
                       onOpen={(project) => void openProject(project)}
                       onEdit={setEditProject}
                       onToggleFavorite={(project) => void toggleFavorite(project)}
@@ -393,6 +403,7 @@ export function ProjectsPage({
                       projects={recentProjects}
                       activeProjectName={activeProjectName}
                       busyProjectName={projectActionBusy}
+                      openingProjectName={openingProjectName}
                       indexOffset={favoriteProjects.length}
                       onOpen={(project) => void openProject(project)}
                       onEdit={setEditProject}
@@ -420,7 +431,7 @@ export function ProjectsPage({
           onResizeCancel={layout.cancelListResize}
           onResizeActiveChange={layout.onResizeActiveChange}
         />
-        <section className={`project-main-pane${listVisible ? "" : " list-collapsed"}`}>
+        <section className={`project-main-pane${listVisible ? "" : " list-collapsed"}`} aria-busy={Boolean(openingProjectName) || undefined}>
           {!listVisible ? (
             <button
               type="button"
@@ -431,7 +442,9 @@ export function ProjectsPage({
               onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
             ><PanelLeftOpen size={17} /></button>
           ) : null}
-          {activeProject ? <div className="project-detail-fill" ref={setDetailHost} /> : (
+          {activeProject ? <div className={`project-detail-fill${openingProjectName ? " is-opening-project" : ""}`} ref={setDetailHost} aria-hidden={Boolean(openingProjectName) || undefined} inert={Boolean(openingProjectName) || undefined} /> : openingProjectName ? (
+            <div className="project-detail-loading project-opening-state" role="status"><LoaderCircle size={18} className="spin" />正在打开“{openingProjectName}”…</div>
+          ) : (
             <EmptyState
               icon={<FolderKanban size={30} />}
               title={query ? "没有匹配的项目" : "选择一个项目"}
@@ -439,6 +452,7 @@ export function ProjectsPage({
               action={!query ? <button className="primary-button" onClick={openCreateDialog}><Plus size={15} />创建项目</button> : undefined}
             />
           )}
+          {activeProject && openingProjectName ? <div className="project-opening-overlay" role="status"><LoaderCircle size={18} className="spin" />正在打开“{openingProjectName}”…</div> : null}
         </section>
       </div>
       {attachedPanelsReady ? (
@@ -460,6 +474,7 @@ function ProjectListGroup({
   projects,
   activeProjectName,
   busyProjectName,
+  openingProjectName,
   indexOffset = 0,
   onOpen,
   onEdit,
@@ -470,6 +485,7 @@ function ProjectListGroup({
   projects: ProjectSummary[];
   activeProjectName?: string;
   busyProjectName: string | null;
+  openingProjectName: string | null;
   indexOffset?: number;
   onOpen(project: ProjectSummary): void;
   onEdit(project: ProjectSummary): void;
@@ -480,10 +496,12 @@ function ProjectListGroup({
     <section className="project-list-group" aria-label={label}>
       <h2>{label}</h2>
       <div>
-        {projects.map((project, index) => (
+        {projects.map((project, index) => {
+          const opening = openingProjectName === project.name;
+          return (
           <div
             key={project.name}
-            className={`project-list-row${activeProjectName === project.name ? " active" : ""}`}
+            className={`project-list-row${activeProjectName === project.name ? " active" : ""}${opening ? " pending" : ""}`}
             style={{
               "--project-list-index": indexOffset + index,
               "--project-icon-color": projectColorValue(project.color)
@@ -493,10 +511,12 @@ function ProjectListGroup({
               type="button"
               className="project-list-project"
               data-motion="selection"
-              aria-current={activeProjectName === project.name ? "true" : undefined}
+              aria-current={activeProjectName === project.name || opening ? "true" : undefined}
+              aria-busy={opening || undefined}
+              disabled={Boolean(openingProjectName)}
               onClick={() => onOpen(project)}
             >
-              <ProjectIcon name={project.icon} />
+              {opening ? <LoaderCircle size={16} className="spin project-opening-spinner" aria-hidden="true" /> : <ProjectIcon name={project.icon} />}
               <span><strong>{project.name}</strong></span>
             </button>
             <DropdownMenu
@@ -504,7 +524,7 @@ function ProjectListGroup({
               menuClassName="project-project-menu"
               ariaLabel={`项目操作：${project.name}`}
               menuLabel={`${project.name}的项目操作`}
-              disabled={busyProjectName === project.name}
+              disabled={Boolean(openingProjectName) || busyProjectName === project.name}
               label={<MoreHorizontal size={17} aria-hidden="true" />}
             >
               <button type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />编辑</button>
@@ -512,7 +532,8 @@ function ProjectListGroup({
               <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
             </DropdownMenu>
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

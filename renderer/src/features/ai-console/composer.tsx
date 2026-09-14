@@ -182,6 +182,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const menuSnapRef = useRef(false);
   const menuStashRef = useRef<ReactNode>(null);
   const visibleActiveRun = sessionActiveRun;
+  const stoppingVisibleRun = Boolean(visibleActiveRun && ui.cancellingRunIds.has(visibleActiveRun.id));
   const draftSkillInvocation = parseSkillSlashInvocation(draft, skills);
   const errorMessage = localError || ui.error || null;
   const { visible: errorVisible, leaving: errorLeaving } = useExitPresence(Boolean(errorMessage), 160);
@@ -444,7 +445,10 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             onOpenChange={setQueueOpen}
             summary={m.ai.composer.queuedSummary(queuedRuns.length)}
           >
-            {queuedRuns.map((run, index) => <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><button data-motion="icon" aria-label={m.ai.composer.cancelQueued} onClick={() => void actions.cancel(run.id)}><X size={12} /></button></div>)}
+            {queuedRuns.map((run, index) => {
+              const cancelling = ui.cancellingRunIds.has(run.id);
+              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><button data-motion="icon" aria-label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</button></div>;
+            })}
           </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
@@ -587,14 +591,15 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 type="button"
                 className={`composer-send${visibleActiveRun ? " danger" : ""}`}
                 disabled={visibleActiveRun
-                  ? visibleActiveRun.status === "applying"
+                  ? visibleActiveRun.status === "applying" || stoppingVisibleRun
                   : ui.isSending || customSending || !draft.trim() || (!draftSkillInvocation && !activeSession && !providerId)}
-                aria-label={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.send}
-                title={visibleActiveRun ? m.ai.composer.stop : m.ai.composer.sendShortcut}
+                aria-label={visibleActiveRun ? stoppingVisibleRun ? m.ai.composer.stopping : m.ai.composer.stop : m.ai.composer.send}
+                aria-busy={stoppingVisibleRun || undefined}
+                title={visibleActiveRun ? stoppingVisibleRun ? m.ai.composer.stopping : m.ai.composer.stop : m.ai.composer.sendShortcut}
                 onClick={() => visibleActiveRun ? void actions.cancel(visibleActiveRun.id) : void submit()}
               >
                 {visibleActiveRun ? (
-                  <span key="stop" className="composer-send-icon" aria-hidden="true"><Square size={16} /></span>
+                  <span key={stoppingVisibleRun ? "stopping" : "stop"} className="composer-send-icon" aria-hidden="true">{stoppingVisibleRun ? <LoaderCircle className="spin" size={16} /> : <Square size={16} />}</span>
                 ) : (
                   <ComposerSendIcon loading={ui.isSending || customSending} />
                 )}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bot, Check, Clock3, Download, Sparkles } from "lucide-react";
+import { Bot, Check, Clock3, Download, LoaderCircle, Sparkles } from "lucide-react";
 import type { CreativeProjectDetail, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { Select, StatusBadge } from "../../design-system/components";
@@ -9,20 +9,20 @@ import {
   PLATFORM_OPTIONS
 } from "./types";
 
-export function TopicWorkspace({ topic, date, createProject, addContext }: { topic: CreativeTopic; date: string; createProject(platform?: PlatformOption): void; addContext(): void }) {
+export function TopicWorkspace({ topic, date, createProject, addContext, creatingKey = null }: { topic: CreativeTopic; date: string; createProject(platform?: PlatformOption): void; addContext(): void; creatingKey?: string | null }) {
   const [showPlatform, setShowPlatform] = useState(false);
   return (
     <div className="topic-workspace">
       <header><div><span className="eyebrow">Recommended Topic · {date}</span><h1>{topic.title || m.creative.defaults.unnamedTopic}</h1><p>{topic.platform || m.creative.defaults.topicCreation}{topic.score ? ` · ${m.creativeUi.topic.score(topic.score)}` : ""}</p></div>
-        <div><button data-motion="icon" onClick={addContext}><Bot size={14} />{m.creativeUi.topic.askAi}</button><button data-motion="icon" onClick={() => setShowPlatform((value) => !value)}><Sparkles size={14} />{m.creativeUi.topic.createDraft}</button></div>
+        <div><button data-motion="icon" onClick={addContext}><Bot size={14} />{m.creativeUi.topic.askAi}</button><button data-motion="icon" disabled={Boolean(creatingKey)} onClick={() => setShowPlatform((value) => !value)}><Sparkles size={14} />{m.creativeUi.topic.createDraft}</button></div>
       </header>
       {topic.projectDir ? <div className="topic-existing"><Check size={14} />{m.creativeUi.topic.hasDraft}</div> : null}
       {showPlatform ? (
         <div className="topic-platform-picker">
           <strong>{m.creativeUi.topic.pickPlatform}</strong>
           <div className="topic-platform-grid">
-            <button data-motion="selection" onClick={() => createProject()}>{m.creativeUi.topic.genericDraft}</button>
-            {PLATFORM_OPTIONS.map((option) => <button key={option.id} data-motion="selection" onClick={() => createProject(option)}>{option.label}</button>)}
+            <button data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === "generic" || undefined} onClick={() => createProject()}>{creatingKey === "generic" ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === "generic" ? m.creativeUi.topic.creatingDraft : m.creativeUi.topic.genericDraft}</button>
+            {PLATFORM_OPTIONS.map((option) => <button key={option.id} data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === option.id || undefined} onClick={() => createProject(option)}>{creatingKey === option.id ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === option.id ? m.creativeUi.topic.creatingDraft : option.label}</button>)}
           </div>
         </div>
       ) : null}

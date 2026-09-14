@@ -15,7 +15,7 @@ export function ApprovalBanner() {
   const pendingApprovals = snapshot.pendingApprovals.filter(
     (approval) => !activeSession || approval.sessionId === activeSession.id
   );
-  const approvalList = useExitingList(pendingApprovals, (approval) => String(approval.id), 200);
+  const approvalList = useExitingList(pendingApprovals, (approval) => String(approval.id), 160);
   if (!approvalList.length) return null;
   return (
     <div className="approval-banner" role="region" aria-label={m.ai.approval.banner} aria-live="polite">
@@ -28,7 +28,13 @@ export function ApprovalBanner() {
             return request?.id === approval.id || event.payload.approvalId === approval.id;
           });
           return (
-            <div key={approval.id} className="ui-overlay" data-leaving={leaving || undefined}>
+            <div
+              key={approval.id}
+              className="ui-overlay"
+              data-leaving={leaving || undefined}
+              aria-hidden={leaving || undefined}
+              inert={leaving || undefined}
+            >
               <ApprovalCard approval={approval} risks={requestEvent?.risks} />
             </div>
           );

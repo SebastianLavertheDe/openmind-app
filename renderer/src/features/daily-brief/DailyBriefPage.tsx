@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
+import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
@@ -27,9 +27,11 @@ export function DailyBriefPage({
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
+  const [pendingPath, setPendingPath] = useState("");
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState("");
   const [query, setQuery] = useState("");
+  const openIntentRef = useRef(0);
   const preview = useFilePreviewController({
     onSaved(resource) {
       if (resource.kind !== "document") return;
@@ -54,22 +56,27 @@ export function DailyBriefPage({
   const showBriefList = useCallback(async () => {
     const returnTarget = listRef.current?.querySelector<HTMLButtonElement>('[data-brief-selected="true"]');
     if (!await preview.close(confirmBriefSwitch)) return;
+    openIntentRef.current += 1;
+    setPendingPath("");
     setSelectedPath("");
     window.requestAnimationFrame(() => returnTarget?.focus());
   }, [confirmBriefSwitch, preview.close]);
 
   const openFile = useCallback(async (path: string, force = false) => {
     if (!path) return false;
+    const intent = ++openIntentRef.current;
+    if (!force && preview.dirty && !await confirmBriefSwitch()) return false;
+    if (intent !== openIntentRef.current) return false;
     setListError("");
-    const opened = await preview.openSource(workspaceFileSource(path, { editable: true }), {
-      confirmDiscard: confirmBriefSwitch,
-      force
-    });
-    if (opened) {
-      setSelectedPath(path);
+    setPendingPath(path);
+    try {
+      const opened = await preview.openSource(workspaceFileSource(path, { editable: true }), { force: true });
+      if (opened && intent === openIntentRef.current) setSelectedPath(path);
+      return opened;
+    } finally {
+      if (intent === openIntentRef.current) setPendingPath("");
     }
-    return opened;
-  }, [confirmBriefSwitch, preview.openSource]);
+  }, [confirmBriefSwitch, preview.dirty, preview.openSource]);
 
   const load = useCallback(async ({ preserveDirtyCurrent = false }: { preserveDirtyCurrent?: boolean } = {}) => {
     setLoading(true);
@@ -143,7 +150,7 @@ export function DailyBriefPage({
 
   return (
     <div ref={layoutRef} className="brief-library-container">
-      <div className="document-library-page brief-library-page" data-detail-open={Boolean(record) || Boolean(embeddedFilePreviewPath) || undefined}>
+      <div className="document-library-page brief-library-page" data-detail-open={Boolean(record) || Boolean(pendingPath) || Boolean(embeddedFilePreviewPath) || undefined}>
       <aside className="document-library-list" ref={listRef}>
         <header>
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
@@ -155,7 +162,8 @@ export function DailyBriefPage({
           {loading ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
           {!loading && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
           {filteredFiles.map((file) => (
-            <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
+            <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
+              {pendingPath === file.path ? <LoaderCircle size={15} className="spin brief-file-pending-icon" aria-hidden="true" /> : null}
               <span><strong>{briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)}</strong><small>{formatBytes(file.size || 0)} · {file.modifiedAt ? formatModified(file.modifiedAt) : ""}</small></span>
             </button>
           ))}
@@ -164,7 +172,9 @@ export function DailyBriefPage({
       <section className="document-library-detail">
         {embeddedFilePreviewPath ? (
           <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={closeEmbeddedFilePreview} embedded />
-        ) : listError || preview.error ? <ErrorState message={listError || preview.error || ""} retry={() => void load()} /> : record && preview.resource ? (
+        ) : listError || preview.error ? <ErrorState message={listError || preview.error || ""} retry={() => void load()} /> : preview.loading || pendingPath ? (
+          <div className="document-detail-opening" role="status" aria-live="polite"><LoaderCircle size={18} className="spin" />正在打开“{briefFileLabel(files.find((file) => file.path === pendingPath)?.name || pendingPath.split(/[\\/]/).at(-1) || pendingPath)}”…</div>
+        ) : record && preview.resource ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">
               <button type="button" className="brief-detail-back" data-motion="action" onClick={() => void showBriefList()}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>

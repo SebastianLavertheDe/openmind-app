@@ -73,6 +73,7 @@ export interface AiSnapshotValue {
 
 export interface AiEventsValue {
   events: AiEvent[];
+  loadingSessionId: string | null;
   hasOlderTurns: boolean;
   historyLoading: boolean;
   loadOlderTurns(): Promise<void>;
@@ -88,6 +89,7 @@ export interface AiUiValue {
   error: string | null;
   clearError(): void;
   isSending: boolean;
+  cancellingRunIds: ReadonlySet<string>;
   panelMode: PanelMode;
   setPanelMode(mode: PanelMode): void;
   composerFocusRequest: number;
@@ -409,6 +411,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [activeSessionId, setActiveSessionId] = useState<string | null>(firstSession?.id || null);
   const [activeRunId, setActiveRunId] = useState<string | null>(latestRunForSession(initial.runs, firstSession?.id || null)?.id || null);
   const [eventsBySession, setEventsBySession] = useState<Record<string, AiEvent[]>>({});
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [turnCursorBySession, setTurnCursorBySession] = useState<Record<string, string | null>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
   const [draftStore] = useState<AiDraftStore>(() => createAiDraftStore(
@@ -426,9 +429,12 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
+  const cancellingRunsRef = useRef(new Set<string>());
+  const [cancellingRunIds, setCancellingRunIds] = useState<ReadonlySet<string>>(() => new Set());
   const selectionRequest = useRef(0);
   const activeSessionRef = useRef(activeSessionId);
   const snapshotRef = useRef(snapshot);
+  const eventsBySessionRef = useRef(eventsBySession);
   const contextsByDraftRef = useRef(contextsByDraft);
   const streamingStoreRef = useRef<AiStreamingStore | null>(null);
   if (!streamingStoreRef.current) streamingStoreRef.current = createAiStreamingStore();
@@ -436,6 +442,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
 
   activeSessionRef.current = activeSessionId;
   snapshotRef.current = snapshot;
+  eventsBySessionRef.current = eventsBySession;
   contextsByDraftRef.current = contextsByDraft;
 
   const activeSession = snapshot.sessions.find((session) => session.id === activeSessionId) || null;
@@ -583,15 +590,22 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     const latest = latestRunForSession(snapshotRef.current.runs, id);
     setActiveRunId(latest?.id || null);
     if (!id) {
+      setLoadingSessionId(null);
       // A blank draft is the only surface that follows the current global
       // Skill defaults. Existing sessions render their persisted snapshot.
       await refreshSkills();
       return;
     }
+    const uncached = !Object.prototype.hasOwnProperty.call(eventsBySessionRef.current, id);
+    setLoadingSessionId(uncached ? id : null);
     try {
       await loadEvents(id, requestId);
     } catch (cause) {
       if (selectionRequest.current === requestId) setError(m.ai.error.loadSessionFailed(errorText(cause)));
+    } finally {
+      if (selectionRequest.current === requestId && activeSessionRef.current === id) {
+        setLoadingSessionId((current) => current === id ? null : current);
+      }
     }
   }, [loadEvents, refreshSkills]);
 
@@ -862,6 +876,9 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     setComposerFocusRequest((current) => current + 1);
   }, []);
   const cancel = useCallback(async (runId: string) => {
+    if (cancellingRunsRef.current.has(runId)) return;
+    cancellingRunsRef.current.add(runId);
+    setCancellingRunIds(new Set(cancellingRunsRef.current));
     setError(null);
     try {
       await window.openmind.aiCancelRun(runId);
@@ -870,6 +887,9 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     } catch (cause) {
       setError(errorText(cause));
       throw cause;
+    } finally {
+      cancellingRunsRef.current.delete(runId);
+      setCancellingRunIds(new Set(cancellingRunsRef.current));
     }
   }, [refresh, streamingStore]);
 
@@ -885,10 +905,11 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
 
   const eventsValue = useMemo<AiEventsValue>(() => ({
     events,
+    loadingSessionId,
     hasOlderTurns,
     historyLoading,
     loadOlderTurns
-  }), [events, hasOlderTurns, historyLoading, loadOlderTurns]);
+  }), [events, loadingSessionId, hasOlderTurns, historyLoading, loadOlderTurns]);
 
   const uiValue = useMemo<AiUiValue>(() => ({
     toasts,
@@ -900,6 +921,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     error,
     clearError,
     isSending,
+    cancellingRunIds,
     panelMode,
     setPanelMode: setPanelModeState,
     composerFocusRequest,
@@ -916,6 +938,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     error,
     clearError,
     isSending,
+    cancellingRunIds,
     panelMode,
     composerFocusRequest,
     focusComposer,

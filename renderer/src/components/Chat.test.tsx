@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, AiTurn, ApprovalRequest, ChangeSet, DesktopApi, SkillDefinition } from "@shared/contracts";
@@ -118,6 +118,11 @@ function StreamingProbe({ runId }: { runId: string }) {
   return <output data-testid="streaming-probe">{streaming}</output>;
 }
 
+function SessionSwitchProbe({ sessionId }: { sessionId: string }) {
+  const ai = useAi();
+  return <button type="button" onClick={() => void ai.setActiveSession(sessionId)}>switch session</button>;
+}
+
 beforeEach(() => {
   aiListener = null;
   startRun = vi.fn(async () => { throw new Error("provider failed"); });
@@ -213,6 +218,53 @@ describe("Chat composer", () => {
     expect(startRun).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "停止" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "加入队列" })).toBeNull();
+  });
+
+  it("acknowledges stop immediately and prevents duplicate cancellation", async () => {
+    const run = makeRun();
+    const active = snapshotForRun(run, "running");
+    let resolveCancel!: (value: boolean) => void;
+    const pending = new Promise<boolean>((resolve) => { resolveCancel = resolve; });
+    const cancelRun = vi.fn(() => pending);
+    window.openmind.aiCancelRun = cancelRun;
+    window.openmind.aiRefresh = async () => active;
+    render(<AiProvider initial={active}><Chat /></AiProvider>);
+
+    fireEvent.click(await screen.findByRole("button", { name: "停止" }));
+    const stopping = screen.getByRole("button", { name: "正在停止" }) as HTMLButtonElement;
+    expect(stopping.disabled).toBe(true);
+    expect(stopping.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(stopping);
+    expect(cancelRun).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveCancel(true));
+    await waitFor(() => expect(screen.getByRole("button", { name: "停止" })).toBeTruthy());
+  });
+
+  it("binds session loading to the selected session and fades in only the loaded transcript", async () => {
+    const firstRun = makeRun();
+    const first = snapshotForRun(firstRun, "idle").sessions[0];
+    const second = { ...first, id: "session-2", title: "Second", lastRunId: null };
+    const sessionsSnapshot = { ...snapshot, sessions: [first, second], runs: [] };
+    type Events = Awaited<ReturnType<DesktopApi["aiGetEvents"]>>;
+    let resolveSecond!: (events: Events) => void;
+    const pending = new Promise<Events>((resolve) => { resolveSecond = resolve; });
+    const firstEvent = { ...makeEvent("first-answer", "assistant-message", { text: "first transcript", phase: "final" }, 1), runId: "first-run" };
+    const secondEvent = { ...makeEvent("second-answer", "assistant-message", { text: "second transcript", phase: "final" }, 1), sessionId: "session-2", runId: "second-run" };
+    window.openmind.aiGetEvents = vi.fn((sessionId: string) => sessionId === "session-2" ? pending : Promise.resolve<Events>([firstEvent]));
+    render(<AiProvider initial={sessionsSnapshot}><SessionSwitchProbe sessionId="session-2" /><Chat /></AiProvider>);
+
+    expect(await screen.findByText("first transcript")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "switch session" }));
+    expect(screen.queryByText("first transcript")).toBeNull();
+    const loading = screen.getByRole("status", { name: m.ai.chat.loadingHistory });
+    expect(loading.hasAttribute("data-visible")).toBe(false);
+    await waitFor(() => expect(loading.getAttribute("data-visible")).not.toBeNull());
+
+    await act(async () => resolveSecond([secondEvent]));
+    expect(await screen.findByText("second transcript")).toBeTruthy();
+    expect(document.querySelector(".chat-thread.session-ready")).toBeTruthy();
+    expect(screen.queryByText("first transcript")).toBeNull();
   });
 
   it("keeps one stop action after an intermediate assistant message", async () => {
@@ -1831,6 +1883,20 @@ describe("chat timeline", () => {
     expect(process.querySelector(".reasoning-event.pending")).toBeTruthy();
     expect(container.querySelector(".chat-empty")).toBeNull();
     expect(screen.getByRole("button", { name: "停止" })).toBeTruthy();
+  });
+
+  it("keeps the visible transient tail long enough to complete its cancelled exit", async () => {
+    const run = makeRun();
+    window.openmind.aiGetEvents = async () => [];
+    render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    await screen.findByText("正在处理");
+
+    aiListener?.({ kind: "transient", event: makeEvent("partial", "assistant-delta", { text: "unfinished transient tail" }, 2) });
+    expect(await screen.findByText("unfinished transient tail")).toBeTruthy();
+    aiListener?.({ kind: "event", event: makeEvent("cancelled", "status", { state: "cancelled" }, 3) });
+
+    await waitFor(() => expect(screen.getByText("unfinished transient tail").closest(".transient-process-presence")?.hasAttribute("data-leaving")).toBe(true));
+    await waitFor(() => expect(screen.queryByText("unfinished transient tail")).toBeNull(), { timeout: 600 });
   });
 
   it("keeps live processing visible and open until the run actually completes", async () => {

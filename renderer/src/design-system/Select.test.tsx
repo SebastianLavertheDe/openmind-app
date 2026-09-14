@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Select } from "./Select";
@@ -80,6 +80,25 @@ describe("Select (custom dropdown)", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it("keeps an inert leaving menu mounted for the full 160ms exit", () => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness />);
+      fireEvent.click(getTrigger());
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      const leaving = document.querySelector(".ui-select-menu") as HTMLElement;
+      expect(leaving?.getAttribute("data-leaving")).toBe("true");
+      expect(leaving?.hasAttribute("inert")).toBe(true);
+      act(() => vi.advanceTimersByTime(159));
+      expect(document.querySelector(".ui-select-menu")).toBe(leaving);
+      act(() => vi.advanceTimersByTime(1));
+      expect(document.querySelector(".ui-select-menu")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("closes when clicking outside", async () => {

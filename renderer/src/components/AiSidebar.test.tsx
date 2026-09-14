@@ -254,7 +254,7 @@ describe("AiSidebar", () => {
     }
   });
 
-  it("uses a full-canvas panel without a scrim on compact windows", () => {
+  it("uses a full-canvas panel without a scrim and preserves it for the close transition", async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query: string) => ({
       matches: query.includes("1760px") || query.includes("840px"),
@@ -292,8 +292,12 @@ describe("AiSidebar", () => {
       fireEvent.click(screen.getByRole("button", { name: "关闭 AI 助手" }));
 
       expect(screen.getByRole("button", { name: /展开 AI 侧栏/ })).toBeTruthy();
+      const leavingCanvas = container.querySelector(".ai-sidebar") as HTMLElement;
+      expect(leavingCanvas.getAttribute("data-leaving")).toBe("true");
+      expect(leavingCanvas.hasAttribute("inert")).toBe(true);
       expect((screen.getByTestId("covered-workspace") as HTMLElement).inert).toBe(false);
       expect(screen.getByTestId("covered-workspace").getAttribute("aria-hidden")).toBeNull();
+      await waitFor(() => expect(container.querySelector(".ai-sidebar")).toBeNull());
     } finally {
       window.matchMedia = originalMatchMedia;
     }

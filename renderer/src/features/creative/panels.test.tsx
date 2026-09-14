@@ -54,4 +54,18 @@ describe("TopicWorkspace", () => {
     render(<AiProvider initial={snapshot}><TopicWorkspace topic={{ ...topic, projectDir: "openmind/creative/x" }} date="20260616" createProject={vi.fn()} addContext={vi.fn()} /></AiProvider>);
     expect(screen.getByText(/已有草稿|has draft/i)).toBeTruthy();
   });
+
+  it("renders the selected draft command as busy and disables duplicate choices", async () => {
+    const user = userEvent.setup();
+    const createProject = vi.fn();
+    const addContext = vi.fn();
+    const { rerender } = render(<AiProvider initial={snapshot}><TopicWorkspace topic={topic} date="20260616" createProject={createProject} addContext={addContext} /></AiProvider>);
+    await user.click(screen.getByRole("button", { name: /创建草稿/ }));
+    rerender(<AiProvider initial={snapshot}><TopicWorkspace topic={topic} date="20260616" createProject={createProject} addContext={addContext} creatingKey="generic" /></AiProvider>);
+
+    const busyButton = screen.getByRole("button", { name: /正在创建/ }) as HTMLButtonElement;
+    expect(busyButton.disabled).toBe(true);
+    expect(busyButton.getAttribute("aria-busy")).toBe("true");
+    expect((screen.getByRole("button", { name: /创建草稿/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });

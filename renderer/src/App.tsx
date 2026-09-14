@@ -10,6 +10,7 @@ import type { AppRoute, AppRouteState, Navigate } from "./app/routes";
 import { renderActiveRoute, type RouteBootstrap } from "./app/route-registry";
 import { AiSidebar } from "./components/AiSidebar";
 import { FeedbackHost } from "./components/FeedbackHost";
+import { useExitPresence } from "./design-system/use-exit-presence";
 import { FilePreviewProvider } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
 
@@ -134,6 +135,12 @@ function Workspace({
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
   const embeddedFilePreviewPath = route.page === "brief" ? workspaceFilePath : null;
   const standaloneFilePreviewPath = route.page === "brief" ? null : workspaceFilePath;
+  const standalonePreviewOpen = Boolean(standaloneFilePreviewPath) && !settingsOpen;
+  const standalonePreviewPresence = useExitPresence(standalonePreviewOpen, 160);
+  const lastStandaloneFilePreviewPath = useRef<string | null>(standaloneFilePreviewPath);
+  if (standaloneFilePreviewPath) lastStandaloneFilePreviewPath.current = standaloneFilePreviewPath;
+  const renderedStandaloneFilePreviewPath = standaloneFilePreviewPath ?? lastStandaloneFilePreviewPath.current;
+  const standalonePreviewCovered = route.page !== "brief" && !settingsOpen && standalonePreviewPresence.visible;
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
   useEffect(() => { void window.openmind.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
@@ -232,16 +239,23 @@ function Workspace({
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
         <div
           className={`settings-preserved-route${settingsOpen ? " is-covered" : ""}`}
-          aria-hidden={settingsOpen || Boolean(standaloneFilePreviewPath) || undefined}
-          inert={settingsOpen || Boolean(standaloneFilePreviewPath)}
+          aria-hidden={settingsOpen || standalonePreviewCovered || undefined}
+          inert={settingsOpen || standalonePreviewCovered}
         >
           {renderActiveRoute({ route, ...routeRenderProps })}
         </div>
       </Suspense>
-      {standaloneFilePreviewPath && !settingsOpen ? (
-        <Suspense fallback={<div className="preview-state">{m.ai.workbench.loadingFile}</div>}>
-          <WorkspaceFilePreview path={standaloneFilePreviewPath} onClose={closeWorkspaceFile} />
-        </Suspense>
+      {standalonePreviewPresence.visible && renderedStandaloneFilePreviewPath && route.page !== "brief" && !settingsOpen ? (
+        <div
+          className="standalone-file-preview-presence"
+          data-leaving={standalonePreviewPresence.leaving || undefined}
+          aria-hidden={standalonePreviewPresence.leaving || undefined}
+          inert={standalonePreviewPresence.leaving || undefined}
+        >
+          <Suspense fallback={<div className="preview-state">{m.ai.workbench.loadingFile}</div>}>
+            <WorkspaceFilePreview path={renderedStandaloneFilePreviewPath} onClose={closeWorkspaceFile} />
+          </Suspense>
+        </div>
       ) : null}
       {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
@@ -249,7 +263,7 @@ function Workspace({
         </Suspense>
       ) : null}
     </>
-  ), [route, routeRenderProps, settingsOpen, settingsRouteState, workspaceFilePath, closeWorkspaceFile]);
+  ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible]);
   return (
     <FilePreviewProvider open={openWorkspaceFile}>
       <AppShell

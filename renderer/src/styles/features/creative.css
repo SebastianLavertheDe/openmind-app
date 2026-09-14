@@ -107,6 +107,12 @@
   align-content: start;
   gap: 3px;
 }
+.creative-project-loading { min-height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
+.creative-project-loading > div { display: grid; gap: 3px; }
+.creative-project-loading strong { color: var(--text); font-size: var(--fs-sm); }
+.creative-project-loading span { font-size: var(--fs-xs); }
+.creative-detail-transition.is-ready { animation: creative-detail-ready var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+@keyframes creative-detail-ready { from { opacity: 0; transform: translateX(4px); } to { opacity: 1; transform: translateX(0); } }
 
 .creative-stream {
   display: grid;

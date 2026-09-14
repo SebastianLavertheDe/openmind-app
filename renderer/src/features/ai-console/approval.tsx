@@ -3,12 +3,11 @@ import { ChevronDown, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, ApprovalRequest, RiskFinding } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { errorText, formatDateTime } from "../../ai-utils";
-import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
+import { useAiActions, useAiUi } from "../../ai-context";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { asRecord, scalar } from "./timeline";
 
 export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalRequest; risks?: RiskFinding[] }) {
-  const { snapshot } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
   const [busyAction, setBusyAction] = useState<"accept" | "accept-session" | "decline" | null>(null);
@@ -23,8 +22,6 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
   const [stashedRisks, setStashedRisks] = useState(risks);
   useEffect(() => () => { mountedRef.current = false; }, []);
   useEffect(() => { if (detailsOpen) { setStashedApproval(approval); setStashedRisks(risks); } }, [detailsOpen, approval, risks]);
-  const current = snapshot.pendingApprovals.find((item) => item.id === approval.id);
-  if (!current) return null;
   const commitResolution = async (value: "accept" | "accept-session" | "decline") => {
     const resolved = await window.openmind.aiResolveApproval(approval.id, value);
     if (!resolved) throw new Error(m.ai.approval.alreadyHandled);

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -99,6 +99,27 @@ describe("ProjectsPage", () => {
     expect(tabs.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("搜索任务")).toBeTruthy();
     expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
+  });
+
+  it("marks the target project pending immediately while its detail is loading", async () => {
+    let resolveProject!: (value: ProjectDetail) => void;
+    const pending = new Promise<ProjectDetail>((resolve) => { resolveProject = resolve; });
+    const getProject = vi.fn(() => pending);
+    installApi({ getProject });
+    renderPage();
+
+    const projectButton = await screen.findByRole("button", { name: "AI 安全" });
+    fireEvent.click(projectButton);
+
+    expect(projectButton.getAttribute("aria-busy")).toBe("true");
+    expect((projectButton as HTMLButtonElement).disabled).toBe(true);
+    expect(projectButton.closest(".project-list-row")?.classList.contains("pending")).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("正在打开“AI 安全”");
+    fireEvent.click(projectButton);
+    expect(getProject).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveProject(detail));
+    expect(await screen.findByLabelText("搜索任务")).toBeTruthy();
   });
 
   it("supports arrow-key navigation across the project content tabs", async () => {
@@ -224,6 +245,11 @@ describe("ProjectsPage", () => {
 
     fireEvent.click(createButton);
     expect(await screen.findByText("项目名称")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    await waitFor(() => expect(container.querySelector(".project-dialog-backdrop")?.getAttribute("data-leaving")).toBe("true"));
+    expect(container.querySelector(".project-dialog-backdrop")?.hasAttribute("inert")).toBe(true);
+    await waitFor(() => expect(container.querySelector(".project-dialog-backdrop")).toBeNull());
   });
 
   it("shows materials and editable documents in one flat file list", async () => {
