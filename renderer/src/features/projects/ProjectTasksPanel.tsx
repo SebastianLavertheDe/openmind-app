@@ -329,7 +329,7 @@ export function ProjectTasksPanel({
       onStart={() => void start()}
     />;
   const projectDraftWorkbench = <div className="project-task-session is-draft">
-    <AiWorkbench projectMode projectName={project.name} onDraftSubmit={startFromWorkbench} />
+    <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={startFromWorkbench} />
   </div>;
   const detail = creating ? projectDraftWorkbench : selected && !selected.sessionId ? (
     <div className="project-task-recovered">
@@ -337,7 +337,7 @@ export function ProjectTasksPanel({
     </div>
   ) : selected?.sessionId ? (
     <div className="project-task-session">
-      {activeProjectSession ? <AiWorkbench projectMode projectName={project.name} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
+      {activeProjectSession ? <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>
   ) : error ? <ErrorState message={error} retry={() => void load()} /> : (
     projectDraftWorkbench

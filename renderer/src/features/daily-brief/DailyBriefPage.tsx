@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Eye, FileText, FolderOpen, Pencil, RefreshCw, Save, Search } from "lucide-react";
-import type { ContentEntry, ContentRecord } from "@shared/contracts";
+import type { ContentEntry } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAiUi } from "../../ai-context";
-import { ContentPreview } from "../../components/ContentPreview";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
-
-type ViewMode = "preview" | "edit";
+import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../file-preview";
 
 export function DailyBriefPage({
   initialDate,
@@ -29,68 +27,74 @@ export function DailyBriefPage({
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
-  const [record, setRecord] = useState<ContentRecord | null>(null);
-  const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState<ViewMode>("preview");
-  const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [reading, setReading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [query, setQuery] = useState("");
+  const preview = useFilePreviewController({
+    onSaved(resource) {
+      if (resource.kind !== "document") return;
+      setFiles((current) => current.map((file) => file.path === resource.path
+        ? { ...file, modifiedAt: new Date().toISOString(), size: new Blob([resource.record.content || ""]).size }
+        : file));
+    },
+    onSaveError(message) {
+      ui.notify(message, "error");
+    }
+  });
+  const record = preview.resource?.kind === "document" ? preview.resource.record : null;
   const closeEmbeddedFilePreview = useCallback(() => onCloseEmbeddedFilePreview?.(), [onCloseEmbeddedFilePreview]);
 
-  const showBriefList = useCallback(() => {
+  const confirmBriefSwitch = useCallback(() => ui.confirm({
+    title: m.brief.library.switchTitle,
+    body: m.brief.library.switchBody,
+    confirmText: m.brief.library.switchConfirm,
+    danger: true
+  }), [ui]);
+
+  const showBriefList = useCallback(async () => {
     const returnTarget = listRef.current?.querySelector<HTMLButtonElement>('[data-brief-selected="true"]');
+    if (!await preview.close(confirmBriefSwitch)) return;
     setSelectedPath("");
-    setRecord(null);
-    setMode("preview");
-    setDirty(false);
     window.requestAnimationFrame(() => returnTarget?.focus());
-  }, []);
+  }, [confirmBriefSwitch, preview.close]);
 
-  const openFile = useCallback(async (path: string) => {
-    if (!path) return;
-    setReading(true);
-    setError("");
-    try {
-      const next = await window.openmind.readContent(path);
+  const openFile = useCallback(async (path: string, force = false) => {
+    if (!path) return false;
+    setListError("");
+    const opened = await preview.openSource(workspaceFileSource(path, { editable: true }), {
+      confirmDiscard: confirmBriefSwitch,
+      force
+    });
+    if (opened) {
       setSelectedPath(path);
-      setRecord(next);
-      setDraft(next.content || "");
-      setMode("preview");
-      setDirty(false);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setReading(false);
     }
-  }, []);
+    return opened;
+  }, [confirmBriefSwitch, preview.openSource]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ preserveDirtyCurrent = false }: { preserveDirtyCurrent?: boolean } = {}) => {
     setLoading(true);
-    setError("");
+    setListError("");
     try {
       const next = await window.openmind.listContent("summaries", "");
       setFiles(next);
       const compact = String(initialDate || "").replace(/\D/g, "").slice(0, 8);
       const preferred = next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next.find((file) => file.path === selectedPath) || next[0];
-      if (preferred) await openFile(preferred.path);
-      else {
-        setSelectedPath("");
-        setRecord(null);
-        setDraft("");
-      }
+      const keepDirtyCurrent = preserveDirtyCurrent && preview.dirty && preferred?.path === selectedPath;
+      if (preferred) {
+        if (!keepDirtyCurrent) await openFile(preferred.path);
+      } else if (await preview.close(confirmBriefSwitch)) setSelectedPath("");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setListError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [initialDate, openFile, selectedPath]);
+  }, [confirmBriefSwitch, initialDate, openFile, preview.close, preview.dirty, selectedPath]);
 
   useEffect(() => { void load(); }, []);
   useEffect(() => window.openmind.onSkillEvent((event) => {
-    if (event.type === "status" && event.state === "success" && String(event.skillId || "") === "daily-article-summarizer") void load();
+    if (event.type === "status" && event.state === "success" && String(event.skillId || "") === "daily-article-summarizer") {
+      void load({ preserveDirtyCurrent: true });
+    }
   }), [load]);
 
   const filteredFiles = useMemo(() => {
@@ -103,37 +107,26 @@ export function DailyBriefPage({
       if (embeddedFilePreviewPath) closeEmbeddedFilePreview();
       return;
     }
-    if (dirty && !await ui.confirm({ title: m.brief.library.switchTitle, body: m.brief.library.switchBody, confirmText: m.brief.library.switchConfirm, danger: true })) return;
     if (embeddedFilePreviewPath) closeEmbeddedFilePreview();
     await openFile(path);
   };
 
   const save = async () => {
-    if (!record || !dirty || saving) return;
-    setSaving(true);
-    try {
-      const next = await window.openmind.writeContent(record.path, draft);
-      setRecord(next);
-      setDraft(next.content || draft);
-      setDirty(false);
-      setMode("preview");
+    if (!record || !preview.dirty || preview.saving) return;
+    if (await preview.save()) {
+      await preview.setMode("preview");
       ui.notify(m.brief.library.saved, "success");
-      setFiles((current) => current.map((file) => file.path === next.path ? { ...file, modifiedAt: new Date().toISOString(), size: new Blob([draft]).size } : file));
-    } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
-    } finally {
-      setSaving(false);
     }
   };
 
   const fileActions: ResponsiveAction[] = record ? [
     {
       id: "save",
-      label: saving ? m.brief.library.saving : m.brief.library.save,
-      shortLabel: saving ? m.brief.library.saving : m.brief.library.save,
+      label: preview.saving ? m.brief.library.saving : m.brief.library.save,
+      shortLabel: preview.saving ? m.brief.library.saving : m.brief.library.save,
       icon: Save,
       priority: "essential",
-      disabled: !dirty || saving || record.truncated,
+      disabled: !preview.dirty || preview.saving || record.truncated,
       className: "document-save-button",
       onSelect: () => void save()
     },
@@ -144,7 +137,7 @@ export function DailyBriefPage({
       icon: FolderOpen,
       priority: "secondary",
       className: "document-open-button",
-      onSelect: () => void window.openmind.openPath(record.path)
+      onSelect: () => void preview.source?.openExternal?.()
     }
   ] : [];
 
@@ -171,15 +164,15 @@ export function DailyBriefPage({
       <section className="document-library-detail">
         {embeddedFilePreviewPath ? (
           <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={closeEmbeddedFilePreview} embedded />
-        ) : error ? <ErrorState message={error} retry={() => void load()} /> : record ? (
+        ) : listError || preview.error ? <ErrorState message={listError || preview.error || ""} retry={() => void load()} /> : record && preview.resource ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">
-              <button type="button" className="brief-detail-back" data-motion="action" onClick={showBriefList}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>
-              <div><span className="eyebrow">{mode === "preview" ? m.brief.library.previewMode : dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
+              <button type="button" className="brief-detail-back" data-motion="action" onClick={() => void showBriefList()}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>
+              <div><span className="eyebrow">{preview.mode === "preview" ? m.brief.library.previewMode : preview.dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
               <div className="document-detail-actions">
                 <div className="preview-mode-toggle" role="group" aria-label={m.brief.library.viewMode}>
-                  <button type="button" aria-pressed={mode === "preview"} className={mode === "preview" ? "active" : ""} data-motion="selection" onClick={() => setMode("preview")}><Eye size={14} />{m.brief.library.preview}</button>
-                  <button type="button" aria-pressed={mode === "edit"} className={mode === "edit" ? "active" : ""} disabled={record.truncated} data-motion="selection" onClick={() => setMode("edit")}><Pencil size={14} />{m.brief.library.edit}</button>
+                  <button type="button" aria-pressed={preview.mode === "preview"} className={preview.mode === "preview" ? "active" : ""} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />{m.brief.library.preview}</button>
+                  <button type="button" aria-pressed={preview.mode === "edit"} className={preview.mode === "edit" ? "active" : ""} disabled={!preview.canEditContent} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />{m.brief.library.edit}</button>
                 </div>
                 <ResponsiveActionBar
                   actions={fileActions}
@@ -189,10 +182,10 @@ export function DailyBriefPage({
                 />
               </div>
             </header>
-            <section className={`document-content ${mode}`} aria-busy={reading || undefined}>
+            <section className={`document-content ${preview.mode}`} aria-busy={preview.loading || undefined}>
               {record.truncated ? <div className="document-warning">{m.brief.library.truncated}</div> : null}
-              <div key={mode} className="document-content-view">
-                {mode === "preview" ? <ContentPreview content={{ ...record, content: draft }} layout="file" /> : <textarea aria-label={m.brief.library.editAria} value={draft} spellCheck={false} onChange={(event) => { setDraft(event.target.value); setDirty(true); }} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
+              <div key={preview.mode} className="document-content-view">
+                {preview.mode === "preview" ? <PreviewRenderer resource={preview.resource} content={preview.draft.content} layout="file" /> : <textarea aria-label={m.brief.library.editAria} value={preview.draft.content} spellCheck={false} onChange={(event) => preview.setContent(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
               </div>
             </section>
           </div>

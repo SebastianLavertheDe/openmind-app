@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -47,7 +47,8 @@ describe("DailyBriefPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^保存$/ }));
 
     await waitFor(() => expect(writeContent).toHaveBeenCalledWith(path, "# 修改后的简报"));
-    expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active");
+    // 保存成功后模式切回预览晚于写盘完成数个微任务，需等待目标状态而非同步断言。
+    await waitFor(() => expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active"));
   });
 
   it("provides a compact master-detail return path and exposes the full file label", async () => {
@@ -90,5 +91,37 @@ describe("DailyBriefPage", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "AI 消息" })));
     fireEvent.click(labelText.closest("button")!);
     expect(document.querySelector(".context-selection-preview")?.textContent).toBe("值得关注的内容。");
+  });
+
+  it("refreshes the list without reloading or prompting over a dirty current brief", async () => {
+    let emitSkillEvent: ((event: Record<string, unknown>) => void) | null = null;
+    const api = makeApi();
+    const listContent = vi.fn(api.listContent);
+    const readContent = vi.fn(api.readContent);
+    window.openmind = {
+      ...api,
+      listContent,
+      readContent,
+      onSkillEvent(callback) {
+        emitSkillEvent = callback;
+        return () => { emitSkillEvent = null; };
+      }
+    };
+    render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
+
+    await screen.findByRole("heading", { name: "每日简报" });
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "编辑每日简报" });
+    fireEvent.change(editor, { target: { value: "# 尚未保存" } });
+    const readsBeforeRefresh = readContent.mock.calls.length;
+
+    await act(async () => {
+      emitSkillEvent?.({ type: "status", state: "success", skillId: "daily-article-summarizer" });
+    });
+
+    await waitFor(() => expect(listContent.mock.calls.length).toBeGreaterThan(1));
+    expect(readContent).toHaveBeenCalledTimes(readsBeforeRefresh);
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "编辑每日简报" }).value).toBe("# 尚未保存");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

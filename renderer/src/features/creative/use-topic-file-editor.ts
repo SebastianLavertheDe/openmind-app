@@ -1,71 +1,64 @@
-import { useCallback, useState } from "react";
-import type { ContentRecord } from "@shared/contracts";
+import { useCallback } from "react";
 import { messages as m } from "@shared/messages";
 import { useAi } from "../../ai-context";
+import { useFilePreviewController, workspaceFileSource } from "../file-preview";
 
 export function useTopicFileEditor() {
   const ai = useAi();
-  const [selectedTopicFilePath, setSelectedTopicFilePath] = useState("");
-  const [selectedTopicFile, setSelectedTopicFile] = useState<ContentRecord | null>(null);
-  const [topicFileDraft, setTopicFileDraft] = useState("");
-  const [topicFileMode, setTopicFileMode] = useState<"preview" | "edit">("preview");
-  const [topicFileDirty, setTopicFileDirty] = useState(false);
-  const [topicFileSaving, setTopicFileSaving] = useState(false);
+  const preview = useFilePreviewController({
+    onLoadError(message) {
+      ai.notify(message, "error");
+    },
+    onSaveError(message) {
+      ai.notify(message, "error");
+    }
+  });
+  const selectedTopicFile = preview.resource?.kind === "document" ? preview.resource.record : null;
 
-  const resetTopicFile = useCallback(() => {
-    setSelectedTopicFilePath("");
-    setSelectedTopicFile(null);
-    setTopicFileDraft("");
-    setTopicFileMode("preview");
-    setTopicFileDirty(false);
-  }, []);
+  const confirmTopicFileDiscard = useCallback(() => ai.confirm({
+    title: m.creativeUi.topicFile.switch.title,
+    body: m.creativeUi.topicFile.switch.body,
+    confirmText: m.creativeUi.topicFile.switch.confirm,
+    danger: true
+  }), [ai]);
+
+  const resetTopicFile = useCallback(() => preview.close(confirmTopicFileDiscard), [confirmTopicFileDiscard, preview.close]);
 
   const openTopicFile = useCallback(async (path: string): Promise<boolean> => {
     if (!path) return false;
-    if (topicFileDirty && !await ai.confirm({ title: m.creativeUi.topicFile.switch.title, body: m.creativeUi.topicFile.switch.body, confirmText: m.creativeUi.topicFile.switch.confirm, danger: true })) return false;
-    try {
-      const next = await window.openmind.readContent(path);
-      setSelectedTopicFilePath(path);
-      setSelectedTopicFile(next);
-      setTopicFileDraft(next.content || "");
-      setTopicFileMode("preview");
-      setTopicFileDirty(false);
-      return true;
-    } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
-      return false;
-    }
-  }, [ai, topicFileDirty]);
+    return preview.openSource(workspaceFileSource(path, { editable: true }), {
+      confirmDiscard: confirmTopicFileDiscard
+    });
+  }, [confirmTopicFileDiscard, preview.openSource]);
 
   const saveTopicFile = useCallback(async () => {
-    if (!selectedTopicFile || !topicFileDirty || topicFileSaving || selectedTopicFile.truncated) return;
-    setTopicFileSaving(true);
-    try {
-      const next = await window.openmind.writeContent(selectedTopicFile.path, topicFileDraft);
-      setSelectedTopicFile(next);
-      setTopicFileDraft(next.content || topicFileDraft);
-      setTopicFileDirty(false);
-      setTopicFileMode("preview");
+    if (!selectedTopicFile || !preview.dirty || preview.saving || selectedTopicFile.truncated) return;
+    if (await preview.save()) {
+      await preview.setMode("preview");
       ai.notify(m.creativeUi.topicFile.savedNotice, "success");
-    } catch (cause) {
-      ai.notify(cause instanceof Error ? cause.message : String(cause), "error");
-    } finally {
-      setTopicFileSaving(false);
     }
-  }, [ai, selectedTopicFile, topicFileDirty, topicFileDraft, topicFileSaving]);
+  }, [ai, preview.dirty, preview.save, preview.saving, preview.setMode, selectedTopicFile]);
+
+  const setTopicFileMode = useCallback((mode: "preview" | "edit") => {
+    void preview.setMode(mode);
+  }, [preview.setMode]);
+
+  const openTopicFileExternal = useCallback(() => {
+    void preview.source?.openExternal?.();
+  }, [preview.source]);
 
   return {
-    selectedTopicFilePath,
+    selectedTopicFilePath: preview.source?.path || "",
     selectedTopicFile,
-    topicFileDraft,
-    topicFileMode,
-    topicFileDirty,
-    topicFileSaving,
-    setTopicFileDraft,
+    topicFileDraft: preview.draft.content,
+    topicFileMode: preview.mode,
+    topicFileDirty: preview.dirty,
+    topicFileSaving: preview.saving,
+    setTopicFileDraft: preview.setContent,
     setTopicFileMode,
-    setTopicFileDirty,
     resetTopicFile,
     openTopicFile,
+    openTopicFileExternal,
     saveTopicFile
   };
 }

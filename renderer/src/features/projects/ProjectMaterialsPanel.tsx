@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ExternalLink, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Search, Upload, Video } from "lucide-react";
+import { AlertTriangle, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Search, Upload, Video } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState } from "../../design-system/components";
-import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
-import { PdfMaterialViewer } from "./PdfMaterialViewer";
+import { PreviewRenderer, useFilePreviewController } from "../file-preview";
+import type { PreviewResource } from "../file-preview/model";
 import { ProjectDialog } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
+import { projectMaterialPreviewSource } from "./project-material-preview-source";
 import { projectsApi } from "./projects-api";
-import type { ProjectDetail, ProjectMaterial, ProjectMaterialKind, ProjectTranscriptSegment } from "./types";
+import type { ProjectDetail, ProjectMaterial, ProjectMaterialKind } from "./types";
 import type { ProjectTaskSeed } from "./ProjectTasksPanel";
 
 type MaterialFilter = "all" | ProjectMaterialKind;
-
-const VIDEO_DETAIL_SPLIT_MIN_INLINE_SIZE = 720;
 
 export function ProjectMaterialsPanel({
   project,
@@ -47,19 +45,22 @@ export function ProjectMaterialsPanel({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<MaterialFilter>("all");
   const [loading, setLoading] = useState(true);
-  const [reading, setReading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [retryingPath, setRetryingPath] = useState("");
   const materialsRef = useRef<ProjectMaterial[]>([]);
+  const selectedRef = useRef<ProjectMaterial | null>(null);
+  const previewResourceRef = useRef<PreviewResource | null>(null);
   const selectedPathRef = useRef(initialMaterialPath || "");
   const onSelectionChangeRef = useRef(onSelectionChange);
   materialsRef.current = materials;
-  selectedPathRef.current = selectedPath;
+  selectedRef.current = selected;
   onSelectionChangeRef.current = onSelectionChange;
+  const preview = useFilePreviewController();
+  previewResourceRef.current = preview.resource;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -67,30 +68,29 @@ export function ProjectMaterialsPanel({
   }, [filter, materials, query]);
 
   const openMaterial = useCallback(async (relativePath: string) => {
+    if (relativePath === selectedPathRef.current && selectedRef.current?.status === "ready" && previewResourceRef.current) return;
     selectedPathRef.current = relativePath;
     setSelectedPath(relativePath);
     onSelectionChangeRef.current?.(relativePath);
-    setError(null);
+    setListError(null);
     const known = materialsRef.current.find((item) => item.relativePath === relativePath);
     if (known && known.status !== "ready") {
       setSelected(known);
-      setReading(false);
+      preview.discard();
+      void preview.close();
       return;
     }
-    setReading(true);
-    try {
-      setSelected(await projectsApi.readMaterial(project.name, relativePath));
-    } catch (cause) {
-      setSelected(null);
-      setError(errorText(cause));
-    } finally {
-      setReading(false);
-    }
-  }, [project.name]);
+    setSelected(null);
+    await preview.openSource(projectMaterialPreviewSource(project.name, relativePath, {
+      onMaterial: (material) => {
+        if (selectedPathRef.current === relativePath) setSelected(material);
+      }
+    }), { force: true });
+  }, [preview.close, preview.discard, preview.openSource, project.name]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setListError(null);
     try {
       const next = await projectsApi.listMaterials(project.name);
       setMaterials(next);
@@ -103,14 +103,16 @@ export function ProjectMaterialsPanel({
         selectedPathRef.current = "";
         setSelectedPath("");
         setSelected(null);
+        preview.discard();
+        void preview.close();
         if (autoSelectFirst) onSelectionChangeRef.current?.();
       }
     } catch (cause) {
-      setError(errorText(cause));
+      setListError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [autoSelectFirst, initialMaterialPath, openMaterial, project.name]);
+  }, [autoSelectFirst, initialMaterialPath, openMaterial, preview.close, preview.discard, project.name]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -261,7 +263,7 @@ export function ProjectMaterialsPanel({
       <div className="project-local-count">{materialFilterLabel(filter)} <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={materials.length ? "没有匹配的资料" : "还没有资料"} description={materials.length ? "调整搜索词或资料类型后再试。" : "添加 Markdown、文档、网页或受支持的视频链接。"} /> : null}
+        {!loading && !listError && !preview.error && !filtered.length ? <EmptyState title={materials.length ? "没有匹配的资料" : "还没有资料"} description={materials.length ? "调整搜索词或资料类型后再试。" : "添加 Markdown、文档、网页或受支持的视频链接。"} /> : null}
         {filtered.map((item) => {
           const Icon = materialIcon(item.kind);
           return <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
@@ -270,8 +272,16 @@ export function ProjectMaterialsPanel({
     </>
   );
 
-  const detail = reading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在读取资料…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
-    <MaterialDetail material={selected} projectName={project.name} retrying={retryingPath === selected.relativePath} onRetry={() => void retry(selected)} />
+  const error = listError || preview.error;
+  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在读取资料…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
+    <MaterialDetail
+      material={selected}
+      resource={preview.resource}
+      projectName={project.name}
+      retrying={retryingPath === selected.relativePath}
+      onRetry={() => void retry(selected)}
+      onOpenExternal={() => void preview.source?.openExternal?.()}
+    />
   ) : (
     <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
   );
@@ -287,13 +297,13 @@ export function ProjectMaterialsPanel({
   }
   return (
     <>
-      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { setSelectedPath(""); setSelected(null); onSelectionChange?.(); }} />
+      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { selectedPathRef.current = ""; setSelectedPath(""); setSelected(null); preview.discard(); void preview.close(); onSelectionChange?.(); }} />
       {addDialog}
     </>
   );
 }
 
-function MaterialDetail({ material, projectName, retrying, onRetry }: { material: ProjectMaterial; projectName: string; retrying: boolean; onRetry(): void }) {
+function MaterialDetail({ material, resource, projectName, retrying, onRetry, onOpenExternal }: { material: ProjectMaterial; resource: PreviewResource | null; projectName: string; retrying: boolean; onRetry(): void; onOpenExternal(): void }) {
   return (
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
       <header className="project-detail-header">
@@ -302,15 +312,16 @@ function MaterialDetail({ material, projectName, retrying, onRetry }: { material
       {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接转为文档；项目任务仍可按需读取原资料。</p></div></div> : null}
       {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
-      {material.status === "ready" && material.kind === "video" ? <VideoMaterialDetail material={material} /> : null}
-      {material.status === "ready" && material.kind !== "video" ? <DocumentMaterialDetail material={material} projectName={projectName} /> : null}
+      {material.status === "ready" && material.kind === "video" && resource?.kind === "video" ? <PreviewRenderer resource={resource} onOpenExternal={resource.playback.kind === "external-only" && resource.playback.sourceUrl ? onOpenExternal : undefined} /> : null}
+      {material.status === "ready" && material.kind !== "video" && resource?.kind === "document" ? <DocumentMaterialDetail material={material} resource={resource} projectName={projectName} /> : null}
+      {material.status === "ready" && resource?.kind === "unsupported" ? <PreviewRenderer resource={resource} /> : null}
     </div>
   );
 }
 
 type DocumentViewMode = "pdf" | "read" | "markdown";
 
-function DocumentMaterialDetail({ material, projectName }: { material: ProjectMaterial; projectName: string }) {
+function DocumentMaterialDetail({ material, resource, projectName }: { material: ProjectMaterial; resource: PreviewResource; projectName: string }) {
   const hasPdfOriginal = Boolean(material.originalPath?.toLowerCase().endsWith(".pdf"));
   const [mode, setMode] = useState<DocumentViewMode>(hasPdfOriginal ? "pdf" : "read");
   return (
@@ -325,7 +336,7 @@ function DocumentMaterialDetail({ material, projectName }: { material: ProjectMa
           ? <PdfMaterialFrame projectName={projectName} material={material} onFallback={() => setMode("read")} />
           : mode === "markdown"
             ? <pre>{material.content || ""}</pre>
-            : <MarkdownReader content={material.content || ""} layout="file" />}
+            : <PreviewRenderer resource={resource} layout="file" />}
       </div>
     </div>
   );
@@ -333,136 +344,30 @@ function DocumentMaterialDetail({ material, projectName }: { material: ProjectMa
 
 /** 拉取保留的 PDF 原件，交给内置 pdf.js 阅读器渲染。 */
 function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: string; material: ProjectMaterial; onFallback(): void }) {
-  const [data, setData] = useState<Uint8Array | null>(null);
+  const preview = useFilePreviewController();
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
-    let active = true;
-    setData(null);
     setFailed(null);
-    (async () => {
-      try {
-        const original = await projectsApi.readMaterialOriginal(projectName, material.relativePath);
-        if (!active) return;
-        setData(original.data);
-      } catch (cause) {
-        if (active) setFailed(errorText(cause));
-      }
-    })();
-    return () => { active = false; };
-  }, [projectName, material.relativePath]);
-  if (failed) {
+    void preview.openSource(projectMaterialPreviewSource(projectName, material.relativePath, {
+      initialMaterial: material,
+      logicalPath: material.originalPath || material.relativePath,
+      view: "pdf"
+    }), { force: true });
+  }, [material, preview.openSource, projectName]);
+  const error = failed || preview.error;
+  if (error) {
     return (
       <div className="project-pdf-unavailable">
         <FileText size={28} />
         <strong>无法加载 PDF 原件</strong>
-        <p>{failed}</p>
+        <p>{error}</p>
         <button type="button" data-motion="action" onClick={onFallback}>查看提取文本</button>
       </div>
     );
   }
-  return data
-    ? <PdfMaterialViewer data={data} title={material.title} onError={(message) => setFailed(message)} />
+  return preview.resource?.kind === "pdf"
+    ? <PreviewRenderer resource={preview.resource} onError={(message) => setFailed(message)} />
     : <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />正在加载 PDF 原件…</div>;
-}
-
-function VideoMaterialDetail({ material }: { material: ProjectMaterial }) {
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const videoLayout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: VIDEO_DETAIL_SPLIT_MIN_INLINE_SIZE });
-  const [currentMs, setCurrentMs] = useState(0);
-  const segments = useMemo(() => material.video?.transcript?.length ? material.video.transcript : parseTranscript(material.content || ""), [material.content, material.video?.transcript]);
-
-  // Project Markdown is user-editable, so never let a persisted direct/HLS URL
-  // make the renderer fetch arbitrary hosts. The first release embeds only the
-  // provider URL that Main reconstructs for a canonical YouTube id; other
-  // videos keep URL + transcript and open explicitly in the system browser.
-  const embedUrl = trustedYoutubeEmbedUrl(material.video?.provider, material.video?.embedUrl, material.video?.videoId);
-  const embedOrigin = useMemo(() => {
-    if (!embedUrl) return null;
-    try { return new URL(embedUrl).origin; } catch { return null; }
-  }, [embedUrl]);
-
-  useEffect(() => {
-    if (!embedOrigin) return;
-    const receivePlaybackState = (event: MessageEvent) => {
-      if (event.origin !== embedOrigin || event.source !== frameRef.current?.contentWindow) return;
-      try {
-        const payload = typeof event.data === "string" ? JSON.parse(event.data) as { event?: string; info?: { currentTime?: unknown } } : event.data as { event?: string; info?: { currentTime?: unknown } };
-        const currentTime = payload?.event === "infoDelivery" ? payload.info?.currentTime : undefined;
-        if (typeof currentTime === "number" && Number.isFinite(currentTime)) setCurrentMs(currentTime * 1000);
-      } catch { /* Ignore unrelated messages from the validated player origin. */ }
-    };
-    window.addEventListener("message", receivePlaybackState);
-    return () => window.removeEventListener("message", receivePlaybackState);
-  }, [embedOrigin]);
-
-  const connectEmbeddedPlayer = () => {
-    if (!frameRef.current?.contentWindow || !embedOrigin) return;
-    frameRef.current.contentWindow.postMessage(JSON.stringify({ event: "listening", id: `project-video-${material.relativePath}` }), embedOrigin);
-  };
-
-  const seek = (milliseconds: number) => {
-    setCurrentMs(milliseconds);
-    if (frameRef.current?.contentWindow && embedOrigin) {
-      frameRef.current.contentWindow.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [milliseconds / 1000, true] }), embedOrigin);
-    }
-  };
-
-  return (
-    <div ref={videoLayout.ref} className={`project-video-layout layout-${videoLayout.mode}`} data-layout-width={videoLayout.inlineSize ? Math.round(videoLayout.inlineSize) : undefined}>
-      <div className="project-video-detail">
-        <div className="project-video-media-column">
-          <section className="project-video-player">
-            {embedUrl ? <iframe ref={frameRef} title={material.title} src={embedUrl} onLoad={connectEmbeddedPlayer} sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : <div className="project-video-unavailable"><Video size={28} /><strong>当前链接无法安全内嵌播放</strong><p>字幕仍可阅读；可以在浏览器中打开原视频。</p>{material.sourceUrl ? <button data-motion="action" onClick={() => void window.openmind.openExternal(material.sourceUrl!)}><ExternalLink size={14} />浏览器打开</button> : null}</div>}
-          </section>
-        </div>
-        <div className="project-video-inspector-column">
-          <section className="project-transcript project-video-inspector">
-            <div className="project-transcript-list">
-              {!segments.length ? <EmptyState title="暂无字幕" description="当前视频没有可用的平台字幕；原始链接仍会保留在项目资料中。" /> : null}
-              {segments.map((item) => {
-                const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
-                return <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}><button className="project-timecode" data-motion="selection" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button><span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span></div>;
-              })}
-            </div>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function trustedYoutubeEmbedUrl(provider?: string, embedUrl?: string, videoId?: string): string | undefined {
-  if (provider !== "youtube" || !videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId) || !embedUrl) return undefined;
-  try {
-    const parsed = new URL(embedUrl);
-    if (parsed.protocol !== "https:" || parsed.hostname !== "www.youtube-nocookie.com") return undefined;
-    if (parsed.pathname !== `/embed/${videoId}` || parsed.searchParams.get("enablejsapi") !== "1") return undefined;
-    return parsed.toString();
-  } catch {
-    return undefined;
-  }
-}
-
-function parseTranscript(content: string): ProjectTranscriptSegment[] {
-  return content.split(/\r?\n/).flatMap((line, index) => {
-    const match = line.match(/^\s*\[(\d{1,2}:)?(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\s*[–-]\s*(\d{1,2}:)?(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]\s*(.+)$/);
-    if (!match) return [];
-    const startMs = timePartsToMs(match[1], match[2], match[3]);
-    const endMs = timePartsToMs(match[4], match[5], match[6]);
-    return [{ id: `line-${index}`, startMs, endMs, text: match[7].trim() }];
-  });
-}
-
-function timePartsToMs(hours: string | undefined, minutes: string, seconds: string): number {
-  return ((Number.parseInt(hours || "0", 10) * 3600) + Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000;
-}
-
-function formatDisplayTime(milliseconds: number): string {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = seconds % 60;
-  return `${hours ? `${String(hours).padStart(2, "0")}:` : ""}${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
 function materialIcon(kind: ProjectMaterialKind) {

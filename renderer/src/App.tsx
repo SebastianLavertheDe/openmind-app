@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAiActions, useAiSnapshot, useAiUi } from "./ai-context";
 import { storageJson, writeStorage } from "./ai-utils";
@@ -10,9 +10,11 @@ import type { AppRoute, AppRouteState, Navigate } from "./app/routes";
 import { renderActiveRoute, type RouteBootstrap } from "./app/route-registry";
 import { AiSidebar } from "./components/AiSidebar";
 import { FeedbackHost } from "./components/FeedbackHost";
-import { WorkspaceFilePreview } from "./components/WorkspaceFilePreview";
 import { FilePreviewProvider } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
+
+const WorkspaceFilePreview = lazy(() => import("./components/WorkspaceFilePreview")
+  .then((module) => ({ default: module.WorkspaceFilePreview })));
 
 const NAV_COLLAPSED_KEY = "openmind.nav.collapsed.v1";
 type Bootstrap = RouteBootstrap;
@@ -236,7 +238,11 @@ function Workspace({
           {renderActiveRoute({ route, ...routeRenderProps })}
         </div>
       </Suspense>
-      {standaloneFilePreviewPath && !settingsOpen ? <WorkspaceFilePreview path={standaloneFilePreviewPath} onClose={closeWorkspaceFile} /> : null}
+      {standaloneFilePreviewPath && !settingsOpen ? (
+        <Suspense fallback={<div className="preview-state">{m.ai.workbench.loadingFile}</div>}>
+          <WorkspaceFilePreview path={standaloneFilePreviewPath} onClose={closeWorkspaceFile} />
+        </Suspense>
+      ) : null}
       {settingsOpen ? (
         <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
           {renderActiveRoute({ route: { page: "settings", state: settingsRouteState, nonce: 0 }, ...routeRenderProps })}

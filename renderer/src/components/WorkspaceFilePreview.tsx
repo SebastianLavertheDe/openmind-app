@@ -1,67 +1,59 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { ExternalLink, FileText, X } from "lucide-react";
-import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { errorText } from "../ai-utils";
-import { ContentPreview } from "./ContentPreview";
 import { ResponsiveActionBar, type ResponsiveAction } from "../design-system/components";
 import { useResponsiveLayout } from "../app/responsive-layout";
+import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../features/file-preview";
 
 export function WorkspaceFilePreview({ path, onClose, embedded = false }: { path: string; onClose(): void; embedded?: boolean }) {
   const responsiveLayout = useResponsiveLayout();
-  const [content, setContent] = useState<ContentRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const controller = useFilePreviewController();
+  const source = useMemo(() => workspaceFileSource(path, { binary: "unsupported" }), [path]);
 
   useEffect(() => {
-    let current = true;
-    setContent(null);
-    setLoading(true);
-    setError(null);
-    void window.openmind.readContent(path).then((record) => {
-      if (!current) return;
-      setContent(record);
-      setLoading(false);
-    }).catch((cause) => {
-      if (!current) return;
-      const message = errorText(cause);
-      setError(/enoent|not found|no such file|找不到|不存在/i.test(message) ? m.ai.workbench.fileMissing : message);
-      setLoading(false);
-    });
-    return () => { current = false; };
-  }, [path]);
+    void controller.openSource(source, { force: true });
+  }, [source]);
+
+  const close = useCallback(() => {
+    void controller.close().then((closed) => { if (closed) onClose(); });
+  }, [controller.close, onClose]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onClose();
+      close();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [close]);
 
   const actions = useMemo<ResponsiveAction[]>(() => [{
     id: "open-external",
     label: m.ai.file.open,
     icon: ExternalLink,
     priority: "primary",
-    onSelect: () => void window.openmind.openPath(path)
+    onSelect: () => void source.openExternal?.()
   }, {
     id: "close",
     label: m.ai.workbench.closeFilePreview,
     icon: X,
     priority: "essential",
     labelBehavior: "icon",
-    onSelect: onClose
-  }], [onClose, path]);
+    onSelect: close
+  }], [close, source]);
+
+  const resource = controller.resource;
+  const error = controller.error && /enoent|not found|no such file|找不到|不存在/i.test(controller.error)
+    ? m.ai.workbench.fileMissing
+    : controller.error;
 
   return (
     <section className={`workspace-file-preview ai-file-preview${embedded ? " is-embedded" : ""}`} role="complementary" aria-label={m.ai.workbench.filePreview}>
       <header>
         <FileText size={16} />
         <div>
-          <strong>{content?.name || path.split(/[\\/]/).at(-1)}</strong>
+          <strong>{resource?.title || path.split(/[\\/]/).at(-1)}</strong>
           <span title={path}>{path}</span>
         </div>
         <ResponsiveActionBar
@@ -72,10 +64,10 @@ export function WorkspaceFilePreview({ path, onClose, embedded = false }: { path
         />
       </header>
       <div className="ai-file-preview-body">
-        {loading ? <div className="preview-state">{m.ai.workbench.loadingFile}</div> : null}
+        {controller.loading ? <div className="preview-state">{m.ai.workbench.loadingFile}</div> : null}
         {error ? <div className="preview-state error">{error}</div> : null}
-        {content?.truncated ? <div className="preview-inline-state">{m.ai.workbench.fileTruncatedWarning}</div> : null}
-        {content ? <ContentPreview content={content} layout="file" /> : null}
+        {resource?.kind === "document" && resource.record.truncated ? <div className="preview-inline-state">{m.ai.workbench.fileTruncatedWarning}</div> : null}
+        {resource ? <PreviewRenderer resource={resource} /> : null}
       </div>
     </section>
   );

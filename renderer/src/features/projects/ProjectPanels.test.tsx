@@ -424,6 +424,39 @@ describe("Project material PDF original", () => {
 });
 
 describe("Project file selection", () => {
+  it("does not let late material metadata replace the newest selection", async () => {
+    const first = {
+      projectName: project.name,
+      relativePath: "materials/documents/first.md",
+      title: "First material",
+      kind: "document",
+      status: "ready",
+      source: { type: "file", originalName: "first.md" },
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const second = { ...first, relativePath: "materials/documents/second.md", title: "Second material", source: { type: "file", originalName: "second.md" } };
+    let resolveFirst!: (value: unknown) => void;
+    const firstRead = new Promise((resolve) => { resolveFirst = resolve; });
+    installApi({
+      listProjectMaterials: vi.fn(async () => [first, second]),
+      readProjectMaterial: vi.fn((input: { relativePath: string }) => input.relativePath === first.relativePath
+        ? firstRead
+        : Promise.resolve({ material: second, content: "# Second content", truncated: false }))
+    });
+
+    renderWithAi(<ProjectMaterialsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Second material/ }));
+    expect(await screen.findByRole("heading", { name: "Second material" })).toBeTruthy();
+
+    await act(async () => {
+      resolveFirst({ material: first, content: "# First content", truncated: false });
+      await firstRead;
+    });
+    expect(screen.getByRole("heading", { name: "Second material" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "First material" })).toBeNull();
+  });
+
   it("does not repeatedly read an already selected YouTube material", async () => {
     const videoMaterial = {
       projectName: project.name,

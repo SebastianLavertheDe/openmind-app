@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, FileOutput, LoaderCircle, Pencil, Plus, Save, Search } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { MarkdownReader } from "../../components/MarkdownReader";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
 import { MarkdownEditor, type EditorSelectionSnapshot } from "../creative/MarkdownEditor";
+import { PreviewRenderer, useFilePreviewController } from "../file-preview";
+import type { FilePreviewSource, PreviewResource } from "../file-preview/model";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
+import { projectOutputPreviewSource } from "./project-output-preview-source";
 import { projectsApi } from "./projects-api";
 import type { ProjectDetail, ProjectOutput } from "./types";
 
@@ -46,112 +48,72 @@ export function ProjectOutputsPanel({
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialOutputPath || "");
   const [selected, setSelected] = useState<ProjectOutput | null>(null);
-  const [title, setTitle] = useState("");
-  const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [reading, setReading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [creating, setCreating] = useState(false);
-  const selectedRef = useRef<ProjectOutput | null>(null);
   const selectedPathRef = useRef(initialOutputPath || "");
+  const previewSourceRef = useRef<FilePreviewSource | null>(null);
+  const previewResourceRef = useRef<PreviewResource | null>(null);
   const dirtyRef = useRef(false);
-  const draftRef = useRef("");
-  const titleRef = useRef("");
-  const editVersionRef = useRef(0);
-  const saveOperationRef = useRef<Promise<boolean> | null>(null);
-  const saveRef = useRef<() => Promise<boolean>>(async () => true);
-  const savedTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const savedTimerRef = useRef<number | null>(null);
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
   const notifyRef = useRef(ui.notify);
   const confirmRef = useRef(ui.confirm);
-  selectedRef.current = selected;
-  selectedPathRef.current = selectedPath;
-  dirtyRef.current = dirty;
-  draftRef.current = draft;
-  titleRef.current = title;
   notifyRef.current = ui.notify;
   confirmRef.current = ui.confirm;
+
+  const preview = useFilePreviewController({
+    flushOnUnmount: true,
+    onSaveError(message) {
+      if (mountedRef.current) setSaveState("failed");
+      notifyRef.current(message, "error");
+    }
+  });
+  previewSourceRef.current = preview.source;
+  previewResourceRef.current = preview.resource;
+  dirtyRef.current = preview.dirty;
+  const resource = preview.resource?.kind === "document" ? preview.resource : null;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return outputs.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
   }, [outputs, query]);
 
-  const discardChanges = useCallback(() => {
-    dirtyRef.current = false;
-    if (mountedRef.current) {
-      setDirty(false);
-      setSaveState("idle");
-    }
+  const acceptOutput = useCallback((next: ProjectOutput) => {
+    if (!mountedRef.current) return;
+    setOutputs((items) => items.some((item) => item.relativePath === next.relativePath)
+      ? items.map((item) => item.relativePath === next.relativePath ? next : item)
+      : [next, ...items]);
+    if (selectedPathRef.current === next.relativePath) setSelected(next);
   }, []);
 
-  const save = useCallback((): Promise<boolean> => {
-    if (saveOperationRef.current) return saveOperationRef.current;
-    const operation = (async () => {
-      while (dirtyRef.current) {
-        const current = selectedRef.current;
-        if (!current) {
-          discardChanges();
-          return true;
-        }
-        const relativePath = current.relativePath;
-        const content = draftRef.current;
-        const nextTitle = titleRef.current.trim() || current.title;
-        const version = editVersionRef.current;
-        if (mountedRef.current) setSaveState("saving");
-        let next: ProjectOutput;
-        try {
-          next = await projectsApi.saveOutput(project.name, relativePath, content, nextTitle);
-        } catch (cause) {
-          if (mountedRef.current) {
-            setSaveState("failed");
-            notifyRef.current(errorText(cause), "error");
-          }
-          return false;
-        }
+  const discardChanges = useCallback(() => {
+    dirtyRef.current = false;
+    preview.discard();
+    if (mountedRef.current) setSaveState("idle");
+  }, [preview.discard]);
 
-        const stillEditingSameVersion = selectedRef.current?.relativePath === relativePath
-          && editVersionRef.current === version;
-        if (mountedRef.current) {
-          setOutputs((items) => items.some((item) => item.relativePath === relativePath)
-            ? items.map((item) => item.relativePath === relativePath ? next : item)
-            : [next, ...items]);
-        }
-        if (!stillEditingSameVersion) continue;
+  const markSaved = useCallback(() => {
+    if (!mountedRef.current) return;
+    setSaveState("saved");
+    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = window.setTimeout(() => {
+      if (mountedRef.current) setSaveState((value) => value === "saved" ? "idle" : value);
+    }, 1800);
+  }, []);
 
-        const persistedDraft = next.content ?? content;
-        selectedRef.current = next;
-        selectedPathRef.current = next.relativePath;
-        titleRef.current = next.title;
-        draftRef.current = persistedDraft;
-        dirtyRef.current = false;
-        if (mountedRef.current) {
-          setSelected(next);
-          setSelectedPath(next.relativePath);
-          setTitle(next.title);
-          setDraft(persistedDraft);
-          setDirty(false);
-          setSaveState("saved");
-          if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = window.setTimeout(() => {
-            if (mountedRef.current) setSaveState((value) => value === "saved" ? "idle" : value);
-          }, 1800);
-        }
-      }
-      return true;
-    })();
-    saveOperationRef.current = operation;
-    void operation.finally(() => {
-      if (saveOperationRef.current === operation) saveOperationRef.current = null;
-    });
-    return operation;
-  }, [discardChanges, project.name]);
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!dirtyRef.current) return true;
+    if (mountedRef.current) setSaveState("saving");
+    const saved = await preview.save();
+    if (saved) markSaved();
+    return saved;
+  }, [markSaved, preview.save]);
   saveRef.current = save;
 
   const confirmTransition = useCallback(async () => {
@@ -167,46 +129,37 @@ export function ProjectOutputsPanel({
     return discard;
   }, [discardChanges, save]);
 
-  const readOutput = useCallback(async (relativePath: string, confirmDirty = true) => {
-    if (relativePath === selectedRef.current?.relativePath) return;
-    if (confirmDirty && !await confirmTransition()) return;
-    setReading(true);
-    setError(null);
-    try {
-      const next = await projectsApi.readOutput(project.name, relativePath);
-      editVersionRef.current += 1;
-      selectedPathRef.current = relativePath;
-      selectedRef.current = next;
-      titleRef.current = next.title;
-      draftRef.current = next.content || "";
-      dirtyRef.current = false;
-      setSelectedPath(relativePath);
-      setSelected(next);
-      setTitle(next.title);
-      setDraft(next.content || "");
-      setDirty(false);
-      setSaveState("idle");
-      setMode("edit");
-      onSelectionChange?.(relativePath);
-    } catch (cause) {
-      setError(errorText(cause));
-    } finally {
-      setReading(false);
-    }
-  }, [confirmTransition, onSelectionChange, project.name]);
+  const readOutput = useCallback(async (
+    relativePath: string,
+    confirmDirty = true,
+    initialOutput?: ProjectOutput
+  ): Promise<boolean> => {
+    if (relativePath === selectedPathRef.current && previewResourceRef.current) return true;
+    if (confirmDirty && !await confirmTransition()) return false;
+    selectedPathRef.current = relativePath;
+    setSelectedPath(relativePath);
+    setSelected(initialOutput || null);
+    setSaveState("idle");
+    setListError(null);
+    onSelectionChange?.(relativePath);
+    return preview.openSource(projectOutputPreviewSource(project.name, relativePath, {
+      initialOutput,
+      onOutput: acceptOutput
+    }), { initialMode: "edit", force: true });
+  }, [acceptOutput, confirmTransition, onSelectionChange, preview.openSource, project.name]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const next = await projectsApi.listOutputs(project.name);
       setOutputs(next);
-      setError(null);
+      setListError(null);
       const preferred = next.find((item) => item.relativePath === selectedPathRef.current)
         || next.find((item) => item.relativePath === initialOutputPath)
         || (autoSelectFirst ? next[0] : undefined);
-      if (preferred && !selectedRef.current) await readOutput(preferred.relativePath, false);
+      if (preferred && !previewSourceRef.current) await readOutput(preferred.relativePath, false);
     } catch (cause) {
-      setError(errorText(cause));
+      setListError(errorText(cause));
     } finally {
       setLoading(false);
     }
@@ -221,10 +174,11 @@ export function ProjectOutputsPanel({
   }, [createRequested, onCreateHandled]);
 
   useEffect(() => {
-    if (!dirty || !selected) return;
+    if (!preview.dirty || !resource) return;
     const timer = window.setTimeout(() => { void save(); }, 900);
     return () => window.clearTimeout(timer);
-  }, [dirty, draft, save, selected?.relativePath, title]);
+  }, [preview.dirty, preview.draft.content, preview.draft.title, resource?.path, save]);
+
   const navigationGuard = useMemo<ProjectOutputNavigationGuard>(() => ({
     isDirty: () => dirtyRef.current,
     flush: save,
@@ -234,12 +188,12 @@ export function ProjectOutputsPanel({
     onNavigationGuardChange?.(navigationGuard);
     return () => onNavigationGuardChange?.(null);
   }, [navigationGuard, onNavigationGuardChange]);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
-      if (dirtyRef.current) void saveRef.current();
     };
   }, []);
   useEffect(() => {
@@ -259,21 +213,9 @@ export function ProjectOutputsPanel({
     setCreating(true);
     try {
       const next = await projectsApi.createOutput(project.name, createTitle.trim());
-      editVersionRef.current += 1;
-      selectedRef.current = next;
-      selectedPathRef.current = next.relativePath;
-      titleRef.current = next.title;
-      draftRef.current = next.content || "";
-      dirtyRef.current = false;
       setOutputs((current) => [next, ...current]);
-      setSelected(next);
-      setSelectedPath(next.relativePath);
-      setTitle(next.title);
-      setDraft(next.content || "");
-      setDirty(false);
-      setMode("edit");
+      await readOutput(next.relativePath, false, next);
       setCreateOpen(false);
-      onSelectionChange?.(next.relativePath);
       onChanged();
       window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".project-output-editor .cm-content")?.focus());
     } catch (cause) {
@@ -285,17 +227,18 @@ export function ProjectOutputsPanel({
 
   const closeDetail = async () => {
     if (!await confirmTransition()) return;
-    editVersionRef.current += 1;
-    selectedRef.current = null;
+    await preview.close();
     selectedPathRef.current = "";
     dirtyRef.current = false;
     setSelected(null);
     setSelectedPath("");
-    setDirty(false);
+    setSaveState("idle");
     onSelectionChange?.();
   };
 
   const hosted = Boolean(listHost || detailHost);
+  const error = listError || preview.error;
+  const saving = preview.saving || saveState === "saving";
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
@@ -309,18 +252,18 @@ export function ProjectOutputsPanel({
     </>
   );
 
-  const detail = reading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected ? (
+  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
-        <div><span className="eyebrow">项目文档</span><input className="project-output-title" value={title} aria-label="文档标题" onChange={(event) => { const value = event.target.value; editVersionRef.current += 1; titleRef.current = value; dirtyRef.current = true; setTitle(value); setDirty(true); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
+        <div><span className="eyebrow">项目文档</span><input className="project-output-title" value={preview.draft.title} aria-label="文档标题" onChange={(event) => { preview.setTitle(event.target.value); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
         <div className="project-output-actions">
-          <StatusBadge tone={saveState === "failed" ? "danger" : saveState === "saving" ? "info" : "neutral"}>{saveLabel(saveState, dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={mode === "edit" ? "active" : ""} aria-pressed={mode === "edit"} data-motion="selection" onClick={() => setMode("edit")}><Pencil size={14} />编辑</button><button className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} data-motion="selection" onClick={() => setMode("preview")}><Eye size={14} />预览</button></div>
-          <button data-motion="action" disabled={!dirty || saveState === "saving"} onClick={() => void save()}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
+          <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
+          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button><button className={preview.mode === "preview" ? "active" : ""} aria-pressed={preview.mode === "preview"} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />预览</button></div>
+          <button data-motion="action" disabled={!preview.dirty || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
         </div>
       </header>
-      <div className={`project-output-editor ${mode}`}>
-        {mode === "preview" ? <MarkdownReader content={draft} layout="file" /> : <MarkdownEditor value={draft} ariaLabel="Markdown 文档内容" onChange={(value) => { editVersionRef.current += 1; draftRef.current = value; dirtyRef.current = true; setDraft(value); setDirty(true); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
+      <div className={`project-output-editor ${preview.mode}`}>
+        {preview.mode === "preview" ? <PreviewRenderer resource={resource} content={preview.draft.content} layout="file" /> : <MarkdownEditor value={preview.draft.content} ariaLabel="Markdown 文档内容" onChange={(value) => { preview.setContent(value); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
       </div>
     </div>
   ) : (

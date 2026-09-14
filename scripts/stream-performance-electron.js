@@ -74,6 +74,8 @@ async function run() {
 
   const fixtureCollapsed = await domFixture(win);
   await openCompletedHistory(win);
+  await waitFor(win, ".completed-process:not(.processing) .command-group");
+  await openCompletedToolGroup(win);
   await waitFor(win, ".completed-process:not(.processing) .tool-event");
   await delay(300);
   const fixtureExpanded = await domFixture(win);
@@ -171,6 +173,20 @@ async function openCompletedHistory(win) {
     })()
   `);
   if (!opened) throw new Error("Completed history disclosure was not found");
+}
+
+async function openCompletedToolGroup(win) {
+  const opened = await win.webContents.executeJavaScript(`
+    (() => {
+      const process = document.querySelector('.completed-process:not(.processing)');
+      const group = process?.querySelector('.command-group');
+      const trigger = group?.querySelector(':scope > .ui-disclosure-trigger');
+      if (!trigger) return false;
+      if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+      return true;
+    })()
+  `);
+  if (!opened) throw new Error("Completed history tool-group disclosure was not found");
 }
 
 async function installRendererSampler(win) {

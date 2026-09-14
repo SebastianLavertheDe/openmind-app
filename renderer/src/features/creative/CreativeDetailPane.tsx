@@ -41,7 +41,7 @@ export function CreativeDetailPane({
   topicFileSaving,
   setTopicFileDraft,
   setTopicFileMode,
-  setTopicFileDirty,
+  openTopicFileExternal,
   saveTopicFile,
   activeFile,
   chooseFile,
@@ -81,9 +81,9 @@ export function CreativeDetailPane({
   topicFileMode: "preview" | "edit";
   topicFileDirty: boolean;
   topicFileSaving: boolean;
-  setTopicFileDraft: Dispatch<SetStateAction<string>>;
+  setTopicFileDraft: (value: string) => void;
   setTopicFileMode: (mode: "preview" | "edit") => void;
-  setTopicFileDirty: Dispatch<SetStateAction<boolean>>;
+  openTopicFileExternal(): void;
   saveTopicFile(): Promise<void>;
   activeFile: string;
   chooseFile(file: string): Promise<void>;
@@ -121,8 +121,9 @@ export function CreativeDetailPane({
       dirty={topicFileDirty}
       saving={topicFileSaving}
       onMode={setTopicFileMode}
-      onDraft={(value) => { setTopicFileDraft(value); setTopicFileDirty(true); }}
+      onDraft={setTopicFileDraft}
       onSave={() => void saveTopicFile()}
+      onOpenExternal={openTopicFileExternal}
     />;
   }
   if (selectedTopic) {

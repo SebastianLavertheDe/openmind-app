@@ -53,7 +53,7 @@ export function CreativeWorkspacePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("preview");
-  const { selectedTopicFilePath, selectedTopicFile, topicFileDraft, topicFileMode, topicFileDirty, topicFileSaving, setTopicFileDraft, setTopicFileMode, setTopicFileDirty, resetTopicFile, openTopicFile, saveTopicFile } = useTopicFileEditor();
+  const { selectedTopicFilePath, selectedTopicFile, topicFileDraft, topicFileMode, topicFileDirty, topicFileSaving, setTopicFileDraft, setTopicFileMode, resetTopicFile, openTopicFile, openTopicFileExternal, saveTopicFile } = useTopicFileEditor();
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [workflowPolicy, setWorkflowPolicy] = useState({
     autoSaveDraft: true,
@@ -124,9 +124,9 @@ export function CreativeWorkspacePage({
   }, [topics, activeProjects]);
 
   const openProject = useCallback(async (project: CreativeProjectSummary) => {
+    if (!await resetTopicFile()) return;
     if (compactWorkspace) setCompactListOpen(false);
     setSelectedTopic(null);
-    resetTopicFile();
     setSelectedProject(project);
     setDetail(null);
     setDirty(false);
@@ -359,7 +359,7 @@ export function CreativeWorkspacePage({
                     selectedTopic={selectedTopic}
                     selectedProject={selectedProject}
                     selectedTopicFile={selectedTopicFilePath}
-                    onOpenTopic={(topic) => { if (compactWorkspace) setCompactListOpen(false); resetTopicFile(); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); }}
+                    onOpenTopic={(topic) => { void (async () => { if (!await resetTopicFile()) return; if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); })(); }}
                     onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
                     onOpenProject={(project) => void openProject(project)}
                   />
@@ -406,7 +406,7 @@ export function CreativeWorkspacePage({
                 topicFileSaving={topicFileSaving}
                 setTopicFileDraft={setTopicFileDraft}
                 setTopicFileMode={setTopicFileMode}
-                setTopicFileDirty={setTopicFileDirty}
+                openTopicFileExternal={openTopicFileExternal}
                 saveTopicFile={saveTopicFile}
                 activeFile={activeFile}
                 chooseFile={chooseFile}
