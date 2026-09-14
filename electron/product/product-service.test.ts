@@ -98,6 +98,40 @@ describe("ProductService", () => {
     expect(sources.some((source) => source.url === "https://example.com/feed.xml")).toBe(false);
   });
 
+  it("stores the X cURL in private Skill data and migrates the legacy editor path", () => {
+    const legacyDirectory = path.join(root, "openmind", ".claude", "skills", "x-following-fetcher");
+    const persistentDirectory = path.join(root, "openmind", ".agent", "skill-data", "x-following-fetcher");
+    fs.mkdirSync(legacyDirectory, { recursive: true });
+    fs.writeFileSync(path.join(legacyDirectory, "curl.txt"), "curl 'https://x.com/legacy'\n", "utf8");
+    fs.writeFileSync(path.join(legacyDirectory, "curl_foryou.txt"), "curl 'https://x.com/for-you'\n", "utf8");
+    const service = createService();
+
+    expect(service.getXFollowingCurls()).toEqual([
+      "curl 'https://x.com/legacy'",
+      "curl 'https://x.com/for-you'"
+    ]);
+    expect(fs.readFileSync(path.join(persistentDirectory, "curl.txt"), "utf8")).toBe("curl 'https://x.com/legacy'\n");
+    expect(fs.readFileSync(path.join(persistentDirectory, "curl_2.txt"), "utf8")).toBe("curl 'https://x.com/for-you'\n");
+
+    service.saveXFollowingCurls([
+      "  curl 'https://x.com/current'  ",
+      "curl 'https://x.com/list'",
+      "curl 'https://x.com/bookmarks'"
+    ]);
+    expect(service.getXFollowingCurls()).toEqual([
+      "curl 'https://x.com/current'",
+      "curl 'https://x.com/list'",
+      "curl 'https://x.com/bookmarks'"
+    ]);
+    expect(fs.existsSync(path.join(persistentDirectory, "curl_3.txt"))).toBe(true);
+
+    service.saveXFollowingCurls(["curl 'https://x.com/current'"]);
+    expect(fs.existsSync(path.join(persistentDirectory, "curl_2.txt"))).toBe(false);
+    expect(fs.existsSync(path.join(persistentDirectory, "curl_3.txt"))).toBe(false);
+    expect(fs.readFileSync(path.join(legacyDirectory, "curl.txt"), "utf8")).toBe("curl 'https://x.com/legacy'\n");
+    expect(() => service.saveXFollowingCurls(["not a curl"])).toThrow("请确保每一项都是以 curl 开头的完整请求");
+  });
+
   it("lists and edits persistent Reddit communities instead of one generated placeholder", () => {
     const installed = path.join(root, "openmind", ".agent", "skills", "reddit-fetcher");
     fs.mkdirSync(installed, { recursive: true });

@@ -11,7 +11,7 @@ import { renderActiveRoute, type RouteBootstrap } from "./app/route-registry";
 import { AiSidebar } from "./components/AiSidebar";
 import { FeedbackHost } from "./components/FeedbackHost";
 import { useExitPresence } from "./design-system/use-exit-presence";
-import { FilePreviewProvider } from "./features/ai-console/file-preview-context";
+import { FilePreviewProvider, type OpenFilePreviewOptions } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
 
 const WorkspaceFilePreview = lazy(() => import("./components/WorkspaceFilePreview")
@@ -83,6 +83,7 @@ function Workspace({
   const [settingsRouteState, setSettingsRouteState] = useState<AppRouteState>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
+  const [workspaceFileProjectName, setWorkspaceFileProjectName] = useState<string | undefined>();
   const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   // Slice subscriptions instead of the full useAi() controller: the workspace
@@ -117,6 +118,16 @@ function Workspace({
       return { page, state, nonce: current.nonce + 1 };
     });
   }, []);
+  const openNewTask = useCallback(() => {
+    // A new task owns a fresh conversation canvas. Clear both preview surfaces
+    // and force a new AI route instance so an in-flight file load cannot keep
+    // rendering beside the blank draft.
+    setAiFilePreviewPath(null);
+    setWorkspaceFilePath(null);
+    void actions.setActiveSession(null);
+    setSettingsOpen(false);
+    setRoute((current) => ({ page: "ai", state: {}, nonce: current.nonce + 1 }));
+  }, [actions.setActiveSession, setRoute]);
   const exitSettings = useCallback(() => {
     setSettingsOpen(false);
     window.requestAnimationFrame(() => {
@@ -131,7 +142,10 @@ function Workspace({
     setSearchOpen(true);
   }, []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
-  const openWorkspaceFile = useCallback((path: string) => setWorkspaceFilePath(path), []);
+  const openWorkspaceFile = useCallback((path: string, options?: OpenFilePreviewOptions) => {
+    setWorkspaceFileProjectName(options?.projectName);
+    setWorkspaceFilePath(path);
+  }, []);
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
   const embeddedFilePreviewPath = route.page === "brief" ? workspaceFilePath : null;
   const standaloneFilePreviewPath = route.page === "brief" ? null : workspaceFilePath;
@@ -158,11 +172,11 @@ function Workspace({
       if (route.page === "onboarding") return;
       const key = event.key.toLowerCase();
       if (key === "k") { event.preventDefault(); openSearch(); }
-      else if (key === "n") { event.preventDefault(); void actions.setActiveSession(null); navigate("ai"); }
+      else if (key === "n") { event.preventDefault(); openNewTask(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [actions.setActiveSession, navigate, openSearch, route.page]);
+  }, [openNewTask, openSearch, route.page]);
   useEffect(() => {
     const enteredPage = previousRoutePage.current !== route.page;
     previousRoutePage.current = route.page;
@@ -253,7 +267,7 @@ function Workspace({
           inert={standalonePreviewPresence.leaving || undefined}
         >
           <Suspense fallback={<div className="preview-state">{m.ai.workbench.loadingFile}</div>}>
-            <WorkspaceFilePreview path={renderedStandaloneFilePreviewPath} onClose={closeWorkspaceFile} />
+            <WorkspaceFilePreview path={renderedStandaloneFilePreviewPath} projectName={workspaceFileProjectName} onClose={closeWorkspaceFile} />
           </Suspense>
         </div>
       ) : null}
@@ -280,7 +294,7 @@ function Workspace({
       aiMode={showAiCompanion ? ui.panelMode : "collapsed"}
       aiSidebar={aiSidebarElement}
       recentTasks={recentTasksElement}
-      onNewTask={() => { void actions.setActiveSession(null); navigate("ai"); }}
+      onNewTask={openNewTask}
       >
       {routeContent}
       <GlobalSearch open={searchOpen} triggerRef={searchTriggerRef} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />

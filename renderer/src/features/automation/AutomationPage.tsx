@@ -494,7 +494,7 @@ function runtimeStateText(state: string, reason?: string): string {
 
 function isRuntimeProgressLine(line: string, stream?: BrokerRunEvent["stream"]): boolean {
   if (stream === "stderr") return true;
-  return /^(Loaded config:|Loaded \d+ RSS feeds|RSS Article Monitor|Restored counter state:|Feed:|Entries:|New articles:|Fetching URL to check content type|Processing nested OPML feeds|Skipping duplicate feed source|Processing:|Extracting content|Saved to:|Done!|Artifact 登记失败|缓存文件|Found existing files|📅 Date:|Scanning articles|Found |🤖 Summarizing|Summarizing \d+ articles|Successfully summarized:|✅ (Saved to|Final article count)|✅ Done!|⏰ Finished at:|Post filter:|X posts:|Primary client failed|Error:|Warning:|开始|正在|处理中|抓取|提取|总结|生成)/i.test(line)
+  return /^(Loaded config:|Loaded \d+ RSS feeds|RSS Article Monitor|Restored counter state:|Feed:|Entries:|New articles:|Fetching URL to check content type|Fetching latest posts from X|Fetching timeline from|Waiting \d+(?:\.\d+)?s before the next cURL|Skipping curl(?:_\d+|_foryou)?\.txt|Failed to fetch tweets|Failed:|Got \d+ tweets|Removed \d+ duplicate tweets|Processing nested OPML feeds|Skipping duplicate feed source|Processing:|Extracting content|Saved to:|Done!|Artifact 登记失败|缓存文件|Found existing files|📅 Date:|Scanning articles|Found |🤖 Summarizing|Summarizing \d+ articles|Successfully summarized:|✅ (Saved to|Final article count)|✅ Done!|⏰ Finished at:|Post filter:|X posts:|Primary client failed|Error:|Warning:|开始|正在|处理中|抓取|提取|总结|生成)/i.test(line)
     || /(unknown url type|AI API request failed|No topic entries parsed|Workflow Step .* failed)/i.test(line);
 }
 

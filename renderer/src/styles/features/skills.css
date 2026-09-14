@@ -645,10 +645,10 @@
 .skills-x-curl-help { margin-top: 15px; padding: 13px 15px; border-top: 1px solid var(--hairline); }
 .skills-x-curl-help strong { color: var(--text-dim); font-size: var(--fs-xs); font-weight: 600; }
 .skills-x-curl-help ol { display: grid; gap: 4px; margin: 7px 0 0; padding-left: 18px; color: var(--muted); font-size: var(--fs-xs); line-height: 1.5; }
-.skills-x-curl-editor { width: min(680px, 100%); }
+.skills-x-curl-editor { width: min(760px, 100%); }
 .skills-x-curl-editor textarea {
-  min-height: 240px;
-  max-height: min(45dvh, 360px);
+  min-height: 150px;
+  max-height: min(32dvh, 260px);
   resize: vertical;
   padding: 11px 12px;
   border: 1px solid var(--border);
@@ -659,7 +659,39 @@
   font: var(--fs-xs)/1.55 var(--font-mono);
   tab-size: 2;
 }
-.skills-x-curl-editor textarea:focus { border-color: var(--focus-ring); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 13%, transparent); }
+.skills-x-curl-editor textarea:focus { border-color: var(--border); box-shadow: none; }
+.skills-x-curl-list { display: grid; gap: 12px; }
+.skills-x-curl-item {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--panel-muted);
+}
+.skills-x-curl-item > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.skills-x-curl-item > header label { color: var(--text-dim); font-size: var(--fs-xs); font-weight: 600; }
+.skills-x-curl-item > header button,
+.skills-x-curl-add {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.skills-x-curl-item > header button:hover,
+.skills-x-curl-add:hover { background: var(--control-hover); color: var(--text); }
+.skills-x-curl-item > header button:disabled,
+.skills-x-curl-add:disabled { opacity: .5; cursor: default; }
+.skills-x-curl-add { justify-self: start; }
 .skills-x-curl-security { margin: -2px 0 0; color: var(--muted); font-size: var(--fs-xs); line-height: 1.5; }
 
 .skills-source-editor-scrim {

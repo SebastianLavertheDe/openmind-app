@@ -123,6 +123,14 @@ export class ProductService {
     return this.content.readContent(relativePath);
   }
 
+  getXFollowingCurls(): string[] {
+    return this.sources.readXFollowingCurls();
+  }
+
+  saveXFollowingCurls(contents: string[]): void {
+    this.sources.saveXFollowingCurls(contents);
+  }
+
   /** 单天内容刷新（保存后用），只重建当天索引，避免全量 rebuild。C4：转 private，经 writeContent 自失效。 */
   private refreshContentDate(date: string): void {
     this.contentIndex.refreshDate(date);

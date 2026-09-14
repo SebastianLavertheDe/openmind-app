@@ -706,7 +706,7 @@ describe("App bootstrap", () => {
     expect(briefList).toBeTruthy();
   });
 
-  it("restores the AI file split after navigating away and returning to the conversation", async () => {
+  it("restores the AI file split for a conversation but clears it for a new task", async () => {
     const path = "openmind/daily-summary/20260728_daily_summary.md";
     const readContent = vi.fn(async () => ({
       path,
@@ -809,6 +809,11 @@ describe("App bootstrap", () => {
     expect(await screen.findByRole("heading", { name: "返回后仍在左侧" })).toBeTruthy();
     expect(await screen.findByRole("complementary", { name: "文件预览" })).toBeTruthy();
     await waitFor(() => expect(readContent).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "文件预览" })).toBeNull());
+    expect(screen.queryByRole("heading", { name: "返回后仍在左侧" })).toBeNull();
+    expect(document.querySelector(".ai-workbench.with-file-preview")).toBeNull();
   });
 
   it("keeps an expanded AI companion underneath the body-level global search", async () => {

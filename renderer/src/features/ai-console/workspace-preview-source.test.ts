@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { workspacePreviewSource } from "./workspace-preview-source";
-import { clearProjectPreviewSourceCacheForTests, resolveProjectPreviewSource } from "./project-preview-source";
+import {
+  clearProjectPreviewSourceCacheForTests,
+  projectConversationPreviewSource,
+  resolveProjectPreviewSource
+} from "./project-preview-source";
 
 beforeEach(() => {
   clearProjectPreviewSourceCacheForTests();
@@ -90,6 +94,50 @@ describe("resolveProjectPreviewSource", () => {
       projectName: "PDF 项目",
       relativePath: material.relativePath
     });
+  });
+
+  it("resolves companion basename links to the extracted document and PDF original", async () => {
+    const material = {
+      projectName: "PDF 项目",
+      relativePath: "materials/documents/Agentic Design Patterns.md",
+      title: "Agentic Design Patterns",
+      kind: "document",
+      status: "ready",
+      source: { type: "file", originalName: "Agentic Design Patterns.pdf" },
+      originalRelativePath: "materials/originals/Agentic Design Patterns.pdf",
+      createdAt: "2026-09-14T00:00:00.000Z",
+      updatedAt: "2026-09-14T00:00:00.000Z"
+    };
+    const readContent = vi.fn();
+    const readProjectMaterial = vi.fn(async () => ({ material, content: "# 提取文本" }));
+    const readProjectMaterialOriginal = vi.fn(async () => ({
+      fileName: "Agentic Design Patterns.pdf",
+      mimeType: "application/pdf",
+      byteSize: 4,
+      data: new Uint8Array([0x25, 0x50, 0x44, 0x46])
+    }));
+    window.openmind = {
+      listProjectMaterials: vi.fn(async () => [material]),
+      listProjectOutputs: vi.fn(async () => []),
+      readProjectMaterial,
+      readProjectMaterialOriginal,
+      readContent
+    } as unknown as DesktopApi;
+
+    await expect(projectConversationPreviewSource("Agentic Design Patterns.md", "PDF 项目").load())
+      .resolves.toMatchObject({ kind: "document", record: { content: "# 提取文本" } });
+    await expect(projectConversationPreviewSource("Agentic Design Patterns.pdf", "PDF 项目").load())
+      .resolves.toMatchObject({ kind: "pdf", title: "Agentic Design Patterns" });
+
+    expect(readProjectMaterial).toHaveBeenCalledWith({
+      projectName: "PDF 项目",
+      relativePath: material.relativePath
+    });
+    expect(readProjectMaterialOriginal).toHaveBeenCalledWith({
+      projectName: "PDF 项目",
+      relativePath: material.relativePath
+    });
+    expect(readContent).not.toHaveBeenCalled();
   });
 
   it("uses a read-only Project Output source", async () => {

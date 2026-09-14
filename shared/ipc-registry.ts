@@ -7,6 +7,8 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "listContent", channel: IPC.APP_LIST_CONTENT },
   { method: "readContent", channel: IPC.APP_READ_CONTENT },
   { method: "writeContent", channel: IPC.APP_WRITE_CONTENT },
+  { method: "getXFollowingCurls", channel: IPC.APP_X_FOLLOWING_CURLS_GET },
+  { method: "saveXFollowingCurls", channel: IPC.APP_X_FOLLOWING_CURLS_SAVE },
   { method: "listSources", channel: IPC.APP_LIST_SOURCES },
   { method: "updateSource", channel: IPC.APP_UPDATE_SOURCE },
   { method: "addRssSource", channel: IPC.APP_ADD_RSS_SOURCE },

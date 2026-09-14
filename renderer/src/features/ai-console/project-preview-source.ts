@@ -9,6 +9,33 @@ export type ResolvedPreviewSource = {
   logicalPath: string;
 };
 
+/**
+ * Adapt the async, Project-owned path resolver to surfaces that accept one
+ * synchronous FilePreviewSource. The resolved delegate still performs every
+ * read through the existing typed Project APIs, so a companion preview cannot
+ * widen its access to arbitrary Workspace paths.
+ */
+export function projectConversationPreviewSource(targetPath: string, projectName: string): FilePreviewSource {
+  let delegatePromise: Promise<FilePreviewSource> | null = null;
+  const delegate = () => delegatePromise ||= resolveProjectPreviewSource(targetPath, projectName).then((resolved) => {
+    if (!resolved) throw new Error("未能在当前项目中找到该文件；请在项目“文件”页确认文件名。");
+    return resolved.source;
+  });
+  return {
+    id: `project-conversation:${projectName}:${targetPath}`,
+    path: targetPath,
+    capabilities: { editContent: false, editTitle: false, openExternal: true },
+    async load(signal) {
+      const source = await delegate();
+      if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
+      return source.load(signal);
+    },
+    async openExternal() {
+      await (await delegate()).openExternal?.();
+    }
+  };
+}
+
 const PROJECT_LISTINGS_CACHE_TTL_MS = 30_000;
 const projectFileListingsCache = new Map<string, { at: number; promise: ReturnType<typeof loadProjectFileListingsUncached> }>();
 

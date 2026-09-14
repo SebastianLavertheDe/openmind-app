@@ -360,6 +360,12 @@ export function installBrowserPreviewApi(): boolean {
     createdAt: `2026-06-28T08:0${index}:00.000Z`,
     updatedAt: `2026-06-28T08:0${index}:00.000Z`
   }));
+  let previewXFollowingCurls = [[
+    "curl 'https://x.com/i/api/graphql/HomeLatestTimeline' \\",
+    "  -H 'authorization: Bearer ••••••••' \\",
+    "  -H 'content-type: application/json' \\",
+    "  --data-raw '{\"variables\":{\"count\":20}}'"
+  ].join("\n")];
   const api: DesktopApi = {
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
@@ -393,6 +399,8 @@ export function installBrowserPreviewApi(): boolean {
             : "# 工程级 AI 工作台\n\n这是浏览器预览内容，用于验证长文编辑宽度与 Markdown 表格。\n\n## 今日候选热点池\n\n| 热点 | 来源 | 可靠性 | 传播潜力 | 写作价值 | 框架价值 | 风险 | 主编备注 |\n|---|---|---|---:---:|---:|---:|---|---|\n| Anthropic 系统提示词精简 80% | Thariq 推文 | 高 | 8 | 9 | 9 | 低 | 今日首选 |\n| HuggingFace 越狱研究 | OpenAI | 高 | 8 | 9 | 8 | 中 | 适合深度分析 |\n\n## 目标\n\n- 可恢复会话\n- 执行前审批\n- 直接项目目录运行"
     }),
     writeContent: async (path, content) => ({ path, name: path.split("/").at(-1), content, truncated: false }),
+    getXFollowingCurls: async () => [...previewXFollowingCurls],
+    saveXFollowingCurls: async (contents) => { previewXFollowingCurls = contents.map((content) => content.trim()); },
     listSources: async () => previewSources,
     updateSource: async (id, patch) => {
       const current = previewSources.find((source) => source.id === id);

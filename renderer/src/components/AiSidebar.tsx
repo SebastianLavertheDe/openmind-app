@@ -8,6 +8,7 @@ import { useExitPresence } from "../design-system/use-exit-presence";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import { Chat } from "./Chat";
 import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
+import { FilePreviewProvider, useFilePreview } from "../features/ai-console/file-preview-context";
 import { projectsApi } from "../features/projects/projects-api";
 import {
   AI_SIDEBAR_LAYOUT_KEY,
@@ -84,6 +85,7 @@ function setNumericAttribute(element: HTMLElement, name: string, value: number):
 
 export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) {
   const { activeSession } = useAiSnapshot();
+  const parentOpenFilePreview = useFilePreview();
   const ui = useAiUi();
   const actions = useAiActions();
   const setDraft = useSetAiDraft();
@@ -91,6 +93,12 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   // 项目详情页打开时，侧栏里的新对话自动创建为当前项目的任务（归属该项目）；
   // 已有会话的续聊保持原作用域，走默认 actions.send。
   const projectComposeTarget = ui.projectComposeTarget;
+  const previewProjectName = activeSession?.scope.type === "project-task"
+    ? activeSession.scope.projectName
+    : undefined;
+  const openScopedFilePreview = useCallback((path: string) => {
+    parentOpenFilePreview?.(path, previewProjectName ? { projectName: previewProjectName } : undefined);
+  }, [parentOpenFilePreview, previewProjectName]);
   const handleProjectDraftSubmit = useCallback(async (input: ChatDraftSubmitInput) => {
     if (!projectComposeTarget) throw new Error("没有可归属的项目。");
     const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
@@ -402,7 +410,13 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
             }}
           />
         ) : null}
-        <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
+        {parentOpenFilePreview ? (
+          <FilePreviewProvider open={openScopedFilePreview}>
+            <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
+          </FilePreviewProvider>
+        ) : (
+          <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
+        )}
       </aside>
     </>
   );

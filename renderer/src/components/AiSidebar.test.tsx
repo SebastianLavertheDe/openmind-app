@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiSnapshot, DesktopApi } from "@shared/contracts";
+import type { AiEvent, AiRun, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider, useAi } from "../ai-context";
 import { ResponsiveLayoutProvider } from "../app/responsive-layout";
 import { AiSidebar } from "./AiSidebar";
+import { FilePreviewProvider } from "../features/ai-console/file-preview-context";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -58,6 +59,102 @@ describe("AiSidebar", () => {
     renderSidebar();
     expect(document.querySelector(".ai-sidebar > header")).toBeNull();
     expect(document.querySelector(".ai-sidebar > .chat")).toBeTruthy();
+  });
+
+  it("preserves Project scope when a companion message opens a file reference", async () => {
+    const scope = {
+      type: "project-task" as const,
+      projectId: "project-agentic",
+      projectName: "Agentic Design Patterns",
+      taskId: "task-agentic"
+    };
+    const run: AiRun = {
+      schemaVersion: 1,
+      id: "run-agentic",
+      sessionId: "session-agentic",
+      projectId: scope.projectId,
+      scope,
+      provider: "codex",
+      providerId: "codex-native",
+      permissionProfile: "edit",
+      status: "completed",
+      prompt: "当前项目有几个文件",
+      contexts: [],
+      turnContext: null,
+      workspacePath: null,
+      baseCommit: null,
+      startedAt: "2026-09-14T00:00:00.000Z",
+      completedAt: "2026-09-14T00:00:01.000Z",
+      error: null,
+      changeSet: null,
+      risks: []
+    };
+    const event: AiEvent = {
+      schemaVersion: 1,
+      id: "answer-agentic",
+      seq: 1,
+      timestamp: run.completedAt!,
+      projectId: scope.projectId,
+      sessionId: run.sessionId,
+      runId: run.id,
+      provider: "codex",
+      kind: "assistant-message",
+      payload: { phase: "final", text: "`Agentic Design Patterns.pdf`" },
+      risks: []
+    };
+    const projectSnapshot: AiSnapshot = {
+      ...snapshot,
+      sessions: [{
+        ...snapshot.sessions[0],
+        id: run.sessionId,
+        projectId: scope.projectId,
+        scope,
+        title: "当前项目有几个文件",
+        lastRunId: run.id
+      }],
+      runs: [run]
+    };
+    const openPreview = vi.fn();
+    window.openmind = {
+      ...window.openmind,
+      aiRefresh: async () => projectSnapshot,
+      aiListTurns: async () => ({
+        data: [{
+          id: run.id,
+          sessionId: run.sessionId,
+          status: "completed",
+          startedAt: run.startedAt,
+          completedAt: run.completedAt,
+          context: null,
+          events: [event],
+          responseItems: [],
+          error: null
+        }],
+        nextCursor: null,
+        total: 1,
+        parseErrors: 0
+      })
+    } as unknown as DesktopApi;
+    function SelectProjectSession() {
+      const ai = useAi();
+      const setActiveSession = ai.setActiveSession;
+      useEffect(() => { void setActiveSession(run.sessionId); }, [setActiveSession]);
+      return null;
+    }
+
+    render(
+      <AiProvider initial={projectSnapshot}>
+        <SelectProjectSession />
+        <FilePreviewProvider open={openPreview}>
+          <AiSidebar />
+        </FilePreviewProvider>
+      </AiProvider>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Agentic Design Patterns.pdf" }));
+    expect(openPreview).toHaveBeenCalledWith("Agentic Design Patterns.pdf", {
+      projectName: "Agentic Design Patterns"
+    });
   });
 
   it("treats fullscreen as a focus-contained modal over the whole shell", async () => {

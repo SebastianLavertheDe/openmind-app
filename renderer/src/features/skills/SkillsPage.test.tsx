@@ -308,15 +308,19 @@ describe("SkillsPage", () => {
       recentError: null,
       itemCount: 0
     };
-    const curl = "curl 'https://x.com/i/api/graphql/HomeLatestTimeline' -H 'authorization: Bearer local-token'";
-    const writeContent = vi.fn(async (path: string, content: string) => ({ path, name: "curl.txt", content, truncated: false }));
+    const curls = [
+      "curl 'https://x.com/i/api/graphql/HomeLatestTimeline' -H 'authorization: Bearer local-token'",
+      "curl 'https://x.com/i/api/graphql/ListLatestTweetsTimeline' -H 'authorization: Bearer local-token'"
+    ];
+    const getXFollowingCurls = vi.fn(async () => curls);
+    const saveXFollowingCurls = vi.fn(async () => undefined);
     const updateSource = vi.fn(async (_id: string, patch: { enabled?: boolean }) => ({ ...source, enabled: patch.enabled ?? source.enabled }));
     renderPage({
       listInstalledSkills: async () => [xInstalled],
       inspectInstalledSkill: async () => xInspection,
       listSources: async () => [source],
-      readContent: async () => ({ path: ".claude/skills/x-following-fetcher/curl.txt", name: "curl.txt", content: curl, truncated: false }),
-      writeContent,
+      getXFollowingCurls,
+      saveXFollowingCurls,
       updateSource
     });
 
@@ -324,20 +328,25 @@ describe("SkillsPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "请求配置" }));
     expect(await screen.findByRole("heading", { name: "X Following 抓取的请求配置" })).toBeTruthy();
     expect(screen.queryByText("账号来源", { exact: false })).toBeNull();
-    expect(await screen.findByText("已配置 · 请求内容已隐藏")).toBeTruthy();
+    expect(await screen.findByText("已配置 2 条 · 请求内容已隐藏")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑 cURL" }));
-    const textarea = screen.getByRole("textbox", { name: "完整 cURL" }) as HTMLTextAreaElement;
-    expect(textarea.value).toBe(curl);
-    fireEvent.change(textarea, { target: { value: "not a curl" } });
-    fireEvent.click(screen.getByRole("button", { name: "覆盖保存" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("请粘贴以 curl 开头的完整请求。");
-    fireEvent.change(textarea, { target: { value: "curl 'https://x.com/new-request'" } });
-    fireEvent.click(screen.getByRole("button", { name: "覆盖保存" }));
-    await waitFor(() => expect(writeContent).toHaveBeenCalledWith(
-      ".claude/skills/x-following-fetcher/curl.txt",
-      "curl 'https://x.com/new-request'\n"
-    ));
+    fireEvent.click(screen.getByRole("button", { name: "编辑 cURL 列表" }));
+    const first = screen.getByRole("textbox", { name: "完整 cURL 1" }) as HTMLTextAreaElement;
+    expect(first.value).toBe(curls[0]);
+    expect((screen.getByRole("textbox", { name: "完整 cURL 2" }) as HTMLTextAreaElement).value).toBe(curls[1]);
+    fireEvent.change(first, { target: { value: "not a curl" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存全部" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("第 1 条不是以 curl 开头的完整请求。");
+    fireEvent.change(first, { target: { value: "curl 'https://x.com/new-request'" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加 cURL" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "完整 cURL 3" }), { target: { value: "curl 'https://x.com/bookmarks'" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存全部" }));
+    await waitFor(() => expect(saveXFollowingCurls).toHaveBeenCalledWith([
+      "curl 'https://x.com/new-request'",
+      curls[1],
+      "curl 'https://x.com/bookmarks'"
+    ]));
+    expect(getXFollowingCurls).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole("switch", { name: "停用 X Following 抓取" }));
     await waitFor(() => expect(updateSource).toHaveBeenCalledWith("source-x", { enabled: false }));

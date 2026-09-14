@@ -14,6 +14,7 @@ import {
 import { parseSkillFrontmatter } from "../../shared/skill-frontmatter";
 import type { SkillSourceBinding } from "../../shared/skill-sources";
 import { messages } from "../../shared/messages";
+import { writeTextAtomic as writePrivateTextAtomic } from "../lib/fs-utils";
 import { readStateJson, readStateJsonArray, STATE_DIRECTORY } from "./state-directory";
 import {
   collectOutlines,
@@ -93,6 +94,80 @@ export class SourceRegistry {
   /** Resolve a path inside persistent per-Skill runtime data. */
   private skillDataPath(...segments: string[]): string {
     return path.join(this.openmindRoot, ".agent", "skill-data", ...segments);
+  }
+
+  /**
+   * The X request contains login cookies, so it belongs to persistent private
+   * Skill data rather than the installed package or the general content API.
+   */
+  readXFollowingCurls(): string[] {
+    const persistentDirectory = this.skillDataPath("x-following-fetcher");
+    let curls = this.readXFollowingCurlsFrom(persistentDirectory);
+    if (!curls.length) {
+      const legacyDirectories = [
+        path.join(this.openmindRoot, ".claude", "skills", "x-following-fetcher"),
+        path.join(this.openmindRoot, ".agent", "legacy-claude", "skills", "x-following-fetcher"),
+        this.installedSkillPath("x-following-fetcher")
+      ];
+      curls = legacyDirectories
+        .map((directory) => this.readXFollowingCurlsFrom(directory))
+        .find((values) => values.length > 0) || [];
+      if (curls.length) this.saveXFollowingCurls(curls);
+    }
+    return curls;
+  }
+
+  saveXFollowingCurls(rawContents: string[]): void {
+    const normalized = rawContents.map((content) => content.trim());
+    if (!normalized.length || normalized.some((content) => !/^curl(?:\s|')/i.test(content))) {
+      throw new Error(messages.skillCenter.xCurl.invalid);
+    }
+    if (normalized.length > 20) throw new Error(messages.skillCenter.xCurl.tooMany);
+    const contents = [...new Set(normalized)];
+
+    const directory = this.skillDataPath("x-following-fetcher");
+    const desiredNames = new Set(contents.map((_, index) => index === 0 ? "curl.txt" : `curl_${index + 1}.txt`));
+    contents.forEach((content, index) => {
+      const name = index === 0 ? "curl.txt" : `curl_${index + 1}.txt`;
+      writePrivateTextAtomic(path.join(directory, name), `${content}\n`, { mode: 0o600 });
+    });
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isFile() || desiredNames.has(entry.name)) continue;
+      if (entry.name === "curl_foryou.txt" || /^curl_\d+\.txt$/i.test(entry.name)) {
+        fs.rmSync(path.join(directory, entry.name), { force: true });
+      }
+    }
+  }
+
+  private readXFollowingCurlsFrom(directory: string): string[] {
+    let names: string[];
+    try {
+      names = fs.readdirSync(directory, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && (
+          entry.name === "curl.txt"
+          || entry.name === "curl_foryou.txt"
+          || /^curl_\d+\.txt$/i.test(entry.name)
+        ))
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+    names.sort((left, right) => this.xFollowingCurlOrder(left) - this.xFollowingCurlOrder(right));
+    const seen = new Set<string>();
+    return names
+      .map((name) => readText(path.join(directory, name)).trim())
+      .filter((content) => {
+        if (!/^curl(?:\s|')/i.test(content) || seen.has(content)) return false;
+        seen.add(content);
+        return true;
+      });
+  }
+
+  private xFollowingCurlOrder(name: string): number {
+    if (name === "curl.txt") return 0;
+    const numbered = name.match(/^curl_(\d+)\.txt$/i);
+    if (numbered) return Number(numbered[1]);
+    return Number.MAX_SAFE_INTEGER;
   }
 
   /**

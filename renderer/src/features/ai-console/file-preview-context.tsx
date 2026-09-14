@@ -1,6 +1,11 @@
 import { createContext, useContext, type ReactNode } from "react";
 
-type OpenFilePreview = (path: string) => void;
+export type OpenFilePreviewOptions = {
+  /** Preserve Project ownership when a shared companion opens a Project file. */
+  projectName?: string;
+};
+
+type OpenFilePreview = (path: string, options?: OpenFilePreviewOptions) => void;
 
 const FilePreviewContext = createContext<OpenFilePreview | null>(null);
 

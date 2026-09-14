@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(120);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(120);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(120);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(122);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(122);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(122);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -225,6 +225,24 @@ describe("handler forwarding — 源列表", () => {
     const ctx = makeCtx({ ensureProductService: () => product as never });
     invokeHandler(ctx, IPC_METHOD_CHANNELS.listSources);
     expect(spy).toHaveBeenCalledWith("listSources");
+  });
+
+  it("X cURL 通过专用私有配置接口读写", () => {
+    const { product, spy } = makeProductSpy();
+    const ctx = makeCtx({ ensureProductService: () => product as never });
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.getXFollowingCurls);
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.saveXFollowingCurls, [
+      "curl 'https://x.com/i/api/graphql/following'",
+      "curl 'https://x.com/i/api/graphql/list'"
+    ]);
+    expect(spy.mock.calls).toEqual([
+      ["getXFollowingCurls"],
+      ["saveXFollowingCurls", [
+        "curl 'https://x.com/i/api/graphql/following'",
+        "curl 'https://x.com/i/api/graphql/list'"
+      ]]
+    ]);
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.saveXFollowingCurls, ["not a curl"])).toThrow();
   });
 });
 

@@ -439,7 +439,7 @@ describe("AutomationPage", () => {
     const events: BrokerRunEvent[] = [
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 0, timestamp: "2026-08-17T14:00:20.000Z", state: "queued", reason: "run-created" },
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 1, timestamp: "2026-08-17T14:00:23.000Z", state: "running", reason: "process-started" },
-      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nFetching URL to check content type...\nEntries: 7\nNew articles: 1\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md" },
+      { schemaVersion: 1, runId: "fetch-progress-run", sequence: 2, timestamp: "2026-08-17T14:01:00.000Z", state: "running", stream: "stdout", text: "Loaded 122 RSS feeds\nFeed: Cursor Blog\nFetching URL to check content type...\nEntries: 7\nNew articles: 1\nProcessing: Cursor is now a part of SpaceX...\nSaved to: article.md\nFetching timeline from curl...\nWaiting 7.4s before the next cURL...\nFetching timeline from curl_2...\n  Got 20 tweets from curl_2" },
       { schemaVersion: 1, runId: "fetch-progress-run", sequence: 3, timestamp: "2026-08-17T14:01:01.000Z", state: "running", stream: "system", text: "Artifact 登记失败，已忽略：测试错误" }
     ];
     window.openmind = makeApi({
@@ -454,6 +454,9 @@ describe("AutomationPage", () => {
 
     expect(await screen.findByText(/rss-article-saver · Loaded 122 RSS feeds/)).toBeTruthy();
     expect(screen.getByText(/rss-article-saver · Processing: Cursor is now a part of SpaceX/)).toBeTruthy();
+    expect(screen.getByText("rss-article-saver · Fetching timeline from curl...")).toBeTruthy();
+    expect(screen.getByText(/rss-article-saver · Waiting 7.4s before the next cURL/)).toBeTruthy();
+    expect(screen.getByText(/rss-article-saver · Got 20 tweets from curl_2/)).toBeTruthy();
     expect(screen.getByText("rss-article-saver · 运行中")).toBeTruthy();
     expect(screen.getByText(/步骤 1\/3 · rss-article-saver · 运行中/)).toBeTruthy();
     expect(screen.getByText(/步骤 2\/3 · daily-article-summarizer · 等待上一步/)).toBeTruthy();

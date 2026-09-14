@@ -4,6 +4,8 @@ export const IPC = {
   APP_LIST_CONTENT: "app:list-content",
   APP_READ_CONTENT: "app:read-content",
   APP_WRITE_CONTENT: "app:write-content",
+  APP_X_FOLLOWING_CURLS_GET: "app:x-following-curls-get",
+  APP_X_FOLLOWING_CURLS_SAVE: "app:x-following-curls-save",
   APP_LIST_SOURCES: "app:list-sources",
   APP_UPDATE_SOURCE: "app:update-source",
   APP_ADD_RSS_SOURCE: "app:add-rss-source",
@@ -131,4 +133,3 @@ export const PROJECT_IPC = {
   OUTPUT_REMOVE: "project:output-remove",
   FILE_DOWNLOAD: "project:file-download"
 } as const;
-

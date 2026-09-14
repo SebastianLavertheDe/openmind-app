@@ -72,6 +72,13 @@ const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9
 const OptionalStringArgSchema = z.string().min(1).max(4096).optional();
 const RequestIdSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
 const FileContentSchema = z.string().max(5 * 1024 * 1024, messages.errors.file.tooLarge);
+const XFollowingCurlsSchema = z.array(z.string()
+  .trim()
+  .min(1)
+  .max(1024 * 1024, messages.errors.file.tooLarge)
+  .refine((value) => /^curl(?:\s|')/i.test(value), messages.skillCenter.xCurl.invalid))
+  .min(1)
+  .max(20, messages.skillCenter.xCurl.tooMany);
 const DateArgSchema = z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/).transform((value) => value.replaceAll("-", ""));
 const HttpUrlArgSchema = z.string().url().refine((value) => /^https?:\/\//i.test(value), messages.errors.url.httpOnly);
 
@@ -225,6 +232,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.writeContent,
       handler: (filePath, rawContent) => product().writeContent(parseString(filePath), FileContentSchema.parse(rawContent))
+    },
+    { channel: C.getXFollowingCurls, handler: () => product().getXFollowingCurls() },
+    {
+      channel: C.saveXFollowingCurls,
+      handler: (rawContents) => product().saveXFollowingCurls(XFollowingCurlsSchema.parse(rawContents))
     },
     { channel: C.listSources, handler: () => product().listSources() },
     { channel: C.updateSource, handler: (id, patch) => product().updateSource(parseString(id), SourcePatchSchema.parse(patch)) },

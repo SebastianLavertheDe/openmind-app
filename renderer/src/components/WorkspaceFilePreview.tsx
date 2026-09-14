@@ -4,11 +4,14 @@ import { messages as m } from "@shared/messages";
 import { ResponsiveActionBar, type ResponsiveAction } from "../design-system/components";
 import { useResponsiveLayout } from "../app/responsive-layout";
 import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../features/file-preview";
+import { projectConversationPreviewSource } from "../features/ai-console/project-preview-source";
 
-export function WorkspaceFilePreview({ path, onClose, embedded = false }: { path: string; onClose(): void; embedded?: boolean }) {
+export function WorkspaceFilePreview({ path, projectName, onClose, embedded = false }: { path: string; projectName?: string; onClose(): void; embedded?: boolean }) {
   const responsiveLayout = useResponsiveLayout();
   const controller = useFilePreviewController();
-  const source = useMemo(() => workspaceFileSource(path, { binary: "unsupported" }), [path]);
+  const source = useMemo(() => projectName
+    ? projectConversationPreviewSource(path, projectName)
+    : workspaceFileSource(path, { binary: "unsupported" }), [path, projectName]);
 
   useEffect(() => {
     void controller.openSource(source, { force: true });

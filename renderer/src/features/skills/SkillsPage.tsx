@@ -15,7 +15,6 @@ const m = messages.skillCenter;
 const RUN_HISTORY_WINDOW_DAYS = 5;
 const RUN_HISTORY_WINDOW_MS = RUN_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 const SOURCE_CONFIG_SKILL_IDS = new Set(["rss-article-saver", "reddit-fetcher", "x-following-fetcher"]);
-const X_CURL_PATH = ".claude/skills/x-following-fetcher/curl.txt";
 export const SKILLS_SPLIT_MIN_INLINE_SIZE = 860;
 
 type SkillDetailTab = "overview" | "sources" | "runs";
@@ -982,7 +981,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   feedback: SkillToggleFeedback | null;
   onToggle?: () => void;
 }) {
-  const [curl, setCurl] = useState("");
+  const [curls, setCurls] = useState<string[]>([]);
   const [curlState, setCurlState] = useState<"loading" | "configured" | "missing">("loading");
   const [editorOpen, setEditorOpen] = useState(false);
   const editorPresence = useExitPresence(editorOpen, 160);
@@ -991,12 +990,13 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   const loadCurl = useCallback(async () => {
     setCurlState("loading");
     try {
-      const record = await window.openmind.readContent(X_CURL_PATH);
-      const next = String(record.content || "").trim();
-      setCurl(next);
-      setCurlState(/^curl(?:\s|')/i.test(next) ? "configured" : "missing");
+      const next = (await window.openmind.getXFollowingCurls())
+        .map((curl) => String(curl || "").trim())
+        .filter((curl) => /^curl(?:\s|')/i.test(curl));
+      setCurls(next);
+      setCurlState(next.length ? "configured" : "missing");
     } catch {
-      setCurl("");
+      setCurls([]);
       setCurlState("missing");
     }
   }, []);
@@ -1012,7 +1012,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
       <span className={`skills-source-state ${curlState === "configured" ? "success" : "idle"}`} aria-hidden />
       <div className="skills-x-curl-copy">
         <strong>{m.xCurl.title}</strong>
-        <span>{curlState === "loading" ? m.xCurl.loading : curlState === "configured" ? m.xCurl.configured : m.xCurl.missing}</span>
+        <span>{curlState === "loading" ? m.xCurl.loading : curlState === "configured" ? m.xCurl.configured(curls.length) : m.xCurl.missing}</span>
         <small>{m.xCurl.securitySummary}</small>
       </div>
       <div className="skills-x-curl-actions">
@@ -1034,12 +1034,12 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
     </div>
 
     {editorPresence.visible ? <SkillXCurlEditor
-      initialCurl={curl}
+      initialCurls={curls}
       active={editorOpen}
       leaving={editorPresence.leaving}
       onClose={() => setEditorOpen(false)}
       onSaved={async (next) => {
-        setCurl(next);
+        setCurls(next);
         setCurlState("configured");
         setEditorOpen(false);
       }}
@@ -1047,29 +1047,31 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   </section>;
 }
 
-function SkillXCurlEditor({ initialCurl, active, leaving, onClose, onSaved }: { initialCurl: string; active: boolean; leaving: boolean; onClose(): void; onSaved(curl: string): Promise<void> }) {
-  const [draft, setDraft] = useState(initialCurl);
+function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: { initialCurls: string[]; active: boolean; leaving: boolean; onClose(): void; onSaved(curls: string[]): Promise<void> }) {
+  const [drafts, setDrafts] = useState(() => initialCurls.length ? initialCurls : [""]);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!active) return;
-    textareaRef.current?.focus();
+    textareaRefs.current[0]?.focus();
   }, [active]);
   useModalFocusScope({ open: active, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
 
   const save = async () => {
-    const next = draft.trim();
-    if (!/^curl(?:\s|')/i.test(next)) {
-      setFailure(m.xCurl.invalid);
+    const normalized = drafts.map((draft) => draft.trim());
+    const invalidIndex = normalized.findIndex((curl) => !/^curl(?:\s|')/i.test(curl));
+    if (invalidIndex >= 0) {
+      setFailure(m.xCurl.invalidAt(invalidIndex + 1));
       return;
     }
+    const next = [...new Set(normalized)];
     setSaving(true);
     setFailure(null);
     try {
-      await window.openmind.writeContent(X_CURL_PATH, `${next}\n`);
+      await window.openmind.saveXFollowingCurls(next);
       await onSaved(next);
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : String(cause));
@@ -1082,10 +1084,29 @@ function SkillXCurlEditor({ initialCurl, active, leaving, onClose, onSaved }: { 
     <section ref={dialogRef} className="skills-source-editor skills-x-curl-editor" role="dialog" aria-modal="true" aria-labelledby="skills-x-curl-editor-title" tabIndex={-1}>
       <header><div><h3 id="skills-x-curl-editor-title">{m.xCurl.editorTitle}</h3><p>{m.xCurl.editorDescription}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <label>{m.xCurl.fullCurl}<textarea ref={textareaRef} value={draft} onChange={(event) => { setDraft(event.target.value); setFailure(null); }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} /></label>
+        <div className="skills-x-curl-list">
+          {drafts.map((draft, index) => <section className="skills-x-curl-item" key={index}>
+            <header>
+              <label htmlFor={`skills-x-curl-${index}`}>{m.xCurl.fullCurl(index + 1)}</label>
+              <button type="button" data-motion="action" disabled={drafts.length === 1} aria-label={m.xCurl.remove(index + 1)} onClick={() => {
+                setDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index));
+                setFailure(null);
+              }}><X size={13} aria-hidden />{m.common.delete}</button>
+            </header>
+            <textarea id={`skills-x-curl-${index}`} ref={(node) => { textareaRefs.current[index] = node; }} value={draft} onChange={(event) => {
+              const value = event.target.value;
+              setDrafts((current) => current.map((item, currentIndex) => currentIndex === index ? value : item));
+              setFailure(null);
+            }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} />
+          </section>)}
+        </div>
+        <button type="button" className="skills-x-curl-add" data-motion="action" disabled={drafts.length >= 20} onClick={() => {
+          setDrafts((current) => [...current, ""]);
+          setFailure(null);
+        }}><Plus size={14} aria-hidden />{m.xCurl.add}</button>
         <p className="skills-x-curl-security">{m.xCurl.securityDetail}</p>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        <footer><button type="button" data-motion="action" onClick={onClose}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !draft.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.overwrite}</button></footer>
+        <footer><button type="button" data-motion="action" onClick={onClose}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || drafts.some((draft) => !draft.trim())} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.saveAll}</button></footer>
       </form>
     </section>
   </div>, document.body);

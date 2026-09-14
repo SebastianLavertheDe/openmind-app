@@ -1191,6 +1191,8 @@ export interface DesktopApi {
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;
   writeContent(path: string, content: string): Promise<ContentRecord>;
+  getXFollowingCurls(): Promise<string[]>;
+  saveXFollowingCurls(contents: string[]): Promise<void>;
   listSources(): Promise<SourceDefinition[]>;
   updateSource(id: string, patch: SourcePatch): Promise<SourceDefinition>;
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;
