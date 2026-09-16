@@ -544,6 +544,7 @@ describe("CodexAppServerAdapter.run()", () => {
       expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
       expect(server.default_tools_approval_mode).toBe("approve");
       expect(request.params.developerInstructions).toContain("复用该标签页");
+      expect(request.params.developerInstructions).toContain("~~~~openmind-artifact");
       expect(JSON.stringify(request.params.config)).not.toContain("browser_run_code_unsafe");
     } finally {
       fs.rmSync(workspace, { recursive: true, force: true });
@@ -859,6 +860,50 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(response.result.decision).toBe("decline");
   });
 
+  it("Project auto 自动批准沙箱内的非目录删除命令", async () => {
+    const requestApproval = vi.fn(async () => "decline" as const);
+    const base = makeContext();
+    const ctx = makeContext({
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/Research",
+      requestApproval,
+      session: {
+        ...base.session,
+        permissionProfile: "auto",
+        projectRoot: "/openmind/projects/Research",
+        cwd: ".",
+        scope: { type: "project-task", projectName: "Research", taskId: "task-1" }
+      }
+    });
+    const adapter = new CodexAppServerAdapter();
+    const child = makeFakeChild();
+    const runPromise = adapter.run(ctx);
+    runPromise.catch(() => undefined);
+
+    await wait();
+    sendLine(child, { id: 1, result: {} });
+    await wait();
+    sendLine(child, { id: 2, result: { thread: { id: "t1" } } });
+    await wait();
+    sendLine(child, {
+      id: 100,
+      method: "item/commandExecution/requestApproval",
+      params: {
+        threadId: "t1", turnId: "turn-1", itemId: "cmd-1", cwd: "/openmind/projects/Research",
+        command: "npm test", availableDecisions: ["accept", "decline"]
+      }
+    });
+    await wait();
+    sendLine(child, { id: 3, result: {} });
+    await wait();
+    sendLine(child, { method: "turn/completed" });
+    await runPromise;
+
+    expect(requestApproval).not.toHaveBeenCalled();
+    const response = child.writtenLines.map((line) => JSON.parse(line)).find((message) => message.id === 100);
+    expect(response.result.decision).toBe("accept");
+  });
+
   it("旧版 exec approval 使用 ReviewDecision 枚举", async () => {
     const ctx = makeContext({ requestApproval: vi.fn(async () => "decline") } as Partial<ProviderRunContext>);
     const adapter = new CodexAppServerAdapter();
@@ -962,6 +1007,8 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(threadReq.params.developerInstructions).toContain("OpenMind 文件访问根目录是：/openmind");
     expect(threadReq.params.developerInstructions).toContain("项目“AI安全”");
     expect(threadReq.params.developerInstructions).toContain("不可信参考数据");
+    expect(threadReq.params.developerInstructions).toContain("~~~~openmind-artifact");
+    expect(threadReq.params.developerInstructions).toContain("普通问答、解释、分析、建议列表");
     expect(turnReq.params.cwd).toBe("/openmind/projects/AI安全");
     expect(turnReq.params.sandboxPolicy).toEqual({ type: "readOnly" });
     expect(turnReq.params.approvalPolicy).toBe("never");
@@ -978,6 +1025,40 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(fs.existsSync(path.join(isolatedHome, "config.toml"))).toBe(false);
     expect(fs.existsSync(path.join(isolatedHome, "skills"))).toBe(false);
     fs.rmSync(stateRoot, { recursive: true, force: true });
+  });
+
+  it("Project auto 默认启用免审批执行，并把写入限制在可信项目沙箱", async () => {
+    const base = makeContext();
+    const ctx = makeContext({
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/AI安全",
+      session: {
+        ...base.session,
+        providerSessionId: null,
+        permissionProfile: "auto",
+        cwd: ".",
+        projectRoot: "/openmind/projects/AI安全",
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      }
+    });
+    const child = await driveSuccessfulRun(ctx);
+    const requests = child.writtenLines.map((line) => JSON.parse(line));
+    const thread = requests.find((request) => request.method === "thread/start");
+    const turn = requests.find((request) => request.method === "turn/start");
+
+    expect(thread.params.sandbox).toBe("workspace-write");
+    expect(thread.params.approvalPolicy).toBe("on-request");
+    expect(thread.params.config).toEqual(buildProjectCodexConfig());
+    expect(thread.params.developerInstructions).toContain("可以按用户要求在当前项目目录内创建或修改文件");
+    expect(thread.params.developerInstructions).toContain("只允许在可信 Project cwd 写入的 OS/CLI 沙箱");
+    expect(turn.params.sandboxPolicy).toEqual({
+      type: "workspaceWrite",
+      writableRoots: [],
+      networkAccess: true,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
+    });
+    expect(turn.params.approvalPolicy).toBe("on-request");
   });
 
   it("notification(item/completed agentMessage)转发 assistant-message", async () => {

@@ -21,6 +21,7 @@ import {
   readJson,
   writeContent
 } from "./content";
+import { CONTENT_PREVIEW_MAX_BYTES } from "../../shared/content-kinds";
 
 const roots: string[] = [];
 let repo = "";
@@ -225,11 +226,11 @@ describe("getContent", () => {
 
 describe("readContent", () => {
   it("异步预览与同步限量读取结果一致", async () => {
-    writeFile("openmind/async.md", "内容😀".repeat(300_000));
+    writeFile("openmind/async.md", "内容😀".repeat(600_000));
     const result = await readContentAsync("openmind/async.md");
     expect(result).toEqual(readContent("openmind/async.md"));
     expect(result.truncated).toBe(true);
-    expect(Buffer.byteLength(result.content)).toBeLessThanOrEqual(1024 * 1024);
+    expect(Buffer.byteLength(result.content)).toBeLessThanOrEqual(CONTENT_PREVIEW_MAX_BYTES);
     expect(result.content).not.toContain("\uFFFD");
   });
 
@@ -242,13 +243,23 @@ describe("readContent", () => {
     expect(result.truncated).toBe(false);
   });
 
+  it("允许预览超过 1 MB 但不超过 5 MB 的文件", () => {
+    const content = "x".repeat(1100 * 1024);
+    writeFile("openmind/large-brief.md", content);
+
+    const result = readContent("large-brief.md");
+
+    expect(result.truncated).toBe(false);
+    expect(result.content).toHaveLength(content.length);
+  });
+
   it("大文件标记 truncated=true", () => {
-    const big = "x".repeat(1024 * 1024 + 100);
+    const big = "x".repeat(CONTENT_PREVIEW_MAX_BYTES + 100);
     // 裸相对路径按默认工作区（=内容根）解析，与 openmind/ 前缀路径同一棵树。
     writeFile("openmind/big.md", big);
     const result = readContent("big.md");
     expect(result.truncated).toBe(true);
-    expect(result.content.length).toBe(1024 * 1024);
+    expect(result.content.length).toBe(CONTENT_PREVIEW_MAX_BYTES);
   });
 
   it("路径是目录时抛 notAFile", () => {

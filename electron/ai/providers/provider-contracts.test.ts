@@ -15,6 +15,7 @@ import {
 } from "./codex-app-server";
 import { CLAUDE_SETTING_SOURCES, CLAUDE_SKILL_SELECTION, decideClaudePermission, normalizeClaudeMessage, orderClaudeEvents, toAsarUnpackedPath } from "./claude-agent-sdk";
 import { parseClaudeAuthStatus } from "../provider-registry";
+import { ArtifactFenceParser, type AssistantContentBlock } from "../../../renderer/src/features/ai-console/artifact-fence";
 
 const context = {
   session: { permissionProfile: "edit", projectRoot: "/project", cwd: ".", scope: { type: "workspace" } },
@@ -40,6 +41,30 @@ function makeCodexServiceProvider(overrides: Partial<ProviderYamlEntry> = {}): P
 }
 
 describe("provider contracts", () => {
+  it("produces identical artifact blocks from Codex and Claude text delta protocols", () => {
+    const deltas = ["开场\n~~", "~~openmind-artifact\n# Provider", " artifact\nbody", "\n~~~~\n结束"];
+    const codexText = deltas.flatMap((delta) => normalizeCodexNotification({
+      method: "item/agentMessage/delta",
+      params: { delta }
+    })).map((event) => String(event.payload.text || ""));
+    const claudeText = deltas.flatMap((text) => normalizeClaudeMessage({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type: "text_delta", text } }
+    }).events).map((event) => String(event.payload.text || ""));
+
+    const parse = (chunks: string[]) => {
+      const parser = new ArtifactFenceParser("provider");
+      for (const chunk of chunks) parser.push(chunk);
+      return parser.finish().map(({ key: _key, ...block }: AssistantContentBlock) => block);
+    };
+    expect(parse(codexText)).toEqual(parse(claudeText));
+    expect(parse(codexText)).toContainEqual(expect.objectContaining({
+      type: "artifact",
+      title: "Provider artifact",
+      status: "complete"
+    }));
+  });
+
   it("normalizes Codex semantic events", () => {
     expect(normalizeCodexNotification({ method: "item/agentMessage/delta", params: { delta: "hello" } })[0]).toMatchObject({
       kind: "assistant-delta",

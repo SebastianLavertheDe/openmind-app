@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ContextReferenceSchema } from "../../shared/contracts";
+import { ContextReferenceSchema, PermissionProfileSchema } from "../../shared/contracts";
 
 const ProjectRunPromptSchema = z.string().min(1).max(2_000_000);
 const ProjectRunContextsSchema = z.array(ContextReferenceSchema).max(50).default([]);
@@ -16,11 +16,13 @@ export const TrustedProjectRunInputSchema = z.union([
     projectName: z.string().min(1).max(80),
     taskId: z.string().min(1).max(128),
     providerId: z.string().min(1).max(160),
+    permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
     contexts: ProjectRunContextsSchema
   }).strict(),
   z.object({
     sessionId: z.string().min(1).max(160),
+    permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
     contexts: ProjectRunContextsSchema
   }).strict()

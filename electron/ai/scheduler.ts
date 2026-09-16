@@ -347,7 +347,7 @@ export class RunScheduler {
         sessionRoot: session.projectRoot,
         scope: session.scope!,
         providerId: session.providerId,
-        permissionProfile: "read-only",
+        permissionProfile: input.permissionProfile,
         interactionMode: session.interactionMode ?? "default",
         cwd: session.cwd,
         prompt: input.prompt,
@@ -361,7 +361,7 @@ export class RunScheduler {
       sessionRoot,
       scope: { type: "project-task", projectId: input.projectId, projectName: input.projectName, taskId: input.taskId },
       providerId: input.providerId,
-      permissionProfile: "read-only",
+      permissionProfile: input.permissionProfile,
       interactionMode: "default",
       cwd: ".",
       prompt: input.prompt,
@@ -473,7 +473,7 @@ export class RunScheduler {
     if (!isProjectTaskScope(scope)) throw new Error("指定会话不是 Project Task 会话。");
     if (!this.projectsRoot) throw new Error("Project 内容根尚未初始化。");
     const root = canonicalizeTrustedProjectRoot(this.projectsRoot, scope.projectName, session.projectRoot);
-    if (root !== session.projectRoot || session.cwd !== "." || session.permissionProfile !== "read-only") {
+    if (root !== session.projectRoot || session.cwd !== ".") {
       throw new Error("Project Task 会话执行边界无效。");
     }
   }

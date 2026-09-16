@@ -31,11 +31,15 @@ describe("ProjectStartTaskRunInputSchema", () => {
 
   it("requires a provider for a new Project Task session", () => {
     expect(ProjectStartTaskRunInputSchema.safeParse({ projectName: "Alpha", taskId, prompt: "写作" }).success).toBe(false);
-    expect(ProjectStartTaskRunInputSchema.safeParse({ projectName: "Alpha", taskId, providerId: "claude", prompt: "写作" }).success).toBe(true);
+    expect(ProjectStartTaskRunInputSchema.parse({ projectName: "Alpha", taskId, providerId: "claude", prompt: "写作" }))
+      .toMatchObject({ permissionProfile: "auto" });
   });
 
-  it("allows a continuation to carry only its frozen session identity", () => {
-    expect(ProjectStartTaskRunInputSchema.safeParse({ projectName: "Alpha", taskId, sessionId: "session-1", prompt: "继续" }).success).toBe(true);
+  it("defaults continuations to auto while accepting an explicit override", () => {
+    expect(ProjectStartTaskRunInputSchema.parse({ projectName: "Alpha", taskId, sessionId: "session-1", prompt: "继续" }))
+      .toMatchObject({ permissionProfile: "auto" });
+    expect(ProjectStartTaskRunInputSchema.parse({ projectName: "Alpha", taskId, sessionId: "session-1", permissionProfile: "read-only", prompt: "继续" }))
+      .toMatchObject({ permissionProfile: "read-only" });
   });
 });
 

@@ -37,6 +37,7 @@ function measure(operation) {
 (async () => {
   const { ProjectService } = require(path.join(appRoot, ".build/electron/electron/project/project-service.js"));
   const { readContentAsync } = require(path.join(appRoot, ".build/electron/electron/lib/content.js"));
+  const { CONTENT_PREVIEW_MAX_BYTES } = require(path.join(appRoot, ".build/electron/shared/content-kinds.js"));
   const service = new ProjectService(contentRoot, { stateRoot: path.join(temporary, "state") });
   const project = service.createProject({ name: "Performance fixture" }).project;
   const task = service.createProjectTask(project.name, "Fixture task", "fixture-provider");
@@ -84,7 +85,7 @@ function measure(operation) {
   const passed = projectSummaries.every((sample) => sample.value === 1_000 && sample.lstats < 2_200)
     && projectSummaries.slice(1).every((sample) => sample.taskReads === 0)
     && changedSummary.value === 999 && changedSummary.taskReads === 1
-    && contentReads.every((sample) => sample.yielded && sample.readBytes <= 1024 * 1024 + 1 && sample.characters === 1024 * 1024 && sample.truncated);
+    && contentReads.every((sample) => sample.yielded && sample.readBytes <= CONTENT_PREVIEW_MAX_BYTES + 1 && sample.characters === CONTENT_PREVIEW_MAX_BYTES && sample.truncated);
   const report = { generatedAt: new Date().toISOString(), environment: { node: process.version, platform: process.platform, arch: process.arch }, projectSummaries, changedSummary, contentReads, passed };
   fs.writeFileSync(path.join(appRoot, ".build/service-performance-report.json"), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));

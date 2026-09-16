@@ -15,7 +15,7 @@ import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser
 import { buildProviderSkillContext } from "./skill-bridge";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
-import { fileReferenceInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 
 interface RpcMessage {
@@ -71,9 +71,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const cwd = providerCwd(context);
       const openmindRoot = providerOpenmindRoot(context);
       const projectScoped = context.session.scope?.type === "project-task";
-      if (projectScoped && context.session.permissionProfile !== "read-only") {
-        throw new Error("Project Codex 会话必须使用只读权限配置。");
-      }
+      const readOnly = context.session.permissionProfile === "read-only";
+      const projectReadOnly = projectScoped && readOnly;
       if (projectScoped && context.skillInvocation) {
         throw new Error("Project Codex 会话不允许调用全局 Skill。");
       }
@@ -83,9 +82,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const browserInstructions = projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
       const projectInstructions = projectSessionInstructions(context.session);
       const developerInstructions = [
-        openmindFilesystemInstructions(openmindRoot, projectScoped),
+        openmindFilesystemInstructions(openmindRoot, projectReadOnly ? "read-only" : projectScoped ? "workspace-write" : "none"),
         projectInstructions,
         fileReferenceInstructions(),
+        markdownArtifactInstructions(),
         browserInstructions
       ].filter(Boolean).join("\n\n");
       const threadOptions = {
@@ -93,19 +93,31 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         runtimeWorkspaceRoots: [openmindRoot],
         ...(developerInstructions ? { developerInstructions } : {})
       };
-      const sandbox = projectScoped ? "read-only" : "danger-full-access";
+      const sandbox = projectReadOnly ? "read-only" : projectScoped ? "workspace-write" : "danger-full-access";
+      const approvalPolicy = projectReadOnly ? "never" : "on-request";
+      const sandboxPolicy = projectReadOnly
+        ? { type: "readOnly" }
+        : projectScoped
+          ? {
+              type: "workspaceWrite",
+              writableRoots: [],
+              networkAccess: context.session.permissionProfile === "auto",
+              excludeTmpdirEnvVar: false,
+              excludeSlashTmp: false
+            }
+          : { type: "dangerFullAccess" };
       const threadResult = context.session.providerSessionId
         ? await rpc.request("thread/resume", {
           threadId: context.session.providerSessionId,
           cwd,
-          approvalPolicy: projectScoped ? "never" : "on-request",
+          approvalPolicy,
           approvalsReviewer: "user",
           sandbox,
           ...threadOptions
         })
         : await rpc.request("thread/start", {
           cwd,
-          approvalPolicy: projectScoped ? "never" : "on-request",
+          approvalPolicy,
           approvalsReviewer: "user",
           sandbox,
           serviceName: "openmind-desktop",
@@ -130,10 +142,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       await rpc.request("turn/start", {
         threadId: thread.id,
         cwd,
-        approvalPolicy: projectScoped ? "never" : "on-request",
+        approvalPolicy,
         approvalsReviewer: "user",
         runtimeWorkspaceRoots: [openmindRoot],
-        sandboxPolicy: projectScoped ? { type: "readOnly" } : { type: "dangerFullAccess" },
+        sandboxPolicy,
         input: buildCodexTurnInput(context, nativeSkill),
         ...(collaborationMode ? { collaborationMode } : {})
       });
@@ -158,14 +170,6 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
 
     const params = message.params || {};
-    if (context.session.scope?.type === "project-task") {
-      const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
-      return {
-        decision: legacyCommand || legacyFile
-          ? "denied"
-          : selectCodexApprovalDecision("decline", availableDecisions)
-      };
-    }
     if ((modernFile || legacyFile) && firstProtectedApprovalPath(context, params)) {
       const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
       return {
@@ -174,11 +178,20 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           : selectCodexApprovalDecision("decline", availableDecisions)
       };
     }
-    // Native command requests cannot be made path-safe by approving a command
-    // string. Keep those denied; filesystem tools are checked separately.
+    // Commands in non-auto sessions still pass through the approval broker.
+    // Auto execution approves them except for directory deletion, matching the
+    // shared permission-profile contract. Project runs remain OS-sandboxed to
+    // their trusted cwd.
     if (modernCommand || legacyCommand) {
       const availableDecisions = Array.isArray(params.availableDecisions) ? params.availableDecisions : null;
-      return { decision: legacyCommand ? "denied" : selectCodexApprovalDecision("decline", availableDecisions) };
+      const command = Array.isArray(params.command) ? params.command.map(String).join(" ") : String(params.command || "");
+      const classified = classifyApproval(command, method);
+      if (context.session.scope?.type === "project-task" && canAutoApprove(context, classified.category, command)) {
+        return { decision: legacyCommand ? "approved" : selectCodexApprovalDecision("accept", availableDecisions) };
+      }
+      if (context.session.scope?.type !== "project-task") {
+        return { decision: legacyCommand ? "denied" : selectCodexApprovalDecision("decline", availableDecisions) };
+      }
     }
     for (const candidate of [params.cwd, params.grantRoot]) {
       if (typeof candidate !== "string" || !candidate.trim()) continue;

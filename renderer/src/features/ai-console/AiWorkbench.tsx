@@ -142,7 +142,8 @@ export function AiWorkbench({
             </div>
           ) : null}
           <div className="conversation-header-actions">
-            {activeSession ? (
+            {/* 仅运行、待批准或失败时显示状态徽标；idle 不渲染，与侧边栏状态点保持一致 */}
+            {activeSession && activeSession.status !== "idle" ? (
               <ResponsiveContextBadge
                 presentation={responsiveLayout.actions}
                 priority="essential"

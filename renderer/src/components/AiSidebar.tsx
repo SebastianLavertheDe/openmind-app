@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Columns2, Maximize2, MessageSquare, Minimize2, X } from "lucide-react";
+import { MessageSquare, Minimize2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-context";
@@ -102,7 +102,14 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   const handleProjectDraftSubmit = useCallback(async (input: ChatDraftSubmitInput) => {
     if (!projectComposeTarget) throw new Error("没有可归属的项目。");
     const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
-    const result = await projectsApi.startTaskRun(projectComposeTarget.projectName, created.taskId, input.providerId, input.prompt, input.contexts);
+    const result = await projectsApi.startTaskRun(
+      projectComposeTarget.projectName,
+      created.taskId,
+      input.providerId,
+      input.prompt,
+      input.contexts,
+      input.permissionProfile
+    );
     setDraft("");
     actions.clearContexts();
     await actions.refresh();
@@ -276,21 +283,6 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
         tabIndex={renderState.modal ? -1 : undefined}
       >
         <div className="ai-sidebar-actions">
-          {!renderState.detached && !renderState.full ? (
-            <button
-              type="button"
-              data-motion="icon"
-              aria-label={m.ai.sidebar.toggleWide}
-              title={m.ai.sidebar.toggleWide}
-              aria-pressed={ui.panelMode === "wide"}
-              onClick={() => ui.setPanelMode(ui.panelMode === "wide" ? "default" : "wide")}
-            ><Columns2 size={17} aria-hidden="true" /></button>
-          ) : null}
-          {!renderState.detached && !renderState.full ? (
-            <button type="button" data-motion="icon" aria-label={m.ai.sidebar.fullscreen} title={m.ai.sidebar.fullscreen} onClick={() => ui.setPanelMode("full")}>
-              <Maximize2 size={17} aria-hidden="true" />
-            </button>
-          ) : null}
           {renderState.full ? (
             <button type="button" data-motion="icon" aria-label={m.ai.sidebar.exitFullscreen} title={m.ai.sidebar.exitFullscreen} onClick={dismissModal}>
               <Minimize2 size={17} aria-hidden="true" />

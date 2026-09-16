@@ -95,7 +95,7 @@ export class SessionStore {
     }), { onlyIfMissing: true });
     writeJsonAtomic(path.join(this.root, "settings.json"), {
       schemaVersion: SCHEMA_VERSION,
-      defaultPermissionProfile: "edit",
+      defaultPermissionProfile: "auto",
       maxConcurrentRuns: 3,
       versionEventsInGit: true,
       riskGuard: "warn"
@@ -197,7 +197,7 @@ export class SessionStore {
       serviceProviderRevision: input.serviceProviderRevision || null,
       forkedFromId: input.forkedFromId || null,
       cwd: isProjectTaskScope(scope) ? "." : input.cwd,
-      permissionProfile: isProjectTaskScope(scope) ? "read-only" : input.permissionProfile,
+      permissionProfile: input.permissionProfile,
       interactionMode: input.interactionMode || "default",
       // Every newly-created session has an explicit (possibly empty) frozen
       // Skill set. `null` is reserved for persisted sessions from before the
@@ -327,9 +327,7 @@ export class SessionStore {
       // Skill availability is a conversation boundary. Generic UI/lifecycle
       // patches must never mutate the frozen snapshot.
       skillSnapshot: current.skillSnapshot ?? null,
-      permissionProfile: isProjectTaskScope(current.scope)
-        ? "read-only"
-        : (patch as Partial<AiSession>).permissionProfile ?? current.permissionProfile,
+      permissionProfile: (patch as Partial<AiSession>).permissionProfile ?? current.permissionProfile,
       updatedAt: new Date().toISOString()
     });
     writeJsonAtomic(this.sessionFile(id), next);
@@ -959,8 +957,7 @@ export class SessionStore {
       return path.resolve(session.projectRoot) === root
         && session.projectId === scope.projectId
         && this.projectTasks?.get(scope.projectName, scope.taskId).projectId === scope.projectId
-        && session.cwd === "."
-        && session.permissionProfile === "read-only";
+        && session.cwd === ".";
     } catch {
       return false;
     }

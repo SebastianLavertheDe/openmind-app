@@ -19,6 +19,7 @@ import {
   ensureInsideRepoReadable,
   findRepoRoot,
   getPreferences,
+  saveSettings,
   setOpenmindRoot,
   setWorkspaceRoot,
   updatePreferences,
@@ -31,6 +32,7 @@ import {
 describe("settings path handling", () => {
   afterEach(() => {
     try { fs.rmSync(path.join(userDataDir, "settings.json"), { force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(settingsFile(), { force: true }); } catch { /* ignore */ }
   });
   let repo = "";
 
@@ -123,12 +125,27 @@ describe("settings path handling", () => {
   it("preferences API surfaces are callable and return valid defaults", () => {
     const prefs = getPreferences();
     expect(prefs.themeMode).toBe("light");
+    expect(prefs.defaultPermissionProfile).toBe("auto");
     expect(prefs.destructiveOpsRequireApproval).toBe(true);
     expect(prefs.riskScanEnabled).toBe(true);
     expect(prefs.notesDir).toBe("openmind");
     expect(prefs.defaultPlatform).toBe("公众号");
     expect(Array.isArray(prefs.userTags)).toBe(true);
     expect(prefs.schemaVersion).toBeGreaterThanOrEqual(1);
+  });
+
+  it("migrates the old edit default to auto exactly once", () => {
+    saveSettings({ schemaVersion: 2, defaultPermissionProfile: "edit" });
+
+    const migrated = getPreferences();
+    expect(migrated.defaultPermissionProfile).toBe("auto");
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8"))).toMatchObject({
+      schemaVersion: 3,
+      defaultPermissionProfile: "auto"
+    });
+
+    expect(updatePreferences({ defaultPermissionProfile: "edit" }).defaultPermissionProfile).toBe("edit");
+    expect(getPreferences().defaultPermissionProfile).toBe("edit");
   });
 
   it("rejects invalid preference updates before writing them", () => {

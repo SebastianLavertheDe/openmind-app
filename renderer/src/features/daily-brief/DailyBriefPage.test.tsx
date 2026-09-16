@@ -70,17 +70,28 @@ describe("DailyBriefPage", () => {
     render(<AiProvider initial={snapshot}><DailyBriefPage initialDate="20260630" /></AiProvider>);
 
     await screen.findByText("旧内容。");
+    const currentFile = screen.getByRole("button", { name: /2026-06-30 每日简报/ });
+    const currentStatusSlot = currentFile.querySelector<SVGElement>(".brief-file-pending-icon");
+    expect(currentStatusSlot).toBeTruthy();
+    expect(currentStatusSlot?.classList.contains("is-visible")).toBe(false);
     const nextFile = screen.getByRole("button", { name: /2026-07-01 每日简报/ });
+    const nextStatusSlot = nextFile.querySelector<SVGElement>(".brief-file-pending-icon");
+    expect(nextStatusSlot).toBeTruthy();
     fireEvent.click(nextFile);
 
     expect(nextFile.getAttribute("aria-busy")).toBe("true");
     expect(nextFile.classList.contains("pending")).toBe(true);
+    expect(nextStatusSlot?.classList.contains("is-visible")).toBe(true);
+    expect(nextStatusSlot?.classList.contains("spin")).toBe(true);
     expect(screen.queryByText("选择一个简报文件")).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("正在打开“2026-07-01 每日简报”");
 
     await act(async () => resolveNext({ path: nextPath, name: "20260701_daily_summary.md", content: "# 新简报\n\n新内容。", truncated: false }));
     expect(await screen.findByText("新内容。")).toBeTruthy();
     expect(nextFile.getAttribute("aria-busy")).toBeNull();
+    expect(nextFile.querySelector(".brief-file-pending-icon")).toBe(nextStatusSlot);
+    expect(nextStatusSlot?.classList.contains("is-visible")).toBe(false);
+    expect(nextStatusSlot?.classList.contains("spin")).toBe(false);
   });
 
   it("provides a compact master-detail return path and exposes the full file label", async () => {

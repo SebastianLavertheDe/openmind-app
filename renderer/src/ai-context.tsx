@@ -33,6 +33,10 @@ import {
   storageJson,
   writeStorage
 } from "./ai-utils";
+import {
+  ArtifactFenceParser,
+  type AssistantContentBlock
+} from "./features/ai-console/artifact-fence";
 
 type PanelMode = "collapsed" | "default" | "wide" | "full";
 type ToastTone = "info" | "success" | "error";
@@ -120,9 +124,10 @@ export interface AiActionsValue {
 
 export type AiController = AiSnapshotValue & AiEventsValue & AiUiValue & AiActionsValue;
 
-interface AiStreamingState {
+export interface AiStreamingState {
   streaming: string;
   reasoningStreaming: string;
+  assistantBlocks: readonly AssistantContentBlock[];
 }
 
 interface AiStreamingStore {
@@ -131,6 +136,7 @@ interface AiStreamingStore {
   updateStreaming(chunks: ReadonlyMap<string, string>, clearedRunIds?: readonly string[]): void;
   appendReasoning(chunks: ReadonlyMap<string, string>): void;
   clearReasoning(runId: string): void;
+  interruptRun(runId: string): void;
   clearRun(runId: string): void;
   clearAll(): void;
 }
@@ -155,7 +161,7 @@ const ActionsContext = createContext<AiActionsValue | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
 const DraftStoreContext = createContext<AiDraftStore | null>(null);
 const DraftKeyContext = createContext(NEW_SESSION_DRAFT);
-const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "" });
+const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "", assistantBlocks: Object.freeze([]) });
 const EMPTY_STREAMING_SUBSCRIBE = () => () => undefined;
 const EMPTY_EVENTS: AiEvent[] = [];
 const EMPTY_CONTEXTS: ContextReference[] = [];
@@ -338,11 +344,18 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
     if (payload.kind === "snapshot" && payload.snapshot) setSnapshot(payload.snapshot);
     if (payload.kind === "worker-exit") {
       setError(m.ai.error.workerExit(payload.code));
-      appendEvents([...pendingAssistantMessages.values()].flat());
+      const durableMessages = [...pendingAssistantMessages.values()].flat();
+      appendEvents(durableMessages);
+      const durableRunIds = new Set(durableMessages.map((event) => event.runId));
+      const remainingChunks = new Map([...pendingText].filter(([, value]) => Boolean(value)));
+      if (remainingChunks.size) streamingStore.updateStreaming(remainingChunks);
+      for (const runId of activeStreams) {
+        if (durableRunIds.has(runId)) streamingStore.clearRun(runId);
+        else streamingStore.interruptRun(runId);
+      }
       pendingAssistantMessages.clear();
       pendingText.clear();
       activeStreams.clear();
-      streamingStore.clearAll();
     }
     if (payload.event && payload.kind === "event") {
       const event = payload.event;
@@ -353,13 +366,14 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
         scheduleStream();
         return;
       }
+      if (event.kind === "assistant-message") streamingStore.clearRun(event.runId);
       const terminalFailure = event.kind === "error"
         || (event.kind === "status" && ["failed", "cancelled"].includes(String(event.payload.state)));
+      const queued = terminalFailure ? pendingAssistantMessages.get(event.runId) : undefined;
       if (terminalFailure) {
         // Durable full messages are more authoritative than any unfinished
         // transient buffer. Preserve them before the failure row, then discard
         // only the incomplete delta tail.
-        const queued = pendingAssistantMessages.get(event.runId);
         if (queued?.length) eventQueue.push(...queued);
         pendingAssistantMessages.delete(event.runId);
       }
@@ -369,10 +383,13 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
         streamingStore.clearReasoning(event.runId);
       }
       if (terminalFailure) {
+        const unpumped = pendingText.get(event.runId);
+        if (!queued?.length && unpumped) streamingStore.updateStreaming(new Map([[event.runId, unpumped]]));
         activeStreams.delete(event.runId);
         pendingText.delete(event.runId);
         reasoningQueue.delete(event.runId);
-        streamingStore.clearRun(event.runId);
+        if (queued?.length) streamingStore.clearRun(event.runId);
+        else streamingStore.interruptRun(event.runId);
       }
       scheduleEvents();
     }
@@ -882,7 +899,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     setError(null);
     try {
       await window.openmind.aiCancelRun(runId);
-      streamingStore.clearRun(runId);
+      streamingStore.interruptRun(runId);
       await refresh();
     } catch (cause) {
       setError(errorText(cause));
@@ -1070,13 +1087,23 @@ export function useAiStreaming(runId: string | null): AiStreamingState {
 
 function createAiStreamingStore(): AiStreamingStore {
   const byRun = new Map<string, AiStreamingState>();
+  const parsers = new Map<string, ArtifactFenceParser>();
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((listener) => listener());
-  const write = (runId: string, streaming: string, reasoningStreaming: string): boolean => {
+  const write = (
+    runId: string,
+    streaming: string,
+    reasoningStreaming: string,
+    assistantBlocks: readonly AssistantContentBlock[]
+  ): boolean => {
     const current = byRun.get(runId) || EMPTY_STREAMING_STATE;
-    if (current.streaming === streaming && current.reasoningStreaming === reasoningStreaming) return false;
+    if (
+      current.streaming === streaming
+      && current.reasoningStreaming === reasoningStreaming
+      && current.assistantBlocks === assistantBlocks
+    ) return false;
     if (!streaming && !reasoningStreaming) byRun.delete(runId);
-    else byRun.set(runId, { streaming, reasoningStreaming });
+    else byRun.set(runId, { streaming, reasoningStreaming, assistantBlocks });
     return true;
   };
 
@@ -1093,11 +1120,15 @@ function createAiStreamingStore(): AiStreamingStore {
       for (const [runId, text] of chunks) {
         if (!text) continue;
         const current = byRun.get(runId) || EMPTY_STREAMING_STATE;
-        changed = write(runId, `${current.streaming}${text}`, current.reasoningStreaming) || changed;
+        const parser = parsers.get(runId) || new ArtifactFenceParser(runId);
+        if (!parsers.has(runId)) parsers.set(runId, parser);
+        parser.push(text);
+        changed = write(runId, `${current.streaming}${text}`, current.reasoningStreaming, parser.blocks()) || changed;
       }
       for (const runId of clearedRunIds) {
         const current = byRun.get(runId) || EMPTY_STREAMING_STATE;
-        changed = write(runId, "", current.reasoningStreaming) || changed;
+        parsers.delete(runId);
+        changed = write(runId, "", current.reasoningStreaming, EMPTY_STREAMING_STATE.assistantBlocks) || changed;
       }
       if (changed) emit();
     },
@@ -1106,18 +1137,33 @@ function createAiStreamingStore(): AiStreamingStore {
       for (const [runId, text] of chunks) {
         if (!text) continue;
         const current = byRun.get(runId) || EMPTY_STREAMING_STATE;
-        changed = write(runId, current.streaming, `${current.reasoningStreaming}${text}`) || changed;
+        changed = write(runId, current.streaming, `${current.reasoningStreaming}${text}`, current.assistantBlocks) || changed;
       }
       if (changed) emit();
     },
     clearReasoning(runId) {
       const current = byRun.get(runId) || EMPTY_STREAMING_STATE;
-      if (write(runId, current.streaming, "")) emit();
+      if (write(runId, current.streaming, "", current.assistantBlocks)) emit();
+    },
+    interruptRun(runId) {
+      const current = byRun.get(runId);
+      const parser = parsers.get(runId);
+      if (!current || !parser) return;
+      if (!parser.hasArtifact()) {
+        parsers.delete(runId);
+        byRun.delete(runId);
+        emit();
+        return;
+      }
+      const assistantBlocks = parser.interrupt();
+      if (write(runId, current.streaming, "", assistantBlocks)) emit();
     },
     clearRun(runId) {
+      parsers.delete(runId);
       if (byRun.delete(runId)) emit();
     },
     clearAll() {
+      parsers.clear();
       if (!byRun.size) return;
       byRun.clear();
       emit();

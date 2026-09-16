@@ -220,6 +220,102 @@
   word-break: normal;
 }
 
+.assistant-content {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.assistant-artifact {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  box-shadow: var(--shadow-1);
+}
+
+.assistant-artifact-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel-muted));
+}
+
+.assistant-artifact-header > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-artifact-kind,
+.assistant-artifact-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.assistant-artifact-kind {
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+.assistant-artifact.incomplete {
+  border-color: color-mix(in srgb, var(--warning-500) 44%, var(--border));
+}
+
+.assistant-artifact.incomplete .assistant-artifact-status,
+.assistant-artifact-warning {
+  color: var(--orange);
+}
+
+.assistant-artifact-content {
+  min-width: 0;
+  padding: 16px;
+}
+
+.assistant-artifact-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 16px 12px;
+  font-size: var(--fs-sm);
+}
+
+.assistant-artifact > footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 12px;
+}
+
+.assistant-artifact-copy {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.assistant-artifact-copy:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
 .chat-thread .assistant-message,
 .chat-thread .completed-process,
 .chat-thread > .trace-step,
@@ -1326,6 +1422,18 @@
   .chat-thread .error-event,
   .chat-thread .approval-card {
     max-width: 100%;
+  }
+
+  .assistant-artifact-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .assistant-artifact-kind {
+    grid-column: 1 / -1;
+  }
+
+  .assistant-artifact-content {
+    padding: 13px;
   }
 
   .composer-suggestion-menu {

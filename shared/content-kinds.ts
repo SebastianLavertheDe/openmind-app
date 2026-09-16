@@ -1,5 +1,8 @@
 import type { ContentKind } from "./contracts";
 
+/** 应用内文本预览/编辑上限；超过后只读展示截断内容。 */
+export const CONTENT_PREVIEW_MAX_BYTES = 5 * 1024 * 1024;
+
 /**
  * Content kind 的单一事实源（TS 侧，代码常量）。
  * 展示文案见 shared/messages/zh-CN.ts + display-labels.contentKindLabel()。

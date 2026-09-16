@@ -15,7 +15,7 @@ import {
 } from "../browser-evidence";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
-import { fileReferenceInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 import { buildProviderSkillContext } from "./skill-bridge";
 
@@ -81,7 +81,7 @@ export function decideClaudePermission(
     }
   }
   if (toolName === CLAUDE_BROWSER_EVIDENCE_TOOL && runContext.browserAutomation?.enabled) {
-    if (projectScoped) return { behavior: "deny", message: "Project 会话为只读模式，不能写入浏览器取证文件。" };
+    if (projectScoped) return { behavior: "deny", message: "Project 会话不开放浏览器取证工具。" };
     if (firstPathInsideProtectedWorkspace(runContext, [runContext.cwd])) {
       return { behavior: "deny", message: "Project 目录为只读，不能在其中写入浏览器取证文件。" };
     }
@@ -91,7 +91,9 @@ export function decideClaudePermission(
     return { behavior: "deny", message: "当前会话为只读模式。" };
   }
   if (/^(bash|powershell)$/i.test(toolName)) {
-    if (projectScoped) return { behavior: "deny", message: "Project 会话为只读模式，不能执行命令工具。" };
+    if (projectScoped && runContext.session.permissionProfile !== "auto") {
+      return { behavior: "deny", message: "Project 会话仅在自动执行权限下开放命令工具。" };
+    }
     // 命令字符串无法像文件工具那样做路径边界校验。自动执行档位下命令免审批，
     // 唯一例外是删除目录（与 canAutoApprove 同一策略）；其余档位逐条交用户审批。
     const command = String(input.command || "");
@@ -120,9 +122,15 @@ export function decideClaudePermission(
     return {
       behavior: "deny",
       message: projectScoped
-        ? `Project 会话不能访问当前项目以外的路径：${outside}`
+        ? `Project 会话不能访问 OpenMind 根目录以外的路径：${outside}`
         : `Workspace 会话不能访问所选 Workspace 以外的路径：${outside}`
     };
+  }
+  const outsideProjectWrite = projectScoped && isFilesystemMutationTool(toolName)
+    ? firstPathOutsideRoot(runContext.session.projectRoot, runContext.cwd, paths)
+    : null;
+  if (outsideProjectWrite) {
+    return { behavior: "deny", message: `Project 会话不能修改当前项目以外的路径：${outsideProjectWrite}` };
   }
   const protectedPath = firstPathInsideProtectedWorkspace(runContext, paths);
   if (protectedPath && isFilesystemMutationTool(toolName)) {
@@ -192,15 +200,19 @@ function claudeToolPaths(toolName: string, input: Record<string, unknown>, block
 }
 
 function firstPathOutsideExecutionRoot(context: ProviderRunContext, paths: string[]): string | null {
+  return firstPathOutsideRoot(context.openmindRoot, context.cwd, paths);
+}
+
+function firstPathOutsideRoot(root: string, cwd: string, paths: string[]): string | null {
   try {
-    resolvePathInsideRoot(context.openmindRoot, context.cwd);
+    resolvePathInsideRoot(root, cwd);
   } catch {
-    return context.cwd;
+    return cwd;
   }
   for (const candidate of paths) {
-    const target = path.isAbsolute(candidate) ? candidate : path.resolve(context.cwd, candidate);
+    const target = path.isAbsolute(candidate) ? candidate : path.resolve(cwd, candidate);
     try {
-      resolvePathInsideRoot(context.openmindRoot, target);
+      resolvePathInsideRoot(root, target);
     } catch {
       return candidate;
     }
@@ -556,9 +568,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const browserInstructions = context.projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
     const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
     const systemAppend = [
-      openmindFilesystemInstructions(context.openmindRoot, false),
+      openmindFilesystemInstructions(context.openmindRoot),
       context.projectInstructions,
       fileReferenceInstructions(),
+      markdownArtifactInstructions(),
       browserInstructions,
       skillInstructions
     ].filter(Boolean).join("\n\n");
@@ -569,9 +582,9 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       ...(context.serviceProvider ? { env: claudeProviderEnvironment(context.serviceProvider) } : {}),
       cwd: context.cwd,
       resume: undefined,
-      permissionMode: context.projectScoped
-        ? "dontAsk"
-        : context.interactionMode === "plan" ? "plan" : "default",
+      permissionMode: context.interactionMode === "plan"
+        ? "plan"
+        : context.projectScoped && context.permissionProfile !== "edit" ? "dontAsk" : "default",
       // Do not load repo/user hooks, MCP, settings, or arbitrary discovered
       // Skills. An integrity-checked Installed Skill may be enabled explicitly
       // for this one invocation through the Main-only bridge.
@@ -579,7 +592,9 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       // The explicitly admitted Skill text is injected through systemAppend;
       // provider-native discovery remains disabled.
       skills: [...CLAUDE_SKILL_SELECTION],
-      tools: context.projectScoped ? [...CLAUDE_PROJECT_TOOLS] : CLAUDE_WORKBENCH_TOOLS,
+      tools: context.projectScoped && context.permissionProfile === "read-only"
+        ? [...CLAUDE_PROJECT_TOOLS]
+        : CLAUDE_WORKBENCH_TOOLS,
       strictMcpConfig: true,
       systemPrompt: {
         type: "preset",
@@ -599,9 +614,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           }
         }
       } : {}),
-      // 产品决定：所有平台一律不启用 OS 沙箱。Project 会话的只读与路径
-      // 边界完全依赖 decideClaudePermission 的应用层强制（工具白名单 +
-      // 逐次 canUseTool 校验），不得因省事恢复此处的第二道边界。
+      // 所有平台保持同一应用层权限决策；Project 的可信 cwd 和显式路径
+      // 边界由 Main 冻结，文件工具仍逐次经过 canUseTool 校验。
       sandbox: { enabled: false },
       includePartialMessages: true,
       // Never read/write provider transcripts under ~/.claude/projects.

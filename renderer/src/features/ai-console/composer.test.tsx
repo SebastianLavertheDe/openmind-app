@@ -72,6 +72,16 @@ describe("ChatComposer permissions", () => {
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("read-only");
   });
 
+  it("uses the saved new-session permission while the product default remains auto", async () => {
+    window.openmind = {
+      onAiEvent: () => () => undefined,
+      getPreferences: async () => ({ defaultPermissionProfile: "read-only", defaultProvider: "" })
+    } as unknown as DesktopApi;
+    render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
+
+    await waitFor(() => expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("read-only"));
+  });
+
   it("portals slash suggestions from a caret anchor while preserving combobox semantics", async () => {
     render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
 

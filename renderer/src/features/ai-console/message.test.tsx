@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChatMarkdown } from "./message";
+import { AssistantContent, ChatMarkdown } from "./message";
 import { localFileReference } from "./file-preview-context";
+import { parseAssistantContent } from "./artifact-fence";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -99,5 +100,45 @@ describe("ChatMarkdown inline code", () => {
     // Markdown 渲染器会把空格编码成 %20；localFileReference 解析时会解码还原。
     expect(link?.getAttribute("href")).toBe("materials/documents/Agentic%20Design%20Patterns.md");
     expect(localFileReference(link?.getAttribute("href") ?? "")).toBe("materials/documents/Agentic Design Patterns.md");
+  });
+});
+
+describe("AssistantContent artifacts", () => {
+  it("renders protocol fences as a separate Markdown artifact card", () => {
+    const raw = "开场说明\n\n~~~~openmind-artifact\n# 示例文章\n\n正文内容\n~~~~\n\n结束语";
+    const { container } = render(<AssistantContent blocks={parseAssistantContent(raw, "run:event")} />);
+
+    expect(container.textContent).not.toContain("~~~~openmind-artifact");
+    expect(container.textContent).not.toContain("~~~~");
+    expect(screen.getByText("开场说明").closest(".assistant-artifact")).toBeNull();
+    expect(screen.getByText("结束语").closest(".assistant-artifact")).toBeNull();
+    const card = screen.getByLabelText("产物 · Markdown：示例文章");
+    expect(within(card).getByText("产物 · Markdown")).toBeTruthy();
+    expect(within(card).getAllByText("示例文章")).toHaveLength(2);
+    expect(within(card).getByText("正文内容")).toBeTruthy();
+    expect(within(card).getByText("已完成")).toBeTruthy();
+  });
+
+  it("copies only the Markdown body inside one artifact", async () => {
+    const writeText = vi.fn(async () => {});
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      const raw = "intro\n~~~~openmind-artifact\n# Copy me\n\nbody\n~~~~\noutro";
+      render(<AssistantContent blocks={parseAssistantContent(raw)} />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "复制正文" })));
+      expect(writeText).toHaveBeenCalledWith("# Copy me\n\nbody");
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
+  it("keeps incomplete artifact content visible with a non-blocking warning", () => {
+    render(<AssistantContent blocks={parseAssistantContent("~~~~openmind-artifact\n# Partial\nbody")} />);
+    const card = screen.getByLabelText("产物 · Markdown：Partial");
+    expect(within(card).getByText("body")).toBeTruthy();
+    expect(within(card).getByText("未完整")).toBeTruthy();
+    expect(within(card).getByText("产物格式未完整结束，已保留当前正文。")).toBeTruthy();
   });
 });

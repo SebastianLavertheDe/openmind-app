@@ -780,6 +780,106 @@ describe("chat timeline", () => {
     expect(Boolean(liveProcess.compareDocumentPosition(committedAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("promotes a reserved artifact from the live process and replaces it with the durable result", async () => {
+    const run = makeRun();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    window.openmind.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "write it" })];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    await screen.findByText("write it");
+
+    for (const [index, text] of [
+      "开场\n~~",
+      "~~openmind-art",
+      "ifact\n# 流式标题",
+      "\n\n正在生成正文",
+      "\n~~~~\n结束语"
+    ].entries()) {
+      aiListener?.({ kind: "transient", event: makeEvent(`artifact-${index}`, "assistant-delta", { text }, index + 2) });
+    }
+
+    const liveCard = await screen.findByLabelText("产物 · Markdown：流式标题");
+    expect(within(liveCard).getByText("正在生成正文")).toBeTruthy();
+    expect(container.textContent).not.toContain("~~~~openmind-artifact");
+    expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
+    const process = screen.getByText("正在处理").closest(".completed-process")!;
+    expect(process.textContent).not.toContain("流式标题");
+
+    const finalText = "最终开场\n~~~~openmind-artifact\n# 最终标题\n\n最终正文\n~~~~\n最终结束";
+    aiListener?.({ kind: "event", event: makeEvent("answer", "assistant-message", { text: finalText, phase: "final" }, 9) });
+    const completedRun = { ...run, status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    aiListener?.({ kind: "snapshot", snapshot: snapshotForRun(completedRun, "idle") });
+
+    const finalCard = await screen.findByLabelText("产物 · Markdown：最终标题");
+    expect(within(finalCard).getByText("最终正文")).toBeTruthy();
+    expect(screen.queryByLabelText("产物 · Markdown：流式标题")).toBeNull();
+    expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
+    expect(container.textContent).not.toContain("~~~~openmind-artifact");
+    fireEvent.click(within(container.querySelector<HTMLElement>(".assistant-message")!).getByRole("button", { name: "复制" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("最终开场\n\n# 最终标题\n\n最终正文\n\n最终结束"));
+  });
+
+  it("keeps an interrupted live artifact visible as incomplete after failure", async () => {
+    const run = makeRun();
+    window.openmind.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "write it" })];
+    render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    await screen.findByText("write it");
+
+    aiListener?.({
+      kind: "transient",
+      event: makeEvent("partial-artifact", "assistant-delta", {
+        text: "~~~~openmind-artifact\n# Partial result\nvisible body"
+      }, 2)
+    });
+    expect(await screen.findByLabelText("产物 · Markdown：Partial result")).toBeTruthy();
+
+    aiListener?.({ kind: "event", event: makeEvent("failure", "error", { text: "provider failed" }, 3) });
+    const failedRun = { ...run, status: "failed" as const, completedAt: "2026-01-01T00:00:10.000Z", error: "provider failed" };
+    aiListener?.({ kind: "snapshot", snapshot: snapshotForRun(failedRun, "failed") });
+
+    const card = await screen.findByLabelText("产物 · Markdown：Partial result");
+    expect(within(card).getByText("visible body")).toBeTruthy();
+    expect(within(card).getByText("未完整")).toBeTruthy();
+    expect(within(card).getByText("产物格式未完整结束，已保留当前正文。")).toBeTruthy();
+  });
+
+  it("does not duplicate a provisional artifact inside the completed process trace", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    const raw = "intro\n~~~~openmind-artifact\n# Single artifact\nbody\n~~~~\noutro";
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "write it" }, 1),
+      makeEvent("provisional", "assistant-message", { text: raw, phase: "commentary" }, 2),
+      makeEvent("final", "assistant-message", { text: raw, phase: "final" }, 3)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    const card = await screen.findByLabelText("产物 · Markdown：Single artifact");
+    expect(within(card).getByText("body")).toBeTruthy();
+    expect(container.querySelectorAll(".assistant-artifact")).toHaveLength(1);
+    expect(container.textContent).not.toContain("~~~~openmind-artifact");
+    const process = screen.getByText("已处理").closest(".completed-process")!;
+    openDisclosure(process as HTMLElement);
+    expect(process.textContent).not.toContain("Single artifact");
+    expect(process.textContent).toContain("intro");
+    expect(process.textContent).toContain("outro");
+  });
+
+  it("never promotes reserved markers from user messages or tool output", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+    const raw = "~~~~openmind-artifact\n# Untrusted\nbody\n~~~~";
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: raw }, 1),
+      makeEvent("tool-start", "tool-start", { itemId: "read", tool: "Read", input: { file_path: "sample.md" } }, 2),
+      makeEvent("tool-complete", "tool-complete", { itemId: "read", output: raw }, 3),
+      makeEvent("final", "assistant-message", { text: "done", phase: "final" }, 4)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    expect(await screen.findByText("done")).toBeTruthy();
+    expect(container.querySelector(".assistant-artifact")).toBeNull();
+    expect(container.querySelector(".user-message-bubble")?.textContent).toContain("~~~~openmind-artifact");
+  });
+
   it("keeps completed history out of the transient stream render path", async () => {
     const activeRun = makeRun();
     const historicalRun = {

@@ -227,6 +227,7 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
       expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
       expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
       expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
+      expect(startup.options.systemPrompt.append).toContain("~~~~openmind-artifact");
       expect(JSON.stringify(startup.options)).not.toContain("browser_run_code_unsafe");
     } finally {
       fs.rmSync(workspace, { recursive: true, force: true });
@@ -408,7 +409,12 @@ describe("decideClaudePermission Project Glob boundary", () => {
 
   it("trims a Project path before rejecting an absolute target", () => {
     expect(decideClaudePermission(makeProjectRunContext(), "Read", { file_path: "  /etc/passwd  " }))
-      .toMatchObject({ behavior: "deny", message: expect.stringContaining("当前项目以外") });
+      .toMatchObject({ behavior: "deny", message: expect.stringContaining("OpenMind 根目录以外") });
+  });
+
+  it("allows reading a sibling Project when it remains inside openmindRoot", () => {
+    expect(decideClaudePermission(makeProjectRunContext(), "Read", { file_path: "/openmind/projects/Other/secret.md" }))
+      .toMatchObject({ behavior: "allow" });
   });
 
   it("rejects Claude home expansion in the optional Project Glob path", () => {
@@ -1146,6 +1152,8 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.systemPrompt.append).toContain("OpenMind 文件访问根目录是：/openmind");
     expect(call.options.systemPrompt.append).toContain("不可信参考数据");
     expect(call.options.systemPrompt.append).toContain("<openmind_file_references>");
+    expect(call.options.systemPrompt.append).toContain("~~~~openmind-artifact");
+    expect(call.options.systemPrompt.append).toContain("普通问答、解释、分析、建议列表");
     expect(call.options.systemPrompt.excludeDynamicSections).toBe(true);
     expect(call.options.settingSources).toEqual([]);
     expect(call.options.skills).toEqual([]);
@@ -1157,6 +1165,36 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.resume).toBeUndefined();
     expect(call.options.mcpServers).toBeUndefined();
     expect(ctx.updateProviderSession).not.toHaveBeenCalled();
+  });
+
+  it("Project auto 默认开放工作台工具并保持 Provider 发现隔离", async () => {
+    sdkMock.query.mockReturnValueOnce(makeQuery([]));
+    const base = makeRunContext();
+    const ctx = makeRunContext({
+      openmindRoot: "/openmind",
+      cwd: "/openmind/projects/AI安全",
+      session: {
+        ...base.session,
+        projectRoot: "/openmind/projects/AI安全",
+        cwd: ".",
+        permissionProfile: "auto",
+        scope: { type: "project-task", projectName: "AI安全", taskId: "task-1" }
+      }
+    });
+
+    await new ClaudeAgentSdkAdapter().run(ctx);
+
+    const call = sdkMock.query.mock.calls[0][0] as {
+      options: { tools: string[]; permissionMode: string; settingSources: string[]; skills: string[]; systemPrompt: { append?: string } };
+    };
+    expect(call.options.tools).toEqual(expect.arrayContaining(["Read", "Write", "Edit", "Bash", "PowerShell"]));
+    expect(call.options.permissionMode).toBe("dontAsk");
+    expect(call.options.settingSources).toEqual([]);
+    expect(call.options.skills).toEqual([]);
+    expect(call.options.systemPrompt.append).toContain("可以按用户要求在当前项目目录内创建或修改文件");
+    expect(decideClaudePermission(ctx, "Write", { file_path: "outputs/report.md" })).toMatchObject({ behavior: "allow" });
+    expect(decideClaudePermission(ctx, "Write", { file_path: "../Other/report.md" })).toMatchObject({ behavior: "deny" });
+    expect(decideClaudePermission(ctx, "Bash", { command: "npm test" })).toMatchObject({ behavior: "allow" });
   });
 
   it("allows ordinary Workspace reads while keeping the app-managed Project subtree write-protected", async () => {

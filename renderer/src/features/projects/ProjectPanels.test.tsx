@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -204,7 +205,7 @@ describe("Project task recovery", () => {
       providerSessionId: null,
       cwd: ".",
       title: createdTask.title,
-      permissionProfile: "read-only",
+      permissionProfile: "auto",
       interactionMode: "default",
       status: "running",
       pinned: false,
@@ -221,7 +222,7 @@ describe("Project task recovery", () => {
       scope: session.scope,
       provider: "codex",
       providerId: "codex-native",
-      permissionProfile: "read-only",
+      permissionProfile: "auto",
       interactionMode: "default",
       status: "running",
       prompt: "生成项目报告",
@@ -263,10 +264,77 @@ describe("Project task recovery", () => {
       projectName: project.name,
       taskId: createdTask.taskId,
       providerId: "codex-native",
+      permissionProfile: "auto",
       prompt: "生成项目报告"
     });
     await waitFor(() => expect(view.container.querySelector(".project-task-row.active")).toBeTruthy());
     expect(view.container.querySelector(".project-task-session > .ai-workbench")).toBeTruthy();
+  });
+
+  it("continues an existing Project task through its scoped endpoint with the selected permission", async () => {
+    const user = userEvent.setup();
+    const task = {
+      taskId: "task-1",
+      projectId: project.id,
+      projectName: project.name,
+      title: "现有任务",
+      sessionId: "session-1",
+      previousSessionIds: [],
+      providerId: "codex-native",
+      status: "active" as const,
+      createdAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z"
+    };
+    const session: AiSession = {
+      schemaVersion: 1,
+      id: task.sessionId,
+      projectId: project.id,
+      projectRoot: "/project/AI 安全",
+      scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: task.taskId },
+      provider: "codex",
+      providerId: "codex-native",
+      providerSessionId: null,
+      cwd: ".",
+      title: task.title,
+      permissionProfile: "auto",
+      interactionMode: "default",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      lastRunId: null
+    };
+    const scopedSnapshot = { ...snapshot, sessions: [session] };
+    const projectStartTaskRun = vi.fn(async () => ({
+      task,
+      session: { ...session, status: "running" as const, lastRunId: "run-2" },
+      run: { id: "run-2" }
+    }));
+    const aiStartRun = vi.fn();
+    installApi({
+      aiRefresh: vi.fn(async () => scopedSnapshot),
+      aiStartRun,
+      listProjectTasks: vi.fn(async () => [task]),
+      projectStartTaskRun
+    });
+    render(<AiProvider initial={scopedSnapshot}><ProjectTasksPanel project={{ ...project, taskCount: 1 }} initialTaskId={task.taskId} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} /><FeedbackHost /></AiProvider>);
+
+    await waitFor(() => expect(screen.getByLabelText(m.ai.composer.messageInput).getAttribute("placeholder")).toBe(m.ai.composer.placeholderContinue(task.title)));
+    const composer = screen.getByLabelText(m.ai.composer.messageInput);
+    await user.type(composer, "继续完善报告");
+    await waitFor(() => expect((screen.getByRole("button", { name: m.ai.composer.send }) as HTMLButtonElement).disabled).toBe(false));
+    await user.click(screen.getByRole("button", { name: m.ai.composer.send }));
+
+    await waitFor(() => expect(projectStartTaskRun).toHaveBeenCalledWith({
+      projectName: project.name,
+      taskId: task.taskId,
+      sessionId: task.sessionId,
+      providerId: "codex-native",
+      permissionProfile: "auto",
+      prompt: "继续完善报告"
+    }));
+    expect(aiStartRun).not.toHaveBeenCalled();
   });
 
   it("keeps and selects a created task when starting its run fails", async () => {

@@ -131,7 +131,7 @@ describe("RunScheduler Project Task scope", () => {
     };
   }
 
-  it("creates a read-only session rooted at the trusted Project and continues only from its frozen identity", async () => {
+  it("defaults a trusted Project session to auto execution and continues only from its frozen identity", async () => {
     const fixture = projectScheduler();
     fs.writeFileSync(path.join(fixture.projectRoot, "materials", "report.md"), "MATERIAL_BODY_MUST_NOT_BE_AUTO_INJECTED");
     fs.writeFileSync(path.join(fixture.projectRoot, "materials", "cover.png"), "png");
@@ -159,10 +159,10 @@ describe("RunScheduler Project Task scope", () => {
     expect(first.session).toMatchObject({
       projectRoot: fs.realpathSync.native(fixture.projectRoot),
       cwd: ".",
-      permissionProfile: "read-only",
+      permissionProfile: "auto",
       scope: { type: "project-task", projectId: fixture.project.id, projectName: fixture.project.name, taskId: fixture.task.taskId }
     });
-    expect(first.run).toMatchObject({ projectId: first.session.projectId, scope: first.session.scope, permissionProfile: "read-only" });
+    expect(first.run).toMatchObject({ projectId: first.session.projectId, scope: first.session.scope, permissionProfile: "auto" });
     expect(executions[0].cwd).toBe(first.session.projectRoot);
     expect(executions[0].openmindRoot).toBe(fixture.contentRoot);
     expect(executions[0].images).toEqual([{ id: "cover", path: path.join(first.session.projectRoot, "materials", "cover.png"), mediaType: "image/png" }]);

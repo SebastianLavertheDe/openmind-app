@@ -326,7 +326,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   }
   .timeline-presence-item[data-leaving] { height: 0; grid-template-rows: 0fr; }
 }
-.assistant-message.streaming .chat-markdown > *:last-child::after {
+.assistant-message.streaming .chat-markdown.markdown-streaming > *:last-child::after {
   content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 2px;
   vertical-align: -.12em; background: var(--accent-fg); border-radius: 1px;
   animation: stream-blink 1.1s steps(2, start) infinite;
@@ -1250,7 +1250,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .chat-thread > .message.streaming,
   .chat-thread > .trace-step.live,
   .timeline-presence-item[data-entering] > .timeline-presence-inner { animation: none !important; opacity: 1 !important; }
-  .assistant-message.streaming .chat-markdown > *:last-child::after,
+  .assistant-message.streaming .chat-markdown.markdown-streaming > *:last-child::after,
   .run-activity-indicator i,
   .run-activity-track i { animation: none !important; }
 }
@@ -1600,7 +1600,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 /* P0-AI-2: 流式光标现代化 —— smooth pulse + glow */
-.assistant-message.streaming .chat-markdown > *:last-child::after {
+.assistant-message.streaming .chat-markdown.markdown-streaming > *:last-child::after {
   content: "";
   display: inline-block;
   width: 7px;
@@ -1617,7 +1617,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   50% { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .assistant-message.streaming .chat-markdown > *:last-child::after { animation: none; opacity: 0.7; }
+  .assistant-message.streaming .chat-markdown.markdown-streaming > *:last-child::after { animation: none; opacity: 0.7; }
 }
 
 /* AI 回复代码块：完整展示，使用简洁的灰底圆角容器。 */

@@ -210,7 +210,7 @@ export function ProjectTasksPanel({
         setCreating(false);
         onChanged();
       }
-      const result = await projectsApi.startTaskRun(project.name, task.taskId, providerId, prompt.trim());
+      const result = await projectsApi.startTaskRun(project.name, task.taskId, providerId, prompt.trim(), [], "auto");
       await actions.refresh();
       await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
@@ -251,7 +251,8 @@ export function ProjectTasksPanel({
         task.taskId,
         input.providerId,
         nextPrompt,
-        input.contexts
+        input.contexts,
+        input.permissionProfile
       );
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
@@ -273,6 +274,36 @@ export function ProjectTasksPanel({
         setSelectedId(task.taskId);
         setCreating(false);
       }
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const continueFromWorkbench = async (input: ChatDraftSubmitInput) => {
+    const nextPrompt = input.prompt.trim();
+    if (!selected?.sessionId || !nextPrompt || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const result = await projectsApi.startTaskRun(
+        project.name,
+        selected.taskId,
+        input.providerId,
+        nextPrompt,
+        input.contexts,
+        input.permissionProfile,
+        selected.sessionId
+      );
+      setDraft("");
+      actions.clearContexts();
+      await actions.refresh();
+      await actions.setActiveSession(result.session.id);
+      setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
+      onChanged();
+    } catch (cause) {
+      const message = errorText(cause);
       setError(message);
       throw new Error(message);
     } finally {
@@ -337,7 +368,7 @@ export function ProjectTasksPanel({
     </div>
   ) : selected?.sessionId ? (
     <div className="project-task-session">
-      {activeProjectSession ? <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
+      {activeProjectSession ? <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={continueFromWorkbench} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>
   ) : error ? <ErrorState message={error} retry={() => void load()} /> : (
     projectDraftWorkbench

@@ -5,6 +5,10 @@ const motionPerfEnabled = process.env.OPENMIND_MOTION_PERF === "1";
 const motionParagraph = "这是隔离的动效性能测试数据，包含中文段落与 English terms。窗口中的文件与对话应当在预览打开和关闭时平滑移动，保持阅读位置与完整动效。";
 const motionDocument = motionPerfEnabled ? Array.from({ length: 200 }, (_, i) =>
   `## 第 ${i + 1} 页\n\n${Array.from({ length: 6 }, () => motionParagraph.repeat(2)).join("\n\n")}`).join("\n\n") : "";
+const syntheticPerfEventCount = Math.max(0, Number(process.env.OPENMIND_RESIZE_PERF_EVENTS) || 0);
+const navCollapsePerfEnabled = process.env.OPENMIND_NAV_COLLAPSE_PERF === "1"
+  || process.argv.includes("--openmind-nav-collapse-perf")
+  || syntheticPerfEventCount >= 10_000;
 const aiEventListeners = new Set();
 
 const now = "2026-06-17T02:20:00.000Z";
@@ -22,6 +26,20 @@ const providers = [
 ];
 
 const contentState = { read: false, starred: true, score: 92, tags: ["AI", "长标题", "Provider"], lastViewedAt: null };
+const navCollapsePerfMarkdown = navCollapsePerfEnabled
+  ? [
+      "# Navigation collapse performance fixture",
+      "",
+      ...Array.from({ length: 453 }, (_, index) => [
+        `## ${index + 1}. 大型每日简报条目 ${String(index + 1).padStart(3, "0")}`,
+        "",
+        "- 中英文混排内容用于触发与真实每日简报相同的段落换行和链接布局。",
+        "- [原始资料](https://example.com/performance-fixture) · Agent / 模型发布 / 工程效率",
+        "- 这一行刻意保留足够长度，以便导航栏宽度变化时正文列确实需要重新计算换行，而不是只测空白页面。",
+        ""
+      ].join("\n"))
+    ].join("\n")
+  : "";
 const contentItems = [
   {
     schemaVersion: 1,
@@ -260,7 +278,7 @@ const aiEvents = [
 // The normal visual fixture stays intentionally small. The resize performance
 // harness opts into one synthetic, tool-heavy run so the renderer exercises
 // the complete-run overflow path instead of merely benchmarking SessionStore.
-const resizePerfEventCount = Math.max(0, Number(process.env.OPENMIND_RESIZE_PERF_EVENTS) || 0);
+const resizePerfEventCount = syntheticPerfEventCount;
 if (resizePerfEventCount > 29) {
   const finalIndex = aiEvents.findIndex((item) => item.id === "e17");
   if (finalIndex >= 0) aiEvents.splice(finalIndex, 1);
@@ -484,7 +502,11 @@ const api = {
   readContent: async (itemPath) => ({
     path: itemPath,
     name: itemPath.split(/[\\/]/).pop() || itemPath,
-    content: motionPerfEnabled && itemPath === "openmind/article/motion-review.md" ? motionDocument : "# Visual Audit Sample\n\n## Provider unavailable state\n\n这段 Markdown 覆盖长标题、长路径、中英文混排和 TOC 高亮。\n\n```bash\nnpm run verify\n```\n\n## Error state\n\nToken expired / Provider unavailable / Windows path boundary.",
+    content: motionPerfEnabled && itemPath === "openmind/article/motion-review.md"
+      ? motionDocument
+      : navCollapsePerfEnabled
+        ? navCollapsePerfMarkdown
+        : "# Visual Audit Sample\n\n## Provider unavailable state\n\n这段 Markdown 覆盖长标题、长路径、中英文混排和 TOC 高亮。\n\n```bash\nnpm run verify\n```\n\n## Error state\n\nToken expired / Provider unavailable / Windows path boundary.",
     type: itemPath.endsWith(".html") ? "html" : "markdown"
   }),
   listSources: async () => {

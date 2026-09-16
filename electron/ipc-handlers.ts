@@ -844,7 +844,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             if (input.providerId && input.providerId !== task.providerId) {
               throw new Error("Project Task Provider 不允许在续写时切换。");
             }
-            trustedInput = { sessionId: input.sessionId, prompt: input.prompt, contexts: trustedContexts };
+            trustedInput = {
+              sessionId: input.sessionId,
+              permissionProfile: input.permissionProfile,
+              prompt: input.prompt,
+              contexts: trustedContexts
+            };
           } else {
             if (task.sessionId) throw new Error("Project Task 已有 Session，续写必须携带原 Session ID。");
             if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不一致。");
@@ -854,6 +859,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               projectName: input.projectName,
               taskId: input.taskId,
               providerId: task.providerId,
+              permissionProfile: input.permissionProfile,
               prompt: input.prompt,
               contexts: trustedContexts
             };

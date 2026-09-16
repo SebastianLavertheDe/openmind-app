@@ -155,11 +155,15 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
   // 设置页"设为默认"的 agent provider：新会话的默认选中项，与设置页展示一致。
   const [preferredProviderId, setPreferredProviderId] = useState("");
+  const [preferredPermissionProfile, setPreferredPermissionProfile] = useState<PermissionProfile>("auto");
   const userChoseProviderRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     window.openmind.getPreferences?.().then((preferences) => {
-      if (!cancelled) setPreferredProviderId(preferences.defaultProvider || "");
+      if (!cancelled) {
+        setPreferredProviderId(preferences.defaultProvider || "");
+        setPreferredPermissionProfile(preferences.defaultPermissionProfile);
+      }
     }).catch(() => { /* 读不到偏好时回退到第一个可用 provider。 */ });
     return () => { cancelled = true; };
   }, []);
@@ -202,8 +206,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   }, [activeSession?.providerId, availableProviders, preferredProviderId]);
   useEffect(() => {
     // 无活动会话（草稿态）时重置回默认档位，不残留上一个会话的选择。
-    setPermissionProfile(activeSession?.permissionProfile ?? "auto");
-  }, [activeSession?.permissionProfile]);
+    setPermissionProfile(activeSession?.permissionProfile ?? preferredPermissionProfile);
+  }, [activeSession?.permissionProfile, preferredPermissionProfile]);
   useEffect(() => {
     setInteractionMode(activeSession?.interactionMode || "default");
   }, [activeSession?.interactionMode]);

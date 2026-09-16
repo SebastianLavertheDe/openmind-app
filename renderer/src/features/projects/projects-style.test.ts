@@ -20,4 +20,11 @@ describe("Project narrow actions", () => {
     expect(focusRule).toContain("outline: none;");
     expect(focusRule).not.toContain("var(--accent)");
   });
+
+  it("keeps the project list and detail canvas on the same panel surface", () => {
+    const css = readFileSync(resolve(process.cwd(), "renderer/src/styles/features/projects.css"), "utf8");
+
+    expect(css).toMatch(/\.project-main-pane\s*{[^}]*background: var\(--panel\);[^}]*}/);
+    expect(css).not.toMatch(/\.project-main-pane\s*{[^}]*background: var\(--bg\);[^}]*}/);
+  });
 });

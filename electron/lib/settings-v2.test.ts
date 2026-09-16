@@ -42,8 +42,8 @@ afterEach(() => {
 });
 
 describe("ADR-001 settings v2 — schemaVersion", () => {
-  it("schema version is 2", () => {
-    expect(SETTINGS_SCHEMA_VERSION).toBe(2);
+  it("schema version is 3", () => {
+    expect(SETTINGS_SCHEMA_VERSION).toBe(3);
   });
 });
 

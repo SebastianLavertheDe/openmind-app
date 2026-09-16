@@ -9,12 +9,15 @@ const preload = path.join(__dirname, "visual-snapshot-preload.js");
 const reportPath = path.join(appRoot, ".build", "stream-performance-report.json");
 const eventCount = Math.max(30, Number(process.env.OPENMIND_RESIZE_PERF_EVENTS) || 1_000);
 const commentaryChars = Math.max(4_096, Number(process.env.OPENMIND_STREAM_PERF_CHARS) || 49_152);
+// The artifact protocol requires a 100 KiB streaming regression fixture.
+const artifactChars = Math.max(102_400, Number(process.env.OPENMIND_ARTIFACT_PERF_CHARS) || 102_400);
 const reasoningChars = Math.max(4_096, Number(process.env.OPENMIND_REASONING_PERF_CHARS) || 24_576);
 // 长输出超过 8KiB 后渲染层走虚拟 DocumentReader，尾块不会挂载进 DOM，因此
 // 尾部文本无法作为等待信号。改等 durable 完成事件：事件泵会把 durable
 // assistant-message 排到 transient 缓冲完全排空之后，reasoning-summary 则
 // 与最后一批 delta 同一帧提交。marker 出现 == 整段流式内容已被渲染层处理。
 const commentaryDoneMarker = "COMMENTARY_STREAM_DRAIN_COMPLETE";
+const artifactDoneMarker = "ARTIFACT_STREAM_DRAIN_COMPLETE";
 const reasoningDoneMarker = "REASONING_STREAM_DRAIN_COMPLETE";
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const temporaryUserData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-stream-performance-"));
@@ -91,11 +94,20 @@ async function run() {
     });
     await waitForText(win, commentaryDoneMarker, 60_000);
   });
+  const artifactText = markdownArtifactText(artifactChars);
+  const artifact = await measurePhase(win, "artifact", async () => {
+    await emitEvent(win, "assistant-delta", artifactText, 4);
+    await emitDurableEvent(win, "stream-perf-artifact-done", 5, "assistant-message", {
+      text: artifactDoneMarker,
+      phase: "commentary"
+    });
+    await waitForText(win, artifactDoneMarker, 60_000);
+  });
   const reasoningText = markdownText(reasoningChars, "Reasoning");
   const reasoningChunkCount = Math.ceil(reasoningText.length / 512);
   const reasoning = await measurePhase(win, "reasoning", async () => {
     await emitReasoningChunks(win, reasoningText, 512, 24);
-    await emitDurableEvent(win, "stream-perf-reasoning-done", 4 + reasoningChunkCount, "reasoning-summary", {
+    await emitDurableEvent(win, "stream-perf-reasoning-done", 6 + reasoningChunkCount, "reasoning-summary", {
       text: reasoningDoneMarker
     });
     await waitForText(win, reasoningDoneMarker, 60_000);
@@ -108,6 +120,10 @@ async function run() {
     budget("commentary max frame interval", commentary.frames.maxMs, 100),
     budget("commentary long tasks", commentary.frames.longTasks, 3),
     budget("commentary renderer task time", commentary.renderer.taskMs, 1_500),
+    budget("artifact p95 frame interval", artifact.frames.p95Ms, 25),
+    budget("artifact max frame interval", artifact.frames.maxMs, 100),
+    budget("artifact long tasks", artifact.frames.longTasks, 3),
+    budget("artifact renderer task time", artifact.renderer.taskMs, 1_500),
     budget("reasoning p95 frame interval", reasoning.frames.p95Ms, 25),
     budget("reasoning max frame interval", reasoning.frames.maxMs, 100),
     budget("reasoning long tasks", reasoning.frames.longTasks, 3),
@@ -119,12 +135,13 @@ async function run() {
     fixture: {
       eventCount,
       commentaryChars,
+      artifactChars,
       reasoningChars,
       collapsed: fixtureCollapsed,
       expanded: fixtureExpanded,
       after: fixtureAfter
     },
-    phases: { commentary, reasoning },
+    phases: { commentary, artifact, reasoning },
     acceptance: {
       passed: checks.every((check) => check.passed),
       checks
@@ -327,6 +344,13 @@ function streamEvent(id, seq, kind, text) {
 function markdownText(characters, title) {
   const unit = `## ${title} update\n\n- parsed Markdown content\n- **live text** remains readable\n\n`;
   return unit.repeat(Math.ceil(characters / unit.length)).slice(0, characters);
+}
+
+function markdownArtifactText(characters) {
+  const start = "产物开场说明\n\n~~~~openmind-artifact\n# 100 KiB Streaming Artifact\n\n";
+  const end = "\n~~~~\n\n产物结束说明";
+  const bodyLength = Math.max(0, characters - start.length - end.length);
+  return `${start}${markdownText(bodyLength, "Artifact")}${end}`;
 }
 
 async function domFixture(win) {

@@ -14,6 +14,12 @@ import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
 import { DocumentReader, useDocumentCodeText, type ReaderComponents } from "../../components/document/DocumentReader";
+import { ArtifactMessageBlock } from "./ArtifactMessageBlock";
+import {
+  assistantBlocksVisibleText,
+  parseAssistantContent,
+  type AssistantContentBlock
+} from "./artifact-fence";
 
 const MARKDOWN_CACHE_LIMIT = 96;
 const STREAMING_MARKDOWN_INTERVAL_MS = 96;
@@ -50,8 +56,29 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
   );
 });
 
-export const AssistantMessage = memo(function AssistantMessage({ text, streaming = false, event }: { text: string; streaming?: boolean; event?: AiEvent }) {
+export const AssistantMessage = memo(function AssistantMessage({
+  text,
+  streaming = false,
+  event,
+  blocks: suppliedBlocks,
+  keyPrefix
+}: {
+  text: string;
+  streaming?: boolean;
+  event?: AiEvent;
+  blocks?: readonly AssistantContentBlock[];
+  keyPrefix?: string;
+}) {
   const actions = useAiActions();
+  const parsedBlocks = useMemo(() => {
+    if (suppliedBlocks) return suppliedBlocks;
+    try {
+      return parseAssistantContent(text, keyPrefix || (event ? `${event.runId}:${event.id}` : "assistant"));
+    } catch {
+      return null;
+    }
+  }, [event, keyPrefix, suppliedBlocks, text]);
+  const visibleText = !streaming && parsedBlocks ? assistantBlocksVisibleText(parsedBlocks) : text;
   return (
     <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
       <div className="message-body">
@@ -61,15 +88,38 @@ export const AssistantMessage = memo(function AssistantMessage({ text, streaming
               {event ? <button data-motion="icon" aria-label={m.ai.message.quoteReply} title={m.ai.message.quote} onClick={() => actions.addContext(messageContext(event, text))}><Quote size={13} /></button> : null}
               {event ? <button data-motion="icon" aria-label={m.ai.message.branchFromReply} title={m.ai.message.branchFromReply} onClick={() => void actions.branchRun(event.runId)}><GitFork size={13} /></button> : null}
               {event ? <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void actions.rerun(event.runId)}><Redo2 size={13} /></button> : null}
-              <CopyButton text={text} />
+              <CopyButton text={visibleText} />
             </>
           )}
         </MessageMeta>
-        <ChatMarkdown text={text} streaming={streaming} />
+        {parsedBlocks
+          ? <AssistantContent blocks={parsedBlocks} streaming={streaming} />
+          : <ChatMarkdown text={text} streaming={streaming} />}
       </div>
     </article>
   );
 });
+
+export function AssistantContent({
+  blocks,
+  streaming = false
+}: {
+  blocks: readonly AssistantContentBlock[];
+  streaming?: boolean;
+}) {
+  const lastBlock = blocks.at(-1);
+  return (
+    <div className="assistant-content">
+      {blocks.map((block) => block.type === "text"
+        ? <ChatMarkdown key={block.key} text={block.text} streaming={streaming && block === lastBlock} />
+        : (
+          <ArtifactMessageBlock key={block.key} block={block}>
+            <ChatMarkdown text={block.content} streaming={block.status === "streaming"} />
+          </ArtifactMessageBlock>
+        ))}
+    </div>
+  );
+}
 
 export function ChatMarkdown({
   text,
@@ -80,7 +130,7 @@ export function ChatMarkdown({
   streaming?: boolean;
   className?: string;
 }) {
-  const classes = ["chat-markdown", className].filter(Boolean).join(" ");
+  const classes = ["chat-markdown", streaming ? "markdown-streaming" : "", className].filter(Boolean).join(" ");
   if (!streaming && text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
     return <DocumentReader content={text} math className={classes} customComponents={documentComponents}/>;
   }

@@ -31,6 +31,7 @@
   min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
   padding: 16px 12px 12px;
   border-right: 1px solid var(--border);
   background: var(--panel-muted);

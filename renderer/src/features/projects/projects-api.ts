@@ -1,4 +1,4 @@
-import type { ContextReference } from "@shared/contracts";
+import type { ContextReference, PermissionProfile } from "@shared/contracts";
 import type {
   ProjectDetail,
   ProjectColor,
@@ -373,8 +373,24 @@ export const projectsApi = {
     await invoke("archiveProjectTask", { projectName, taskId });
   },
 
-  async startTaskRun(projectName: string, taskId: string, providerId: string, prompt: string, contexts: ContextReference[] = []): Promise<ProjectTaskRunResult> {
-    const result = record(await invoke("projectStartTaskRun", { projectName, taskId, providerId, prompt, ...(contexts.length ? { contexts } : {}) }));
+  async startTaskRun(
+    projectName: string,
+    taskId: string,
+    providerId: string,
+    prompt: string,
+    contexts: ContextReference[] = [],
+    permissionProfile: PermissionProfile = "auto",
+    sessionId?: string
+  ): Promise<ProjectTaskRunResult> {
+    const result = record(await invoke("projectStartTaskRun", {
+      projectName,
+      taskId,
+      providerId,
+      permissionProfile,
+      prompt,
+      ...(sessionId ? { sessionId } : {}),
+      ...(contexts.length ? { contexts } : {})
+    }));
     const session = record(result.session) as ProjectTaskRunResult["session"];
     const run = record(result.run) as ProjectTaskRunResult["run"];
     return { task: task(result.task), session, run };

@@ -3,6 +3,7 @@ import {
   AiRunSchema,
   AiSessionSchema,
   ContextReferenceSchema,
+  PermissionProfileSchema,
   type AiRun,
   type AiSession,
   type ContextReference
@@ -285,6 +286,7 @@ export const ProjectStartTaskRunInputSchema = z.object({
   taskId: z.string().uuid(),
   sessionId: z.string().min(1).max(160).optional(),
   providerId: z.string().trim().min(1).max(160).optional(),
+  permissionProfile: PermissionProfileSchema.default("auto"),
   prompt: z.string().trim().min(1).max(2_000_000),
   contexts: z.array(ContextReferenceSchema).max(50).default([])
 }).superRefine((input, context) => {

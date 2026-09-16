@@ -29,6 +29,7 @@ describe("SessionStore", () => {
     const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: workspace, title: "隔离状态", permissionProfile: "edit", scope: workspaceScope });
 
     expect(store.root).toBe(path.join(stateRoot, ".openmind", "ai"));
+    expect(JSON.parse(fs.readFileSync(path.join(store.root, "settings.json"), "utf8"))).toMatchObject({ defaultPermissionProfile: "auto" });
     expect(fs.existsSync(path.join(store.root, "sessions", session.id, "session.json"))).toBe(true);
     expect(fs.existsSync(path.join(workspace, ".openmind"))).toBe(false);
   });
@@ -56,7 +57,7 @@ describe("SessionStore", () => {
       providerId: "claude-native",
       cwd: workspaceB,
       title: "workspace beta only",
-      permissionProfile: "read-only",
+      permissionProfile: "edit",
       scope: workspaceScope
     });
     const runB = writerB.createRun(sessionB, "beta run", []);
@@ -130,7 +131,7 @@ describe("SessionStore", () => {
     expect(session).toMatchObject({
       projectRoot: fs.realpathSync.native(projectRoot),
       cwd: ".",
-      permissionProfile: "read-only",
+      permissionProfile: "edit",
       scope: { type: "project-task", projectId: project.id, projectName: project.name, taskId: task.taskId }
     });
     expect(run.scope).toEqual(session.scope);
@@ -153,7 +154,7 @@ describe("SessionStore", () => {
       projectRoot: session.projectRoot,
       scope: session.scope,
       cwd: ".",
-      permissionProfile: "read-only"
+      permissionProfile: "edit"
     });
 
     const restarted = new SessionStore(workspace, stateRoot, projectsRoot);

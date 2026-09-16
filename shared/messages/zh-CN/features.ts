@@ -295,7 +295,7 @@ export const featureMessages = {
       preview: "预览",
       edit: "编辑",
       fileActions: "文件操作",
-      truncated: "文件过大，仅展示前 1 MB 内容，无法在应用内保存。",
+      truncated: "文件过大，仅展示前 5 MB 内容，无法在应用内保存。",
       editAria: "编辑每日简报",
       selectTitle: "选择一份简报",
       selectDescription: "点击左侧文件后，可在右侧预览或编辑具体内容。",

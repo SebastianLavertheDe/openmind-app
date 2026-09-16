@@ -1012,7 +1012,7 @@ export const UserPreferencesSchema = z.object({
   contentPreviewMode: z.enum(["inline", "sidebar"]).default("sidebar"),
   markReadOnOpen: z.boolean().default(true),
   defaultProvider: z.string().default(""),
-  defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("edit"),
+  defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("auto"),
   notesDir: z.string().default("openmind"),
   /** AI 写作时允许通过 Playwright MCP 从已登录的 Chrome 获取原文证据截图。 */
   browserAutomationEnabled: z.boolean().default(false),

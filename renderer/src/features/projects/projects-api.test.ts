@@ -28,8 +28,28 @@ describe("projectsApi", () => {
 
     const result = await projectsApi.startTaskRun("AI 安全", "task-1", "codex", "写报告");
 
-    expect(projectStartTaskRun).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1", providerId: "codex", prompt: "写报告" });
+    expect(projectStartTaskRun).toHaveBeenCalledWith({ projectName: "AI 安全", taskId: "task-1", providerId: "codex", permissionProfile: "auto", prompt: "写报告" });
     expect(result.session.id).toBe("session-1");
+  });
+
+  it("forwards an explicit permission and session when continuing a project task", async () => {
+    const projectStartTaskRun = vi.fn(async () => ({
+      task: { taskId: "task-1", projectName: "AI 安全", title: "报告", sessionId: "session-1", providerId: "codex", status: "active", createdAt: "2026-08-30T00:00:00.000Z", updatedAt: "2026-08-31T00:00:00.000Z" },
+      session: { id: "session-1" },
+      run: { id: "run-2" }
+    }));
+    window.openmind = { projectStartTaskRun } as never;
+
+    await projectsApi.startTaskRun("AI 安全", "task-1", "codex", "继续", [], "read-only", "session-1");
+
+    expect(projectStartTaskRun).toHaveBeenCalledWith({
+      projectName: "AI 安全",
+      taskId: "task-1",
+      providerId: "codex",
+      permissionProfile: "read-only",
+      prompt: "继续",
+      sessionId: "session-1"
+    });
   });
 
   it("renames and removes tasks through the Project task endpoints", async () => {

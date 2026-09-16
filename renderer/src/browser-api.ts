@@ -145,7 +145,7 @@ export function installBrowserPreviewApi(): boolean {
     contentPreviewMode: "sidebar" as const,
     markReadOnOpen: true,
     defaultProvider: "",
-    defaultPermissionProfile: "edit" as const,
+    defaultPermissionProfile: "auto" as const,
     notesDir: "openmind",
     browserAutomationEnabled: false,
     browserReuseExistingTabs: true,

@@ -22,6 +22,12 @@ import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
+import {
+  MARKDOWN_ARTIFACT_START_FENCE,
+  assistantBlocksVisibleText,
+  containsAssistantArtifact,
+  parseAssistantContent
+} from "./artifact-fence";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 import { CommandGroup, ToolCallCard, toolIcon } from "./tool";
@@ -423,7 +429,12 @@ function ProcessTimelineItem({
   live: boolean;
   activeRunHasTool: boolean;
 }) {
-  const { streaming, reasoningStreaming } = useAiStreaming(live ? item.run.id : null);
+  const terminalWithTransient = ["failed", "cancelled", "conflicted"].includes(item.run.status);
+  const { streaming, reasoningStreaming, assistantBlocks } = useAiStreaming(live || terminalWithTransient ? item.run.id : null);
+  const hasArtifact = containsAssistantArtifact(assistantBlocks);
+  const interruptedArtifact = assistantBlocks.some((block) => block.type === "artifact" && block.status === "incomplete");
+  const firstStreamingBlock = assistantBlocks[0];
+  const visibleStreaming = !hasArtifact && firstStreamingBlock?.type === "text" ? firstStreamingBlock.text : "";
   const pending = Boolean(
     live
     && item.run.status === "running"
@@ -431,22 +442,34 @@ function ProcessTimelineItem({
     && !streaming
     && !reasoningStreaming
   );
-  return (
+  return <>
     <CompletedProcess
       run={item.run}
       steps={item.steps}
       completedAt={item.completedAt}
       missingFinal={item.missingFinal}
       liveReasoning={reasoningStreaming}
-      liveCommentary={streaming}
+      liveCommentary={hasArtifact ? "" : visibleStreaming}
+      hideLiveCommentary={hasArtifact}
       pending={pending}
     />
-  );
+    {hasArtifact ? (
+      <AssistantMessage
+        text={streaming}
+        blocks={assistantBlocks}
+        keyPrefix={item.run.id}
+        streaming={live && Boolean(streaming) && !interruptedArtifact}
+      />
+    ) : null}
+  </>;
 }
 
 function StandaloneLiveProcess({ runId, pendingEligible }: { runId: string | null; pendingEligible: boolean }) {
-  const { streaming, reasoningStreaming } = useAiStreaming(runId);
+  const { streaming, reasoningStreaming, assistantBlocks } = useAiStreaming(runId);
   if (!runId) return null;
+  if (containsAssistantArtifact(assistantBlocks)) {
+    return <AssistantMessage text={streaming} blocks={assistantBlocks} keyPrefix={runId} streaming />;
+  }
   if (reasoningStreaming) {
     return (
       <div className="trace-step reasoning live">
@@ -631,6 +654,7 @@ function CompletedProcess({
   missingFinal,
   liveReasoning = "",
   liveCommentary = "",
+  hideLiveCommentary = false,
   pending = false
 }: {
   run: AiRun;
@@ -639,6 +663,7 @@ function CompletedProcess({
   missingFinal: boolean;
   liveReasoning?: string;
   liveCommentary?: string;
+  hideLiveCommentary?: boolean;
   pending?: boolean;
 }) {
   const processing = ["queued", "running", "waiting-approval", "applying"].includes(run.status);
@@ -694,7 +719,7 @@ function CompletedProcess({
           processing={processing}
           liveCurrent={Boolean(reasoningPresence.visible || commentaryPresence.visible || pending)}
         />
-        {commentaryPresence.visible && stashedCommentary.current ? <div className="transient-process-presence" data-leaving={commentaryPresence.leaving || undefined} aria-hidden={commentaryPresence.leaving || undefined} inert={commentaryPresence.leaving || undefined}><ProcessNarrative text={liveCommentary || stashedCommentary.current} streaming={!commentaryPresence.leaving} /></div> : null}
+        {!hideLiveCommentary && commentaryPresence.visible && stashedCommentary.current ? <div className="transient-process-presence" data-leaving={commentaryPresence.leaving || undefined} aria-hidden={commentaryPresence.leaving || undefined} inert={commentaryPresence.leaving || undefined}><ProcessNarrative text={liveCommentary || stashedCommentary.current} streaming={!commentaryPresence.leaving} /></div> : null}
         {reasoningPresence.visible && stashedReasoning.current ? (
           <div className="trace-step reasoning live transient-process-presence" data-leaving={reasoningPresence.leaving || undefined} aria-hidden={reasoningPresence.leaving || undefined} inert={reasoningPresence.leaving || undefined}>
             <ReasoningCard text={liveReasoning || stashedReasoning.current} streaming={!reasoningPresence.leaving} />
@@ -830,10 +855,20 @@ function processDuration(startedAt: string, completedAt?: string | null): string
 }
 
 function ProcessNarrative({ text, streaming = false }: { text: string; streaming?: boolean }) {
-  if (!text.trim()) return null;
+  const visibleText = useMemo(() => {
+    if (streaming || !text.includes(MARKDOWN_ARTIFACT_START_FENCE)) return text;
+    try {
+      const blocks = parseAssistantContent(text, "process");
+      if (!containsAssistantArtifact(blocks)) return text;
+      return assistantBlocksVisibleText(blocks.filter((block) => block.type === "text"));
+    } catch {
+      return text;
+    }
+  }, [streaming, text]);
+  if (!visibleText.trim()) return null;
   return (
     <div className="process-narrative-block" aria-live={streaming ? "polite" : undefined}>
-      <ChatMarkdown text={text} streaming={streaming} className="process-narrative" />
+      <ChatMarkdown text={visibleText} streaming={streaming} className="process-narrative" />
     </div>
   );
 }

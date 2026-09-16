@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import { StringDecoder } from "node:string_decoder";
 import { messages } from "../../shared/messages";
+import { CONTENT_PREVIEW_MAX_BYTES } from "../../shared/content-kinds";
 
-export const CONTENT_PREVIEW_BYTES = 1024 * 1024;
+export const CONTENT_PREVIEW_BYTES = CONTENT_PREVIEW_MAX_BYTES;
 
 function assertFile(stat: fs.Stats): void {
   if (!stat.isFile()) throw new Error(messages.errors.file.notAFile);

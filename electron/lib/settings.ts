@@ -21,8 +21,11 @@ type RawSettings = Record<string, unknown>;
  * v2: ADR-001 — `openmindRoot` (the actual openmind dir) plus an optional
  *     `workspaceRoot`. The pre-release v1 `repoRoot` field was removed along
  *     with its migration shims; unknown keys in settings.json are ignored.
+ * v3: New AI conversations default to automatic execution. Migrate the old
+ *     v2 product default (`edit`) once; choices saved after this migration
+ *     remain explicit and are preserved.
  */
-export const SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;
 
 export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   completed: false,
@@ -415,7 +418,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   contentPreviewMode: "sidebar",
   markReadOnOpen: true,
   defaultProvider: "",
-  defaultPermissionProfile: "edit",
+  defaultPermissionProfile: "auto",
   notesDir: "openmind",
   browserAutomationEnabled: false,
   browserReuseExistingTabs: true,
@@ -497,6 +500,12 @@ function resetPreferences(section?: string): UserPreferences {
 
 function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
   const source = raw && typeof raw === "object" ? raw as RawSettings : {};
+  const storedSchemaVersion = typeof source.schemaVersion === "number" && Number.isInteger(source.schemaVersion)
+    ? source.schemaVersion
+    : 0;
+  const storedPermissionProfile = storedSchemaVersion < 3 && source.defaultPermissionProfile === "edit"
+    ? undefined
+    : source.defaultPermissionProfile;
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     openmindRoot: stringPref(source.openmindRoot, DEFAULT_PREFERENCES.openmindRoot, strict, "openmindRoot", 4096),
@@ -511,7 +520,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     contentPreviewMode: enumPref(source.contentPreviewMode, ["inline", "sidebar"], DEFAULT_PREFERENCES.contentPreviewMode, strict, "contentPreviewMode"),
     markReadOnOpen: boolPref(source.markReadOnOpen, DEFAULT_PREFERENCES.markReadOnOpen, strict, "markReadOnOpen"),
     defaultProvider: stringPref(source.defaultProvider, DEFAULT_PREFERENCES.defaultProvider, strict, "defaultProvider", 200),
-    defaultPermissionProfile: enumPref(source.defaultPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
+    defaultPermissionProfile: enumPref(storedPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
     browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),

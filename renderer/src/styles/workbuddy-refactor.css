@@ -80,13 +80,13 @@
   /* 侧边栏导航项语义变量（WorkBuddy 化改造，集中管控字号/行高/圆角）*/
   --nav-item-height: 30px;
   --nav-item-radius: 8px;
-  --nav-item-font: 13px;
+  --nav-item-font: 14px;
   --nav-item-weight: 400;
   --nav-item-weight-active: 400;
   --nav-icon-size: 16px;
   --nav-gap: 8px;
   --nav-group-gap: 0;
-  --nav-group-label-font: 12px;
+  --nav-group-label-font: 13px;
   font-family: var(--font-sans-default);
   font-size: 13px;
   line-height: 1.5;
@@ -284,7 +284,7 @@ select:focus-visible,
   padding: 4px 12px;
   border: 0;
   border-radius: var(--nav-item-radius);
-  color: #2f2f2d;
+  color: #45474b;
   font-size: var(--nav-item-font);
   font-weight: var(--nav-item-weight);
   line-height: 22px;
@@ -315,7 +315,7 @@ select:focus-visible,
 .app-nav nav button.active {
   border-color: transparent;
   background: var(--nav-selected-bg);
-  color: #151515;
+  color: #303238;
   box-shadow: none;
   font-weight: var(--nav-item-weight-active);
 }
@@ -569,9 +569,9 @@ select:focus-visible,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 20px;
   color: var(--text-dim);
 }
 
@@ -786,7 +786,15 @@ select:focus-visible,
   color: var(--text);
   cursor: wait;
 }
-.brief-file-pending-icon { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
+.brief-file-pending-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+}
+.brief-file-pending-icon.is-visible { opacity: 1; }
 .document-file-list > button:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
@@ -1699,7 +1707,7 @@ select:focus-visible,
 .ai-sidebar,
 .conversation-pane,
 .chat,
-.chat-scroll { background: var(--page-bg); }
+.chat-scroll { background: var(--panel); }
 
 /* 桌面三栏布局：中间工作区和右侧 AI 区使用同级悬浮卡片。 */
 @media (min-width: 1181px) {
@@ -1715,7 +1723,7 @@ select:focus-visible,
     overflow: hidden;
     border: 1px solid var(--workspace-border);
     border-radius: var(--workspace-radius);
-    background: var(--page-bg);
+    background: var(--panel);
     box-shadow: var(--workspace-shadow);
   }
 
@@ -1768,7 +1776,7 @@ select:focus-visible,
 
 .conversation-header {
   border-bottom-color: var(--border-subtle);
-  background: var(--page-bg);
+  background: var(--panel);
   box-shadow: none;
 }
 
@@ -2117,7 +2125,7 @@ select:focus-visible,
 .composer {
   container: chat-composer / inline-size;
   border-top: 0;
-  background: var(--page-bg);
+  background: var(--panel);
 }
 
 .composer-flow {
@@ -2719,12 +2727,12 @@ select:focus-visible,
 .composer-flow {
   border-color: color-mix(in srgb, var(--border-subtle) 82%, transparent);
   border-radius: 24px;
-  background: var(--page-bg);
+  background: var(--panel);
   box-shadow: 0 8px 28px rgba(25, 25, 24, .075);
 }
 
 :root[data-theme="dark"] .composer-flow {
-  background: var(--page-bg);
+  background: var(--panel);
 }
 
 .composer-flow:focus-within {
@@ -3013,7 +3021,7 @@ select:focus-visible,
   overflow: hidden;
   border: 1px solid var(--workspace-border, var(--border));
   border-radius: var(--workspace-radius, 14px);
-  background: var(--page-bg);
+  background: var(--panel);
   box-shadow: var(--shadow-overlay);
   animation: responsive-companion-overlay-in var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
@@ -3067,7 +3075,7 @@ select:focus-visible,
   border-radius: 0;
   box-shadow: none;
   overflow: hidden;
-  background: var(--page-bg);
+  background: var(--panel);
   transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), transform var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
   animation: companion-canvas-in var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }

@@ -23,6 +23,7 @@
     "verify": "npm run build && npm run test:unit && npm run test:integration && npm run test:e2e && node scripts/verify.js && npm run release:evidence && npm run recovery:drill && npm run lint:reporoot && npm run perf:check && npm run perf:stream && npm run audit:evidence && npm run scale:check && npm run runtime:contract && npm run stability:soak && npm run visual:snapshot && npm run provider:e2e:report && npm run provider:e2e:contract && npm run security:review && npm run clean-machine:report && npm run evidence:contract && npm run package:safety && npm run package:safety:contract && npm run package:artifact:contract && npm run release:readiness && npm run release:readiness:contract && npm run motion:check && npm run typography:check && npm run color:check",
     "perf:check": "node scripts/perf-check.js",
     "perf:resize": "node scripts/resize-performance.js",
+    "perf:nav-collapse": "node scripts/nav-collapse-performance.js",
     "perf:documents": "node scripts/document-performance.js",
     "perf:ai-context": "node scripts/ai-context-performance.js",
     "perf:services": "node scripts/service-performance.js",
