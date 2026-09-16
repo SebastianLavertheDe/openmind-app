@@ -9,7 +9,7 @@ export function scrollContainer(element: HTMLElement): HTMLElement {
 }
 
 function isColumnResizeActive(element: Element | null): boolean {
-  return Boolean(element?.closest(".app-shell.ai-sidebar-resizing, .ai-workbench.is-resizing-preview"));
+  return Boolean(element?.closest(".app-shell.ai-sidebar-resizing, .app-shell[data-nav-transitioning], .ai-workbench.is-resizing-preview"));
 }
 
 type MountedVirtualItem = {
@@ -118,7 +118,10 @@ export function useVirtualFlow({ count, keyAt, estimate, pinned = [], enabled = 
   const instanceRef = useRef(virtualizer);
   instanceRef.current = virtualizer;
   useLayoutEffect(() => {
-    if (!element) return;
+    // Short documents use normal flow and never consume virtual geometry.
+    // Observing them would read every historical message's bounding box on
+    // each resize, defeating content-visibility for offscreen conversations.
+    if (!element || !enabled) return;
     scroll.current = scrollContainer(element);
     const scroller = scroll.current;
     let frame = 0;

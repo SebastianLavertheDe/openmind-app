@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("AppShell layout performance styles", () => {
-  it("switches navigation grid tracks atomically", () => {
+  it("keeps continuous resizing free of implicit grid transitions", () => {
     const styles = [
       "renderer/src/styles/shell.css",
       "renderer/src/styles/final-polish.css",

@@ -28,6 +28,7 @@
     "perf:services": "node scripts/service-performance.js",
     "perf:stream": "node scripts/stream-performance.js",
     "perf:motion": "node scripts/motion-performance.js",
+    "perf:navigation": "node scripts/motion-performance.js --navigation-only",
     "audit:evidence": "node scripts/audit-evidence.js",
     "audit:responsive-hardcode": "node scripts/audit-responsive-hardcode.js",
     "audit:ui-copy-hardcode": "node scripts/audit-ui-copy-hardcode.js",

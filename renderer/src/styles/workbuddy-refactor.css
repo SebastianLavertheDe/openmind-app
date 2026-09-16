@@ -2948,8 +2948,7 @@ select:focus-visible,
   );
   --ai-layout-column: var(--ai-sidebar-width);
   grid-template-columns: var(--nav-width, var(--layout-nav-expanded-width)) minmax(0, 1fr) var(--ai-layout-column);
-  /* 不动画 grid 轨道：动画网格列会在过渡期内逐帧强制重排整个工作区
-   * （Markdown 逐帧重新换行、虚拟列表逐帧重测），离散状态切换必须一次到位。 */
+  /* 持续拖拽和窗口缩放即时响应；仅显式导航切换启用有测量保护的过渡。 */
 }
 
 .app-shell.ai-sidebar-resizing {

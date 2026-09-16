@@ -3,8 +3,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { app, BrowserWindow } = require("electron");
+const { checkNavigationMotion, checkNavigationCompanion } = require("./navigation-motion-qa");
 
 const directory = process.env.OPENMIND_MOTION_PERF_DIR;
+const navigationOnly = process.env.OPENMIND_NAVIGATION_PERF === "1";
 const appRoot = path.resolve(__dirname, "..");
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-motion-profile-"));
 app.setPath("userData", profile);
@@ -22,10 +24,18 @@ const watchdog = setTimeout(() => { console.error("Motion performance timed out"
 function saveReport() {
   fs.writeFileSync(path.join(directory, "report.json"), JSON.stringify(report, null, 2));
   fs.mkdirSync(path.join(appRoot, ".build"), { recursive: true });
-  fs.writeFileSync(path.join(appRoot, ".build/motion-performance-report.json"), JSON.stringify(report, null, 2));
+  fs.writeFileSync(path.join(appRoot, navigationOnly ? ".build/navigation-performance-report.json" : ".build/motion-performance-report.json"), JSON.stringify(report, null, 2));
 }
 function check(name, actual, maximum) {
   report.checks.push({ name, actual, maximum, passed: actual <= maximum });
+}
+function finish() {
+  report.acceptance = report.checks.every(c => c.passed);
+  saveReport();
+  console.log(JSON.stringify({ acceptance: report.acceptance, checks: report.checks }, null, 2));
+  win.destroy();
+  clearTimeout(watchdog);
+  if (report.acceptance) app.quit(); else app.exit(1);
 }
 async function until(code) {
   for (let i = 0; i < 300; i++) { if (await js(code)) return; await delay(50); }
@@ -36,7 +46,7 @@ async function metrics() {
 }
 async function installSampler() {
   await js(`(() => {
-    const s = window.motionSamples = {active:false,frames:[],tasks:[],last:0,paneAnimations:0,themeSeen:false,themeAnimated:false};
+    const s = window.motionSamples = {active:false,frames:[],tasks:[],last:0,paneAnimations:0,themeSeen:false,themeAnimated:false,navigationAnimated:false,navWidths:[],workspaceWidths:[]};
     const animate = Element.prototype.animate;
     Element.prototype.animate = function(...args) {
       if(s.active && this.classList.contains('conversation-pane')) s.paneAnimations++;
@@ -53,6 +63,18 @@ async function installSampler() {
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+    // Observe delivered sizes without forcing layout in the timing sampler.
+    const sizes = new ResizeObserver(entries => {
+      if(!s.active || !s.probeNavigation) return;
+      for(const entry of entries) {
+        const target=entry.target.classList.contains('app-nav') ? s.navWidths : s.workspaceWidths;
+        target.push(Math.round(entry.borderBoxSize[0].inlineSize*100)/100);
+      }
+    });
+    document.querySelectorAll('.app-nav,.app-stage').forEach(el=>sizes.observe(el));
+    document.addEventListener('transitionrun',e=>{
+      if(s.active && s.probeNavigation && e.target.classList.contains('app-shell') && e.propertyName==='grid-template-columns') s.navigationAnimated=true;
+    });
     new PerformanceObserver(list => { if(s.active) s.tasks.push(...list.getEntries().map(e=>e.duration)); }).observe({type:'longtask'});
   })()`);
 }
@@ -64,7 +86,7 @@ async function measure(name, action, duration = 650, trace = false) {
     await cdp("Tracing.start", { categories: "devtools.timeline,cc", transferMode: "ReportEvents" });
   }
   const before = await metrics();
-  await js("Object.assign(window.motionSamples,{active:true,frames:[],tasks:[],last:performance.now(),paneAnimations:0,themeSeen:false,themeAnimated:false})");
+  await js("Object.assign(window.motionSamples,{active:true,frames:[],tasks:[],last:performance.now(),paneAnimations:0,themeSeen:false,themeAnimated:false,navigationAnimated:false,navWidths:[],workspaceWidths:[]})");
   await js(action);
   await delay(duration);
   const samples = await js("window.motionSamples.active=false;({...window.motionSamples})");
@@ -88,6 +110,11 @@ async function measure(name, action, duration = 650, trace = false) {
   for (const key of ["TaskDuration", "ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "LayoutCount"]) {
     phase.renderer[key] = round((after[key] - before[key]) * (key.endsWith("Duration") ? 1000 : 1));
   }
+  if (samples.probeNavigation) Object.assign(phase, {
+    navigationAnimated: samples.navigationAnimated,
+    liveNavWidths: [...new Set(samples.navWidths)],
+    liveWorkspaceWidths: [...new Set(samples.workspaceWidths)]
+  });
   if (trace) phase.paintEvents = events.filter(e => e.name === "Paint" && e.ph === "X").length;
   report.phases.push(phase);
   console.log(JSON.stringify(phase));
@@ -119,6 +146,7 @@ app.whenReady().then(async () => {
   await delay(600);
   await installSampler();
   report.environment.nodes = await js("document.querySelectorAll('*').length");
+  report.environment.viewport = await js("({width:innerWidth,height:innerHeight})");
   report.environment.reducedMotion = await js("matchMedia('(prefers-reduced-motion: reduce)').matches");
   assert.equal(report.environment.reducedMotion, false, "Performance must be measured with animations enabled");
 
@@ -128,6 +156,13 @@ app.whenReady().then(async () => {
     assert(opened.paneAnimations > 0, "Opening must retain the conversation glide");
     check(`preview open ${i} layouts`, opened.renderer.LayoutCount, 30);
     if (i === 0) fs.writeFileSync(path.join(directory, "preview.png"), (await win.webContents.capturePage()).toPNG());
+    if (i === 0 && navigationOnly) {
+      await delay(400);
+      await checkNavigationMotion({ win, directory, js, cdp, measure, until, check, delay });
+      await checkNavigationCompanion({ win, directory, js, measure, until, check, delay });
+      finish();
+      return;
+    }
     const closed = await measure(`preview-close-${i}`, `document.querySelector('.ai-file-preview header button[aria-label="关闭文件预览"]').click()`);
     assert(closed.paneAnimations > 0, "Closing must retain the conversation glide");
     check(`preview close ${i} layouts`, closed.renderer.LayoutCount, 15);
@@ -192,10 +227,5 @@ app.whenReady().then(async () => {
   assert(await js("[...document.querySelectorAll('.ui-skeleton span')].every(s=>getComputedStyle(s,'::after').transform !== 'none')"), "Every skeleton variant must have a moving gradient");
   check("steady skeleton paints", skeleton.paintEvents, 4);
   fs.writeFileSync(path.join(directory, "skeleton.png"), (await win.webContents.capturePage()).toPNG());
-  report.acceptance = report.checks.every(c => c.passed);
-  saveReport();
-  console.log(JSON.stringify({ acceptance: report.acceptance, checks: report.checks }, null, 2));
-  win.destroy();
-  clearTimeout(watchdog);
-  if (report.acceptance) app.quit(); else app.exit(1);
+  finish();
 }).catch(error => { saveReport(); console.error(error); app.exit(1); });

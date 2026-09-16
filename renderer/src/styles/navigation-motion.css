@@ -1,0 +1,13 @@
+/* Only explicit desktop toggles interpolate the shell tracks. The same marker
+ * keeps virtual document measurement on the bounded column-resize path. */
+.app-shell[data-nav-transitioning] {
+  transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
+}
+
+.app-shell[data-nav-transitioning] > .app-nav {
+  overflow: clip;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-nav-transitioning] { transition: none; }
+}

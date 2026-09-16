@@ -13,6 +13,7 @@ import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
+import { useNavigationMotion } from "./use-navigation-motion";
 
 export function AppShell({
   page,
@@ -68,6 +69,7 @@ export function AppShell({
   const navTriggerRef = useRef<HTMLButtonElement>(null);
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
   const effectiveNavCollapsed = !compactShell && (railShell || navCollapsed);
+  const toggleNavigation = useNavigationMotion(navRef, navCollapsed, setNavCollapsed, !compactShell && !railShell && !fullPageMode, page);
   const navigationInlineSize = fullPageMode || compactShell
     ? 0
     : effectiveNavCollapsed
@@ -185,7 +187,9 @@ export function AppShell({
                 className="icon-button nav-collapse-button"
                 data-motion="icon"
                 aria-label={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse}
-                onClick={() => compactShell ? closeMobileNav() : setNavCollapsed(!navCollapsed)}
+                aria-expanded={compactShell ? mobileNavOpen : !effectiveNavCollapsed}
+                aria-controls="primary-navigation"
+                onClick={compactShell ? closeMobileNav : toggleNavigation}
               >
                 {compactShell || !navCollapsed ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
               </button>

@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { reflowMountedVirtualRows, useVirtualFlow } from "./use-virtual-flow";
 
 const resizedEntry = {
@@ -7,6 +7,30 @@ const resizedEntry = {
 } as unknown as ResizeObserverEntry;
 
 describe("useVirtualFlow resize measurement", () => {
+  it("leaves short messages in browser flow and starts measuring only when virtualization is needed", () => {
+    const host = document.createElement("div");
+    host.style.overflowY = "auto";
+    const flow = document.createElement("div");
+    const measure = vi.spyOn(flow, "getBoundingClientRect");
+    Object.defineProperty(flow, "clientWidth", { value: 440 });
+    host.append(flow);
+    document.body.append(host);
+    const keyAt = (index: number) => `row-${index}`;
+    const { result, rerender, unmount } = renderHook(({ count }) => useVirtualFlow({ count, keyAt, estimate: () => 80 }), { initialProps: { count: 10 } });
+    act(() => result.current.ref(flow));
+    act(() => host.dispatchEvent(new Event("scroll")));
+    expect(measure).not.toHaveBeenCalled();
+    rerender({ count: 100 });
+    expect(measure).toHaveBeenCalled();
+    expect(result.current.width).toBe(440);
+    rerender({ count: 10 });
+    measure.mockClear();
+    act(() => host.dispatchEvent(new Event("scroll")));
+    expect(measure).not.toHaveBeenCalled();
+    unmount();
+    host.remove();
+  });
+
   it("estimates rows at their layout width while a parent pane is scaled", () => {
     const host = document.createElement("div");
     host.style.overflowY = "auto";
@@ -26,9 +50,10 @@ describe("useVirtualFlow resize measurement", () => {
   });
 
   it.each([
-    ["application companion", "app-shell ai-sidebar-resizing"],
-    ["workbench preview", "ai-workbench is-resizing-preview"]
-  ])("keeps cached row heights during an active %s drag", (_label, className) => {
+    ["application companion", "app-shell ai-sidebar-resizing", false],
+    ["navigation", "app-shell", true],
+    ["workbench preview", "ai-workbench is-resizing-preview", false]
+  ] as const)("keeps cached row heights during an active %s resize", (_label, className, navigation) => {
     const { result } = renderHook(() => useVirtualFlow({
       count: 1,
       keyAt: (index) => `row-${index}`,
@@ -37,6 +62,7 @@ describe("useVirtualFlow resize measurement", () => {
     }));
     const host = document.createElement("div");
     host.className = className;
+    if (navigation) host.setAttribute("data-nav-transitioning", "");
     const row = document.createElement("div");
     row.dataset.index = "0";
     host.append(row);
@@ -47,6 +73,7 @@ describe("useVirtualFlow resize measurement", () => {
     expect(virtualizer.options.measureElement(row, resizedEntry, virtualizer)).toBe(123);
 
     host.className = "";
+    host.removeAttribute("data-nav-transitioning");
     expect(virtualizer.options.measureElement(row, resizedEntry, virtualizer)).toBe(999);
     host.remove();
   });
