@@ -1534,8 +1534,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .published-summary small { color: var(--muted); font-size: var(--fs-xs); }
 
 /* ============================================================
-   AI 工作台 UI/UX Review 落地补丁 (ai-ui-ux-review.md)
-   按 review 编号组织,每批一组规则。
+   AI 工作台交互与视觉优化
+   按交互功能分组组织样式规则。
    ============================================================ */
 
 /* —— D1/D2 按钮微交互:hover lift + press scale ——
