@@ -20,16 +20,16 @@ export function InlineAiBar({
 }: {
   selection: EditorSelectionSnapshot;
   disabled?: boolean;
-  onReplace(start: number, end: number, replacement: string): void;
+  onReplace(start: number, end: number, replacement: string, bookmark?: number): boolean | void;
 }) {
   const { snapshot, activeRun, sessionActiveRun } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
   const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
   const { streaming } = useAiStreaming(streamingRunId);
-  const [sel, setSel] = useState<{ start: number; end: number; text: string } | null>(null);
+  const [sel, setSel] = useState<EditorSelectionSnapshot | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-  const [range, setRange] = useState<{ start: number; end: number } | null>(null);
+  const [range, setRange] = useState<EditorSelectionSnapshot | null>(null);
   const [done, setDone] = useState(false);
   const [finalText, setFinalText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export function InlineAiBar({
     lastStream.current = "";
     setFinalText("");
     setDone(false);
-    setRange({ start: sel.start, end: sel.end });
+    setRange(sel);
     pendingRef.current = true;
     setRunId(null);
     const prompt = `${instruction}${m.creativeUi.inlineAi.promptSuffix}${m.creativeUi.inlineAi.originalPrefix}${text}`;
@@ -86,7 +86,10 @@ export function InlineAiBar({
 
   const accept = () => {
     if (!range) return;
-    onReplace(range.start, range.end, finalText);
+    if (onReplace(range.start, range.end, finalText, range.bookmark) === false) {
+      setError("选中的内容已经改变，请重新选择后改写。");
+      return;
+    }
     reset();
   };
 

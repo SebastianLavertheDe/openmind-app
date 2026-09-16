@@ -62,7 +62,11 @@ export default defineConfig(({ command }) => ({
             normalized.includes("/node_modules/style-mod/") ||
             normalized.includes("/node_modules/w3c-keyname/")
           ) return "vendor-editor";
-          if (normalized.includes("/@codemirror/") || normalized.includes("/@lezer/")) return "vendor-editor-language";
+          // Crepe loads code languages on demand. Grouping every language and
+          // Lezer grammar together would make a plain document load them all.
+          if (normalized.includes("/prosemirror-") || normalized.includes("/prosemirror-virtual-cursor/")) return "vendor-document-editor";
+          if (normalized.includes("/@vue/") || normalized.includes("/vue/")) return "vendor-vue";
+          if (normalized.includes("/@milkdown/crepe/node_modules/katex/")) return "vendor-crepe-math";
           if (
             normalized.includes("/react-markdown/") ||
             normalized.includes("/remark-") ||

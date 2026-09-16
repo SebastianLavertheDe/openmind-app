@@ -28,13 +28,21 @@ export function ArtifactMessageBlock({
       aria-busy={block.status === "streaming" || undefined}
     >
       <header className="assistant-artifact-header">
-        <span className="assistant-artifact-kind"><FileText size={14} aria-hidden />{m.ai.message.artifactLabel}</span>
-        <strong>{block.title}</strong>
-        <span className="assistant-artifact-status" role="status">
-          {block.status === "streaming" ? <><LoaderCircle className="spin" size={13} aria-hidden />{m.ai.message.artifactStreaming}</> : null}
-          {block.status === "complete" ? <><CheckCircle2 size={13} aria-hidden />{m.ai.message.artifactComplete}</> : null}
-          {block.status === "incomplete" ? <><AlertTriangle size={13} aria-hidden />{m.ai.message.artifactIncomplete}</> : null}
-        </span>
+        <div className="assistant-artifact-heading">
+          <span className="assistant-artifact-icon" aria-hidden><FileText size={18} /></span>
+          <div className="assistant-artifact-details">
+            <span className="assistant-artifact-kind">{m.ai.message.artifactLabel}</span>
+            <span className="assistant-artifact-status" role="status">
+              {block.status === "streaming" ? <><LoaderCircle className="spin" size={12} aria-hidden />{m.ai.message.artifactStreaming}</> : null}
+              {block.status === "complete" ? <><CheckCircle2 size={12} aria-hidden />{m.ai.message.artifactComplete}</> : null}
+              {block.status === "incomplete" ? <><AlertTriangle size={12} aria-hidden />{m.ai.message.artifactIncomplete}</> : null}
+            </span>
+          </div>
+        </div>
+        <button type="button" className="assistant-artifact-copy" onClick={() => void copy()}>
+          {copied ? <CheckCircle2 className="copy-check-pop" size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+          <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copyArtifact}</span>
+        </button>
       </header>
       <div className="assistant-artifact-content">{children}</div>
       {block.status === "incomplete" ? (
@@ -43,12 +51,6 @@ export function ArtifactMessageBlock({
           {m.ai.message.artifactIncompleteDetail}
         </p>
       ) : null}
-      <footer>
-        <button type="button" className="assistant-artifact-copy" onClick={() => void copy()}>
-          {copied ? <CheckCircle2 className="copy-check-pop" size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-          {copied ? m.ai.message.copied : m.ai.message.copyArtifact}
-        </button>
-      </footer>
     </section>
   );
 }

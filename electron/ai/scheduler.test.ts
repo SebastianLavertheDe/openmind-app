@@ -131,6 +131,85 @@ describe("RunScheduler Project Task scope", () => {
     };
   }
 
+  it("persists complete final articles as Project outputs with provenance and preserves edits on retries", async () => {
+    const fixture = projectScheduler();
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      run: async (context) => {
+        await context.emit("assistant-message", { text: "~~~~openmind-artifact\n# 过程说明\n不要保存\n~~~~", phase: "commentary" });
+        await context.emit("assistant-message", {
+          text: "开场说明\n~~~~openmind-artifact\n# 同名文章\n\n第一篇正文\n~~~~\n~~~~openmind-artifact\n# 同名文章\n\n第二篇正文\n~~~~\n~~~~openmind-artifact\n# 未完成\n未完整正文", phase: "final"
+        });
+      }
+    };
+    const { run, session } = fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot, projectId: fixture.project.id, projectName: fixture.project.name,
+      taskId: fixture.task.taskId, providerId: "claude-native", prompt: "写两篇文章"
+    });
+    await waitUntil(() => fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, fixture.task.taskId) === 0);
+    expect(internals.store.getRun(run.id).status).toBe("completed");
+    const projects = new ProjectService(fixture.contentRoot, { stateRoot: fixture.stateRoot });
+    const outputs = projects.listProjectOutputs(fixture.project.name);
+    expect(outputs).toHaveLength(2);
+    expect(outputs.map((output) => projects.readProjectOutput(fixture.project.name, output.relativePath).content).sort())
+      .toEqual(["# 同名文章\n\n第一篇正文", "# 同名文章\n\n第二篇正文"].sort());
+    const finalMessage = projects.listProjectTaskMessages(fixture.project.name, fixture.task.taskId).find((message) => message.role === "assistant")!;
+    expect(outputs).toEqual(expect.arrayContaining([0, 1].map((sourceArtifactIndex) => expect.objectContaining({
+      sourceTaskId: fixture.task.taskId, sourceSessionId: session.id, sourceMessageId: finalMessage.id, sourceArtifactIndex
+    }))));
+    projects.saveProjectOutput({ projectName: fixture.project.name, relativePath: outputs[0].relativePath, title: "编辑后的标题", content: "编辑后的正文" });
+    projects.saveProjectMessageArtifacts(fixture.project.name, fixture.task.taskId, session.id, finalMessage.id);
+    expect(projects.listProjectOutputs(fixture.project.name)).toHaveLength(2);
+    expect(projects.readProjectOutput(fixture.project.name, outputs[0].relativePath).content).toBe("编辑后的正文");
+    expect(projects.getProject(fixture.project.name).project.outputCount).toBe(2);
+    expect(fs.existsSync(path.join(fixture.workspace, "outputs"))).toBe(false);
+  });
+
+  it.each(["read-only", "failed"] as const)("keeps %s article generation in chat without saving outputs", async (mode) => {
+    const fixture = projectScheduler();
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      run: async (context) => {
+        await context.emit("assistant-message", { text: "~~~~openmind-artifact\n# 文章\n正文\n~~~~", phase: "final" });
+        if (mode === "failed") throw new Error("generation failed");
+      }
+    };
+    const { run } = fixture.scheduler.startProjectRun({
+      projectRoot: fixture.projectRoot, projectId: fixture.project.id, projectName: fixture.project.name,
+      taskId: fixture.task.taskId, providerId: "claude-native", prompt: "写文章",
+      permissionProfile: mode === "read-only" ? "read-only" : "auto"
+    });
+    await waitUntil(() => fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, fixture.task.taskId) === 0);
+    expect(internals.store.getRun(run.id).status).toBe(mode === "failed" ? "failed" : "completed");
+    const projects = new ProjectService(fixture.contentRoot, { stateRoot: fixture.stateRoot });
+    expect(projects.listProjectOutputs(fixture.project.name)).toEqual([]);
+    expect(projects.listProjectTaskMessages(fixture.project.name, fixture.task.taskId).at(-1)?.content).toContain("正文");
+  });
+
+  it("retains the final answer and reports a Project output write failure", async () => {
+    const fixture = projectScheduler();
+    const internals = schedulerInternals(fixture.scheduler);
+    internals.registry.detect = () => [claudeProvider];
+    internals.adapters.claude = {
+      run: async (context) => { await context.emit("assistant-message", { text: "~~~~openmind-artifact\n# 文章\n正文\n~~~~", phase: "final" }); }
+    };
+    const save = vi.spyOn(ProjectService.prototype, "saveProjectMessageArtifacts").mockImplementation(() => { throw new Error("磁盘写入失败"); });
+    try {
+      const { run, session } = fixture.scheduler.startProjectRun({
+        projectRoot: fixture.projectRoot, projectId: fixture.project.id, projectName: fixture.project.name,
+        taskId: fixture.task.taskId, providerId: "claude-native", prompt: "写文章"
+      });
+      await waitUntil(() => fixture.scheduler.activeProjectTaskRunCount(fixture.project.id, fixture.task.taskId) === 0);
+      expect(internals.store.getRun(run.id).status).toBe("completed");
+      expect(fixture.scheduler.getEvents(session.id)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: "assistant-message", payload: expect.objectContaining({ text: expect.stringContaining("正文") }) }),
+        expect.objectContaining({ kind: "system", payload: expect.objectContaining({ subtype: "project_output_save_failed", text: expect.stringContaining("磁盘写入失败") }) })
+      ]));
+    } finally { save.mockRestore(); }
+  });
+
   it("defaults a trusted Project session to auto execution and continues only from its frozen identity", async () => {
     const fixture = projectScheduler();
     fs.writeFileSync(path.join(fixture.projectRoot, "materials", "report.md"), "MATERIAL_BODY_MUST_NOT_BE_AUTO_INJECTED");

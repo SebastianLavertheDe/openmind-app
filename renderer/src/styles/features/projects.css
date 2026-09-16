@@ -172,6 +172,7 @@
 
 .project-pane-tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   margin: 0 10px 4px;
@@ -802,9 +803,7 @@
 .project-output-actions .project-preview-mode button:hover { background: var(--control-hover); color: var(--text); }
 .project-output-actions .project-preview-mode button.active { background: var(--panel-muted); box-shadow: none; color: var(--text); }
 .project-output-editor { min-width: 0; min-height: 0; overflow: auto; background: var(--panel); }
-.project-output-editor .markdown-codemirror,
-.project-output-editor .cm-editor { min-height: 100%; }
-.project-output-editor .cm-scroller { min-height: 100%; padding: 24px 30px 70px; }
+.project-output-editor .markdown-editor-shell { min-height: 100%; }
 .project-output-editor > .reader-markdown { margin: 0 auto; padding: 36px 50px 90px; }
 
 .project-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-global-modal); display: grid; place-items: center; padding: 20px; background: rgba(6, 8, 12, .52); backdrop-filter: blur(3px); animation: project-backdrop-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }

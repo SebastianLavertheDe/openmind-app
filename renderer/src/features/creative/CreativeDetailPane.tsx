@@ -1,22 +1,11 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
   Archive,
-  Bold,
   Check,
-  Code,
-  Code2,
   Copy,
   ExternalLink,
   FileText,
-  FolderOpen,
-  Heading2,
-  Image as ImageIcon,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListOrdered,
   LoaderCircle,
-  Quote,
   Save
 } from "lucide-react";
 import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
@@ -65,7 +54,6 @@ export function CreativeDetailPane({
   editorMode,
   setEditorMode,
   draft,
-  insertAtCursor,
   editorSelection,
   replaceRange,
   editorRef,
@@ -109,9 +97,8 @@ export function CreativeDetailPane({
   editorMode: "edit" | "preview";
   setEditorMode: (mode: "edit" | "preview") => void;
   draft: string;
-  insertAtCursor(before: string, after?: string, placeholder?: string): void;
   editorSelection: EditorSelectionSnapshot;
-  replaceRange(start: number, end: number, replacement: string): void;
+  replaceRange(start: number, end: number, replacement: string, bookmark?: number): boolean;
   editorRef: RefObject<MarkdownEditorHandle | null>;
   setDirty(value: boolean): void;
   setEditorSelection: (selection: EditorSelectionSnapshot) => void;
@@ -166,7 +153,6 @@ export function CreativeDetailPane({
     setDraft={setDraft}
     editorMode={editorMode}
     setEditorMode={setEditorMode}
-    insertAtCursor={insertAtCursor}
     editorSelection={editorSelection}
     replaceRange={replaceRange}
     editorRef={editorRef}
@@ -197,7 +183,6 @@ function CreativeDocumentEditor({
   setDraft,
   editorMode,
   setEditorMode,
-  insertAtCursor,
   editorSelection,
   replaceRange,
   editorRef,
@@ -225,9 +210,8 @@ function CreativeDocumentEditor({
   setDraft: Dispatch<SetStateAction<string>>;
   editorMode: "edit" | "preview";
   setEditorMode: (mode: "edit" | "preview") => void;
-  insertAtCursor(before: string, after?: string, placeholder?: string): void;
   editorSelection: EditorSelectionSnapshot;
-  replaceRange(start: number, end: number, replacement: string): void;
+  replaceRange(start: number, end: number, replacement: string, bookmark?: number): boolean;
   editorRef: RefObject<MarkdownEditorHandle | null>;
   setDirty(value: boolean): void;
   setEditorSelection: (selection: EditorSelectionSnapshot) => void;
@@ -276,10 +260,10 @@ function CreativeDocumentEditor({
             <div key={editorMode} className="view-fade">
               {editorMode === "preview" ? draft.trim() ? <MarkdownReader content={draft} layout="file" className="creative-preview" /> : <EmptyState title={m.creativeUi.editor.previewEmptyTitle} description={m.creativeUi.editor.previewEmptyDesc} /> : (
                 <>
-                  <MarkdownToolbar insertAtCursor={insertAtCursor} insertLocalFileLink={insertLocalFileLink} />
                   <InlineAiBar selection={editorSelection} onReplace={replaceRange} />
                   <MarkdownEditor
                     ref={editorRef}
+                    onInsertLocalFile={insertLocalFileLink}
                     ariaLabel={m.creativeUi.editor.textareaAria}
                     value={draft}
                     onChange={(next) => { setDraft(next); setDirty(true); }}
@@ -294,23 +278,4 @@ function CreativeDocumentEditor({
       <WritingStats content={draft} />
     </>
   );
-}
-
-function MarkdownToolbar({ insertAtCursor, insertLocalFileLink }: { insertAtCursor(before: string, after?: string, placeholder?: string): void; insertLocalFileLink(): Promise<void> }) {
-  return <div className="editor-toolbar" role="toolbar" aria-label={m.creativeUi.editor.toolbar}>
-    <button data-motion="icon" onClick={() => insertAtCursor("## ", "", m.creativeUi.editor.headingPlaceholder)} title={m.creativeUi.editor.heading} aria-label={m.creativeUi.editor.heading}><Heading2 size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("**", "**", m.creativeUi.editor.boldPlaceholder)} title={m.creativeUi.editor.shortcutBold} aria-label={m.creativeUi.editor.bold}><Bold size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("*", "*", m.creativeUi.editor.italicPlaceholder)} title={m.creativeUi.editor.shortcutItalic} aria-label={m.creativeUi.editor.italic}><Italic size={15} /></button>
-    <span className="editor-toolbar-sep" aria-hidden="true" />
-    <button data-motion="icon" onClick={() => insertAtCursor("- ", "", m.creativeUi.editor.listPlaceholder)} title={m.creativeUi.editor.list} aria-label={m.creativeUi.editor.list}><List size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("1. ", "", m.creativeUi.editor.listPlaceholder)} title={m.creativeUi.editor.orderedList} aria-label={m.creativeUi.editor.orderedList}><ListOrdered size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("> ", "", m.creativeUi.editor.quotePlaceholder)} title={m.creativeUi.editor.quote} aria-label={m.creativeUi.editor.quote}><Quote size={15} /></button>
-    <span className="editor-toolbar-sep" aria-hidden="true" />
-    <button data-motion="icon" onClick={() => insertAtCursor("`", "`", m.creativeUi.editor.inlineCodePlaceholder)} title={m.creativeUi.editor.shortcutCode} aria-label={m.creativeUi.editor.inlineCode}><Code size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("\n```\n", "\n```\n", m.creativeUi.editor.codePlaceholder)} title={m.creativeUi.editor.code} aria-label={m.creativeUi.editor.code}><Code2 size={15} /></button>
-    <span className="editor-toolbar-sep" aria-hidden="true" />
-    <button data-motion="icon" onClick={() => insertAtCursor("[", "](https://)", m.creativeUi.editor.linkPlaceholder)} title={m.creativeUi.editor.shortcutLink} aria-label={m.creativeUi.editor.link}><LinkIcon size={15} /></button>
-    <button data-motion="icon" onClick={() => insertAtCursor("![", "](https://)", m.creativeUi.editor.imagePlaceholder)} title={m.creativeUi.editor.image} aria-label={m.creativeUi.editor.image}><ImageIcon size={15} /></button>
-    <button data-motion="icon" onClick={() => void insertLocalFileLink()} title={m.creativeUi.editor.localFile} aria-label={m.creativeUi.editor.localFile}><FolderOpen size={15} /></button>
-  </div>;
 }

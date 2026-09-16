@@ -6,6 +6,20 @@ import { AiProvider } from "../../ai-context";
 import { ResponsiveLayoutProvider } from "../../app/responsive-layout";
 import { CreativeWorkspacePage } from "./CreativePage";
 
+// Page tests exercise persistence and navigation. The real Crepe editing and
+// selection behavior is covered separately in milkdown-runtime.test.ts.
+vi.mock("./MarkdownEditor", async () => {
+  const { forwardRef, useImperativeHandle } = await import("react");
+  return { MarkdownEditor: forwardRef((props: { value: string; ariaLabel: string; onChange(value: string): void; onInsertLocalFile?(): Promise<void> }, ref) => {
+    useImperativeHandle(ref, () => ({
+      focus: () => {},
+      insert: (before: string, after = "", placeholder = "") => { props.onChange(props.value + before + placeholder + after); return true; }
+    }));
+    return <><textarea aria-label={props.ariaLabel} value={props.value} onChange={event => props.onChange(event.target.value)} />
+      {props.onInsertLocalFile ? <button onClick={() => void props.onInsertLocalFile?.()}>本地文件</button> : null}</>;
+  }) };
+});
+
 const snapshot: AiSnapshot = { projectRoot: "/repo", providers: [], sessions: [], runs: [], pendingApprovals: [] };
 
 const nativeCreateRange = document.createRange.bind(document);
@@ -458,20 +472,6 @@ describe("CreativeWorkspacePage", () => {
     await waitFor(() => expect(document.activeElement).toBe(previewTab));
     // 预览模式不应显示 textarea 编辑器
     await waitFor(() => expect(screen.queryByLabelText("Markdown 草稿编辑器")).toBeNull(), { timeout: 2000 });
-  });
-
-  it("插入标题按钮(H2)在无 textarea 时回退到追加", async () => {
-    const api = makeApi();
-    renderCreative(api);
-    fireEvent.click(await screen.findByRole("button", { name: /创作中/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /自动保存稿件/ }));
-    fireEvent.click(await screen.findByRole("tab", { name: /编辑/ }));
-    await screen.findByLabelText("Markdown 草稿编辑器");
-    const h2Btn = screen.queryByRole("button", { name: /标题/ });
-    if (h2Btn) {
-      fireEvent.click(h2Btn);
-      await waitFor(() => expect(api.saveCreativeFile).toHaveBeenCalled(), { timeout: 2500 });
-    }
   });
 
   it("加载失败显示 ErrorState", async () => {

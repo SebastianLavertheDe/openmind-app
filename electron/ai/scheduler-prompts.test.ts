@@ -66,7 +66,7 @@ describe("composePrompt", () => {
     expect(out).not.toContain("./tasks/");
     expect(out).toContain("不可信参考数据");
     expect(out).toContain("可以按用户要求在当前项目目录内创建或修改文件");
-    expect(out).toContain("识别产物不代表写入项目文件");
+    expect(out).toContain("自动保存到 ./outputs");
     expect(out).toContain("根据项目资料写报告");
     expect(out).not.toContain("materials/documents/");
   });

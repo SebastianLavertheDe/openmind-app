@@ -81,8 +81,8 @@ describe("AiFilePreviewPane", () => {
     expect((screen.getByRole("button", { name: "编辑文件" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("edits and saves a Workspace document through the shared controller", async () => {
-    const path = "openmind/daily-summary/20260914_daily_summary.md";
+  it.each(["md", "txt"])("edits and saves a Workspace %s file through the shared controller", async (extension) => {
+    const path = `openmind/daily-summary/20260914_daily_summary.${extension}`;
     const readContent = vi.fn(async () => ({ path, name: "今日简报.md", content: "# 初始", truncated: false }));
     const writeContent = vi.fn(async (_path: string, content: string) => ({ path, name: "今日简报.md", content, truncated: false }));
     window.openmind = {
@@ -103,12 +103,14 @@ describe("AiFilePreviewPane", () => {
     const trigger = screen.getByRole("button", { name: "打开引用" });
     trigger.focus();
     fireEvent.click(trigger);
-    expect(await screen.findByRole("heading", { name: "初始" })).toBeTruthy();
+    if (extension === "md") expect(await screen.findByRole("heading", { name: "初始" })).toBeTruthy();
+    else expect(await screen.findByText("# 初始")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "编辑文件" }));
-    fireEvent.change(await screen.findByLabelText("编辑文件内容"), { target: { value: "# 已修改" } });
+    const edited = "# 已修改\n\n**原始文本**\n";
+    fireEvent.change(await screen.findByLabelText("编辑文件内容"), { target: { value: edited } });
     fireEvent.click(screen.getByRole("button", { name: "保存文件" }));
 
-    await waitFor(() => expect(writeContent).toHaveBeenCalledWith(path, "# 已修改"));
+    await waitFor(() => expect(writeContent).toHaveBeenCalledWith(path, edited));
     expect(readContent).toHaveBeenCalledWith(path);
 
     fireEvent.click(screen.getByRole("button", { name: "关闭文件预览" }));

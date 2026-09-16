@@ -47,6 +47,8 @@ import { chunkPayload, isContextCompaction, isProviderPrivateDelta, normalizeLoa
 import { canonicalizeTrustedProjectRoot } from "./scheduler-paths";
 import { ProjectPathResolver } from "../project/project-path-resolver";
 import { ProjectTaskService } from "../project/task-service";
+import { ProjectService } from "../project/project-service";
+import { parseAssistantContent } from "../../shared/markdown-artifacts";
 
 export class SessionStore {
   readonly root: string;
@@ -61,6 +63,7 @@ export class SessionStore {
   });
   private indexed = false;
   private readonly projectTasks: ProjectTaskService | null;
+  private projectArtifactService: ProjectService | null = null;
   // rollout 落盘策略（缓存/追加/flush/原子重写/增量 tail）的单一拥有者（C1 抽出到 RolloutJournal）。
   private readonly journal = new RolloutJournal();
   // rollout 投影（reconstruct 的消费者：readEvents/listTurns/getContextState/getRisks，C1 抽出到 RolloutProjector）。
@@ -515,6 +518,18 @@ export class SessionStore {
   async completeTurn(run: AiRun): Promise<void> {
     await this.appendRolloutItems(run.sessionId, [turnCompleteItem(run)], run.completedAt || undefined);
     this.writeSearchIndex(run.sessionId);
+  }
+
+  saveProjectArtifacts(run: AiRun): void {
+    if (run.status !== "completed" || run.permissionProfile === "read-only"
+      || !isProjectTaskScope(run.scope) || !this.projectTasks || !this.trustedProjectsRoot) return;
+    const message = this.projectTasks.listMessages(run.scope.projectName, run.scope.taskId)
+      .filter((item) => item.runId === run.id && item.sessionId === run.sessionId && item.role === "assistant").at(-1);
+    if (!message) return;
+    if (!parseAssistantContent(message.content, message.id).some((block) => block.type === "artifact"
+      && block.status === "complete" && block.content.trim())) return;
+    this.projectArtifactService ??= new ProjectService(path.dirname(this.trustedProjectsRoot), { stateRoot: path.dirname(path.dirname(this.root)) });
+    this.projectArtifactService.saveProjectMessageArtifacts(run.scope.projectName, run.scope.taskId, run.sessionId, message.id);
   }
 
   async abortTurn(run: AiRun, reason: string | null): Promise<void> {

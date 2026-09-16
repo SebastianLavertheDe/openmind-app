@@ -58,6 +58,7 @@ export class ProjectOutputService {
         sourceTaskId: input.sourceTaskId ?? null,
         sourceSessionId: input.sourceSessionId ?? null,
         sourceMessageId: input.sourceMessageId ?? null,
+        ...(input.sourceArtifactIndex === undefined ? {} : { sourceArtifactIndex: input.sourceArtifactIndex }),
         createdAt: timestamp,
         updatedAt: timestamp
       });
@@ -196,6 +197,7 @@ export class ProjectOutputService {
           sourceTaskId: null,
           sourceSessionId: null,
           sourceMessageId: null,
+          sourceArtifactIndex: undefined,
           updatedAt: now()
         });
         this.writeIndex(targetName, [...targetRecords, moved]);

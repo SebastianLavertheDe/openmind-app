@@ -327,12 +327,13 @@ export function CreativeWorkspacePage({
     setDraft((value) => `${value}${before}${placeholder}${after}`);
     setDirty(true);
   };
-  const replaceRange = (start: number, end: number, replacement: string) => {
-    const applied = editorRef.current?.replaceRange(start, end, replacement);
-    if (!applied) setDraft((value) => `${value.slice(0, start)}${replacement}${value.slice(end)}`);
+  const replaceRange = (start: number, end: number, replacement: string, bookmark?: number) => {
+    const applied = editorRef.current?.replaceRange(start, end, replacement, bookmark);
+    if (!applied) return false;
     setDirty(true);
     setEditorMode("edit");
     window.requestAnimationFrame(() => editorRef.current?.focus());
+    return true;
   };
   const insertLocalFileLink = async () => {
     try {
@@ -458,7 +459,6 @@ export function CreativeWorkspacePage({
                 editorMode={editorMode}
                 setEditorMode={setEditorMode}
                 draft={draft}
-                insertAtCursor={insertAtCursor}
                 editorSelection={editorSelection}
                 replaceRange={replaceRange}
                 editorRef={editorRef}

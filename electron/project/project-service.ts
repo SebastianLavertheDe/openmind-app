@@ -36,6 +36,7 @@ import {
 import { ProjectOutputService } from "./output-service";
 import { ProjectPathResolver } from "./project-path-resolver";
 import { ProjectTaskService } from "./task-service";
+import { parseAssistantContent } from "../../shared/markdown-artifacts";
 
 const PROJECT_RENAME_JOURNAL_FILE = ".openmind-project-rename.json";
 const MAX_RENAME_JOURNAL_BYTES = 100 * 1024 * 1024;
@@ -424,6 +425,35 @@ export class ProjectService {
       const result = this.outputs.create({ ...input, projectName: name });
       this.touch(name);
       return result;
+    });
+  }
+
+  /** Capture only standalone deliverables from a canonical final Task message. */
+  saveProjectMessageArtifacts(projectName: string, taskId: string, sessionId: string, messageId: string): ProjectOutput[] {
+    return this.paths.withProjectMutationLock(() => {
+      const name = this.canonicalName(projectName);
+      const source = { sourceTaskId: taskId, sourceSessionId: sessionId, sourceMessageId: messageId };
+      this.validateOutputProvenance(name, source, true);
+      const message = this.tasks.listMessages(name, taskId).find((item) => item.id === messageId || item.sourceMessageId === messageId);
+      if (!message) throw new Error("项目产物的来源 Message 不存在。");
+      const artifacts = parseAssistantContent(message.content, message.id).filter((block) => block.type === "artifact");
+      const existing = this.listProjectOutputs(name);
+      const saved: ProjectOutput[] = [];
+      for (const [sourceArtifactIndex, artifact] of artifacts.entries()) {
+        if (artifact.status !== "complete" || !artifact.content.trim()) continue;
+        const previous = existing.find((output) => output.sourceMessageId === messageId
+          && output.sourceSessionId === sessionId && output.sourceTaskId === taskId
+          && output.sourceArtifactIndex === sourceArtifactIndex);
+        if (previous) {
+          saved.push(previous);
+          continue;
+        }
+        saved.push(this.createProjectOutput({
+          projectName: name, title: artifact.title.slice(0, 255), content: artifact.content,
+          ...source, sourceArtifactIndex
+        }).output);
+      }
+      return saved;
     });
   }
 
@@ -870,7 +900,7 @@ export class ProjectService {
         const oldIds = new Set(fs.readdirSync(legacy));
         const outputs = this.outputs.list(projectName);
         const cleared = outputs.map((output) => output.sourceTaskId && oldIds.has(output.sourceTaskId)
-          ? { ...output, sourceTaskId: null, sourceSessionId: null, sourceMessageId: null }
+          ? { ...output, sourceTaskId: null, sourceSessionId: null, sourceMessageId: null, sourceArtifactIndex: undefined }
           : output);
         // Clear obsolete references before deleting tasks so a restart cannot
         // leave preserved outputs pointing at missing canonical transcripts.

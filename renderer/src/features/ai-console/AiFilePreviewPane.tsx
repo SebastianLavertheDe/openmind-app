@@ -399,7 +399,7 @@ export function AiFilePreviewPane({
                       void savePreview();
                     }
                   }}>
-                    <MarkdownEditor
+                    {/\.(md|markdown|mdown|mkd)$/i.test(displayedPreview.source.path) ? <MarkdownEditor
                       ariaLabel={m.ai.workbench.editFileContent}
                       value={displayedPreview.draft.content}
                       onSelectionChange={() => {}}
@@ -408,7 +408,12 @@ export function AiFilePreviewPane({
                         preview.clearSaveError();
                         setSaveNotice(null);
                       }}
-                    />
+                    /> : <textarea className="ai-source-editor"
+                      aria-label={m.ai.workbench.editFileContent}
+                      value={displayedPreview.draft.content}
+                      spellCheck={false}
+                      onChange={event => { preview.setContent(event.target.value); preview.clearSaveError(); setSaveNotice(null); }}
+                    />}
                   </div>
                 ) : null}
               </div>

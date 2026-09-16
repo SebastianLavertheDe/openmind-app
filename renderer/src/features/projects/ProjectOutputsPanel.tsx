@@ -47,6 +47,7 @@ export function ProjectOutputsPanel({
   const ui = useAiUi();
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialOutputPath || "");
+  const [focusPath, setFocusPath] = useState("");
   const [selected, setSelected] = useState<ProjectOutput | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [query, setQuery] = useState("");
@@ -213,11 +214,11 @@ export function ProjectOutputsPanel({
     setCreating(true);
     try {
       const next = await projectsApi.createOutput(project.name, createTitle.trim());
+      setFocusPath(next.relativePath);
       setOutputs((current) => [next, ...current]);
       await readOutput(next.relativePath, false, next);
       setCreateOpen(false);
       onChanged();
-      window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".project-output-editor .cm-content")?.focus());
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -242,11 +243,11 @@ export function ProjectOutputsPanel({
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
-      <label className="project-local-search"><Search size={14} /><input aria-label="搜索文档" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文档" /></label>
-      <div className="project-local-count">全部文档 <span>{filtered.length}</span></div>
+      <label className="project-local-search"><Search size={14} /><input aria-label="搜索产物" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索产物" /></label>
+      <div className="project-local-count">全部产物 <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的文档" : "还没有文档"} description={outputs.length ? "换一个标题关键词后再试。" : "创建空白 Markdown，或从项目任务保存 AI 回答。"} /> : null}
+        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的产物" : "还没有产物"} description={outputs.length ? "换一个标题关键词后再试。" : "项目任务完成后，完整生成的文章会自动保存在这里；也可以通过加号新建产物。"} /> : null}
         {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void readOutput(item.relativePath)}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
@@ -263,7 +264,7 @@ export function ProjectOutputsPanel({
         </div>
       </header>
       <div className={`project-output-editor ${preview.mode}`}>
-        {preview.mode === "preview" ? <PreviewRenderer resource={resource} content={preview.draft.content} layout="file" /> : <MarkdownEditor value={preview.draft.content} ariaLabel="Markdown 文档内容" onChange={(value) => { preview.setContent(value); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
+        {preview.mode === "preview" ? <PreviewRenderer resource={resource} content={preview.draft.content} layout="file" /> : <MarkdownEditor autoFocus={selectedPath === focusPath} value={preview.draft.content} ariaLabel="Markdown 文档内容" onChange={(value) => { preview.setContent(value); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
       </div>
     </div>
   ) : (

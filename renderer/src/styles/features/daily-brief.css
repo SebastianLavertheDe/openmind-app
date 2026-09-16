@@ -1,4 +1,6 @@
 .brief-library-container {
+  /* Match the AI companion surface throughout the brief list and reader. */
+  --page-bg: var(--panel-bg);
   /* Floor reported to the shell (useResponsiveWorkspaceMinimum): the AI
      companion can never squeeze this page past it. At 40rem the master column
      yields width first (see the clamp below), leaving the brief document a

@@ -136,6 +136,13 @@ describe("ProjectsPage", () => {
     await waitFor(() => expect(document.activeElement).toBe(filesTab));
     expect(tasksTab.tabIndex).toBe(-1);
     expect(filesTab.tabIndex).toBe(0);
+
+    fireEvent.keyDown(filesTab, { key: "ArrowRight" });
+    const outputsTab = await screen.findByRole("tab", { name: "产物" });
+    await waitFor(() => expect(outputsTab.getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(document.activeElement).toBe(outputsTab));
+    fireEvent.keyDown(outputsTab, { key: "ArrowRight" });
+    await waitFor(() => expect(tasksTab.getAttribute("aria-selected")).toBe("true"));
   });
 
   it("moves focus to the list restore control when a compact file selection opens detail", async () => {
@@ -278,7 +285,7 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("tablist", { name: "资料类型" })).toBeNull();
   });
 
-  it("keeps only task and material actions in the project plus menu", async () => {
+  it("offers task, material and output actions in the project plus menu", async () => {
     installApi({
       listProjectMaterials: vi.fn(async () => [existingMaterial]),
       readProjectMaterial: vi.fn(async () => ({ material: existingMaterial, content: "# 研究资料", truncated: false })),
@@ -293,11 +300,44 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("menuitem", { name: "新建任务" })).toBeTruthy();
     const addMaterial = screen.getByRole("menuitem", { name: "添加资料" });
     expect(addMaterial).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "新建产物" })).toBeTruthy();
     expect(screen.queryByRole("menuitem", { name: "新建文档" })).toBeNull();
     expect(screen.queryByLabelText("项目操作")).toBeNull();
 
     fireEvent.click(addMaterial);
     expect(await screen.findByRole("dialog", { name: "添加资料" })).toBeTruthy();
+  });
+
+  it("shows saved articles in the outputs tab and opens an output deep link", async () => {
+    installApi({
+      listProjectOutputs: vi.fn(async () => [existingDocument]),
+      readProjectOutput: vi.fn(async () => ({ output: existingDocument, content: "# 研究文档" }))
+    });
+    render(<AiProvider initial={snapshot}><ProjectsPage initialProjectName={summary.name} initialSection="outputs" initialItem={existingDocument.relativePath} /></AiProvider>);
+
+    const tab = await screen.findByRole("tab", { name: "产物" });
+    expect(tab.getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByLabelText("搜索产物")).toBeTruthy();
+    expect(await screen.findByRole("textbox", { name: "文档标题" })).toBeTruthy();
+    expect(window.openmind.readProjectOutput).toHaveBeenCalledWith({ projectName: summary.name, relativePath: existingDocument.relativePath });
+    expect(window.openmind.listProjectMaterials).not.toHaveBeenCalled();
+  });
+
+  it("creates an output from the plus menu while keeping its dialog open", async () => {
+    const createProjectOutput = vi.fn(async () => ({ output: existingDocument, content: "" }));
+    installApi({
+      createProjectOutput,
+      readProjectOutput: vi.fn(async () => ({ output: existingDocument, content: "" }))
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: summary.name }));
+    fireEvent.click(await screen.findByLabelText("新建项目内容"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "新建产物" }));
+    const dialog = await screen.findByRole("dialog", { name: "新建文档" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "文档标题" }), { target: { value: "新文章" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "创建并编辑" }));
+    await waitFor(() => expect(createProjectOutput).toHaveBeenCalledWith(expect.objectContaining({ projectName: summary.name, title: "新文章" })));
+    expect(screen.getByRole("tab", { name: "产物" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("closes the project plus menu when clicking outside it", async () => {

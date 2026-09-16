@@ -64,7 +64,7 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   } as unknown as DesktopApi;
 }
 
-const selectedText = { start: 0, end: 4, text: "这是" };
+const selectedText = { start: 0, end: 4, text: "这是", bookmark: 42 };
 const emptySelection = { start: 0, end: 0, text: "" };
 
 /** 渲染 InlineAiBar。 */
@@ -132,8 +132,8 @@ describe("InlineAiBar", () => {
     await waitFor(() => expect(startRun).toHaveBeenCalled());
   });
 
-  it("改写 → 运行完成 → 点击替换选中触发 onReplace", async () => {
-    const onReplace = vi.fn();
+  it.each([true, false])("改写完成后替换选中，应用成功=%s", async (applied) => {
+    const onReplace = vi.fn(() => applied);
     let emit: AiEventCallback = () => undefined;
     const completedSnapshot: AiSnapshot = {
       ...snapshot,
@@ -158,7 +158,8 @@ describe("InlineAiBar", () => {
     emit({ kind: "snapshot", snapshot: completedSnapshot });
     const replaceBtn = await screen.findByText("替换选中");
     fireEvent.click(replaceBtn);
-    expect(onReplace).toHaveBeenCalledWith(0, 4, "");
+    expect(onReplace).toHaveBeenCalledWith(0, 4, "", 42);
+    if (!applied) expect(screen.getByText("选中的内容已经改变，请重新选择后改写。")).toBeTruthy();
   });
 
   it("改写后点击放弃触发 reset(操作条消失)", async () => {

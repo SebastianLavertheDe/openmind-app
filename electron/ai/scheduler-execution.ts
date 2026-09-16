@@ -290,6 +290,14 @@ async function finalizeScheduledRun(host: SchedulerExecutionHost, run: AiRun, ou
     outcome.status === "completed" ? "completed" : "failed"
   );
   if (outcome.status === "completed") {
+    try {
+      host.store.saveProjectArtifacts(updated);
+    } catch (error) {
+      await appendScheduledEvent(host, updated, "system", {
+        subtype: "project_output_save_failed",
+        text: `文章已生成，但保存到项目产物失败；正文已保留在对话中。${error instanceof Error ? error.message : String(error)}`
+      });
+    }
     await appendScheduledEvent(host, updated, "status", { state: "completed" });
     await host.store.completeTurn(updated);
   } else if (outcome.status === "cancelled") {

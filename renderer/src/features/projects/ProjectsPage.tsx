@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Archive,
   Files,
+  FileOutput,
   FolderKanban,
   Library,
   ListTodo,
@@ -22,17 +23,19 @@ import { DropdownMenu, EmptyState, ErrorState, Skeleton } from "../../design-sys
 import { ProjectEditDialog, ProjectIcon, projectColorValue } from "./ProjectAppearance";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectFilesPanel } from "./ProjectFilesPanel";
-import type { ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
+import { ProjectOutputsPanel, type ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
 import { ProjectTasksPanel, type ProjectTaskSeed } from "./ProjectTasksPanel";
 import { projectsApi } from "./projects-api";
 import type { ProjectCreateAction, ProjectDetail, ProjectSection, ProjectSummary } from "./types";
 
-type ProjectView = "tasks" | "files";
+type ProjectView = "tasks" | "files" | "outputs";
 const VIEW_META: Record<ProjectView, { label: string; icon: typeof ListTodo }> = {
   tasks: { label: "任务", icon: ListTodo },
-  files: { label: "文件", icon: Files }
+  files: { label: "文件", icon: Files },
+  outputs: { label: "产物", icon: FileOutput }
 };
 const PROJECT_VIEWS = Object.keys(VIEW_META) as ProjectView[];
+const projectViewForSection = (section: ProjectSection): ProjectView => section === "outputs" ? "outputs" : section === "tasks" ? "tasks" : "files";
 
 export function ProjectsPage({
   initialProjectName,
@@ -48,7 +51,7 @@ export function ProjectsPage({
   const compactWorkspace = responsiveLayout.workspace === "single";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectDetail | null>(null);
-  const [view, setView] = useState<ProjectView>(initialSection === "tasks" ? "tasks" : "files");
+  const [view, setView] = useState<ProjectView>(projectViewForSection(initialSection));
   const [createAction, setCreateAction] = useState<ProjectCreateAction | null>(null);
   const [taskSeed, setTaskSeed] = useState<ProjectTaskSeed | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
@@ -118,7 +121,7 @@ export function ProjectsPage({
 
   const presentProjectView = useCallback((next: ProjectView) => {
     setView(next);
-    if (next === "files") {
+    if (next !== "tasks") {
       if (ui.panelMode === "collapsed") ui.setPanelMode("default");
     } else if (ui.panelMode !== "collapsed") {
       ui.setPanelMode("collapsed");
@@ -127,7 +130,7 @@ export function ProjectsPage({
 
   const requestCreate = useCallback((action: ProjectCreateAction) => {
     void navigateProject(() => {
-      presentProjectView(action === "tasks" ? "tasks" : "files");
+      presentProjectView(projectViewForSection(action));
       setCreateAction(action);
     });
   }, [navigateProject, presentProjectView]);
@@ -159,7 +162,7 @@ export function ProjectsPage({
       setOpeningProjectName(initialProjectName);
       try {
         setActiveProject(await projectsApi.getProject(initialProjectName));
-        presentProjectView(initialSection === "tasks" ? "tasks" : "files");
+        presentProjectView(projectViewForSection(initialSection));
       } catch (cause) {
         setError(errorText(cause));
       } finally {
@@ -310,6 +313,10 @@ export function ProjectsPage({
     }
   }, [compactWorkspace]);
 
+  const handleOutputSelectionChange = useCallback((relativePath?: string) => {
+    handleFileSelectionChange(Boolean(relativePath));
+  }, [handleFileSelectionChange]);
+
   const activeProjectName = activeProject?.name;
   const filteredProjects = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -343,6 +350,7 @@ export function ProjectsPage({
                 >
                   <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>新建任务</span></button>
                   <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>添加资料</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>新建产物</span></button>
                 </DropdownMenu>
               </header>
               <div className="project-pane-tabs" role="tablist" aria-label="项目内容类型">
@@ -458,6 +466,7 @@ export function ProjectsPage({
       {attachedPanelsReady ? (
         <>
           {view === "tasks" ? <ProjectTasksPanel key={`tasks:${activeProject!.name}`} project={activeProject!} initialTaskId={initialSection === "tasks" ? initialItem : undefined} createRequested={createAction === "tasks"} seed={taskSeed} onCreateHandled={() => { setCreateAction(null); setTaskSeed(null); }} onChanged={() => void refreshActive()} onSelectionChange={handleTaskSelectionChange} listHost={sectionListHost} detailHost={detailHost} /> : null}
+          {view === "outputs" ? <ProjectOutputsPanel key={`outputs:${activeProject!.name}`} project={activeProject!} initialOutputPath={initialSection === "outputs" ? initialItem : undefined} createRequested={createAction === "outputs"} onCreateHandled={() => setCreateAction(null)} onChanged={() => void refreshActive()} onSelectionChange={handleOutputSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost} detailHost={detailHost} /> : null}
           {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onSelectionChange={handleFileSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
         </>
       ) : null}

@@ -314,6 +314,7 @@ export const ProjectOutputSchema = z.object({
   sourceTaskId: z.string().uuid().nullable().default(null),
   sourceSessionId: z.string().min(1).max(160).nullable().default(null),
   sourceMessageId: z.string().min(1).max(160).nullable().default(null),
+  sourceArtifactIndex: z.number().int().nonnegative().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 }).superRefine((output, context) => {
@@ -338,7 +339,8 @@ export const ProjectCreateOutputInputSchema = z.object({
   content: z.string().max(10 * 1024 * 1024).default(""),
   sourceTaskId: z.string().uuid().optional(),
   sourceSessionId: z.string().min(1).max(160).optional(),
-  sourceMessageId: z.string().min(1).max(160).optional()
+  sourceMessageId: z.string().min(1).max(160).optional(),
+  sourceArtifactIndex: z.number().int().nonnegative().optional()
 }).superRefine((output, context) => {
   if (!output.sourceTaskId && (output.sourceSessionId || output.sourceMessageId)) {
     context.addIssue({ code: "custom", path: ["sourceTaskId"], message: "Output Session/Message 来源必须绑定 Project Task。" });

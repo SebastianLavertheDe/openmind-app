@@ -12,6 +12,13 @@
   --page-bg: #fbfcfb;
   --panel-bg: #ffffff;
   --panel-muted: #f5f5f4;
+  --user-message-bg: #e8f3fe;
+  --artifact-bg: #f3f7f5;
+  --artifact-border: #d8e4df;
+  --artifact-warning-fg: var(--warning-700);
+  --artifact-shadow:
+    0 1px 2px oklch(0 0 0 / .04),
+    0 3px 10px oklch(0 0 0 / .04);
   --control-bg: #ffffff;
   --control-hover: #ececea;
   --border-subtle: #e7e7e5;
@@ -97,6 +104,11 @@
   --page-bg: #20201f;
   --panel-bg: #20201f;
   --panel-muted: #262625;
+  --user-message-bg: var(--panel-muted);
+  --artifact-bg: #252b28;
+  --artifact-border: #3c4842;
+  --artifact-warning-fg: var(--warning-300);
+  --artifact-shadow: none;
   --control-bg: #282827;
   --control-hover: #333331;
   --border-subtle: #363634;
