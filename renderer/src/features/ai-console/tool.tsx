@@ -1,4 +1,5 @@
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -68,11 +69,11 @@ export const CommandGroup = memo(function CommandGroup({
   // P1-PRC-3: 改手风琴为多开——用 Set 跟踪展开的卡片,允许同时对比多个命令输出。
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
 
-  const setCallOpen = (key: string, nextOpen: boolean) => setExpandedKeys((current) => {
+  const setCallOpen = useCallback((key: string, nextOpen: boolean) => setExpandedKeys((current) => {
     const next = new Set(current);
     if (nextOpen) next.add(key); else next.delete(key);
     return next;
-  });
+  }), []);
   const setGroupOpen = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) setExpandedKeys(new Set());
@@ -116,7 +117,13 @@ export const CommandGroup = memo(function CommandGroup({
         </>
       }
     >
-      <div
+      {calls.length > 40 ? <VirtualCommandList
+        calls={calls}
+        runStatus={runStatus}
+        expandedKeys={expandedKeys}
+        onOpenChange={setCallOpen}
+        label={accessibleLabel}
+      /> : <div
         className="command-group-list"
         role={calls.length > 8 ? "region" : undefined}
         aria-label={calls.length > 8 ? accessibleLabel : undefined}
@@ -132,7 +139,7 @@ export const CommandGroup = memo(function CommandGroup({
             onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
           />
         ))}
-      </div>
+      </div>}
     </AnimatedDisclosure>
   );
 }, (previous, next) => previous.runStatus === next.runStatus
@@ -140,6 +147,106 @@ export const CommandGroup = memo(function CommandGroup({
   && previous.calls.length === next.calls.length
   && previous.calls.every((call, index) => call.key === next.calls[index].key
     && sameEventSequence(call.events, next.calls[index].events)));
+
+/** Only visible rows and rows being interacted with need a mounted tool card. */
+function VirtualCommandList({ calls, runStatus, expandedKeys, onOpenChange, label }: {
+  calls: CommandCall[];
+  runStatus?: RunStatus;
+  expandedKeys: Set<string>;
+  onOpenChange(key: string, open: boolean): void;
+  label: string;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const pinned = useMemo(() => calls.flatMap((call, index) =>
+    call.key === focusedKey || expandedKeys.has(call.key) ? [index] : []), [calls, expandedKeys, focusedKey]);
+  const virtualizer = useVirtualizer({
+    count: calls.length,
+    getScrollElement: () => scroller.current,
+    getItemKey: index => calls[index].key,
+    estimateSize: () => 32,
+    initialRect: { width: 600, height: 304 },
+    overscan: 3,
+    useFlushSync: false,
+    directDomUpdates: true,
+    rangeExtractor: range => [...new Set([...defaultRangeExtractor(range), ...pinned])].sort((a, b) => a - b)
+  });
+  const rows = virtualizer.getVirtualItems();
+
+  useLayoutEffect(() => {
+    const key = pendingFocus.current;
+    if (!key) return;
+    const index = calls.findIndex(call => call.key === key);
+    const button = scroller.current?.querySelector<HTMLButtonElement>(`[data-index="${index}"] .tool-event > .ui-disclosure-trigger`);
+    if (!button) return;
+    pendingFocus.current = null;
+    button.focus({ preventScroll: true });
+  }, [calls, rows]);
+
+  const focusRow = (index: number) => {
+    const call = calls[index];
+    if (!call) return;
+    pendingFocus.current = call.key;
+    setFocusedKey(call.key);
+    virtualizer.scrollToIndex(index, { align: "auto" });
+  };
+
+  return <div
+    ref={scroller}
+    className="command-group-list is-virtual"
+    role="region"
+    aria-label={label}
+    tabIndex={0}
+    onFocusCapture={event => {
+      const row = (event.target as HTMLElement).closest<HTMLElement>("[data-command-index]");
+      if (row) setFocusedKey(calls[Number(row.dataset.commandIndex)]?.key || null);
+    }}
+    onBlurCapture={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedKey(null);
+    }}
+    onKeyDownCapture={event => {
+      const target = event.target as HTMLElement;
+      const row = target.closest<HTMLElement>("[data-command-index]");
+      const index = row ? Number(row.dataset.commandIndex) : -1;
+      if (event.key === "Tab" && row) {
+        const controls = Array.from(row.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]'))
+          .filter(node => !node.closest("[inert]"));
+        const edge = event.shiftKey ? controls[0] : controls.at(-1);
+        const next = index + (event.shiftKey ? -1 : 1);
+        if (target === edge && calls[next] && !scroller.current?.querySelector(`[data-index="${next}"]`)) {
+          event.preventDefault();
+          focusRow(next);
+        }
+        return;
+      }
+      if (target !== event.currentTarget && target !== row?.querySelector(".tool-event > .ui-disclosure-trigger")) return;
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? calls.length - 1
+        : Math.min(calls.length - 1, Math.max(0, index + (event.key === "ArrowDown" ? 1 : -1)));
+      focusRow(next);
+    }}
+  >
+    <div ref={virtualizer.containerRef} className="command-group-virtual-content" role="list" aria-label={label}>
+      {rows.map(row => {
+        const call = calls[row.index];
+        return <div
+          key={row.key}
+          ref={virtualizer.measureElement}
+          data-index={row.index}
+          data-command-index={row.index}
+          className="command-group-virtual-row"
+          role="listitem"
+          aria-posinset={row.index + 1}
+          aria-setsize={calls.length}
+        >
+          <ToolCallCard events={call.events} runStatus={runStatus} grouped open={expandedKeys.has(call.key)} onOpenChange={open => onOpenChange(call.key, open)} />
+        </div>;
+      })}
+    </div>
+  </div>;
+}
 
 export function ToolCallCard({
   events,

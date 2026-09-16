@@ -55,10 +55,11 @@ function renderSidebar() {
 }
 
 describe("AiSidebar", () => {
-  it("renders the conversation without the former header toolbar", () => {
+  it("lazily renders the conversation without the former header toolbar", async () => {
     renderSidebar();
     expect(document.querySelector(".ai-sidebar > header")).toBeNull();
-    expect(document.querySelector(".ai-sidebar > .chat")).toBeTruthy();
+    // A cold dynamic import also asks Vitest to transform the chat dependency graph.
+    await waitFor(() => expect(document.querySelector(".ai-sidebar > .chat")).toBeTruthy(), { timeout: 3_000 });
   });
 
   it("preserves Project scope when a companion message opens a file reference", async () => {

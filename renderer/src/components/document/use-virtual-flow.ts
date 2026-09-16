@@ -104,7 +104,7 @@ export function useVirtualFlow({ count, keyAt, estimate, pinned = [], enabled = 
       // Item ResizeObservers may run before our container observer. Do not
       // mistake their width-induced corrections for the reader scrolling.
       if (widthChanging.current) return;
-      if (elementRef.current && Math.round(elementRef.current.getBoundingClientRect().width) !== widthRef.current) {
+      if (elementRef.current && Math.max(1, elementRef.current.clientWidth) !== widthRef.current) {
         resizeAnchor.current = anchor.current;
         widthChanging.current = true;
         return;
@@ -149,7 +149,10 @@ export function useVirtualFlow({ count, keyAt, estimate, pinned = [], enabled = 
       const dragging = draggingRef.current;
       const rect = element.getBoundingClientRect();
       const margin = rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientTop;
-      const width = Math.max(1, Math.round(rect.width));
+      // A pane's FLIP transform changes its painted box, not text wrapping.
+      // Cache the layout width so opening a preview cannot leave virtual rows
+      // estimated at an intermediate animation scale.
+      const width = Math.max(1, element.clientWidth);
       if (previousWidth && previousWidth !== width && enabled) {
         widthChanging.current = true;
         resizeAnchor.current ||= anchor.current;

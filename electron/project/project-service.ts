@@ -114,7 +114,7 @@ export class ProjectService {
       this.recoverInterruptedRenameLocked();
       const projects: ProjectSummary[] = [];
       for (const name of this.paths.listProjectNames()) {
-        try { projects.push(this.getProject(name).project); }
+        try { projects.push(this.readProjectSummary(name)); }
         catch { /* Preserve invalid external directories, but do not expose them as Projects. */ }
       }
       return projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -160,10 +160,22 @@ export class ProjectService {
         project: ProjectSummarySchema.parse({
           ...manifest,
           materialCount: this.materials.list(manifest.name).length,
-          taskCount: this.tasks.list(manifest.name).filter((task) => task.status !== "archived").length,
+          taskCount: this.tasks.countActive(manifest.name),
           outputCount: outputs.length
         })
       };
+    });
+  }
+
+  private readProjectSummary(projectName: string): ProjectSummary {
+    const manifest = this.readManifest(projectName);
+    // Listing counts validates index/schema/path identity, but does not load
+    // output provenance transcripts. Detail/output reads still validate provenance.
+    return ProjectSummarySchema.parse({
+      ...manifest,
+      materialCount: this.materials.count(manifest.name),
+      taskCount: this.tasks.countActive(manifest.name),
+      outputCount: this.outputs.count(manifest.name)
     });
   }
 

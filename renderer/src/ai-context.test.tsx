@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi, useAiDraft, useAiStreaming, type AiController } from "./ai-context";
+import { useTopicFileEditor } from "./features/creative/use-topic-file-editor";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -376,6 +377,34 @@ describe("AiProvider streaming store via event pump", () => {
 
     expect(screen.getByTestId("streaming").textContent).toBe("one two");
     expect(controllerRenders).toBe(1);
+  });
+
+  it("keeps the topic editor isolated from AI events/snapshots and preserves action references while typing", async () => {
+    let renders = 0;
+    let editor!: ReturnType<typeof useTopicFileEditor>;
+    const Probe = memo(function Probe() {
+      editor = useTopicFileEditor();
+      renders++;
+      return null;
+    });
+    window.openmind.readContent = vi.fn(async (filePath) => ({ path: filePath, name: "topic.md", content: "original", truncated: false }));
+    render(<AiProvider initial={activeSnapshot} skills={skills}><Probe /></AiProvider>);
+    await act(async () => {});
+    const initialRenders = renders;
+    emit({ kind: "event", event: assistantEvent("isolated-editor", 1, "AI update", "commentary") });
+    flushTimers();
+    emit({ kind: "snapshot", snapshot: { ...activeSnapshot, projectRoot: "/updated" } });
+    flushTimers();
+    expect(renders).toBe(initialRenders);
+
+    await act(async () => { await editor.openTopicFile("openmind/topic.md"); });
+    const beforeTyping = { ...editor };
+    act(() => editor.setTopicFileDraft("edited"));
+    expect(editor.topicFileDraft).toBe("edited");
+    expect(editor.topicFileDirty).toBe(true);
+    expect(editor.openTopicFile).toBe(beforeTyping.openTopicFile);
+    expect(editor.resetTopicFile).toBe(beforeTyping.resetTopicFile);
+    expect(editor.setTopicFileDraft).toBe(beforeTyping.setTopicFileDraft);
   });
 
   it("keeps reasoning-delta chunks separate from streaming text", () => {

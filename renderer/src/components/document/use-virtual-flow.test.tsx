@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { reflowMountedVirtualRows, useVirtualFlow } from "./use-virtual-flow";
 
@@ -7,6 +7,24 @@ const resizedEntry = {
 } as unknown as ResizeObserverEntry;
 
 describe("useVirtualFlow resize measurement", () => {
+  it("estimates rows at their layout width while a parent pane is scaled", () => {
+    const host = document.createElement("div");
+    host.style.overflowY = "auto";
+    const flow = document.createElement("div");
+    Object.defineProperty(flow, "clientWidth", { value: 440 });
+    flow.getBoundingClientRect = () => ({ top: 0, width: 1000, height: 800 }) as DOMRect;
+    host.append(flow);
+    document.body.append(host);
+    const keyAt = (index: number) => `row-${index}`;
+    const { result, unmount } = renderHook(() => useVirtualFlow({ count: 100, keyAt, estimate: (_index, width) => width / 2 }));
+
+    act(() => result.current.ref(flow));
+    expect(result.current.width).toBe(440);
+    expect(result.current.virtualizer.options.estimateSize(0)).toBe(220);
+    unmount();
+    host.remove();
+  });
+
   it.each([
     ["application companion", "app-shell ai-sidebar-resizing"],
     ["workbench preview", "ai-workbench is-resizing-preview"]

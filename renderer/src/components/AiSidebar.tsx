@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Columns2, Maximize2, MessageSquare, Minimize2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
@@ -6,7 +6,6 @@ import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-conte
 import { useModalFocusScope } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
-import { Chat } from "./Chat";
 import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
 import { FilePreviewProvider, useFilePreview } from "../features/ai-console/file-preview-context";
 import { projectsApi } from "../features/projects/projects-api";
@@ -27,6 +26,7 @@ import {
 } from "./ai-sidebar-layout";
 
 const SIDEBAR_MIN_WIDTH = RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth;
+const Chat = lazy(() => import("./Chat").then((module) => ({ default: module.Chat })));
 
 type SidebarPreferences = {
   ratios: SidebarRatios;
@@ -410,13 +410,15 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
             }}
           />
         ) : null}
-        {parentOpenFilePreview ? (
-          <FilePreviewProvider open={openScopedFilePreview}>
+        <Suspense fallback={<div className="route-loading" role="status"><div className="route-loading-skeleton" /></div>}>
+          {parentOpenFilePreview ? (
+            <FilePreviewProvider open={openScopedFilePreview}>
+              <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
+            </FilePreviewProvider>
+          ) : (
             <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
-          </FilePreviewProvider>
-        ) : (
-          <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
-        )}
+          )}
+        </Suspense>
       </aside>
     </>
   );

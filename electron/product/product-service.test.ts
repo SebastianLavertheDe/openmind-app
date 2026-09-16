@@ -59,6 +59,7 @@ describe("ProductService", () => {
           reads += 1;
           return { path: relativePath, content: records[relativePath] };
         },
+        readContentAsync: async (relativePath) => ({ path: relativePath, name: path.basename(relativePath), content: records[relativePath], truncated: false }),
         getOverview: () => { overviewReads += 1; return { date: "20260615", repoRoot: root, metrics: { articles: 1, posts: 0, reddit: 0, summaries: 0, topics: 0 }, pipeline: [], recent: [] }; },
         writeContent: (relativePath, rawContent) => ({ path: relativePath, name: path.basename(relativePath), content: rawContent, truncated: false })
       } satisfies ContentServiceApi,
@@ -324,6 +325,7 @@ describe("ProductService 创作委托方法", () => {
     };
     const content = {
       getContent: () => [], readContent: () => ({ path: "x", content: "" }),
+      readContentAsync: vi.fn(async () => ({ path: "x", name: "x", content: "async preview", truncated: false })),
       getOverview: () => ({ date: "20260615", repoRoot: root, metrics: {}, pipeline: [], recent: [] }),
       writeContent: () => ({ path: "x", name: "x", content: "", truncated: false })
     };
@@ -422,10 +424,10 @@ describe("ProductService 创作委托方法", () => {
     expect(() => service.writeContent("openmind/article/20260708/x.md", "content")).not.toThrow();
   });
 
-  it("readContent 委托", () => {
+  it("readContent 委托异步预览入口", async () => {
     const { service } = createServiceWithCreativeSpy();
-    const result = service.readContent("openmind/article/x.md");
-    expect(result).toBeDefined();
+    const result = await service.readContent("openmind/article/x.md");
+    expect(result.content).toBe("async preview");
   });
 
   it("listSources 委托", () => {

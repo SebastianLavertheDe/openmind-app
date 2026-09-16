@@ -1,6 +1,7 @@
-import { Profiler, useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AiProvider, useAiActions, useAiUi } from "../../../renderer/src/ai-context";
+import { AiProvider, useAiActions, useAiEvents, useAiSnapshot, useAiUi } from "../../../renderer/src/ai-context";
+import { AiEventSchema } from "@shared/contracts";
 import { AiSidebar } from "../../../renderer/src/components/AiSidebar";
 import { ResponsiveLayoutProvider } from "../../../renderer/src/app/responsive-layout";
 import { CreativeWorkspacePage } from "../../../renderer/src/features/creative/CreativePage";
@@ -9,12 +10,40 @@ import "../../../renderer/src/styles.css";
 import "../../../renderer/src/styles/product.css";
 
 // 真实页面组件 + 真实 AI 侧栏 + visual fixture 预载 API（不连真实用户数据）。
-// React Profiler 统计页面子树的提交次数：页面迁移到 slice hooks 后，AI 流式
+// 构建时注入 layout effect 统计真实页面的提交次数：页面迁移到 slice hooks 后，AI 流式
 // 输出 / durable 事件 / snapshot 推送都不应再让整页重渲染（pageRenders === 0）。
 const probe = window as any;
 const page = new URLSearchParams(location.search).get("page") === "creative" ? "creative" : "projects";
 probe.pageRenders = { [page]: 0 };
 probe.benchReady = false;
+probe.controlRenders = 0;
+probe.validateBenchEvent = (event: unknown) => AiEventSchema.parse(event);
+probe.__recordBenchCommit = (key: string) => {
+  if (key === "control") probe.controlRenders += 1;
+  else probe.pageRenders[key] += 1;
+};
+
+// Positive control: this deliberately broad subscription must commit during
+// durable event updates, proving both event delivery and the counter work.
+function EventSubscriptionControl() {
+  const { events } = useAiEvents();
+  const { snapshot, activeSession } = useAiSnapshot();
+  useLayoutEffect(() => {
+    probe.__recordBenchCommit("control");
+    probe.controlState = { eventIds: events.filter((event) => event.id.startsWith("ai-context-bench-")).map((event) => event.id), activeSessionId: activeSession?.id };
+  });
+  return <output hidden>{events.length}:{snapshot.sessions.map((session) => session.updatedAt).join(",")}</output>;
+}
+
+function CounterControl() {
+  const [revision, setRevision] = useState(0);
+  useLayoutEffect(() => { probe.__recordBenchCommit("control"); });
+  useEffect(() => {
+    probe.exerciseRenderCounter = () => setRevision((value) => value + 1);
+    return () => { delete probe.exerciseRenderCounter; };
+  }, []);
+  return <output hidden>{revision}</output>;
+}
 
 function BenchController() {
   const ui = useAiUi();
@@ -39,12 +68,12 @@ function Fixture() {
     <ResponsiveLayoutProvider>
       <AiProvider storageScope="ai-context-benchmark" initial={bootstrap.ai} skills={bootstrap.skills}>
         <BenchController />
+        <CounterControl />
+        <EventSubscriptionControl />
         <div className="ai-context-bench">
-          <Profiler id={page} onRender={() => { probe.pageRenders[page] += 1; }}>
-            <main className="bench-page" data-bench-page={page}>
-              {page === "creative" ? <CreativeWorkspacePage /> : <ProjectsPage />}
-            </main>
-          </Profiler>
+          <main className="bench-page" data-bench-page={page}>
+            {page === "creative" ? <CreativeWorkspacePage /> : <ProjectsPage />}
+          </main>
           <AiSidebar />
         </div>
       </AiProvider>

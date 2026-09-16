@@ -525,16 +525,27 @@
 }
 
 .ui-skeleton span {
+  position: relative;
+  overflow: hidden;
   height: 12px;
   border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.ui-skeleton span::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  /* Two repeated tiles preserve the original 220% background wave at its wrap. */
+  width: 440%;
   background: linear-gradient(90deg, var(--panel-2), var(--hover), var(--panel-2));
-  background-size: 220% 100%;
+  background-size: 50% 100%;
   animation: skeleton-wave 1.4s ease-in-out infinite;
 }
 
 @keyframes skeleton-wave {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
+  from { transform: translateX(calc(-100% * 3.4 / 4.4)); }
+  to { transform: translateX(calc(-100% / 4.4)); }
 }
 
 .ui-virtual-list {
@@ -960,8 +971,13 @@ button.ui-metric-card:hover {
   height: 10px;
   border-radius: var(--radius-sm);
   margin-top: 8px;
+  background: var(--panel-muted);
+}
+.ui-skeleton-card > span::after,
+.ui-skeleton-row > span::after,
+.ui-skeleton-metric > span::after {
+  width: 400%;
   background: linear-gradient(90deg, var(--panel-muted) 25%, var(--border-subtle) 37%, var(--panel-muted) 63%);
-  background-size: 400% 100%;
   animation: ui-skeleton-shimmer 1.4s ease infinite;
 }
 .ui-skeleton-card > span:first-child,
@@ -974,8 +990,8 @@ button.ui-metric-card:hover {
 .ui-skeleton-metric > span:nth-child(2) { height: 26px; width: 60%; }
 
 @keyframes ui-skeleton-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: 0 0; }
+  0% { transform: translateX(-75%); }
+  100% { transform: translateX(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

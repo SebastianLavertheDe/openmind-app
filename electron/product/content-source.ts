@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ContentApi } from "./common";
+import { readTextPrefixSync } from "../lib/read-text-prefix";
 import {
   LEGACY_CONTENT_DATE_DIRECTORY_KINDS,
   LEGACY_CONTENT_FILE_ROOT_KINDS,
@@ -13,8 +14,6 @@ export type ContentFileEntry = {
   size: number;
   modifiedAt: string;
 };
-
-const MAX_READ_BYTES = 1024 * 1024;
 
 /**
  * 显式 root 的纯 Node 内容源。worker_threads 无法 import lib/content（传递依赖
@@ -150,13 +149,10 @@ export function createExplicitContentSource(openmindRootInput: string): ContentA
 
     readContent(relativePath: string) {
       const physical = physicalFromLogical(relativePath);
-      const stat = fs.statSync(physical);
-      if (!stat.isFile()) throw new Error(`不是文件：${relativePath}`);
       return {
         path: relativePath,
         name: path.basename(physical),
-        content: fs.readFileSync(physical, "utf8").slice(0, MAX_READ_BYTES),
-        truncated: stat.size > MAX_READ_BYTES
+        ...readTextPrefixSync(physical)
       };
     }
   };

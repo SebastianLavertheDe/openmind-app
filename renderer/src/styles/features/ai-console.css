@@ -486,6 +486,18 @@
   padding: 2px 4px 4px 0;
 }
 
+.command-group-list.is-virtual,
+.chat-thread .completed-process-body .command-group-list.is-virtual {
+  display: block;
+  height: 304px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0;
+}
+.command-group-virtual-content { position: relative; width: 100%; }
+.command-group-virtual-row { position: absolute; top: 0; left: 0; width: 100%; }
+
 .chat-thread .completed-process-body .command-group-list:focus-visible {
   outline: 2px solid var(--brand-accent-strong, var(--accent));
   outline-offset: -2px;
@@ -1359,8 +1371,12 @@
 /* AI workbench: files open on the left while the conversation glides right. */
 .ai-workbench {
   grid-template-columns: var(--workbench-columns, minmax(0, 1fr));
-  transition: grid-template-columns var(--dur-slow, 240ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
+  /* Pane motion uses transforms at the final column widths. Interpolating the
+     tracks rewraps documents and invalidates virtual row sizes every frame. */
+  overflow: hidden;
 }
+
+.ai-workbench[data-preview-layout="split"] { --preview-enter-offset: -100%; }
 
 .ai-workbench.is-resizing-preview {
   transition: none;
@@ -1381,12 +1397,14 @@
   grid-row: 1;
 }
 
+.ai-workbench.with-file-preview.preview-closing > .conversation-pane { grid-column: 1 / -1; }
+
 .ai-workbench.with-file-preview > .column-splitter,
 .ai-workbench.with-file-preview > .ai-file-preview {
   min-width: 0;
   overflow: hidden;
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateX(var(--preview-enter-offset, -10px));
   pointer-events: none;
   transition:
     opacity var(--dur-normal, 200ms) ease,
@@ -1403,7 +1421,7 @@
 .ai-workbench.with-file-preview.preview-leaving > .column-splitter,
 .ai-workbench.with-file-preview.preview-leaving > .ai-file-preview {
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateX(var(--preview-enter-offset, -10px));
   pointer-events: none;
 }
 

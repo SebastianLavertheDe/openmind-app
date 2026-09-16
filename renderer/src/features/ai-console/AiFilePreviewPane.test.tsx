@@ -100,7 +100,9 @@ describe("AiFilePreviewPane", () => {
       </AiProvider>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "打开引用" }));
+    const trigger = screen.getByRole("button", { name: "打开引用" });
+    trigger.focus();
+    fireEvent.click(trigger);
     expect(await screen.findByRole("heading", { name: "初始" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "编辑文件" }));
     fireEvent.change(await screen.findByLabelText("编辑文件内容"), { target: { value: "# 已修改" } });
@@ -111,6 +113,7 @@ describe("AiFilePreviewPane", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "关闭文件预览" }));
     await waitFor(() => expect(screen.queryByRole("complementary", { name: "文件预览" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
 

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ProjectMaterialConversionSource,
   ProjectMaterialConverter
@@ -11,6 +11,7 @@ import { ProjectService } from "./project-service";
 const fixtures: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const fixture of fixtures.splice(0)) fs.rmSync(fixture, { recursive: true, force: true });
 });
 
@@ -28,6 +29,57 @@ function fixture(options: Partial<ConstructorParameters<typeof ProjectService>[1
 }
 
 describe("ProjectService", () => {
+  it("lists summaries without task detail scans, and reuses only unchanged validated metadata", () => {
+    const { service } = fixture();
+    service.createProject({ name: "Summary" });
+    const tasks = Array.from({ length: 20 }, (_, index) => service.createProjectTask("Summary", `Task ${index}`, "provider-a"));
+    expect(service.listProjects()[0].taskCount).toBe(20);
+    const details = vi.spyOn(service, "getProject");
+    const taskList = vi.spyOn(service.tasks, "list");
+    const reads = vi.spyOn(fs, "readFileSync");
+    const stats = vi.spyOn(fs, "lstatSync");
+    expect(service.listProjects()[0].taskCount).toBe(20);
+    expect(details).not.toHaveBeenCalled();
+    expect(taskList).not.toHaveBeenCalled();
+    expect(reads.mock.calls.filter(([file]) => String(file).endsWith(`${path.sep}task.json`))).toHaveLength(0);
+    // Two leaf checks per task plus a fixed amount of project/index validation.
+    expect(stats.mock.calls.length).toBeLessThan(20 * 2 + 150);
+
+    service.archiveProjectTask("Summary", tasks[0].taskId);
+    reads.mockClear();
+    expect(service.listProjects()[0].taskCount).toBe(19);
+    expect(reads.mock.calls.filter(([file]) => String(file).endsWith(`${path.sep}task.json`))).toHaveLength(1);
+    service.setProjectTaskStatus("Summary", tasks[0].taskId, "active");
+    expect(service.listProjects()[0].taskCount).toBe(20);
+  });
+
+  it("invalidates task summaries for external edits/deletes and rejects links even on a warm cache", () => {
+    const { service } = fixture();
+    service.createProject({ name: "Summary" });
+    const task = service.createProjectTask("Summary", "Task", "provider-a");
+    const file = service.tasks.taskFile("Summary", task.taskId);
+    expect(service.listProjects()[0].taskCount).toBe(1);
+    const stat = fs.statSync(file);
+    fs.writeFileSync(file, JSON.stringify({ ...task, status: "archived" }));
+    fs.utimesSync(file, stat.atime, stat.mtime);
+    expect(service.listProjects()[0].taskCount).toBe(0);
+
+    fs.writeFileSync(file, JSON.stringify({ ...task, projectName: "Forged" }));
+    expect(service.listProjects()).toEqual([]);
+    expect(() => service.listProjectTasks("Summary")).toThrow(/projectName/);
+    fs.writeFileSync(file, JSON.stringify(task));
+    expect(service.listProjects()[0].taskCount).toBe(1);
+    const target = `${file}.real`;
+    fs.renameSync(file, target);
+    fs.symlinkSync(target, file);
+    expect(service.listProjects()).toEqual([]);
+    fs.unlinkSync(file);
+    fs.renameSync(target, file);
+    expect(service.listProjects()[0].taskCount).toBe(1);
+    fs.rmSync(path.dirname(file), { recursive: true });
+    expect(service.listProjects()[0].taskCount).toBe(0);
+  });
+
   it("discards old project transcripts while preserving materials and outputs across restart", () => {
     const { root, service } = fixture();
     const project = service.createProject({ name: "Legacy" }).project;

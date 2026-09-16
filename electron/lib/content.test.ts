@@ -17,6 +17,7 @@ import {
   listFiles,
   listXPostFiles,
   readContent,
+  readContentAsync,
   readJson,
   writeContent
 } from "./content";
@@ -223,6 +224,15 @@ describe("getContent", () => {
 });
 
 describe("readContent", () => {
+  it("异步预览与同步限量读取结果一致", async () => {
+    writeFile("openmind/async.md", "内容😀".repeat(300_000));
+    const result = await readContentAsync("openmind/async.md");
+    expect(result).toEqual(readContent("openmind/async.md"));
+    expect(result.truncated).toBe(true);
+    expect(Buffer.byteLength(result.content)).toBeLessThanOrEqual(1024 * 1024);
+    expect(result.content).not.toContain("\uFFFD");
+  });
+
   it("读取文件内容,返回 path/name/content", () => {
     writeFile("openmind/note.md", "正文内容");
     const result = readContent("openmind/note.md");

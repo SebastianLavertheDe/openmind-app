@@ -141,6 +141,10 @@ export class ProjectMaterialService {
     return this.readIndex(projectName).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
+  count(projectName: string): number {
+    return this.readIndex(projectName).length;
+  }
+
   hasActiveConversions(projectName: string): boolean {
     return this.paths.withProjectMutationLock(() => {
       const canonicalProjectName = this.paths.resolveProject(projectName).name;

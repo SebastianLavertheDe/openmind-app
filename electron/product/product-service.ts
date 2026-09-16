@@ -120,7 +120,7 @@ export class ProductService {
   }
 
   readContent(relativePath: string) {
-    return this.content.readContent(relativePath);
+    return this.content.readContentAsync(relativePath);
   }
 
   getXFollowingCurls(): string[] {

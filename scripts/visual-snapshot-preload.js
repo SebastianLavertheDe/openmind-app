@@ -1,6 +1,10 @@
 const { contextBridge } = require("electron");
 
 const streamPerfEnabled = process.env.OPENMIND_STREAM_PERF === "1";
+const motionPerfEnabled = process.env.OPENMIND_MOTION_PERF === "1";
+const motionParagraph = "这是隔离的动效性能测试数据，包含中文段落与 English terms。窗口中的文件与对话应当在预览打开和关闭时平滑移动，保持阅读位置与完整动效。";
+const motionDocument = motionPerfEnabled ? Array.from({ length: 200 }, (_, i) =>
+  `## 第 ${i + 1} 页\n\n${Array.from({ length: 6 }, () => motionParagraph.repeat(2)).join("\n\n")}`).join("\n\n") : "";
 const aiEventListeners = new Set();
 
 const now = "2026-06-17T02:20:00.000Z";
@@ -294,6 +298,19 @@ if (streamPerfEnabled) {
   }));
 }
 
+if (motionPerfEnabled) {
+  for (let i = 0; i < 30; i++) {
+    const runId = `motion-history-run-${i}`;
+    runs.push({ ...runs[1], id: runId });
+    aiEvents.push(event(`motion-history-${i}`, 1, "session-2", runId, "assistant-message", {
+      text: `### 合成历史 ${i}\n\n${motionParagraph.repeat(3)}`, phase: "final"
+    }));
+  }
+  aiEvents.push(event("motion-review-file", resizePerfEventCount + 1, "session-2", "run-ai-2", "assistant-message", {
+    text: "[motion-review.md](openmind/article/motion-review.md)", phase: "final"
+  }));
+}
+
 const preferences = {
   schemaVersion: 2,
   openmindRoot: repoRoot,
@@ -467,7 +484,7 @@ const api = {
   readContent: async (itemPath) => ({
     path: itemPath,
     name: itemPath.split(/[\\/]/).pop() || itemPath,
-    content: "# Visual Audit Sample\n\n## Provider unavailable state\n\n这段 Markdown 覆盖长标题、长路径、中英文混排和 TOC 高亮。\n\n```bash\nnpm run verify\n```\n\n## Error state\n\nToken expired / Provider unavailable / Windows path boundary.",
+    content: motionPerfEnabled && itemPath === "openmind/article/motion-review.md" ? motionDocument : "# Visual Audit Sample\n\n## Provider unavailable state\n\n这段 Markdown 覆盖长标题、长路径、中英文混排和 TOC 高亮。\n\n```bash\nnpm run verify\n```\n\n## Error state\n\nToken expired / Provider unavailable / Windows path boundary.",
     type: itemPath.endsWith(".html") ? "html" : "markdown"
   }),
   listSources: async () => {

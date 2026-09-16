@@ -7,6 +7,7 @@ import {
 } from "../../shared/content-kinds";
 import { findRepoRoot, ensureInsideRepo, ensureInsideRepoReadable, relativeToOpenmind, resolveOpenmindPath, resolveOpenmindRoot } from "./settings";
 import { messages } from "../../shared/messages";
+import { readTextPrefix, readTextPrefixSync } from "./read-text-prefix";
 
 export type ContentFileEntry = {
   name: string;
@@ -186,15 +187,16 @@ function getContent(kind: string, date: string): Array<ContentFileEntry & { kind
 
 function readContent(relativePath: string): ContentReadResult {
   const filePath = ensureInsideRepoReadable(relativePath);
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile()) throw new Error(messages.errors.file.notAFile);
-  const maxBytes = 1024 * 1024;
   return {
     path: relativePath,
     name: path.basename(filePath),
-    content: fs.readFileSync(filePath, "utf8").slice(0, maxBytes),
-    truncated: stat.size > maxBytes
+    ...readTextPrefixSync(filePath)
   };
+}
+
+export async function readContentAsync(relativePath: string): Promise<ContentReadResult> {
+  const filePath = ensureInsideRepoReadable(relativePath);
+  return { path: relativePath, name: path.basename(filePath), ...await readTextPrefix(filePath) };
 }
 
 function writeContent(relativePath: string, rawContent: string): ContentReadResult {

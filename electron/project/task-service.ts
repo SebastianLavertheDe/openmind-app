@@ -14,8 +14,11 @@ import {
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { ProjectPathResolver } from "./project-path-resolver";
 
+const TaskIdSchema = z.string().uuid();
+
 export class ProjectTaskService {
   readonly root: string;
+  private readonly taskCache = new Map<string, { fingerprint: string; task: ProjectTask }>();
 
   constructor(private readonly paths: ProjectPathResolver, aiStateRoot: string) {
     if (!path.isAbsolute(aiStateRoot)) throw new Error("AI 状态目录必须是绝对路径。");
@@ -63,19 +66,49 @@ export class ProjectTaskService {
   }
 
   list(projectName: string): ProjectTask[] {
+    return this.scanTasks(projectName).map((task) => structuredClone(task))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  countActive(projectName: string): number {
+    // The summary path neither sorts nor copies full task records.
+    return this.scanTasks(projectName).reduce((count, task) => count + Number(task.status !== "archived"), 0);
+  }
+
+  private scanTasks(projectName: string): ProjectTask[] {
     return this.paths.withProjectMutationLock(() => {
-      this.initializeProject(projectName);
-      const tasksRoot = this.projectDirectory(projectName);
+      const canonicalProjectName = this.paths.resolveProject(projectName).name;
+      const projectId = this.projectId(canonicalProjectName);
+      // Validate the common ancestors once per locked batch, not twice per task.
+      const tasksRoot = this.statePathForProjectId(projectId, "", true);
+      fs.mkdirSync(tasksRoot, { recursive: true });
       const result: ProjectTask[] = [];
       const taskIdentities = new Set<string>();
       for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.isSymbolicLink() || !z.string().uuid().safeParse(entry.name).success) continue;
+        if (!entry.isDirectory() || entry.isSymbolicLink() || !TaskIdSchema.safeParse(entry.name).success) continue;
         const identity = entry.name.toLocaleLowerCase("en-US");
         if (taskIdentities.has(identity)) throw new Error(`Project Task 目录包含重复 taskId：${entry.name}`);
         taskIdentities.add(identity);
-        result.push(this.get(projectName, entry.name));
+        const directory = path.join(tasksRoot, entry.name);
+        const directoryStat = fs.lstatSync(directory);
+        if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new Error("AI 任务状态路径不能包含符号链接。");
+        const filePath = path.join(directory, "task.json");
+        const stat = fs.lstatSync(filePath, { bigint: true });
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("AI 任务状态必须是普通文件。");
+        // Include identity and ctime, so replacement and in-place edits with a
+        // preserved mtime invalidate the cache as well. Never trust directory mtime alone.
+        const fingerprint = `${canonicalProjectName}:${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+        const cached = this.taskCache.get(filePath);
+        const task = cached?.fingerprint === fingerprint
+          ? cached.task
+          : this.readTask(filePath, canonicalProjectName, projectId, entry.name);
+        this.taskCache.delete(filePath);
+        this.taskCache.set(filePath, { fingerprint, task });
+        // Bound metadata retention when many projects are visited.
+        if (this.taskCache.size > 5_000) this.taskCache.delete(this.taskCache.keys().next().value!);
+        result.push(task);
       }
-      return result.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      return result;
     });
   }
 
@@ -83,19 +116,18 @@ export class ProjectTaskService {
     return this.paths.withProjectMutationLock(() => {
       const canonicalProjectName = this.paths.resolveProject(projectName).name;
       const filePath = this.taskFile(canonicalProjectName, taskId);
-      const raw: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      const task = ProjectTaskSchema.parse(raw);
-      if (task.projectName !== canonicalProjectName) {
-        throw new Error(`Project Task 的 projectName 与所在项目不一致：${task.taskId}`);
-      }
-      if (task.projectId !== this.projectId(canonicalProjectName)) {
-        throw new Error(`Project Task 的 projectId 与所在项目不一致：${task.taskId}`);
-      }
-      if (task.taskId !== taskId || path.basename(path.dirname(filePath)) !== taskId) {
-        throw new Error(`Project Task 的 taskId 与所在目录不一致：${taskId}`);
-      }
-      return task;
+      return this.readTask(filePath, canonicalProjectName, this.projectId(canonicalProjectName), taskId);
     });
+  }
+
+  private readTask(filePath: string, projectName: string, projectId: string, taskId: string): ProjectTask {
+    const task = ProjectTaskSchema.parse(JSON.parse(fs.readFileSync(filePath, "utf8")));
+    if (task.projectName !== projectName) throw new Error(`Project Task 的 projectName 与所在项目不一致：${task.taskId}`);
+    if (task.projectId !== projectId) throw new Error(`Project Task 的 projectId 与所在项目不一致：${task.taskId}`);
+    if (task.taskId !== taskId || path.basename(path.dirname(filePath)) !== taskId) {
+      throw new Error(`Project Task 的 taskId 与所在目录不一致：${taskId}`);
+    }
+    return task;
   }
 
   archive(projectName: string, taskId: string): ProjectTask {
@@ -168,7 +200,7 @@ export class ProjectTaskService {
       const tasksRoot = this.projectDirectory(nextName);
       const taskIdentities = new Set<string>();
       for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.isSymbolicLink() || !z.string().uuid().safeParse(entry.name).success) continue;
+        if (!entry.isDirectory() || entry.isSymbolicLink() || !TaskIdSchema.safeParse(entry.name).success) continue;
         const identity = entry.name.toLocaleLowerCase("en-US");
         if (taskIdentities.has(identity)) throw new Error(`Project Task 目录包含重复 taskId：${entry.name}`);
         taskIdentities.add(identity);
@@ -202,7 +234,7 @@ export class ProjectTaskService {
       this.initializeProject(canonicalProjectName);
       const tasksRoot = this.projectDirectory(canonicalProjectName);
       const directoryIds = fs.readdirSync(tasksRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && z.string().uuid().safeParse(entry.name).success)
+        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && TaskIdSchema.safeParse(entry.name).success)
         .map((entry) => entry.name)
         .sort();
       const parsed = snapshot.map((task) => ProjectTaskSchema.parse(task));
@@ -233,17 +265,17 @@ export class ProjectTaskService {
   }
 
   private taskDirectory(projectName: string, taskId: string, allowMissingLeaf = false): string {
-    z.string().uuid().parse(taskId);
+    TaskIdSchema.parse(taskId);
     return this.statePath(projectName, taskId, allowMissingLeaf);
   }
 
   taskFile(projectName: string, taskId: string): string {
-    z.string().uuid().parse(taskId);
+    TaskIdSchema.parse(taskId);
     return this.statePath(projectName, `${taskId}/task.json`);
   }
 
   private messageDirectory(projectName: string, taskId: string, allowMissingLeaf = false): string {
-    z.string().uuid().parse(taskId);
+    TaskIdSchema.parse(taskId);
     return this.statePath(projectName, `${taskId}/messages`, allowMissingLeaf);
   }
 
@@ -252,7 +284,11 @@ export class ProjectTaskService {
   }
 
   private statePath(projectName: string, relativePath: string, allowMissing = false): string {
-    const target = path.join(this.root, this.projectId(projectName), relativePath);
+    return this.statePathForProjectId(this.projectId(projectName), relativePath, allowMissing);
+  }
+
+  private statePathForProjectId(projectId: string, relativePath: string, allowMissing = false): string {
+    const target = path.join(this.root, projectId, relativePath);
     // Unlike project content, this tree belongs to the application. Still reject
     // links in every existing path component before any read/write/delete.
     const parsed = path.parse(target);

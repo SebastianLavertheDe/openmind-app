@@ -10,7 +10,7 @@ import { LEGACY_KIND_MATCHERS } from "../../shared/content-kinds";
 import { messages } from "../../shared/messages";
 
 export type ContentApi = Pick<typeof ContentLib, "getContent" | "readContent">;
-export type ContentServiceApi = Pick<typeof ContentLib, "getContent" | "readContent" | "getOverview" | "writeContent">;
+export type ContentServiceApi = Pick<typeof ContentLib, "getContent" | "readContent" | "readContentAsync" | "getOverview" | "writeContent">;
 export type CreativeApi = Pick<typeof CreativeLib, "getCreativeTopics" | "listCreativeProjects">;
 export type CreativeServiceApi = typeof CreativeLib;
 

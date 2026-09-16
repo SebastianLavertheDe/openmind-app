@@ -34,6 +34,10 @@ export class ProjectOutputService {
     return this.readIndex(projectName).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
+  count(projectName: string): number {
+    return this.readIndex(projectName).length;
+  }
+
   create(input: ProjectCreateOutputInput & { projectName: string }): ProjectOutputRead {
     return this.paths.withProjectMutationLock(() => {
       const projectName = this.paths.resolveProject(input.projectName).name;

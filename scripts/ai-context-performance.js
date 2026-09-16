@@ -2,6 +2,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const ts = require("typescript");
 
 // AI Context 分片基准：真实 Projects/Creative 页面 + 真实 AI 侧栏伴随流式输出。
 // 构建产物在 checkout 之外的临时目录（与 document-performance 同款流程），
@@ -13,6 +14,25 @@ const path = require("node:path");
   await build({
     configFile: false, root: path.join(__dirname, "fixtures/ai-context-performance"), base: "./",
     resolve: { alias: { "@shared": path.resolve(__dirname, "../shared") } },
+    // Instrument the real page owners in this fixture build only. Ordinary
+    // production Profiler callbacks are disabled; a layout effect observes each
+    // committed page update, including updates triggered by the page's hooks.
+    plugins: [{
+      name: "benchmark-page-commits", enforce: "pre",
+      transform(code, id) {
+        const normalized = id.replaceAll("\\", "/");
+        const page = normalized.endsWith("/features/creative/CreativePage.tsx") ? "creative"
+          : normalized.endsWith("/features/projects/ProjectsPage.tsx") ? "projects" : null;
+        if (!page) return;
+        const name = page === "creative" ? "CreativeWorkspacePage" : "ProjectsPage";
+        const source = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+        const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+        if (!declaration?.body) throw new Error(`Missing benchmark page function: ${name}`);
+        const offset = declaration.body.getStart(source) + 1;
+        return `import { useLayoutEffect as __benchCommitEffect } from "react";\n${code.slice(0, offset)}\n` +
+          `__benchCommitEffect(() => { (window as any).__recordBenchCommit(${JSON.stringify(page)}); });\n` + code.slice(offset);
+      }
+    }],
     define: { "process.env.NODE_ENV": '"production"' },
     esbuild: { jsx: "automatic", jsxDev: false },
     worker: { format: "es", plugins: () => [{ name: "dom-free-document-parsing", enforce: "pre", resolveId: id =>

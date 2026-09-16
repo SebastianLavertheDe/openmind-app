@@ -11,6 +11,7 @@ import { MarkdownEditor } from "../creative/MarkdownEditor";
 import { PreviewRenderer, useFilePreviewController } from "../file-preview";
 import { previewResourceTruncated, type FilePreviewSource, type PreviewDraft, type PreviewResource } from "../file-preview/model";
 import { FilePreviewProvider } from "./file-preview-context";
+import { usePreviewMotion } from "./use-preview-motion";
 import {
   DEFAULT_PREVIEW_RATIO,
   FILE_PREVIEW_PANE_MIN_INLINE_SIZE,
@@ -86,6 +87,7 @@ export function AiFilePreviewPane({
   const previewOpen = preview.open;
   const { visible: previewVisible, leaving: previewLeaving } = useExitPresence(previewOpen, 240);
   const previewOnly = previewVisible && layoutMode === "preview-only";
+  const { capture: captureConversation, cancel: cancelConversationMotion } = usePreviewMotion(conversationRef, previewOpen, previewVisible, layoutMode);
 
   const livePreview = useMemo<DisplayedPreview | null>(() => preview.source ? {
     source: preview.source,
@@ -141,7 +143,10 @@ export function AiFilePreviewPane({
   const openSource = useCallback(async (source: FilePreviewSource, logicalPath: string) => {
     if (openingSourceRef.current === source.id) return;
     openingSourceRef.current = source.id;
-    if (!previewOpen) focusBeforePreviewRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!previewOpen) {
+      focusBeforePreviewRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      captureConversation();
+    }
     setSaveNotice(null);
     setRenderError(null);
     preview.clearSaveError();
@@ -154,7 +159,7 @@ export function AiFilePreviewPane({
       restoredPathRef.current = logicalPath;
       onPreviewPathChange?.(logicalPath);
     }
-  }, [confirmLeavePreview, onPreviewPathChange, preview.clearSaveError, preview.openSource, previewOpen]);
+  }, [captureConversation, confirmLeavePreview, onPreviewPathChange, preview.clearSaveError, preview.openSource, previewOpen]);
 
   const providerOpenPreview = useCallback(async (targetPath: string) => {
     const intent = ++providerIntentRef.current;
@@ -187,7 +192,13 @@ export function AiFilePreviewPane({
   }, [openSource, previewOpen, restoredPreviewPath, surfaceKind]);
 
   const closePreview = useCallback(async () => {
-    if (!await preview.close(confirmLeavePreview)) return;
+    captureConversation();
+    if (!await preview.close(async () => {
+      const confirmed = await confirmLeavePreview();
+      // A discard dialog may remain open while the window is resized.
+      if (confirmed) captureConversation();
+      return confirmed;
+    })) return;
     providerIntentRef.current += 1;
     openingSourceRef.current = null;
     onPreviewPathChange?.(null);
@@ -196,7 +207,7 @@ export function AiFilePreviewPane({
     setSaveNotice(null);
     setRenderError(null);
     restorePreviewFocusRef.current = true;
-  }, [confirmLeavePreview, onPreviewPathChange, preview.close]);
+  }, [captureConversation, confirmLeavePreview, onPreviewPathChange, preview.close]);
 
   const switchToPreview = useCallback(async () => {
     await preview.setMode("preview", preview.dirty ? () => ui.confirm({
@@ -242,9 +253,10 @@ export function AiFilePreviewPane({
     } else setPreviewRatio(ratio);
   }, [workbenchElementRef, workbenchLayout.inlineSize]);
   const startPreviewResize = useCallback(() => {
+    cancelConversationMotion();
     previewResizeStartRatio.current = previewRatioRef.current;
     previewDragging.current = true;
-  }, []);
+  }, [cancelConversationMotion]);
   const cancelPreviewResize = useCallback(() => {
     previewRatioRef.current = previewResizeStartRatio.current;
     workbenchElementRef.current?.style.setProperty("--workbench-columns", previewGridColumns(previewRatioRef.current));
@@ -257,9 +269,7 @@ export function AiFilePreviewPane({
   }, []);
 
   const previewColumns = previewVisible && layoutMode === "split"
-    ? previewActive
-      ? previewGridColumns(previewDragging.current ? previewRatioRef.current : previewRatio)
-      : "minmax(0, 0fr) 0px minmax(0, 1fr)"
+    ? previewGridColumns(previewDragging.current ? previewRatioRef.current : previewRatio)
     : "minmax(0, 1fr)";
   const truncated = previewResourceTruncated(displayedPreview?.resource || null);
   const canSave = previewOpen && displayedPreview?.canEditContent && preview.dirty && !preview.saving;
@@ -320,7 +330,7 @@ export function AiFilePreviewPane({
     <FilePreviewProvider open={providerOpenPreview}>
       <div
         ref={workbenchRef}
-        className={`ai-workbench${previewVisible ? " with-file-preview" : ""}${previewActive ? " preview-active" : ""}${previewLeaving ? " preview-leaving" : ""}${previewResizing ? " is-resizing-preview" : ""}`}
+        className={`ai-workbench${previewVisible ? " with-file-preview" : ""}${previewActive ? " preview-active" : ""}${previewLeaving ? " preview-leaving" : ""}${previewVisible && !previewOpen ? " preview-closing" : ""}${previewResizing ? " is-resizing-preview" : ""}`}
         data-preview-layout={previewVisible ? layoutMode : undefined}
         style={{ "--workbench-columns": previewColumns } as CSSProperties}
       >

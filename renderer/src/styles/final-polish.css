@@ -101,8 +101,14 @@ details[open] > :not(summary) {
   .timeline-presence-item[data-entering] > .timeline-presence-inner { animation: none; }
 }
 
-:root.theme-transitioning,
-:root.theme-transitioning * {
+:root.theme-transitioning::view-transition-old(root),
+:root.theme-transitioning::view-transition-new(root) {
+  animation-duration: var(--dur-exit, 160ms);
+  animation-timing-function: ease;
+}
+
+:root.theme-transitioning-fallback,
+:root.theme-transitioning-fallback * {
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
 }
 
