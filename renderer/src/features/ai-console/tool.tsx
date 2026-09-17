@@ -3,7 +3,6 @@ import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { formatDuration } from "../../ai-utils";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
@@ -282,15 +281,13 @@ export function ToolCallCard({
       category
     };
   }, [runStatus, stableEvents]);
-  const { first, last, tool, callState, input, outputs, failureValue, failureText, operation, category } = derived;
+  const { tool, callState, input, outputs, failureValue, failureText, operation, category } = derived;
   const failed = callState === "failed" || callState === "conflicted";
   const conflicted = callState === "conflicted";
   const cancelled = callState === "cancelled";
   const incomplete = callState === "incomplete";
   const running = callState === "running";
   const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
-  const liveNow = useLiveNow(running);
-  const elapsed = formatDuration(first.timestamp, running ? new Date(liveNow).toISOString() : last.timestamp);
   const summaryLabel = category === "command" ? operation : tool;
   const titleOperation = toolTitleOperation(category, operation, tool);
   const inlineOperation = category === "command" ? "" : titleOperation && titleOperation !== tool ? titleOperation : "";
@@ -337,7 +334,6 @@ export function ToolCallCard({
             )}
             {failed && failureText && category !== "command" ? <em title={firstLine(failureText)}>{firstLine(failureText)}</em> : null}
           </span>
-          <span className="tool-event-meta">{category === "command" || !running ? <small>{elapsed}</small> : null}<ChevronRight size={14} /></span>
         </>
       }
     >
@@ -357,16 +353,6 @@ export function ToolCallCard({
       </div>
     </AnimatedDisclosure>
   );
-}
-
-function useLiveNow(enabled: boolean): number {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!enabled) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(id);
-  }, [enabled]);
-  return now;
 }
 
 export function toolIcon(_tool: string, running: boolean, failed: boolean, cancelled = false): ReactNode {

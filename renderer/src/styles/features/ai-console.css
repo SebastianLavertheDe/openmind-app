@@ -231,7 +231,7 @@
   overflow: hidden;
   container-type: inline-size;
   border: 1px solid var(--artifact-border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--artifact-bg);
   box-shadow: var(--artifact-shadow);
 }
@@ -242,54 +242,55 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px 20px;
-  padding: 14px 24px;
+  gap: 4px 12px;
+  min-height: 44px;
+  padding-block: 6px;
+  padding-inline: 18px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--panel-muted) 54%, var(--panel-bg));
 }
 
 .assistant-artifact-heading {
-  flex: 1 1 140px;
+  flex: 1 1 160px;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .assistant-artifact-icon {
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: 16px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: var(--brand-accent-tint);
-  color: var(--brand-accent-strong);
+  color: var(--muted);
 }
 
 .assistant-artifact-details {
   min-width: 0;
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 
 .assistant-artifact-kind,
+.assistant-artifact-format,
 .assistant-artifact-status {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   color: var(--muted-2);
   font-size: var(--fs-xs);
-  line-height: 1.4;
+  line-height: 20px;
 }
 
 .assistant-artifact-kind {
   color: var(--text-dim);
   font-size: var(--fs-body);
-  font-weight: 600;
-}
-
-.assistant-artifact.complete .assistant-artifact-status {
-  color: var(--brand-accent-strong);
+  font-weight: 500;
 }
 
 .assistant-artifact.incomplete {
@@ -304,11 +305,7 @@
 
 .assistant-artifact-content {
   min-width: 0;
-  margin: 0 8px 8px;
-  padding: 18px 16px 20px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--panel-bg);
+  padding: 20px 22px 22px;
 }
 
 .chat-thread .assistant-artifact-content .chat-markdown > :first-child {
@@ -321,7 +318,7 @@
 
 .chat-thread .assistant-artifact-content .chat-markdown > h1:first-child {
   margin-bottom: 12px;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.4;
 }
 
@@ -329,7 +326,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 12px 24px 18px;
+  margin: 0 22px 18px;
   font-size: var(--fs-sm);
   line-height: 1.5;
 }
@@ -348,18 +345,17 @@
   gap: 6px;
   margin-inline-start: auto;
   padding: 6px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 7px;
-  background: var(--panel-bg);
-  color: var(--text-dim);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
   font-size: var(--fs-xs);
   white-space: nowrap;
-  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 
 .assistant-artifact-copy:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
+  background: var(--control-hover);
   color: var(--text);
 }
 
@@ -368,21 +364,21 @@
   outline-offset: 2px;
 }
 
-.assistant-artifact-copy:active {
+.assistant-artifact-copy[data-motion="action"]:active:not(:disabled) {
   transform: scale(.96);
 }
 
 @container (max-width: 360px) {
   .assistant-artifact-header {
-    padding-inline: 20px;
+    padding-inline: 12px;
   }
 
   .assistant-artifact-content {
-    padding: 16px 12px;
+    padding: 18px 16px;
   }
 
   .assistant-artifact-warning {
-    margin-inline: 20px;
+    margin-inline: 16px;
   }
 }
 
@@ -391,7 +387,7 @@
     transition: none;
   }
 
-  .assistant-artifact-copy:active {
+  .assistant-artifact-copy[data-motion="action"]:active:not(:disabled) {
     transform: none;
   }
 }
@@ -724,14 +720,6 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 1.35;
-}
-
-.chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-meta small {
-  display: none;
-}
-
-.chat-thread .completed-process-body .command-group .tool-event.grouped-command .tool-event-meta svg {
-  color: var(--muted-2);
 }
 
 .chat-thread .completed-process-body .trace-step.approval .system-event {

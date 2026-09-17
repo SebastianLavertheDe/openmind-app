@@ -9,6 +9,7 @@ import { Plugin, TextSelection, type SelectionBookmark } from "@milkdown/kit/pro
 import { setBlockType, toggleMark } from "@milkdown/kit/prose/commands";
 import { undo, redo } from "@milkdown/kit/prose/history";
 import { toggleCode, toggleList, toggleQuote } from "./document-commands";
+import { documentBlockMenu, documentMenuPosition } from "./document-block-menu";
 import { documentHeadings, documentSearch, documentSearchPlugin, jumpToHeading, replaceSearch, searchDocument, stepSearch, type DocumentHeading, type DocumentSearch } from "./document-navigation";
 import type { EditorSelectionSnapshot } from "./MilkdownEditor";
 
@@ -44,12 +45,10 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
     [Crepe.Feature.CodeMirror]: { searchPlaceholder: "搜索代码语言", copyText: "复制代码", noResultText: "没有匹配的语言", previewToggleText: preview => preview ? "编辑" : "收起预览" },
     [Crepe.Feature.ImageBlock]: { onUpload: uploadImage, inlineUploadButton: "上传图片", blockUploadButton: "上传图片", blockConfirmButton: "确认", inlineUploadPlaceholderText: "或粘贴图片链接", blockUploadPlaceholderText: "或粘贴图片链接", blockCaptionPlaceholderText: "添加图片说明" },
     [Crepe.Feature.BlockEdit]: {
+      ...documentBlockMenu,
       blockHandle: { getOffset: () => 4 },
       // Slash menus must render outside the scrolling host or overflow hides them.
-      slashMenu: { root: floatingRoot },
-      textGroup: { label: "基础内容", text: { label: "正文" }, h1: { label: "标题 1" }, h2: { label: "标题 2" }, h3: { label: "标题 3" }, h4: { label: "标题 4" }, h5: { label: "标题 5" }, h6: { label: "标题 6" }, quote: { label: "引用" }, divider: { label: "分割线" } },
-      listGroup: { label: "列表", bulletList: { label: "无序列表" }, orderedList: { label: "有序列表" }, taskList: { label: "待办列表" } },
-      advancedGroup: { label: "插入", image: { label: "图片" }, codeBlock: { label: "代码块" }, table: { label: "表格" }, math: { label: "公式" } }
+      slashMenu: documentMenuPosition(floatingRoot)
     }
   } });
   const view = () => crepe.editor.action(ctx => ctx.get(editorViewCtx));
@@ -119,6 +118,23 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
   if (floatingRoot) for (const el of host.querySelectorAll<HTMLElement>(".milkdown-toolbar, .milkdown-link-preview, .milkdown-link-edit, .milkdown-latex-inline-edit")) floatingRoot.append(el);
   serialized = crepe.getMarkdown();
   ready = true;
+  const closeBlockMenu = () => {
+    if (!ready) return;
+    // Crepe exposes BlockEdit but not its menu API symbol. Resolve its named
+    // context to close the real menu, including its capture-phase key handler.
+    crepe.editor.action(ctx => ctx.get<{ hide(): void }, "menuAPICtx">("menuAPICtx").hide());
+  };
+  const onOutsidePointerDown = (event: PointerEvent) => {
+    const target = event.target as Node;
+    const menu = (floatingRoot ?? host).querySelector('.milkdown-slash-menu[data-show="true"]');
+    if (menu && !host.contains(target) && !menu.contains(target)) closeBlockMenu();
+  };
+  const onFocusOut = () => queueMicrotask(() => {
+    const menu = (floatingRoot ?? host).querySelector(".milkdown-slash-menu");
+    if (!host.contains(document.activeElement) && !menu?.contains(document.activeElement)) closeBlockMenu();
+  });
+  document.addEventListener("pointerdown", onOutsidePointerDown, true);
+  host.addEventListener("focusout", onFocusOut);
   const setLabel = (next: string) => {
     const dom = view().dom;
     dom.setAttribute("role", "textbox"); dom.setAttribute("aria-multiline", "true"); dom.setAttribute("aria-label", next);
@@ -151,7 +167,7 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
   };
   return {
     editor: crepe.editor,
-    focus: () => view().focus(), setLabel, getSelection, run, setHeading,
+    focus: () => view().focus(), setLabel, getSelection, run, setHeading, closeBlockMenu,
     setReadOnly: (readOnly: boolean) => {
       if (crepe.readonly === readOnly) return;
       const editorView = view();
@@ -203,7 +219,12 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
       crepe.editor.action(insert(replacement, true));
       editorView.focus(); return true;
     },
-    destroy: async () => { ready = false; ranges.clear(); await crepe.destroy(); }
+    destroy: async () => {
+      ready = false;
+      document.removeEventListener("pointerdown", onOutsidePointerDown, true);
+      host.removeEventListener("focusout", onFocusOut);
+      ranges.clear(); await crepe.destroy();
+    }
   };
 }
 export type MilkdownRuntime = Awaited<ReturnType<typeof createMarkdownEditor>>;

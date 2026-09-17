@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, FileOutput, LoaderCircle, Pencil, Plus, Save, Search } from "lucide-react";
+import { FileOutput, LoaderCircle, Pencil, Plus, Search } from "lucide-react";
 import { useAiUi } from "../../ai-context";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
+import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectOutputEditor } from "./ProjectOutputEditor";
 import { useFilePreviewController } from "../file-preview";
 import type { FilePreviewSource, PreviewResource } from "../file-preview/model";
@@ -84,6 +85,7 @@ export function ProjectOutputsPanel({
     const needle = query.trim().toLocaleLowerCase();
     return outputs.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
   }, [outputs, query]);
+  const listMotion = useCollectionMotion(filtered.length, 40);
 
   const acceptOutput = useCallback((next: ProjectOutput) => {
     if (!mountedRef.current) return;
@@ -245,10 +247,10 @@ export function ProjectOutputsPanel({
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
       <label className="project-local-search"><Search size={14} /><input aria-label="搜索产物" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索产物" /></label>
       <div className="project-local-count">全部产物 <span>{filtered.length}</span></div>
-      <div className="project-item-list">
+      <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的产物" : "还没有产物"} description={outputs.length ? "换一个标题关键词后再试。" : "项目任务完成后，完整生成的文章会自动保存在这里；也可以通过加号新建产物。"} /> : null}
-        {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => {
+        {filtered.map((item) => <button key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
           if (item.relativePath === selectedPathRef.current && previewResourceRef.current) onSelectionChange?.(item.relativePath);
           else void readOutput(item.relativePath);
         }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
@@ -259,11 +261,9 @@ export function ProjectOutputsPanel({
   const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
-        <span className="project-output-location" title={selected.relativePath}>项目文档</span>
         <div className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button><button className={preview.mode === "preview" ? "active" : ""} aria-pressed={preview.mode === "preview"} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />阅读</button></div>
-          <button className="project-output-save" data-motion="action" aria-label="保存文档" title="保存文档（Ctrl/⌘+S）" disabled={!preview.dirty || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}</button>
+          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button></div>
         </div>
       </header>
       <div className={`project-output-editor ${preview.mode}`}>

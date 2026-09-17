@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, FilePenLine, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2, Video } from "lucide-react";
+import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
 import { useAiUi } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
+import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
 import { ProjectOutputsPanel, type ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
@@ -124,6 +125,7 @@ export function ProjectFilesPanel({
     const needle = query.trim().toLocaleLowerCase();
     return entries.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
   }, [entries, query]);
+  const listMotion = useCollectionMotion(filtered.length, 40);
 
   const handleNavigationGuard = useCallback((guard: ProjectOutputNavigationGuard | null) => {
     guardRef.current = guard;
@@ -272,17 +274,16 @@ export function ProjectFilesPanel({
         <input aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
         {loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
       </label>
-      <div className="project-item-list project-file-list" aria-live="polite" aria-busy={loading || undefined}>
+      <div className="project-item-list project-file-list" data-project-list-motion={listMotion.enabled || undefined} aria-live="polite" aria-busy={loading || undefined}>
         {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? "没有匹配的文件" : "还没有文件"} description={entries.length ? "换一个关键词后再试。" : "可通过右上角加号新建文档或添加资料。"} /> : null}
-        {hasLoaded ? filtered.map((item, index) => {
+        {hasLoaded ? filtered.map((item) => {
           const Icon = fileIcon(item);
           const active = Boolean(selection && sameSelection(selection, item));
           return (
             <div
               key={`${item.kind}:${item.relativePath}`}
-              className={`project-file-row${active ? " active" : ""}`}
-              style={{ "--project-list-index": index } as CSSProperties}
+              className={`project-file-row project-content-row${active ? " active" : ""}`}
             >
               <button
                 type="button"
@@ -290,7 +291,7 @@ export function ProjectFilesPanel({
                 data-motion="selection"
                 onClick={() => void openFile(item)}
               >
-                <Icon aria-hidden="true" />
+                <Icon className="project-file-icon" size={16} strokeWidth={2} aria-hidden="true" />
                 <span><strong>{item.title}</strong></span>
               </button>
               <DropdownMenu
@@ -436,9 +437,8 @@ function sameSelection(left: ProjectFileSelection, right: ProjectFileSelection):
 }
 
 function fileIcon(item: ProjectFileEntry): typeof FileText {
-  if (item.kind === "output") return FilePenLine;
   if (item.materialKind === "web") return Globe2;
-  if (item.materialKind === "video") return Video;
+  if (item.materialKind === "video") return Clapperboard;
   return FileText;
 }
 

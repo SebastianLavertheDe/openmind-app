@@ -13,12 +13,10 @@
   --panel-bg: #ffffff;
   --panel-muted: #f5f5f4;
   --user-message-bg: #e8f3fe;
-  --artifact-bg: #f3f7f5;
-  --artifact-border: #d8e4df;
+  --artifact-bg: var(--panel-bg);
+  --artifact-border: var(--border-subtle);
   --artifact-warning-fg: var(--warning-700);
-  --artifact-shadow:
-    0 1px 2px oklch(0 0 0 / .04),
-    0 3px 10px oklch(0 0 0 / .04);
+  --artifact-shadow: none;
   --control-bg: #ffffff;
   --control-hover: #ececea;
   --border-subtle: #e7e7e5;
@@ -105,8 +103,8 @@
   --panel-bg: #20201f;
   --panel-muted: #262625;
   --user-message-bg: var(--panel-muted);
-  --artifact-bg: #252b28;
-  --artifact-border: #3c4842;
+  --artifact-bg: var(--panel-bg);
+  --artifact-border: var(--border-subtle);
   --artifact-warning-fg: var(--warning-300);
   --artifact-shadow: none;
   --control-bg: #282827;
@@ -1484,9 +1482,17 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.creative-stream {
+.creative-stream,
+.brief-library-page .document-file-list {
   gap: 18px;
   padding: 4px 10px 16px;
+}
+
+.brief-library-page .document-file-list {
+  display: grid;
+  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
 }
 
 .stream-section {
@@ -1504,10 +1510,30 @@ select:focus-visible,
   letter-spacing: .04em;
 }
 
+.brief-library-page .document-library-count {
+  min-height: 32px;
+  align-items: center;
+  margin-bottom: 5px;
+  padding: 0 15px;
+  color: var(--muted-2);
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+
 .stream-section-header b,
-.stream-date-file > b {
+.stream-date-file > b,
+.brief-library-page .document-library-count > span {
   border: 0;
   background: color-mix(in srgb, var(--panel-muted) 78%, transparent);
+}
+
+.brief-library-page .document-library-count > span {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: center;
 }
 
 .creative-item-list,
@@ -1551,24 +1577,67 @@ select:focus-visible,
   box-shadow: none;
 }
 
-.creative-item-list .stream-date-file {
+.creative-item-list .stream-date-file,
+.brief-library-page .document-file-list > .brief-file-item {
+  min-height: 54px;
   margin: 0;
-  border-color: transparent;
+  padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
+  color: var(--text-dim);
+  font: inherit;
   box-shadow: none;
   transition: background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 
-.creative-item-list .stream-date-file:hover { background: var(--control-hover); }
+.creative-item-list .stream-date-file > span,
+.brief-library-page .brief-file-item > span {
+  min-width: 0;
+  display: block;
+  text-align: center;
+}
 
-.creative-item-list .stream-date-file.active {
+.creative-item-list .stream-date-file strong,
+.creative-item-list .stream-date-file small,
+.brief-library-page .brief-file-item strong,
+.brief-library-page .brief-file-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creative-item-list .stream-date-file strong,
+.brief-library-page .brief-file-item strong {
+  color: var(--text-dim);
+  font-size: var(--fs-base);
+  font-weight: 400;
+}
+
+.creative-item-list .stream-date-file small,
+.brief-library-page .brief-file-item small {
+  margin-top: 4px;
+  color: var(--muted-2);
+  font-size: var(--fs-xs);
+}
+
+.creative-item-list .stream-date-file:hover,
+.brief-library-page .brief-file-item:hover {
+  background: var(--control-hover);
+  color: var(--text-dim);
+}
+
+.creative-item-list .stream-date-file.active,
+.brief-library-page .brief-file-item.active,
+.brief-library-page .brief-file-item.pending {
   border-color: transparent;
   background: var(--list-selected-bg);
   box-shadow: none;
 }
 
-.creative-item-list .stream-date-file:focus-visible {
+.creative-item-list .stream-date-file:focus-visible,
+.brief-library-page .brief-file-item:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }

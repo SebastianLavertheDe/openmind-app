@@ -34,7 +34,8 @@ describe("Milkdown document editing", () => {
     rerender(createElement(StrictMode, null, createElement(MarkdownEditor, { ...props, value: "# 第二份文档" })));
     await waitFor(() => expect(container.querySelector("h1")?.textContent).toBe("第二份文档"));
     expect(props.onChange).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("段落格式"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "段落格式" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "标题 2" }));
     expect(container.querySelector("h2")?.textContent).toBe("第二份文档");
     expect(props.onChange).toHaveBeenLastCalledWith(expect.stringContaining("## 第二份文档"));
     unmount(); expect(container.querySelector(".ProseMirror")).toBeNull();
@@ -51,8 +52,9 @@ describe("Milkdown document editing", () => {
     const props = { value: "# 保留文档", ariaLabel: "文档内容", onChange: vi.fn(), onSelectionChange: vi.fn() };
     const { container, rerender, unmount } = render(createElement(MarkdownEditor, props));
     const editor = await screen.findByRole("textbox", { name: "文档内容" });
-    await waitFor(() => expect(screen.getByLabelText("段落格式")).not.toHaveProperty("disabled", true));
-    fireEvent.change(screen.getByLabelText("段落格式"), { target: { value: "2" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "段落格式" })).not.toHaveProperty("disabled", true));
+    fireEvent.click(screen.getByRole("button", { name: "段落格式" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "标题 2" }));
     const scroll = container.querySelector(".document-editor-scroll")!;
     scroll.scrollTop = 700;
     rerender(createElement(MarkdownEditor, { ...props, readOnly: true }));
@@ -130,6 +132,41 @@ describe("Milkdown document editing", () => {
   });
   it("uploads images as persistent data URLs", async () => {
     expect(await uploadImage(new File(["image"], "image.png", { type: "image/png" }))).toBe("data:image/png;base64,aW1hZ2U=");
+  });
+
+  it("keeps common slash blocks together and runs filtered headings and lists", async () => {
+    const { editor, view, host } = await open("");
+    editor.focus();
+    view.dispatch(view.state.tr.insertText("/"));
+    await waitFor(() => expect(host.querySelector('.milkdown-slash-menu[data-show="true"]')).not.toBeNull());
+    const labels = () => [...host.querySelectorAll(".menu-group li > span:not(.milkdown-icon)")].map(item => item.textContent);
+    expect(labels()).toEqual(["正文", "标题 1", "标题 2", "标题 3", "无序列表", "有序列表", "待办列表", "引用", "分割线", "图片", "代码块", "表格", "公式", "标题 4", "标题 5", "标题 6"]);
+    const list = [...host.querySelectorAll(".menu-group li")].find(item => item.textContent?.includes("无序列表"))!;
+    fireEvent.pointerUp(list);
+    expect(view.state.doc.firstChild?.type.name).toBe("bullet_list");
+    expect(view.state.doc.textContent).toBe("");
+
+    editor.setValue(""); editor.focus();
+    view.dispatch(view.state.tr.insertText("/标题 4"));
+    await waitFor(() => expect(labels()).toEqual(["标题 4"]));
+    expect(host.querySelector(".document-menu-hint")?.textContent).toBe("####");
+    fireEvent.keyDown(view.dom, { key: "Enter" });
+    expect(view.state.doc.firstChild?.type.name).toBe("heading");
+    expect(view.state.doc.firstChild?.attrs.level).toBe(4);
+    expect(editor.getMarkdown()).not.toContain("/标题");
+  });
+
+  it("closes the slash menu and releases its keyboard handler on outside focus", async () => {
+    const { editor, view, host } = await open("");
+    editor.focus(); view.dispatch(view.state.tr.insertText("/"));
+    await waitFor(() => expect(host.querySelector('.milkdown-slash-menu[data-show="true"]')).not.toBeNull());
+    const outside = document.createElement("button"); document.body.append(outside);
+    outside.focus();
+    await waitFor(() => expect(host.querySelector(".milkdown-slash-menu")?.getAttribute("data-show")).toBe("false"));
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    outside.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(false);
+    expect(view.state.doc.textContent).toBe("/");
   });
 
   it("toggles lists off and converts list kinds without nesting or losing text", async () => {

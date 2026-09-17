@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode, useState } from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -27,6 +27,55 @@ beforeEach(() => {
 });
 
 describe("AiFilePreviewPane", () => {
+  it("finishes restoring a workspace file after StrictMode replays mount effects", async () => {
+    const path = "article/20260917/示例文章.md";
+    let finishRead!: (record: { path: string; name: string; content: string }) => void;
+    const readContent = vi.fn(() => new Promise<{ path: string; name: string; content: string }>(resolve => { finishRead = resolve; }));
+    window.openmind = {
+      aiRefresh: vi.fn(async () => snapshot),
+      aiGetEvents: vi.fn(async () => []),
+      onAiEvent: vi.fn(() => () => {}),
+      readContent
+    } as unknown as DesktopApi;
+
+    render(<StrictMode><AiProvider initial={snapshot}>
+      <AiFilePreviewPane surface={{ kind: "workspace" }} restoredPreviewPath={path}>
+        <PreviewTrigger path={path} />
+      </AiFilePreviewPane>
+    </AiProvider></StrictMode>);
+
+    await waitFor(() => expect(readContent).toHaveBeenCalled());
+    await act(async () => { finishRead({ path, name: "示例文章.md", content: "# 恢复成功" }); });
+    expect(await screen.findByRole("heading", { name: "恢复成功" })).toBeTruthy();
+    expect(screen.queryByText(/正在加载文件/)).toBeNull();
+    expect(readContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failed restored read and lets the same workspace link retry in StrictMode", async () => {
+    const path = "article/20260917/重试文章.md";
+    const readContent = vi.fn()
+      .mockRejectedValueOnce(new Error("文件读取失败"))
+      .mockResolvedValueOnce({ path, name: "重试文章.md", content: "# 重试成功" });
+    window.openmind = {
+      aiRefresh: vi.fn(async () => snapshot),
+      aiGetEvents: vi.fn(async () => []),
+      onAiEvent: vi.fn(() => () => {}),
+      readContent
+    } as unknown as DesktopApi;
+
+    render(<StrictMode><AiProvider initial={snapshot}>
+      <AiFilePreviewPane surface={{ kind: "workspace" }} restoredPreviewPath={path}>
+        <PreviewTrigger path={path} />
+      </AiFilePreviewPane>
+    </AiProvider></StrictMode>);
+
+    expect(await screen.findByText(/文件读取失败/)).toBeTruthy();
+    expect(screen.queryByText(/正在加载文件/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "打开引用" }));
+    expect(await screen.findByRole("heading", { name: "重试成功" })).toBeTruthy();
+    expect(readContent).toHaveBeenCalledTimes(2);
+  });
+
   it("renders a Project .video.md reference with the shared semantic video preview", async () => {
     const material = {
       projectName: "AI 安全",

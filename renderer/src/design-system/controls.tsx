@@ -120,7 +120,10 @@ export function DropdownMenu({
   className,
   menuClassName,
   menuInert,
-  restoreFocusOnSelect = true
+  restoreFocusOnSelect = true,
+  open: controlledOpen,
+  onOpenChange,
+  menuAlign = "end"
 }: {
   label: ReactNode;
   children: ReactNode;
@@ -133,8 +136,16 @@ export function DropdownMenu({
   restoreFocusOnSelect?: boolean;
   /** A retained owner may be inert while this menu is portalled outside it. */
   menuInert?: boolean;
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+  menuAlign?: "start" | "end";
 }) {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = useCallback((next: boolean) => {
+    setLocalOpen(next);
+    onOpenChange?.(next);
+  }, [onOpenChange]);
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -146,18 +157,18 @@ export function DropdownMenu({
     anchorRef: triggerRef,
     floatingRef: menuRef,
     preferredSide: "bottom",
-    align: "end"
+    align: menuAlign
   });
   const closeMenu = useCallback((restoreFocus = true) => {
     restoreFocusRef.current = restoreFocus;
     setOpen(false);
-  }, []);
+  }, [setOpen]);
 
   useLayoutEffect(() => {
     if (!open || !visible) return;
     const frame = requestAnimationFrame(() => {
       const items = getEnabledMenuItems(menuRef.current);
-      const target = initialFocusRef.current === "last" ? items.at(-1) : items.at(0);
+      const target = initialFocusRef.current === "last" ? items.at(-1) : items.find(item => item.getAttribute("aria-checked") === "true") ?? items.at(0);
       target?.focus();
       initialFocusRef.current = "first";
     });
@@ -225,7 +236,7 @@ export function DropdownMenu({
         aria-expanded={open}
         aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen(!open)}
         onKeyDown={(event) => {
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
           event.preventDefault();
@@ -241,15 +252,15 @@ export function DropdownMenu({
           className={`ui-dropdown-menu${menuClassName ? ` ${menuClassName}` : ""}`}
           role="menu"
           aria-label={menuLabel}
-          inert={menuInert || undefined}
-          aria-hidden={menuInert || undefined}
+          inert={menuInert || leaving || undefined}
+          aria-hidden={menuInert || leaving || undefined}
           data-side={popover.side}
           data-leaving={leaving || undefined}
           style={popover.style}
           onKeyDown={onMenuKeyDown}
           onClick={(event) => {
             if (event.defaultPrevented) return;
-            const item = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=menuitem]") : null;
+            const item = event.target instanceof Element ? event.target.closest<HTMLElement>(MENU_ITEM_SELECTOR) : null;
             if (!item || !menuRef.current?.contains(item) || isMenuItemDisabled(item)) return;
             closeMenu(restoreFocusOnSelect);
           }}
@@ -264,9 +275,11 @@ export function DropdownMenu({
 
 function getEnabledMenuItems(menu: HTMLElement | null): HTMLElement[] {
   if (!menu) return [];
-  return Array.from(menu.querySelectorAll<HTMLElement>("[role=menuitem]"))
+  return Array.from(menu.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR))
     .filter((item) => !isMenuItemDisabled(item));
 }
+
+const MENU_ITEM_SELECTOR = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
 
 function isMenuItemDisabled(item: HTMLElement): boolean {
   return item.getAttribute("aria-disabled") === "true" || (item instanceof HTMLButtonElement && item.disabled);

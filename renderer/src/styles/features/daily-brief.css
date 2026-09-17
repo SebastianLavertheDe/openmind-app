@@ -20,9 +20,9 @@
   /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
   --file-reader-max-width: 1120px;
   --daily-brief-prose-max-width: 920px;
-  /* Keep the master column continuous while the AI companion is dragged.
-     The former 54rem breakpoint jumped directly from 272px to 224px. */
-  grid-template-columns: clamp(10rem, 32cqw, 17rem) minmax(0, 1fr);
+  /* Share the creative list's saved width, yielding space continuously when
+     the AI companion leaves a narrow document workspace. */
+  grid-template-columns: clamp(10rem, 32cqw, var(--content-list-width, 280px)) minmax(0, 1fr);
 }
 
 .brief-library-page .document-detail-header {
@@ -66,15 +66,28 @@
   margin-bottom: clamp(8px, 1.3cqw, 12px);
 }
 
-.brief-library-page .document-file-list {
-  padding-bottom: clamp(8px, 1.5cqw, 14px);
-}
-
 .brief-library-page .document-file-list > button {
-  min-height: clamp(52px, 6.7cqw, 62px);
-  padding-block: clamp(8px, 1.2cqw, 11px);
   content-visibility: auto;
   contain-intrinsic-size: auto 58px;
+}
+
+.brief-library-page .document-file-list > .brief-file-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  text-align: center;
+}
+
+.brief-library-page .brief-file-item > .brief-file-pending-icon {
+  position: absolute;
+  inset-inline-start: 8px;
+  inset-block-start: calc(50% - 7.5px);
+  margin-top: 0;
+}
+
+.brief-library-page .brief-file-item.pending > span {
+  padding-inline: 18px;
 }
 
 .brief-library-page .document-content .reader-markdown,

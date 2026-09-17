@@ -187,8 +187,16 @@ export function AiFilePreviewPane({
 
   useEffect(() => {
     if (surfaceKind !== "workspace" || !restoredPreviewPath || previewOpen || restoredPathRef.current === restoredPreviewPath) return;
-    restoredPathRef.current = restoredPreviewPath;
-    void openSource(workspacePreviewSource(restoredPreviewPath), restoredPreviewPath);
+    // StrictMode replays mount effects and invalidates the controller's first
+    // load. Start restoration after that replay; a cleaned-up effect must not
+    // claim the path or leave an invalidated request stuck in loading.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      restoredPathRef.current = restoredPreviewPath;
+      void openSource(workspacePreviewSource(restoredPreviewPath), restoredPreviewPath);
+    });
+    return () => { cancelled = true; };
   }, [openSource, previewOpen, restoredPreviewPath, surfaceKind]);
 
   const closePreview = useCallback(async () => {

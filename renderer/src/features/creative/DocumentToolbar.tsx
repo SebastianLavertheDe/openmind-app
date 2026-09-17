@@ -1,5 +1,6 @@
-import { Bold, Code, Code2, FolderOpen, Image, Italic, Link, List, ListOrdered, ListTodo, Quote, Strikethrough, Table2, Undo2, Redo2, MoreHorizontal, Search, ListTree } from "lucide-react";
-import { DropdownMenu } from "../../design-system/controls";
+import { useEffect, useState } from "react";
+import { Bold, Code, Code2, Image, Italic, Link, List, ListOrdered, ListTodo, Quote, Strikethrough, Table2, Undo2, Redo2, MoreHorizontal, Search, ListTree, ChevronDown } from "lucide-react";
+import { DocumentMenu, DocumentMenuHeading, DocumentMenuItem } from "./DocumentMenu";
 import type { EditorAction, EditorFormat } from "./milkdown-runtime";
 
 const tools: Array<{ action: EditorAction; label: string; icon: typeof Bold }> = [
@@ -13,32 +14,61 @@ const tools: Array<{ action: EditorAction; label: string; icon: typeof Bold }> =
 ];
 const primary = new Set<EditorAction>(["bold", "italic", "bullet", "ordered", "todo", "undo", "redo"]);
 const responsive = new Set<EditorAction>(["italic", "ordered", "todo", "redo"]);
+const moreGroups: Array<{ label: string; actions: EditorAction[] }> = [
+  { label: "文字样式", actions: ["italic", "strike", "inlineCode"] },
+  { label: "列表与引用", actions: ["ordered", "todo", "quote"] },
+  { label: "插入内容", actions: ["link", "image", "table", "code"] },
+  { label: "编辑历史", actions: ["redo"] }
+];
 
-export function DocumentToolbar({ ready, readOnly, format, outlineOpen, onOutline, onSearch, onAction, onHeading, onInsertLocalFile }: {
+export function DocumentToolbar({ ready, readOnly, format, outlineOpen, onOutline, onSearch, onAction, onHeading, onInsertLocalFile, onMenuOpen }: {
   ready: boolean; readOnly?: boolean; format: EditorFormat; outlineOpen: boolean;
   onOutline(): void; onSearch(): void; onAction(action: EditorAction): void; onHeading(level: number): void;
   onInsertLocalFile?(): Promise<void>;
+  onMenuOpen?(): void;
 }) {
+  const [menu, setMenu] = useState<"paragraph" | "more" | null>(null);
+  useEffect(() => { if (readOnly || !ready) setMenu(null); }, [readOnly, ready]);
+  const changeMenu = (name: "paragraph" | "more", open: boolean) => {
+    if (open) onMenuOpen?.();
+    setMenu(current => open ? name : current === name ? null : current);
+  };
   const disabled = (action: EditorAction) => !ready || action === "undo" && !format.canUndo || action === "redo" && !format.canRedo;
   return <div className="document-editor-toolbar" role="toolbar" aria-label={readOnly ? "文档导航" : "文档格式"}>
     <button type="button" title="文档大纲" aria-label="文档大纲" aria-pressed={outlineOpen} data-motion="selection" onClick={onOutline}><ListTree size={16} /></button>
     <button type="button" title="查找与替换（Ctrl/⌘+F）" aria-label="查找与替换" data-motion="selection" disabled={!ready} onClick={onSearch}><Search size={16} /></button>
     <span className="document-toolbar-divider" aria-hidden="true" />
     {readOnly ? <span className="document-reading-label">阅读模式</span> : <>
-      <select aria-label="段落格式" value={format.heading} disabled={!ready} onChange={event => onHeading(Number(event.target.value))}>
-        <option value={0}>正文</option>
-        {[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>标题 {level}</option>)}
-      </select>
+      <DocumentMenu label={<><span>{format.heading ? `标题 ${format.heading}` : "正文"}</span><ChevronDown size={14} /></>}
+        name="段落格式" open={menu === "paragraph"} disabled={!ready} triggerClassName="document-paragraph-trigger"
+        onOpenChange={open => changeMenu("paragraph", open)}>
+        <div className="document-menu-group">
+          <DocumentMenuHeading>段落格式</DocumentMenuHeading>
+          {[0, 1, 2, 3].map(level => <DocumentMenuItem key={level} icon={level ? `h${level}` : "text"}
+            label={level ? `标题 ${level}` : "正文"} radio active={format.heading === level} onClick={() => onHeading(level)} />)}
+        </div>
+        <div className="document-menu-group">
+          <DocumentMenuHeading>更多标题</DocumentMenuHeading>
+          {[4, 5, 6].map(level => <DocumentMenuItem key={level} icon={`h${level}`} label={`标题 ${level}`}
+            radio active={format.heading === level} onClick={() => onHeading(level)} />)}
+        </div>
+      </DocumentMenu>
       {tools.filter(tool => primary.has(tool.action)).map(({ action, label, icon: Icon }) => <button key={action} type="button" title={label} aria-label={label}
         className={responsive.has(action) ? "document-tool-responsive" : undefined}
         data-motion="selection" disabled={disabled(action)} aria-pressed={action === "undo" || action === "redo" ? undefined : format.active.includes(action)}
         onMouseDown={event => event.preventDefault()} onClick={() => onAction(action)}><Icon size={16} /></button>)}
-      <DropdownMenu label={<MoreHorizontal size={16} />} ariaLabel="更多格式" menuLabel="更多格式" disabled={!ready} menuClassName="document-format-menu" restoreFocusOnSelect={false}>
-        {tools.filter(tool => !primary.has(tool.action) || responsive.has(tool.action)).map(({ action, label, icon: Icon }) => <button key={action} type="button" data-motion="selection" role="menuitem"
-          className={responsive.has(action) ? "document-menu-responsive" : undefined} disabled={disabled(action)}
-          data-active={format.active.includes(action) || undefined} onClick={() => onAction(action)}><Icon size={16} />{label}</button>)}
-        {onInsertLocalFile ? <button type="button" data-motion="selection" role="menuitem" onClick={() => void onInsertLocalFile()}><FolderOpen size={16} />本地文件</button> : null}
-      </DropdownMenu>
+      <DocumentMenu label={<MoreHorizontal size={16} />} name="更多格式" open={menu === "more"} disabled={!ready}
+        align="end" onOpenChange={open => changeMenu("more", open)}>
+        {moreGroups.map(group => <div key={group.label} className="document-menu-group">
+          <DocumentMenuHeading>{group.label}</DocumentMenuHeading>
+          {group.actions.map(action => {
+            const tool = tools.find(tool => tool.action === action)!;
+            return <DocumentMenuItem key={action} icon={action} label={tool.label} disabled={disabled(action)}
+              active={format.active.includes(action)} onClick={() => onAction(action)} />;
+          })}
+          {group.label === "插入内容" && onInsertLocalFile ? <DocumentMenuItem icon="file" label="本地文件" onClick={() => void onInsertLocalFile()} /> : null}
+        </div>)}
+      </DocumentMenu>
     </>}
   </div>;
 }

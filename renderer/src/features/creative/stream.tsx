@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from "react";
-import { FileText } from "lucide-react";
 import type { CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { EmptyState } from "../../design-system/components";
@@ -184,7 +183,6 @@ function TopicDateGroups({
             disabled={!sourceFile}
             onClick={() => { if (sourceFile) onOpenTopicFile(sourceFile); }}
           >
-            <FileText size={16} aria-hidden />
             <span><strong>{label || date || m.creativeUi.stream.undated}</strong><small>{m.creativeUi.stream.topicManagementFile}</small></span>
             <b>{group.length}</b>
           </button>

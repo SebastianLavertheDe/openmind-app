@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save, Search } from "lucide-react";
 import type { ContentEntry } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAiUi } from "../../ai-context";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
+import { useContentListLayout } from "../../components/useContentListLayout";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
 import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../file-preview";
 
@@ -19,6 +20,7 @@ export function DailyBriefPage({
 }) {
   const layoutRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLElement>(null);
+  const listLayout = useContentListLayout();
   // The brief can remain usable below the generic split-workspace minimum: its
   // container queries stack the file list and document at this component-owned
   // boundary instead of forcing a global navigation change.
@@ -164,7 +166,7 @@ export function DailyBriefPage({
   ] : [];
 
   return (
-    <div ref={layoutRef} className="brief-library-container">
+    <div ref={layoutRef} className="brief-library-container" style={{ "--content-list-width": `${listLayout.layout.listWidth}px` } as CSSProperties}>
       <div className="document-library-page brief-library-page" data-detail-open={Boolean(record) || Boolean(pendingPath) || Boolean(embeddedFilePreviewPath) || undefined}>
       <aside className="document-library-list" ref={listRef}>
         <header>
@@ -176,12 +178,17 @@ export function DailyBriefPage({
         <div className="document-file-list entrance-stagger" aria-busy={loading || undefined}>
           {loading && !hasLoaded ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
           {!loading && !listError && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
-          {filteredFiles.map((file) => (
-            <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
-              <LoaderCircle size={15} className={`brief-file-pending-icon${pendingPath === file.path ? " is-visible spin" : ""}`} aria-hidden="true" />
-              <span><strong>{briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)}</strong><small>{formatBytes(file.size || 0)} · {file.modifiedAt ? formatModified(file.modifiedAt) : ""}</small></span>
-            </button>
-          ))}
+          {filteredFiles.map((file) => {
+            const name = file.name || file.path.split(/[\\/]/).at(-1) || file.path;
+            const date = briefFileDate(name);
+            const label = briefFileLabel(name);
+            return (
+              <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={label} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
+                <LoaderCircle size={15} className={`brief-file-pending-icon${pendingPath === file.path ? " is-visible spin" : ""}`} aria-hidden="true" />
+                <span><strong>{date || label}</strong>{date ? <small>{m.brief.library.eyebrow}</small> : null}</span>
+              </button>
+            );
+          })}
           {!loading && listError ? <ErrorState message={listError} retry={() => void load()} /> : null}
         </div>
       </aside>
@@ -223,15 +230,11 @@ export function DailyBriefPage({
 }
 
 function briefFileLabel(name: string): string {
+  const date = briefFileDate(name);
+  return date ? m.brief.library.fileLabel(date) : name.replace(/\.md$/i, "");
+}
+
+function briefFileDate(name: string): string | null {
   const match = name.match(/(\d{4})(\d{2})(\d{2})_daily_(?:summary|brief)\.md/i);
-  return match ? m.brief.library.fileLabel(`${match[1]}-${match[2]}-${match[3]}`) : name.replace(/\.md$/i, "");
-}
-
-function formatBytes(size: number): string {
-  return size < 1024 ? `${size} B` : `${(size / 1024).toFixed(size < 10240 ? 1 : 0)} KB`;
-}
-
-function formatModified(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }

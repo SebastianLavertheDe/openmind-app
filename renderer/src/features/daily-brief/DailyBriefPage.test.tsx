@@ -20,10 +20,24 @@ function makeApi(writeContent = vi.fn(async (_path: string, content: string) => 
   } as unknown as DesktopApi;
 }
 
-beforeEach(() => { window.openmind = makeApi(); });
+beforeEach(() => { window.localStorage.clear(); window.openmind = makeApi(); });
 afterEach(() => cleanup());
 
 describe("DailyBriefPage", () => {
+  it("uses the creative list's saved width while keeping its own list visible", async () => {
+    window.localStorage.setItem("openmind.list-detail.creative.v1", JSON.stringify({
+      schemaVersion: 1,
+      listWidth: 224,
+      listCollapsed: true
+    }));
+    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+
+    await screen.findByRole("heading", { name: "每日简报" });
+    expect((container.querySelector(".brief-library-container") as HTMLElement).style.getPropertyValue("--content-list-width")).toBe("224px");
+    expect(screen.getByRole("button", { name: /2026-06-30 每日简报/ }).closest("aside")?.classList.contains("collapsed")).toBe(false);
+    expect(JSON.parse(window.localStorage.getItem("openmind.list-detail.creative.v1") || "null").listCollapsed).toBe(true);
+  });
+
   it("refreshes without adding skeletons ahead of existing rows, including after a failure", async () => {
     const api = makeApi();
     let rejectRefresh!: (error: Error) => void;

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Copy, FileText, LoaderCircle } from "lucide-react";
+import { AlertTriangle, Check, Copy, FileText, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { messages as m } from "@shared/messages";
 import type { AssistantArtifactBlock } from "./artifact-fence";
@@ -29,25 +29,26 @@ export function ArtifactMessageBlock({
     >
       <header className="assistant-artifact-header">
         <div className="assistant-artifact-heading">
-          <span className="assistant-artifact-icon" aria-hidden><FileText size={18} /></span>
+          <span className="assistant-artifact-icon" aria-hidden><FileText size={16} strokeWidth={1.5} /></span>
           <div className="assistant-artifact-details">
-            <span className="assistant-artifact-kind">{m.ai.message.artifactLabel}</span>
-            <span className="assistant-artifact-status" role="status">
-              {block.status === "streaming" ? <><LoaderCircle className="spin" size={12} aria-hidden />{m.ai.message.artifactStreaming}</> : null}
-              {block.status === "complete" ? <><CheckCircle2 size={12} aria-hidden />{m.ai.message.artifactComplete}</> : null}
-              {block.status === "incomplete" ? <><AlertTriangle size={12} aria-hidden />{m.ai.message.artifactIncomplete}</> : null}
+            <span className="assistant-artifact-kind">{m.ai.message.artifactDocument}</span>
+            <span className="assistant-artifact-format">Markdown</span>
+            <span className={`assistant-artifact-status${block.status === "complete" ? " ui-visually-hidden" : ""}`} role="status">
+              {block.status === "streaming" ? <><LoaderCircle className="spin" size={12} strokeWidth={1.5} aria-hidden />{m.ai.message.artifactStreaming}</> : null}
+              {block.status === "complete" ? m.ai.message.artifactComplete : null}
+              {block.status === "incomplete" ? <><AlertTriangle size={12} strokeWidth={1.5} aria-hidden />{m.ai.message.artifactIncomplete}</> : null}
             </span>
           </div>
         </div>
-        <button type="button" className="assistant-artifact-copy" data-motion="action" onClick={() => void copy()}>
-          {copied ? <CheckCircle2 className="copy-check-pop" size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-          <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copyArtifact}</span>
+        <button type="button" className="assistant-artifact-copy" data-motion="action" aria-label={copied ? m.ai.message.copied : m.ai.message.copyArtifact} title={m.ai.message.copyArtifact} onClick={() => void copy()}>
+          {copied ? <Check size={14} strokeWidth={1.5} aria-hidden /> : <Copy size={14} strokeWidth={1.5} aria-hidden />}
+          <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copy}</span>
         </button>
       </header>
       <div className="assistant-artifact-content">{children}</div>
       {block.status === "incomplete" ? (
         <p className="assistant-artifact-warning" role="status">
-          <AlertTriangle size={14} aria-hidden />
+          <AlertTriangle size={14} strokeWidth={1.5} aria-hidden />
           {m.ai.message.artifactIncompleteDetail}
         </p>
       ) : null}

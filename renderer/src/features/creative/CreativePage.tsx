@@ -6,7 +6,8 @@ import { useAiActions, useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
-import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
+import { LIST_WIDTH_MAX, LIST_WIDTH_MIN } from "../../components/useListDetailLayout";
+import { useContentListLayout } from "../../components/useContentListLayout";
 import { type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
 import { FunnelBar, TodayStream } from "./stream";
 import { useTopicFileEditor } from "./use-topic-file-editor";
@@ -93,11 +94,7 @@ export function CreativeWorkspacePage({
     setSaving(false);
     setAutoSaveStatus("idle");
   }, [draftSource]);
-  const layout = useListDetailLayout(
-    "openmind.list-detail.creative.v1",
-    { listWidth: 280, listCollapsed: false },
-    { legacyStorageKeys: ["openmind.three-pane.creative.v2"] }
-  );
+  const layout = useContentListLayout();
   const hasCompactDetail = Boolean(selectedTopicFilePath || selectedTopic || selectedProject);
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
 

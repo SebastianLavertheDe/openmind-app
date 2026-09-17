@@ -1,3 +1,4 @@
+@import "./document-menu.css";
 /* A document canvas shared by project outputs, drafts and the AI file pane. */
 .markdown-editor-shell {
   container-type: inline-size;
@@ -20,16 +21,6 @@
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
-.document-editor-toolbar select {
-  width: 100px;
-  height: 32px;
-  padding-inline: 8px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
-  font: 500 13px/1.5 var(--font-sans);
-}
 .document-editor-toolbar button {
   flex-shrink: 0;
   display: inline-grid;
@@ -43,7 +34,7 @@
   color: var(--text-dim);
   transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
 }
-.document-editor-toolbar button:hover, .document-editor-toolbar select:hover { background: var(--control-hover); color: var(--text); }
+.document-editor-toolbar button:hover { background: var(--control-hover); color: var(--text); }
 .document-editor-toolbar button[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent-fg); }
 .document-editor-toolbar button:active { transform: scale(.96); }
 .document-editor-toolbar button:disabled { opacity: .45; cursor: default; }
@@ -124,24 +115,17 @@
 .markdown-editor-shell .milkdown .ProseMirror a { color: var(--reader-link, var(--accent)); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .markdown-editor-shell .milkdown .ProseMirror code { padding: 2px 5px; background: var(--panel-muted); }
 .markdown-editor-shell .milkdown .milkdown-code-block .cm-content { padding: 12px 0; }
-.markdown-editor-shell .milkdown :is(.milkdown-slash-menu,.milkdown-toolbar,.milkdown-link-edit,.milkdown-link-preview) {
+.markdown-editor-shell .milkdown :is(.milkdown-toolbar,.milkdown-link-edit,.milkdown-link-preview) {
   z-index: var(--z-overlay);
   max-width: calc(100cqi - 16px);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-2);
 }
-.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-groups { max-height: min(360px, 50vh); scroll-behavior: auto; }
-.markdown-editor-shell .milkdown .milkdown-slash-menu { width: min(260px, calc(100cqi - 16px)); }
-.markdown-editor-shell .milkdown .milkdown-slash-menu .tab-group ul { flex-wrap: wrap; gap: 4px; padding: 4px 0; }
-.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li { min-width: 0; padding: 9px 10px; gap: 12px; }
-.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group h6 { padding-block: 10px; color: var(--muted); }
-/* Theme bakes a 600 weight into menu labels; the app text stays at regular weight. */
-.markdown-editor-shell .milkdown .milkdown-slash-menu :is(.tab-group li, .menu-group h6, .menu-group li > span) { font-weight: 400; }
 .markdown-editor-shell .milkdown .milkdown-block-handle { gap: 0; transition: opacity var(--dur-fast); }
 .markdown-editor-shell .milkdown .milkdown-block-handle .operation-item { width: 24px; height: 28px; padding: 2px; }
 .markdown-editor-shell .milkdown .milkdown-block-handle svg { width: 20px; height: 20px; }
-.document-editor-toolbar :is(button,select):focus-visible,
+.document-editor-toolbar button:focus-visible,
 .markdown-editor-shell .milkdown :is(button,input,[tabindex]):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .document-editor-loading { position: absolute; inset: 32px auto auto 32px; color: var(--muted); font-size: 13px; }
 .document-editor-fallback { padding: 24px; }
@@ -162,11 +146,20 @@
 }
 
 /* A stable toolbar and canvas in both editing and reading modes. */
-.document-editor-toolbar > select { flex-shrink: 0; }
 .document-editor-toolbar .ui-dropdown-trigger { padding: 0; min-width: 32px; }
+.document-editor-toolbar .document-paragraph-trigger { flex-shrink: 0; }
+.document-editor-toolbar .document-paragraph-trigger .ui-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100px;
+  padding-inline: 8px;
+  font: 400 13px/1.5 var(--font-sans);
+}
+.document-editor-toolbar .document-menu-trigger[data-open] .ui-dropdown-trigger { background: var(--control-hover); color: var(--text); }
+.document-paragraph-trigger .ui-dropdown-trigger svg { transition: transform var(--dur-fast) var(--ease-standard); }
+.document-paragraph-trigger[data-open] .ui-dropdown-trigger svg { transform: rotate(180deg); }
 .document-reading-label { color: var(--muted); font-size: 12px; }
-.document-format-menu { min-width: 170px; }
-.document-format-menu button[data-active] { color: var(--accent-fg); background: var(--accent-tint); }
 .document-editor-heading {
   width: min(100%, 880px);
   margin-inline: auto;
@@ -221,7 +214,7 @@
 @container (max-width: 640px) {
   .document-editor-toolbar .document-tool-responsive { display: none; }
   .document-editor-toolbar { padding-inline: 8px; }
-  .document-editor-toolbar select { width: 80px; }
+  .document-editor-toolbar .document-paragraph-trigger .ui-dropdown-trigger { width: 80px; }
 }
 @container (max-width: 520px) {
   .document-editor-heading { padding: 28px 56px 16px; }
@@ -231,11 +224,12 @@
 @container (max-width: 360px) {
   .document-editor-toolbar .document-toolbar-divider { display: none; }
   .document-editor-toolbar { gap: 0; }
-  .document-editor-toolbar select { width: 72px; }
+  .document-editor-toolbar .document-paragraph-trigger .ui-dropdown-trigger { width: 72px; }
 }
 @container (max-width: 320px) {
   .document-editor-heading { padding-inline: 40px 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .document-editor-outline, .document-editor-findbar { animation: none; }
+  .document-paragraph-trigger .ui-dropdown-trigger svg { transition: none; }
 }

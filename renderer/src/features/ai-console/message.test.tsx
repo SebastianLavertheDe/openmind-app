@@ -113,7 +113,8 @@ describe("AssistantContent artifacts", () => {
     expect(screen.getByText("开场说明").closest(".assistant-artifact")).toBeNull();
     expect(screen.getByText("结束语").closest(".assistant-artifact")).toBeNull();
     const card = screen.getByLabelText("产物 · Markdown：示例文章");
-    expect(within(card).getByText("产物 · Markdown")).toBeTruthy();
+    expect(within(card).getByText("文档")).toBeTruthy();
+    expect(within(card).getByText("Markdown")).toBeTruthy();
     expect(within(card).getAllByText("示例文章")).toHaveLength(1);
     expect(within(card).getByText("正文内容")).toBeTruthy();
     expect(within(card).getByText("已完成")).toBeTruthy();

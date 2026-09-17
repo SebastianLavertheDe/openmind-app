@@ -91,6 +91,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
     }}>
     <DocumentToolbar ready={ready} readOnly={props.readOnly} format={format} outlineOpen={outlineOpen}
       onOutline={() => { setOutlineOpen(open => !open); setFindOpen(false); runtimeRef.current?.search(""); }} onSearch={openSearch}
+      onMenuOpen={() => { runtimeRef.current?.closeBlockMenu(); setOutlineOpen(false); }}
       onAction={action => runtimeRef.current?.run(action)} onHeading={level => runtimeRef.current?.setHeading(level)} onInsertLocalFile={props.onInsertLocalFile} />
     {findOpen ? <DocumentFindbar search={search} readOnly={props.readOnly} onQuery={query => runtimeRef.current?.search(query)}
       onStep={direction => runtimeRef.current?.stepSearch(direction)} onReplace={(value, all) => runtimeRef.current?.replaceSearch(value, all)} onClose={closeSearch} /> : null}

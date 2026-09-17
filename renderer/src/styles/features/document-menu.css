@@ -1,0 +1,144 @@
+/* Shared surface and row contract for toolbar menus and Crepe's slash menu. */
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) {
+  --document-menu-width: 280px;
+  --document-menu-row-height: 36px;
+  --document-menu-icon-size: 20px;
+  --document-menu-gap: 10px;
+  width: var(--document-menu-width);
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-family: var(--font-sans);
+  z-index: var(--z-overlay);
+  animation: none;
+  opacity: 1;
+}
+.document-menu { display: flex; flex-direction: column; }
+:is(.document-menu .document-menu-scroll, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-groups) {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(440px, 52vh, calc(var(--document-menu-height, 100vh) - 40px));
+  padding: 6px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+:is(.document-menu .document-menu-group-label, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group h6) {
+  margin: 0;
+  padding: 8px 10px 6px;
+  color: var(--muted);
+  font: 500 12px/18px var(--font-sans);
+  text-transform: none;
+}
+:is(.document-menu .document-menu-group + .document-menu-group, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group + .menu-group) {
+  margin-top: 6px;
+  padding-top: 4px;
+}
+:is(.document-menu .document-menu-group + .document-menu-group, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group + .menu-group)::before {
+  content: "";
+  display: block;
+  height: 1px;
+  margin-inline: 10px;
+  background: var(--border);
+}
+.document-menu .document-menu-scroll > .document-menu-group { margin-top: 6px; padding-top: 4px; }
+.document-menu .document-menu-scroll > .document-menu-group:first-child { margin-top: 0; padding-top: 0; }
+:is(.document-menu .document-menu-item, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li) {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--document-menu-row-height);
+  padding: 7px 10px;
+  gap: var(--document-menu-gap);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  font: 400 14px/22px var(--font-sans);
+  cursor: pointer;
+}
+:is(.document-menu .document-menu-item, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li):is(:hover, :focus-visible, [data-active], .hover) {
+  background: var(--control-hover);
+  color: var(--text);
+}
+.document-menu .document-menu-item:disabled { opacity: .45; cursor: default; background: transparent; }
+.document-menu .document-menu-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+:is(.document-menu .document-menu-label, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li > span:not(.milkdown-icon)) {
+  grid-column: 2;
+  grid-row: 1;
+  font: 400 14px/22px var(--font-sans);
+  overflow-wrap: anywhere;
+}
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-icon {
+  grid-column: 1;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  line-height: 22px;
+  color: var(--text-dim);
+}
+:is(.document-menu .document-menu-item, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li) .document-menu-icon svg {
+  width: var(--document-menu-icon-size);
+  height: var(--document-menu-icon-size);
+  color: inherit;
+  fill: none;
+  stroke: currentColor;
+}
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-heading { font: 400 19px/22px var(--font-sans); }
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-heading sub { position: static; font-size: 11px; line-height: 1; vertical-align: baseline; }
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-hint {
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font: 400 12px/22px var(--font-mono);
+}
+.document-menu-footer { flex-shrink: 0; }
+:is(.document-menu .document-menu-footer, .markdown-editor-shell .milkdown .milkdown-slash-menu)::after {
+  content: "↑↓ 选择   ↵ 确认   esc 关闭";
+  display: block;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font: 400 12px/18px var(--font-sans);
+  white-space: pre;
+}
+/* Adapt only the structure Crepe owns; geometry and appearance stay shared. */
+.markdown-editor-shell .milkdown .milkdown-slash-menu {
+  max-width: calc(100cqi - 16px);
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.markdown-editor-shell .milkdown .milkdown-slash-menu[data-show="true"] { visibility: visible; opacity: 1; pointer-events: auto; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu[data-show="false"] { display: block; pointer-events: none; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu .tab-group { display: none; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group ul { margin: 0; padding: 0; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li > .milkdown-icon { display: contents; }
+@media (prefers-reduced-motion: no-preference) {
+  :is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) {
+    transform: translateY(0) scale(1);
+    transform-origin: top left;
+    transition: opacity var(--dur-fast) ease-out, transform var(--dur-fast) ease-out, visibility var(--dur-fast);
+  }
+  :is(.document-menu[data-side="top"], .markdown-editor-shell .milkdown .milkdown-slash-menu[data-placement="top"]) { transform-origin: bottom left; }
+  :is(.document-menu-entering, .document-menu[data-leaving], .markdown-editor-shell .milkdown .milkdown-slash-menu:not([data-show="true"])) { opacity: 0; transform: translateY(-4px) scale(.98); }
+  :is(.document-menu[data-side="top"]:is(.document-menu-entering, [data-leaving]), .markdown-editor-shell .milkdown .milkdown-slash-menu[data-placement="top"]:not([data-show="true"])) { transform: translateY(4px) scale(.98); }
+  :is(.document-menu .document-menu-item, .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li) { transition: background-color var(--dur-instant) var(--ease-standard); }
+}
+@media (prefers-reduced-motion: reduce) { .document-menu { transition: none; animation: none; } }

@@ -164,6 +164,7 @@ export const aiMessages = {
     copied: "已复制",
     copy: "复制",
     artifactLabel: "产物 · Markdown",
+    artifactDocument: "文档",
     artifactStreaming: "生成中",
     artifactComplete: "已完成",
     artifactIncomplete: "未完整",
