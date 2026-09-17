@@ -436,6 +436,13 @@ select:focus-visible,
   min-width: 0;
 }
 
+.nav-recent-list.is-virtual { display: block; height: min(32vh, 260px); }
+.nav-recent-virtual-content { position: relative; width: 100%; }
+.nav-recent-virtual-row { position: absolute; top: 0; left: 0; width: 100%; }
+/* Override cached virtual geometry without changing the virtualizer-owned inline styles. */
+.nav-recent-static-content { display: grid; gap: 1px; height: auto !important; }
+.nav-recent-static-content > [data-recent-index] { transform: none !important; }
+
 .app-nav nav .nav-recent-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -3187,8 +3194,17 @@ select:focus-visible,
     border: 0;
     background: rgba(15, 23, 42, .24);
     backdrop-filter: blur(1px);
-    animation: scrim-in var(--dur-normal, 200ms) ease-out both;
+    opacity: 1;
+    transition: opacity var(--dur-normal) var(--ease-standard);
   }
+
+  .app-nav-scrim[data-leaving] {
+    opacity: 0;
+    transition: opacity var(--dur-exit) var(--ease-exit);
+    pointer-events: none;
+  }
+
+  @starting-style { .app-nav-scrim { opacity: 0; } }
 
   .layout-shell-drawer > .app-nav.mobile-open .app-brand {
     min-height: 45px;

@@ -65,10 +65,11 @@ export function Select<T extends string>({
   });
 
   const selectedIndex = useMemo(
-    () => Math.max(0, options.findIndex((option) => option.value === value)),
+    () => options.findIndex((option) => option.value === value),
     [options, value]
   );
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const initialActiveIndex = selected && !selected.disabled ? selectedIndex : options.findIndex((option) => !option.disabled);
   const accessibleName = ariaLabel || label || placeholder || m.designSystem.selectLabel;
 
   // open 与 menuMounted 解耦:open 控制数据/焦点,menuMounted 控制 DOM 存在;
@@ -90,12 +91,12 @@ export function Select<T extends string>({
       }
       return;
     }
-    setActiveIndex(selectedIndex);
+    setActiveIndex(initialActiveIndex);
     focusFrameRef.current = requestAnimationFrame(() => {
       focusFrameRef.current = null;
-      listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${selectedIndex}"]`)?.focus();
+      listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${initialActiveIndex}"]`)?.focus();
     });
-  }, [open, selectedIndex]);
+  }, [open, initialActiveIndex]);
 
   // 点外部关闭
   useEffect(() => {
@@ -145,8 +146,8 @@ export function Select<T extends string>({
     }
   }, [open, menuMounted, visible, leaving]);
 
-  const choose = (option: { value: T; disabled?: boolean }) => {
-    if (option.disabled) return;
+  const choose = (option: { value: T; disabled?: boolean } | undefined) => {
+    if (!option || option.disabled) return;
     onChange(option.value);
     shouldRestoreFocusRef.current = true;
     setOpen(false);
@@ -196,12 +197,12 @@ export function Select<T extends string>({
       <select
         className="ui-select-native-proxy"
         aria-label={accessibleName}
-        value={value}
+        value={selected ? value : ""}
         disabled={disabled}
         tabIndex={-1}
         onChange={(event) => onChange(event.target.value as T)}
       >
-        {placeholder && !value ? <option value="">{placeholder}</option> : null}
+        {!selected ? <option value="">{placeholder || ""}</option> : null}
         {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
       <button

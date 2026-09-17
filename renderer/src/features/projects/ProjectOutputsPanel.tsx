@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { Eye, FileOutput, LoaderCircle, Pencil, Plus, Save, Search } from "lucide-react";
 import { useAiUi } from "../../ai-context";
 import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
-import { MarkdownEditor, type EditorSelectionSnapshot } from "../creative/MarkdownEditor";
-import { PreviewRenderer, useFilePreviewController } from "../file-preview";
+import { ProjectOutputEditor } from "./ProjectOutputEditor";
+import { useFilePreviewController } from "../file-preview";
 import type { FilePreviewSource, PreviewResource } from "../file-preview/model";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectListDetail } from "./ProjectListDetail";
@@ -248,7 +248,10 @@ export function ProjectOutputsPanel({
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的产物" : "还没有产物"} description={outputs.length ? "换一个标题关键词后再试。" : "项目任务完成后，完整生成的文章会自动保存在这里；也可以通过加号新建产物。"} /> : null}
-        {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void readOutput(item.relativePath)}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
+        {filtered.map((item) => <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => {
+          if (item.relativePath === selectedPathRef.current && previewResourceRef.current) onSelectionChange?.(item.relativePath);
+          else void readOutput(item.relativePath);
+        }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
   );
@@ -256,15 +259,16 @@ export function ProjectOutputsPanel({
   const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
-        <div><span className="eyebrow">项目文档</span><input className="project-output-title" value={preview.draft.title} aria-label="文档标题" onChange={(event) => { preview.setTitle(event.target.value); setSaveState("idle"); }} /><p>{selected.relativePath}</p></div>
+        <span className="project-output-location" title={selected.relativePath}>项目文档</span>
         <div className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button><button className={preview.mode === "preview" ? "active" : ""} aria-pressed={preview.mode === "preview"} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />预览</button></div>
-          <button data-motion="action" disabled={!preview.dirty || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}保存</button>
+          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button><button className={preview.mode === "preview" ? "active" : ""} aria-pressed={preview.mode === "preview"} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />阅读</button></div>
+          <button className="project-output-save" data-motion="action" aria-label="保存文档" title="保存文档（Ctrl/⌘+S）" disabled={!preview.dirty || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}</button>
         </div>
       </header>
       <div className={`project-output-editor ${preview.mode}`}>
-        {preview.mode === "preview" ? <PreviewRenderer resource={resource} content={preview.draft.content} layout="file" /> : <MarkdownEditor autoFocus={selectedPath === focusPath} value={preview.draft.content} ariaLabel="Markdown 文档内容" onChange={(value) => { preview.setContent(value); setSaveState("idle"); }} onSelectionChange={ignoreSelection} />}
+        <ProjectOutputEditor key={`${project.name}:${selectedPath}`} autoFocus={selectedPath === focusPath} content={preview.draft.content} title={preview.draft.title} readOnly={preview.mode === "preview"}
+          onContent={value => { preview.setContent(value); setSaveState("idle"); }} onTitle={value => { preview.setTitle(value); setSaveState("idle"); }} />
       </div>
     </div>
   ) : (
@@ -291,10 +295,6 @@ export function ProjectOutputsPanel({
       {dialogs}
     </>
   );
-}
-
-function ignoreSelection(_selection: EditorSelectionSnapshot): void {
-  // Project outputs do not expose Creative's inline rewrite workflow.
 }
 
 function saveLabel(state: SaveState, dirty: boolean): string {

@@ -89,6 +89,7 @@ details[open] > :not(summary) {
 /* D3/E1: 展开用 emphasized、收起用 exit;dur 240→200ms,与 timeline-presence 统一。 */
 .ui-disclosure-content { interpolate-size: allow-keywords; height: 0; opacity: 0; overflow: hidden; transition: height var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), opacity var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
 .ui-disclosure-content[data-open] { height: auto; opacity: 1; }
+.ui-disclosure[data-instant] > .ui-disclosure-content { transition: none; }
 /* E1 fallback: 不支持 interpolate-size 时回退到 grid 0fr→1fr (Chrome 129-)。 */
 @supports not (interpolate-size: allow-keywords) {
   .ui-disclosure { display: grid; grid-template-rows: auto 0fr; }

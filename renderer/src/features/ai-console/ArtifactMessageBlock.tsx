@@ -39,7 +39,7 @@ export function ArtifactMessageBlock({
             </span>
           </div>
         </div>
-        <button type="button" className="assistant-artifact-copy" onClick={() => void copy()}>
+        <button type="button" className="assistant-artifact-copy" data-motion="action" onClick={() => void copy()}>
           {copied ? <CheckCircle2 className="copy-check-pop" size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
           <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copyArtifact}</span>
         </button>

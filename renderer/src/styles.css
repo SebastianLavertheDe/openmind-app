@@ -1244,6 +1244,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
+  [data-collection-motion] { transform: none !important; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
   .spin { animation: spin-pulse 1.4s ease-in-out infinite !important; }
   /* 显式收敛 from{opacity:0} 动画到终态,避免 iteration-count:1 卡在首帧不可见 */
@@ -1275,7 +1276,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .filter-tabs button, .document-tabs button, .stage-line, .run-list button, .item-list button, .change-summary, .tool-event > .ui-disclosure-trigger, .icon-text-button, .status-badge { transition: background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 
 /* 按压触感 micro-interaction：按下微缩、松开回弹。reduced-motion 由全局 transition-duration:0 兜底。 */
-.primary-button, .danger-button, .icon-text-button, .action-grid button { transition: filter .12s ease, background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, transform var(--dur-instant, 80ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
+.primary-button, .danger-button, .icon-text-button, .action-grid button { transition: filter var(--dur-fast) ease, background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-instant, 80ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .primary-button:active:not(:disabled),
 .danger-button:active:not(:disabled),
 .icon-text-button:active:not(:disabled),
@@ -1541,7 +1542,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* —— D1/D2 按钮微交互:hover lift + press scale ——
    扩展现有 .primary-button:active 范式到通用按钮族。reduced-motion 由全局兜底。 */
 .approval-btn, .icon-text-button, .danger-button {
-  transition: filter .12s ease, background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, transform var(--dur-instant, 80ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+  transition: filter var(--dur-fast) ease, background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-instant, 80ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 .approval-btn:hover:not(:disabled), .icon-text-button:hover:not(:disabled) {
   transform: translateY(-1px);

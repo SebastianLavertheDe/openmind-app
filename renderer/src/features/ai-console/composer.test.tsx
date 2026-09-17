@@ -98,6 +98,24 @@ describe("ChatComposer permissions", () => {
 });
 
 describe("ContextTray selection references", () => {
+  it("closes a stale detail anchor and preserves keyboard focus when its reference moves", async () => {
+    const first = selectionContext("first", "引用一");
+    const second = selectionContext("second", "引用二");
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({ "__new-session__": [first, second] }));
+    render(<AiProvider initial={snapshot}><ChatComposer /></AiProvider>);
+    const trigger = screen.getByRole("button", { name: first.path });
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "引用一 详情" });
+    const move = within(dialog).getByRole("button", { name: "后移" });
+    move.focus();
+    fireEvent.click(move);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(dialog.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+    expect([...document.querySelectorAll(".context-chip-drag .ui-disclosure-trigger span")].map(node => node.textContent)).toEqual(["引用二", "引用一"]);
+    await waitFor(() => expect(document.querySelector(".context-chip-popover")).toBeNull());
+  });
+
   it("removes only the selected reference from its inline delete button", async () => {
     const first = selectionContext("first", "引用一");
     const second = selectionContext("second", "引用二");

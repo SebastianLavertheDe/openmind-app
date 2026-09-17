@@ -33,6 +33,7 @@ const LAYER_PRIORITY: Record<ModalLayer, number> = {
 };
 const activeModalScopes: ActiveModalScope[] = [];
 const inertStates = new WeakMap<HTMLElement, InertState>();
+const isolatedElements = new Set<HTMLElement>();
 let modalScopeSequence = 0;
 
 function topModalScope(): ActiveModalScope | undefined {
@@ -71,6 +72,34 @@ function releaseInert(element: HTMLElement): void {
   }
 }
 
+function syncBackgroundIsolation(): void {
+  const required = new Set<HTMLElement>();
+  // Only the top scope owns isolation. Walk to body so a dialog nested inside
+  // its backdrop still isolates the page, without making a higher portal inert.
+  let branch: HTMLElement | null = topModalScope()?.container || null;
+  while (branch && branch !== document.body) {
+    const parent: HTMLElement | null = branch.parentElement;
+    if (!parent) break;
+    for (const child of Array.from(parent.children)) {
+      if (!(child instanceof HTMLElement) || child === branch) continue;
+      const isModal = activeModalScopes.some((scope) => child.contains(scope.container));
+      if (child.dataset.focusScopeBackdrop != null && !isModal) continue;
+      required.add(child);
+    }
+    branch = parent;
+  }
+  for (const element of isolatedElements) {
+    if (required.has(element)) continue;
+    releaseInert(element);
+    isolatedElements.delete(element);
+  }
+  for (const element of required) {
+    if (isolatedElements.has(element)) continue;
+    acquireInert(element);
+    isolatedElements.add(element);
+  }
+}
+
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
     .filter((element) => !element.closest("[inert]") && element.getAttribute("aria-hidden") !== "true");
@@ -87,12 +116,14 @@ export function useModalFocusScope({
   open,
   containerRef,
   triggerRef,
+  initialFocusRef,
   onDismiss,
   layer = "modal"
 }: {
   open: boolean;
   containerRef: RefObject<HTMLElement | null>;
   triggerRef?: RefObject<HTMLElement | null>;
+  initialFocusRef?: RefObject<HTMLElement | null>;
   onDismiss(): void;
   layer?: ModalLayer;
 }): void {
@@ -114,20 +145,12 @@ export function useModalFocusScope({
 
     const returnTarget = triggerRef?.current
       || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-    const parent = container.parentElement;
-    const inertElements: HTMLElement[] = [];
-    if (parent) {
-      Array.from(parent.children).forEach((child) => {
-        if (!(child instanceof HTMLElement) || child === container || child.dataset.focusScopeBackdrop != null) return;
-        inertElements.push(child);
-        acquireInert(child);
-      });
-    }
+    syncBackgroundIsolation();
 
     const frame = window.requestAnimationFrame(() => {
       if (topModalScope()?.id !== scope.id) return;
       const targets = focusableElements(container);
-      (targets[0] || container).focus();
+      (initialFocusRef?.current || targets[0] || container).focus();
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -164,7 +187,7 @@ export function useModalFocusScope({
       const scopeIndex = activeModalScopes.findIndex((candidate) => candidate.id === scope.id);
       if (scopeIndex >= 0) activeModalScopes.splice(scopeIndex, 1);
       const nextTop = topModalScope();
-      inertElements.forEach(releaseInert);
+      syncBackgroundIsolation();
       if (!wasTop) return;
       // The trigger may be conditionally rendered (for example, an AI rail
       // button that replaces a modal canvas). Read it again after the close
@@ -184,5 +207,5 @@ export function useModalFocusScope({
         target.focus();
       });
     };
-  }, [containerRef, layer, open, triggerRef]);
+  }, [containerRef, initialFocusRef, layer, open, triggerRef]);
 }

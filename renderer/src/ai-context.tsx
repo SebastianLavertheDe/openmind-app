@@ -50,7 +50,9 @@ type SendOptions = {
   providerId?: string;
   permissionProfile?: PermissionProfile;
   interactionMode?: InteractionMode;
-  sessionId?: string;
+  /** null starts an independent run without the active conversation history. */
+  sessionId?: string | null;
+  preserveDraft?: boolean;
   contexts?: ContextReference[];
 };
 
@@ -113,7 +115,7 @@ export interface AiActionsValue {
   reorderContexts(fromId: string, toId: string): void;
   clearContexts(): void;
   addFiles(): Promise<void>;
-  send(prompt: string, options?: SendOptions): Promise<void>;
+  send(prompt: string, options?: SendOptions): Promise<AiRun>;
   rerun(runId: string): Promise<void>;
   editRun(runId: string): void;
   branchRun(runId: string): Promise<void>;
@@ -674,9 +676,15 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   useEffect(() => writeStorage(PANEL_KEY, panelMode), [panelMode]);
 
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
+    // A newer prompt supersedes the old one; its caller must still settle.
+    confirmResolver.current?.(false);
     confirmResolver.current = resolve;
     setConfirmState(options);
   }), []);
+  useEffect(() => () => {
+    confirmResolver.current?.(false);
+    confirmResolver.current = null;
+  }, []);
   const resolveConfirm = useCallback((value: boolean) => {
     confirmResolver.current?.(value);
     confirmResolver.current = null;
@@ -685,7 +693,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
 
   const send = useCallback(async (prompt: string, options: SendOptions = {}) => {
     if (sendingRef.current) throw new Error(m.ai.error.sendingInProgress);
-    const targetSession = options.sessionId
+    const targetSession = options.sessionId === null ? null : options.sessionId
       ? snapshotRef.current.sessions.find((session) => session.id === options.sessionId) || null
       : snapshotRef.current.sessions.find((session) => session.id === activeSessionRef.current) || null;
     const providerId = options.providerId || targetSession?.providerId || snapshotRef.current.providers.find((provider) => provider.available)?.id;
@@ -725,8 +733,10 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
         if (!acknowledged) throw new Error(change.message);
         result = await window.openmind.aiStartRun(startInput(true));
       }
-      draftStore.set(sourceKey, "");
-      setContextsByDraft((current) => ({ ...current, [sourceKey]: [] }));
+      if (!options.preserveDraft) {
+        draftStore.set(sourceKey, "");
+        setContextsByDraft((current) => ({ ...current, [sourceKey]: [] }));
+      }
       activeSessionRef.current = result.session.id;
       setActiveSessionId(result.session.id);
       setActiveRunId(result.run.id);
@@ -763,6 +773,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       // 历史水合放后台跑、不挡渲染；live 事件由 onAiEvent 订阅实时推送。
       const requestId = ++selectionRequest.current;
       void loadEvents(result.session.id, requestId);
+      return result.run;
     } catch (cause) {
       const message = errorText(cause);
       setError(message);

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { FilePreviewLayoutMode } from "./file-preview-layout";
+import { useMotionTokens } from "../../design-system/motion-tokens";
 
 /** Lay out each pane once, then carry the conversation between those two boxes. */
 export function usePreviewMotion(conversation: RefObject<HTMLElement | null>, open: boolean, visible: boolean, mode: FilePreviewLayoutMode) {
+  const { preview: timing } = useMotionTokens();
   const first = useRef<DOMRect | null>(null);
   const animation = useRef<Animation | null>(null);
   const capture = useCallback(() => {
@@ -23,7 +25,7 @@ export function usePreviewMotion(conversation: RefObject<HTMLElement | null>, op
     animation.current?.cancel();
     animation.current = null;
     const element = conversation.current;
-    if (!from || !element || mode !== "split" || !element.animate
+    if (!from || !element || mode !== "split" || !element.animate || !timing.duration
       || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const to = element.getBoundingClientRect();
     if (!from.width || !to.width) return;
@@ -33,14 +35,14 @@ export function usePreviewMotion(conversation: RefObject<HTMLElement | null>, op
     const active = element.animate([
       { transformOrigin: "top left", transform: `translateX(${dx}px) scaleX(${scale})` },
       { transformOrigin: "top left", transform: "translateX(0) scaleX(1)" }
-    ], { duration: 240, easing: "cubic-bezier(.3, 0, 0, 1)", fill: "both" });
+    ], { ...timing, fill: "both" });
     animation.current = active;
     void active.finished.catch(() => {}).finally(() => {
       if (animation.current !== active) return;
       animation.current = null;
       active.cancel();
     });
-  }, [conversation, mode, open, visible]);
+  }, [conversation, mode, open, visible, timing]);
 
   useEffect(() => {
     const preference = window.matchMedia?.("(prefers-reduced-motion: reduce)");

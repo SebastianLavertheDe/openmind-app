@@ -653,7 +653,7 @@ describe("Project file selection", () => {
       newTitle: "新笔记"
     }));
 
-    fireEvent.click(within(listHost).getByRole("button", { name: "文件操作：报告" }));
+    fireEvent.click(await within(listHost).findByRole("button", { name: "文件操作：报告" }));
     const outputMenu = await screen.findByRole("menu", { name: "报告的文件操作" });
     fireEvent.click(within(outputMenu).getByRole("menuitem", { name: "移动到其他项目" }));
     await waitFor(() => expect(listProjects).toHaveBeenCalled());
@@ -666,7 +666,7 @@ describe("Project file selection", () => {
       targetProjectName: "其他项目"
     }));
 
-    fireEvent.click(within(listHost).getByRole("button", { name: "文件操作：安全笔记" }));
+    fireEvent.click(await within(listHost).findByRole("button", { name: "文件操作：安全笔记" }));
     const deleteMenu = await screen.findByRole("menu", { name: "安全笔记的文件操作" });
     fireEvent.click(within(deleteMenu).getByRole("menuitem", { name: "删除" }));
     const confirm = await screen.findByRole("alertdialog", { name: "删除文件" });

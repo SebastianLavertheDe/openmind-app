@@ -7,7 +7,7 @@ beforeEach(() => {
   window.openmind = { openPath: vi.fn().mockResolvedValue("") } as never;
 });
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); document.documentElement.style.removeProperty("--dur-exit"); });
 
 describe("AppShell", () => {
   it("renders fixed primary navigation without a brand search entry", () => {
@@ -150,6 +150,7 @@ describe("AppShell", () => {
   });
 
   it("turns navigation into a focus-contained drawer and restores its trigger", async () => {
+    document.documentElement.style.setProperty("--dur-exit", "160ms");
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query: string) => ({
       matches: query.includes("840px"),
@@ -200,8 +201,16 @@ describe("AppShell", () => {
       expect(document.activeElement).toBe(drawerButtons[0]);
       fireEvent.keyDown(document, { key: "Escape" });
       expect(nav.classList.contains("mobile-open")).toBe(false);
+      const scrim = container.querySelector(".app-nav-scrim")!;
+      expect(scrim.hasAttribute("inert")).toBe(true);
+      expect(scrim.hasAttribute("data-leaving")).toBe(true);
       await waitFor(() => expect(document.activeElement).toBe(trigger));
       expect((container.querySelector(".app-stage") as HTMLElement).inert).toBeFalsy();
+      fireEvent.click(trigger);
+      expect(container.querySelector(".app-nav-scrim")).toBe(scrim);
+      expect(scrim.hasAttribute("inert")).toBe(false);
+      fireEvent.keyDown(document, { key: "Escape" });
+      await waitFor(() => expect(scrim.isConnected).toBe(false));
     } finally {
       window.matchMedia = originalMatchMedia;
     }

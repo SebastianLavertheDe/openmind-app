@@ -67,8 +67,11 @@ import {
   Utensils,
   type LucideIcon
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
+import { useExitPresence } from "../../design-system/use-exit-presence";
+import { useMotionTokens } from "../../design-system/motion-tokens";
+import { useModalFocusScope } from "../../design-system/use-modal-focus-scope";
 import { ProjectDialog } from "./ProjectDialog";
 import type { ProjectColor, ProjectSummary } from "./types";
 
@@ -185,8 +188,13 @@ export function ProjectEditDialog({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const iconTriggerRef = useRef<HTMLButtonElement>(null);
   const iconPickerRef = useRef<HTMLDivElement>(null);
+  const tokens = useMotionTokens();
+  const pickerOpen = Boolean(project) && iconPickerOpen;
+  const pickerPresence = useExitPresence(pickerOpen, tokens.exitMs);
+  const closePicker = useCallback(() => setIconPickerOpen(false), []);
+  useModalFocusScope({ open: pickerOpen, containerRef: iconPickerRef, triggerRef: iconTriggerRef, onDismiss: closePicker, layer: "global" });
   const popover = useAnchoredPopover({
-    open: iconPickerOpen,
+    open: pickerPresence.visible,
     anchorRef: iconTriggerRef,
     floatingRef: iconPickerRef,
     preferredSide: "bottom",
@@ -272,11 +280,15 @@ export function ProjectEditDialog({
           </div>
         </section>
       </ProjectDialog>
-      {iconPickerOpen && typeof document !== "undefined" ? createPortal(
+      {pickerPresence.visible && typeof document !== "undefined" ? createPortal(
         <div
           ref={iconPickerRef}
           className="project-icon-picker"
           role="dialog"
+          aria-modal={pickerOpen || undefined}
+          aria-hidden={!pickerOpen || undefined}
+          inert={!pickerOpen}
+          data-leaving={pickerPresence.leaving || undefined}
           aria-label="选择项目图标"
           data-side={popover.side}
           style={popover.style}

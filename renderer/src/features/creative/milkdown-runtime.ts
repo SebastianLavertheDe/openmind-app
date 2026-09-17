@@ -5,15 +5,16 @@ import { toggleLinkCommand } from "@milkdown/kit/component/link-tooltip";
 import { imageBlockSchema } from "@milkdown/kit/component/image-block";
 import { addBlockTypeCommand } from "@milkdown/kit/preset/commonmark";
 import { createTable } from "@milkdown/kit/preset/gfm";
-import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
-import { setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
-import { wrapInList } from "@milkdown/kit/prose/schema-list";
+import { Plugin, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
+import { setBlockType, toggleMark } from "@milkdown/kit/prose/commands";
 import { undo, redo } from "@milkdown/kit/prose/history";
+import { toggleCode, toggleList, toggleQuote } from "./document-commands";
+import { documentHeadings, documentSearch, documentSearchPlugin, jumpToHeading, replaceSearch, searchDocument, stepSearch, type DocumentHeading, type DocumentSearch } from "./document-navigation";
 import type { EditorSelectionSnapshot } from "./MilkdownEditor";
 
 export type EditorAction = "bold" | "italic" | "strike" | "inlineCode" | "bullet" | "ordered" | "todo" | "quote" | "link" | "image" | "table" | "code" | "undo" | "redo";
-type Format = { heading: number; active: EditorAction[] };
-type Callbacks = { onChange(value: string): void; onSelectionChange(selection: EditorSelectionSnapshot): void; onFormat(format: Format): void };
+export type EditorFormat = { heading: number; active: EditorAction[]; canUndo: boolean; canRedo: boolean };
+type Callbacks = { onChange(value: string): void; onSelectionChange(selection: EditorSelectionSnapshot): void; onFormat(format: EditorFormat): void; onHeadings?(headings: DocumentHeading[]): void; onSearch?(search: DocumentSearch): void };
 type TrackedRange = { from: number; to: number; text: string };
 
 /** Persist uploads inside Markdown instead of saving temporary blob URLs. */
@@ -32,6 +33,8 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
   let source = value;
   let serialized = "";
   let nextBookmark = 0;
+  let lastFormat = "";
+  let editSelection: SelectionBookmark | undefined;
   const ranges = new Map<number, TrackedRange>();
   let lastSelection: EditorSelectionSnapshot = { start: 0, end: 0, text: "" };
   const crepe = new Crepe({ root: host, defaultValue: value, featureConfigs: {
@@ -74,13 +77,18 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
     for (const mark of marks) if (markActions[mark.type.name]) active.push(markActions[mark.type.name]);
     for (let depth = state.selection.$from.depth; depth > 0; depth--) {
       const name = state.selection.$from.node(depth).type.name;
-      if (name === "bullet_list") active.push("bullet");
+      if (name === "bullet_list") active.push(state.selection.$from.node(depth + 1)?.attrs.checked != null ? "todo" : "bullet");
       if (name === "ordered_list") active.push("ordered");
       if (name === "blockquote") active.push("quote");
     }
-    callbacks.onFormat({ heading: state.selection.$from.parent.type.name === "heading" ? state.selection.$from.parent.attrs.level : 0, active });
+    if (state.selection.$from.parent.type.name === "code_block") active.push("code");
+    const format: EditorFormat = { heading: state.selection.$from.parent.type.name === "heading" ? state.selection.$from.parent.attrs.level : 0, active, canUndo: undo(state), canRedo: redo(state) };
+    const signature = JSON.stringify(format);
+    if (signature !== lastFormat) { lastFormat = signature; callbacks.onFormat(format); }
   };
+  crepe.editor.use($prose(() => documentSearchPlugin));
   crepe.editor.use($prose(ctx => new Plugin({
+    filterTransaction: transaction => !crepe.readonly || syncing || !transaction.docChanged,
     state: {
       init: () => null,
       apply: transaction => {
@@ -94,12 +102,14 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
     view: () => ({ update: (current, previous) => {
       if (!ready) return;
       if (!current.state.doc.eq(previous.doc)) {
+        callbacks.onHeadings?.(documentHeadings(current.state.doc));
         const next = ctx.get(serializerCtx)(current.state.doc);
         if (next !== serialized) {
           serialized = next;
           if (!syncing) { source = serialized; callbacks.onChange(serialized); }
         }
       }
+      callbacks.onSearch?.(documentSearch(current));
       notifySelection();
     } })
   })));
@@ -114,12 +124,15 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
     dom.setAttribute("role", "textbox"); dom.setAttribute("aria-multiline", "true"); dom.setAttribute("aria-label", next);
   };
   setLabel(label); notifySelection();
+  callbacks.onHeadings?.(documentHeadings(view().state.doc));
   const setHeading = (level: number) => {
+    if (crepe.readonly) return;
     const editorView = view();
     setBlockType(editorView.state.schema.nodes[level ? "heading" : "paragraph"], level ? { level } : undefined)(editorView.state, editorView.dispatch);
     editorView.focus();
   };
   const run = (action: EditorAction): boolean => {
+    if (crepe.readonly) return false;
     const editorView = view();
     const { state, dispatch } = editorView;
     const { schema } = state;
@@ -127,16 +140,9 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
     const marks = { bold: "strong", italic: "emphasis", strike: "strikethrough", inlineCode: "inlineCode" };
     if (action in marks) applied = toggleMark(schema.marks[marks[action as keyof typeof marks]])(state, dispatch);
     else if (action === "bullet" || action === "ordered" || action === "todo") {
-      applied = wrapInList(schema.nodes[action === "ordered" ? "ordered_list" : "bullet_list"])(state, dispatch);
-      if (applied && action === "todo") {
-        const tr = editorView.state.tr;
-        editorView.state.doc.nodesBetween(editorView.state.selection.from, editorView.state.selection.to, (node, pos) => {
-          if (node.type.name === "list_item") tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: false });
-        });
-        dispatch(tr);
-      }
-    } else if (action === "quote") applied = wrapIn(schema.nodes.blockquote)(state, dispatch);
-    else if (action === "code") applied = setBlockType(schema.nodes.code_block)(state, dispatch);
+      applied = toggleList(action)(state, dispatch);
+    } else if (action === "quote") applied = toggleQuote(state, dispatch);
+    else if (action === "code") applied = toggleCode(state, dispatch);
     else if (action === "undo" || action === "redo") applied = (action === "undo" ? undo : redo)(state, dispatch);
     else if (action === "link") applied = crepe.editor.action(callCommand(toggleLinkCommand.key));
     else if (action === "table") { crepe.editor.action(ctx => dispatch(state.tr.replaceSelectionWith(createTable(ctx, 3, 3)).scrollIntoView())); applied = true; }
@@ -146,15 +152,32 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
   return {
     editor: crepe.editor,
     focus: () => view().focus(), setLabel, getSelection, run, setHeading,
+    setReadOnly: (readOnly: boolean) => {
+      if (crepe.readonly === readOnly) return;
+      const editorView = view();
+      if (readOnly) editSelection = editorView.state.selection.getBookmark();
+      crepe.setReadonly(readOnly);
+      editorView.dom.setAttribute("aria-readonly", String(readOnly));
+      if (!readOnly && editSelection) {
+        editorView.dispatch(editorView.state.tr.setSelection(editSelection.resolve(editorView.state.doc)));
+        editSelection = undefined;
+        editorView.focus();
+      }
+    },
+    search: (query: string) => searchDocument(view(), query),
+    stepSearch: (direction: number) => stepSearch(view(), direction),
+    replaceSearch: (replacement: string, all = false) => replaceSearch(view(), replacement, all),
+    jumpToHeading: (pos: number) => jumpToHeading(view(), pos),
     getMarkdown: () => crepe.getMarkdown(),
     setValue: (next: string) => {
       if (next === source || next === serialized) return;
       syncing = true;
-      try { crepe.editor.action(replaceAll(next, true)); source = next; serialized = crepe.getMarkdown(); ranges.clear(); lastSelection = { start: 0, end: 0, text: "" }; }
+      try { crepe.editor.action(replaceAll(next, true)); source = next; serialized = crepe.getMarkdown(); editSelection = undefined; ranges.clear(); lastSelection = { start: 0, end: 0, text: "" }; }
       finally { syncing = false; }
       notifySelection();
     },
     insert: (before: string, after = "", placeholder = "") => {
+      if (crepe.readonly) return false;
       const editorView = view();
       const selection = editorView.state.selection;
       if (selection.empty && placeholder) {
@@ -171,6 +194,7 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
       editorView.focus(); return true;
     },
     replaceRange: (start: number, end: number, replacement: string, bookmark?: number) => {
+      if (crepe.readonly) return false;
       const editorView = view();
       if (start < 0 || end < start || !bookmark && end > editorView.state.doc.content.size) return false;
       const range = bookmark ? ranges.get(bookmark) : { from: start, to: end, text: editorView.state.doc.textBetween(start, end, "\n") };

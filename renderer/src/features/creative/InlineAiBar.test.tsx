@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -35,7 +35,7 @@ const snapshot: AiSnapshot = {
 };
 
 /** aiStartRun 必须返回 { session, run } 结构(ai-context.send 会解构)。 */
-function makeStartRunResult() {
+function makeStartRunResult(): Awaited<ReturnType<DesktopApi["aiStartRun"]>> {
   return {
     session: {
       schemaVersion: 1, id: "sess-1", projectId: "p", scope: { type: "workspace" as const }, projectRoot: "/project",
@@ -56,7 +56,7 @@ function makeStartRunResult() {
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     aiRefresh: async () => snapshot,
-    aiGetEvents: async () => [],
+    aiGetEvents: async () => [{ runId: "run-1", kind: "assistant-message", payload: { text: "改写后的正文" } }] as never,
     aiStartRun: vi.fn(async () => makeStartRunResult()),
     aiCancelRun: async () => true,
     onAiEvent: () => () => undefined,
@@ -128,8 +128,8 @@ describe("InlineAiBar", () => {
     renderBar(makeApi({ aiStartRun: startRun as never }), { selection: selectedText });
     await waitFor(() => expect(screen.getByRole("toolbar")).toBeDefined());
     fireEvent.click(screen.getByText("改写"));
-    // start 的 catch 会 setError,操作条回到无 run 状态;不崩溃即通过
     await waitFor(() => expect(startRun).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "provider 不可用");
   });
 
   it.each([true, false])("改写完成后替换选中，应用成功=%s", async (applied) => {
@@ -158,7 +158,7 @@ describe("InlineAiBar", () => {
     emit({ kind: "snapshot", snapshot: completedSnapshot });
     const replaceBtn = await screen.findByText("替换选中");
     fireEvent.click(replaceBtn);
-    expect(onReplace).toHaveBeenCalledWith(0, 4, "", 42);
+    expect(onReplace).toHaveBeenCalledWith(0, 4, "改写后的正文", 42);
     if (!applied) expect(screen.getByText("选中的内容已经改变，请重新选择后改写。")).toBeTruthy();
   });
 
@@ -187,5 +187,28 @@ describe("InlineAiBar", () => {
     const discardBtn = await screen.findByText("放弃");
     fireEvent.click(discardBtn);
     await waitFor(() => expect(screen.queryByText("替换选中")).toBeNull());
+  });
+
+  it("完成但没有输出时不能用空字符串覆盖正文", async () => {
+    let emit: AiEventCallback = () => undefined;
+    const onReplace = vi.fn();
+    renderBar(makeApi({ aiGetEvents: async () => [], onAiEvent: callback => { emit = callback; return () => {}; } }), { selection: selectedText, onReplace });
+    fireEvent.click(await screen.findByText("改写"));
+    await waitFor(() => expect(screen.queryByText("改写")).toBeNull());
+    await screen.findByText("生成中");
+    act(() => emit({ kind: "snapshot", snapshot: { ...snapshot, runs: [{ ...makeStartRunResult().run, status: "completed" }] } }));
+    expect(await screen.findByText("没有生成可替换的内容，请重试。")).toBeTruthy();
+    expect(screen.queryByText("替换选中")).toBeNull();
+    expect(onReplace).not.toHaveBeenCalled();
+  });
+
+  it("切换文档时取消稍后才启动的本次改写", async () => {
+    let resolve!: (value: ReturnType<typeof makeStartRunResult>) => void;
+    const cancel = vi.fn(async () => true);
+    const view = renderBar(makeApi({ aiStartRun: () => new Promise(done => { resolve = done; }), aiCancelRun: cancel }), { selection: selectedText });
+    fireEvent.click(await screen.findByText("改写"));
+    view.unmount();
+    await act(async () => resolve(makeStartRunResult()));
+    expect(cancel).toHaveBeenCalledWith("run-1");
   });
 });

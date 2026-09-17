@@ -29,7 +29,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: var(--list-detail-columns, 280px 3px minmax(0, 1fr));
-  transition: grid-template-columns 220ms var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
+  transition: grid-template-columns var(--dur-slow) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
 }
 
 .creative-list-pane,
@@ -53,7 +53,7 @@
 .creative-list-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  transition: opacity 160ms var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+  transition: opacity var(--dur-exit) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 
 .creative-list-pane > header {

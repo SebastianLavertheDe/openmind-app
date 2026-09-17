@@ -22,62 +22,77 @@ export function InlineAiBar({
   disabled?: boolean;
   onReplace(start: number, end: number, replacement: string, bookmark?: number): boolean | void;
 }) {
-  const { snapshot, activeRun, sessionActiveRun } = useAiSnapshot();
+  const { snapshot, activeSession } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
-  const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
-  const { streaming } = useAiStreaming(streamingRunId);
   const [sel, setSel] = useState<EditorSelectionSnapshot | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [range, setRange] = useState<EditorSelectionSnapshot | null>(null);
   const [done, setDone] = useState(false);
   const [finalText, setFinalText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const pendingRef = useRef(false);
+  const [pending, setPending] = useState(false);
+  const requestRef = useRef(0);
+  const ownRunRef = useRef<string | null>(null);
+  const { streaming } = useAiStreaming(runId);
   const lastStream = useRef("");
 
   useEffect(() => {
-    if (runId) return;
+    if (runId || pending) return;
     setSel(selection.text ? selection : null);
-  }, [runId, selection]);
+  }, [runId, pending, selection]);
 
-  // send 之后捕获本次 run 的 id（send 不返回 run id，靠 activeRun 兜底）
-  useEffect(() => {
-    if (pendingRef.current && activeRun?.id && !runId) {
-      setRunId(activeRun.id);
-      pendingRef.current = false;
-    }
-  }, [activeRun, runId]);
+  useEffect(() => () => {
+    requestRef.current++;
+    if (ownRunRef.current) void actions.cancel(ownRunRef.current).catch(() => {});
+  }, [actions.cancel]);
 
-  // 镜像流式文本 + 检测完成
+  useEffect(() => { if (streaming) lastStream.current = streaming; }, [streaming]);
+  const run = snapshot.runs.find(item => item.id === runId);
+  const terminal = run && ["completed", "failed", "cancelled"].includes(run.status);
   useEffect(() => {
-    if (!runId) return;
-    if (activeRun?.id === runId && streaming) lastStream.current = streaming;
-    const run = snapshot.runs.find((item) => item.id === runId);
-    if (run && ["completed", "failed", "cancelled"].includes(run.status) && !done) {
-      setDone(true);
-      setFinalText(lastStream.current);
+    if (!runId || !terminal || !run) return;
+    let active = true;
+    ownRunRef.current = null;
+    // The final durable message can arrive without deltas, or after the stream
+    // store has cleared. Read this run's transcript rather than another active chat.
+    void window.openmind.aiGetEvents(run.sessionId).then(events => {
+      if (!active) return;
+      const message = events.filter(event => event.runId === runId && event.kind === "assistant-message").at(-1);
+      const text = typeof message?.payload.text === "string" ? message.payload.text : lastStream.current;
+      setFinalText(text); setDone(true);
       if (run.status === "failed") setError(run.error || m.creativeUi.inlineAi.generateFailed);
-    }
-  }, [runId, activeRun, streaming, snapshot.runs, done]);
+      else if (run.status === "cancelled") setError("改写已取消。");
+      else if (!text.trim()) setError("没有生成可替换的内容，请重试。");
+    }).catch(cause => {
+      if (active) { setError(cause instanceof Error ? cause.message : String(cause)); setDone(true); }
+    });
+    return () => { active = false; };
+  }, [runId, terminal, run?.sessionId, run?.status, run?.error]);
 
-  const busy = Boolean(runId) && !done;
+  const busy = pending || Boolean(runId) && !done;
 
   const start = async (instruction: string) => {
-    if (!sel || disabled || ui.isSending) return;
+    if (!sel || disabled || ui.isSending || pending) return;
     const text = sel.text;
     setError(null);
     lastStream.current = "";
     setFinalText("");
     setDone(false);
     setRange(sel);
-    pendingRef.current = true;
+    setPending(true);
+    const request = ++requestRef.current;
     setRunId(null);
     const prompt = `${instruction}${m.creativeUi.inlineAi.promptSuffix}${m.creativeUi.inlineAi.originalPrefix}${text}`;
     try {
-      await actions.send(prompt, { permissionProfile: "read-only" });
+      const started = await actions.send(prompt, { permissionProfile: "read-only", sessionId: null, providerId: activeSession?.providerId, contexts: [], preserveDraft: true });
+      if (request !== requestRef.current) { void actions.cancel(started.id).catch(() => {}); return; }
+      ownRunRef.current = started.id;
+      setRunId(started.id);
+      setPending(false);
     } catch (cause) {
-      pendingRef.current = false;
+      if (request !== requestRef.current) return;
+      setPending(false);
       setError(cause instanceof Error ? cause.message : String(cause));
       setRunId(null);
       setRange(null);
@@ -85,7 +100,7 @@ export function InlineAiBar({
   };
 
   const accept = () => {
-    if (!range) return;
+    if (!range || disabled || !finalText.trim()) return;
     if (onReplace(range.start, range.end, finalText, range.bookmark) === false) {
       setError("选中的内容已经改变，请重新选择后改写。");
       return;
@@ -101,6 +116,9 @@ export function InlineAiBar({
   };
 
   const reset = () => {
+    requestRef.current++;
+    ownRunRef.current = null;
+    setPending(false);
     setRunId(null);
     setRange(null);
     setDone(false);
@@ -110,8 +128,8 @@ export function InlineAiBar({
     setSel(null);
   };
 
-  const preview = done ? finalText : (activeRun?.id === runId ? streaming || lastStream.current : lastStream.current);
-  const showSelectionBar = Boolean(sel) && !disabled && !runId;
+  const preview = done ? finalText : streaming || lastStream.current;
+  const showSelectionBar = Boolean(sel) && !disabled && !runId && !pending;
 
   return (
     <div className="inline-ai-bar">
@@ -132,20 +150,21 @@ export function InlineAiBar({
           ))}
         </div>
       ) : null}
-      {runId ? (
+      {error && !runId ? <p className="inline-error" role="alert">{error}</p> : null}
+      {runId || pending ? (
         <div className="inline-ai-preview">
           <header>
             <span className="eyebrow">{busy ? <><LoaderCircle className="spin" size={12} /> {m.creativeUi.inlineAi.generating}</> : <><Wand2 size={12} /> {m.creativeUi.inlineAi.result}</>}</span>
             <div className="inline-ai-actions">
               {busy ? <button data-motion="action" onClick={() => void cancel()} title={m.creativeUi.inlineAi.cancel}><X size={12} />{m.creativeUi.inlineAi.cancel}</button> : null}
               {!busy && !error ? <button data-motion="action" onClick={() => void start(m.creativeUi.inlineAi.rewriteInstruction)} title={m.common.retry}><RefreshCw size={12} />{m.creativeUi.inlineAi.retry}</button> : null}
-              {!busy && !error ? <button className="primary-button" data-motion="action" onClick={accept} title={m.creativeUi.inlineAi.replaceSelectionTitle}><Check size={12} />{m.creativeUi.inlineAi.replaceSelection}</button> : null}
+              {!busy && !error ? <button className="primary-button" data-motion="action" disabled={disabled || !finalText.trim()} onClick={accept} title={m.creativeUi.inlineAi.replaceSelectionTitle}><Check size={12} />{m.creativeUi.inlineAi.replaceSelection}</button> : null}
               {!busy ? <button data-motion="action" onClick={() => void cancel()} title={error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}>{error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}</button> : null}
             </div>
           </header>
           {error ? <p className="inline-error">{error}</p> : null}
           <pre className="inline-ai-out" aria-live="polite">{error ? null : (preview || (busy ? m.creativeUi.inlineAi.busyEllipsis : m.creativeUi.inlineAi.noOutput))}</pre>
-          {!busy && !error && range ? <p className="inline-ai-foot">{m.creativeUi.inlineAi.replaceFootnote(range.start + 1, range.end)}</p> : null}
+          {!busy && !error && range ? <p className="inline-ai-foot">确认后替换选中文字，修改会自动保存。</p> : null}
         </div>
       ) : null}
     </div>

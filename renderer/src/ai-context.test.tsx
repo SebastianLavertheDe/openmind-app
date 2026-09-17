@@ -1,9 +1,9 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { memo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { AiProvider, useAi, useAiDraft, useAiStreaming, type AiController } from "./ai-context";
+import { AiProvider, useAi, useAiDraft, useAiStreaming, useAiUi, type AiController } from "./ai-context";
 import { useTopicFileEditor } from "./features/creative/use-topic-file-editor";
 
 const snapshot: AiSnapshot = {
@@ -163,6 +163,34 @@ function emit(message: unknown): void {
     aiListener?.(message);
   });
 }
+
+describe("AiProvider confirmation lifecycle", () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => <AiProvider initial={snapshot}>{children}</AiProvider>;
+
+  it("cancels the replaced confirmation and settles the current one independently", async () => {
+    const { result } = renderHook(() => useAiUi(), { wrapper });
+    const first = vi.fn();
+    const second = vi.fn();
+    await act(async () => {
+      void result.current.confirm({ title: "first" }).then(first);
+      void result.current.confirm({ title: "second" }).then(second);
+    });
+    expect(first).toHaveBeenCalledExactlyOnceWith(false);
+    expect(second).not.toHaveBeenCalled();
+    expect(result.current.confirmState?.title).toBe("second");
+    await act(async () => result.current.resolveConfirm(true));
+    expect(second).toHaveBeenCalledExactlyOnceWith(true);
+    expect(result.current.confirmState).toBeNull();
+  });
+
+  it("cancels a pending confirmation when the provider unmounts", async () => {
+    const { result, unmount } = renderHook(() => useAiUi(), { wrapper });
+    const settled = vi.fn();
+    act(() => { void result.current.confirm({ title: "pending" }).then(settled); });
+    await act(async () => unmount());
+    expect(settled).toHaveBeenCalledExactlyOnceWith(false);
+  });
+});
 
 function flushTimers(): void {
   // The event pump batches via requestAnimationFrame + setTimeout(STREAM_PUMP_INTERVAL_MS).
@@ -511,6 +539,32 @@ describe("AiProvider streaming store via event pump", () => {
     emit({ kind: "snapshot", snapshot: newSnapshot });
     // snapshot replacement does not throw; streaming stays empty
     expect(screen.getByTestId("streaming").textContent).toBe("");
+  });
+});
+
+describe("AiProvider document rewrite runs", () => {
+  it("starts an independent run and preserves the user's conversation draft and attachments", async () => {
+    const session = { ...activeSnapshot.sessions[0], id: "rewrite-session" };
+    const run = { ...activeSnapshot.runs[0], id: "rewrite-run", sessionId: session.id };
+    const start = vi.fn(async () => ({ session, run }));
+    window.openmind = { ...window.openmind, aiStartRun: start };
+    const { result } = renderHook(() => ({ ai: useAi(), draft: useAiDraft() }), {
+      wrapper: ({ children }) => <AiProvider initial={activeSnapshot} skills={skills}>{children}</AiProvider>
+    });
+    await act(async () => { await result.current.ai.setActiveSession(null); });
+    act(() => {
+      result.current.draft.setDraft("尚未发送的聊天草稿");
+      result.current.ai.addContext({ id: "draft-file", kind: "file", label: "资料", path: "materials/example.md" });
+    });
+    await act(async () => { await result.current.ai.setActiveSession("session-1"); });
+    await act(async () => {
+      const started = await result.current.ai.send("改写选中文字", { sessionId: null, contexts: [], preserveDraft: true, permissionProfile: "read-only" });
+      expect(started.id).toBe("rewrite-run");
+    });
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ sessionId: undefined, contexts: [], permissionProfile: "read-only" }));
+    await act(async () => { await result.current.ai.setActiveSession(null); });
+    expect(result.current.draft.draft).toBe("尚未发送的聊天草稿");
+    expect(result.current.ai.pendingContexts.map(context => context.id)).toEqual(["draft-file"]);
   });
 });
 

@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { AnimatePresence, motion, useIsPresent, usePresence } from "motion/react";
+import { useCollectionMotion } from "../../design-system/use-collection-motion";
+import { useMotionTokens } from "../../design-system/motion-tokens";
+import { useMotionPreference } from "../../design-system/use-motion-preference";
 import { createPortal } from "react-dom";
 import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
@@ -435,7 +439,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   return (
     <footer className="composer" ref={composerRef}>
       <div className="composer-flow">
-        {pendingContexts.length ? <ContextTray contexts={pendingContexts} /> : null}
+        <ContextTrayPresence contexts={pendingContexts} />
         {errorVisible && stashedError ? (
           <div className="composer-error ui-overlay" data-leaving={errorLeaving || undefined} role="alert">
             <span>{stashedError}</span>
@@ -624,8 +628,37 @@ function ComposerSendIcon({ loading }: { loading: boolean }) {
   );
 }
 
-export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
+function ContextTrayPresence({ contexts }: { contexts: ContextReference[] }) {
+  const { exitMs } = useMotionTokens();
+  const open = contexts.length > 0;
+  const presence = useExitPresence(open, exitMs);
+  const snapshot = useRef(contexts);
+  useLayoutEffect(() => { if (open) snapshot.current = contexts; else if (!presence.visible) snapshot.current = []; }, [contexts, open, presence.visible]);
+  return presence.visible ? <div className="context-tray-presence" data-leaving={!open || undefined} inert={!open || undefined} aria-hidden={!open || undefined}>
+    <ContextTray contexts={open ? contexts : snapshot.current} active={open} />
+  </div> : null;
+}
+
+const ContextMotionItem = forwardRef<HTMLDivElement, { enabled: boolean; dependency: string; children: ReactNode }>(function ContextMotionItem({ enabled, dependency, children }, ref) {
+  const [present, safeToRemove] = usePresence();
+  const reduced = useMotionPreference();
+  const tokens = useMotionTokens();
+  useEffect(() => { if (!present && (reduced || !enabled || !tokens.exit.duration)) safeToRemove?.(); }, [present, reduced, enabled, tokens, safeToRemove]);
+  return <motion.div ref={ref} data-context-motion data-collection-motion data-leaving={!present || undefined}
+    inert={!present || undefined} aria-hidden={!present || undefined}
+    layout={enabled ? "position" : false} layoutDependency={dependency}
+    initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    onAnimationComplete={() => { if (!present) safeToRemove?.(); }}
+    transition={reduced ? { duration: 0 } : { ...tokens.exit, layout: tokens.layout }}>
+    {children}
+  </motion.div>;
+});
+
+export function ContextTray({ contexts, active = true }: { contexts: ContextReference[]; active?: boolean }) {
   const actions = useAiActions();
+  // Budget counts DOM participants, never truncates user data.
+  const collectionMotion = useCollectionMotion(contexts.length, 32);
+  const layoutDependency = contexts.map(context => context.id).join("\u0000");
   const [dragId, setDragId] = useState<string | null>(null);
   const [chipOverflow, setChipOverflow] = useState({ start: false, end: false });
   const [enlargedId, setEnlargedId] = useState<string | null>(null);
@@ -670,7 +703,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   // Track the open image by ID, not index, so reordering or removing other
   // contexts can never shift which image is displayed.
   const safeIndex = enlargedId ? images.findIndex((c) => c.id === enlargedId) : -1;
-  const isOpen = safeIndex >= 0;
+  const isOpen = active && safeIndex >= 0;
   const hasMultiple = images.length > 1;
 
   const stepImage = useCallback((dir: number) => setEnlargedId((id) => {
@@ -736,7 +769,8 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
   return (
     <div className="context-tray" role="group" aria-label={m.ai.context.count(contexts.length)}>
       <span className="context-tray-count" aria-live="polite">{m.ai.context.count(contexts.length)}</span>
-      <div
+      <motion.div
+        layoutScroll
         ref={chipsRef}
         className="context-chips"
         data-count={contexts.length || undefined}
@@ -744,15 +778,18 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
         data-overflow-end={chipOverflow.end || undefined}
         onScroll={updateChipOverflow}
       >
-        {contexts.map((context, index) =>
-          context.kind === "image" ? (
-            <div className="context-chip image-chip" key={context.id} title={context.label}>
+        <AnimatePresence initial={false} mode="popLayout">
+        {/* Native drag only moves its ghost. Keeping the projection mounted with
+            an order-only dependency preserves the pre-drop box without measuring each drag frame. */}
+        {contexts.map((context, index) => <ContextMotionItem key={context.id} enabled={collectionMotion.enabled} dependency={layoutDependency}>
+          {context.kind === "image" ? (
+            <div className="context-chip image-chip" title={context.label}>
               <button aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></button>
               <button aria-label={m.ai.context.remove} title={m.ai.context.remove} className="image-chip-remove" onClick={() => actions.removeContext(context.id)}><X size={11} /></button>
             </div>
           ) : (
             <ContextReferenceChip
-              key={context.id}
+              active={active}
               context={context}
               index={index}
               total={contexts.length}
@@ -765,9 +802,11 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
               }}
               onDragEnd={() => setDragId(null)}
             />
-          )
+          )}
+          </ContextMotionItem>
         )}
-      </div>
+        </AnimatePresence>
+      </motion.div>
       <button
         type="button"
         className="context-tray-clear"
@@ -865,6 +904,7 @@ export function ContextTray({ contexts }: { contexts: ContextReference[] }) {
 }
 
 function ContextReferenceChip({
+  active,
   context,
   index,
   total,
@@ -874,6 +914,7 @@ function ContextReferenceChip({
   onDrop,
   onDragEnd
 }: {
+  active: boolean;
   context: ContextReference;
   index: number;
   total: number;
@@ -885,16 +926,27 @@ function ContextReferenceChip({
 }) {
   const actions = useAiActions();
   const [open, setOpen] = useState(false);
+  const inCollection = useIsPresent();
+  const present = active && inCollection;
   const detailId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  const presence = useExitPresence(open, 140);
+  const presence = useExitPresence(open && present, 140);
   const popover = useAnchoredPopover({
     open: presence.visible,
     anchorRef: triggerRef,
     floatingRef: detailRef,
     preferredSide: "top"
   });
+  const previousPosition = useRef({ index, total });
+  useLayoutEffect(() => {
+    if (open && (previousPosition.current.index !== index || previousPosition.current.total !== total)) {
+      // A moving chip must not leave an interactive portal at its old anchor.
+      setOpen(false);
+      if (detailRef.current?.contains(document.activeElement)) triggerRef.current?.focus({ preventScroll: true });
+    }
+    previousPosition.current = { index, total };
+  }, [index, total, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -939,13 +991,15 @@ function ContextReferenceChip({
           {context.kind === "file" ? <FilePlus2 size={12} /> : <Quote size={12} />}
           <span title={context.path || context.label}>{context.label}</span>
         </button>
-        {presence.visible ? createPortal(
+        {present && presence.visible ? createPortal(
           <div
             ref={detailRef}
             id={detailId}
             className="context-chip-popover"
             role="dialog"
             aria-label={m.ai.context.detail(context.label)}
+            inert={!open || undefined}
+            aria-hidden={!open || undefined}
             data-leaving={presence.leaving || undefined}
             data-side={popover.side}
             style={popover.style}

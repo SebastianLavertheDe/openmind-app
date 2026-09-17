@@ -2,7 +2,7 @@
 /**
  * MOTION-QA-004: Motion contract auto-check.
  *
- * Scans reachable renderer TSX and CSS for two contract violations:
+ * Scans renderer TSX and CSS for three contract violations:
  *
  * 1. Bare `transition: ...ms ease` in CSS — all transitions must use design tokens
  *    (--dur-* / --ease-*). Pre-existing violations are grandfathered via a baseline
@@ -15,10 +15,14 @@
  *    .filter-tabs button). This catches regressions where new buttons are added
  *    without press feedback.
  *
+ * 3. Motion participants without explicit transitions, or component-local
+ *    literal timing/spring parameters. The CSS-token adapter owns translation.
+ *
  * Exit code 0 = pass, 1 = fail.
  */
 const fs = require("fs");
 const path = require("path");
+const ts = require("typescript");
 
 const root = path.resolve(__dirname, "..");
 const rendererDir = path.join(root, "renderer", "src");
@@ -69,9 +73,21 @@ function checkBareTransitions() {
     lines.forEach((line, index) => {
       const matches = line.match(BARE_TRANSITION_RE);
       if (!matches) return;
-      // Allow lines that ALSO reference var(--dur or var(--ease — those are token-based
-      const usesToken = /var\(--dur|var\(--ease/.test(line);
-      if (usesToken) return;
+      // Strip complete var() expressions, including nested fallback functions.
+      // An easing token must not hide a literal duration in the same declaration.
+      const withoutVars = matches.join(" ");
+      let remaining = "";
+      for (let i = 0; i < withoutVars.length; i++) {
+        if (withoutVars.startsWith("var(", i)) {
+          let depth = 1; i += 4;
+          for (; i < withoutVars.length && depth; i++) {
+            if (withoutVars[i] === "(") depth++;
+            if (withoutVars[i] === ")") depth--;
+          }
+          i--;
+        } else remaining += withoutVars[i];
+      }
+      if (!/\b\d+(\.\d+)?(ms|s)\b/.test(remaining)) return;
       // Grandfathered files skip entirely
       if (isGrandfatheredFile) return;
       violations.push(`${rel}:${index + 1}: ${line.trim()}`);
@@ -120,7 +136,7 @@ const KNOWN_PRESS_CLASSES = [
   "version-row", "slash-menu-option",
 ];
 
-const CLICKABLE_RE = /<(button|\w+)\b[^>]*>/g;
+const CLICKABLE_RE = /<([\w.]+)\b[^>]*>/g;
 const DATA_MOTION_RE = /data-motion\s*=/;
 const ROLE_BUTTON_RE = /role\s*=\s*["'](?:button|option)["']/;
 
@@ -154,7 +170,7 @@ function checkClickablesWithoutMotion() {
       if (tagEnd === -1) continue;
       const tagText = content.slice(tagStart, tagEnd + 1);
 
-      const isButtonTag = match[1] === "button";
+      const isButtonTag = match[1] === "button" || match[1] === "motion.button";
       const hasClickableRole = ROLE_BUTTON_RE.test(tagText);
 
       // Only check <button> elements or elements with role=button/option
@@ -183,12 +199,40 @@ function checkClickablesWithoutMotion() {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
+function checkMotionTransitions() {
+  const violations = [];
+  for (const file of collectTsxFiles(rendererDir)) {
+    const content = fs.readFileSync(file, "utf8");
+    if (!content.includes('"motion/react"')) continue;
+    const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const flag = (node, reason) => violations.push(`${path.relative(root,file)}:${source.getLineAndCharacterOfPosition(node.getStart()).line+1}: ${reason}`);
+    const visit = node => {
+      if (ts.isPropertyAssignment(node) && ["duration","delay","ease","stiffness","damping","bounce","mass"].includes(node.name.getText(source))) {
+        const value = node.initializer;
+        if ((ts.isNumericLiteral(value) && value.text !== "0") || ts.isStringLiteral(value) || ts.isArrayLiteralExpression(value)) flag(node, "Motion timing must come from motion-tokens (only an immediate 0 is allowed)");
+      }
+      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        if (node.tagName.getText(source).startsWith("motion.")) {
+          const names = node.attributes.properties.filter(ts.isJsxAttribute).map(p=>p.name.getText(source));
+          if (names.some(n=>["layout","layoutId","animate","exit"].includes(n)) && !names.includes("transition")) flag(node, "Motion animation needs an explicit token transition; no default spring");
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return violations;
+}
+
 const transitionViolations = checkBareTransitions();
 const clickableViolations = checkClickablesWithoutMotion();
+const motionViolations = checkMotionTransitions();
 
 console.log("Motion contract check:");
 console.log(`  CSS bare transitions: ${transitionViolations.length} violation(s)`);
 console.log(`  Clickables without motion variant: ${clickableViolations.length} flagged`);
+console.log(`  Motion transition contracts: ${motionViolations.length} violation(s)`);
+for (const violation of motionViolations) console.log(`  ${violation}`);
 
 if (transitionViolations.length) {
   console.log("\nBare transition violations (use var(--dur-*) / var(--ease-*) instead):");
@@ -202,7 +246,7 @@ if (clickableViolations.length) {
   if (clickableViolations.length > 30) console.log(`  ... and ${clickableViolations.length - 30} more`);
 }
 
-if (transitionViolations.length > 0 || clickableViolations.length > 0) {
+if (transitionViolations.length > 0 || clickableViolations.length > 0 || motionViolations.length > 0) {
   console.log("\nMotion contract check FAILED.");
   process.exit(1);
 }

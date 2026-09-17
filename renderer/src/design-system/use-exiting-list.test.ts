@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useExitingList } from "./use-exiting-list";
 
@@ -7,9 +7,50 @@ const item = (id: string): Item => ({ id });
 const ids = (list: { item: Item }[]) => list.map((e) => e.item.id);
 
 beforeEach(() => { vi.useFakeTimers(); });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("useExitingList", () => {
+  it("removes immediately without a timer under reduced motion", () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+    const { result, rerender } = renderHook(({ items }) => useExitingList(items, (x) => x.id, 200), {
+      initialProps: { items: [item("a"), item("b")] }
+    });
+    rerender({ items: [item("a")] });
+    expect(ids(result.current)).toEqual(["a"]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("flushes pending exits on a live preference change without stale removal after revival", () => {
+    const listeners = new Set<() => void>();
+    const media = { matches: false, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) };
+    vi.spyOn(window, "matchMedia").mockReturnValue(media as unknown as MediaQueryList);
+    const { result, rerender } = renderHook(({ items }) => useExitingList(items, (x) => x.id, 200), {
+      initialProps: { items: [item("a"), item("b")] }
+    });
+    rerender({ items: [] });
+    expect(result.current.every(entry => entry.leaving)).toBe(true);
+    expect(vi.getTimerCount()).toBe(2);
+    act(() => { media.matches = true; listeners.forEach(fn => fn()); });
+    expect(result.current).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => { media.matches = false; listeners.forEach(fn => fn()); });
+    rerender({ items: [item("b")] });
+    act(() => vi.advanceTimersByTime(300));
+    expect(ids(result.current)).toEqual(["b"]);
+    expect(result.current[0].leaving).toBe(false);
+  });
+
+  it("settles immediately if exit duration becomes zero during an exit", () => {
+    const { result, rerender } = renderHook(({ items, duration }) => useExitingList(items, (x) => x.id, duration), {
+      initialProps: { items: [item("a")], duration: 200 }
+    });
+    rerender({ items: [], duration: 200 });
+    expect(result.current[0].leaving).toBe(true);
+    rerender({ items: [], duration: 0 });
+    expect(result.current).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("keeps a removed item as leaving, then drops it after the exit timer fires", () => {
     const { result, rerender } = renderHook(({ items }) => useExitingList(items, (x) => x.id, 200), {
       initialProps: { items: [item("a"), item("b")] }

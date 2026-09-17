@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
 import { isProjectTaskScope } from "@shared/ai-session-scope";
@@ -6,6 +7,8 @@ import { messages as m } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
 import { Tooltip } from "../design-system/components";
+import { AnimatedDisclosure } from "../design-system/animated-disclosure";
+import { useMotionTokens } from "../design-system/motion-tokens";
 
 /** 侧边栏「最近任务」区块：展示最近的 AI 会话，点击直接打开。
  * 数据源是 useAi().snapshot.sessions（现成、已在 bootstrap 注入），不新建接口。
@@ -34,6 +37,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
   const { snapshot } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
+  const tokens = useMotionTokens();
   const [collapsed, setCollapsed] = useState(() => storageJson(COLLAPSED_KEY, false));
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -85,19 +89,19 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
   };
 
   return (
-    <div className="nav-recent" aria-label={m.shell.recentTasksAria}>
-      <button
-        type="button"
-        className="nav-recent-toggle"
-        aria-expanded={!collapsed}
-        onClick={() => toggle(!collapsed)}
-      >
+    <AnimatedDisclosure
+      className="nav-recent"
+      triggerClassName="nav-recent-toggle"
+      open={!collapsed}
+      onOpenChange={(open) => toggle(!open)}
+      unmountOnExit
+      exitMs={(tokens.layout.duration ?? 0) * 1000}
+      summary={<>
         <span>{m.ai.session.recent} <span className="nav-recent-count">({recent.length})</span></span>
         <ChevronDown size={13} aria-hidden />
-      </button>
-      {!collapsed ? (
-        <div className="nav-recent-list">
-          {recent.map((session) => {
+      </>}
+    >
+        <RecentTaskList sessions={recent} renderRow={(session) => {
             const waitingApproval = session.status === "waiting-approval" || pendingSessionIds.has(session.id);
             const dot = waitingApproval ? "waiting-approval" : statusClass(session.status);
             const projectName = isProjectTaskScope(session.scope) ? session.scope.projectName : null;
@@ -151,9 +155,85 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                 </div>
               </div>
             );
-          })}
-        </div>
-      ) : null}
-    </div>
+          }} />
+    </AnimatedDisclosure>
   );
+}
+
+/** Only long histories virtualize; the same keyed row hosts survive threshold changes. */
+function RecentTaskList({ sessions, renderRow }: { sessions: AiSession[]; renderRow(session: AiSession): ReactNode }) {
+  const virtual = sessions.length > 20;
+  const scroller = useRef<HTMLDivElement>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const pendingFocus = useRef<{ id: string; last: boolean } | null>(null);
+  const focusedIndex = sessions.findIndex(session => session.id === focusedId);
+  const virtualizer = useVirtualizer({
+    enabled: virtual,
+    count: sessions.length,
+    getScrollElement: () => scroller.current,
+    getItemKey: index => sessions[index].id,
+    estimateSize: () => 30,
+    gap: 1,
+    initialRect: { width: 240, height: 260 },
+    overscan: 3,
+    useFlushSync: false,
+    directDomUpdates: true,
+    rangeExtractor: range => [...new Set([...defaultRangeExtractor(range), ...(focusedIndex < 0 ? [] : [focusedIndex])])].sort((a, b) => a - b)
+  });
+  const rows = virtual ? virtualizer.getVirtualItems() : sessions.map((session, index) => ({ key: session.id, index }));
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    const index = sessions.findIndex(session => session.id === pending.id);
+    const buttons = scroller.current?.querySelectorAll<HTMLButtonElement>(`[data-index="${index}"] button:not(:disabled)`);
+    const button = pending.last ? buttons?.[buttons.length - 1] : buttons?.[0];
+    if (!button) return;
+    pendingFocus.current = null;
+    button.focus({ preventScroll: true });
+  }, [rows, sessions]);
+  const focusRow = (index: number, last = false) => {
+    const session = sessions[index];
+    if (!session) return;
+    pendingFocus.current = { id: session.id, last };
+    setFocusedId(session.id);
+    virtualizer.scrollToIndex(index, { align: "auto" });
+  };
+  return <div ref={scroller} className={`nav-recent-list${virtual ? " is-virtual" : ""}`} role="region" aria-label={m.ai.session.recent} tabIndex={virtual ? 0 : undefined}
+    onFocusCapture={event => {
+      const row = (event.target as HTMLElement).closest<HTMLElement>("[data-recent-index]");
+      if (row) setFocusedId(sessions[Number(row.dataset.recentIndex)]?.id || null);
+    }}
+    onBlurCapture={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedId(null);
+    }}
+    onKeyDownCapture={event => {
+      if (!virtual) return;
+      const target = event.target as HTMLElement;
+      const row = target.closest<HTMLElement>("[data-recent-index]");
+      const index = row ? Number(row.dataset.recentIndex) : -1;
+      if (event.key === "Tab" && row) {
+        const controls = row.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+        const edge = event.shiftKey ? controls[0] : controls[controls.length - 1];
+        const next = index + (event.shiftKey ? -1 : 1);
+        if (target === edge && sessions[next]) {
+          event.preventDefault();
+          focusRow(next, event.shiftKey);
+        }
+        return;
+      }
+      if (target !== event.currentTarget && !target.matches(".nav-recent-item")) return;
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      focusRow(event.key === "Home" ? 0 : event.key === "End" ? sessions.length - 1
+        : Math.min(sessions.length - 1, Math.max(0, index + (event.key === "ArrowDown" ? 1 : -1))));
+    }}>
+    {/* The virtualizer caches inline geometry by DOM identity. Static layout is
+        a CSS override so returning to virtual mode cannot erase cached positions. */}
+    <div ref={virtual ? virtualizer.containerRef : undefined} className={virtual ? "nav-recent-virtual-content" : "nav-recent-static-content"} role="list">
+      {rows.map(row => <div key={row.key} ref={virtual ? virtualizer.measureElement : undefined} data-index={row.index} data-recent-index={row.index}
+        className={virtual ? "nav-recent-virtual-row" : undefined} role="listitem" aria-posinset={row.index + 1} aria-setsize={sessions.length}>
+        {renderRow(sessions[row.index])}
+      </div>)}
+    </div>
+  </div>;
 }

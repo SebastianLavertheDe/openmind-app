@@ -1,9 +1,11 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider, useAi } from "../ai-context";
 import { FeedbackHost } from "./FeedbackHost";
+import { ProjectDialog } from "../features/projects/ProjectDialog";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -57,6 +59,7 @@ function ConfirmHarness() {
 }
 
 beforeEach(() => {
+  document.documentElement.style.setProperty("--dur-exit", "160ms");
   window.openmind = {
     onAiEvent: () => () => undefined
   } as unknown as DesktopApi;
@@ -65,9 +68,55 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  document.documentElement.style.removeProperty("--dur-exit");
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("FeedbackHost confirmation dialog", () => {
+  it("isolates nested dialogs and lets Escape dismiss only the top confirmation", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    const closeProject = vi.fn();
+    function Nested() {
+      const ai = useAi();
+      const [open, setOpen] = useState(true);
+      return <>
+        <div data-testid="background"><button>页面操作</button></div>
+        <ProjectDialog open={open} title="项目设置" confirmLabel="保存" onConfirm={() => {}}
+          onClose={() => { closeProject(); setOpen(false); }}>
+          <button type="button" onClick={() => void ai.confirm({ title: "确认放弃", danger: true })}>请求确认</button>
+        </ProjectDialog>
+        <FeedbackHost />
+      </>;
+    }
+    render(<AiProvider initial={snapshot}><Nested /></AiProvider>);
+    const background = screen.getByTestId("background");
+    const project = screen.getByRole("dialog", { name: "项目设置" });
+    expect(background.inert).toBe(true);
+    expect(background.getAttribute("aria-hidden")).toBe("true");
+    const trigger = within(project).getByRole("button", { name: "请求确认" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    act(() => vi.advanceTimersToNextFrame());
+    const confirmation = screen.getByRole("alertdialog");
+    expect(document.activeElement).toBe(within(confirmation).getByRole("button", { name: "取消" }));
+    expect(project.closest<HTMLElement>('[aria-hidden="true"]')?.inert).toBe(true);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(closeProject).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(confirmation.closest("[inert]")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "项目设置" })).toBe(project);
+    expect(background.inert).toBe(true);
+    act(() => vi.advanceTimersToNextFrame());
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(closeProject).toHaveBeenCalledTimes(1);
+    expect(background.inert).toBe(false);
+    expect(background.hasAttribute("aria-hidden")).toBe(false);
+  });
+
   it("defaults dangerous actions to cancel and restores focus", async () => {
     const user = userEvent.setup();
     render(<AiProvider initial={snapshot}><ConfirmHarness /></AiProvider>);
@@ -152,6 +201,18 @@ describe("FeedbackHost toast exit animation", () => {
 
     await user.click(within(toastEl).getByRole("button"));
     await waitFor(() => expect(toastEl.getAttribute("data-leaving")).toBe("true"));
+    expect(toastEl.hasAttribute("inert")).toBe(true);
+    expect(toastEl.getAttribute("aria-hidden")).toBe("true");
     await waitFor(() => expect(screen.queryByText("临时提示")).toBeNull());
+  });
+
+  it("does not retain an invisible toast under reduced motion", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+    const user = userEvent.setup();
+    render(<AiProvider initial={snapshot}><ToastHarness /></AiProvider>);
+    await user.click(screen.getByRole("button", { name: "弹 toast" }));
+    const toastEl = screen.getByText("临时提示").closest(".toast") as HTMLElement;
+    await user.click(within(toastEl).getByRole("button"));
+    expect(screen.queryByText("临时提示")).toBeNull();
   });
 });

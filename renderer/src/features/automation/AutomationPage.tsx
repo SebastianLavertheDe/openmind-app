@@ -32,8 +32,10 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const [runCommand, setRunCommand] = useState<{ ruleId: string; phase: "starting" | "stopping" } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const copyTimer = useRef<number>(0);
+  const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++loadSequence.current;
     setLoading(true);
     try {
       const [nextRules, nextSchedules, nextRuns, nextSkillCatalog] = await Promise.all([
@@ -42,6 +44,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
         window.openmind.listAutomationRuns(),
         window.openmind.listInstalledRunnableSkills()
       ]);
+      if (request !== loadSequence.current) return;
       setRules(nextRules);
       setSchedules(nextSchedules);
       setRuns(nextRuns);
@@ -51,13 +54,16 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
         : initialRuleId(initialSkillId, nextRules));
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (request === loadSequence.current) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (request === loadSequence.current) setLoading(false);
     }
   }, [initialSkillId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { loadSequence.current += 1; };
+  }, [load]);
   useEffect(() => {
     const refreshCatalog = () => { void load(); };
     window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);

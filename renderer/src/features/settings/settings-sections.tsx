@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
@@ -6,7 +6,9 @@ import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
 import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
+import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
+import { useMotionTokens } from "../../design-system/motion-tokens";
 
 const m = messages;
 
@@ -368,6 +370,8 @@ export function SkillSettingsSection({
   const [group, setGroup] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedMcpId, setExpandedMcpId] = useState<string | null>(null);
+  const [animateMcpDetails, setAnimateMcpDetails] = useState(false);
+  const disclosureTokens = useMotionTokens();
   const groups = useMemo(() => Array.from(new Set(skills.map(skillGroup))).sort((left, right) => left.localeCompare(right, "zh-CN")), [skills]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -444,14 +448,15 @@ export function SkillSettingsSection({
             const title = skill.title || skill.id;
             return (
               <article className="settings-skill-item" data-expanded={expanded || undefined} key={skill.id}>
-                <button
-                  type="button"
-                  className="settings-skill-summary"
-                  data-motion="selection"
-                  aria-expanded={expanded}
-                  aria-label={m.settings.skills.detailAria(title)}
-                  onClick={() => setExpandedId((current) => current === skill.id ? null : skill.id)}
-                >
+                <AnimatedDisclosure
+                  className="settings-disclosure"
+                  triggerClassName="settings-skill-summary"
+                  open={expanded}
+                  onOpenChange={(open) => setExpandedId(open ? skill.id : null)}
+                  triggerAriaLabel={m.settings.skills.detailAria(title)}
+                  unmountOnExit
+                  exitMs={(disclosureTokens.layout.duration ?? 0) * 1000}
+                  summary={<>
                   <span className="settings-skill-icon" aria-hidden><Package size={16} /></span>
                   <span className="settings-skill-copy">
                     <span><strong>{title}</strong><code>/{skill.id}</code></span>
@@ -459,8 +464,8 @@ export function SkillSettingsSection({
                   </span>
                   <span className="settings-skill-group-label">{skillGroup(skill)}</span>
                   <ChevronDown className="settings-skill-chevron" size={15} aria-hidden />
-                </button>
-                {expanded ? (
+                  </>}
+                >
                   <div className="settings-skill-details">
                     <dl>
                       <SkillDetail label={m.settings.skills.cwd} value={skill.cwd || m.settings.skills.notConfigured} />
@@ -474,7 +479,7 @@ export function SkillSettingsSection({
                       <button type="button" data-motion="action" aria-label={m.settings.skills.openNamed(title)} onClick={() => onOpenDirectory(skill.cwd)}><FolderOpen size={13} aria-hidden />{m.settings.skills.openDirectory}</button>
                     </div>
                   </div>
-                ) : null}
+                </AnimatedDisclosure>
               </article>
             );
           })}
@@ -497,7 +502,7 @@ export function SkillSettingsSection({
               value={mcpQuery}
               aria-label={m.settings.skills.mcpSearchAria}
               placeholder={m.settings.skills.mcpSearchPlaceholder}
-              onChange={(event) => setMcpQuery(event.target.value)}
+              onChange={(event) => { setAnimateMcpDetails(false); setMcpQuery(event.target.value); }}
             />
           </label>
         </div>
@@ -507,7 +512,15 @@ export function SkillSettingsSection({
               const expanded = expandedMcpId === server.id || Boolean(mcpQuery.trim());
               return (
               <article className="settings-mcp-server" data-expanded={expanded || undefined} key={server.id}>
-                <button type="button" className="settings-mcp-server-header" data-motion="disclosure" aria-expanded={expanded} onClick={() => setExpandedMcpId((current) => current === server.id ? null : server.id)}>
+                <AnimatedDisclosure
+                  className="settings-disclosure"
+                  triggerClassName="settings-mcp-server-header"
+                  open={expanded}
+                  animate={animateMcpDetails && !mcpQuery.trim()}
+                  onOpenChange={(open) => { setAnimateMcpDetails(true); setExpandedMcpId(open ? server.id : null); }}
+                  unmountOnExit
+                  exitMs={(disclosureTokens.layout.duration ?? 0) * 1000}
+                  summary={<>
                   <span className="settings-skill-icon" aria-hidden><Server size={16} /></span>
                   <span className="settings-mcp-identity">
                     <span><strong>{server.title}</strong><code>{server.id}</code></span>
@@ -515,8 +528,9 @@ export function SkillSettingsSection({
                   </span>
                   <StatusBadge tone={server.status === "enabled" ? "success" : "warning"}>{m.settings.skills.mcpStatus[server.status]}</StatusBadge>
                   <ChevronDown className="settings-mcp-chevron" size={15} aria-hidden />
-                </button>
-                {expanded ? <div className="settings-mcp-details">
+                  </>}
+                >
+                <div className="settings-mcp-details">
                   <dl>
                     <SkillDetail label={m.settings.skills.mcpBackend} value={server.backend} />
                     <SkillDetail label={m.settings.skills.mcpTransport} value={server.transport} />
@@ -545,7 +559,8 @@ export function SkillSettingsSection({
                       <button type="button" data-motion="action" onClick={onOpenMcpSettings}><ExternalLink size={13} aria-hidden />{m.settings.skills.mcpOpenSettings}</button>
                     </div>
                   ) : null}
-                </div> : null}
+                </div>
+                </AnimatedDisclosure>
               </article>
               );
             })}
@@ -823,12 +838,34 @@ export function AiProvidersSettingsSection({
   const [apiKeySetMap, setApiKeySetMap] = useState<Record<string, boolean>>({});
   const [presetId, setPresetId] = useState(PROVIDER_PRESETS[0]?.id ?? "custom");
   const [adding, setAdding] = useState(false);
-  const [newProvider, setNewProvider] = useState<ProviderYamlInputEntry | null>(null);
+  const [newProviderDraft, setNewProvider] = useState<ProviderYamlInputEntry | null>(null);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<{ entry: ProviderYamlInputEntry; apiKey: string; cliBindings: CliProviderBindings } | null>(null);
   const [advancedProviderId, setAdvancedProviderId] = useState<string | null>(null);
   const addDialogRef = useRef<HTMLDivElement | null>(null);
   const editDialogRef = useRef<HTMLDivElement | null>(null);
+  const addTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const editTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const motionTokens = useMotionTokens();
+  const { exitMs } = motionTokens;
+  const addPresence = useExitPresence(adding, exitMs);
+  const editPresence = useExitPresence(Boolean(editingProviderId), exitMs);
+  const addSnapshot = useRef<ProviderYamlInputEntry | null>(null);
+  const editSnapshot = useRef<{ entry: ProviderYamlInputEntry; apiKey: string; advanced: boolean } | null>(null);
+  const liveEditingProvider = editingProviderId ? draft.find(entry => entry.id === editingProviderId) ?? null : null;
+  useLayoutEffect(() => {
+    if (adding && newProviderDraft) addSnapshot.current = newProviderDraft;
+    else if (!addPresence.visible) addSnapshot.current = null;
+    if (liveEditingProvider) editSnapshot.current = {
+      entry: liveEditingProvider, apiKey: apiKeyKeys[liveEditingProvider.id] ?? "",
+      advanced: advancedProviderId === liveEditingProvider.id
+    };
+    else if (!editPresence.visible) editSnapshot.current = null;
+  }, [adding, newProviderDraft, addPresence.visible, liveEditingProvider, apiKeyKeys, advancedProviderId, editPresence.visible]);
+  const newProvider = adding ? newProviderDraft : addSnapshot.current;
+  const editingProvider = liveEditingProvider ?? (editPresence.visible ? editSnapshot.current?.entry : null);
+  const editingAdvanced = liveEditingProvider ? advancedProviderId === liveEditingProvider.id : Boolean(editSnapshot.current?.advanced);
+  const editingApiKey = liveEditingProvider ? apiKeyKeys[liveEditingProvider.id] ?? "" : editSnapshot.current?.apiKey ?? "";
 
   const closeAddDialog = () => {
     setAdding(false);
@@ -855,8 +892,8 @@ export function AiProvidersSettingsSection({
     dismissEditDialog();
   };
 
-  useModalFocusScope({ open: adding, containerRef: addDialogRef, onDismiss: closeAddDialog, layer: "global" });
-  useModalFocusScope({ open: Boolean(editingProviderId), containerRef: editDialogRef, onDismiss: cancelEditDialog, layer: "global" });
+  useModalFocusScope({ open: adding, containerRef: addDialogRef, triggerRef: addTriggerRef, onDismiss: closeAddDialog, layer: "global" });
+  useModalFocusScope({ open: Boolean(editingProviderId), containerRef: editDialogRef, triggerRef: editTriggerRef, onDismiss: cancelEditDialog, layer: "global" });
 
   useEffect(() => {
     if (!view) return;
@@ -944,7 +981,8 @@ export function AiProvidersSettingsSection({
     setAdding(true);
   };
 
-  const openEditDialog = async (entry: ProviderYamlInputEntry) => {
+  const openEditDialog = async (entry: ProviderYamlInputEntry, trigger: HTMLButtonElement) => {
+    editTriggerRef.current = trigger;
     let apiKey = apiKeyKeys[entry.id];
     if (apiKey === undefined) {
       try {
@@ -1015,13 +1053,10 @@ export function AiProvidersSettingsSection({
     if (saveDraft()) dismissEditDialog();
   };
 
-  const editingProvider = editingProviderId ? draft.find((entry) => entry.id === editingProviderId) ?? null : null;
-  const editingAdvanced = Boolean(editingProvider && advancedProviderId === editingProvider.id);
-
   return (
     <>
       <SettingsPanel title={m.settings.providerConfig.title} scope={m.settings.providerConfig.count(draft.length)} variant="standard"
-        action={<button type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
+        action={<button ref={addTriggerRef} type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
         <p className="settings-note settings-provider-list-note">{m.settings.providerConfig.note}</p>
         <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">{m.settings.providerConfig.empty}</p> : null}
@@ -1034,7 +1069,7 @@ export function AiProvidersSettingsSection({
               <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
                 <header className="settings-provider-config-header">
                   <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
-                    aria-label={m.settings.providerConfig.editAria(displayName)} onClick={() => void openEditDialog(entry)} disabled={busy}>
+                    aria-label={m.settings.providerConfig.editAria(displayName)} onClick={(event) => void openEditDialog(entry, event.currentTarget)} disabled={busy}>
                     <span className="settings-provider-config-identity">
                       <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}</span>
                       <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || m.settings.providerConfig.noModel}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
@@ -1061,8 +1096,9 @@ export function AiProvidersSettingsSection({
         </div>
       </SettingsPanel>
 
-      {adding && newProvider && typeof document !== "undefined" ? createPortal(
-        <div ref={addDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={closeAddDialog}>
+      {addPresence.visible && newProvider && typeof document !== "undefined" ? createPortal(
+        <div ref={addDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop
+          data-leaving={!adding || undefined} inert={!adding || undefined} aria-hidden={!adding || undefined} onMouseDown={closeAddDialog}>
           <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
               <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="add-provider-title">{m.settings.providerConfig.addTitle}</h2><p>{m.settings.providerConfig.addDescription}</p></div>
@@ -1105,8 +1141,9 @@ export function AiProvidersSettingsSection({
         document.body
       ) : null}
 
-      {editingProvider && typeof document !== "undefined" ? createPortal(
-        <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop onMouseDown={cancelEditDialog}>
+      {editPresence.visible && editingProvider && typeof document !== "undefined" ? createPortal(
+        <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop
+          data-leaving={!editingProviderId || undefined} inert={!editingProviderId || undefined} aria-hidden={!editingProviderId || undefined} onMouseDown={cancelEditDialog}>
           <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
             <header>
               <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="edit-provider-title">{m.settings.providerConfig.editTitle(editingProvider.name || editingProvider.id)}</h2><p>{m.settings.providerConfig.editDescription}</p></div>
@@ -1119,16 +1156,21 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
                   <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
                   <label className="settings-field settings-field--wide"><span>API Key</span>
-                    <input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={apiKeyKeys[editingProvider.id] ?? ""}
+                    <input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={editingApiKey}
                       placeholder={m.settings.providerConfig.unset} autoComplete="off" spellCheck={false}
                       onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
                   </label>
                 </div>
-                <button type="button" className="settings-provider-advanced-trigger" data-motion="disclosure" aria-expanded={editingAdvanced} aria-controls={`provider-advanced-${editingProvider.id}`}
-                  onClick={() => setAdvancedProviderId((current) => current === editingProvider.id ? null : editingProvider.id)}>
-                  <span><strong>{m.settings.providerConfig.advanced}</strong><small>{m.settings.providerConfig.advancedDescription}</small></span><ChevronDown size={16} aria-hidden />
-                </button>
-                {editingAdvanced ? <div className="settings-provider-advanced-grid" id={`provider-advanced-${editingProvider.id}`}>
+                <AnimatedDisclosure
+                  className="settings-disclosure"
+                  triggerClassName="settings-provider-advanced-trigger"
+                  open={editingAdvanced}
+                  onOpenChange={(open) => setAdvancedProviderId(open ? editingProvider.id : null)}
+                  unmountOnExit
+                  exitMs={(motionTokens.layout.duration ?? 0) * 1000}
+                  summary={<><span><strong>{m.settings.providerConfig.advanced}</strong><small>{m.settings.providerConfig.advancedDescription}</small></span><ChevronDown size={16} aria-hidden /></>}
+                >
+                <div className="settings-provider-advanced-grid">
                   <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
                     <select className="settings-select" value={editingProvider.protocol} onChange={(event) => update(editingProvider.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
@@ -1143,7 +1185,8 @@ export function AiProvidersSettingsSection({
                       <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
-                </div> : null}
+                </div>
+                </AnimatedDisclosure>
               </div>
               <footer>
                 <button type="button" className="settings-subtle-action" data-motion="action" onClick={cancelEditDialog}>{m.settings.providerConfig.cancel}</button>

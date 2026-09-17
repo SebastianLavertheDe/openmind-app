@@ -181,9 +181,114 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe("CreativeWorkspacePage", () => {
+  function pendingSave() {
+    let resolve!: (detail: CreativeProjectDetail) => void;
+    let reject!: (cause: Error) => void;
+    const promise = new Promise<CreativeProjectDetail>((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  }
+
+  async function openDraft(api: DesktopApi, summary: CreativeProjectSummary) {
+    await act(async () => { renderCreative(api, { initialProjectDir: summary.dir }); });
+    fireEvent.click(screen.getByRole("tab", { name: /编辑/ }));
+    const editor = screen.getByLabelText("Markdown 草稿编辑器") as HTMLTextAreaElement;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    return editor;
+  }
+
+  it("preserves a newer edit and its autosave when an older save completes", async () => {
+    const summary = project("drafting", "自动保存稿件");
+    const first = pendingSave();
+    const saveCreativeFile = vi.fn<DesktopApi["saveCreativeFile"]>()
+      .mockReturnValueOnce(first.promise)
+      .mockImplementation(async ({ content }) => detailFor(summary, content));
+    const editor = await openDraft(makeApi({ saveCreativeFile }), summary);
+    fireEvent.change(editor, { target: { value: "revision A" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(saveCreativeFile).toHaveBeenCalledTimes(1);
+    fireEvent.change(editor, { target: { value: "revision B" } });
+    await act(async () => first.resolve(detailFor(summary, "revision A")));
+    expect(editor.value).toBe("revision B");
+    expect(screen.getByText("编辑中…")).toBeTruthy();
+    expect(screen.queryByText("已自动保存")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(saveCreativeFile).toHaveBeenCalledTimes(2);
+    expect(saveCreativeFile).toHaveBeenLastCalledWith(expect.objectContaining({ content: "revision B", createVersion: false }));
+    expect(screen.getByText("已自动保存")).toBeTruthy();
+  });
+
+  it("serializes manual and automatic saves and preserves edits made during a manual save", async () => {
+    const summary = project("drafting", "自动保存稿件");
+    const first = pendingSave();
+    const manual = pendingSave();
+    const saveCreativeFile = vi.fn<DesktopApi["saveCreativeFile"]>()
+      .mockReturnValueOnce(first.promise).mockReturnValueOnce(manual.promise)
+      .mockImplementation(async ({ content }) => detailFor(summary, content));
+    const editor = await openDraft(makeApi({ saveCreativeFile }), summary);
+    fireEvent.change(editor, { target: { value: "revision A" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    fireEvent.change(editor, { target: { value: "revision B" } });
+    fireEvent.click(screen.getByRole("button", { name: m.creativeUi.editor.saveVersion }));
+    expect(saveCreativeFile).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("button", { name: m.creativeUi.editor.savingVersion }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => first.resolve(detailFor(summary, "revision A")));
+    expect(saveCreativeFile).toHaveBeenCalledTimes(2);
+    expect(saveCreativeFile).toHaveBeenLastCalledWith(expect.objectContaining({ content: "revision B", createVersion: true }));
+    fireEvent.change(editor, { target: { value: "revision C" } });
+    await act(async () => manual.resolve(detailFor(summary, "revision B")));
+    expect(screen.getByText("编辑中…")).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(saveCreativeFile).toHaveBeenCalledTimes(3);
+    expect(saveCreativeFile).toHaveBeenLastCalledWith(expect.objectContaining({ content: "revision C", createVersion: false }));
+    expect(editor.value).toBe("revision C");
+    expect(screen.getByText("已自动保存")).toBeTruthy();
+  });
+
+  it("acknowledges a manual save without reporting it as an automatic save", async () => {
+    const summary = project("drafting", "自动保存稿件");
+    const api = makeApi({ getPreferences: async () => ({ ...UserPreferencesSchema.parse({}), workflowAutoSaveDraft: false }) });
+    const editor = await openDraft(api, summary);
+    fireEvent.change(editor, { target: { value: "manual revision" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: m.creativeUi.editor.saveVersion })); });
+    expect(api.saveCreativeFile).toHaveBeenCalledWith(expect.objectContaining({ content: "manual revision", createVersion: true }));
+    expect(screen.getByText(m.creativeUi.editor.status.saved)).toBeTruthy();
+    expect(screen.queryByText("已自动保存")).toBeNull();
+  });
+
+  it.each(["success", "failure"])("ignores an old project's save %s after switching projects", async (outcome) => {
+    const firstProject = project("drafting", "自动保存稿件");
+    const nextProject = { ...firstProject, dir: "openmind/creative/next", topic: "下一份稿件" };
+    const first = pendingSave();
+    const saveCreativeFile = vi.fn<DesktopApi["saveCreativeFile"]>()
+      .mockReturnValueOnce(first.promise)
+      .mockImplementation(async ({ content }) => detailFor(nextProject, content));
+    const api = makeApi({
+      saveCreativeFile,
+      getCreativeProjects: async () => [firstProject, nextProject],
+      getCreativeProject: async (dir) => detailFor(dir === firstProject.dir ? firstProject : nextProject)
+    });
+    const editor = await openDraft(api, firstProject);
+    fireEvent.change(editor, { target: { value: "old edit" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /下一份稿件/ })); });
+    const nextEditor = screen.getByLabelText("Markdown 草稿编辑器") as HTMLTextAreaElement;
+    fireEvent.change(nextEditor, { target: { value: "new project edit" } });
+    await act(async () => {
+      if (outcome === "success") first.resolve(detailFor(firstProject, "old edit"));
+      else first.reject(new Error("old save failed"));
+    });
+    expect(screen.getByRole("heading", { name: "下一份稿件" })).toBeTruthy();
+    expect(nextEditor.value).toBe("new project edit");
+    expect(screen.getByText("编辑中…")).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(saveCreativeFile).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: nextProject.dir, content: "new project edit" }));
+    expect(screen.getByText("已自动保存")).toBeTruthy();
+  });
+
   it("switches workflow tabs and autosaves draft edits", async () => {
     const api = makeApi();
     renderCreative(api);

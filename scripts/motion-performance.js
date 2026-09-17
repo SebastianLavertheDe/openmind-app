@@ -6,10 +6,20 @@ const path = require("node:path");
 (async () => {
   process.env.NODE_ENV = "production";
   const { build } = await import("vite");
+  const incremental = process.argv.includes("--incremental");
+  const feedback = process.argv.includes("--feedback");
+  const workspace = process.argv.includes("--workspace");
+  const followup = process.argv.includes("--followup");
+  // Reuse a saved, pre-change production fixture for an identical runner A/B.
+  const reuse = process.env.OPENMIND_MOTION_PERF_REUSE_DIR;
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-motion-performance-"));
-  await build({
+  if (reuse) {
+    fs.copyFileSync(path.join(reuse, "index.html"), path.join(directory, "index.html"));
+    fs.cpSync(path.join(reuse, "assets"), path.join(directory, "assets"), { recursive: true });
+  } else await build({
     configFile: path.join(__dirname, "../vite.config.ts"),
-    root: path.join(__dirname, "fixtures/motion-performance"),
+    root: path.join(__dirname, followup ? "fixtures/followup-motion" : workspace ? "fixtures/workspace-motion" : feedback ? "fixtures/feedback-motion" : incremental ? "fixtures/incremental-motion" : "fixtures/motion-performance"),
+    ...(incremental || feedback || workspace || followup ? { resolve: { alias: { "react-dom/client": "react-dom/profiling" } } } : {}),
     logLevel: "warn",
     build: { outDir: directory, emptyOutDir: false, chunkSizeWarningLimit: 5000 }
   });
@@ -19,7 +29,7 @@ const path = require("node:path");
   delete env.ELECTRON_RUN_AS_NODE;
   const electron = require("electron");
   const useXvfb = process.platform === "linux" && !process.env.DISPLAY;
-  const args = ["--no-sandbox", path.join(__dirname, "motion-performance-electron.js")];
+  const args = ["--no-sandbox", path.join(__dirname, followup ? "followup-motion-electron.js" : workspace ? "workspace-motion-electron.js" : feedback ? "feedback-motion-electron.js" : incremental ? "incremental-motion-electron.js" : "motion-performance-electron.js")];
   const child = spawn(useXvfb ? "xvfb-run" : electron, useXvfb ? ["-a", "-s", "-screen 0 1920x1080x24", electron, ...args] : args, { stdio: "inherit", env });
   child.on("error", error => { console.error(error); process.exitCode = 1; });
   child.on("exit", code => { process.exitCode = code ?? 1; console.log(`Motion artifacts: ${directory}`); });

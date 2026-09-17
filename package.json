@@ -149,6 +149,7 @@
     "katex": "^0.17.0",
     "lucide-react": "^1.18.0",
     "mammoth": "^1.12.2",
+    "motion": "13.4.0",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "react": "^19.2.7",

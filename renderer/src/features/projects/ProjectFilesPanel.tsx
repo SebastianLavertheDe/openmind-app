@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Download, FilePenLine, FileText, Files, FolderInput, Globe2, MoreHorizontal, PencilLine, Search, Trash2, Video } from "lucide-react";
+import { Download, FilePenLine, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2, Video } from "lucide-react";
 import { useAiUi } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
@@ -52,6 +52,8 @@ export function ProjectFilesPanel({
   } : null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const loadSequence = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -75,14 +77,17 @@ export function ProjectFilesPanel({
   }, [onSelectionChange]);
 
   const load = useCallback(async () => {
+    const request = ++loadSequence.current;
     setLoading(true);
     try {
       const [nextMaterials, nextOutputs] = await Promise.all([
         projectsApi.listMaterials(project.name),
         projectsApi.listOutputs(project.name)
       ]);
+      if (request !== loadSequence.current) return;
       setMaterials(nextMaterials);
       setOutputs(nextOutputs);
+      setHasLoaded(true);
       setError(null);
       const entries = projectFileEntries(nextMaterials, nextOutputs);
       const current = selectionRef.current;
@@ -96,13 +101,16 @@ export function ProjectFilesPanel({
         updateSelection(preferred || entries[0] || null);
       }
     } catch (cause) {
-      setError(errorText(cause));
+      if (request === loadSequence.current) setError(errorText(cause));
     } finally {
-      setLoading(false);
+      if (request === loadSequence.current) setLoading(false);
     }
   }, [initialItem, initialSection, project.name, updateSelection]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { loadSequence.current += 1; };
+  }, [load]);
   const completeCreateRequest = useCallback((kind: ProjectFileKind) => {
     // Keep the create-only child mounted after ProjectsPage clears its one-shot
     // request. Without this sentinel, switching from Tasks directly into a
@@ -137,10 +145,13 @@ export function ProjectFilesPanel({
   }, []);
 
   const openFile = useCallback(async (next: ProjectFileSelection) => {
-    if (selectionRef.current && sameSelection(selectionRef.current, next)) return;
+    if (selectionRef.current && sameSelection(selectionRef.current, next)) {
+      onSelectionChange?.(true);
+      return;
+    }
     if (!await canChangeFile()) return;
     updateSelection(next);
-  }, [canChangeFile, updateSelection]);
+  }, [canChangeFile, updateSelection, onSelectionChange]);
 
   const handleChanged = useCallback(() => {
     void load();
@@ -259,13 +270,12 @@ export function ProjectFilesPanel({
     <>
       <label className="project-pane-filter">
         <input aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
-        <Search aria-hidden="true" />
+        {loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
       </label>
-      <div className="project-item-list project-file-list" aria-live="polite">
-        {loading ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
+      <div className="project-item-list project-file-list" aria-live="polite" aria-busy={loading || undefined}>
+        {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? "没有匹配的文件" : "还没有文件"} description={entries.length ? "换一个关键词后再试。" : "可通过右上角加号新建文档或添加资料。"} /> : null}
-        {!loading && !error ? filtered.map((item, index) => {
+        {hasLoaded ? filtered.map((item, index) => {
           const Icon = fileIcon(item);
           const active = Boolean(selection && sameSelection(selection, item));
           return (
@@ -308,6 +318,7 @@ export function ProjectFilesPanel({
             </div>
           );
         }) : null}
+        {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
       </div>
     </>
   );

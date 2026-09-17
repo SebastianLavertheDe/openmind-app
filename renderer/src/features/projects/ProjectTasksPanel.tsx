@@ -323,7 +323,11 @@ export function ProjectTasksPanel({
           const active = item.taskId === selectedId && !creating;
           return (
             <div key={item.taskId} className={`project-task-row${active ? " active" : ""}`} style={{ "--project-list-index": index } as CSSProperties}>
-              <button className="project-task-select" data-motion="selection" onClick={() => { setCreating(false); setSelectedId(item.taskId); }}><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
+              <button className="project-task-select" data-motion="selection" onClick={() => {
+                setCreating(false);
+                if (selectedId === item.taskId) onSelectionChange?.(item.taskId);
+                else setSelectedId(item.taskId);
+              }}><span><strong>{item.title}</strong><small>{formatTime(item.updatedAt)} · {taskStatus(item.status)}</small></span></button>
               <DropdownMenu
                 className="project-task-more"
                 menuClassName="project-task-menu"

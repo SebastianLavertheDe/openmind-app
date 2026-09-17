@@ -24,6 +24,65 @@ beforeEach(() => { window.openmind = makeApi(); });
 afterEach(() => cleanup());
 
 describe("DailyBriefPage", () => {
+  it("refreshes without adding skeletons ahead of existing rows, including after a failure", async () => {
+    const api = makeApi();
+    let rejectRefresh!: (error: Error) => void;
+    const listContent = vi.fn(api.listContent).mockImplementationOnce(api.listContent)
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectRefresh = reject; }));
+    window.openmind = { ...api, listContent };
+    const { container } = render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+    await screen.findByRole("heading", { name: "每日简报" });
+    const row = screen.getByRole("button", { name: /2026-06-30 每日简报/ });
+    const list = container.querySelector<HTMLElement>(".document-file-list")!;
+    list.scrollTop = 70;
+    fireEvent.click(screen.getByRole("button", { name: /刷新/ }));
+    expect(list.children).toHaveLength(1);
+    expect(list.firstElementChild).toBe(row);
+    expect(list.scrollTop).toBe(70);
+    await act(async () => rejectRefresh(new Error("刷新失败")));
+    expect(screen.getByRole("heading", { name: "每日简报" })).toBeTruthy();
+    expect(list.firstElementChild).toBe(row);
+    expect(screen.getByText("刷新失败")).toBeTruthy();
+  });
+
+  it("preserves edits made while a background list request is pending", async () => {
+    const api = makeApi();
+    let emit!: (event: Record<string, unknown>) => void;
+    let finish!: (items: Awaited<ReturnType<DesktopApi["listContent"]>>) => void;
+    const readContent = vi.fn(api.readContent);
+    window.openmind = { ...api, readContent,
+      listContent: vi.fn(api.listContent).mockImplementationOnce(api.listContent).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })),
+      onSkillEvent: callback => { emit = callback; return () => {}; }
+    };
+    render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+    await screen.findByRole("heading", { name: "每日简报" });
+    act(() => emit({ type: "status", state: "success", skillId: "daily-article-summarizer" }));
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "编辑每日简报" });
+    fireEvent.change(editor, { target: { value: "# 正在编辑" } });
+    await act(async () => finish(await api.listContent("summaries", "")));
+    expect(screen.getByRole("textbox", { name: "编辑每日简报" })).toBe(editor);
+    expect(editor.value).toBe("# 正在编辑");
+    expect(readContent).toHaveBeenCalledOnce();
+  });
+
+  it("does not let a delayed list refresh undo a newer file selection", async () => {
+    const api = makeApi();
+    const other = "openmind/daily-summary/20260701_daily_summary.md";
+    const files = [...await api.listContent("summaries", ""), { path: other, name: "20260701_daily_summary.md", size: 1, modifiedAt: "2026-07-01" }];
+    let finish!: (items: typeof files) => void;
+    const readContent = vi.fn(async (file: string) => ({ path: file, name: file.split("/").at(-1)!, content: file === path ? "# 原文件" : "# 新选择", truncated: false }));
+    window.openmind = { ...api, readContent, listContent: vi.fn().mockResolvedValueOnce(files).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })) };
+    render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+    await screen.findByRole("heading", { name: "原文件" });
+    fireEvent.click(screen.getByRole("button", { name: /刷新/ }));
+    fireEvent.click(screen.getByRole("button", { name: /2026-07-01 每日简报/ }));
+    await screen.findByRole("heading", { name: "新选择" });
+    await act(async () => finish(files));
+    expect(screen.getByRole("heading", { name: "新选择" })).toBeTruthy();
+    expect(readContent).toHaveBeenCalledTimes(2);
+  });
+
   it("gives the brief search field an explicit accessible name", async () => {
     render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
 

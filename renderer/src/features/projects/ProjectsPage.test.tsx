@@ -79,9 +79,55 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  document.documentElement.style.removeProperty("--dur-exit");
+  vi.useRealTimers();
 });
 
 describe("ProjectsPage", () => {
+  it("retains the last archived row and group for CSS exit, then removes both", async () => {
+    document.documentElement.style.setProperty("--dur-exit", "160ms");
+    let finish!: (project: ProjectDetail) => void;
+    installApi({ listProjects: vi.fn(async () => [{ ...summary, favorite: true }]), archiveProject: vi.fn(() => new Promise(resolve => { finish = resolve; })) });
+    renderPage();
+    const trigger = await screen.findByRole("button", { name: "项目操作：AI 安全" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const archive = within(await screen.findByRole("menu")).getByRole("menuitem", { name: "归档" });
+    // Own both exit timers before closing the menu, without freezing Motion's clock.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fireEvent.click(archive);
+    await act(async () => finish({ ...detail, status: "archived" }));
+    const leaving = document.querySelector('.project-list-row[data-leaving="true"]');
+    expect(leaving).toBeTruthy();
+    expect(leaving?.hasAttribute("inert")).toBe(true);
+    expect(leaving?.getAttribute("aria-hidden")).toBe("true");
+    // Portals do not inherit inert from the retained project row.
+    expect(document.querySelector('.project-project-menu')?.hasAttribute("inert")).toBe(true);
+    expect(screen.getByRole("region", { name: "收藏" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText("搜索项目"));
+    act(() => vi.advanceTimersByTime(139));
+    expect(document.querySelector('.project-project-menu')?.hasAttribute("inert")).toBe(true);
+    act(() => vi.advanceTimersByTime(1));
+    expect(document.querySelector('.project-project-menu')).toBeNull();
+    act(() => vi.advanceTimersByTime(19));
+    expect(leaving?.isConnected).toBe(true);
+    act(() => vi.advanceTimersByTime(1));
+    expect(document.querySelector(".project-list-row")).toBeNull();
+    expect(screen.queryByRole("region", { name: "收藏" })).toBeNull();
+    expect(screen.getByText("还没有项目")).toBeTruthy();
+  });
+
+  it("does not retain an archived row with reduced motion", async () => {
+    document.documentElement.style.setProperty("--dur-exit", "160ms");
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+    installApi({ archiveProject: vi.fn(async () => ({ ...detail, status: "archived" })) });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "项目操作：AI 安全" }));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "归档" }));
+    await waitFor(() => expect(screen.getByText("还没有项目")).toBeTruthy());
+    expect(document.querySelector("[data-leaving] .project-list-row, .project-list-row[data-leaving]")).toBeNull();
+  });
+
   it("keeps the project list inside the page and opens a project from it", async () => {
     installApi();
     renderPage();
@@ -173,9 +219,38 @@ describe("ProjectsPage", () => {
 
       const reopen = await screen.findByRole("button", { name: "展开项目列表" });
       await waitFor(() => expect(document.activeElement).toBe(reopen));
+      const host = document.querySelector(".project-detail-fill");
+      const row = document.querySelector<HTMLButtonElement>(".project-file-row.active > button")!;
+      fireEvent.click(reopen);
+      expect(document.querySelector(".project-main-pane")?.hasAttribute("inert")).toBe(true);
+      await waitFor(() => expect(document.activeElement).toBe(row));
+      fireEvent.click(row);
+      await waitFor(() => expect(document.querySelector(".project-workspace")?.classList.contains("compact-detail-open")).toBe(true));
+      expect(document.querySelector(".project-detail-fill")).toBe(host);
+      expect(window.openmind.readProjectMaterial).toHaveBeenCalledOnce();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+
+  it("keeps an edited output mounted when showing its compact list and selecting it again", async () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(query => ({ matches: query === "(max-width: 1480px)", media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList));
+    const readProjectOutput = vi.fn(async () => ({ output: existingDocument, content: "# 原稿" }));
+    installApi({ listProjectOutputs: vi.fn(async () => [existingDocument]), readProjectOutput,
+      saveProjectOutput: vi.fn(async ({ title, content }) => ({ output: { ...existingDocument, title }, content })) });
+    render(<ResponsiveLayoutProvider><AiProvider initial={snapshot}><ProjectsPage initialProjectName={summary.name} initialSection="outputs" initialItem={existingDocument.relativePath} /></AiProvider></ResponsiveLayoutProvider>);
+    const editor = await screen.findByRole<HTMLInputElement>("textbox", { name: "文档标题" });
+    fireEvent.change(editor, { target: { value: "保留中的草稿" } });
+    const detailHost = document.querySelector(".project-detail-fill");
+    fireEvent.click(screen.getByRole("button", { name: "展开项目列表" }));
+    expect(editor.isConnected).toBe(true);
+    expect(document.querySelector(".project-main-pane")?.getAttribute("aria-hidden")).toBe("true");
+    const selected = document.querySelector<HTMLButtonElement>(".project-list-pane .project-item-list > button.active")!;
+    fireEvent.click(selected);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "文档标题" })).toBe(editor));
+    expect(editor.value).toBe("保留中的草稿");
+    expect(document.querySelector(".project-detail-fill")).toBe(detailHost);
+    expect(readProjectOutput).toHaveBeenCalledOnce();
   });
 
   it("keeps the new-conversation view until a concrete task is selected", async () => {
@@ -228,7 +303,7 @@ describe("ProjectsPage", () => {
   });
 
   it("filters the pane list through the project search", async () => {
-    const other: ProjectSummary = { ...summary, name: "每日简报实验", description: "", updatedAt: "2026-08-30T00:00:00.000Z" };
+    const other: ProjectSummary = { ...summary, id: "5a222222-2222-4222-8222-222222222222", name: "每日简报实验", description: "", updatedAt: "2026-08-30T00:00:00.000Z" };
     installApi({ listProjects: vi.fn(async () => [summary, other]) });
     renderPage();
 
@@ -453,6 +528,7 @@ describe("ProjectsPage", () => {
     renderPage();
 
     expect(await screen.findByRole("region", { name: "近期项目" })).toBeTruthy();
+    screen.getByRole("button", { name: "项目操作：AI 安全" }).focus();
     fireEvent.click(screen.getByRole("button", { name: "项目操作：AI 安全" }));
     fireEvent.click(within(await screen.findByRole("menu", { name: "AI 安全的项目操作" })).getByRole("menuitem", { name: "收藏" }));
 
@@ -460,6 +536,24 @@ describe("ProjectsPage", () => {
     expect(within(favorites).getByRole("button", { name: "AI 安全" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "近期项目" })).toBeNull();
     expect(updateProject).toHaveBeenCalledWith({ projectName: "AI 安全", favorite: true });
+    expect(document.activeElement).toBe(within(favorites).getByRole("button", { name: "项目操作：AI 安全" }));
+  });
+
+  it("does not steal focus from another project menu when a favorite request finishes", async () => {
+    let finish!: (project: ProjectDetail) => void;
+    installApi({
+      listProjects: vi.fn(async () => [summary, { ...summary, id: "second-project", name: "另一项目" }]),
+      updateProject: vi.fn(() => new Promise<ProjectDetail>(resolve => { finish = resolve; }))
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "项目操作：AI 安全" }));
+    fireEvent.click(within(await screen.findByRole("menu", { name: "AI 安全的项目操作" })).getByRole("menuitem", { name: "收藏" }));
+    fireEvent.click(screen.getByRole("button", { name: "项目操作：另一项目" }));
+    const otherItem = within(await screen.findByRole("menu", { name: "另一项目的项目操作" })).getByRole("menuitem", { name: "编辑" });
+    otherItem.focus();
+    await act(async () => finish({ ...detail, favorite: true }));
+    expect(await screen.findByRole("region", { name: "收藏" })).toBeTruthy();
+    expect(document.activeElement).toBe(otherItem);
   });
 
   it("archives a project from its menu and keeps archived projects out of the recent group", async () => {

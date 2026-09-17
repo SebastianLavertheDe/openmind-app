@@ -73,6 +73,26 @@ export function CreativeWorkspacePage({
   const creatingProjectRef = useRef(false);
   const creativeSelectionRef = useRef({ selectedTopic, selectedProject, detail, activeFile, draft, dirty, stage });
   creativeSelectionRef.current = { selectedTopic, selectedProject, detail, activeFile, draft, dirty, stage };
+  const mountedRef = useRef(true);
+  const pendingSavesRef = useRef(new Map<string, Promise<boolean>>());
+  const draftSource = JSON.stringify([projectOpenIntentRef.current, detail?.dir, activeFile]);
+  const draftVersionRef = useRef({ source: draftSource, generation: 0, content: draft, revision: 0 });
+  if (draftVersionRef.current.source !== draftSource) {
+    draftVersionRef.current = { source: draftSource, generation: draftVersionRef.current.generation + 1, content: draft, revision: 0 };
+  } else if (draftVersionRef.current.content !== draft) {
+    draftVersionRef.current = { ...draftVersionRef.current, content: draft, revision: draftVersionRef.current.revision + 1 };
+  }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      draftVersionRef.current.generation += 1;
+    };
+  }, []);
+  useEffect(() => {
+    setSaving(false);
+    setAutoSaveStatus("idle");
+  }, [draftSource]);
   const layout = useListDetailLayout(
     "openmind.list-detail.creative.v1",
     { listWidth: 280, listCollapsed: false },
@@ -175,24 +195,60 @@ export function CreativeWorkspacePage({
     void openProject(requested);
   }, [initialProjectDir, projects, openProject]);
 
+  const persistDraft = useCallback((createVersion: boolean): Promise<boolean> => {
+    const selection = creativeSelectionRef.current;
+    if (!selection.detail || !selection.activeFile || !selection.dirty) return Promise.resolve(true);
+    const projectDir = selection.detail.dir;
+    const file = selection.activeFile;
+    const content = selection.draft;
+    const { generation, revision } = draftVersionRef.current;
+    const isCurrentSource = () => mountedRef.current && draftVersionRef.current.generation === generation;
+    const isCurrentRevision = () => isCurrentSource() && draftVersionRef.current.revision === revision;
+    if (createVersion) setSaving(true);
+    const persist = async () => {
+      if (!isCurrentSource()) return false;
+      try {
+        const next = await window.openmind.saveCreativeFile({
+          projectDir, file, content, createVersion,
+          ...(createVersion ? { versionNote: m.creativeUi.workspace.editorVersionNote } : {})
+        });
+        // A completed write only acknowledges the exact draft that was sent.
+        // New edits retain their dirty flag and scheduled autosave.
+        if (!isCurrentSource()) return false;
+        setDetail(next);
+        if (!isCurrentRevision()) return false;
+        setDirty(false);
+        setAutoSaveStatus(createVersion ? "idle" : "saved");
+        if (createVersion) ui.notify(m.creativeUi.workspace.savedWithVersion, "success");
+        return true;
+      } catch (cause) {
+        if (isCurrentRevision()) {
+          setAutoSaveStatus("failed");
+          const message = cause instanceof Error ? cause.message : String(cause);
+          ui.notify(createVersion ? message : m.creativeUi.workspace.autoSaveFailed(message), "error");
+        }
+        return false;
+      } finally {
+        if (createVersion && isCurrentSource()) setSaving(false);
+      }
+    };
+    // Manual and automatic writes share a queue, so older bytes cannot land
+    // after a newer save, including when a project is reopened.
+    const previous = pendingSavesRef.current.get(projectDir);
+    const operation = previous ? previous.then(persist, persist) : persist();
+    pendingSavesRef.current.set(projectDir, operation);
+    void operation.finally(() => {
+      if (pendingSavesRef.current.get(projectDir) === operation) pendingSavesRef.current.delete(projectDir);
+    });
+    return operation;
+  }, [ui.notify]);
+
   useEffect(() => {
     if (!workflowPolicy.autoSaveDraft || !detail || !activeFile || !dirty || stage === "published" || detail.truncatedFiles?.includes(activeFile)) return;
     setAutoSaveStatus("saving");
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: false });
-          setDetail(next);
-          setDirty(false);
-          setAutoSaveStatus("saved");
-        } catch (cause) {
-          setAutoSaveStatus("failed");
-          ui.notify(m.creativeUi.workspace.autoSaveFailed(cause instanceof Error ? cause.message : String(cause)), "error");
-        }
-      })();
-    }, workflowPolicy.autoSaveIntervalMs);
+    const timer = window.setTimeout(() => { void persistDraft(false); }, workflowPolicy.autoSaveIntervalMs);
     return () => window.clearTimeout(timer);
-  }, [draft, dirty, activeFile, detail?.dir, stage, ui, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
+  }, [draft, dirty, activeFile, detail?.dir, stage, persistDraft, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;
@@ -203,20 +259,7 @@ export function CreativeWorkspacePage({
     setAutoSaveStatus("idle");
   };
 
-  const save = async () => {
-    if (!detail || !activeFile || !dirty) return;
-    setSaving(true);
-    try {
-      const next = await window.openmind.saveCreativeFile({ projectDir: detail.dir, file: activeFile, content: draft, createVersion: true, versionNote: m.creativeUi.workspace.editorVersionNote });
-      setDetail(next);
-      setDirty(false);
-      ui.notify(m.creativeUi.workspace.savedWithVersion, "success");
-    } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const save = async () => { await persistDraft(true); };
 
   const createProject = async (platform?: PlatformOption, topicOverride?: CreativeTopic) => {
     const topic = topicOverride || selectedTopic;
@@ -259,7 +302,7 @@ export function CreativeWorkspacePage({
     if (!detail || !selectedProject) return;
     const nextStage: Stage | undefined = ({ drafting: "review", review: "ready", ready: "published" } as Record<string, Stage | undefined>)[selectedProject.stage];
     if (!nextStage) return;
-    if (dirty) await save();
+    if (dirty && !await persistDraft(true)) return;
     try {
       const moved = await window.openmind.advanceCreativeProject(detail.dir, nextStage);
       ui.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");

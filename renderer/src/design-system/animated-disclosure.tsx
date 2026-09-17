@@ -22,6 +22,7 @@ export function AnimatedDisclosure({
   triggerClassName,
   contentClassName,
   triggerAriaLabel,
+  animate = true,
   unmountOnExit = false,
   exitMs = 200
 }: {
@@ -33,14 +34,16 @@ export function AnimatedDisclosure({
   triggerClassName?: string;
   contentClassName?: string;
   triggerAriaLabel?: string;
+  /** Search-driven bulk expansion can settle immediately. */
+  animate?: boolean;
   unmountOnExit?: boolean;
   exitMs?: number;
 }) {
   const contentId = useId();
-  const bodyPresence = useExitPresence(open || !unmountOnExit, exitMs);
+  const bodyPresence = useExitPresence(open || !unmountOnExit, animate ? exitMs : 0);
   const renderBody = !unmountOnExit || open || bodyPresence.visible;
   return (
-    <div className={`ui-disclosure${className ? ` ${className}` : ""}`} data-open={open || undefined}>
+    <div className={`ui-disclosure${className ? ` ${className}` : ""}`} data-open={open || undefined} data-instant={!animate || undefined}>
       <button
         data-motion="selection"
         type="button"

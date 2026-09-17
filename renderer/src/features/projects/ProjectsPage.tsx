@@ -1,4 +1,8 @@
-import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LayoutGroup, motion } from "motion/react";
+import { useCollectionMotion } from "../../design-system/use-collection-motion";
+import { useExitingList } from "../../design-system/use-exiting-list";
+import { useExitPresence } from "../../design-system/use-exit-presence";
 import {
   ArrowLeft,
   Archive,
@@ -57,6 +61,16 @@ export function ProjectsPage({
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [editProject, setEditProject] = useState<ProjectSummary | null>(null);
   const [projectActionBusy, setProjectActionBusy] = useState<string | null>(null);
+  const [projectMotion, setProjectMotion] = useState({ revision: 0, relocatedId: "" });
+  const projectListRef = useRef<HTMLDivElement>(null);
+  const restoreProjectFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!restoreProjectFocus.current) return;
+    restoreProjectFocus.current = false;
+    const row = Array.from(projectListRef.current?.querySelectorAll<HTMLElement>("[data-project-motion]") || [])
+      .find(element => element.dataset.projectMotion === projectMotion.relocatedId);
+    row?.querySelector<HTMLButtonElement>(".ui-dropdown-trigger")?.focus({ preventScroll: true });
+  }, [projectMotion]);
   const [openingProjectName, setOpeningProjectName] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,10 +83,30 @@ export function ProjectsPage({
   const layout = useListDetailLayout("openmind.list-detail.projects.v1", { listWidth: 264, listCollapsed: false });
   const outputNavigationGuardRef = useRef<ProjectOutputNavigationGuard | null>(null);
   const restoreCompactFocusRef = useRef(false);
+  const restoreListFocusRef = useRef(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef(ui.confirm);
   confirmRef.current = ui.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
   const hasActiveProject = Boolean(activeProject);
+  const showCompactPane = useCallback((showList: boolean) => {
+    if (compactWorkspace) {
+      workspaceRef.current?.setAttribute("data-compact-motion", "true");
+      if (showList) restoreListFocusRef.current = true;
+      else restoreCompactFocusRef.current = true;
+    }
+    setCompactListOpen(showList);
+  }, [compactWorkspace]);
+
+  useEffect(() => {
+    const cancel = () => workspaceRef.current?.removeAttribute("data-compact-motion");
+    window.addEventListener("resize", cancel);
+    return () => window.removeEventListener("resize", cancel);
+  }, []);
+
+  useEffect(() => {
+    workspaceRef.current?.removeAttribute("data-compact-motion");
+  }, [compactWorkspace]);
 
   useEffect(() => {
     if (!compactWorkspace) return;
@@ -87,6 +121,18 @@ export function ProjectsPage({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [compactListOpen]);
+
+  useEffect(() => {
+    if (!compactWorkspace || !compactListOpen || !restoreListFocusRef.current) return;
+    restoreListFocusRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      const list = workspaceRef.current?.querySelector(".project-list-pane");
+      const target = list?.querySelector<HTMLButtonElement>(".project-file-row.active > button, .project-task-row.active .project-task-select, .project-item-list > button.active")
+        || list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], input');
+      target?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [compactWorkspace, compactListOpen]);
 
   // 项目详情打开期间，把「新对话归属项目」告知全局 AI 侧栏：
   // 在项目页发起的新对话会自动创建为当前项目的任务，而不是工作区会话。
@@ -184,7 +230,7 @@ export function ProjectsPage({
     try {
       setActiveProject(await projectsApi.getProject(project.name));
       presentProjectView("tasks");
-      if (compactWorkspace) setCompactListOpen(false);
+      if (compactWorkspace) showCompactPane(false);
     } catch (cause) {
       setError(errorText(cause));
     } finally {
@@ -240,6 +286,12 @@ export function ProjectsPage({
     setProjectActionBusy(project.name);
     try {
       const next = await projectsApi.updateProject(project.name, { favorite: !project.favorite });
+      const focused = document.activeElement;
+      restoreProjectFocus.current = focused instanceof HTMLElement && Boolean(
+        focused.closest(".project-project-menu")?.getAttribute("aria-label") === `${project.name}的项目操作`
+        || focused.closest("[data-project-motion]")?.getAttribute("data-project-motion") === project.id
+      );
+      setProjectMotion(current => ({ revision: current.revision + 1, relocatedId: project.id }));
       replaceProject(project.name, next);
       ui.notify(next.favorite ? `已收藏“${next.name}”。` : `已取消收藏“${next.name}”。`, "success");
     } catch (cause) {
@@ -254,6 +306,20 @@ export function ProjectsPage({
     setProjectActionBusy(project.name);
     try {
       const next = await projectsApi.archiveProject(project.name, true);
+      // Move keyboard focus before the retained row becomes inert. A delayed
+      // response must not steal focus if the user has moved elsewhere meanwhile.
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && (
+        focused.closest("[data-project-motion]")?.getAttribute("data-project-motion") === project.id
+        || focused.closest(".project-project-menu")?.getAttribute("aria-label") === `${project.name}的项目操作`
+      )) {
+        const rows = Array.from(projectListRef.current?.querySelectorAll<HTMLElement>("[data-project-motion]") || []);
+        const index = rows.findIndex(row => row.dataset.projectMotion === project.id);
+        const target = rows.slice(index + 1).find(row => !row.querySelector("[inert]"))
+          || rows.slice(0, index).reverse().find(row => !row.querySelector("[inert]"));
+        (target?.querySelector<HTMLElement>(".ui-dropdown-trigger")
+          || workspaceRef.current?.querySelector<HTMLElement>('[aria-label="搜索项目"]'))?.focus({ preventScroll: true });
+      }
       replaceProject(project.name, next);
       ui.notify(`项目“${project.name}”已归档。`, "success");
     } catch (cause) {
@@ -302,41 +368,57 @@ export function ProjectsPage({
   const handleTaskSelectionChange = useCallback((taskId?: string) => {
     if (compactWorkspace && taskId) {
       restoreCompactFocusRef.current = true;
-      setCompactListOpen(false);
+      showCompactPane(false);
     }
-  }, [compactWorkspace]);
+  }, [compactWorkspace, showCompactPane]);
 
   const handleFileSelectionChange = useCallback((selected: boolean) => {
     if (compactWorkspace && selected) {
       restoreCompactFocusRef.current = true;
-      setCompactListOpen(false);
+      showCompactPane(false);
     }
-  }, [compactWorkspace]);
+  }, [compactWorkspace, showCompactPane]);
 
   const handleOutputSelectionChange = useCallback((relativePath?: string) => {
     handleFileSelectionChange(Boolean(relativePath));
   }, [handleFileSelectionChange]);
 
   const activeProjectName = activeProject?.name;
-  const filteredProjects = useMemo(() => {
+  const activeProjects = useMemo(() => projects.filter(project => project.status === "active")
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
+  const collectionMotion = useCollectionMotion(activeProjects.length, 40);
+  // Retain removals before grouping: the final archived row keeps its group
+  // mounted through CSS exit. Filtering and favorite moves are not removals.
+  const displayedProjects = useExitingList(activeProjects, project => project.id, collectionMotion.tokens.exitMs);
+  const leavingProjectIds = new Set(displayedProjects.filter(entry => entry.leaving).map(entry => entry.item.id));
+  const filteredProjects = (() => {
     const needle = query.trim().toLocaleLowerCase();
-    return projects
-      .filter((project) => project.status === "active")
-      .filter((project) => !needle || `${project.name}\n${project.description}`.toLocaleLowerCase().includes(needle))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-  }, [projects, query]);
-  const favoriteProjects = useMemo(() => filteredProjects.filter((project) => project.favorite), [filteredProjects]);
-  const recentProjects = useMemo(() => filteredProjects.filter((project) => !project.favorite), [filteredProjects]);
+    return displayedProjects.map(entry => entry.item)
+      .filter(project => !needle || `${project.name}\n${project.description}`.toLocaleLowerCase().includes(needle));
+  })();
+  const favoriteProjects = filteredProjects.filter((project) => project.favorite);
+  const recentProjects = filteredProjects.filter((project) => !project.favorite);
+  const projectMotionGroup = useId();
+  const listMotion = { ...collectionMotion, ...projectMotion, leavingProjectIds,
+    revision: `${projectMotion.revision}:${filteredProjects.map(project => project.id).join(",")}`,
+    enabled: collectionMotion.enabled && displayedProjects.length <= 40 && !layout.isResizing && !query.trim() };
+  // Preserve portal hosts, but remove the hidden pane from layout after CSS
+  // opacity/transform finish, without interpolating a layout property.
+  const compactListPresence = useExitPresence(!compactWorkspace || compactListOpen, collectionMotion.tokens.exitMs);
+  const compactDetailPresence = useExitPresence(!compactWorkspace || !compactListOpen, collectionMotion.tokens.exitMs);
   const attachedPanelsReady = Boolean(activeProject && sectionListHost && detailHost);
 
   return (
     <div className="projects-page">
       {error ? <ErrorState message={error} retry={() => void loadProjects()} /> : null}
       <div
+        ref={workspaceRef}
         className={`project-workspace${compactWorkspace ? compactListOpen ? " compact-list-open" : " compact-detail-open" : ""}${layout.isResizing ? " is-resizing-list" : ""}`}
         style={{ "--list-detail-columns": layout.columns } as CSSProperties}
       >
-        <aside className={`project-list-pane${listVisible ? "" : " collapsed"}`} data-view={activeProject ? "contents" : "projects"}>
+        <aside className={`project-list-pane${listVisible ? "" : " collapsed"}`} data-view={activeProject ? "contents" : "projects"}
+          data-compact-visible={compactListPresence.visible || undefined}
+          aria-hidden={compactWorkspace && !listVisible || undefined} inert={compactWorkspace && !listVisible || undefined}>
           {activeProject ? (
             <>
               <header className="project-pane-project">
@@ -391,9 +473,11 @@ export function ProjectsPage({
                   {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} variant="row" lines={3} label="正在加载项目" />)}
                 </div>
               ) : (
-                <div className="project-list-scroll" aria-live="polite">
+                <LayoutGroup id={projectMotionGroup}>
+                <motion.div ref={projectListRef} className="project-list-scroll" aria-live="polite" layoutScroll>
                   {favoriteProjects.length ? (
                     <ProjectListGroup
+                      listMotion={listMotion}
                       label="收藏"
                       projects={favoriteProjects}
                       activeProjectName={activeProjectName}
@@ -407,6 +491,7 @@ export function ProjectsPage({
                   ) : null}
                   {recentProjects.length ? (
                     <ProjectListGroup
+                      listMotion={listMotion}
                       label="近期项目"
                       projects={recentProjects}
                       activeProjectName={activeProjectName}
@@ -420,7 +505,8 @@ export function ProjectsPage({
                     />
                   ) : null}
                   {!filteredProjects.length ? <p className="project-list-empty">{query ? "没有匹配的项目" : "还没有项目"}</p> : null}
-                </div>
+                </motion.div>
+                </LayoutGroup>
               )}
             </>
           )}
@@ -439,7 +525,9 @@ export function ProjectsPage({
           onResizeCancel={layout.cancelListResize}
           onResizeActiveChange={layout.onResizeActiveChange}
         />
-        <section className={`project-main-pane${listVisible ? "" : " list-collapsed"}`} aria-busy={Boolean(openingProjectName) || undefined}>
+        <section className={`project-main-pane${compactWorkspace || !listVisible ? " list-collapsed" : ""}`} aria-busy={Boolean(openingProjectName) || undefined}
+          data-compact-visible={compactDetailPresence.visible || undefined}
+          aria-hidden={compactWorkspace && listVisible || undefined} inert={compactWorkspace && listVisible || undefined}>
           {!listVisible ? (
             <button
               type="button"
@@ -447,7 +535,7 @@ export function ProjectsPage({
               aria-label="展开项目列表"
               title="展开项目列表"
               data-motion="icon"
-              onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
+              onClick={() => compactWorkspace ? showCompactPane(true) : layout.toggleList()}
             ><PanelLeftOpen size={17} /></button>
           ) : null}
           {activeProject ? <div className={`project-detail-fill${openingProjectName ? " is-opening-project" : ""}`} ref={setDetailHost} aria-hidden={Boolean(openingProjectName) || undefined} inert={Boolean(openingProjectName) || undefined} /> : openingProjectName ? (
@@ -479,6 +567,7 @@ export function ProjectsPage({
 }
 
 function ProjectListGroup({
+  listMotion,
   label,
   projects,
   activeProjectName,
@@ -490,6 +579,7 @@ function ProjectListGroup({
   onToggleFavorite,
   onArchive
 }: {
+  listMotion: ReturnType<typeof useCollectionMotion> & { revision: string; relocatedId: string; leavingProjectIds: Set<string> };
   label: string;
   projects: ProjectSummary[];
   activeProjectName?: string;
@@ -502,14 +592,24 @@ function ProjectListGroup({
   onArchive(project: ProjectSummary): void;
 }) {
   return (
-    <section className="project-list-group" aria-label={label}>
+    <motion.section className="project-list-group" aria-label={label} data-collection-motion
+      layout={listMotion.enabled ? "position" : false} layoutDependency={listMotion.revision}
+      transition={listMotion.tokens.layout}>
       <h2>{label}</h2>
       <div>
         {projects.map((project, index) => {
           const opening = openingProjectName === project.name;
           return (
+          <motion.div key={project.id} data-project-motion={project.id} data-collection-motion
+            layout={listMotion.enabled ? "position" : false}
+            layoutId={listMotion.enabled ? project.id : undefined}
+            layoutDependency={listMotion.revision}
+            transition={listMotion.tokens.layout}>
           <div
-            key={project.name}
+            data-leaving={listMotion.leavingProjectIds.has(project.id) || undefined}
+            inert={listMotion.leavingProjectIds.has(project.id) || undefined}
+            aria-hidden={listMotion.leavingProjectIds.has(project.id) || undefined}
+            data-project-relocated={listMotion.relocatedId === project.id || undefined}
             className={`project-list-row${activeProjectName === project.name ? " active" : ""}${opening ? " pending" : ""}`}
             style={{
               "--project-list-index": indexOffset + index,
@@ -533,6 +633,7 @@ function ProjectListGroup({
               menuClassName="project-project-menu"
               ariaLabel={`项目操作：${project.name}`}
               menuLabel={`${project.name}的项目操作`}
+              menuInert={listMotion.leavingProjectIds.has(project.id)}
               disabled={Boolean(openingProjectName) || busyProjectName === project.name}
               label={<MoreHorizontal size={17} aria-hidden="true" />}
             >
@@ -541,10 +642,11 @@ function ProjectListGroup({
               <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
             </DropdownMenu>
           </div>
+          </motion.div>
           );
         })}
       </div>
-    </section>
+    </motion.section>
   );
 }
 

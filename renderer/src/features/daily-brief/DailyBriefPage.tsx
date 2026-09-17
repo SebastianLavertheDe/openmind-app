@@ -29,6 +29,8 @@ export function DailyBriefPage({
   const [selectedPath, setSelectedPath] = useState("");
   const [pendingPath, setPendingPath] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const loadSequence = useRef(0);
   const [listError, setListError] = useState("");
   const [query, setQuery] = useState("");
   const openIntentRef = useRef(0);
@@ -78,26 +80,39 @@ export function DailyBriefPage({
     }
   }, [confirmBriefSwitch, preview.dirty, preview.openSource]);
 
+  const currentView = useRef({ selectedPath, preview, openFile });
+  currentView.current = { selectedPath, preview, openFile };
   const load = useCallback(async ({ preserveDirtyCurrent = false }: { preserveDirtyCurrent?: boolean } = {}) => {
+    const request = ++loadSequence.current;
+    const selectionIntent = openIntentRef.current;
     setLoading(true);
     setListError("");
     try {
       const next = await window.openmind.listContent("summaries", "");
+      if (request !== loadSequence.current) return;
       setFiles(next);
+      setHasLoaded(true);
+      // A click while the list refreshes owns the selection; a late list response
+      // must not navigate back to the file that was selected when it started.
+      if (selectionIntent !== openIntentRef.current) return;
+      const current = currentView.current;
       const compact = String(initialDate || "").replace(/\D/g, "").slice(0, 8);
-      const preferred = next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next.find((file) => file.path === selectedPath) || next[0];
-      const keepDirtyCurrent = preserveDirtyCurrent && preview.dirty && preferred?.path === selectedPath;
+      const preferred = next.find((file) => file.path === current.selectedPath) || next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next[0];
+      const keepDirtyCurrent = preserveDirtyCurrent && current.preview.dirty && preferred?.path === current.selectedPath;
       if (preferred) {
-        if (!keepDirtyCurrent) await openFile(preferred.path);
-      } else if (await preview.close(confirmBriefSwitch)) setSelectedPath("");
+        if (!keepDirtyCurrent) await current.openFile(preferred.path);
+      } else if (await current.preview.close(confirmBriefSwitch)) setSelectedPath("");
     } catch (cause) {
-      setListError(cause instanceof Error ? cause.message : String(cause));
+      if (request === loadSequence.current) setListError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (request === loadSequence.current) setLoading(false);
     }
-  }, [confirmBriefSwitch, initialDate, openFile, preview.close, preview.dirty, selectedPath]);
+  }, [confirmBriefSwitch, initialDate]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    return () => { loadSequence.current += 1; };
+  }, []);
   useEffect(() => window.openmind.onSkillEvent((event) => {
     if (event.type === "status" && event.state === "success" && String(event.skillId || "") === "daily-article-summarizer") {
       void load({ preserveDirtyCurrent: true });
@@ -158,21 +173,22 @@ export function DailyBriefPage({
         </header>
           <label className="document-library-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} /></label>
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
-        <div className="document-file-list entrance-stagger">
-          {loading ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
-          {!loading && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
+        <div className="document-file-list entrance-stagger" aria-busy={loading || undefined}>
+          {loading && !hasLoaded ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
+          {!loading && !listError && !filteredFiles.length ? <EmptyState title={m.brief.library.emptyTitle} description={m.brief.library.emptyDescription} /> : null}
           {filteredFiles.map((file) => (
             <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
               <LoaderCircle size={15} className={`brief-file-pending-icon${pendingPath === file.path ? " is-visible spin" : ""}`} aria-hidden="true" />
               <span><strong>{briefFileLabel(file.name || file.path.split(/[\\/]/).at(-1) || file.path)}</strong><small>{formatBytes(file.size || 0)} · {file.modifiedAt ? formatModified(file.modifiedAt) : ""}</small></span>
             </button>
           ))}
+          {!loading && listError ? <ErrorState message={listError} retry={() => void load()} /> : null}
         </div>
       </aside>
       <section className="document-library-detail">
         {embeddedFilePreviewPath ? (
           <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={closeEmbeddedFilePreview} embedded />
-        ) : listError || preview.error ? <ErrorState message={listError || preview.error || ""} retry={() => void load()} /> : preview.loading || pendingPath ? (
+        ) : preview.error ? <ErrorState message={preview.error} retry={() => void load()} /> : preview.loading || pendingPath ? (
           <div className="document-detail-opening" role="status" aria-live="polite"><LoaderCircle size={18} className="spin" />正在打开“{briefFileLabel(files.find((file) => file.path === pendingPath)?.name || pendingPath.split(/[\\/]/).at(-1) || pendingPath)}”…</div>
         ) : record && preview.resource ? (
           <div key={selectedPath} className="document-detail-body">

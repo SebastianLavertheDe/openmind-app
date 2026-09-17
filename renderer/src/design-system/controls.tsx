@@ -118,7 +118,9 @@ export function DropdownMenu({
   ariaLabel,
   menuLabel,
   className,
-  menuClassName
+  menuClassName,
+  menuInert,
+  restoreFocusOnSelect = true
 }: {
   label: ReactNode;
   children: ReactNode;
@@ -127,6 +129,10 @@ export function DropdownMenu({
   menuLabel?: string;
   className?: string;
   menuClassName?: string;
+  /** Editor commands restore their own text selection and focus. */
+  restoreFocusOnSelect?: boolean;
+  /** A retained owner may be inert while this menu is portalled outside it. */
+  menuInert?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -235,6 +241,8 @@ export function DropdownMenu({
           className={`ui-dropdown-menu${menuClassName ? ` ${menuClassName}` : ""}`}
           role="menu"
           aria-label={menuLabel}
+          inert={menuInert || undefined}
+          aria-hidden={menuInert || undefined}
           data-side={popover.side}
           data-leaving={leaving || undefined}
           style={popover.style}
@@ -243,7 +251,7 @@ export function DropdownMenu({
             if (event.defaultPrevented) return;
             const item = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=menuitem]") : null;
             if (!item || !menuRef.current?.contains(item) || isMenuItemDisabled(item)) return;
-            closeMenu();
+            closeMenu(restoreFocusOnSelect);
           }}
         >
           {children}

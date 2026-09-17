@@ -14,6 +14,8 @@ import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-re
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
 import { useNavigationMotion } from "./use-navigation-motion";
+import { useExitPresence } from "../design-system/use-exit-presence";
+import { useMotionTokens } from "../design-system/motion-tokens";
 
 export function AppShell({
   page,
@@ -68,6 +70,8 @@ export function AppShell({
   const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  const motionTokens = useMotionTokens();
+  const scrimPresence = useExitPresence(!fullPageMode && compactShell && mobileNavOpen, motionTokens.exitMs);
   const effectiveNavCollapsed = !compactShell && (railShell || navCollapsed);
   const toggleNavigation = useNavigationMotion(navRef, navCollapsed, setNavCollapsed, !compactShell && !railShell && !fullPageMode, page);
   const navigationInlineSize = fullPageMode || compactShell
@@ -161,7 +165,7 @@ export function AppShell({
       } as CSSProperties}
     >
       {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
-      {!fullPageMode && compactShell && mobileNavOpen ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
+      {!fullPageMode && compactShell && scrimPresence.visible ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} inert={!mobileNavOpen} data-leaving={scrimPresence.leaving || undefined} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
       {!fullPageMode ? <aside
         id="primary-navigation"
         ref={navRef}

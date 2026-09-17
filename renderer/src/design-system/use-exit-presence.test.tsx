@@ -57,4 +57,19 @@ describe("useExitPresence (MOTION-QA-005)", () => {
     expect(utils.result.current.leaving).toBe(false);
     matchMediaSpy.mockRestore();
   });
+
+  it("finishes an in-flight exit when the system preference changes", () => {
+    const listeners = new Set<() => void>();
+    const media = { matches: false, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) };
+    const spy = vi.spyOn(window, "matchMedia").mockReturnValue(media as unknown as MediaQueryList);
+    const { result, rerender } = renderHook(({ open }) => useExitPresence(open, 160), { initialProps: { open: true } });
+    rerender({ open: false });
+    expect(result.current.leaving).toBe(true);
+    act(() => { media.matches = true; listeners.forEach(fn => fn()); });
+    expect(result.current.visible).toBe(false);
+    act(() => vi.advanceTimersByTime(200));
+    rerender({ open: true });
+    expect(result.current.visible).toBe(true);
+    spy.mockRestore();
+  });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useMotionPreference } from "./use-motion-preference";
 
 /**
  * List presence: keeps removed items mounted briefly so each can play a CSS
@@ -24,13 +25,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
  */
 export function useExitingList<T>(items: T[], getKey: (item: T) => string, exitMs: number): { item: T; leaving: boolean }[] {
   type Entry = { item: T; leaving: boolean };
+  const skipExit = useMotionPreference() || exitMs <= 0;
   const committedRef = useRef<Entry[]>(items.map((item) => ({ item, leaving: false })));
   const timersRef = useRef<Map<string, number>>(new Map());
   const [, setVersion] = useState(0);
 
   const presentByKey = new Map(items.map((i) => [getKey(i), i]));
 
-  const committed = committedRef.current;
+  const committed = skipExit ? [] : committedRef.current;
   const renderList: Entry[] = items.map((item) => ({ item, leaving: false }));
   const committedKeys = committed.map((entry) => getKey(entry.item));
   const trailingCounts = new Map<string, number>();
@@ -66,6 +68,12 @@ export function useExitingList<T>(items: T[], getKey: (item: T) => string, exitM
 
   useLayoutEffect(() => {
     committedRef.current = renderList;
+
+    if (skipExit) {
+      timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      timersRef.current.clear();
+      return;
+    }
 
     // Cancel any pending exit timer for items that are present again (revived)
     // before scheduling new exits. Revived items render as leaving:false, so the

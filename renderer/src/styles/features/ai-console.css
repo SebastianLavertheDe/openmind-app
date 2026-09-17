@@ -354,7 +354,7 @@
   color: var(--text-dim);
   font-size: var(--fs-xs);
   white-space: nowrap;
-  transition: background-color 140ms var(--ease-standard), color 140ms var(--ease-standard), border-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 
 .assistant-artifact-copy:hover {
@@ -804,12 +804,12 @@
   gap: 7px;
 }
 
-.composer-flow > :is(.new-session-controls, .context-tray, .queue-tray, .composer-error, .composer-approvals, textarea, .composer-footer) {
+.composer-flow > :is(.new-session-controls, .context-tray-presence, .queue-tray, .composer-error, .composer-approvals, textarea, .composer-footer) {
   width: 100%;
   margin-inline: 0;
 }
 
-.composer-flow > :is(.context-tray, .queue-tray, .composer-error, .composer-approvals, textarea, .composer-footer) {
+.composer-flow > :is(.context-tray-presence, .queue-tray, .composer-error, .composer-approvals, textarea, .composer-footer) {
   margin-block: 0;
 }
 
@@ -2350,6 +2350,7 @@
 }
 
 .context-tray .context-chips {
+  position: relative;
   grid-column: 2;
   min-width: 0;
   display: flex;
@@ -2362,6 +2363,13 @@
   mask-image: none;
   scrollbar-width: none;
 }
+
+.context-tray [data-context-motion] { min-width: 0; flex: 0 0 auto; }
+.context-tray-presence { min-width: 0; }
+/* Parent geometry is controlled directly during navigation/pane resizing. */
+:is([data-nav-transitioning], .ai-sidebar-resizing, .is-resizing-preview, .is-resizing-list) [data-collection-motion] { transform: none !important; }
+.context-tray-presence[data-leaving] { animation: context-tray-out var(--dur-exit) var(--ease-exit) forwards; }
+@keyframes context-tray-out { to { opacity: 0; } }
 
 .context-tray .context-chips[data-overflow-end]:not([data-overflow-start]) {
   -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 22px), transparent 100%);

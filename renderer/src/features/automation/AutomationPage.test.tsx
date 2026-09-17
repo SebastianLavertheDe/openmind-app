@@ -111,6 +111,45 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
+  it.each(["success", "failure"])("ignores an older refresh %s after a newer refresh succeeds", async (outcome) => {
+    let resolveOld!: (rules: AutomationRule[]) => void;
+    let rejectOld!: (cause: Error) => void;
+    let resolveNew!: (rules: AutomationRule[]) => void;
+    const old = new Promise<AutomationRule[]>((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
+    const next = new Promise<AutomationRule[]>((resolve) => { resolveNew = resolve; });
+    const listAutomationRules = vi.fn().mockResolvedValueOnce(seedRules).mockReturnValueOnce(old).mockReturnValueOnce(next);
+    window.openmind = makeApi({ listAutomationRules });
+    await act(async () => { render(<AutomationPage />); });
+    act(() => {
+      window.dispatchEvent(new Event(INSTALLED_SKILL_CATALOG_CHANGED_EVENT));
+      window.dispatchEvent(new Event(INSTALLED_SKILL_CATALOG_CHANGED_EVENT));
+    });
+    expect(listAutomationRules).toHaveBeenCalledTimes(3);
+    await act(async () => resolveNew([{ ...seedRules[0], name: "最新规则" }]));
+    await act(async () => {
+      if (outcome === "success") resolveOld([{ ...seedRules[0], name: "过期规则" }]);
+      else rejectOld(new Error("过期请求失败"));
+    });
+    expect(screen.getByRole("heading", { name: "最新规则" })).toBeTruthy();
+    expect(screen.queryByText("过期规则")).toBeNull();
+    expect(screen.queryByText("过期请求失败")).toBeNull();
+  });
+
+  it("keeps loading until the latest request settles", async () => {
+    let resolveOld!: (rules: AutomationRule[]) => void;
+    let resolveNew!: (rules: AutomationRule[]) => void;
+    const old = new Promise<AutomationRule[]>((resolve) => { resolveOld = resolve; });
+    const next = new Promise<AutomationRule[]>((resolve) => { resolveNew = resolve; });
+    window.openmind = makeApi({ listAutomationRules: vi.fn().mockReturnValueOnce(old).mockReturnValueOnce(next) });
+    render(<AutomationPage />);
+    act(() => { window.dispatchEvent(new Event(INSTALLED_SKILL_CATALOG_CHANGED_EVENT)); });
+    await act(async () => resolveOld(seedRules));
+    expect(screen.getByText(messages.automation.loading)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: seedRules[0].name })).toBeNull();
+    await act(async () => resolveNew(seedRules));
+    expect(screen.getByRole("heading", { name: seedRules[0].name })).toBeTruthy();
+  });
+
   it("offers an announced retry path when the initial rule load fails", async () => {
     const listAutomationRules = vi.fn()
       .mockRejectedValueOnce(new Error("automation unavailable"))

@@ -27,6 +27,32 @@ function getTrigger() {
 }
 
 describe("Select (custom dropdown)", () => {
+  it.each(["", "missing"])("keeps an unmatched value (%s) unselected until the user chooses", async (value) => {
+    const onChange = vi.fn();
+    const options = [{ value: "a", label: "Alpha", disabled: true }, { value: "b", label: "Beta" }];
+    const { container, rerender } = render(<Select value={value} options={options} onChange={onChange} placeholder="请选择" />);
+    expect(getTrigger().textContent).toContain("请选择");
+    expect(container.querySelector("select")?.value).toBe("");
+    fireEvent.click(getTrigger());
+    const list = screen.getByRole("listbox");
+    expect(within(list).queryByRole("option", { selected: true })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(within(list).getByRole("option", { name: "Beta" })));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("b");
+    rerender(<Select value="b" options={options} onChange={onChange} placeholder="请选择" />);
+    expect(getTrigger().textContent).toContain("Beta");
+    expect(container.querySelector("select")?.value).toBe("b");
+  });
+
+  it("does not choose a missing option while options are loading", () => {
+    const onChange = vi.fn();
+    render(<Select value="" options={[]} onChange={onChange} placeholder="请选择" />);
+    fireEvent.click(getTrigger());
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Enter" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("does not steal focus on initial mount", () => {
     const anchor = document.createElement("button");
     anchor.textContent = "原焦点";

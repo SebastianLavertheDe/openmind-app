@@ -348,7 +348,8 @@ describe("SkillsPage", () => {
     ]));
     expect(getXFollowingCurls).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole("switch", { name: "停用 X Following 抓取" }));
+    // Saving must finish closing the modal before background controls are available.
+    fireEvent.click(await screen.findByRole("switch", { name: "停用 X Following 抓取" }));
     await waitFor(() => expect(updateSource).toHaveBeenCalledWith("source-x", { enabled: false }));
   });
 
