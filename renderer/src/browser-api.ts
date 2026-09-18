@@ -13,7 +13,6 @@ import type {
   SourceDefinition,
   UserPreferences
 } from "@shared/contracts";
-import { DEFAULT_BROWSER_EVIDENCE_DIR } from "@shared/contracts";
 import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
 import type { AutomationRule } from "@shared/contracts";
 import type { ProjectDetail, ProjectMaterial, ProjectOutput, ProjectOutputRead, ProjectSummary, ProjectTask, ProjectTaskMessage, ProjectVideoReadMetadata } from "@shared/project-contracts";
@@ -147,9 +146,6 @@ export function installBrowserPreviewApi(): boolean {
     defaultProvider: "",
     defaultPermissionProfile: "auto" as const,
     notesDir: "openmind",
-    browserAutomationEnabled: false,
-    browserReuseExistingTabs: true,
-    browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
     destructiveOpsRequireApproval: true,
     riskScanEnabled: true,
     defaultPlatform: "公众号",
@@ -690,48 +686,9 @@ export function installBrowserPreviewApi(): boolean {
     getOnboardingState: async () => onboardingState,
     updateOnboardingState: async (patch) => { onboardingState = { ...onboardingState, ...patch }; return onboardingState; },
     resetPreferences: async () => { preferences = { ...preferences, themeMode: "light", density: "default", fontSize: "default" }; return preferences; },
-    getBrowserAutomationStatus: async () => ({
-      backend: "playwright-mcp",
-      enabled: preferences.browserAutomationEnabled,
-      reuseExistingTabs: preferences.browserReuseExistingTabs,
-      evidenceDir: preferences.browserEvidenceDir,
-      extensionTokenConfigured: false,
-      secureStorageAvailable: true,
-      packageAvailable: true,
-      ready: preferences.browserAutomationEnabled,
-      diagnostic: preferences.browserAutomationEnabled ? "浏览器取证已启用（预览）。" : "AI 写作取证已关闭。"
-    }),
-    getMcpServers: async () => [{
-      id: "openmind_browser",
-      title: "写作证据截图",
-      description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
-      backend: "Microsoft Playwright MCP",
-      transport: "stdio",
-      connection: "Playwright Chrome 扩展",
-      enabled: preferences.browserAutomationEnabled,
-      available: true,
-      status: preferences.browserAutomationEnabled ? "enabled" : "disabled",
-      diagnostic: preferences.browserAutomationEnabled ? "浏览器取证已启用（预览）。" : "AI 写作取证已关闭。",
-      providers: ["Codex", "Claude"],
-      settingsSection: "browser",
-      tools: [{
-        id: "capture_source_evidence",
-        title: "截取原文证据",
-        description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。",
-        inputs: ["url", "quote", "capture_scope", "caption", "filename"],
-        outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"]
-      }]
-    }],
-    saveBrowserExtensionToken: async () => ({
-      backend: "playwright-mcp", enabled: preferences.browserAutomationEnabled, reuseExistingTabs: preferences.browserReuseExistingTabs,
-      evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: true, secureStorageAvailable: true,
-      packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
-    }),
-    clearBrowserExtensionToken: async () => ({
-      backend: "playwright-mcp", enabled: preferences.browserAutomationEnabled, reuseExistingTabs: preferences.browserReuseExistingTabs,
-      evidenceDir: preferences.browserEvidenceDir, extensionTokenConfigured: false, secureStorageAvailable: true,
-      packageAvailable: true, ready: preferences.browserAutomationEnabled, diagnostic: "首次连接需要在扩展中确认标签页。"
-    }),
+    getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "预览模式不连接浏览器。" }),
+    installBrowserSkill: async () => { throw new Error("浏览器预览不支持安装 BrowserSkill。 "); },
+    getMcpServers: async () => [],
     getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     getProviderApiKey: async (): Promise<string> => "",
     saveProviders: async (_input: ProvidersYamlInput): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),

@@ -7,8 +7,10 @@ OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端�
 `openmind/` 子目录）、其中的 `config/providers.yaml` 与 Electron `userData` 保存在私有
 数据仓；Skill 包的唯一源码在独立的 `cctools-skills` 仓库。App 会把已安装 Skill 放到
 `<openmindRoot>/.agent/skills/<name>/`。Agent Skill 以业界通用的 `SKILL.md`
-为定义，不要求 OpenMind 私有 Manifest；`<openmindRoot>/.claude` 链接到 `.agent`，
-由 Claude Code 原生发现 `.claude/skills`，不会把私人内容或 provider key 打进安装包。
+为定义，不要求 OpenMind 私有 Manifest；导入目录可以与 `SKILL.md` 的 `name` 不同，
+安装后按声明名称存放。普通会话与 Project 会话都会自动发现已启用且校验通过的
+Skill，并按任务需要读取完整指令，无需斜杠命令。`<openmindRoot>/.claude` 链接到
+`.agent`，供外部 Claude Code 客户端使用；私人内容和 provider key 不会打进安装包。
 
 ## 产品能力
 
@@ -20,6 +22,10 @@ OpenMind Desktop 是 openmind 的本地内容与 AI 工程工作台。桌面端�
 - 轻量 AI 侧栏：资料库和创作中心可以携带当前内容进入同一个 AI 会话。
 - 统一 Skill 引擎：技能中心与 AI 工具调用共享进程管理、取消、日志、权限和超时机制。
 - 内容工作台：资料库、Markdown/HTML 预览、Markdown TOC、创作项目与技能中心。
+
+浏览器读取、操作和截图统一使用 [Tencent BrowserSkill](https://github.com/Tencent/BrowserSkill)。
+在「设置 → 浏览器」安装 Skill，再按官方指南安装 `bsk` CLI 和浏览器扩展；该页分别
+显示 Skill、CLI、扩展的状态。应用不再提供截图 MCP 或 `capture_source_evidence`。
 
 ## 环境要求
 

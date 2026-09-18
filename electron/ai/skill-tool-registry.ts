@@ -6,6 +6,7 @@ import { ExecutionBroker, type ExecutionPlan } from "../execution/execution-brok
 import type { AppPaths } from "../paths/app-paths-service";
 import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-execution-resolver";
 import type { ProviderSkillBridge } from "./providers/skill-bridge";
+import type { ProviderSkillCatalogEntry } from "./skill-discovery";
 import { WorkflowEngine, type WorkflowAdmission } from "../execution/workflow-engine";
 
 export interface SkillExecutionEvent {
@@ -113,6 +114,21 @@ export class SkillToolRegistry {
   /** Main-only external Provider bridge; Renderer receives logical Skill metadata only. */
   providerSkillBridge(snapshot: AiSessionSkillSnapshotEntry): ProviderSkillBridge | null {
     return this.installedResolver?.providerSkillBridge(snapshot) || null;
+  }
+
+  providerSkillCatalog(snapshot: readonly AiSessionSkillSnapshotEntry[]): ProviderSkillCatalogEntry[] {
+    return snapshot.flatMap((entry) => {
+      const bridge = this.providerSkillBridge(entry);
+      if (!bridge) return [];
+      return [{
+        id: bridge.id,
+        version: bridge.version,
+        digest: bridge.digest,
+        skillPath: bridge.skillPath,
+        packageRoot: bridge.packageRoot,
+        description: entry.definition.description
+      }];
+    });
   }
 
   isRunning(invocationId: string): boolean {

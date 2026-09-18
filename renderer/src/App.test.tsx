@@ -16,8 +16,7 @@ const preferences: UserPreferences = {
   schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", defaultPermissionProfile: "edit",
-  notesDir: "openmind", browserAutomationEnabled: false, browserReuseExistingTabs: true,
-  browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
+  notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
   defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [],
   workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true, workflowReviewRequiredForReady: true,
   workflowPublishChecklistEnabled: true, workflowAutoArchiveEnabled: false

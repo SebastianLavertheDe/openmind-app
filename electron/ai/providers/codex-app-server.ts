@@ -11,7 +11,7 @@ import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { ProviderAdapter, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval } from "./types";
 import { killProcessTree, parseWslPath, spawnInDirectory, spawnNativeInDirectory, toWslPath } from "../process-utils";
-import { browserEvidenceInstructions, buildCodexBrowserConfig } from "../browser-evidence";
+import { skillDiscoveryInstructions } from "../skill-discovery";
 import { buildProviderSkillContext } from "./skill-bridge";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
@@ -73,20 +73,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const projectScoped = context.session.scope?.type === "project-task";
       const readOnly = context.session.permissionProfile === "read-only";
       const projectReadOnly = projectScoped && readOnly;
-      if (projectScoped && context.skillInvocation) {
-        throw new Error("Project Codex 会话不允许调用全局 Skill。");
-      }
-      const browserConfig = projectScoped ? null : buildCodexBrowserConfig(context.provider, context.cwd, context.browserAutomation);
-      const hostConfig = projectScoped ? buildProjectCodexConfig() : buildWorkspaceBoundaryCodexConfig(context);
-      const genericConfig = mergeCodexConfigs(browserConfig, hostConfig);
-      const browserInstructions = projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
+      const genericConfig = projectScoped ? buildProjectCodexConfig() : buildWorkspaceBoundaryCodexConfig(context);
+      const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value);
       const projectInstructions = projectSessionInstructions(context.session);
       const developerInstructions = [
         openmindFilesystemInstructions(openmindRoot, projectReadOnly ? "read-only" : projectScoped ? "workspace-write" : "none"),
         projectInstructions,
         fileReferenceInstructions(),
         markdownArtifactInstructions(),
-        browserInstructions
+        discoveryInstructions
       ].filter(Boolean).join("\n\n");
       const threadOptions = {
         ...(genericConfig ? { config: genericConfig } : {}),
@@ -654,9 +649,8 @@ export function buildProjectCodexConfig(): Record<string, unknown> {
       skill_search: false,
       skill_mcp_dependency_install: false
     },
-    // Project content is untrusted. Do not let repo-local or user-installed
-    // Skills become model instructions even though this run uses an isolated
-    // CODEX_HOME: Codex also discovers Skills from the Project and ~/.agents.
+    // Unregistered provider-global Skills remain disabled. The application
+    // injects its verified Installed catalog through developerInstructions.
     skills: { include_instructions: false },
     apps: { _default: { enabled: false } }
   };
@@ -689,12 +683,6 @@ export function buildWorkspaceBoundaryCodexConfig(
     skills: { include_instructions: false },
     apps: { _default: { enabled: false } }
   };
-}
-
-function mergeCodexConfigs(...configs: Array<Record<string, unknown> | null>): Record<string, unknown> | null {
-  const present = configs.filter((value): value is Record<string, unknown> => Boolean(value));
-  if (present.length === 0) return null;
-  return Object.assign({}, ...present);
 }
 
 /** 构造 `codex app-server` 启动参数，并把选中的 Responses Provider 映射为临时 config 覆盖。 */

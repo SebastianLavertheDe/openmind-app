@@ -179,11 +179,11 @@ describe("ADR-001 openmind root dry-run", () => {
 });
 
 describe("ADR-001 private state migration window", () => {
-  it("moves the old implicit browser evidence default to a user-owned workspace output", () => {
+  it("drops obsolete browser evidence preferences during settings migration", () => {
     fs.writeFileSync(settingsFile(), JSON.stringify({ schemaVersion: 2, browserEvidenceDir: ".openmind/browser-evidence" }), "utf8");
 
-    expect(getPreferences().browserEvidenceDir).toBe("assets/browser-evidence");
-    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).browserEvidenceDir).toBe("assets/browser-evidence");
+    expect(getPreferences()).not.toHaveProperty("browserEvidenceDir");
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8"))).not.toHaveProperty("browserEvidenceDir");
   });
 
   it("never resolves private state inside a repo workspace; unbound writes use an app-private bucket", () => {

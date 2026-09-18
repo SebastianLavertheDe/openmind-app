@@ -16,7 +16,6 @@ import { cleanupImages, extractImageContexts } from "./scheduler-images";
 import { captureTurnContext, withRecoveredHistory, withTurnContext } from "./turn-context";
 import { composeNativeSkillProviderPrompt, composeNativeSkillTaskPrompt, composePrompt } from "./scheduler-prompts";
 import { reassembleEvents } from "./event-chunking";
-import { browserEvidenceInstructions, type BrowserAutomationConfig } from "./browser-evidence";
 import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
 import { type ProviderKind } from "../../shared/model-catalog";
 import { updateSessionStatus } from "./scheduler-lifecycle";
@@ -38,7 +37,6 @@ export interface SchedulerExecutionHost {
   skillTools: SkillToolRegistry;
   approvals: ApprovalBroker;
   adapters: Record<string, ProviderAdapter>;
-  browserAutomation: BrowserAutomationConfig;
   resolveProviderModel: (kind: ProviderKind) => string;
   queue: string[];
   active: Map<string, ActiveRun>;
@@ -131,13 +129,9 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         ? composeNativeSkillTaskPrompt(run, skillInvocation)
         : composeNativeSkillProviderPrompt(run, skillInvocation)
       : composePrompt(run);
-    const evidenceInstructions = session.scope?.type === "project-task"
-      ? ""
-      : browserEvidenceInstructions(host.browserAutomation);
-    const browserAwarePrompt = evidenceInstructions ? `${baseProviderPrompt}\n\n${evidenceInstructions}` : baseProviderPrompt;
     const providerPrompt = usesExternalSession && session.providerSessionId
-      ? browserAwarePrompt
-      : withRecoveredHistory(browserAwarePrompt, contextState, run.id);
+      ? baseProviderPrompt
+      : withRecoveredHistory(baseProviderPrompt, contextState, run.id);
     const prompt = host.adapters[session.provider].needsTurnContext && run.turnContext ? withTurnContext(providerPrompt, run.turnContext) : providerPrompt;
     let providerProducedOutput = false;
     let providerProducedFinal = false;
@@ -178,11 +172,10 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         raw: skillInvocation.raw,
         prompt: composeNativeSkillTaskPrompt(run, skillInvocation)
       } : null,
-      // Both providers receive only the integrity-checked Installed Skill
-      // selected by Main. Provider-global Skill discovery is disabled.
+      // Discovery and explicit invocation share the verified Installed catalog.
       skillBridge,
       providerModel: host.resolveProviderModel(session.provider),
-      browserAutomation: host.browserAutomation,
+      skillCatalog: host.skillTools.providerSkillCatalog(session.skillSnapshot ?? []),
       protectedPaths: session.scope?.type === "project-task" ? [] : host.protectedPaths,
       stateRoot: host.stateRoot,
       images: turnImages
@@ -317,13 +310,6 @@ function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unk
 }
 
 function resolveSessionSkillInvocation(host: SchedulerExecutionHost, session: AiSession, prompt: string) {
-  // Project Tasks intentionally expose only the files below their frozen
-  // Project root. Installed/user Skills are a separate execution domain and
-  // may bring MCP, hooks or external processes, so they are never resolved
-  // from a Project conversation.
-  if (session.scope?.type === "project-task") {
-    return { skillInvocation: null, skillBridge: null };
-  }
   const snapshot = session.skillSnapshot;
   if (!snapshot) throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
   const skillInvocation = parseSkillSlashInvocation(prompt, snapshot.map((entry) => entry.definition));

@@ -977,85 +977,55 @@ async function captureResponsiveGapContracts(win, report) {
   await waitForReady(win, "设置", { requiredSelector: ".settings-page", settingsMode: true });
   await clickSettingsSection(win, "浏览器");
   await waitForText(win, "浏览器连接");
-  await win.webContents.executeJavaScript("document.querySelector('.settings-browser-token')?.scrollIntoView({ block: 'center' })");
-  await waitForSelector(win, ".settings-browser-token");
+  await win.webContents.executeJavaScript("document.querySelector('.settings-browser-actions')?.scrollIntoView({ block: 'center' })");
+  await waitForSelector(win, ".settings-browser-actions");
 
+  const inspectBrowserSetup = () => win.webContents.executeJavaScript(`
+    (() => {
+      const backend = document.querySelector('.settings-browser-backend');
+      const card = backend?.closest('.settings-card');
+      const detail = document.querySelector('.settings-detail');
+      const controls = card?.querySelector('.settings-browser-actions');
+      const rect = (element) => element instanceof Element ? Object.fromEntries(['left','top','right','bottom','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
+      const inside = (inner, outer) => Boolean(inner && outer && inner.left >= outer.left - 1 && inner.right <= outer.right + 1);
+      const buttons = controls ? [...controls.children].filter((element) => getComputedStyle(element).display !== 'none').map(rect) : [];
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        backend: rect(backend), card: rect(card), controls: rect(controls),
+        buttonCount: buttons.length,
+        backendInsideCard: inside(rect(backend), rect(card)),
+        controlsInsideCard: inside(rect(controls), rect(card)) && buttons.every((item) => inside(item, rect(controls))),
+        noDocumentOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2,
+        noDetailOverflow: detail instanceof HTMLElement && detail.scrollWidth <= detail.clientWidth + 2,
+        noControlsOverflow: controls instanceof HTMLElement && controls.scrollWidth <= controls.clientWidth + 2
+      };
+    })()
+  `);
+  const browserSetupChecks = (geometry) => ({
+    backendVisible: Boolean(geometry.backend && geometry.backend.width > 0 && geometry.backend.height > 0),
+    allSetupActionsPresent: geometry.buttonCount === 3,
+    backendInsideCard: geometry.backendInsideCard,
+    controlsInsideCard: geometry.controlsInsideCard,
+    noDocumentOverflow: geometry.noDocumentOverflow,
+    noDetailOverflow: geometry.noDetailOverflow,
+    noControlsOverflow: geometry.noControlsOverflow
+  });
   for (const width of [720, 840, 900, 1020]) {
     await setCssViewportWidth(win, width, 720);
-    const geometry = await win.webContents.executeJavaScript(`
-      (() => {
-        const token = document.querySelector('.settings-browser-token');
-        const card = token?.closest('.settings-card');
-        const detail = document.querySelector('.settings-detail');
-        const controls = token?.querySelector('.settings-browser-token-controls');
-        const rect = (element) => element instanceof Element ? Object.fromEntries(['left','top','right','bottom','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
-        const inside = (inner, outer) => Boolean(inner && outer && inner.left >= outer.left - 1 && inner.right <= outer.right + 1);
-        const controlRects = controls ? [...controls.children].filter((element) => getComputedStyle(element).display !== 'none').map(rect) : [];
-        return {
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          token: rect(token),
-          card: rect(card),
-          detail: rect(detail),
-          controls: rect(controls),
-          controlRects,
-          tokenColumns: token instanceof Element ? getComputedStyle(token).gridTemplateColumns : null,
-          documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          detailOverflow: detail instanceof HTMLElement ? detail.scrollWidth - detail.clientWidth : null,
-          tokenOverflow: token instanceof HTMLElement ? token.scrollWidth - token.clientWidth : null,
-          tokenInsideCard: inside(rect(token), rect(card)),
-          controlsInsideToken: controlRects.every((item) => inside(item, rect(token)))
-        };
-      })()
-    `);
-    await recordContractState(win, report, `settings-browser-token-${width}`, "设置", `Browser Token controls stay inside their component at ${width}px`, geometry, {
-      tokenVisible: Boolean(geometry.token && geometry.token.width > 0 && geometry.token.height > 0),
-      tokenInsideCard: geometry.tokenInsideCard,
-      controlsInsideToken: geometry.controlsInsideToken,
-      noDocumentOverflow: geometry.documentOverflow <= 2,
-      noDetailOverflow: geometry.detailOverflow <= 2,
-      noTokenOverflow: geometry.tokenOverflow <= 2
-    });
+    const geometry = await inspectBrowserSetup();
+    await recordContractState(win, report, `settings-browser-skill-${width}`, "设置", `BrowserSkill setup actions stay inside their component at ${width}px`, geometry, browserSetupChecks(geometry));
   }
-
   const settingsResizeSamples = [];
   for (const width of Array.from({ length: 16 }, (_, index) => 1020 - index * 20)) {
     await setCssViewportWidth(win, width, 720);
-    const sample = await win.webContents.executeJavaScript(`
-      (() => {
-        const token = document.querySelector('.settings-browser-token');
-        const card = token?.closest('.settings-card');
-        const controls = token?.querySelector('.settings-browser-token-controls');
-        const tokenBox = token?.getBoundingClientRect();
-        const cardBox = card?.getBoundingClientRect();
-        const columns = token instanceof Element ? getComputedStyle(token).gridTemplateColumns.split(/\\s+/).filter((value) => value && value !== 'none').length : 0;
-        return {
-          width: window.innerWidth,
-          columns,
-          contained: Boolean(tokenBox && cardBox && tokenBox.left >= cardBox.left - 1 && tokenBox.right <= cardBox.right + 1),
-          noDocumentOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2,
-          noTokenOverflow: token instanceof HTMLElement && token.scrollWidth <= token.clientWidth + 2,
-          controlsContained: controls instanceof HTMLElement && [...controls.children].every((element) => {
-            const box = element.getBoundingClientRect();
-            return box.left >= tokenBox.left - 1 && box.right <= tokenBox.right + 1;
-          })
-        };
-      })()
-    `);
-    settingsResizeSamples.push(sample);
+    settingsResizeSamples.push(await inspectBrowserSetup());
   }
-  const settingsColumnTransitions = settingsResizeSamples.slice(1).filter((sample, index) => sample.columns !== settingsResizeSamples[index].columns).length;
-  const settingsColumnsSimplifyOnly = settingsResizeSamples.slice(1).every((sample, index) => sample.columns <= settingsResizeSamples[index].columns);
-  const settingsResizeGeometry = {
-    viewport: { width: settingsResizeSamples.at(-1)?.width, height: 720 },
-    samples: settingsResizeSamples,
-    transitions: settingsColumnTransitions
-  };
-  await recordContractState(win, report, "settings-browser-token-continuous-resize", "设置", "Browser Token only simplifies while resizing continuously from 1020px to 720px", settingsResizeGeometry, {
-    allSamplesMeasured: settingsResizeSamples.length === 16 && settingsResizeSamples.every((sample) => sample.columns > 0),
-    simplifyOnly: settingsColumnsSimplifyOnly,
-    stableTransition: settingsColumnTransitions <= 1,
-    allContained: settingsResizeSamples.every((sample) => sample.contained && sample.controlsContained),
-    noTransientOverflow: settingsResizeSamples.every((sample) => sample.noDocumentOverflow && sample.noTokenOverflow)
+  await recordContractState(win, report, "settings-browser-skill-continuous-resize", "设置", "BrowserSkill setup remains usable while resizing continuously from 1020px to 720px", {
+    viewport: settingsResizeSamples.at(-1)?.viewport,
+    samples: settingsResizeSamples
+  }, {
+    allSamplesMeasured: settingsResizeSamples.length === 16,
+    allActionsVisibleAndContained: settingsResizeSamples.every((sample) => Object.values(browserSetupChecks(sample)).every(Boolean))
   });
 
   await exitSettings(win);

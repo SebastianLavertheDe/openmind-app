@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
-import type { BrowserAutomationStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
+import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
 import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
@@ -55,13 +55,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [browserStatus, setBrowserStatus] = useState<BrowserAutomationStatus | null>(null);
+  const [browserStatus, setBrowserStatus] = useState<BrowserSkillStatus | null>(null);
   const [mcpServers, setMcpServers] = useState<McpServerDefinition[]>([]);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [sharedPythonRuntime, setSharedPythonRuntime] = useState<SharedPythonRuntimeStatus | null>(null);
   const [providersYaml, setProvidersYaml] = useState<ProvidersYamlView | null>(null);
   const [providersYamlBusy, setProvidersYamlBusy] = useState(false);
-  const [savingBrowserToken, setSavingBrowserToken] = useState(false);
+  const [browserBusy, setBrowserBusy] = useState(false);
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
@@ -95,7 +95,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.getPreferences();
       setPrefs(next);
       applyTheme(next);
-      try { setBrowserStatus(await window.openmind.getBrowserAutomationStatus()); }
+      try { setBrowserStatus(await window.openmind.getBrowserSkillStatus()); }
       catch { setBrowserStatus(null); }
       await loadMcpServers();
     } catch {
@@ -164,11 +164,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.updatePreferences(patch);
       setPrefs(next);
       applyTheme(next);
-      if ("browserAutomationEnabled" in patch || "browserReuseExistingTabs" in patch || "browserEvidenceDir" in patch) {
-        try { setBrowserStatus(await window.openmind.getBrowserAutomationStatus()); }
-        catch { setBrowserStatus(null); }
-        await loadMcpServers();
-      }
+
     });
     saveQueue.current = operation.catch(() => undefined);
     return operation.catch(() => {
@@ -268,37 +264,25 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     catch { ui.notify(m.settings.skills.openFailed, "error"); }
   };
 
-  const saveBrowserToken = async (token: string) => {
-    if (savingBrowserToken) return;
-    setSavingBrowserToken(true);
-    try {
-      setBrowserStatus(await window.openmind.saveBrowserExtensionToken(token));
-      await loadMcpServers();
-      ui.notify(m.settings.browser.tokenSaved, "success");
-    } catch {
-      ui.notify(m.settings.browser.tokenFailed, "error");
-      throw new Error(m.settings.browser.tokenFailed);
-    } finally {
-      setSavingBrowserToken(false);
-    }
+  const refreshBrowserSkill = async () => {
+    try { setBrowserStatus(await window.openmind.getBrowserSkillStatus()); }
+    catch { ui.notify(m.settings.browser.loadFailed, "error"); }
   };
 
-  const clearBrowserToken = async () => {
-    if (savingBrowserToken) return;
-    setSavingBrowserToken(true);
+  const installBrowserSkill = async () => {
+    if (browserBusy) return;
+    setBrowserBusy(true);
     try {
-      setBrowserStatus(await window.openmind.clearBrowserExtensionToken());
-      await loadMcpServers();
-      ui.notify(m.settings.browser.tokenCleared, "success");
-    } catch {
-      ui.notify(m.settings.browser.tokenFailed, "error");
-    } finally {
-      setSavingBrowserToken(false);
-    }
+      setBrowserStatus(await window.openmind.installBrowserSkill());
+      await actions.refreshSkills();
+      ui.notify(m.settings.browser.installSucceeded, "success");
+    } catch (error) {
+      ui.notify(error instanceof Error ? error.message : m.settings.browser.installFailed, "error");
+    } finally { setBrowserBusy(false); }
   };
 
   const openBrowserExtensionDocs = async () => {
-    try { await window.openmind.openExternal("https://github.com/microsoft/playwright-mcp#browser-extension"); }
+    try { await window.openmind.openExternal("https://github.com/Tencent/BrowserSkill#quick-start"); }
     catch { ui.notify(m.settings.browser.loadFailed, "error"); }
   };
 
@@ -369,7 +353,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
-              {activeSection === "browser" ? <BrowserSettingsSection prefs={prefs} status={browserStatus} savingToken={savingBrowserToken} save={save} onSaveToken={saveBrowserToken} onClearToken={clearBrowserToken} onOpenExtensionDocs={() => void openBrowserExtensionDocs()} /> : null}
+              {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}

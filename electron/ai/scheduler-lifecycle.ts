@@ -4,7 +4,7 @@ import type { ProviderAdapter } from "./providers/types";
 import type { ProviderRegistry } from "./provider-registry";
 import { resolveCwd } from "./scheduler-paths";
 import type { SessionStore } from "./session-store";
-import type { BrowserAutomationConfig } from "./browser-evidence";
+import type { ProviderSkillCatalogEntry } from "./skill-discovery";
 import { resolveCliProvider } from "../config/providers-yaml";
 
 export async function prewarmProviderSession(input: {
@@ -16,7 +16,7 @@ export async function prewarmProviderSession(input: {
   adapter: ProviderAdapter;
   provider: ProviderKind;
   resolveProviderModel(kind: ProviderKind): string;
-  browserAutomation: BrowserAutomationConfig;
+  skillCatalog?: readonly ProviderSkillCatalogEntry[];
 }, sessionId?: string): Promise<boolean> {
   if (!input.adapter?.prewarm) return false;
   let session: AiSession | null = null;
@@ -53,7 +53,7 @@ export async function prewarmProviderSession(input: {
     interactionMode,
     providerSessionId,
     providerModel: input.resolveProviderModel(input.provider),
-    browserAutomation: input.browserAutomation,
+    skillCatalog: input.skillCatalog,
     protectedPaths: session?.scope?.type === "project-task" ? [] : input.protectedPaths,
     images: []
   });

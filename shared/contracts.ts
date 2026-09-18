@@ -273,7 +273,7 @@ export const AiSessionSchema = z.object({
   serviceProviderId: z.string().nullable().default(null),
   /** SHA-256 fingerprint used to prevent an existing conversation crossing API backends. */
   serviceProviderRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
-  /** Installed Skill selection frozen when the conversation is created. */
+  /** Enabled Installed catalog refreshed before each conversation turn. */
   skillSnapshot: AiSessionSkillSnapshotSchema.nullable().default(null),
   providerSessionId: z.string().nullable().default(null),
   forkedFromId: z.string().nullable().optional(),
@@ -976,7 +976,6 @@ export type CreativeManifestPatch = z.infer<typeof CreativeManifestPatchSchema>;
  * not App-private state. Formal Agent Skills use an explicit Export Location
  * Binding instead.
  */
-export const DEFAULT_BROWSER_EVIDENCE_DIR = "assets/browser-evidence";
 
 export const SharedPythonRuntimeStatusSchema = z.object({
   enabled: z.boolean(),
@@ -1014,12 +1013,6 @@ export const UserPreferencesSchema = z.object({
   defaultProvider: z.string().default(""),
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("auto"),
   notesDir: z.string().default("openmind"),
-  /** AI 写作时允许通过 Playwright MCP 从已登录的 Chrome 获取原文证据截图。 */
-  browserAutomationEnabled: z.boolean().default(false),
-  /** URL 已在扩展授权的 Chrome 标签页中打开时，优先复用并在完成后恢复原标签。 */
-  browserReuseExistingTabs: z.boolean().default(true),
-  /** CLI Provider 浏览器取证截图在工作区内的用户输出目录。 */
-  browserEvidenceDir: z.string().min(1).max(4096).default(DEFAULT_BROWSER_EVIDENCE_DIR),
   destructiveOpsRequireApproval: z.boolean().default(true),
   riskScanEnabled: z.boolean().default(true),
   defaultPlatform: z.string().default("公众号"),
@@ -1067,20 +1060,16 @@ export const UserPreferencesPatchSchema = z.object(userPreferencesPatchShape)
   .strict()
   .transform((value) => value as UserPreferencesPatch);
 
-export const BrowserAutomationStatusSchema = z.object({
-  backend: z.literal("playwright-mcp"),
-  enabled: z.boolean(),
-  reuseExistingTabs: z.boolean(),
-  evidenceDir: z.string(),
-  extensionTokenConfigured: z.boolean(),
-  secureStorageAvailable: z.boolean(),
-  packageAvailable: z.boolean(),
+export const BrowserSkillStatusSchema = z.object({
+  skillInstalled: z.boolean(),
+  skillEnabled: z.boolean(),
+  cliAvailable: z.boolean(),
+  cliVersion: z.string().nullable(),
+  browserConnected: z.boolean(),
   ready: z.boolean(),
   diagnostic: z.string()
 });
-export type BrowserAutomationStatus = z.infer<typeof BrowserAutomationStatusSchema>;
-
-export const BrowserExtensionTokenSchema = z.string().trim().min(1).max(4096);
+export type BrowserSkillStatus = z.infer<typeof BrowserSkillStatusSchema>;
 
 export const OnboardingStepStatusSchema = z.enum(["pending", "complete", "skipped"]);
 export const OnboardingStateSchema = z.object({
@@ -1233,10 +1222,9 @@ export interface DesktopApi {
   updateOnboardingState(patch: Partial<OnboardingState>): Promise<OnboardingState>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;
   resetPreferences(section?: string): Promise<UserPreferences>;
-  getBrowserAutomationStatus(): Promise<BrowserAutomationStatus>;
+  getBrowserSkillStatus(): Promise<BrowserSkillStatus>;
+  installBrowserSkill(): Promise<BrowserSkillStatus>;
   getMcpServers(): Promise<McpServerDefinition[]>;
-  saveBrowserExtensionToken(token: string): Promise<BrowserAutomationStatus>;
-  clearBrowserExtensionToken(): Promise<BrowserAutomationStatus>;
   getProviders(): Promise<ProvidersYamlView>;
   /** Read one existing Provider key only when its trusted local editor is opened. */
   getProviderApiKey(id: string): Promise<string>;

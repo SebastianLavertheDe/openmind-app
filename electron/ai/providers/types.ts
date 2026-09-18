@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { ApprovalDecision, AiContextState, AiEvent, AiRun, AiSession, ProviderCapabilities } from "../../../shared/contracts";
-import type { BrowserAutomationConfig } from "../browser-evidence";
+import type { ProviderSkillCatalogEntry } from "../skill-discovery";
 import type { ProviderSkillBridge } from "./skill-bridge";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 
@@ -39,10 +39,10 @@ export interface ProviderRunContext {
   skillInvocation: ProviderSkillInvocation | null;
   /** 用户为该 provider 选定的模型覆盖（"auto" = 跟随 CLI 配置，不覆盖）。 */
   providerModel: string;
-  /** Main-only bridge for an approved Agent package in the app-private SkillStore. */
+  /** Main-only bridge for an integrity-checked Installed package. */
   skillBridge?: ProviderSkillBridge | null;
-  /** OpenMind 托管的写作证据截图能力。 */
-  browserAutomation: BrowserAutomationConfig;
+  /** Catalog for automatic, progressive loading of enabled Installed Skills. */
+  skillCatalog?: readonly ProviderSkillCatalogEntry[];
   /** App-managed trees that an ordinary Workspace provider may read but must
    * not mutate. Project-scoped runs receive an empty list and use their own
    * strict read-only root instead. */

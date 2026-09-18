@@ -2,7 +2,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
+import { OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
 import { messages } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { assertOutsideAppManagedProjects, computeRootId, OpenmindPathResolver, resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
@@ -420,9 +420,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   defaultProvider: "",
   defaultPermissionProfile: "auto",
   notesDir: "openmind",
-  browserAutomationEnabled: false,
-  browserReuseExistingTabs: true,
-  browserEvidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR,
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
   defaultPlatform: messages.settings.defaultPlatform,
@@ -445,9 +442,12 @@ function getPreferences(): UserPreferences {
   const raw = loadSettings();
   if (cachedPreferences?.source === raw) return cachedPreferences.value;
   const migrated = normalizePreferences(raw, false);
-  const persisted = { ...raw, ...migrated };
+  const persisted: RawSettings = { ...raw, ...migrated };
+  delete persisted.browserAutomationEnabled;
+  delete persisted.browserReuseExistingTabs;
+  delete persisted.browserEvidenceDir;
   if (JSON.stringify(persisted) !== JSON.stringify(raw)) {
-    saveSettings({ ...raw, ...migrated });
+    saveSettings(persisted);
     // 一次性迁移写回后不建立缓存：下一次调用以写回后的最新内容重建基准。
     cachedPreferences = null;
     return migrated;
@@ -522,16 +522,6 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     defaultProvider: stringPref(source.defaultProvider, DEFAULT_PREFERENCES.defaultProvider, strict, "defaultProvider", 200),
     defaultPermissionProfile: enumPref(storedPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
-    browserAutomationEnabled: boolPref(source.browserAutomationEnabled, DEFAULT_PREFERENCES.browserAutomationEnabled, strict, "browserAutomationEnabled"),
-    browserReuseExistingTabs: boolPref(source.browserReuseExistingTabs, DEFAULT_PREFERENCES.browserReuseExistingTabs, strict, "browserReuseExistingTabs"),
-    // Migrate the old implicit `.openmind` default to an explicit user-owned
-    // workspace output. A deliberately customized path remains untouched.
-    browserEvidenceDir: safeRelativePathPref(
-      source.browserEvidenceDir === ".openmind/browser-evidence" ? DEFAULT_BROWSER_EVIDENCE_DIR : source.browserEvidenceDir,
-      DEFAULT_PREFERENCES.browserEvidenceDir,
-      strict,
-      "browserEvidenceDir"
-    ),
     destructiveOpsRequireApproval: boolPref(source.destructiveOpsRequireApproval, DEFAULT_PREFERENCES.destructiveOpsRequireApproval, strict, "destructiveOpsRequireApproval"),
     riskScanEnabled: boolPref(source.riskScanEnabled, DEFAULT_PREFERENCES.riskScanEnabled, strict, "riskScanEnabled"),
     defaultPlatform: stringPref(source.defaultPlatform, DEFAULT_PREFERENCES.defaultPlatform, strict, "defaultPlatform", 80),

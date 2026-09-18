@@ -20,12 +20,7 @@ import * as creative from "./lib/creative";
 import { messages } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
-import {
-  BrowserExtensionTokenStore,
-  browserAutomationStatus,
-  resolveBrowserExtensionToken
-} from "./browser-automation-settings";
-import { buildMcpServerCatalog } from "./ai/mcp-catalog";
+import { browserSkillStatus, resolveBrowserSkillExecutable, BROWSER_SKILL_REPOSITORY } from "./browser-skill";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
@@ -76,7 +71,6 @@ let skillSourceService: SkillSourceService | null = null;
 // 后续 IPC 而变化；记住已处理过的根，避免每个 skill 类 IPC 都同步扫描整棵
 // skills 目录树。根切换经 restartAiWorker() 失效。
 let claudeAgentLinkEnsuredRoot: string | null = null;
-let browserTokenStore: BrowserExtensionTokenStore | null = null;
 let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
 
 let cliInstallerService: CliInstallerService | null = null;
@@ -104,37 +98,19 @@ function ensureSharedPythonRuntimeService(): SharedPythonRuntimeService {
   return sharedPythonRuntimeService;
 }
 
-function ensureBrowserTokenStore(): BrowserExtensionTokenStore {
-  browserTokenStore ||= new BrowserExtensionTokenStore(
-    path.join(app.getPath("userData"), "browser-extension-token.bin"),
-    safeStorage
-  );
-  return browserTokenStore;
-}
-
-function playwrightMcpAvailable(): boolean {
-  try { require.resolve("@playwright/mcp/package.json"); return true; }
-  catch { return false; }
-}
-
-function getBrowserAutomationStatus() {
-  return browserAutomationStatus(settings.getPreferences(), ensureBrowserTokenStore(), playwrightMcpAvailable());
+async function getBrowserSkillStatus() {
+  return browserSkillStatus(ensureSkillPackageService(), resolveBrowserSkillExecutable(app.getPath("userData")), undefined, true);
 }
 
 function getMcpServers() {
-  return buildMcpServerCatalog(getBrowserAutomationStatus());
+  return [];
 }
 
-function saveBrowserExtensionToken(token: string) {
-  ensureBrowserTokenStore().write(token);
-  restartAiWorker();
-  return getBrowserAutomationStatus();
-}
-
-function clearBrowserExtensionToken() {
-  ensureBrowserTokenStore().clear();
-  restartAiWorker();
-  return getBrowserAutomationStatus();
+async function installBrowserSkill() {
+  const installed = await ensureSkillSourceService().install({ type: "git", locator: BROWSER_SKILL_REPOSITORY }, ["skill"]);
+  for (const record of installed) ensureSkillPackageService().setEnabled(record.key, record.digest, true);
+  if (aiWorker) await aiWorker.call("refresh-skills");
+  return getBrowserSkillStatus();
 }
 
 function sendToRenderer(channel: string, payload: unknown): void {
@@ -150,8 +126,8 @@ class AiWorkerClient {
   private retired = false;
 
   constructor(projectRoot: string, stateRoot?: string) {
-    const browserPreferences = settings.getPreferences();
-    const extensionToken = resolveBrowserExtensionToken(ensureBrowserTokenStore());
+    const browserCli = resolveBrowserSkillExecutable(app.getPath("userData"));
+    if (browserCli) void getBrowserSkillStatus().catch(() => undefined);
     this.worker = utilityProcess.fork(path.join(__dirname, "ai", "worker.js"), [], {
       env: buildAiWorkerEnvironment(process.env, {
         OPENMIND_REPO_ROOT: projectRoot,
@@ -160,10 +136,11 @@ class AiWorkerClient {
         ...(settings.resolveOpenmindRoot() ? { OPENMIND_ROOT: settings.resolveOpenmindRoot() } : {}),
         OPENMIND_ROOT_GENERATION: String(settings.getOpenmindRootSnapshot()?.rootGeneration || 1),
         OPENMIND_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
-        OPENMIND_BROWSER_AUTOMATION_ENABLED: String(browserPreferences.browserAutomationEnabled),
-        OPENMIND_BROWSER_REUSE_EXISTING_TABS: String(browserPreferences.browserReuseExistingTabs),
-        OPENMIND_BROWSER_EVIDENCE_DIR: browserPreferences.browserEvidenceDir,
-        ...(extensionToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: extensionToken } : {})
+        ...(browserCli ? {
+          OPENMIND_BROWSER_SKILL_CLI: browserCli,
+          PATH: [path.dirname(browserCli), process.env.PATH || process.env.Path || ""].join(path.delimiter)
+        } : {}),
+        ...(process.env.BSK_HOME ? { BSK_HOME: process.env.BSK_HOME } : {})
       }),
       serviceName: "OpenMind AI Scheduler"
     });
@@ -431,10 +408,9 @@ function registerIpc(): void {
       hasRequiredStartupConfiguration,
       getActiveRunCount: () => aiWorker?.activeRunCount() || Promise.resolve(0),
       restartAiWorker,
-      getBrowserAutomationStatus,
+      getBrowserSkillStatus,
+      installBrowserSkill,
       getMcpServers,
-      saveBrowserExtensionToken,
-      clearBrowserExtensionToken,
       syncWindowTheme,
       globalSearch: runGlobalSearch,
       localDate
@@ -601,7 +577,7 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       const articles = await api.listContent("articles", ${JSON.stringify(date)});
       const article = articles[0] ? await api.readContent(articles[0].path) : null;
       const fileSearch = await api.searchOpenmindFiles("desktop-e2e", 10);
-      const browser = await api.getBrowserAutomationStatus();
+      const browser = await api.getBrowserSkillStatus();
       return {
         documentReady: document.readyState,
         rootMounted: Boolean(document.querySelector("#root")),
@@ -611,7 +587,7 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
         articleReadable: Boolean(article?.content?.includes("real Electron preload and IPC bridge")),
         fileSearchCount: Array.isArray(fileSearch?.items) ? fileSearch.items.length : 0,
         themeMode: preferences.themeMode,
-        browserStatus: browser?.state || null
+        browserStatus: browser?.ready ?? false
       };
     })()`, true) as {
       documentReady?: string;

@@ -370,16 +370,13 @@ export class SessionStore {
   }
 
   /**
-   * Aligns every workspace-scope conversation with the current installed
-   * catalog so slash commands keep listing all installed Skills as packages
-   * are added or updated. Project-task sessions keep their empty Skill
-   * boundary, and conversations are never reordered by a timestamp change.
+   * Aligns conversations of every scope with enabled Installed Skills without
+   * reordering conversations.
    */
-  refreshWorkspaceSkillSnapshots(resolveSkillSnapshot: () => AiSessionSkillSnapshotEntry[]): number {
+  refreshSkillSnapshots(resolveSkillSnapshot: () => AiSessionSkillSnapshotEntry[]): number {
     this.initialize();
     this.ensureIndex();
-    const refreshable = [...this.sessions.values()]
-      .filter((session) => isWorkspaceScope(session.scope));
+    const refreshable = [...this.sessions.values()];
     if (!refreshable.length) return 0;
     const skillSnapshot = resolveSkillSnapshot();
     let refreshed = 0;
@@ -397,6 +394,14 @@ export class SessionStore {
     return refreshed;
   }
 
+  refreshSessionSkillSnapshot(sessionId: string, skillSnapshot: AiSessionSkillSnapshotEntry[]): AiSession {
+    const current = this.getSession(sessionId);
+    if (JSON.stringify(current.skillSnapshot) === JSON.stringify(skillSnapshot)) return current;
+    const next = AiSessionSchema.parse({ ...current, skillSnapshot });
+    writeJsonAtomic(this.sessionFile(sessionId), next);
+    this.sessions.set(sessionId, next);
+    return next;
+  }
 
   createRun(session: AiSession, prompt: string, contexts: AiRun["contexts"], id?: string): AiRun {
     const now = new Date().toISOString();

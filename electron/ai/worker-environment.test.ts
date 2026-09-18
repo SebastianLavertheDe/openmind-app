@@ -18,8 +18,8 @@ describe("AI Worker environment", () => {
     }, {
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
-      OPENMIND_BROWSER_AUTOMATION_ENABLED: "true",
-      PLAYWRIGHT_MCP_EXTENSION_TOKEN: "host-selected-token"
+      OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
+      BSK_HOME: "/browser-runtime"
     });
 
     expect(environment).toMatchObject({
@@ -29,10 +29,11 @@ describe("AI Worker environment", () => {
       TZ: "Asia/Shanghai",
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
-      OPENMIND_BROWSER_AUTOMATION_ENABLED: "true",
-      PLAYWRIGHT_MCP_EXTENSION_TOKEN: "host-selected-token"
+      OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
+      BSK_HOME: "/browser-runtime"
     });
     expect(environment).not.toHaveProperty("OPENAI_API_KEY");
+    expect(environment).not.toHaveProperty("PLAYWRIGHT_MCP_EXTENSION_TOKEN");
     expect(environment).not.toHaveProperty("OPENMIND_STATE_ROOT");
     expect(environment).not.toHaveProperty("CUSTOM_ENV");
     expect(environment).not.toHaveProperty("NODE_OPTIONS");
@@ -53,6 +54,7 @@ describe("AI Worker environment", () => {
   it("rejects explicit provider, loader and crash-diagnostic overrides", () => {
     const forbiddenKeys = [
       "OPENAI_API_KEY",
+      "PLAYWRIGHT_MCP_EXTENSION_TOKEN",
       "ANTHROPIC_API_KEY",
       "GOOGLE_API_KEY",
       "NVIDIA_API_KEY",

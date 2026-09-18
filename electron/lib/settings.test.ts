@@ -161,7 +161,7 @@ describe("settings path handling", () => {
     setOpenmindRoot(repo);
     setWorkspaceRoot(repo);
 
-    const updated = updatePreferences({ browserAutomationEnabled: true });
+    const updated = updatePreferences({ riskScanEnabled: false });
     const persisted = JSON.parse(fs.readFileSync(settingsFile(), "utf8"));
 
     expect(updated.openmindRoot).toBe(canonical);

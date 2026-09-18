@@ -917,12 +917,8 @@ function inspectStandardAgentSkill(
   const frontmatter = parseSkillFrontmatter(fs.readFileSync(skillPath, "utf8"));
   const name = String(frontmatter.name || "").trim();
   const description = String(frontmatter.description || "").trim();
-  const directoryName = path.basename(sourceRoot);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) {
     return { issue: { code: "manifest-invalid", message: "SKILL.md name 必须为 1–64 位小写字母、数字和单连字符。", path: SKILL_FILE } };
-  }
-  if (name !== directoryName) {
-    return { issue: { code: "manifest-invalid", message: `SKILL.md name 必须与目录名一致：${directoryName}。`, path: SKILL_FILE } };
   }
   if (!description || description.length > 1024) {
     return { issue: { code: "manifest-invalid", message: "SKILL.md description 必须为 1–1024 个字符。", path: SKILL_FILE } };

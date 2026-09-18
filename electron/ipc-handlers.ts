@@ -14,8 +14,7 @@ import {
   SessionPatchSchema,
   StartRunInputSchema,
   AiTurnListParamsSchema,
-  BrowserAutomationStatusSchema,
-  BrowserExtensionTokenSchema,
+  BrowserSkillStatusSchema,
   McpServerCatalogSchema,
   OnboardingStateSchema,
   UserPreferencesPatchSchema,
@@ -150,10 +149,9 @@ export type IpcMainContext = {
   hasRequiredStartupConfiguration: () => boolean;
   getActiveRunCount: () => Promise<number>;
   restartAiWorker: () => void;
-  getBrowserAutomationStatus: () => unknown;
+  getBrowserSkillStatus: () => Promise<unknown>;
+  installBrowserSkill: () => Promise<unknown>;
   getMcpServers: () => unknown;
-  saveBrowserExtensionToken: (token: string) => unknown;
-  clearBrowserExtensionToken: () => unknown;
   syncWindowTheme: (themeMode: "light" | "dark") => void;
   globalSearch: (rawQuery: unknown) => Promise<GlobalSearchResult[]>;
   localDate: () => string;
@@ -412,9 +410,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.updatePreferences,
       handler: (patch) => {
-        const previous = settings.getPreferences();
         const next = UserPreferencesSchema.parse(settings.updatePreferences(UserPreferencesPatchSchema.parse(patch)));
-        if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
         ctx.syncWindowTheme(next.themeMode);
         return next;
       }
@@ -422,28 +418,22 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     {
       channel: C.resetPreferences,
       handler: (section) => {
-        const previous = settings.getPreferences();
         const next = UserPreferencesSchema.parse(settings.resetPreferences(parseOptionalString(section)));
-        if (browserPreferencesChanged(previous, next)) ctx.restartAiWorker();
         ctx.syncWindowTheme(next.themeMode);
         return next;
       }
     },
     {
-      channel: C.getBrowserAutomationStatus,
-      handler: () => BrowserAutomationStatusSchema.parse(ctx.getBrowserAutomationStatus())
+      channel: C.getBrowserSkillStatus,
+      handler: async () => BrowserSkillStatusSchema.parse(await ctx.getBrowserSkillStatus())
     },
     {
       channel: C.getMcpServers,
       handler: () => McpServerCatalogSchema.parse(ctx.getMcpServers())
     },
     {
-      channel: C.saveBrowserExtensionToken,
-      handler: (token) => BrowserAutomationStatusSchema.parse(ctx.saveBrowserExtensionToken(BrowserExtensionTokenSchema.parse(token)))
-    },
-    {
-      channel: C.clearBrowserExtensionToken,
-      handler: () => BrowserAutomationStatusSchema.parse(ctx.clearBrowserExtensionToken())
+      channel: C.installBrowserSkill,
+      handler: async () => BrowserSkillStatusSchema.parse(await ctx.installBrowserSkill())
     },
     {
       channel: C.getProviders,
@@ -983,11 +973,7 @@ function reconcileProjectTaskStatus(
     : projectService.setProjectTaskStatus(projectName, task.taskId, nextStatus);
 }
 
-function browserPreferencesChanged(previous: z.infer<typeof UserPreferencesSchema>, next: z.infer<typeof UserPreferencesSchema>): boolean {
-  return previous.browserAutomationEnabled !== next.browserAutomationEnabled
-    || previous.browserReuseExistingTabs !== next.browserReuseExistingTabs
-    || previous.browserEvidenceDir !== next.browserEvidenceDir;
-}
+
 
 export function registerIpcHandlers(
   ctx: IpcMainContext,

@@ -54,8 +54,8 @@ const V2_UNCHANGED_ENTRIES = OPENMIND_LAYOUT_V2.filter(
 export const OPENMIND_LAYOUT_V3: readonly OpenmindLayoutEntry[] = [
   ...V2_UNCHANGED_ENTRIES,
   { logicalPath: ".agent/skills", category: "app-managed", owner: "desktop-app + Agent Skills clients", note: "Flat <name>/SKILL.md packages + registry.json; visible to native clients through .claude/skills" },
-  { logicalPath: ".claude", category: "app-managed", owner: "desktop-app compatibility link", note: "Directory link to .agent; enables unfiltered Claude Code project Skill discovery" },
-  { logicalPath: "assets", category: "create-if-needed", owner: "browser-evidence-capture", note: "Shared media/evidence output, e.g. assets/browser-evidence/<run>/" },
+  { logicalPath: ".claude", category: "app-managed", owner: "desktop-app compatibility link", note: "Directory link to .agent for external Claude Code clients; Desktop sessions use the verified Installed catalog" },
+  { logicalPath: "assets", category: "create-if-needed", owner: "Skill/content runtime", note: "Shared media/evidence output, e.g. assets/browser-evidence/<run>/" },
   { logicalPath: "config", category: "app-managed", owner: "desktop-app (providers.yaml)", note: "App-owned configuration; written directly by the app, never via openmind.write patterns" },
   { logicalPath: ".openmind", category: "app-managed", owner: "desktop-app product stores", note: "App runtime state (content-index, brief watchlist, …); preserved verbatim by relocation, never written by skills" },
   { logicalPath: ".zcode", category: "optional-preserve-only", owner: "(tool)", note: "May exist; never created by app" },

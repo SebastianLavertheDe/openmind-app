@@ -201,37 +201,19 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
   });
 
-  it("浏览器取证开启时只挂载受控 MCP，并追加写作取证规则", async () => {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-claude-browser-"));
+  it.each([false, true])("automatically discovers installed BrowserSkill in a Project=%s warm host", async (projectScoped) => {
     const adapter = new ClaudeAgentSdkAdapter();
-    try {
-      await adapter.prewarm(makePrewarmContext({
-        openmindRoot: workspace,
-        cwd: workspace,
-        session: { id: "sess-1", projectRoot: workspace, provider: "claude", providerId: "claude-native", providerSessionId: null } as never,
-        browserAutomation: {
-          enabled: true,
-          reuseExistingTabs: true,
-          evidenceDir: "assets/browser-evidence",
-          extensionToken: "extension-token"
-        }
-      }));
-
-      const startup = sdkMock.startup.mock.calls[0][0] as {
-        options: {
-          mcpServers: Record<string, { args: string[]; env: Record<string, string> }>;
-          systemPrompt: { append?: string };
-        };
-      };
-      const server = startup.options.mcpServers.openmind_browser;
-      expect(server.args[0]).toMatch(/browser-evidence-mcp\.js$/);
-      expect(server.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe("extension-token");
-      expect(startup.options.systemPrompt.append).toContain("capture_source_evidence");
-      expect(startup.options.systemPrompt.append).toContain("~~~~openmind-artifact");
-      expect(JSON.stringify(startup.options)).not.toContain("browser_run_code_unsafe");
-    } finally {
-      fs.rmSync(workspace, { recursive: true, force: true });
-    }
+    const skillPath = "/project/.agent/skills/browser-skill/SKILL.md";
+    await adapter.prewarm(makePrewarmContext({
+      session: { id: "sess-1", provider: "claude", providerId: "claude-native", providerSessionId: null, ...(projectScoped ? { scope: { type: "project-task", projectName: "Fixture" } } : {}) } as never,
+      skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "/project/.agent/skills/browser-skill", skillPath, description: "Read logged-in pages and capture screenshots" }]
+    }));
+    const options = sdkMock.startup.mock.calls[0][0].options as { mcpServers?: unknown; systemPrompt: { append?: string } };
+    expect(options.mcpServers).toBeUndefined();
+    expect(options.systemPrompt.append).toContain(skillPath);
+    expect(options.systemPrompt.append).toContain("Read logged-in pages and capture screenshots");
+    expect(options.systemPrompt.append).toContain("无需用户输入斜杠命令");
+    expect(options.systemPrompt.append).not.toContain("capture_source_evidence");
   });
 
   it("相同 key 重复 prewarm 复用 warm slot,不重复 startup", async () => {
@@ -240,6 +222,32 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     await adapter.prewarm(ctx);
     await adapter.prewarm(ctx);
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces a warm host when its enabled Skill catalog changes", async () => {
+    const adapter = new ClaudeAgentSdkAdapter();
+    await adapter.prewarm(makePrewarmContext({
+      skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "/project/.agent/skills/browser-skill", skillPath: "/project/.agent/skills/browser-skill/SKILL.md", description: "Catalog change sentinel" }]
+    }));
+    const firstWarm = await sdkMock.startup.mock.results[0].value;
+    await adapter.prewarm(makePrewarmContext({ skillCatalog: [] }));
+    await Promise.resolve();
+    expect(firstWarm.close).toHaveBeenCalledTimes(1);
+    expect(sdkMock.startup).toHaveBeenCalledTimes(2);
+    const options = sdkMock.startup.mock.calls[1][0].options;
+    expect(options.systemPrompt.append).not.toContain("Catalog change sentinel");
+    adapter.disposeWarmSlots();
+  });
+
+  it("supplies WSL Skill paths to the WSL file tools", async () => {
+    const adapter = new ClaudeAgentSdkAdapter();
+    await adapter.prewarm(makePrewarmContext({
+      provider: { id: "claude-wsl", provider: "claude", runtime: "wsl", available: true } as never,
+      skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "\\\\wsl.localhost\\Ubuntu\\home\\fixture\\.agent\\skills\\browser-skill", skillPath: "\\\\wsl.localhost\\Ubuntu\\home\\fixture\\.agent\\skills\\browser-skill\\SKILL.md", description: "Browser tasks" }]
+    }));
+    const options = sdkMock.startup.mock.calls[0][0].options;
+    expect(options.systemPrompt.append).toContain("/home/fixture/.agent/skills/browser-skill/SKILL.md");
+    adapter.disposeWarmSlots();
   });
 
   it("does not reuse a draft warm process after the managed Claude provider changes", async () => {
@@ -1165,6 +1173,29 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.resume).toBeUndefined();
     expect(call.options.mcpServers).toBeUndefined();
     expect(ctx.updateProviderSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["native", "wsl"] as const)("allows progressive Skill instruction reads from a read-only Project with %s runtime", (runtime) => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-skill-read-boundary-"));
+    const content = path.join(fixture, "content");
+    const project = path.join(content, "projects", "Research");
+    const packageRoot = path.join(content, ".agent", "skills", "browser-skill");
+    fs.mkdirSync(project, { recursive: true });
+    fs.mkdirSync(packageRoot, { recursive: true });
+    const skillPath = path.join(packageRoot, "SKILL.md");
+    fs.writeFileSync(skillPath, "# BrowserSkill\n");
+    fs.writeFileSync(path.join(fixture, "outside.md"), "outside\n");
+    try {
+      const base = makeRunContext();
+      const context = makeRunContext({
+        provider: { ...base.provider, runtime },
+        openmindRoot: content,
+        cwd: project,
+        session: { ...base.session, projectRoot: project, cwd: ".", permissionProfile: "read-only", scope: { type: "project-task", projectName: "Research", taskId: "task-1" } as never }
+      });
+      expect(decideClaudePermission(context, "Read", { file_path: skillPath })).toMatchObject({ behavior: "allow" });
+      expect(decideClaudePermission(context, "Read", { file_path: path.join(fixture, "outside.md") })).toMatchObject({ behavior: "deny" });
+    } finally { fs.rmSync(fixture, { recursive: true, force: true }); }
   });
 
   it("Project auto 默认开放工作台工具并保持 Provider 发现隔离", async () => {

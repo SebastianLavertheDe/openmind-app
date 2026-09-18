@@ -345,9 +345,6 @@ const preferences = {
   defaultProvider: "codex:native",
   defaultPermissionProfile: "edit",
   notesDir: "openmind",
-  browserAutomationEnabled: false,
-  browserReuseExistingTabs: true,
-  browserEvidenceDir: "assets/browser-evidence",
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
   defaultPlatform: "公众号",
@@ -599,20 +596,9 @@ const api = {
   aiRefreshProviders: async () => visualProviders,
   getSharedPythonRuntimeStatus: async () => ({ enabled: true, phase: "ready", target: "windows-x64", pythonVersion: "3.12.8", uvVersion: "0.5.27", managedSkills: 16, ready: true, lastError: null }),
   setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.8" : null, uvVersion: enabled ? "0.5.27" : null, managedSkills: enabled ? 16 : 0, ready: enabled, lastError: null }),
-  getMcpServers: async () => [{
-    schemaVersion: 1,
-    id: "openmind_browser",
-    title: "写作证据截图",
-    description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
-    backend: "Microsoft Playwright MCP",
-    transport: "stdio",
-    connection: "Playwright Chrome 扩展",
-    providers: ["Codex", "Claude"],
-    status: "enabled",
-    diagnostic: "可用；首次连接时需要在 Playwright Chrome 扩展中确认标签页。",
-    settingsSection: "browser",
-    tools: [{ id: "capture_source_evidence", title: "截取原文证据", description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。", inputs: ["url", "quote", "capture_scope", "caption", "filename"], outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"] }]
-  }],
+  getMcpServers: async () => [],
+  getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 BrowserSkill。" }),
+  installBrowserSkill: async () => ({ skillInstalled: true, skillEnabled: true, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 bsk CLI 并连接扩展。" }),
   inspectInstalledSkill: async (key, digest) => {
     const record = visualInstalledSkills.find((item) => item.key === key && item.digest === digest);
     return record ? visualSkillInspection(record) : null;

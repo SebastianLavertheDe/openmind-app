@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, KeyRound, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
-import type { AiSession, BrowserAutomationStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
@@ -599,109 +599,40 @@ export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferen
   );
 }
 
-export function BrowserSettingsSection({
-  prefs,
-  status,
-  savingToken,
-  save,
-  onSaveToken,
-  onClearToken,
-  onOpenExtensionDocs
-}: {
-  prefs: UserPreferences;
-  status: BrowserAutomationStatus | null;
-  savingToken: boolean;
-  save: SavePreferences;
-  onSaveToken(token: string): Promise<void>;
-  onClearToken(): Promise<void>;
-  onOpenExtensionDocs(): void;
+export function BrowserSettingsSection({ status, busy, onInstall, onRefresh, onOpenDocs }: {
+  status: BrowserSkillStatus | null;
+  busy: boolean;
+  onInstall(): void;
+  onRefresh(): void;
+  onOpenDocs(): void;
 }) {
-  const [token, setToken] = useState("");
-  const [evidenceDir, setEvidenceDir] = useState(prefs.browserEvidenceDir);
-  useEffect(() => setEvidenceDir(prefs.browserEvidenceDir), [prefs.browserEvidenceDir]);
-  const ready = Boolean(status?.ready);
-
-  const submitToken = async () => {
-    if (!token.trim() || savingToken) return;
-    try {
-      await onSaveToken(token);
-      setToken("");
-    } catch { /* SettingsPage 已显示失败反馈；保留输入便于重试。 */ }
-  };
-
-  const saveEvidenceDir = () => {
-    const next = evidenceDir.trim().replaceAll("\\", "/");
-    if (next && next !== prefs.browserEvidenceDir) void save({ browserEvidenceDir: next });
-    else setEvidenceDir(prefs.browserEvidenceDir);
-  };
-
   return (
-    <>
     <SettingsPanel title={m.settings.browser.connectionTitle} scope={m.settings.browser.scope} variant="resource">
       <div className="settings-resource-row settings-browser-backend">
         <span className="settings-browser-icon" aria-hidden><Globe size={18} /></span>
         <div className="settings-browser-backend-copy">
-          <strong>{m.settings.browser.backend}</strong>
-          <span>Microsoft Playwright MCP · {m.settings.browser.extension}</span>
-          <small>{status?.diagnostic || m.settings.browser.loadFailed}</small>
+          <strong>BrowserSkill</strong>
+          <span>{m.settings.browser.description}</span>
+          <small role="status">{status?.diagnostic || m.settings.browser.loadFailed}</small>
         </div>
-        <StatusBadge tone={ready ? "success" : "warning"}>{ready ? m.settings.browser.ready : m.settings.browser.needsSetup}</StatusBadge>
+        <StatusBadge tone={status?.ready ? "success" : "warning"}>{status?.ready ? m.settings.browser.ready : m.settings.browser.needsSetup}</StatusBadge>
       </div>
-
-      <PreferenceRow title={m.settings.browser.enabled} description={m.settings.browser.enabledDescription}>
-        <ToggleSwitch checked={prefs.browserAutomationEnabled} label={m.settings.browser.enabled} onChange={(checked) => void save({ browserAutomationEnabled: checked })} />
+      <PreferenceRow title={m.settings.browser.skill} description={m.settings.browser.skillDescription}>
+        <StatusBadge tone={status?.skillEnabled ? "success" : "warning"}>{status?.skillEnabled ? m.settings.browser.installed : m.settings.browser.notInstalled}</StatusBadge>
       </PreferenceRow>
-      <PreferenceRow title={m.settings.browser.reuseTabs} description={m.settings.browser.reuseTabsDescription}>
-        <ToggleSwitch checked={prefs.browserReuseExistingTabs} label={m.settings.browser.reuseTabs} onChange={(checked) => void save({ browserReuseExistingTabs: checked })} />
+      <PreferenceRow title={m.settings.browser.cli} description={status?.cliVersion || m.settings.browser.cliDescription}>
+        <StatusBadge tone={status?.cliAvailable ? "success" : "warning"}>{status?.cliAvailable ? m.settings.browser.available : m.settings.browser.unavailable}</StatusBadge>
       </PreferenceRow>
+      <PreferenceRow title={m.settings.browser.extension} description={m.settings.browser.extensionDescription}>
+        <StatusBadge tone={status?.browserConnected ? "success" : "warning"}>{status?.browserConnected ? m.settings.browser.connected : m.settings.browser.disconnected}</StatusBadge>
+      </PreferenceRow>
+      <div className="settings-skill-actions settings-browser-actions">
+        <button type="button" data-motion="action" disabled={busy} onClick={onInstall}><Package size={14} aria-hidden />{busy ? m.settings.browser.installing : status?.skillInstalled ? m.settings.browser.updateSkill : m.settings.browser.installSkill}</button>
+        <button type="button" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={14} aria-hidden />{m.settings.browser.refresh}</button>
+        <button type="button" data-motion="action" onClick={onOpenDocs}><ExternalLink size={14} aria-hidden />{m.settings.browser.setupGuide}</button>
+      </div>
+      <p className="settings-note">{m.settings.browser.boundary}</p>
     </SettingsPanel>
-    <SettingsPanel title={m.settings.browser.evidenceTitle} scope={m.settings.scopes.localSecurity}>
-      <PreferenceRow title={m.settings.browser.evidenceDir} description={m.settings.browser.evidenceDirDescription}>
-        <input
-          className="settings-browser-path-input"
-          aria-label={m.settings.browser.evidenceDir}
-          value={evidenceDir}
-          onChange={(event) => setEvidenceDir(event.target.value)}
-          onBlur={saveEvidenceDir}
-          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-        />
-      </PreferenceRow>
-
-      <div className="settings-browser-token">
-        <div className="settings-browser-token-copy">
-          <span className="settings-browser-token-title"><KeyRound size={14} aria-hidden /><strong>{m.settings.browser.token}</strong></span>
-          <p>{m.settings.browser.tokenDescription}</p>
-          <small>{status?.extensionTokenConfigured ? m.settings.browser.configured : m.settings.browser.notConfigured}</small>
-        </div>
-        <div className="settings-browser-token-controls">
-          <input
-            type="password"
-            autoComplete="off"
-            value={token}
-            aria-label={m.settings.browser.token}
-            placeholder={m.settings.browser.tokenPlaceholder}
-            onChange={(event) => setToken(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") void submitToken(); }}
-          />
-          <button type="button" data-motion="action" disabled={!token.trim() || savingToken || status?.secureStorageAvailable === false} onClick={() => void submitToken()}>
-            <KeyRound size={13} aria-hidden />{status?.extensionTokenConfigured ? m.settings.browser.replaceToken : m.settings.browser.saveToken}
-          </button>
-          {status?.extensionTokenConfigured ? (
-            <button type="button" className="settings-browser-clear" data-motion="action" disabled={savingToken} onClick={() => void onClearToken()}>
-              <Trash2 size={13} aria-hidden />{m.settings.browser.clearToken}
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="settings-browser-boundary" role="note">
-        <p>{m.settings.browser.boundary}</p>
-        <button type="button" className="settings-subtle-action" data-motion="action" onClick={onOpenExtensionDocs}>
-          <ExternalLink size={13} aria-hidden />{m.settings.browser.installExtension}
-        </button>
-      </div>
-    </SettingsPanel>
-    </>
   );
 }
 

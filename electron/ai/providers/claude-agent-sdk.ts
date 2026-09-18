@@ -3,16 +3,12 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
 import { canAutoApprove, classifyApproval, commandDeletesDirectory } from "./types";
-import { buildWslLoginCommand, decodeProcessOutput, resolveWslLoginExecutable, spawnInDirectory } from "../process-utils";
+import { buildWslLoginCommand, decodeProcessOutput, parseWslPath, resolveWslLoginExecutable, spawnInDirectory, toWslPath } from "../process-utils";
 import type { AiEvent } from "../../../shared/contracts";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { Options, SDKUserMessage, SpawnOptions, SpawnedProcess, WarmQuery } from "@anthropic-ai/claude-agent-sdk";
-import {
-  CLAUDE_BROWSER_EVIDENCE_TOOL,
-  browserEvidenceInstructions,
-  buildBrowserMcpProcess
-} from "../browser-evidence";
+import { skillDiscoveryInstructions } from "../skill-discovery";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
@@ -80,13 +76,6 @@ export function decideClaudePermission(
       return { behavior: "deny", message: "WebFetch 只允许 HTTP(S) URL。" };
     }
   }
-  if (toolName === CLAUDE_BROWSER_EVIDENCE_TOOL && runContext.browserAutomation?.enabled) {
-    if (projectScoped) return { behavior: "deny", message: "Project 会话不开放浏览器取证工具。" };
-    if (firstPathInsideProtectedWorkspace(runContext, [runContext.cwd])) {
-      return { behavior: "deny", message: "Project 目录为只读，不能在其中写入浏览器取证文件。" };
-    }
-    return { behavior: "allow", updatedInput: input };
-  }
   if (readOnly && /write|edit|bash|powershell|notebook/i.test(toolName)) {
     return { behavior: "deny", message: "当前会话为只读模式。" };
   }
@@ -108,8 +97,8 @@ export function decideClaudePermission(
       return { behavior: "deny", message: `Project Glob/Workspace Glob 不能使用可能越出所选目录的 pattern：${pattern}` };
     }
   }
-  const paths = claudeToolPaths(toolName, input, blockedPath);
-  const tildePath = paths.find((candidate) => candidate.trimStart().startsWith("~"));
+  const providerPaths = claudeToolPaths(toolName, input, blockedPath);
+  const tildePath = providerPaths.find((candidate) => candidate.trimStart().startsWith("~"));
   if (tildePath) {
     // Claude expands `~`/`~/` before its filesystem tools run, while Node's
     // path.resolve treats it as a literal directory. Reject every tilde-prefixed
@@ -117,6 +106,11 @@ export function decideClaudePermission(
     // provider and host cannot disagree about the effective target.
     return { behavior: "deny", message: `Claude 工具路径不能以 ~ 开头：${tildePath}` };
   }
+  const paths = providerPaths.map((candidate) => {
+    if (runContext.provider?.runtime !== "wsl" || !path.posix.isAbsolute(candidate)) return candidate;
+    const providerRoot = parseWslPath(runContext.openmindRoot)?.linuxPath ?? toWslPath(runContext.openmindRoot);
+    return path.resolve(runContext.openmindRoot, path.posix.relative(providerRoot, candidate));
+  });
   const outside = firstPathOutsideExecutionRoot(runContext, paths);
   if (outside) {
     return {
@@ -298,12 +292,13 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const serviceProvider = context.session
       ? resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null)
       : resolveCliProvider("claude");
-    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider, context.protectedPaths);
+    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge);
     const existing = this.warmSlots.get(key);
     if (existing) return true;
     // A manually edited providers.yaml may change a draft before Main has sent
     // refresh-providers. Never retain the obsolete credential-bearing process.
-    if (!context.session) this.disposeDraftWarmSlots();
+    if (context.session) this.disposeSession(context.session.id);
+    else this.disposeDraftWarmSlots();
     let slot!: WarmSlot;
     const captureStderr = (text: string) => { slot.stderr = appendBounded(slot.stderr, text); };
     slot = {
@@ -321,7 +316,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
             providerSessionId: context.providerSessionId,
             providerModel: context.providerModel,
             serviceProvider,
-            browserAutomation: context.browserAutomation,
+            skillCatalog: context.skillCatalog,
             openmindRoot: context.openmindRoot,
             skillBridge: context.skillBridge,
             projectScoped: context.session?.scope?.type === "project-task",
@@ -368,8 +363,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const prompt = context.images.length ? claudeImageMessageStream(context.prompt, context.images) : context.prompt;
     let stderr = "";
     const captureStderr = (text: string) => { stderr = appendBounded(stderr, text); };
-    // Claude Code owns Skill discovery for every turn, including explicit
-    // `/skill-name` invocations, so warm sessions can be reused normally.
+    // A warm host may be reused only with the same admitted Skill catalog.
     let claimedWarm = this.claimWarmSlot(context);
     const query = claimedWarm
       ? await (async () => {
@@ -547,7 +541,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       providerSessionId: string | null;
       providerModel: string;
       serviceProvider: ProviderYamlEntry | null;
-      browserAutomation: ProviderRunContext["browserAutomation"];
+      skillCatalog?: ProviderRunContext["skillCatalog"];
       openmindRoot: string;
       skillBridge?: ProviderRunContext["skillBridge"];
       projectInstructions: string;
@@ -562,17 +556,14 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const nativeExecutable = context.provider.runtime === "native" && process.platform === "win32"
       ? context.serviceProvider ? resolveNativeClaudeExecutable() : resolveClaudeExecutable()
       : null;
-    const browserServer = context.projectScoped
-      ? null
-      : buildBrowserMcpProcess(context.provider, context.cwd, context.browserAutomation);
-    const browserInstructions = context.projectScoped ? "" : browserEvidenceInstructions(context.browserAutomation);
+    const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value);
     const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
     const systemAppend = [
       openmindFilesystemInstructions(context.openmindRoot),
       context.projectInstructions,
       fileReferenceInstructions(),
       markdownArtifactInstructions(),
-      browserInstructions,
+      discoveryInstructions,
       skillInstructions
     ].filter(Boolean).join("\n\n");
     return {
@@ -602,18 +593,6 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
         excludeDynamicSections: true,
         ...(systemAppend ? { append: systemAppend } : {})
       },
-      ...(browserServer ? {
-        mcpServers: {
-          openmind_browser: {
-            type: "stdio",
-            command: browserServer.command,
-            args: browserServer.args,
-            env: browserServer.env,
-            timeout: 90_000,
-            alwaysLoad: true
-          }
-        }
-      } : {}),
       // 所有平台保持同一应用层权限决策；Project 的可信 cwd 和显式路径
       // 边界由 Main 冻结，文件工具仍逐次经过 canUseTool 校验。
       sandbox: { enabled: false },
@@ -648,10 +627,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   private claimWarmSlot(context: ProviderRunContext): WarmSlot | null {
     const serviceProvider = resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null);
     const keys = [
-      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider, context.protectedPaths)
+      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge)
     ];
     if (!context.session.providerSessionId && context.session.scope?.type !== "project-task") {
-      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider, context.protectedPaths));
+      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge));
     }
     for (const key of keys) {
       const slot = this.warmSlots.get(key);
@@ -663,11 +642,11 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   }
 }
 
-function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null, protectedPaths: readonly string[] | undefined): string {
+function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null, protectedPaths: readonly string[] | undefined, skillCatalog?: ProviderRunContext["skillCatalog"], skillBridge?: ProviderRunContext["skillBridge"]): string {
   const serviceRevision = serviceProvider
     ? providerConfigurationRevision(serviceProvider)
     : "cli";
-  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision, [...(protectedPaths ?? [])].sort().join("\n")].join("\0");
+  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision, [...(protectedPaths ?? [])].sort().join("\n"), JSON.stringify((skillCatalog ?? []).map((entry) => [entry.id, entry.digest, entry.skillPath, entry.description])), skillBridge?.digest ?? ""].join("\0");
 }
 
 function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext, "provider" | "cwd"> & {
@@ -676,7 +655,7 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
   providerSessionId: string | null;
   providerModel: string;
   serviceProvider: ProviderYamlEntry | null;
-  browserAutomation: ProviderRunContext["browserAutomation"];
+  skillCatalog?: ProviderRunContext["skillCatalog"];
   openmindRoot: string;
   skillBridge?: ProviderRunContext["skillBridge"];
   projectInstructions: string;
@@ -690,7 +669,7 @@ function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext
     providerSessionId: context.session.providerSessionId,
     providerModel: context.providerModel,
     serviceProvider: resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null),
-    browserAutomation: context.browserAutomation,
+    skillCatalog: context.skillCatalog,
     openmindRoot: context.openmindRoot,
     skillBridge: context.skillBridge,
     projectScoped: context.session.scope?.type === "project-task",
@@ -1077,7 +1056,7 @@ function shouldForwardToWsl(key: string): boolean {
   return key === "DEBUG"
     || key.startsWith("CLAUDE_")
     || key.startsWith("ANTHROPIC_")
-    || ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"].includes(key);
+    || ["BSK_HOME", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"].includes(key);
 }
 
 function appendBounded(current: string, next: string, limit = 512 * 1024): string {

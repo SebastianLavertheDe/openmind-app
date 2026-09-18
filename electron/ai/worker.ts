@@ -1,6 +1,5 @@
 import { RunScheduler } from "./scheduler";
 import { AUTO_MODEL } from "../../shared/model-catalog";
-import { browserAutomationConfigFromEnv } from "./browser-evidence";
 
 type WorkerRequest = { id: string; method: string; args: unknown[] };
 const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest }) => void): void; postMessage(message: unknown): void } }).parentPort;
@@ -18,7 +17,6 @@ const scheduler = new RunScheduler(
   (payload) => port.postMessage({ type: "push", payload }),
   // 模型始终交给 Codex / Claude Code 自己的配置决定。保留 scheduler 的注入点仅供单元测试。
   () => AUTO_MODEL,
-  browserAutomationConfigFromEnv(),
   stateRoot,
   openmindRoot,
   rootGeneration

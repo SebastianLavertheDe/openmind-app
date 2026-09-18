@@ -66,13 +66,13 @@ except for the brief moment the user types a new one.
 - Main starts the AI Worker with `buildAiWorkerEnvironment`, which copies only
   the cross-platform runtime baseline needed for PATH lookup, user config,
   temporary files and locale/timezone behavior.
-- App paths, root generation, browser preferences and the extension token are
+- App paths, root generation, BrowserSkill CLI location and its runtime home are
   explicit Main-owned overrides. Arbitrary parent variables, provider keys,
   `NODE_OPTIONS`, `PYTHONPATH`, `LD_PRELOAD` and `DYLD_*` do not cross the
   Worker boundary.
-- Browser MCP children use the same filter. A browser extension token is
-  passed only when the host explicitly selects browser automation; it is not
-  inherited from the shell or exposed to a Skill process by default.
+- BrowserSkill status probes use the same filter. Browser automation runs
+  through the installed Skill, `bsk` and its extension; the App no longer
+  registers a browser MCP or manages a browser extension token.
 - This is environment-leakage hygiene, not OS privilege isolation; all host
   processes still run as the current user (ADR-004).
 
@@ -84,7 +84,7 @@ except for the brief moment the user types a new one.
   errors, and diagnostics export.
 - Crash dumps for secret-bearing workers are disabled for full-memory dump
   and auto-upload.
-- The AI Worker and Browser MCP child receive a closed Main-owned environment
+- The AI Worker and BrowserSkill status probes receive a closed Main-owned environment
   allowlist. Explicit overrides cannot add provider keys, loader hooks or
   crash/diagnostic uploader variables. The local evidence gate also rejects an
   App-owned `crashReporter`, Node diagnostic-report or upload startup path;

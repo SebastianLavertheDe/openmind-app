@@ -117,9 +117,8 @@ export class InstalledSkillExecutionResolver {
       || record.digest.toLowerCase() !== reference.digest.toLowerCase()) {
       throw new InstalledSkillExecutionError(`会话绑定的 Installed Skill 已被替换或删除：${snapshot.definition.id}`);
     }
-    // Deliberately do not read the current enabled preference here. Existing
-    // sessions retain their capability set, while package bytes and identity
-    // are still re-inspected on every bridge resolution.
+    // Enabled preferences are captured before each turn. Re-inspect package
+    // bytes and identity here so replaced/tampered files cannot be bridged.
     const inspection = this.packages.inspectInstalledCopy(record);
     if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
     // Every installed kind (agent/process/workflow) is bridged through its
@@ -135,7 +134,8 @@ export class InstalledSkillExecutionResolver {
       instructions: fs.readFileSync(skillPath, "utf8"),
       referencePaths: listReferenceFiles(packageRoot),
       openmindRoot: canonicalDirectory(this.openmindRoot),
-      capabilities: inspection.manifest.capabilities
+      capabilities: inspection.manifest.capabilities,
+      capabilitiesDeclared: ["cctools.skill.yaml", "openmind.skill.yaml"].some((name) => fs.existsSync(path.join(packageRoot, name)))
     };
   }
 
@@ -151,9 +151,9 @@ export class InstalledSkillExecutionResolver {
 
   /**
    * Capture renderer-safe Skill metadata plus exact installed provenance for
-   * every installed kind (agent/process/workflow). New sessions use enabled
-   * packages only; legacy backfill opts into every usable package to preserve
-   * the old all-installed behavior. Broker/Automation execution boundaries
+   * every installed kind (agent/process/workflow). Conversations use enabled
+   * packages only; inspection callers can explicitly include disabled ones.
+   * Broker/Automation execution boundaries
    * are unchanged and keep validating kind-specific plans independently.
    */
   captureSessionSnapshot(includeDisabled = false): AiSessionSkillSnapshotEntry[] {

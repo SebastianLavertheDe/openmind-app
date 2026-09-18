@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(122);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(122);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(122);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(121);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(121);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(121);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -105,25 +105,9 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     hasRequiredStartupConfiguration: () => true,
     getActiveRunCount: async () => 0,
     restartAiWorker: vi.fn(),
-    getBrowserAutomationStatus: () => ({
-      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
-      secureStorageAvailable: true, packageAvailable: true, ready: false,
-      diagnostic: "AI 写作取证已关闭。"
-    }),
+    getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 BrowserSkill。" }),
+    installBrowserSkill: async () => ({ skillInstalled: true, skillEnabled: true, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 bsk CLI。" }),
     getMcpServers: () => [],
-    saveBrowserExtensionToken: () => ({
-      backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: true,
-      secureStorageAvailable: true, packageAvailable: true, ready: true,
-      diagnostic: "已就绪"
-    }),
-    clearBrowserExtensionToken: () => ({
-      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
-      secureStorageAvailable: true, packageAvailable: true, ready: false,
-      diagnostic: "未配置"
-    }),
     syncWindowTheme: vi.fn(),
     globalSearch: async () => [],
     localDate: () => "20260708",
@@ -742,8 +726,8 @@ describe("handler forwarding — preferences 类", () => {
     const settings = await import("./lib/settings");
     const update = vi.spyOn(settings, "updatePreferences").mockReturnValue({} as never);
     const ctx = makeCtx();
-    await invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { browserAutomationEnabled: true });
-    expect(update).toHaveBeenCalledWith({ browserAutomationEnabled: true });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { riskScanEnabled: false });
+    expect(update).toHaveBeenCalledWith({ riskScanEnabled: false });
     expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { openmindRoot: "" })).toThrow();
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.updatePreferences, { workspaceRoot: "" })).toThrow();

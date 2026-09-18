@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunScheduler } from "./scheduler";
+import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
+import { SkillPackageService } from "../skills/skill-package-service";
 import type { AiEvent, AiRun, AiSession, AiSessionSkillSnapshotEntry, ProviderCapabilities } from "../../shared/contracts";
 import type { ProviderRunContext } from "./providers/types";
 import { SkillToolRegistry } from "./skill-tool-registry";
@@ -20,6 +22,7 @@ function createRoot(): string {
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("RunScheduler input boundaries", () => {
@@ -53,7 +56,7 @@ describe("RunScheduler input boundaries", () => {
     const projectsRoot = path.join(root, "projects");
     fs.mkdirSync(path.join(projectsRoot, "Research", "materials"), { recursive: true });
     fs.writeFileSync(path.join(projectsRoot, "Research", "materials", "note.md"), "private");
-    const scheduler = new RunScheduler(root, () => undefined, undefined, undefined, createRoot(), root, 1, projectsRoot);
+    const scheduler = new RunScheduler(root, () => undefined, undefined, createRoot(), root, 1, projectsRoot);
     const provider: ProviderCapabilities = {
       id: "claude-native", provider: "claude", label: "Claude Code", runtime: "native",
       available: true, version: "test", supportsApprovals: true, supportsResume: true,
@@ -110,13 +113,14 @@ describe("RunScheduler Project Task scope", () => {
     supportsImages: true, diagnostic: null
   };
 
-  function projectScheduler() {
+  function projectScheduler(providerId = "claude-native") {
     const workspace = createRoot();
     const stateRoot = createRoot();
     const contentRoot = createRoot();
+    vi.stubEnv("OPENMIND_USER_DATA_DIR", stateRoot);
     const projects = new ProjectService(contentRoot, { stateRoot });
     const project = projects.createProject({ name: "AI安全", description: "" }).project;
-    const task = projects.createProjectTask(project.name, "Project task", "claude-native");
+    const task = projects.createProjectTask(project.name, "Project task", providerId);
     const projectsRoot = projects.paths.projectsRoot;
     const projectRoot = projects.resolveProjectRoot(project.name);
     return {
@@ -127,9 +131,55 @@ describe("RunScheduler Project Task scope", () => {
       contentRoot,
       project,
       task,
-      scheduler: new RunScheduler(workspace, () => undefined, undefined, undefined, stateRoot, contentRoot, 1, projectsRoot)
+      scheduler: new RunScheduler(workspace, () => undefined, undefined, stateRoot, contentRoot, 1, projectsRoot)
     };
   }
+
+  it.each([
+    ["claude", false], ["claude", true], ["codex", false], ["codex", true]
+  ] as const)("automatically discovers enabled Skills without a slash command for %s Project=%s and refreshes on continuation", async (provider, projectScoped) => {
+    const fixture = projectScheduler(`${provider}-native`);
+    const paths = buildAppPaths(fixture.stateRoot, path.join(fixture.contentRoot, ".agent", "skills"));
+    ensureAppPaths(paths);
+    const packages = new SkillPackageService(paths);
+    const source = path.join(createRoot(), "skill");
+    fs.mkdirSync(source);
+    fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: browser-skill\ndescription: Read logged-in browser pages\n---\n# BrowserSkill\nUse bsk for this task.\n");
+    const installed = packages.install(source);
+    const internals = schedulerInternals(fixture.scheduler);
+    const selectedProvider = { ...claudeProvider, provider, id: `${provider}-native` };
+    internals.registry.detect = () => [selectedProvider];
+    let expectedEnabled = true;
+    let observedCatalog = false;
+    internals.adapters[provider] = {
+      run: async (context) => {
+        expect(context.skillInvocation).toBeNull();
+        expect(context.skillCatalog?.map((entry) => entry.id)).toEqual(expectedEnabled ? ["browser-skill"] : []);
+        if (expectedEnabled) {
+          const entry = context.skillCatalog![0];
+          expect(entry.description).toBe("Read logged-in browser pages");
+          expect(fs.readFileSync(entry.skillPath, "utf8")).toContain("Use bsk for this task.");
+        }
+        observedCatalog = true;
+        await context.emit("assistant-message", { text: "done", phase: "final" });
+      }
+    };
+    const first = projectScoped
+      ? fixture.scheduler.startProjectRun({ projectRoot: fixture.projectRoot, projectId: fixture.project.id, projectName: fixture.project.name, taskId: fixture.task.taskId, providerId: selectedProvider.id, prompt: "读取网页" })
+      : fixture.scheduler.startRun({ providerId: selectedProvider.id, permissionProfile: "auto", cwd: ".", prompt: "读取网页", contexts: [] });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === first.run.id)?.status === "completed");
+    expect(observedCatalog).toBe(true);
+    expect(first.session.skillSnapshot?.map((entry) => entry.definition.id)).toEqual(["browser-skill"]);
+    packages.setEnabled(installed.key, installed.digest, false);
+    expectedEnabled = false;
+    observedCatalog = false;
+    const next = projectScoped
+      ? fixture.scheduler.startProjectRun({ sessionId: first.session.id, permissionProfile: first.session.permissionProfile, prompt: "继续", contexts: [] })
+      : fixture.scheduler.startRun({ sessionId: first.session.id, providerId: selectedProvider.id, permissionProfile: first.session.permissionProfile, cwd: first.session.cwd, prompt: "继续", contexts: [] });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === next.run.id)?.status === "completed");
+    expect(observedCatalog).toBe(true);
+    expect(next.session.skillSnapshot).toEqual([]);
+  });
 
   it("persists complete final articles as Project outputs with provenance and preserves edits on retries", async () => {
     const fixture = projectScheduler();
@@ -473,7 +523,7 @@ describe("RunScheduler 会话/运行管理", () => {
     expect(internals.store.getSession(session.id).skillSnapshot).toEqual(snapshot);
   });
 
-  it("existing session uses its frozen snapshot at start, persistence and execution", async () => {
+  it("existing session refreshes enabled Skills before its next turn", async () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
     const internals = schedulerInternals(scheduler);
@@ -485,10 +535,10 @@ describe("RunScheduler 会话/运行管理", () => {
       title: "Frozen",
       permissionProfile: "edit",
       scope: workspaceScope,
-      skillSnapshot: snapshot
+      skillSnapshot: []
     });
     const listDefinitions = vi.fn(() => []);
-    const captureSessionSnapshot = vi.fn(() => []);
+    const captureSessionSnapshot = vi.fn(() => snapshot);
     const providerSkillBridge = vi.fn(() => null);
     internals.skillTools.listDefinitions = listDefinitions;
     internals.skillTools.captureSessionSnapshot = captureSessionSnapshot;
@@ -514,9 +564,9 @@ describe("RunScheduler 会话/运行管理", () => {
 
     expect(invokedSkill).toBe("creative-writing");
     expect(listDefinitions).not.toHaveBeenCalled();
-    expect(captureSessionSnapshot).not.toHaveBeenCalled();
+    expect(captureSessionSnapshot).toHaveBeenCalledWith();
     expect(providerSkillBridge).toHaveBeenCalledWith(snapshot[0]);
-    expect(providerSkillBridge).toHaveBeenCalledTimes(2);
+    expect(providerSkillBridge).toHaveBeenCalledTimes(3);
   });
 
   it.each([
@@ -538,6 +588,7 @@ describe("RunScheduler 会话/运行管理", () => {
     const adapterRun = vi.fn(async () => undefined);
     internals.adapters[adapter] = { run: adapterRun };
     internals.registry.detect = () => [provider];
+    internals.skillTools.captureSessionSnapshot = () => sessionSkillSnapshot();
     internals.skillTools.providerSkillBridge = vi.fn(() => {
       throw new Error("会话 Skill 不是 Agent 类型");
     });
@@ -556,7 +607,7 @@ describe("RunScheduler 会话/运行管理", () => {
     expect(scheduler.snapshot().runs.find((item) => item.id === run.id)?.error).toContain("不是 Agent 类型");
   });
 
-  it("scheduler startup eagerly persists legacy snapshots using the include-disabled catalog", () => {
+  it("scheduler startup persists the enabled catalog for legacy conversations", () => {
     const root = createRoot();
     const first = new RunScheduler(root, () => undefined);
     const firstInternals = schedulerInternals(first);
@@ -574,11 +625,11 @@ describe("RunScheduler 会话/运行管理", () => {
     fs.writeFileSync(sessionFile, JSON.stringify(persisted), "utf8");
     const snapshot = sessionSkillSnapshot();
     const capture = vi.spyOn(SkillToolRegistry.prototype, "captureSessionSnapshot")
-      .mockImplementation((includeDisabled = false) => includeDisabled ? snapshot : []);
+      .mockReturnValue(snapshot);
 
     const restarted = new RunScheduler(root, () => undefined);
 
-    expect(capture).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith();
     expect(restarted.snapshot().sessions.find((item) => item.id === legacy.id)?.skillSnapshot).toEqual(snapshot);
     expect(JSON.parse(fs.readFileSync(sessionFile, "utf8")).skillSnapshot).toEqual(snapshot);
   });
@@ -599,7 +650,7 @@ describe("RunScheduler 会话/运行管理", () => {
 
     new RunScheduler(root, () => undefined);
 
-    expect(capture).toHaveBeenCalledWith(true);
+    expect(capture).toHaveBeenCalledWith();
   });
 
   it("startRun:provider 不可用时抛错", () => {

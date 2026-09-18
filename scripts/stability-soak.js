@@ -8,7 +8,7 @@
  * - it executes the compiled SessionStore and RunStore against temporary
  *   state, including concurrent append and restart/reload checks;
  * - it validates a large synthetic Manifest set and repeatedly generates the
- *   controlled Browser capture contract;
+ *   Installed Skill discovery contract;
  * - it does not claim live Provider, Chrome extension, clean-machine or
  *   packaged force-quit evidence.
  */
@@ -25,7 +25,7 @@ const reportPath = path.join(buildRoot, "stability-soak-report.json");
 const sessionStorePath = path.join(buildRoot, "electron", "electron", "ai", "session-store.js");
 const runStorePath = path.join(buildRoot, "electron", "electron", "execution", "run-store.js");
 const manifestSchemaPath = path.join(buildRoot, "electron", "shared", "skill-manifest-schema.js");
-const browserCapturePath = path.join(buildRoot, "electron", "electron", "ai", "browser-evidence-capture.js");
+const skillDiscoveryPath = path.join(buildRoot, "electron", "electron", "ai", "skill-discovery.js");
 
 const config = {
   cycles: positiveInteger("OPENMIND_SOAK_CYCLES", 3),
@@ -33,7 +33,7 @@ const config = {
   sessionCount: positiveInteger("OPENMIND_SOAK_SESSIONS", 100),
   eventCount: positiveInteger("OPENMIND_SOAK_EVENTS", 1000),
   brokerRunCount: positiveInteger("OPENMIND_SOAK_BROKER_RUNS", 100),
-  browserContractCycles: positiveInteger("OPENMIND_SOAK_BROWSER_CYCLES", 1000)
+  skillDiscoveryCycles: positiveInteger("OPENMIND_SOAK_SKILL_CYCLES", 1000)
 };
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-stability-soak-"));
@@ -49,13 +49,13 @@ async function main() {
     const { SessionStore } = require(sessionStorePath);
     const { RunStore } = require(runStorePath);
     const { SkillManifestSchema } = require(manifestSchemaPath);
-    const { buildControlledCaptureCode } = require(browserCapturePath);
+    const { skillDiscoveryInstructions } = require(skillDiscoveryPath);
 
     const tracks = {
       manifestValidation: [],
       sessionSchedulerPersistence: [],
       brokerRunRecovery: [],
-      cliBrowserEvidenceContract: []
+      installedSkillDiscoveryContract: []
     };
     for (let cycle = 0; cycle < config.cycles; cycle += 1) {
       const cycleRoot = path.join(temporaryRoot, `cycle-${cycle}`);
@@ -63,7 +63,7 @@ async function main() {
       tracks.manifestValidation.push(runManifestValidationSoak(SkillManifestSchema));
       tracks.sessionSchedulerPersistence.push(await runSessionSchedulerSoak(SessionStore, cycleRoot));
       tracks.brokerRunRecovery.push(runBrokerRunSoak(RunStore, cycleRoot));
-      tracks.cliBrowserEvidenceContract.push(runCliBrowserEvidenceContractSoak(buildControlledCaptureCode, cycle));
+      tracks.installedSkillDiscoveryContract.push(runInstalledSkillDiscoveryContractSoak(skillDiscoveryInstructions, cycle));
     }
 
     report = {
@@ -80,7 +80,7 @@ async function main() {
         manifests: config.manifestCount * config.cycles,
         sessions: config.sessionCount * config.cycles,
         brokerRuns: config.brokerRunCount * config.cycles,
-        browserContractCycles: config.browserContractCycles * config.cycles
+        skillDiscoveryCycles: config.skillDiscoveryCycles * config.cycles
       },
       externalGates: [
         "live Windows/macOS Provider E2E",
@@ -91,7 +91,7 @@ async function main() {
       durationMs: round(performance.now() - started)
     };
     writeReport(report);
-    console.log(`Local stability soak passed: ${config.manifestCount} manifests, ${config.sessionCount} sessions, ${config.brokerRunCount} Broker Runs, ${config.browserContractCycles} Browser contract cycles.`);
+    console.log(`Local stability soak passed: ${config.manifestCount} manifests, ${config.sessionCount} sessions, ${config.brokerRunCount} Broker Runs, ${config.skillDiscoveryCycles} Skill discovery cycles.`);
   } catch (error) {
     report = {
       schemaVersion: 1,
@@ -113,7 +113,7 @@ async function main() {
 }
 
 function requireBuildArtifacts() {
-  for (const target of [sessionStorePath, runStorePath, manifestSchemaPath, browserCapturePath]) {
+  for (const target of [sessionStorePath, runStorePath, manifestSchemaPath, skillDiscoveryPath]) {
     if (!fs.existsSync(target)) throw new Error(`Missing compiled soak dependency: ${path.relative(appRoot, target)}. Run npm run build first.`);
   }
 }
@@ -168,6 +168,7 @@ async function runSessionSchedulerSoak(SessionStore, cycleRoot) {
       providerId: `${index % 2 ? "claude" : "codex"}:soak:${index}`,
       cwd: ".",
       title: `Stability Soak Session ${String(index).padStart(4, "0")}`,
+      scope: { type: "workspace" },
       permissionProfile: index % 3 === 0 ? "read-only" : index % 3 === 1 ? "edit" : "auto"
     }));
   }
@@ -273,25 +274,28 @@ function runBrokerRunSoak(RunStore, cycleRoot) {
   };
 }
 
-function runCliBrowserEvidenceContractSoak(buildControlledCaptureCode, cycle) {
+function runInstalledSkillDiscoveryContractSoak(skillDiscoveryInstructions, cycle) {
   const started = performance.now();
   let codeBytes = 0;
-  for (let index = 0; index < config.browserContractCycles; index += 1) {
-    const code = buildControlledCaptureCode({
-      imagePath: `/tmp/openmind-soak-${cycle}-${index}.png`,
-      quote: `quote-${index}`,
-      scope: index % 2 ? "component" : "auto"
-    });
-    assert(code.includes("SOURCE_QUOTE_NOT_FOUND"), "Browser contract lost quote failure handling.");
-    assert(code.includes("finally"), "Browser contract lost target restoration.");
-    assert(code.includes("target.screenshot"), "Browser contract lost bounded screenshot capture.");
+  for (let index = 0; index < config.skillDiscoveryCycles; index += 1) {
+    const code = skillDiscoveryInstructions([{
+      id: `fixture-${cycle}-${index}`,
+      version: "1.0.0",
+      digest: "a".repeat(64),
+      description: "Read a page and capture evidence through an installed Skill",
+      packageRoot: `/fixture/skills/fixture-${index}`,
+      skillPath: `/fixture/skills/fixture-${index}/SKILL.md`
+    }]);
+    assert(code.includes("SKILL.md"), "Skill discovery lost its instruction entrypoint.");
+    assert(code.includes("必须先用文件读取工具"), "Skill discovery lost progressive instruction loading.");
+    assert(code.includes("普通会话和 Project 会话"), "Skill discovery lost a conversation scope.");
     codeBytes += Buffer.byteLength(code);
   }
   return {
     status: "passed",
-    cycles: config.browserContractCycles,
+    cycles: config.skillDiscoveryCycles,
     generatedBytes: codeBytes,
-    mode: "cli-browser-evidence-contract-only",
+    mode: "installed-skill-discovery-contract-only",
     liveProviderAndChromeE2E: "manual-required",
     durationMs: round(performance.now() - started)
   };

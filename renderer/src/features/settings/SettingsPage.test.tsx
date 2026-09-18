@@ -34,27 +34,7 @@ const skills: SkillDefinition[] = [
   }
 ];
 
-const mcpServers: McpServerDefinition[] = [{
-  id: "openmind_browser",
-  title: "写作证据截图",
-  description: "写作时按需打开来源链接，定位原文并生成可引用的证据截图。",
-  backend: "Microsoft Playwright MCP",
-  transport: "stdio",
-  connection: "Playwright Chrome 扩展",
-  enabled: false,
-  available: true,
-  status: "disabled",
-  diagnostic: "AI 写作取证已关闭。",
-  providers: ["Codex", "Claude"],
-  settingsSection: "browser",
-  tools: [{
-    id: "capture_source_evidence",
-    title: "截取原文证据",
-    description: "复用 URL 完全匹配的 Chrome 标签页，定位引文、截图并恢复浏览器现场。",
-    inputs: ["url", "quote", "capture_scope", "caption", "filename"],
-    outputs: ["PNG", "JSON 元数据", "Markdown 图片引用"]
-  }]
-}];
+const mcpServers: McpServerDefinition[] = [];
 
 const defaultPrefs: UserPreferences = {
   schemaVersion: 1, openmindRoot: "/repo", workspaceRoot: "/repo", themeMode: "light",
@@ -62,8 +42,7 @@ const defaultPrefs: UserPreferences = {
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "",
   defaultPermissionProfile: "edit",
-  notesDir: "openmind", browserAutomationEnabled: false,
-  browserReuseExistingTabs: true, browserEvidenceDir: "assets/browser-evidence", destructiveOpsRequireApproval: true,
+  notesDir: "openmind", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
   defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
   workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true,
@@ -99,12 +78,8 @@ function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
     getPreferences: async () => defaultPrefs,
     updatePreferences: async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }),
     resetPreferences: async () => defaultPrefs,
-    getBrowserAutomationStatus: async () => ({
-      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
-      secureStorageAvailable: true, packageAvailable: true, ready: false,
-      diagnostic: "AI 写作取证已关闭。"
-    }),
+    getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 BrowserSkill。" }),
+    installBrowserSkill: async () => ({ skillInstalled: true, skillEnabled: true, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 bsk CLI。" }),
     getMcpServers: async () => mcpServers,
     getProviderApiKey: async (id: string) => `sk-existing-${id}`,
     getSharedPythonRuntimeStatus: async () => ({ enabled: false, phase: "disabled", target: "linux-x64", pythonVersion: null, uvVersion: null, managedSkills: 0, ready: false, lastError: null }),
@@ -625,60 +600,27 @@ describe("SettingsPage", () => {
     expect(screen.getByText(/2 个 Skill/)).toBeTruthy();
   });
 
-  it("keeps MCP searchable without exposing permission profiles", async () => {
+  it("removes the app-owned browser screenshot MCP from settings", async () => {
     window.openmind = makeApi();
-    renderSettings(vi.fn(), snapshot, vi.fn(), vi.fn(), skills);
-    await screen.findByRole("heading", { name: "常规" });
-
-    openCategory("MCP 服务");
-    expect(screen.getByText("写作证据截图")).toBeTruthy();
-    expect(screen.getByText("openmind_browser")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /写作证据截图/ }));
-    expect(screen.getByText("Microsoft Playwright MCP")).toBeTruthy();
-    expect(screen.getByText("capture_source_evidence")).toBeTruthy();
-    expect(screen.getByText("PNG · JSON 元数据 · Markdown 图片引用")).toBeTruthy();
-    expect(screen.queryByText("browser_run_code_unsafe")).toBeNull();
-    expect(screen.queryByText("只读")).toBeNull();
-    expect(screen.queryByText("编辑")).toBeNull();
-    expect(screen.queryByText("自动执行")).toBeNull();
-
-    fireEvent.change(screen.getByRole("searchbox", { name: "搜索 MCP 服务和工具" }), { target: { value: "capture_source" } });
-    expect(screen.getByText("截取原文证据")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "前往浏览器设置" }));
-    expect(screen.getByRole("heading", { name: "浏览器" })).toBeTruthy();
-  });
-
-  it("configures the controlled Chrome evidence workflow without exposing raw browser tools", async () => {
-    const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    const getBrowserAutomationStatus = vi.fn().mockResolvedValue({
-      backend: "playwright-mcp", enabled: false, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: false,
-      secureStorageAvailable: true, packageAvailable: true, ready: false,
-      diagnostic: "AI 写作取证已关闭。"
-    });
-    const saveBrowserExtensionToken = vi.fn().mockResolvedValue({
-      backend: "playwright-mcp", enabled: true, reuseExistingTabs: true,
-      evidenceDir: "assets/browser-evidence", extensionTokenConfigured: true,
-      secureStorageAvailable: true, packageAvailable: true, ready: true,
-      diagnostic: "已准备好复用 Chrome 登录状态和扩展授权的标签页。"
-    });
-    window.openmind = makeApi({ updatePreferences, getBrowserAutomationStatus, saveBrowserExtensionToken });
     renderSettings();
     await screen.findByRole("heading", { name: "常规" });
+    openCategory("MCP 服务");
+    expect(screen.getByText("当前没有已注册的 MCP 服务")).toBeTruthy();
+    expect(screen.queryByText("capture_source_evidence")).toBeNull();
+  });
 
+  it("installs BrowserSkill and shows missing runtime dependencies without a token input", async () => {
+    const installBrowserSkill = vi.fn().mockResolvedValue({ skillInstalled: true, skillEnabled: true, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 bsk CLI。" });
+    window.openmind = makeApi({ installBrowserSkill });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
     openCategory("浏览器");
     expect(screen.getByRole("heading", { name: "浏览器连接" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "证据与授权" })).toBeTruthy();
-    expect(screen.getByText(/不能输入密码、提交表单/)).toBeTruthy();
-    expect(screen.queryByText("browser_run_code_unsafe")).toBeNull();
-
-    fireEvent.click(screen.getByRole("switch", { name: "允许 AI 自主获取原文截图" }));
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ browserAutomationEnabled: true })));
-
-    fireEvent.change(screen.getByLabelText("扩展令牌"), { target: { value: "secret-token" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存令牌" }));
-    await waitFor(() => expect(saveBrowserExtensionToken).toHaveBeenCalledWith("secret-token"));
-    expect(await screen.findByText("已安全保存")).toBeTruthy();
+    expect(screen.queryByLabelText("扩展令牌")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "安装 BrowserSkill" }));
+    await waitFor(() => expect(installBrowserSkill).toHaveBeenCalledOnce());
+    expect(await screen.findByText("请安装 bsk CLI。")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "更新 BrowserSkill" })).toBeTruthy();
   });
 
   it("saves permission defaults and approval toggles", async () => {

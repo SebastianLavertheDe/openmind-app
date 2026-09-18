@@ -27,11 +27,10 @@ import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
 import { slashCommandValidationError } from "../../shared/slash-commands";
 import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
 import type { ProviderAdapter, ProviderDefinition } from "./providers/types";
-import { DEFAULT_BROWSER_EVIDENCE_DIR, type SkillDefinition } from "../../shared/contracts";
+import type { SkillDefinition } from "../../shared/contracts";
 import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-lifecycle";
 import { titleFromPrompt } from "./scheduler-prompts";
 import { matchesSemverRange } from "../../shared/skill-manifest-schema";
-import { type BrowserAutomationConfig } from "./browser-evidence";
 import { WorkflowResumeRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
 import { buildAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
@@ -62,7 +61,6 @@ export class RunScheduler {
   private readonly adapters = Object.fromEntries(this.providers.map((definition) => [definition.kind, definition.adapter])) as Record<string, ProviderAdapter>;
   private readonly maxConcurrentRuns = 3;
   private readonly resolveProviderModel: (kind: ProviderKind) => string;
-  private readonly browserAutomation: BrowserAutomationConfig;
   private readonly stateRoot?: string;
   private readonly openmindRoot: string;
   private readonly projectsRoot?: string;
@@ -72,14 +70,12 @@ export class RunScheduler {
     readonly projectRoot: string,
     private publish: (message: unknown) => void,
     resolveProviderModel?: (kind: ProviderKind) => string,
-    browserAutomation?: BrowserAutomationConfig,
     stateRoot?: string,
     openmindRoot?: string,
     rootGeneration = 1,
     trustedProjectsRoot?: string
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
-    this.browserAutomation = browserAutomation ?? { enabled: false, reuseExistingTabs: true, evidenceDir: DEFAULT_BROWSER_EVIDENCE_DIR, extensionToken: null };
     this.stateRoot = stateRoot;
     this.openmindRoot = openmindRoot || projectRoot;
     this.projectsRoot = trustedProjectsRoot ?? (openmindRoot ? path.join(openmindRoot, "projects") : undefined);
@@ -152,15 +148,8 @@ export class RunScheduler {
     this.approvals = new ApprovalBroker((request) => void handleApprovalRequest(this.executionHost(), request));
     this.store.initialize();
     this.store.reconcileArchivedProjectTaskSessions();
-    // Old sessions predate the enabled preference and therefore behaved as if
-    // every usable installed Skill was on. Freeze that compatibility catalog
-    // synchronously before the worker accepts any request. This path never
-    // reads skill-preferences.json, so a corrupt preference cannot brick
-    // bootstrap or an existing conversation.
-    this.store.backfillMissingSkillSnapshots(() => this.skillTools.captureSessionSnapshot(true));
-    // Keep existing conversations aligned with the current installed catalog
-    // so slash commands list every Skill, not only the kinds frozen earlier.
-    this.store.refreshWorkspaceSkillSnapshots(() => this.skillTools.captureSessionSnapshot(true));
+    this.store.backfillMissingSkillSnapshots(() => this.skillTools.captureSessionSnapshot());
+    this.store.refreshSkillSnapshots(() => this.skillTools.captureSessionSnapshot());
     recoverInterruptedRuns(this.store);
     cleanupStaleImages(this.projectRoot, this.stateRoot);
     this.automation?.start();
@@ -236,6 +225,8 @@ export class RunScheduler {
   /** 重新扫描 skill 目录并返回最新列表(用于新对话时刷新前端缓存)。 */
   refreshSkills(): SkillDefinition[] {
     this.skillTools.refresh();
+    this.store.refreshSkillSnapshots(() => this.skillTools.captureSessionSnapshot());
+    this.publishSnapshot();
     return this.skillTools.listDefinitions();
   }
 
@@ -252,7 +243,7 @@ export class RunScheduler {
       adapter: this.adapters[provider],
       provider,
       resolveProviderModel: this.resolveProviderModel,
-      browserAutomation: this.browserAutomation
+      skillCatalog: this.skillTools.providerSkillCatalog(this.skillTools.captureSessionSnapshot())
     }, sessionId);
   }
 
@@ -381,18 +372,16 @@ export class RunScheduler {
     contexts: AiRun["contexts"];
     acknowledgeProviderChange?: boolean;
   }): { session: AiSession; run: AiRun } {
-    // New conversations refresh only the active catalog. Installed packages
-    // are read on demand; legacy workspace discovery rescans when applicable.
+    // Every turn refreshes enabled Installed Skills, including continuations
+    // and Project Tasks. Full instructions are read only when applicable.
     const projectScoped = isProjectTaskScope(input.scope);
-    if (!input.session && !projectScoped) this.skillTools.refresh();
+    this.skillTools.refresh();
     const contexts = normalizeContextReferences(input.sessionRoot, input.contexts);
-    let session = input.session;
-    const skillSnapshot = session
-      ? requireSessionSkillSnapshot(session)
-      : projectScoped ? [] : this.skillTools.captureSessionSnapshot();
-    const skillInvocation = projectScoped
-      ? null
-      : parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
+    const skillSnapshot = this.skillTools.captureSessionSnapshot();
+    let session = input.session
+      ? this.store.refreshSessionSkillSnapshot(input.session.id, skillSnapshot)
+      : null;
+    const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
     const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
     const provider = this.registry.detect().find((item) => item.id === input.providerId);
@@ -501,7 +490,6 @@ export class RunScheduler {
       skillTools: this.skillTools,
       approvals: this.approvals,
       adapters: this.adapters,
-      browserAutomation: this.browserAutomation,
       resolveProviderModel: this.resolveProviderModel,
       queue: this.queue,
       active: this.active,
@@ -514,11 +502,4 @@ export class RunScheduler {
   }
 
   private publishSnapshot(): void { this.publish({ kind: "snapshot", snapshot: this.snapshot() }); }
-}
-
-function requireSessionSkillSnapshot(session: AiSession) {
-  if (!session.skillSnapshot) {
-    throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
-  }
-  return session.skillSnapshot;
 }

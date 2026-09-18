@@ -520,35 +520,18 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(fs.existsSync(path.join(isolatedHome, "skills"))).toBe(false);
   });
 
-  it("浏览器取证开启时在 thread/start 注入单一受控 MCP 工具和写作规则", async () => {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-codex-browser-"));
-    try {
-      const base = makeContext();
-      const ctx = makeContext({
-        openmindRoot: workspace,
-        cwd: workspace,
-        session: { ...base.session, projectRoot: workspace, cwd: "." },
-        browserAutomation: {
-          enabled: true,
-          reuseExistingTabs: true,
-          evidenceDir: "assets/browser-evidence",
-          extensionToken: "extension-token"
-        }
-      });
-      const child = await driveSuccessfulRun(ctx);
-      const request = child.writtenLines
-        .map((line) => JSON.parse(line))
-        .find((message) => message.method === "thread/start");
-      const server = request.params.config.mcp_servers.openmind_browser;
-
-      expect(server.enabled_tools).toEqual(["capture_source_evidence"]);
-      expect(server.default_tools_approval_mode).toBe("approve");
-      expect(request.params.developerInstructions).toContain("复用该标签页");
-      expect(request.params.developerInstructions).toContain("~~~~openmind-artifact");
-      expect(JSON.stringify(request.params.config)).not.toContain("browser_run_code_unsafe");
-    } finally {
-      fs.rmSync(workspace, { recursive: true, force: true });
-    }
+  it.each([false, true])("automatically discovers installed BrowserSkill in a Project=%s turn", async (projectScoped) => {
+    const base = makeContext();
+    const child = await driveSuccessfulRun(makeContext({
+      skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "/project/.agent/skills/browser-skill", skillPath: "/project/.agent/skills/browser-skill/SKILL.md", description: "Read logged-in pages and capture screenshots" }],
+      session: { ...base.session, ...(projectScoped ? { scope: { type: "project-task", projectName: "Fixture", taskId: "task-1" } } : {}) } as never
+    }));
+    const request = child.writtenLines.map((line) => JSON.parse(line)).find((item) => item.method === "thread/start")!;
+    expect(request.params.config.mcp_servers).toBeUndefined();
+    expect(request.params.developerInstructions).toContain("browser-skill/SKILL.md");
+    expect(request.params.developerInstructions).toContain("Read logged-in pages and capture screenshots");
+    expect(request.params.developerInstructions).toContain("无需用户输入斜杠命令");
+    expect(request.params.developerInstructions).not.toContain("capture_source_evidence");
   });
 
   it.each([
