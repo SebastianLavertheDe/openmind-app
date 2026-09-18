@@ -36,6 +36,7 @@ import { listProvidersForUi, readProviderApiKeyForUi, saveProvidersFromInput } f
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { normalizeOpenmindSelection } from "./openmind-file-search";
 import * as settings from "./lib/settings";
+import { readImagePreview } from "./lib/image-preview";
 import { messages } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
@@ -227,6 +228,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     { channel: C.listContent, handler: (kind, date) => product().listContent(parseString(kind), parseOptionalDate(date)) },
     { channel: C.readContent, handler: (filePath) => product().readContent(parseString(filePath)) },
+    { channel: C.readImagePreview, handler: (filePath) => readImagePreview(parseString(filePath)) },
     {
       channel: C.writeContent,
       handler: (filePath, rawContent) => product().writeContent(parseString(filePath), FileContentSchema.parse(rawContent))

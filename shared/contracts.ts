@@ -1179,6 +1179,7 @@ export interface DesktopApi {
   getBootstrap(): Promise<AppBootstrap>;
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;
+  readImagePreview(path: string): Promise<import("./image-preview").ImagePreviewRecord>;
   writeContent(path: string, content: string): Promise<ContentRecord>;
   getXFollowingCurls(): Promise<string[]>;
   saveXFollowingCurls(contents: string[]): Promise<void>;

@@ -1,4 +1,6 @@
 .document-reader { position: relative; outline: none; }
+.file-image-preview { display: flex; justify-content: center; align-items: flex-start; min-width: 0; padding: var(--space-4); }
+.file-image-preview img { display: block; max-width: 100%; height: auto; object-fit: contain; }
 .document-flow { position: relative; min-width: 0; }
 .document-block { display: flow-root; min-width: 0; overflow-wrap: anywhere; }
 .document-block > :first-child { margin-top: 0; }

@@ -1,4 +1,5 @@
 import type { ContentRecord } from "@shared/contracts";
+import { ImagePreviewRecordSchema, imagePreviewMimeType } from "@shared/image-preview";
 import { documentPreviewResource, type FilePreviewSource } from "./model";
 
 const BINARY_PREVIEW_EXTENSIONS = /\.(pdf|png|jpe?g|gif|webp|svg|ico|bmp|zip|gz|7z|tar|rar|mp4|mov|webm|mp3|wav|ogg|woff2?|ttf|otf|eot|exe|dll)$/i;
@@ -13,16 +14,21 @@ export function workspaceFileSource(path: string, {
   binary?: "document" | "unsupported";
   unsupportedBinaryReason?: string;
 } = {}): FilePreviewSource {
-  const unsupportedBinary = binary === "unsupported" && isBinaryPreviewPath(path);
+  const image = Boolean(imagePreviewMimeType(path));
+  const unsupportedBinary = binary === "unsupported" && isBinaryPreviewPath(path) && !image;
   const source: FilePreviewSource = {
     id: `workspace:${path}`,
     path,
     capabilities: {
-      editContent: editable && !unsupportedBinary,
+      editContent: editable && !unsupportedBinary && !image,
       editTitle: false,
       openExternal: true
     },
     async load() {
+      if (image) {
+        const record = ImagePreviewRecordSchema.parse(await window.openmind.readImagePreview(path));
+        return { kind: "image", id: source.id, path: record.path, title: record.name, dataUrl: record.dataUrl };
+      }
       if (unsupportedBinary) {
         return {
           kind: "unsupported",
@@ -38,7 +44,7 @@ export function workspaceFileSource(path: string, {
       await window.openmind.openPath(path);
     }
   };
-  if (editable && !unsupportedBinary) {
+  if (editable && !unsupportedBinary && !image) {
     source.save = async ({ content }) => {
       const record: ContentRecord = await window.openmind.writeContent(path, content);
       return documentPreviewResource(record, source.id);

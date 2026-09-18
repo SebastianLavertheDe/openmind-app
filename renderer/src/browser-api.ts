@@ -383,6 +383,7 @@ export function installBrowserPreviewApi(): boolean {
       { path: "openmind/article/demo.md", name: "工程级 AI 工作台设计.md", kind: "articles" },
       { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
+    readImagePreview: async () => { throw new Error("浏览器预览模式无法读取本地图片，请在桌面应用中打开。"); },
     readContent: async (path) => ({
       path,
       name: path.split("/").at(-1),

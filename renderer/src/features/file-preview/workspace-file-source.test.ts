@@ -3,6 +3,17 @@ import type { DesktopApi } from "@shared/contracts";
 import { workspaceFileSource } from "./workspace-file-source";
 
 describe("workspaceFileSource", () => {
+  it("previews images without exposing text editing or saving", async () => {
+    const readImagePreview = vi.fn(async (path: string) => ({ path, name: "shot.PNG", dataUrl: "data:image/png;base64,eA==" }));
+    window.openmind = { readImagePreview, readContent: vi.fn() } as unknown as DesktopApi;
+    for (const binary of ["document", "unsupported"] as const) {
+      const source = workspaceFileSource("openmind/shot.PNG", { editable: true, binary });
+      expect(source.capabilities.editContent).toBe(false);
+      expect(source.save).toBeUndefined();
+      await expect(source.load()).resolves.toMatchObject({ kind: "image", title: "shot.PNG" });
+    }
+    expect(window.openmind.readContent).not.toHaveBeenCalled();
+  });
   it("keeps read-only sources structurally incapable of saving", async () => {
     const readContent = vi.fn(async (path: string) => ({ path, name: "note.md", content: "# Note" }));
     window.openmind = { readContent, openPath: vi.fn(async () => "") } as unknown as DesktopApi;

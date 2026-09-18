@@ -3,6 +3,7 @@ export const IPC = {
   APP_BOOTSTRAP: "app:bootstrap",
   APP_LIST_CONTENT: "app:list-content",
   APP_READ_CONTENT: "app:read-content",
+  APP_READ_IMAGE_PREVIEW: "app:read-image-preview",
   APP_WRITE_CONTENT: "app:write-content",
   APP_X_FOLLOWING_CURLS_GET: "app:x-following-curls-get",
   APP_X_FOLLOWING_CURLS_SAVE: "app:x-following-curls-save",

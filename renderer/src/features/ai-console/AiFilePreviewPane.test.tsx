@@ -27,6 +27,31 @@ beforeEach(() => {
 });
 
 describe("AiFilePreviewPane", () => {
+  it("opens a screenshot link as a read-only image instead of an unsupported binary", async () => {
+    const path = "D:\\workspace\\x_home.png";
+    const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+    const readContent = vi.fn();
+    const readImagePreview = vi.fn(async () => ({ path, name: "x_home.png", dataUrl }));
+    window.openmind = {
+      aiRefresh: vi.fn(async () => snapshot),
+      aiGetEvents: vi.fn(async () => []),
+      onAiEvent: vi.fn(() => () => {}),
+      readContent,
+      readImagePreview
+    } as unknown as DesktopApi;
+    render(<AiProvider initial={snapshot}>
+      <AiFilePreviewPane surface={{ kind: "workspace" }}><PreviewTrigger path={path} /></AiFilePreviewPane>
+    </AiProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "打开引用" }));
+    const image = await screen.findByRole("img", { name: "x_home.png" });
+    expect(image.getAttribute("src")).toBe(dataUrl);
+    expect(readImagePreview).toHaveBeenCalledWith(path);
+    expect(readContent).not.toHaveBeenCalled();
+    expect(screen.queryByText("暂不支持预览")).toBeNull();
+    expect(screen.getByRole("button", { name: "编辑文件" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.error(image);
+    expect(await screen.findByText("图片无法显示")).toBeTruthy();
+  });
   it("finishes restoring a workspace file after StrictMode replays mount effects", async () => {
     const path = "article/20260917/示例文章.md";
     let finishRead!: (record: { path: string; name: string; content: string }) => void;

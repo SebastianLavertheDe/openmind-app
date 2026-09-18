@@ -3,6 +3,7 @@ import type { MarkdownReaderLayout } from "../../components/MarkdownReader";
 import type { PreviewResource } from "./model";
 import { DocumentPreview } from "./renderers/DocumentPreview";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
+import { ImagePreview } from "./renderers/ImagePreview";
 
 const PdfPreview = lazy(() => import("./renderers/PdfPreview"));
 const VideoPreview = lazy(() => import("./renderers/VideoPreview"));
@@ -15,6 +16,8 @@ export function PreviewRenderer({ resource, content, layout = "file", onError, o
   onOpenExternal?(): void;
 }) {
   switch (resource.kind) {
+    case "image":
+      return <ImagePreview key={resource.id} resource={resource} />;
     case "document":
       return <DocumentPreview resource={resource} content={content} layout={layout} />;
     case "pdf":

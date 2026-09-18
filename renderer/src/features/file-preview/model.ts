@@ -55,9 +55,18 @@ export type UnsupportedPreviewResource = {
 
 export type PreviewResource =
   | DocumentPreviewResource
+  | ImagePreviewResource
   | PdfPreviewResource
   | VideoPreviewResource
   | UnsupportedPreviewResource;
+
+export type ImagePreviewResource = {
+  kind: "image";
+  id: string;
+  path: string;
+  title: string;
+  dataUrl: string;
+};
 
 export type PreviewDraft = {
   content: string;
@@ -106,4 +115,3 @@ export function previewResourceTruncated(resource: PreviewResource | null): bool
 export function samePreviewDraft(left: PreviewDraft, right: PreviewDraft): boolean {
   return left.content === right.content && left.title === right.title;
 }
-
