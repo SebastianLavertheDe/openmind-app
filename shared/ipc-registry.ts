@@ -3,6 +3,12 @@ import { IPC, PROJECT_IPC } from "./ipc-channels";
 
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [
+  { method: "getWechatAccount", channel: IPC.WECHAT_ACCOUNT_GET },
+  { method: "saveWechatAccount", channel: IPC.WECHAT_ACCOUNT_SAVE },
+  { method: "disconnectWechatAccount", channel: IPC.WECHAT_ACCOUNT_DISCONNECT },
+  { method: "chooseWechatCover", channel: IPC.WECHAT_COVER_CHOOSE },
+  { method: "copyWechatArticle", channel: IPC.WECHAT_ARTICLE_COPY },
+  { method: "pushWechatDraft", channel: IPC.WECHAT_DRAFT_PUSH },
   { method: "getBootstrap", channel: IPC.APP_BOOTSTRAP },
   { method: "listContent", channel: IPC.APP_LIST_CONTENT },
   { method: "readContent", channel: IPC.APP_READ_CONTENT },

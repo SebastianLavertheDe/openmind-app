@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, nativeTheme, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -35,6 +35,8 @@ import { listInstalledPythonProjects } from "./runtime/installed-python-projects
 import { IPC } from "../shared/ipc-channels";
 import { OPENMIND_SKILLS_REPO_URL } from "../shared/skill-package-sources";
 import { configureUserDataPath } from "./paths/user-data-bootstrap";
+import { WechatAccountStore } from "./wechat/wechat-account-store";
+import { WechatService } from "./wechat/wechat-service";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
@@ -393,6 +395,26 @@ function runGlobalSearch(rawQuery: unknown) {
   });
 }
 
+let wechatService: WechatService | null = null;
+function ensureWechatService(): WechatService {
+  wechatService ??= new WechatService({
+    accountStore: new WechatAccountStore(app.getPath("userData"), safeStorage),
+    writeClipboard: (input) => clipboard.write(input),
+    resolveArticle: (projectName, outputPath) => {
+      const service = ensureProjectService();
+      service.resolveProjectExportFile(projectName, "output", outputPath);
+      return {
+        resolveImage: (source) => service.paths.resolveInsideProject(
+          projectName,
+          path.posix.normalize(path.posix.join(path.posix.dirname(outputPath), source)),
+          { allowedTopLevels: ["outputs", "materials"] }
+        )
+      };
+    }
+  });
+  return wechatService;
+}
+
 function registerIpc(): void {
   registerIpcHandlers(
     {
@@ -405,6 +427,7 @@ function registerIpc(): void {
       ensureSkillPackageService,
       ensureSkillSourceService,
       ensureSharedPythonRuntimeService,
+      ensureWechatService,
       hasRequiredStartupConfiguration,
       getActiveRunCount: () => aiWorker?.activeRunCount() || Promise.resolve(0),
       restartAiWorker,

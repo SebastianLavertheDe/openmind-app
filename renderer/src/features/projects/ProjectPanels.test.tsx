@@ -12,6 +12,13 @@ import { ProjectTasksPanel } from "./ProjectTasksPanel";
 import { ProjectsPage } from "./ProjectsPage";
 import type { ProjectDetail } from "./types";
 
+vi.mock("./ProjectOutputEditor", () => ({
+  ProjectOutputEditor: ({ title, content, readOnly, onTitle, onContent }: { title: string; content: string; readOnly: boolean; onTitle(value: string): void; onContent(value: string): void }) => <>
+    <textarea aria-label="文档标题" value={title} readOnly={readOnly} onChange={(event) => onTitle(event.target.value)} />
+    <textarea aria-label="Markdown 文档内容" value={content} readOnly={readOnly} onChange={(event) => onContent(event.target.value)} />
+  </>
+}));
+
 const project: ProjectDetail = {
   id: "5a111111-1111-4111-8111-111111111111",
   name: "AI 安全",
@@ -87,6 +94,34 @@ beforeEach(() => {
 });
 
 describe("Project output persistence", () => {
+  it("exports the latest unsaved title and body from the output menu", async () => {
+    const copyWechatArticle = vi.fn().mockResolvedValue(undefined);
+    const saveProjectOutput = vi.fn(async (input: { relativePath: string; title: string; content: string }) => ({ output: outputRecord(input.title, input.relativePath), content: input.content }));
+    installApi({
+      listProjectOutputs: vi.fn(async () => [outputRecord()]),
+      readProjectOutput: vi.fn(async () => ({ output: outputRecord(), content: "# 初稿" })),
+      getWechatAccount: vi.fn(async () => ({ appId: "", author: "", configured: false })),
+      copyWechatArticle,
+      saveProjectOutput
+    });
+    renderWithAi(<ProjectOutputsPanel project={project} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} />);
+    fireEvent.change(await screen.findByRole("textbox", { name: "文档标题" }), { target: { value: "最新未保存标题" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 文档内容" }), { target: { value: "## 新章节\n\n最新未保存正文。" } });
+    fireEvent.click(screen.getByRole("button", { name: "成品更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "导出到微信公众号" }));
+    const dialog = await screen.findByRole("dialog", { name: "导出到微信公众号" });
+    expect(within(dialog).getByText("最新未保存标题")).toBeTruthy();
+    expect(saveProjectOutput).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "复制排版" }));
+    await waitFor(() => expect(copyWechatArticle).toHaveBeenCalledOnce());
+    const copied = copyWechatArticle.mock.calls[0][0] as { html: string; text: string };
+    expect(copied.html).toContain("最新未保存正文。");
+    expect(copied.html).toContain("新章节");
+    expect(copied.html).not.toContain("初稿");
+    expect(copied.text).toContain("最新未保存正文。");
+    expect(await within(dialog).findByRole("status")).toHaveProperty("textContent", "已复制公众号排版，可粘贴到公众号编辑器。");
+  });
+
   it("flushes the latest dirty title through the registered navigation guard", async () => {
     const saveProjectOutput = vi.fn(async (input: { relativePath: string; title: string; content: string }) => ({
       output: outputRecord(input.title, input.relativePath),

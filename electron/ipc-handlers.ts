@@ -66,6 +66,8 @@ import {
   type ProjectTask
 } from "../shared/project-contracts";
 import type { ProjectService } from "./project/project-service";
+import type { WechatService } from "./wechat/wechat-service";
+import { WechatAccountInputSchema, WechatCopyInputSchema, WechatDraftInputSchema } from "../shared/wechat";
 
 const StringArgSchema = z.string().min(1).max(4096);
 const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
@@ -147,6 +149,7 @@ export type IpcMainContext = {
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
   ensureSharedPythonRuntimeService?: () => SharedPythonRuntimeService;
+  ensureWechatService?: () => WechatService;
   hasRequiredStartupConfiguration: () => boolean;
   getActiveRunCount: () => Promise<number>;
   restartAiWorker: () => void;
@@ -177,12 +180,32 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     if (!ctx.ensureSharedPythonRuntimeService) throw new Error("内置 Python 运行时服务尚未初始化。 ");
     return ctx.ensureSharedPythonRuntimeService();
   };
+  const wechat = () => {
+    if (!ctx.ensureWechatService) throw new Error("微信公众号服务尚未初始化。 ");
+    return ctx.ensureWechatService();
+  };
   // Project run admission and mutations share one gate. The active-run check
   // and the mutation itself must be atomic with respect to starting/continuing
   // a Project turn; otherwise a run could slip in after a zero-count check.
   const projectAdmission = new AsyncSerialGate();
 
   return [
+    { channel: C.getWechatAccount, handler: () => wechat().getAccount() },
+    { channel: C.saveWechatAccount, handler: (raw) => wechat().saveAccount(WechatAccountInputSchema.parse(raw)) },
+    { channel: C.disconnectWechatAccount, handler: () => wechat().disconnectAccount() },
+    {
+      channel: C.chooseWechatCover,
+      handler: async () => {
+        const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+          title: "选择公众号文章封面", properties: ["openFile"],
+          filters: [{ name: "JPG / PNG 图片", extensions: ["jpg", "jpeg", "png"] }]
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        return wechat().authorizeCover(result.filePaths[0]);
+      }
+    },
+    { channel: C.copyWechatArticle, handler: (raw) => wechat().copyArticle(WechatCopyInputSchema.parse(raw)) },
+    { channel: C.pushWechatDraft, handler: (raw) => wechat().pushDraft(WechatDraftInputSchema.parse(raw)) },
     {
       channel: C.getBootstrap,
       handler: async () => {

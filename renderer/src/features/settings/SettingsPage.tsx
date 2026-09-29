@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
@@ -7,6 +7,7 @@ import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
+import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
@@ -22,7 +23,7 @@ import {
 
 const m = messages;
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -42,6 +43,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
   { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
+  { id: "connectors", group: "creation", icon: Plug, ...m.settings.navigation.sections.connectors },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ];
 
@@ -331,7 +333,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               <h1 id="settings-detail-title" tabIndex={-1}>{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
-            {!["skills", "mcp", "runtime"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+            {!["skills", "mcp", "runtime", "connectors"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
           </header>
 
           {loading ? (
@@ -356,6 +358,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
+              {activeSection === "connectors" ? <WechatSettingsSection /> : null}
               {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
             </div>
           )}

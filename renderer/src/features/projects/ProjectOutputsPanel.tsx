@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, LoaderCircle, Pencil, Plus, Search } from "lucide-react";
+import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Send } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectOutputEditor } from "./ProjectOutputEditor";
 import { useFilePreviewController } from "../file-preview";
@@ -12,6 +12,7 @@ import { ProjectListDetail } from "./ProjectListDetail";
 import { projectOutputPreviewSource } from "./project-output-preview-source";
 import { projectsApi } from "./projects-api";
 import type { ProjectDetail, ProjectOutput } from "./types";
+import { WechatExportDialog } from "../wechat/WechatExportDialog";
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
@@ -57,6 +58,8 @@ export function ProjectOutputsPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [wechatExport, setWechatExport] = useState<{ open: boolean; path: string; title: string; content: string } | null>(null);
+  const outputActionsRef = useRef<HTMLDivElement>(null);
   const selectedPathRef = useRef(initialOutputPath || "");
   const previewSourceRef = useRef<FilePreviewSource | null>(null);
   const previewResourceRef = useRef<PreviewResource | null>(null);
@@ -261,9 +264,12 @@ export function ProjectOutputsPanel({
   const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
-        <div className="project-output-actions">
+        <div ref={outputActionsRef} className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
           <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button></div>
+          <DropdownMenu className="project-output-menu" label={<MoreHorizontal size={16} />} ariaLabel="成品更多操作" menuLabel="成品操作" restoreFocusOnSelect={false}>
+            <button type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />导出到微信公众号</button>
+          </DropdownMenu>
         </div>
       </header>
       <div className={`project-output-editor ${preview.mode}`}>
@@ -276,9 +282,14 @@ export function ProjectOutputsPanel({
   );
 
   const dialogs = (
+    <>
     <ProjectDialog open={createOpen} title="新建文档" description="创建一个保存在当前项目中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
       <ProjectTextField label="文档标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
     </ProjectDialog>
+    {wechatExport ? <WechatExportDialog open={wechatExport.open} projectName={project.name} outputPath={wechatExport.path} title={wechatExport.title} markdown={wechatExport.content}
+      onClose={() => setWechatExport(current => current ? { ...current, open: false } : null)}
+      onExited={() => { setWechatExport(null); outputActionsRef.current?.querySelector<HTMLButtonElement>(".project-output-menu > button")?.focus(); }} /> : null}
+    </>
   );
   if (hosted) {
     return (

@@ -384,6 +384,20 @@ export function installBrowserPreviewApi(): boolean {
       { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
     readImagePreview: async () => { throw new Error("浏览器预览模式无法读取本地图片，请在桌面应用中打开。"); },
+    getWechatAccount: async () => ({ appId: "", author: "", configured: false }),
+    saveWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中配置微信公众号，浏览器预览不会保存 AppSecret。"); },
+    disconnectWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中管理微信公众号配置。"); },
+    chooseWechatCover: async () => { throw new Error("请在 OpenMind 桌面版中选择公众号封面。"); },
+    pushWechatDraft: async () => { throw new Error("请在 OpenMind 桌面版中发送到微信公众号草稿箱。"); },
+    copyWechatArticle: async ({ html, text }) => {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined" || ClipboardItem.supports?.("text/html") === false) {
+        throw new Error("当前浏览器不支持复制富文本，请在 OpenMind 桌面版中复制公众号排版。");
+      }
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" })
+      })]);
+    },
     readContent: async (path) => ({
       path,
       name: path.split("/").at(-1),

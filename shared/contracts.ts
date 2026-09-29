@@ -1176,6 +1176,12 @@ export type OpenmindRelocationReport = {
 };
 
 export interface DesktopApi {
+  getWechatAccount(): Promise<import("./wechat").WechatAccountView>;
+  saveWechatAccount(input: import("./wechat").WechatAccountInput): Promise<import("./wechat").WechatAccountView>;
+  disconnectWechatAccount(): Promise<void>;
+  chooseWechatCover(): Promise<import("./wechat").WechatCover | null>;
+  copyWechatArticle(input: import("./wechat").WechatCopyInput): Promise<void>;
+  pushWechatDraft(input: import("./wechat").WechatDraftInput): Promise<import("./wechat").WechatDraftResult>;
   getBootstrap(): Promise<AppBootstrap>;
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;

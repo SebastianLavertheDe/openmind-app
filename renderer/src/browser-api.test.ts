@@ -9,11 +9,38 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   delete (window as unknown as { openmind?: unknown }).openmind;
   window.history.replaceState({}, "", "/");
 });
 
 describe("installBrowserPreviewApi", () => {
+  it("keeps WeChat unconfigured and rejects desktop-only operations without storing a secret", async () => {
+    Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
+    installBrowserPreviewApi();
+    expect(await window.openmind.getWechatAccount()).toEqual({ appId: "", author: "", configured: false });
+    await expect(window.openmind.saveWechatAccount({ appId: "wx1234567890abcdef", appSecret: "0123456789abcdef0123456789abcdef", author: "" })).rejects.toThrow(/桌面版/);
+    expect(await window.openmind.getWechatAccount()).toEqual({ appId: "", author: "", configured: false });
+    await expect(window.openmind.chooseWechatCover()).rejects.toThrow(/桌面版/);
+    await expect(window.openmind.pushWechatDraft({} as never)).rejects.toThrow(/桌面版/);
+    await expect(window.openmind.copyWechatArticle({ html: "<p>正文</p>", text: "正文" })).rejects.toThrow(/不支持复制富文本/);
+  });
+
+  it("writes actual rich text in supported browsers and propagates clipboard failures", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA, clipboard: { write } }, configurable: true });
+    class PreviewClipboardItem { constructor(readonly data: Record<string, Blob>) {} }
+    vi.stubGlobal("ClipboardItem", PreviewClipboardItem);
+    installBrowserPreviewApi();
+    await window.openmind.copyWechatArticle({ html: "<p>正文</p>", text: "正文" });
+    const item = write.mock.calls[0][0][0] as PreviewClipboardItem;
+    expect(Object.keys(item.data)).toEqual(["text/html", "text/plain"]);
+    expect(item.data["text/html"].type).toBe("text/html");
+    expect(item.data["text/plain"].type).toBe("text/plain");
+    write.mockRejectedValueOnce(new Error("Clipboard permission denied"));
+    await expect(window.openmind.copyWechatArticle({ html: "<p>正文</p>", text: "正文" })).rejects.toThrow("Clipboard permission denied");
+  });
+
   it("returns true and installs a preview window.openmind in a non-Electron browser", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     const result = installBrowserPreviewApi();

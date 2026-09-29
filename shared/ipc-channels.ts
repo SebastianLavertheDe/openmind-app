@@ -1,5 +1,11 @@
 /** IPC invoke 通道字符串常量。method↔channel 关联见 `ipc-registry.ts`（单一注册表）。 */
 export const IPC = {
+  WECHAT_ACCOUNT_GET: "wechat:account-get",
+  WECHAT_ACCOUNT_SAVE: "wechat:account-save",
+  WECHAT_ACCOUNT_DISCONNECT: "wechat:account-disconnect",
+  WECHAT_COVER_CHOOSE: "wechat:cover-choose",
+  WECHAT_ARTICLE_COPY: "wechat:article-copy",
+  WECHAT_DRAFT_PUSH: "wechat:draft-push",
   APP_BOOTSTRAP: "app:bootstrap",
   APP_LIST_CONTENT: "app:list-content",
   APP_READ_CONTENT: "app:read-content",

@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(122);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(122);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(122);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(128);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(128);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(128);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -116,6 +116,32 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
 }
 
 describe("ipc handlers", () => {
+  it("validates WeChat credentials and drafts before forwarding to the main service", async () => {
+    const service = { saveAccount: vi.fn(), pushDraft: vi.fn(), copyArticle: vi.fn() };
+    const ctx = makeCtx({ ensureWechatService: () => service as never });
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.saveWechatAccount, { appId: "bad", appSecret: "", author: "" })).toThrow();
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.pushWechatDraft, { title: "文章" })).toThrow();
+    expect(service.saveAccount).not.toHaveBeenCalled();
+    expect(service.pushDraft).not.toHaveBeenCalled();
+    const input = { appId: "wx1234567890abcdef", appSecret: "", author: "作者" };
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.saveWechatAccount, input);
+    expect(service.saveAccount).toHaveBeenCalledWith(input);
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.copyWechatArticle, { html: "<p>正文</p>", text: "正文" });
+    expect(service.copyArticle).toHaveBeenCalledWith({ html: "<p>正文</p>", text: "正文" });
+  });
+
+  it("grants WeChat cover access only after the native picker succeeds", async () => {
+    const service = { authorizeCover: vi.fn().mockResolvedValue({ path: "/tmp/chosen.png", name: "chosen.png", previewUrl: "data:image/png;base64,test" }) };
+    const ctx = makeCtx({ ensureWechatService: () => service as never });
+    electronMock.dialogResult = { canceled: true, filePaths: [] };
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.chooseWechatCover, "/tmp/renderer-supplied.png")).toBe(null);
+    expect(service.authorizeCover).not.toHaveBeenCalled();
+    electronMock.dialogResult = { canceled: false, filePaths: ["/tmp/chosen.png"] };
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.chooseWechatCover, "/tmp/renderer-supplied.png");
+    expect(service.authorizeCover).toHaveBeenCalledWith("/tmp/chosen.png");
+    electronMock.dialogResult = { canceled: true, filePaths: [] };
+  });
+
   it("registers a handler for every invoke channel", () => {
     const entries = createIpcHandlerEntries(makeCtx());
     const registryChannels = IPC_INVOKE_REGISTRY.map((item) => item.channel).sort();

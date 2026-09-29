@@ -111,6 +111,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("SettingsPage", () => {
+  it("opens publication connectors from the creation settings", async () => {
+    window.openmind = makeApi({ getWechatAccount: vi.fn().mockResolvedValue({ appId: "", author: "", configured: false }) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("连接器");
+    expect(screen.getByRole("heading", { name: "连接器" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "配置公众号" })).toBeTruthy();
+    expect(screen.queryByText("改动会即时保存在本地")).toBeNull();
+  });
+
   it("shows categorized navigation and renders only the active category details", async () => {
     renderSettings();
     await waitFor(() => expect(screen.getByRole("heading", { name: "常规" })).toBeTruthy());
