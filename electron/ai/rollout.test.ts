@@ -17,6 +17,14 @@ import {
 } from "./rollout";
 
 describe("Codex-aligned rollout reconstruction", () => {
+  it("keeps saved image references in recovered history even without a final tool result", () => {
+    const run = makeRun("image-turn", "2026-10-10T00:00:00.000Z");
+    const image = { source: "openmind/assets/generated-images/session/image.png", title: "leaf" };
+    const event = makeEvent(run, "image", "image-artifact", { image, itemId: "call" }, 1);
+    const items = rolloutItemsForEvent(event);
+    expect(items[0]).toMatchObject({ type: "response_item", payload: { name: "openmind_generate_image", content: expect.stringContaining(image.source) } });
+    expect(items[1]).toMatchObject({ type: "event_msg", payload: { event: { kind: "image-artifact", payload: { image } } } });
+  });
   it("persists the managed provider id and revision without persisting its API key", () => {
     const session = {
       ...makeSession(),

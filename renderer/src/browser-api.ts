@@ -384,6 +384,9 @@ export function installBrowserPreviewApi(): boolean {
       { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
     readImagePreview: async () => { throw new Error("浏览器预览模式无法读取本地图片，请在桌面应用中打开。"); },
+    readChatImage: async () => { throw new Error("请在桌面应用中预览会话图片。"); },
+    getImageConfiguration: async () => ({ defaultSelection: null, providers: [] }),
+    selectImageModel: async () => { throw new Error("请在桌面应用中选择图片模型。"); },
     getWechatAccount: async () => ({ appId: "", author: "", configured: false }),
     saveWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中配置微信公众号，浏览器预览不会保存 AppSecret。"); },
     disconnectWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中管理微信公众号配置。"); },

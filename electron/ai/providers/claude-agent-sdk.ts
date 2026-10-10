@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { ProviderAdapter, ProviderPrewarmContext, ProviderRunContext } from "./types";
@@ -8,6 +9,8 @@ import type { AiEvent } from "../../../shared/contracts";
 import type { ProviderYamlEntry } from "../../../shared/providers-yaml";
 import { AUTO_MODEL } from "../../../shared/model-catalog";
 import type { Options, SDKUserMessage, SpawnOptions, SpawnedProcess, WarmQuery } from "@anthropic-ai/claude-agent-sdk";
+import { GenerateImageInputSchema, IMAGE_TOOL_DESCRIPTION, IMAGE_TOOL_NAME } from "../../../shared/image-generation";
+import { executeImageTool, imageToolInstructions } from "../image-tool";
 import { skillDiscoveryInstructions } from "../skill-discovery";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
@@ -67,6 +70,11 @@ export function decideClaudePermission(
   if (!runContext) return { behavior: "deny", message: "Claude Code 预热进程尚未绑定到运行。" };
   const readOnly = runContext.session.permissionProfile === "read-only";
   const projectScoped = runContext.session.scope?.type === "project-task";
+  if (toolName === `mcp__openmind_images__${IMAGE_TOOL_NAME}`) {
+    if (readOnly || runContext.session.interactionMode === "plan") return { behavior: "deny", message: "请切换到执行模式后再生成图片。" };
+    if (runContext.session.permissionProfile === "auto") return { behavior: "allow", updatedInput: input };
+    return { behavior: "ask", category: "tool", title: "生成图片", command: String(input.prompt || ""), paths: [] };
+  }
   if (/^webfetch$/i.test(toolName)) {
     const rawUrl = typeof input.url === "string" ? input.url.trim() : "";
     try {
@@ -323,7 +331,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
             projectInstructions: projectSessionInstructions(context.session)
           },
           () => slot.activeContext,
-          captureStderr
+          captureStderr,
+          sdk
         ),
         initializeTimeoutMs: 45_000
       })
@@ -382,13 +391,13 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
           }
           return sdk.query({
             prompt,
-            options: this.createOptions(runOptionsContext(context), () => context, captureStderr)
+            options: this.createOptions(runOptionsContext(context), () => context, captureStderr, sdk)
           });
         }
       })()
       : sdk.query({
-        prompt: context.prompt,
-        options: this.createOptions(runOptionsContext(context), () => context, captureStderr)
+        prompt,
+        options: this.createOptions(runOptionsContext(context), () => context, captureStderr, sdk)
       });
     context.signal.addEventListener("abort", () => {
       void query.interrupt().catch(() => undefined);
@@ -548,7 +557,8 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       projectScoped: boolean;
     },
     getRunContext: ClaudeRunContextGetter,
-    captureStderr: (text: string) => void
+    captureStderr: (text: string) => void,
+    sdk: Pick<typeof import("@anthropic-ai/claude-agent-sdk"), "createSdkMcpServer" | "tool">
   ): Options {
     if (context.serviceProvider && context.provider.runtime === "wsl") {
       assertManagedClaudeVersion(context.provider.version);
@@ -563,6 +573,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       context.projectInstructions,
       fileReferenceInstructions(),
       markdownArtifactInstructions(),
+      imageToolInstructions,
       discoveryInstructions,
       skillInstructions
     ].filter(Boolean).join("\n\n");
@@ -570,7 +581,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       ...(context.providerModel && context.providerModel !== AUTO_MODEL
         ? { model: context.providerModel }
         : context.serviceProvider ? { model: context.serviceProvider.model } : {}),
-      ...(context.serviceProvider ? { env: claudeProviderEnvironment(context.serviceProvider) } : {}),
+      env: { ...(context.serviceProvider ? claudeProviderEnvironment(context.serviceProvider) : {}), CLAUDE_CODE_STREAM_CLOSE_TIMEOUT: "660000" },
       cwd: context.cwd,
       resume: undefined,
       permissionMode: context.interactionMode === "plan"
@@ -587,6 +598,17 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
         ? [...CLAUDE_PROJECT_TOOLS]
         : CLAUDE_WORKBENCH_TOOLS,
       strictMcpConfig: true,
+      mcpServers: {
+        openmind_images: sdk.createSdkMcpServer({
+          name: "openmind_images", version: "1.0.0",
+          tools: [sdk.tool(IMAGE_TOOL_NAME, IMAGE_TOOL_DESCRIPTION, GenerateImageInputSchema.shape, async (input, extra) => {
+            const current = getRunContext();
+            if (!current) return { isError: true, content: [{ type: "text" as const, text: "图片工具尚未绑定到会话。" }] };
+            const requestId = (extra as { requestId?: string | number } | undefined)?.requestId;
+            return executeImageTool(current, input, `claude-image:${requestId ?? crypto.randomUUID()}`);
+          })]
+        })
+      },
       systemPrompt: {
         type: "preset",
         preset: "claude_code",

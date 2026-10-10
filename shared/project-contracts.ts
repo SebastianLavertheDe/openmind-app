@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageSelectionSchema } from "./image-generation";
 import {
   AiRunSchema,
   AiSessionSchema,
@@ -288,6 +289,7 @@ export const ProjectStartTaskRunInputSchema = z.object({
   providerId: z.string().trim().min(1).max(160).optional(),
   permissionProfile: PermissionProfileSchema.default("auto"),
   prompt: z.string().trim().min(1).max(2_000_000),
+  imageGeneration: ImageSelectionSchema.nullable().optional(),
   contexts: z.array(ContextReferenceSchema).max(50).default([])
 }).superRefine((input, context) => {
   if (!input.sessionId && !input.providerId) {

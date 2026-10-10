@@ -17,6 +17,8 @@ import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
 import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
+import { executeImageTool, imageToolDefinition, imageToolInstructions } from "../image-tool";
+import { IMAGE_TOOL_NAME } from "../../../shared/image-generation";
 
 interface RpcMessage {
   id?: string | number;
@@ -81,6 +83,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         projectInstructions,
         fileReferenceInstructions(),
         markdownArtifactInstructions(),
+        imageToolInstructions,
         discoveryInstructions
       ].filter(Boolean).join("\n\n");
       const threadOptions = {
@@ -111,6 +114,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           ...threadOptions
         })
         : await rpc.request("thread/start", {
+          dynamicTools: [imageToolDefinition],
           cwd,
           approvalPolicy,
           approvalsReviewer: "user",
@@ -120,7 +124,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         });
       const thread = threadResult.thread as { id?: string } | undefined;
       if (!thread?.id) throw new Error("Codex App Server 未返回 thread id。");
-      context.updateProviderSession(thread.id);
+      context.updateProviderSession(thread.id, 1);
       let nativeSkill: CodexNativeSkill | null = null;
       if (context.skillInvocation) {
         if (!context.skillBridge) throw new Error("Codex 会话只允许应用已校验的 Installed Skill。");
@@ -152,6 +156,16 @@ export class CodexAppServerAdapter implements ProviderAdapter {
 
   private async handleServerRequest(context: ProviderRunContext, message: RpcMessage): Promise<Record<string, unknown>> {
     const method = String(message.method || "");
+    if (method === "item/tool/call") {
+      const params = message.params || {};
+      if (params.tool !== IMAGE_TOOL_NAME || params.namespace) return { success: false, contentItems: [{ type: "inputText", text: "Unknown OpenMind tool." }] };
+      if (context.session.permissionProfile === "edit" && context.session.interactionMode !== "plan") {
+        const decision = await context.requestApproval({ providerRequestId: message.id || String(params.callId), category: "tool", title: "生成图片", detail: "使用输入框中选择的图片服务商生成图片。" });
+        if (decision === "decline") return { success: false, contentItems: [{ type: "inputText", text: "用户取消了图片生成。" }] };
+      }
+      const result = await executeImageTool(context, params.arguments, String(params.callId || message.id));
+      return { success: !result.isError, contentItems: result.content.map(part => ({ type: "inputText", text: part.text })) };
+    }
     const modernCommand = method === "item/commandExecution/requestApproval";
     const modernFile = method === "item/fileChange/requestApproval" || method === "fileChange";
     const legacyCommand = method === "execCommandApproval";

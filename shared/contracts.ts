@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageSelectionSchema } from "./image-generation";
 
 export {
   PROVIDERS_YAML_SCHEMA_VERSION,
@@ -86,6 +87,7 @@ export const EventKindSchema = z.enum([
   "tool-start",
   "tool-output",
   "tool-complete",
+  "image-artifact",
   "approval-request",
   "approval-decision",
   "status",
@@ -276,6 +278,8 @@ export const AiSessionSchema = z.object({
   /** Enabled Installed catalog refreshed before each conversation turn. */
   skillSnapshot: AiSessionSkillSnapshotSchema.nullable().default(null),
   providerSessionId: z.string().nullable().default(null),
+  appToolsVersion: z.number().int().optional(),
+  imageGeneration: ImageSelectionSchema.nullable().optional(),
   forkedFromId: z.string().nullable().optional(),
   cwd: z.string(),
   permissionProfile: PermissionProfileSchema,
@@ -306,6 +310,7 @@ export const AiRunSchema = z.object({
   providerId: z.string().default("legacy"),
   permissionProfile: PermissionProfileSchema.default("edit"),
   interactionMode: InteractionModeSchema.default("default"),
+  imageGeneration: ImageSelectionSchema.nullable().optional(),
   status: RunStatusSchema,
   prompt: z.string(),
   /** Project runs keep the user-message body in Project storage and persist only this reference. */
@@ -563,6 +568,7 @@ export const StartRunInputSchema = z.object({
   cwd: z.string(),
   prompt: z.string().min(1),
   contexts: z.array(ContextReferenceSchema).default([]),
+  imageGeneration: ImageSelectionSchema.nullable().optional(),
   // 续跑已存在的会话时，用户在确认弹窗里同意按当前 Provider 配置继续后携带 true。
   acknowledgeProviderChange: z.boolean().optional()
 });
@@ -1186,6 +1192,9 @@ export interface DesktopApi {
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;
   readImagePreview(path: string): Promise<import("./image-preview").ImagePreviewRecord>;
+  readChatImage(input: import("./image-generation").ChatImageRequest): Promise<import("./image-generation").ChatImageData>;
+  getImageConfiguration(): Promise<import("./image-generation").ImageConfiguration>;
+  selectImageModel(selection: import("./image-generation").ImageSelection | null): Promise<import("./image-generation").ImageConfiguration>;
   writeContent(path: string, content: string): Promise<ContentRecord>;
   getXFollowingCurls(): Promise<string[]>;
   saveXFollowingCurls(contents: string[]): Promise<void>;

@@ -8,6 +8,7 @@ import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmin
 import { applyTheme } from "../../theme";
 import { SkillsPage } from "../skills";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
+import { announceProviderConfiguration } from "../../provider-configuration-events";
 import {
   ArchivedSessionsSettingsSection,
   AppearanceSettingsSection,
@@ -49,7 +50,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image" }) {
   const ai = useAiSnapshot();
   const ui = useAiUi();
   const actions = useAiActions();
@@ -132,6 +133,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setProvidersYamlBusy(true);
     try {
       setProvidersYaml(await window.openmind.saveProviders(input));
+      announceProviderConfiguration();
       ui.notify(m.settings.notify.providersSaved, "success");
     } catch (error) {
       ui.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
@@ -351,7 +353,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ui.notify} /></> : null}
+              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ui.notify} initialCategory={initialProviderCategory} /></> : null}
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}

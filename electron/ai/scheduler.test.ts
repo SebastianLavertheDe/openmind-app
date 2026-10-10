@@ -26,6 +26,55 @@ afterEach(() => {
 });
 
 describe("RunScheduler input boundaries", () => {
+  it("upgrades an existing Codex thread once and preserves its conversation history", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined, undefined, createRoot(), root);
+    const internals = schedulerInternals(scheduler);
+    const provider: ProviderCapabilities = { id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "fixture", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null };
+    internals.registry.detect = () => [provider];
+    const attempts: Array<{ prompt: string; thread: string | null }> = [];
+    internals.adapters.codex.run = async context => {
+      attempts.push({ prompt: context.prompt, thread: context.session.providerSessionId });
+      context.updateProviderSession("thread-with-image-tool", 1);
+      await context.emit("assistant-message", { text: "continued", phase: "final" });
+    };
+    let session = internals.store.createSession({ provider: "codex", providerId: provider.id, cwd: ".", title: "Existing conversation", permissionProfile: "edit", scope: workspaceScope });
+    session = internals.store.updateSession(session.id, { providerSessionId: "legacy-thread" });
+    let oldRun = internals.store.createRun(session, "Earlier request", []);
+    await internals.store.beginTurn(oldRun);
+    await internals.store.appendEvent(oldRun, "assistant-message", { text: "Earlier answer", phase: "final" });
+    oldRun = internals.store.updateRun(oldRun.id, { status: "completed", completedAt: new Date().toISOString() });
+    await internals.store.completeTurn(oldRun);
+    for (const prompt of ["continue", "continue again"]) {
+      const { run } = scheduler.startRun({ sessionId: session.id, providerId: provider.id, permissionProfile: "edit", cwd: ".", prompt, contexts: [] });
+      await waitUntil(() => scheduler.snapshot().runs.find(value => value.id === run.id)?.status === "completed");
+    }
+    expect(attempts[0].thread).toBeNull();
+    expect(attempts[0].prompt).toContain("Earlier answer");
+    expect(attempts[1].thread).toBe("thread-with-image-tool");
+    expect(attempts[1].prompt).not.toContain('source="local_rollout"');
+    expect(internals.store.getSession(session.id).appToolsVersion).toBe(1);
+  });
+
+  it("freezes each turn's image selection while later turns and forks keep their own settings", async () => {
+    const root = createRoot();
+    const scheduler = new RunScheduler(root, () => undefined, undefined, createRoot(), root);
+    const internals = schedulerInternals(scheduler);
+    const provider = { id: "claude-native", provider: "claude", label: "Claude", runtime: "native", available: true, version: "fixture", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null } as ProviderCapabilities;
+    internals.registry.detect = () => [provider];
+    const seen: unknown[] = [];
+    internals.adapters.claude.run = async context => { seen.push(context.run.imageGeneration); await context.emit("assistant-message", { text: "done", phase: "final" }); };
+    const selection = { provider: "volcengine" as const, model: "doubao-seedream-5-0-flash-260915" };
+    const first = scheduler.startRun({ providerId: provider.id, permissionProfile: "auto", cwd: ".", prompt: "first", contexts: [], imageGeneration: selection });
+    await waitUntil(() => scheduler.snapshot().runs.find(run => run.id === first.run.id)?.status === "completed");
+    const second = scheduler.startRun({ sessionId: first.session.id, providerId: provider.id, permissionProfile: "auto", cwd: ".", prompt: "second", contexts: [], imageGeneration: null });
+    await waitUntil(() => scheduler.snapshot().runs.find(run => run.id === second.run.id)?.status === "completed");
+    expect(seen).toEqual([selection, null]);
+    expect(scheduler.snapshot().runs.find(run => run.id === first.run.id)?.imageGeneration).toEqual(selection);
+    const fork = await scheduler.forkSession(first.session.id);
+    expect(fork.imageGeneration).toBeNull();
+    expect(internals.store.listRuns(fork.id).find(run => run.prompt === "first")?.imageGeneration).toEqual(selection);
+  });
   it("rejects a working directory outside the selected project before provider startup", () => {
     const root = createRoot();
     const scheduler = new RunScheduler(root, () => undefined);
@@ -906,6 +955,7 @@ describe("RunScheduler Claude prewarm", () => {
 type SchedulerInternals = {
   registry: { detect(): ProviderCapabilities[] };
   adapters: {
+    codex: { run: (context: ProviderRunContext) => Promise<void> };
     claude: {
       usesExternalSession?: boolean;
       prewarm?: (context: { session: { id: string } | null; cwd: string; providerSessionId: string | null }) => Promise<boolean>;
@@ -915,7 +965,7 @@ type SchedulerInternals = {
     };
   };
   store: {
-    createSession(input: { provider: "claude"; providerId: string; cwd: string; title: string; permissionProfile: "edit"; scope: typeof workspaceScope; skillSnapshot?: AiSessionSkillSnapshotEntry[] }): AiSession;
+    createSession(input: { provider: "claude" | "codex"; providerId: string; cwd: string; title: string; permissionProfile: "edit"; scope: typeof workspaceScope; skillSnapshot?: AiSessionSkillSnapshotEntry[] }): AiSession;
     updateSession(sessionId: string, patch: Partial<AiSession>): AiSession;
     getSession(sessionId: string): AiSession;
     createRun(session: AiSession, prompt: string, contexts: []): AiRun;
@@ -929,7 +979,7 @@ type SchedulerInternals = {
     getContextState(sessionId: string): unknown;
     search(query: string): AiSession[];
     listSessions(): AiSession[];
-    listRuns(): AiRun[];
+    listRuns(sessionId?: string): AiRun[];
   };
   skillTools: {
     listDefinitions(): unknown[];

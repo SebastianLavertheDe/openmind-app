@@ -245,7 +245,7 @@ export class SessionStore {
       : sourceReconstruction.turns.length - 1;
     if (throughRunId && throughIndex < 0) throw new Error("Cannot fork: the selected turn is not present in surviving rollout history.");
     const sourceTurns = sourceReconstruction.turns.slice(0, throughIndex + 1);
-    const target = this.createSession({
+    let target = this.createSession({
       provider: source.provider,
       providerId: source.providerId,
       serviceProviderId: source.serviceProviderId || null,
@@ -259,6 +259,7 @@ export class SessionStore {
       projectRoot: source.projectRoot,
       scope: source.scope
     });
+    target = this.updateSession(target.id, { imageGeneration: source.imageGeneration });
     const lines: AiRolloutLine[] = [];
     for (const sourceTurn of sourceTurns) {
       const sourceRun = this.runs.get(sourceTurn.id);
@@ -269,7 +270,8 @@ export class SessionStore {
         startedAt: sourceTurn.startedAt,
         completedAt: sourceTurn.completedAt,
         error: sourceTurn.error,
-        turnContext: sourceRun.turnContext
+        turnContext: sourceRun.turnContext,
+        imageGeneration: sourceRun.imageGeneration
       });
       lines.push(makeRolloutLine(turnStartedItem(targetRun), sourceTurn.startedAt));
       if (sourceTurn.context) {
@@ -416,6 +418,7 @@ export class SessionStore {
       providerId: session.providerId,
       permissionProfile: session.permissionProfile,
       interactionMode: session.interactionMode,
+      imageGeneration: session.imageGeneration,
       status: "queued",
       prompt,
       promptMessageId: isProjectTaskScope(session.scope) ? runId : null,

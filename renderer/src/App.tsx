@@ -1,3 +1,4 @@
+import { OPEN_IMAGE_PROVIDER_SETTINGS } from "./provider-configuration-events";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAiActions, useAiSnapshot, useAiUi } from "./ai-context";
@@ -118,6 +119,11 @@ function Workspace({
       return { page, state, nonce: current.nonce + 1 };
     });
   }, []);
+  useEffect(() => {
+    const openImageSettings = () => navigate("settings", { settingsSection: "providers", providerCategory: "image" });
+    window.addEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openImageSettings);
+    return () => window.removeEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openImageSettings);
+  }, [navigate]);
   const openNewTask = useCallback(() => {
     // A new task owns a fresh conversation canvas. Clear both preview surfaces
     // and force a new AI route instance so an in-flight file load cannot keep

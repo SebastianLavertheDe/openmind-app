@@ -9,6 +9,8 @@ import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
+import { IMAGE_PROVIDERS } from "@shared/image-generation";
+import { ProviderImageCapability, defaultImageCapability } from "./ProviderImageCapability";
 
 const m = messages;
 
@@ -755,13 +757,17 @@ export function AiProvidersSettingsSection({
   view,
   busy,
   onSave,
-  notify
+  notify,
+  initialCategory = "text"
 }: {
   view: ProvidersYamlView | null;
   busy: boolean;
   onSave(input: ProvidersYamlInput): Promise<void>;
   notify(message: string, tone?: "info" | "success" | "error"): void;
+  initialCategory?: "text" | "image";
 }) {
+  const [category, setCategory] = useState<"text" | "image">(initialCategory);
+  useEffect(() => { setCategory(initialCategory); }, [initialCategory]);
   const [draft, setDraft] = useState<ProviderYamlInputEntry[]>([]);
   const [defaultId, setDefaultId] = useState("");
   const [cliBindings, setCliBindings] = useState<CliProviderBindings>({ claude: null, codex: null });
@@ -830,7 +836,7 @@ export function AiProvidersSettingsSection({
     if (!view) return;
     setDraft(view.providers.map((provider) => ({
       id: provider.id, name: provider.name, enabled: provider.enabled, protocol: provider.protocol, authMode: provider.authMode || "bearer",
-      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, proxyUrl: provider.proxyUrl,
+      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, imageGeneration: provider.imageGeneration ?? null, proxyUrl: provider.proxyUrl,
       proxyPolicy: provider.proxyPolicy, tlsPolicy: provider.tlsPolicy
     })));
     setDefaultId(view.default);
@@ -871,6 +877,10 @@ export function AiProvidersSettingsSection({
       notify(m.settings.providerConfig.validation.incomplete(incomplete.name || incomplete.id), "info");
       return false;
     }
+    if (nextDraft.some(entry => entry.imageGeneration && !entry.imageGeneration.models.length)) {
+      notify("请至少选择一个图片模型，或关闭图片生成。", "info");
+      return false;
+    }
     const providers = nextDraft.map((entry) => ({ ...entry, apiKey: nextApiKeyKeys[entry.id] ?? "" }));
     void onSave({ schemaVersion: 1, default: nextDefaultId, cli: nextCliBindings, providers });
     return true;
@@ -895,7 +905,7 @@ export function AiProvidersSettingsSection({
     saveDraft(draft, id, cliBindings, apiKeyKeys);
   };
 
-  const providerFromPreset = (nextPresetId: string): ProviderYamlInputEntry => {
+  const providerFromPreset = (nextPresetId: string, images = category === "image"): ProviderYamlInputEntry => {
     const preset = PROVIDER_PRESETS.find((item) => item.id === nextPresetId);
     const base = preset ?? { id: "custom", name: m.settings.providerConfig.custom, protocol: "openai-chat" as ProviderProtocol, authMode: "bearer" as ProviderAuthMode, baseUrl: "", model: "" };
     let counter = 0;
@@ -903,12 +913,14 @@ export function AiProvidersSettingsSection({
     while (draft.some((entry) => entry.id === id)) id = `${base.id}-${++counter}`;
     return {
       id, name: base.name, enabled: true, protocol: base.protocol, authMode: base.authMode, apiKey: "",
-      baseUrl: base.baseUrl, model: base.model, proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify"
+      baseUrl: base.baseUrl, model: base.model, imageGeneration: images ? defaultImageCapability(base.baseUrl) : null, proxyUrl: "", proxyPolicy: "system", tlsPolicy: "verify"
     };
   };
 
   const openAddDialog = () => {
-    setNewProvider(providerFromPreset(presetId));
+    const selectedPreset = category === "image" && !["doubao", "openai", "openai-responses", "gemini", "custom"].includes(presetId) ? "doubao" : presetId;
+    setPresetId(selectedPreset);
+    setNewProvider(providerFromPreset(selectedPreset));
     setAdding(true);
   };
 
@@ -931,7 +943,7 @@ export function AiProvidersSettingsSection({
 
   const changePreset = (nextPresetId: string) => {
     setPresetId(nextPresetId);
-    setNewProvider(providerFromPreset(nextPresetId));
+    setNewProvider(providerFromPreset(nextPresetId, Boolean(newProvider?.imageGeneration)));
   };
 
   const addProvider = (event: FormEvent<HTMLFormElement>) => {
@@ -989,9 +1001,14 @@ export function AiProvidersSettingsSection({
       <SettingsPanel title={m.settings.providerConfig.title} scope={m.settings.providerConfig.count(draft.length)} variant="standard"
         action={<button ref={addTriggerRef} type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
         <p className="settings-note settings-provider-list-note">{m.settings.providerConfig.note}</p>
+        <Tabs<"text" | "image"> value={category} onChange={setCategory} label="Provider 分类" tabs={[
+          { value: "text", label: `文本 Provider (${draft.length})` },
+          { value: "image", label: `图片 Provider (${draft.filter(entry => entry.imageGeneration).length})` }
+        ]} />
         <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">{m.settings.providerConfig.empty}</p> : null}
-          {draft.map((entry) => {
+          {draft.length > 0 && category === "image" && !draft.some(entry => entry.imageGeneration) ? <p className="settings-note">暂无图片 Provider。编辑已有 Provider，开启「支持图片生成」即可在这里复用。</p> : null}
+          {draft.filter(entry => category === "text" || entry.imageGeneration).map((entry) => {
             const displayName = entry.name || entry.id;
             const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
             const apiKeyStatus = apiKeySetMap[entry.id] ? m.settings.providerConfig.apiKey.set : apiKeyDrafted ? m.settings.providerConfig.apiKey.pending : m.settings.providerConfig.apiKey.missing;
@@ -1002,8 +1019,8 @@ export function AiProvidersSettingsSection({
                   <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
                     aria-label={m.settings.providerConfig.editAria(displayName)} onClick={(event) => void openEditDialog(entry, event.currentTarget)} disabled={busy}>
                     <span className="settings-provider-config-identity">
-                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}</span>
-                      <span className="settings-provider-config-meta"><code>{entry.protocol} · {entry.model || m.settings.providerConfig.noModel}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
+                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}{entry.imageGeneration ? <StatusBadge tone="neutral">文本 · 图片</StatusBadge> : null}</span>
+                      <span className="settings-provider-config-meta"><code>{category === "image" && entry.imageGeneration ? entry.imageGeneration.models.map(id => IMAGE_PROVIDERS.find(provider => provider.id === entry.imageGeneration!.provider)?.models.find(model => model.id === id)?.name || id).join(" · ") : `${entry.protocol} · ${entry.model || m.settings.providerConfig.noModel}`}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
                     </span>
                   </button>
                   <div className="settings-provider-config-actions">
@@ -1064,6 +1081,7 @@ export function AiProvidersSettingsSection({
                   </label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
+                <ProviderImageCapability value={newProvider.imageGeneration} baseUrl={newProvider.baseUrl} onChange={imageGeneration => setNewProvider({ ...newProvider, imageGeneration })} />
               </div>
               <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>{m.settings.providerConfig.cancel}</button><button type="submit" className="primary-button"><Plus size={14} />{m.settings.providerConfig.addToList}</button></footer>
             </form>
@@ -1092,6 +1110,7 @@ export function AiProvidersSettingsSection({
                       onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
                   </label>
                 </div>
+                <ProviderImageCapability value={editingProvider.imageGeneration} baseUrl={editingProvider.baseUrl} disabled={busy} onChange={imageGeneration => update(editingProvider.id, { imageGeneration })} />
                 <AnimatedDisclosure
                   className="settings-disclosure"
                   triggerClassName="settings-provider-advanced-trigger"
@@ -1164,6 +1183,7 @@ function providersViewAsInput(view: ProvidersYamlView, cli: CliProviderBindings)
       apiKey: "",
       baseUrl: provider.baseUrl,
       model: provider.model,
+      imageGeneration: provider.imageGeneration ?? null,
       proxyUrl: provider.proxyUrl || "",
       proxyPolicy: provider.proxyPolicy || "system",
       tlsPolicy: provider.tlsPolicy || "verify"

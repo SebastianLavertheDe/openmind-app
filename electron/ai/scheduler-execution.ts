@@ -120,6 +120,11 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     if (turnImages.length && provider.supportsImages === false) throw new Error("当前 Provider 不支持图片附件。");
     const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt);
     const usesExternalSession = host.adapters[session.provider].usesExternalSession !== false;
+    // Dynamic tools are registered at thread/start, not thread/resume. Upgrade
+    // old threads through the app's existing recovered-history path once.
+    if (session.provider === "codex" && session.providerSessionId && session.appToolsVersion !== 1) {
+      session = host.store.updateSession(session.id, { providerSessionId: null });
+    }
     if (!usesExternalSession && session.providerSessionId) {
       session = host.store.updateSession(session.id, { providerSessionId: null });
     }
@@ -156,9 +161,9 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         host.publishSnapshot();
         return host.approvals.request(run, { ...input, cwd: directCwd, paths: input.paths || [] });
       },
-      updateProviderSession: (id) => {
+      updateProviderSession: (id, appToolsVersion) => {
         if (!usesExternalSession) return;
-        if (session.providerSessionId !== id) session = host.store.updateSession(session.id, { providerSessionId: id });
+        if (session.providerSessionId !== id || (appToolsVersion !== undefined && session.appToolsVersion !== appToolsVersion)) session = host.store.updateSession(session.id, { providerSessionId: id, ...(appToolsVersion === undefined ? {} : { appToolsVersion }) });
       },
       updateInteractionMode: (mode) => {
         if (session.interactionMode !== mode) {

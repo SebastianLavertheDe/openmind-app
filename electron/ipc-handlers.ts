@@ -37,6 +37,9 @@ import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime
 import { normalizeOpenmindSelection } from "./openmind-file-search";
 import * as settings from "./lib/settings";
 import { readImagePreview } from "./lib/image-preview";
+import { readChatImage } from "./images/chat-image";
+import { ImageConfigurationStore } from "./images/image-configuration";
+import { ChatImageRequestSchema, ImageSelectionSchema } from "../shared/image-generation";
 import { messages } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
@@ -252,6 +255,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.listContent, handler: (kind, date) => product().listContent(parseString(kind), parseOptionalDate(date)) },
     { channel: C.readContent, handler: (filePath) => product().readContent(parseString(filePath)) },
     { channel: C.readImagePreview, handler: (filePath) => readImagePreview(parseString(filePath)) },
+    { channel: C.readChatImage, handler: (input) => readChatImage(ChatImageRequestSchema.parse(input), (source, projectName) => {
+      if (source.startsWith("openmind/")) return settings.ensureInsideRepoReadable(source);
+      if (projectName) return projects().paths.resolveInsideProject(projectName, source, { allowedTopLevels: ["materials", "outputs"] });
+      return settings.ensureInsideRepoReadable(source);
+    }) },
+    { channel: C.getImageConfiguration, handler: () => new ImageConfigurationStore(settings.resolveOpenmindRoot()).view() },
+    { channel: C.selectImageModel, handler: (input) => new ImageConfigurationStore(settings.resolveOpenmindRoot()).select(ImageSelectionSchema.nullable().parse(input)) },
     {
       channel: C.writeContent,
       handler: (filePath, rawContent) => product().writeContent(parseString(filePath), FileContentSchema.parse(rawContent))
@@ -640,6 +650,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             return ProjectAiRunResultSchema.parse(await ai().call("start-project-run", {
               sessionId: input.sessionId,
               prompt: input.prompt,
+              permissionProfile: input.permissionProfile,
+              imageGeneration: input.imageGeneration,
               contexts
             }));
           } catch (error) {
@@ -863,6 +875,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               sessionId: input.sessionId,
               permissionProfile: input.permissionProfile,
               prompt: input.prompt,
+              imageGeneration: input.imageGeneration,
               contexts: trustedContexts
             };
           } else {
@@ -876,6 +889,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               providerId: task.providerId,
               permissionProfile: input.permissionProfile,
               prompt: input.prompt,
+              imageGeneration: input.imageGeneration,
               contexts: trustedContexts
             };
           }

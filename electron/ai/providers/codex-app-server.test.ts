@@ -197,7 +197,7 @@ function makeContext(overrides: Partial<ProviderRunContext> = {}): ProviderRunCo
 }
 
 /** 驱动一个成功的完整 run 流程。 */
-async function driveSuccessfulRun(ctx: ProviderRunContext): Promise<FakeChild> {
+async function driveSuccessfulRun(ctx: ProviderRunContext, toolRequest?: Record<string, unknown>): Promise<FakeChild> {
   const adapter = new CodexAppServerAdapter();
   const child = makeFakeChild();
   const runPromise = adapter.run(ctx);
@@ -211,6 +211,7 @@ async function driveSuccessfulRun(ctx: ProviderRunContext): Promise<FakeChild> {
   await wait();
   sendLine(child, { id: 3, result: {} }); // turn/start
   await wait();
+  if (toolRequest) { sendLine(child, toolRequest); await wait(); }
   sendLine(child, {
     method: "turn/completed",
     params: { threadId: "thread-abc", turn: { id: "turn-1", status: "completed", error: null } }
@@ -482,11 +483,19 @@ describe("CodexAppServerAdapter.run()", () => {
     const ctx = makeContext();
     const child = await driveSuccessfulRun(ctx);
 
-    expect(ctx.updateProviderSession).toHaveBeenCalledWith("thread-abc");
+    expect(ctx.updateProviderSession).toHaveBeenCalledWith("thread-abc", 1);
     const requests = child.writtenLines.map((line) => JSON.parse(line));
     expect(requests.find((r) => r.method === "initialize")).toBeDefined();
     expect(requests.find((r) => r.method === "thread/start")).toBeDefined();
+    expect(requests.find((r) => r.method === "thread/start").params.dynamicTools).toEqual([expect.objectContaining({ type: "function", name: "openmind_generate_image", inputSchema: expect.objectContaining({ type: "object" }) })]);
     expect(requests.find((r) => r.method === "turn/start")).toBeDefined();
+  });
+
+  it("answers image tool calls with structured errors when no image model is selected", async () => {
+    const ctx = makeContext();
+    const child = await driveSuccessfulRun(ctx, { id: "image-request", method: "item/tool/call", params: { tool: "openmind_generate_image", namespace: null, callId: "image-call", arguments: { prompt: "a leaf" } } });
+    const answer = child.writtenLines.map(line => JSON.parse(line)).find(item => item.id === "image-request");
+    expect(answer.result).toMatchObject({ success: false, contentItems: [{ type: "inputText", text: expect.stringContaining("选择图片服务商") }] });
   });
 
   it("普通 Workspace 关闭 Codex 沙箱并保留应用托管配置", async () => {

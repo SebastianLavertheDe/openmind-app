@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageSelectionSchema } from "../../shared/image-generation";
 import { ContextReferenceSchema, PermissionProfileSchema } from "../../shared/contracts";
 
 const ProjectRunPromptSchema = z.string().min(1).max(2_000_000);
@@ -18,12 +19,14 @@ export const TrustedProjectRunInputSchema = z.union([
     providerId: z.string().min(1).max(160),
     permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
+    imageGeneration: ImageSelectionSchema.nullable().optional(),
     contexts: ProjectRunContextsSchema
   }).strict(),
   z.object({
     sessionId: z.string().min(1).max(160),
     permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
+    imageGeneration: ImageSelectionSchema.nullable().optional(),
     contexts: ProjectRunContextsSchema
   }).strict()
 ]);

@@ -8,6 +8,8 @@ import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen,
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
+import type { ImageSelection } from "@shared/image-generation";
+import { ImageModelPicker } from "./ImageModelPicker";
 import { useAiActions, useAiDraft, useAiSnapshot, useAiUi } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
@@ -138,6 +140,7 @@ async function ingestPastedImage(
 }
 
 export type ChatDraftSubmitInput = {
+  imageGeneration?: ImageSelection | null;
   prompt: string;
   providerId: string;
   permissionProfile: PermissionProfile;
@@ -157,6 +160,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const availableProviders = snapshot.providers.filter((provider) => provider.available);
   const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
+  const [imageGeneration, setImageGeneration] = useState<ImageSelection | null | undefined>(activeSession?.imageGeneration);
+  useEffect(() => { setImageGeneration(activeSession?.imageGeneration); }, [activeSession?.id, activeSession?.imageGeneration?.providerId, activeSession?.imageGeneration?.provider, activeSession?.imageGeneration?.model]);
   // 设置页"设为默认"的 agent provider：新会话的默认选中项，与设置页展示一致。
   const [preferredProviderId, setPreferredProviderId] = useState("");
   const [preferredPermissionProfile, setPreferredPermissionProfile] = useState<PermissionProfile>("auto");
@@ -299,10 +304,11 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
           providerId,
           permissionProfile,
           interactionMode,
+          imageGeneration,
           contexts: pendingContexts
         });
       } else {
-        await actions.send(draft, { providerId, permissionProfile, interactionMode });
+        await actions.send(draft, { providerId, permissionProfile, interactionMode, imageGeneration });
       }
     } catch (cause) {
       if (onDraftSubmit) setLocalError(cause instanceof Error ? cause.message : String(cause));
@@ -615,6 +621,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             </div>
           </div>
         </div>
+        <div className="composer-image-controls"><span>图片生成</span><ImageModelPicker value={imageGeneration} onChange={setImageGeneration} /></div>
       </div>
     </footer>
   );

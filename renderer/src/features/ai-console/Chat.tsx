@@ -10,6 +10,8 @@ import {
   ShieldAlert
 } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
+import { GeneratedImageSchema, type GeneratedImage } from "@shared/image-generation";
+import { ChatImageGallery, GeneratedImages } from "./ChatImages";
 import { messages as m } from "@shared/messages";
 import { useAiEvents, useAiSnapshot, useAiStreaming, useSetAiDraft } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
@@ -53,6 +55,7 @@ export { ToolCallCard } from "./tool";
 
 type TimelineViewItem = ReturnType<typeof groupTimeline>[number];
 type ChatViewItem = TimelineViewItem
+  | { type: "image-artifacts"; key: string; run: AiRun; images: GeneratedImage[] }
   | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null; missingFinal: boolean }
   | { type: "changes-artifact"; key: string; run: AiRun; events: AiEvent[] };
 type ToolStep = Extract<TraceStep, { type: "tool" }>;
@@ -272,6 +275,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   }, [sessionId, sessionLoading]);
 
   return (
+    <ChatImageGallery key={activeSession?.id || "new"} projectName={activeSession?.scope?.type === "project-task" ? activeSession.scope.projectName : undefined}>
     <section className={`chat ${compact ? "compact" : ""}`}>
       <div
         className="chat-scroll"
@@ -349,6 +353,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         <ChatComposer onDraftSubmit={onDraftSubmit} />
       </div>
     </section>
+    </ChatImageGallery>
   );
 });
 
@@ -407,6 +412,8 @@ const TimelineItems = memo(function TimelineItems({
                 live={!leaving && item.run.id === activeRunId}
                 activeRunHasTool={activeRunHasTool}
               />
+            : item.type === "image-artifacts"
+              ? <GeneratedImages images={item.images} />
             : item.type === "changes-artifact"
               ? <ChangeReviewCard events={item.events} run={item.run} />
             : item.type === "tool-group"
@@ -515,6 +522,11 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
     const prompts = conversation.filter((item) => item.event.kind === "user-message");
     const responses = conversation.filter((item) => item.event.kind === "assistant-message" && assistantPhase(item.event) === "final");
     const finalResponse = run.status === "completed" ? responses.at(-1) : undefined;
+    const images = conversation.flatMap(item => {
+      if (item.event.kind !== "image-artifact") return [];
+      const parsed = GeneratedImageSchema.safeParse(item.event.payload.image);
+      return parsed.success ? [parsed.data] : [];
+    });
     const missingFinal = run.status === "completed" && !finalResponse;
     const steps = runItems
       .filter((item): item is Extract<TimelineViewItem, { type: "step" }> => item.type === "step")
@@ -549,6 +561,7 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
       completedAt,
       missingFinal
     });
+    if (images.length) result.push({ type: "image-artifacts", key: `image-artifacts:${run.id}`, run, images });
     if (finalResponse) result.push(finalResponse);
     if (artifactEvents.length || run.changeSet?.files.length) {
       result.push({
@@ -970,6 +983,10 @@ function approvalRequestSubject(event: AiEvent): string {
 }
 
 function EventRow({ event }: { event: AiEvent }) {
+  if (event.kind === "image-artifact") {
+    const image = GeneratedImageSchema.safeParse(event.payload.image);
+    return image.success ? <GeneratedImages images={[image.data]} /> : null;
+  }
   if (event.kind === "user-message") return <UserMessage event={event} />;
   if (event.kind === "assistant-message") {
     if (assistantPhase(event) !== "final") return <ProcessNarrative text={String(event.payload.text || "")} />;

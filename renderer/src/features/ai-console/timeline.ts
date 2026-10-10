@@ -298,7 +298,7 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
 }
 
 function isConversationEvent(event: AiEvent): boolean {
-  return event.kind === "user-message" || (event.kind === "assistant-message" && assistantPhase(event) === "final");
+  return event.kind === "image-artifact" || event.kind === "user-message" || (event.kind === "assistant-message" && assistantPhase(event) === "final");
 }
 
 function isProcessCommentaryEvent(event: AiEvent): boolean {
@@ -322,6 +322,7 @@ export function compactEvents(events: AiEvent[], activeRunId?: string): AiEvent[
     if (event.runId === activeRunId) return true;
     return [
       "user-message",
+      "image-artifact",
       "assistant-message",
       "reasoning-summary",
       "plan",
@@ -350,6 +351,7 @@ export function toolValueText(value: unknown): string {
 
 export function toolCategory(tool: string): ToolCategory {
   const normalized = tool.toLocaleLowerCase();
+  if (normalized.endsWith("openmind_generate_image")) return "generic";
   if (/(write|edit|patch|replace|create|delete|move|rename|filechange)/.test(normalized)) return "write";
   if (/(glob|grep|search|find|list|scan)/.test(normalized)) return "search";
   if (/(read|view|inspect|open)/.test(normalized)) return "read";

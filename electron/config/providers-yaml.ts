@@ -256,6 +256,7 @@ export function listProvidersForUi(): ProvidersYamlView {
       authMode: provider.authMode,
       baseUrl: provider.baseUrl,
       model: provider.model,
+      imageGeneration: provider.imageGeneration ?? null,
       proxyUrl: provider.proxyUrl,
       proxyPolicy: provider.proxyPolicy,
       tlsPolicy: provider.tlsPolicy,

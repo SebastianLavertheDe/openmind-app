@@ -1,5 +1,5 @@
 import { isValidElement, memo, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -15,6 +15,7 @@ import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
 import { DocumentReader, useDocumentCodeText, type ReaderComponents } from "../../components/document/DocumentReader";
 import { ArtifactMessageBlock } from "./ArtifactMessageBlock";
+import { ChatImage, ChatImageGallery } from "./ChatImages";
 import {
   assistantBlocksVisibleText,
   parseAssistantContent,
@@ -132,16 +133,17 @@ export function ChatMarkdown({
 }) {
   const classes = ["chat-markdown", streaming ? "markdown-streaming" : "", className].filter(Boolean).join(" ");
   if (!streaming && text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
-    return <DocumentReader content={text} math className={classes} customComponents={documentComponents}/>;
+    return <ChatImageGallery><DocumentReader content={text} math className={classes} customComponents={documentComponents}/></ChatImageGallery>;
   }
   return (
-    <div className={classes}>
+    <ChatImageGallery><div className={classes}>
       {streaming ? <StreamingMarkdown text={text} /> : <CachedMarkdown text={text} />}
-    </div>
+    </div></ChatImageGallery>
   );
 }
 
 const documentComponents: ReaderComponents = {
+  img: ({ node: _node, ...props }) => <SafeMarkdownImage {...props}/>,
   a: ({ node: _node, ...props }) => <MarkdownLink {...props}/>,
   pre: function DocumentCode({ node, ...props }) {
     return <MarkdownPre {...props} copyText={useDocumentCodeText(node)}/>;
@@ -196,7 +198,7 @@ function renderCachedMarkdown(cacheKey: string, text: string): ReactNode {
     markdownCache.set(cacheKey, cached);
     return cached.node;
   }
-  const node = <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]} components={{ a: MarkdownLink, code: MarkdownCode, img: SafeMarkdownImage, pre: MarkdownPre }}>{text}</ReactMarkdown>;
+  const node = <ReactMarkdown urlTransform={chatUrlTransform} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]} components={{ a: MarkdownLink, code: MarkdownCode, img: SafeMarkdownImage, pre: MarkdownPre }}>{text}</ReactMarkdown>;
   markdownCache.set(cacheKey, { text, node });
   while (markdownCache.size > MARKDOWN_CACHE_LIMIT) {
     const oldest = markdownCache.keys().next().value;
@@ -217,7 +219,7 @@ function renderStreamingMarkdown(text: string): ReactNode {
   // 避免 $$...$$ 在生成过程中以裸文本闪烁。落定（streaming=false）后由
   // renderCachedMarkdown 完整渲染（含高亮）并进 LRU。
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: MarkdownLink, code: MarkdownCode, img: SafeMarkdownImage, pre: MarkdownPre }}>
+    <ReactMarkdown urlTransform={chatUrlTransform} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: MarkdownLink, code: MarkdownCode, img: SafeMarkdownImage, pre: MarkdownPre }}>
       {text}
     </ReactMarkdown>
   );
@@ -321,7 +323,14 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
 }
 
 export function SafeMarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>) {
-  return <a className="safe-image-link" href={src} target="_blank" rel="noreferrer">{m.ai.message.viewImage(String(alt || ""), String(src || ""))}</a>;
+  if (typeof src !== "string" || !src) return null;
+  const source = src.startsWith("//") ? `https:${src}` : localFileReference(src) || src;
+  return <ChatImage source={source} title={String(alt || "图片")} />;
+}
+
+function chatUrlTransform(url: string, key: string): string {
+  if (key === "src" && (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(url) || /^file:\/\//i.test(url) || /^[a-z]:[\\/]/i.test(url))) return url;
+  return defaultUrlTransform(url);
 }
 
 function MarkdownPre({ children, copyText, ...props }: HTMLAttributes<HTMLPreElement> & { copyText?: string }) {

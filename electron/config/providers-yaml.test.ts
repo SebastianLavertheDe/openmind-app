@@ -75,6 +75,20 @@ function providerDocument(): ProvidersYamlInput {
 }
 
 describe("config/providers.yaml file repository", () => {
+  it("round-trips image capability without duplicating credentials or changing the text route", () => {
+    const document = providerDocument();
+    const imageGeneration = { provider: "openai" as const, models: ["gpt-image-2"] };
+    document.providers[0].imageGeneration = imageGeneration;
+    const saved = config.saveProvidersFromInput(document);
+    const revision = config.providerConfigurationRevision(saved.providers[0]);
+    expect(config.listProvidersForUi().providers[0].imageGeneration).toEqual(imageGeneration);
+    expect(config.readDefaultProviderEnv().env.OPENMIND_PROVIDER_MODEL).toBe("model-general-chat");
+    const updated = config.saveProvidersFromInput({ ...document, providers: document.providers.map(entry => ({ ...entry, apiKey: "", imageGeneration: null })) });
+    expect(updated.providers).toHaveLength(document.providers.length);
+    expect(updated.providers[0].apiKey).toBe("secret-general-chat");
+    expect(updated.providers[0].imageGeneration).toBeNull();
+    expect(config.providerConfigurationRevision(updated.providers[0])).toBe(revision);
+  });
   it("saves multiple providers and preserves stored keys when UI inputs leave them blank", () => {
     const first = config.saveProvidersFromInput(providerDocument());
     expect(config.providersYamlPath()).toBe(path.join(repo, "config", "providers.yaml"));

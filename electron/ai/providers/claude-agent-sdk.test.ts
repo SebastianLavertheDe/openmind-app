@@ -30,6 +30,8 @@ const processUtilsMock = vi.hoisted(() => ({
   }))
 }));
 vi.mock(import("@anthropic-ai/claude-agent-sdk"), () => ({
+  tool: (name: string, description: string, schema: unknown, handler: unknown) => ({ name, description, schema, handler }),
+  createSdkMcpServer: (configuration: unknown) => ({ type: "sdk", configuration }),
   startup: sdkMock.startup,
   query: sdkMock.query,
   Options: class {}
@@ -209,7 +211,7 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
       skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "/project/.agent/skills/browser-skill", skillPath, description: "Read logged-in pages and capture screenshots" }]
     }));
     const options = sdkMock.startup.mock.calls[0][0].options as { mcpServers?: unknown; systemPrompt: { append?: string } };
-    expect(options.mcpServers).toBeUndefined();
+    expect(options.mcpServers).toHaveProperty("openmind_images");
     expect(options.systemPrompt.append).toContain(skillPath);
     expect(options.systemPrompt.append).toContain("Read logged-in pages and capture screenshots");
     expect(options.systemPrompt.append).toContain("无需用户输入斜杠命令");
@@ -523,6 +525,17 @@ describe("decideClaudePermission Workspace read boundary", () => {
 });
 
 describe("ClaudeAgentSdkAdapter.run()", () => {
+  it("routes its in-process image tool through the active run and enforces read-only mode", async () => {
+    sdkMock.query.mockReturnValueOnce(makeQuery([]));
+    const ctx = makeRunContext();
+    await new ClaudeAgentSdkAdapter().run(ctx);
+    const call = sdkMock.query.mock.calls[0][0] as { options: { mcpServers: { openmind_images: { configuration: { tools: Array<{ handler(input: unknown): Promise<{ isError?: boolean }> }> } } }; env: Record<string, string> } };
+    const tool = call.options.mcpServers.openmind_images.configuration.tools[0];
+    expect((await tool.handler({ prompt: "leaf" })).isError).toBe(true);
+    expect(call.options.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT).toBe("660000");
+    expect(decideClaudePermission({ ...ctx, session: { ...ctx.session, permissionProfile: "read-only" } }, "mcp__openmind_images__openmind_generate_image", { prompt: "leaf" }).behavior).toBe("deny");
+    expect(decideClaudePermission({ ...ctx, session: { ...ctx.session, interactionMode: "plan" } }, "mcp__openmind_images__openmind_generate_image", { prompt: "leaf" }).behavior).toBe("deny");
+  });
   it("遍历 query 消息并 emit 事件(assistant-message)", async () => {
     const query = makeQuery([
       { type: "assistant", message: { content: [{ type: "text", text: "你好" }] } }
@@ -1171,7 +1184,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.persistSession).toBe(false);
     expect(call.options.sandbox).toEqual({ enabled: false });
     expect(call.options.resume).toBeUndefined();
-    expect(call.options.mcpServers).toBeUndefined();
+    expect(Object.keys(call.options.mcpServers)).toEqual(["openmind_images"]);
     expect(ctx.updateProviderSession).not.toHaveBeenCalled();
   });
 

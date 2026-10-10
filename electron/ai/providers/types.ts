@@ -33,7 +33,7 @@ export interface ProviderRunContext {
     command?: string;
     paths?: string[];
   }): Promise<ApprovalDecision>;
-  updateProviderSession(id: string): void;
+  updateProviderSession(id: string, appToolsVersion?: number): void;
   /** Provider 通过真实模式事件切换状态时，同步到本地会话。 */
   updateInteractionMode?(mode: AiSession["interactionMode"]): void;
   skillInvocation: ProviderSkillInvocation | null;

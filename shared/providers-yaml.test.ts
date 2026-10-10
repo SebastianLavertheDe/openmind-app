@@ -23,6 +23,15 @@ function provider(
 }
 
 describe("providers.yaml schemas", () => {
+  it("keeps shared image capabilities on one text provider and validates supported generation models", () => {
+    const imageGeneration = { provider: "volcengine", models: ["doubao-seedream-5-0-flash-260915"] };
+    const document = { schemaVersion: 1, default: "shared", providers: [provider("shared", "openai-chat", { imageGeneration })] };
+    expect(ProvidersYamlSchema.parse(document).providers).toHaveLength(1);
+    expect(ProvidersYamlSchema.parse(document).providers[0].imageGeneration).toEqual(imageGeneration);
+    for (const models of [[], ["gpt-4o"], ["gpt-image-2"], [imageGeneration.models[0], imageGeneration.models[0]]]) {
+      expect(() => ProvidersYamlSchema.parse({ ...document, providers: [provider("shared", "openai-chat", { imageGeneration: { ...imageGeneration, models } })] })).toThrow();
+    }
+  });
   it("defaults cli bindings and authMode when reading a legacy schemaVersion 1 document", () => {
     const parsed = ProvidersYamlSchema.parse({
       schemaVersion: 1,

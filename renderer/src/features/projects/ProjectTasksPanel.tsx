@@ -252,7 +252,9 @@ export function ProjectTasksPanel({
         input.providerId,
         nextPrompt,
         input.contexts,
-        input.permissionProfile
+        input.permissionProfile,
+        undefined,
+        input.imageGeneration
       );
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
@@ -294,7 +296,8 @@ export function ProjectTasksPanel({
         nextPrompt,
         input.contexts,
         input.permissionProfile,
-        selected.sessionId
+        selected.sessionId,
+        input.imageGeneration
       );
       setDraft("");
       actions.clearContexts();

@@ -288,7 +288,9 @@ export function ToolCallCard({
   const incomplete = callState === "incomplete";
   const running = callState === "running";
   const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
-  const summaryLabel = category === "command" ? operation : tool;
+  const imageTool = tool.endsWith("openmind_generate_image");
+  const displayTool = imageTool ? "生成图片" : tool;
+  const summaryLabel = category === "command" ? operation : displayTool;
   const titleOperation = toolTitleOperation(category, operation, tool);
   const inlineOperation = category === "command" ? "" : titleOperation && titleOperation !== tool ? titleOperation : "";
   const displayActionLabel = category === "command"
@@ -302,10 +304,10 @@ export function ToolCallCard({
   const disclosureOpen = controlled ? Boolean(open) : internalOpen;
   const groupedSummary = category === "command"
     ? operation
-    : [tool, titleOperation].filter(Boolean).join(" \u00b7 ");
+    : [displayTool, titleOperation].filter(Boolean).join(" \u00b7 ");
   const groupedAriaSummary = category === "command"
     ? operation
-    : [tool, operation].filter(Boolean).join(" \u00b7 ");
+    : [displayTool, operation].filter(Boolean).join(" \u00b7 ");
   const setDisclosureOpen = (nextOpen: boolean) => {
     if (controlled) onOpenChange?.(nextOpen);
     else setInternalOpen(nextOpen);

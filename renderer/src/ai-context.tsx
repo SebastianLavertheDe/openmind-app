@@ -47,6 +47,7 @@ type NotifyOptions = { action?: ToastAction; durationMs?: number };
 export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean };
 export type ConfirmAction = (options: ConfirmOptions) => Promise<boolean>;
 type SendOptions = {
+  imageGeneration?: import("@shared/image-generation").ImageSelection | null;
   providerId?: string;
   permissionProfile?: PermissionProfile;
   interactionMode?: InteractionMode;
@@ -715,6 +716,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
         cwd: targetSession?.cwd || ".",
         prompt,
         contexts,
+        imageGeneration: options.imageGeneration,
         ...(acknowledgeProviderChange ? { acknowledgeProviderChange: true } : {})
       });
       let result: Awaited<ReturnType<typeof window.openmind.aiStartRun>>;
@@ -792,6 +794,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
       providerId: run.providerId,
       permissionProfile: run.permissionProfile,
       interactionMode: run.interactionMode,
+      imageGeneration: run.imageGeneration,
       contexts: run.contexts
     });
   }, [send]);

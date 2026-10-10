@@ -23,6 +23,8 @@ import { ClaudeAgentSdkAdapter } from "./providers/claude-agent-sdk";
 import { CodexAppServerAdapter } from "./providers/codex-app-server";
 import { canonicalizeTrustedProjectRoot, normalizeContextReferences, normalizeCwd } from "./scheduler-paths";
 import { materializeImages, cleanupStaleImages } from "./scheduler-images";
+import { ImageConfigurationStore } from "../images/image-configuration";
+import type { ImageSelection } from "../../shared/image-generation";
 import { AUTO_MODEL, type ProviderKind } from "../../shared/model-catalog";
 import { slashCommandValidationError } from "../../shared/slash-commands";
 import { parseSkillSlashInvocation } from "../../shared/skill-invocations";
@@ -319,6 +321,7 @@ export class RunScheduler {
       interactionMode: input.interactionMode,
       cwd,
       prompt: input.prompt,
+      imageGeneration: input.imageGeneration,
       contexts: input.contexts,
       acknowledgeProviderChange: input.acknowledgeProviderChange === true
     });
@@ -342,6 +345,7 @@ export class RunScheduler {
         interactionMode: session.interactionMode ?? "default",
         cwd: session.cwd,
         prompt: input.prompt,
+        imageGeneration: input.imageGeneration,
         contexts: input.contexts
       });
     }
@@ -356,6 +360,7 @@ export class RunScheduler {
       interactionMode: "default",
       cwd: ".",
       prompt: input.prompt,
+      imageGeneration: input.imageGeneration,
       contexts: input.contexts
     });
   }
@@ -370,6 +375,7 @@ export class RunScheduler {
     cwd: string;
     prompt: string;
     contexts: AiRun["contexts"];
+    imageGeneration?: ImageSelection | null;
     acknowledgeProviderChange?: boolean;
   }): { session: AiSession; run: AiRun } {
     // Every turn refreshes enabled Installed Skills, including continuations
@@ -448,6 +454,10 @@ export class RunScheduler {
       });
     }
     const runId = crypto.randomUUID();
+    const imageGeneration = input.imageGeneration !== undefined ? input.imageGeneration
+      : session.imageGeneration !== undefined ? session.imageGeneration
+      : new ImageConfigurationStore(this.openmindRoot).view().defaultSelection;
+    session = this.store.updateSession(session.id, { imageGeneration });
     const materializedContexts = materializeImages(session.projectRoot, runId, contexts, this.stateRoot);
     const run = this.store.createRun(session, input.prompt, materializedContexts, runId);
     if (projectScoped) this.store.setProjectTaskStatus(session.id, "active");

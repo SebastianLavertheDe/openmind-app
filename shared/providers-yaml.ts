@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageCapabilitySchema } from "./image-generation";
 
 /**
  * Pure schema + types for the plaintext `config/providers.yaml` provider
@@ -56,6 +57,8 @@ const ProviderYamlEntryObjectSchema = z.object({
     message: "Base URL 必须是无凭据的 HTTPS URL；HTTP 仅允许 localhost/loopback。"
   }),
   model: z.string().trim().min(1).max(200),
+  /** Image understanding alone does not grant image-generation capability. */
+  imageGeneration: ImageCapabilitySchema.nullable().optional(),
   proxyUrl: z.string().trim().max(2048).default("").refine((value) => !value || isSafeProxyUrl(value), {
     message: "Proxy URL 必须是无凭据的 HTTP(S) URL。"
   }),

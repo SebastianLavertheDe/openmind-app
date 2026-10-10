@@ -437,6 +437,9 @@ export function responseItemForEvent(event: AiEvent): AiRolloutResponseItem | nu
       content: outputText(event.payload)
     };
   }
+  if (event.kind === "image-artifact") {
+    return { ...common, kind: "function_call_output", role: "tool", name: "openmind_generate_image", callId: String(event.payload.itemId || event.id), content: safeJson({ image: event.payload.image, displayedInChat: true }) };
+  }
   return null;
 }
 
