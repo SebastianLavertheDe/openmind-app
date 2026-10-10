@@ -7,6 +7,7 @@ OpenMind Desktop is a personal workspace for collecting information, organizing 
 ## Highlights
 
 - **203 curated RSS feeds.** The official [Skill library](https://github.com/SebastianLavertheDe/cctools-skills) includes 122 general feeds and 81 WeChat Official Account feeds, covering AI, technology, engineering, and more. Install it during setup and customize your subscriptions.
+- **Add your own materials.** Import web URLs, PDF files, and YouTube video links into your projects, and keep them together as sources for reading and writing.
 - **From reading to writing.** Collect articles as Markdown, generate daily summaries and topic ideas, and use your reading materials to develop drafts and projects.
 - **Your choice of AI.** Configure your own AI Provider for summaries and writing, and connect Claude Code or Codex CLI for AI conversations.
 - **Extend with Skills.** Use RSS, Reddit, X, knowledge compilation, and writing workflows from the official library, or install additional Skills from Git repositories, ZIP files, or local folders.
@@ -44,7 +45,7 @@ Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](do
 
 ## TODO
 
-- [ ] **Complete the video workflow:** bring video import, downloading, transcription, summaries, and writing materials into a connected desktop experience.
+- [ ] **Improve the video workflow:** refine downloading, transcription, summaries, and integration with writing projects.
 - [ ] **Expand content sources and Skills:** maintain the RSS starter list and add more collection and writing workflows.
 - [ ] **Simplify setup:** improve Skill and runtime installation, offline use, and recovery from interrupted downloads.
 - [ ] **Improve desktop delivery:** continue improving Windows/macOS packaging, compatibility, and everyday usability.
