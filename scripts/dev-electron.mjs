@@ -5,6 +5,8 @@
 // main/preload 无法热更新：每次启动前自动执行 build:electron，保证 dist 里的主进程与
 // preload 桥和源码一致（否则 renderer 新增的 IPC 调用会打不到旧桥上）。
 // 可选环境变量 OPENMIND_DEVTOOLS_PORT：给 Electron 开 CDP 调试端口。
+// 可选环境变量 OPENMIND_DEV_PORT：指定 vite 端口。默认 5173 在 Windows 上可能落进
+// WinNAT/Hyper-V 保留区间（netsh interface ipv4 show excludedportrange）导致 EACCES。
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -32,7 +34,9 @@ function runStep(command, args, label) {
 await runStep("npm", ["run", "build:electron"], "[dev-electron] build:electron");
 console.log("[dev-electron] main/preload 已重新构建。");
 
-const vite = spawn(process.execPath, [viteJs, "--host", "127.0.0.1"], { stdio: ["ignore", "pipe", "pipe"] });
+const viteArgs = ["--host", "127.0.0.1"];
+if (process.env.OPENMIND_DEV_PORT) viteArgs.push("--port", process.env.OPENMIND_DEV_PORT);
+const vite = spawn(process.execPath, [viteJs, ...viteArgs], { stdio: ["ignore", "pipe", "pipe"] });
 const forwardViteOutput = (chunk) => process.stdout.write(chunk);
 vite.stdout.on("data", forwardViteOutput);
 vite.stderr.on("data", forwardViteOutput);

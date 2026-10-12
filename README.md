@@ -14,6 +14,30 @@ OpenMind Desktop is a personal workspace for collecting information, organizing 
 - **WeChat export.** Preview article layouts, copy rich text, and send drafts to your configured WeChat Official Account.
 - **Files you control.** Keep collected articles, notes, and drafts in a local folder you choose, with Markdown files you can read and edit outside the app.
 
+## Workspace preview
+
+**Daily briefs and AI conversations.** Browse daily summaries and discuss what you are reading with AI alongside the document.
+
+![Daily brief with the file list, summary preview, and AI conversation](docs/screenshots/daily-brief.png)
+
+<details>
+<summary>Project sources — collect materials for reading and writing</summary>
+
+Keep project materials together and preview YouTube sources alongside the AI workspace. The example below shows a video without available platform subtitles.
+
+![Project file list and YouTube preview alongside the AI workspace](docs/screenshots/project-sources.png)
+
+</details>
+
+<details>
+<summary>Automation — schedule workflows and inspect their runs</summary>
+
+Configure recurring collection and summary workflows, run them manually, and inspect status and execution logs. The example below includes a failed run to show how errors are surfaced.
+
+![Automation rules, schedule settings, and execution logs](docs/screenshots/automation.png)
+
+</details>
+
 ## Getting started
 
 Desktop builds target Windows 11 and macOS. Linux is available for development and testing.
@@ -26,6 +50,15 @@ Desktop builds target Windows 11 and macOS. Linux is available for development a
 4. **Start collecting and creating.** Customize subscriptions in Settings, run RSS collection or the RSS-to-summary workflow in Skill Center, read the results in your library, and use them in writing projects.
 
 AI features send requests to the provider you configure. Use your own credentials and keep your data folder and provider configuration private.
+
+<details>
+<summary>Settings preview — appearance and local data folder</summary>
+
+In **Settings → General**, adjust the theme, display density, and text size, and choose your OpenMind data folder.
+
+![General settings for appearance, text size, and the local data folder](docs/screenshots/settings.png)
+
+</details>
 
 ### Run from source
 

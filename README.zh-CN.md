@@ -14,6 +14,30 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 - **公众号导出。** 预览文章排版、复制富文本，并将草稿推送到已配置的微信公众号。
 - **文件由你掌握。** 文章、笔记和草稿保存在自己选择的本地文件夹中，Markdown 文件也可以用其他编辑器打开和修改。
 
+## 界面预览
+
+**每日简报与 AI 会话。** 浏览每日摘要，在文档旁与 AI 讨论正在阅读的内容。
+
+![每日简报：文件列表、摘要预览与 AI 会话](docs/screenshots/daily-brief.png)
+
+<details>
+<summary>项目资料：集中整理阅读与写作素材</summary>
+
+把资料放在同一个项目中，在 AI 工作台旁预览 YouTube 视频来源。下图展示的是暂无可用平台字幕的视频。
+
+![项目资料：文件列表、YouTube 视频预览与 AI 工作台](docs/screenshots/project-sources.png)
+
+</details>
+
+<details>
+<summary>自动化：定时运行工作流，查看执行情况</summary>
+
+配置定时采集与摘要工作流，也可以手动运行，并查看状态和执行日志。下图包含一次失败运行，展示问题排查时可查看的信息。
+
+![自动化：规则列表、调度设置与执行日志](docs/screenshots/automation.png)
+
+</details>
+
 ## 如何使用
 
 桌面分发目标是 Windows 11 和 macOS；Linux 可用于开发和测试。
@@ -26,6 +50,15 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 4. **开始采集和创作。** 在设置中调整订阅，在技能中心运行 RSS 采集或 RSS 到摘要工作流，再到资料库阅读结果，并用于写作项目。
 
 AI 功能会向你配置的 Provider 发送请求。请使用自己的凭据，并将数据目录和 Provider 配置保留为私人数据。
+
+<details>
+<summary>设置预览：外观与本地数据目录</summary>
+
+在 **设置 → 常规** 中调整主题、显示密度和正文字号，并选择 OpenMind 数据目录。
+
+![常规设置：外观、正文字号与本地数据目录](docs/screenshots/settings.png)
+
+</details>
 
 ### 从源码启动
 
