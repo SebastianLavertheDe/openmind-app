@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IMAGE_PROVIDERS, type ImageConfiguration } from "@shared/image-generation";
 import type { AiSnapshot, ContextReference, DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { ChatComposer, ContextTray } from "./composer";
@@ -61,6 +62,30 @@ afterEach(() => {
 });
 
 describe("ChatComposer permissions", () => {
+  it("combines agent and image selection and submits both without an execution-mode control", async () => {
+    const imageProvider = IMAGE_PROVIDERS[1];
+    const imageConfiguration: ImageConfiguration = { defaultSelection: null, providers: [{ id: "images", name: "创作 Provider", provider: imageProvider.id, baseUrl: imageProvider.baseUrl, models: [imageProvider.models[0].id], enabled: true, configured: true }] };
+    window.openmind = {
+      onAiEvent: () => () => undefined,
+      getImageConfiguration: async () => imageConfiguration,
+      selectImageModel: vi.fn(async selection => ({ ...imageConfiguration, defaultSelection: selection }))
+    } as unknown as DesktopApi;
+    const onDraftSubmit = vi.fn(async () => {});
+    const agents = [...composerSnapshot.providers, { ...composerSnapshot.providers[0], id: "claude-native", label: "Claude Code", provider: "claude" as const }];
+    render(<AiProvider initial={{ ...composerSnapshot, providers: agents }}><ChatComposer onDraftSubmit={onDraftSubmit} /></AiProvider>);
+    expect(document.querySelector(".mode-select")).toBeNull();
+    expect(document.querySelector(".composer-image-controls")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "选择模型：Codex" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Claude Code/ }));
+    const picker = screen.getByRole("button", { name: "选择模型：Claude Code" });
+    fireEvent.click(picker);
+    fireEvent.mouseEnter(await screen.findByRole("menuitem", { name: /创作 Provider/ }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /GPT Image 2.5 Sunburst/ }));
+    await waitFor(() => expect(window.openmind.selectImageModel).toHaveBeenCalledWith({ providerId: "images", provider: "openai", model: imageProvider.models[0].id }));
+    fireEvent.change(screen.getByRole("combobox", { name: "AI 消息" }), { target: { value: "生成封面" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(onDraftSubmit).toHaveBeenCalledWith(expect.objectContaining({ providerId: "claude-native", interactionMode: "default", imageGeneration: { providerId: "images", provider: "openai", model: imageProvider.models[0].id }, prompt: "生成封面" })));
+  });
   it("marks automatic execution as the active permission tone", () => {
     render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
 

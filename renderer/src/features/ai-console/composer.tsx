@@ -4,12 +4,12 @@ import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { useMotionPreference } from "../../design-system/use-motion-preference";
 import { createPortal } from "react-dom";
-import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, ListChecks, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
 import type { ImageSelection } from "@shared/image-generation";
-import { ImageModelPicker } from "./ImageModelPicker";
+import { ComposerModelPicker } from "./ComposerModelPicker";
 import { useAiActions, useAiDraft, useAiSnapshot, useAiUi } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
@@ -177,7 +177,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     return () => { cancelled = true; };
   }, []);
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfile>("auto");
-  const [interactionMode, setInteractionMode] = useState<InteractionMode>("default");
+  const interactionMode: InteractionMode = activeSession?.interactionMode || "default";
   const [trigger, setTrigger] = useState<ComposerTrigger | null>(null);
   const [fileResults, setFileResults] = useState<ProjectFileMatch[]>([]);
   const [fileSearchMeta, setFileSearchMeta] = useState({ indexedCount: 0, truncated: false });
@@ -217,9 +217,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     // 无活动会话（草稿态）时重置回默认档位，不残留上一个会话的选择。
     setPermissionProfile(activeSession?.permissionProfile ?? preferredPermissionProfile);
   }, [activeSession?.permissionProfile, preferredPermissionProfile]);
-  useEffect(() => {
-    setInteractionMode(activeSession?.interactionMode || "default");
-  }, [activeSession?.interactionMode]);
   useEffect(() => {
     setTrigger(null);
     setLocalError(null);
@@ -546,17 +543,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               <Plus size={20} />
             </button>
             <ChipSelect
-              className="mode-select"
-              icon={<ListChecks size={16} />}
-              label={m.ai.mode.label}
-              value={interactionMode}
-              options={[
-                { value: "default", label: m.ai.mode.default },
-                { value: "plan", label: m.ai.mode.plan }
-              ]}
-              onChange={(value) => setInteractionMode(value as InteractionMode)}
-            />
-            <ChipSelect
               className="permission-select"
               icon={<ShieldCheck size={16} />}
               label={m.ai.permission.label}
@@ -592,12 +578,12 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 <ChevronDown size={13} aria-hidden />
               </button>
             )}
-            <ChipSelect
-              className="provider-select"
-              label={m.ai.composer.provider}
-              value={providerId}
-              options={availableProviders.map((provider) => ({ value: provider.id, label: provider.label }))}
-              onChange={(id) => { userChoseProviderRef.current = true; setProviderId(id); }}
+            <ComposerModelPicker
+              providers={availableProviders}
+              providerId={providerId}
+              onProviderChange={(id) => { userChoseProviderRef.current = true; setProviderId(id); }}
+              value={imageGeneration}
+              onChange={setImageGeneration}
             />
             {draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(draft.length)}</span> : null}
             <div className="composer-send-wrap">
@@ -621,7 +607,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             </div>
           </div>
         </div>
-        <div className="composer-image-controls"><span>图片生成</span><ImageModelPicker value={imageGeneration} onChange={setImageGeneration} /></div>
       </div>
     </footer>
   );
