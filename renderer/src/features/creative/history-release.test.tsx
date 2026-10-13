@@ -116,7 +116,7 @@ describe("ReleaseLogView", () => {
     render(<AiProvider initial={snapshot}><ReleaseLogView detail={detail} selectedProject={selectedProject} /></AiProvider>);
     // wait for the timeline to load
     await screen.findByRole("list");
-    const filter = screen.getByRole("textbox");
+    const filter = screen.getByRole("searchbox");
     await user.type(filter, "zzznomatch");
     // filter excludes the event → empty timeline item
     await waitFor(() => expect(screen.getByText(/还没有发布或阶段记录/)).toBeTruthy());

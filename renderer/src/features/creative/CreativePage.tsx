@@ -4,7 +4,7 @@ import type { ContextReference, CreativeProjectDetail, CreativeProjectSummary, C
 import { messages as m } from "@shared/messages";
 import { useAiActions, useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
-import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design-system/components";
+import { EmptyState, ErrorState, PageHeader, Skeleton, SearchInput } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN } from "../../components/useListDetailLayout";
 import { useContentListLayout } from "../../components/useContentListLayout";
@@ -419,7 +419,7 @@ export function CreativeWorkspacePage({
           <aside className={`creative-list-pane${listVisible ? "" : " collapsed"}`}>
             {!listVisible ? null : (
               <>
-                <label className="creative-search"><input aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} /></label>
+                <SearchInput className="creative-search" variant="outlined" aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} />
                 {loading ? <CreativeStreamSkeleton /> : (
                   <TodayStream
                     topics={topics}

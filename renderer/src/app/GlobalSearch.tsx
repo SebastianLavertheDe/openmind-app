@@ -5,7 +5,7 @@ import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import type { Navigate } from "./routes";
 import { useAiActions, useAiSnapshot } from "../ai-context";
-import { Tooltip } from "../design-system/components";
+import { Tooltip, SearchInput } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
 import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
 
@@ -202,8 +202,8 @@ export function GlobalSearch({
     >
       <section className="global-search-dialog" role="dialog" aria-modal="true" aria-label={m.search.dialogLabel} onClick={(event) => event.stopPropagation()}>
         <header>
-          <Sparkles size={18} style={{ color: "var(--accent)" }} />
-          <input
+          <Sparkles size={18} className="global-search-symbol" />
+          <SearchInput leadingIcon={null}
             aria-label={m.search.inputAria}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

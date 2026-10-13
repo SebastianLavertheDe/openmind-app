@@ -175,7 +175,6 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
 
 .ai-sidebar .composer textarea {
   min-height: 84px;
-  border-radius: var(--radius-md);
 }
 
 .ai-sidebar .composer-footer {

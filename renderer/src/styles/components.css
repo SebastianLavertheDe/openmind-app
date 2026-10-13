@@ -649,7 +649,11 @@
   color: var(--text);
 }
 
-.ui-page-actions input,
+.ui-page-actions input {
+  height: 33px;
+  padding: 0 9px;
+}
+
 .ui-page-actions select {
   height: 33px;
   padding: 0 9px;

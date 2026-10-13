@@ -1,5 +1,6 @@
+import { SearchInput } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Search, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
@@ -384,16 +385,13 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
         <ArrowLeft size={15} aria-hidden />
         <span>{m.settings.navigation.back}</span>
       </button>
-      <label className="settings-nav-search">
-        <Search size={14} aria-hidden />
-        <input
+      <SearchInput className="settings-nav-search"
           type="search"
           value={query}
           aria-label={m.settings.navigation.searchPlaceholder}
           placeholder={m.settings.navigation.searchPlaceholder}
           onChange={(event) => setQuery(event.target.value)}
         />
-      </label>
       <nav className="settings-navigation-scroll" aria-label={m.settings.navigation.label}>
         {SETTINGS_GROUPS.map((group) => {
           const sections = SETTINGS_SECTIONS.filter((section) => section.group === group && (!normalizedQuery || `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)));

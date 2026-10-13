@@ -255,7 +255,7 @@ const aiEvents = [
   event("tools-4-start", 9, "session-2", "run-ai-2", "tool-start", { itemId: "style-files", tool: "Glob", input: { pattern: "renderer/src/styles/**/*.css", path: "desktop-app" } }),
   event("tools-4-done", 10, "session-2", "run-ai-2", "tool-complete", { itemId: "style-files", output: "renderer/src/styles/features/ai-console.css" }),
   event("tools-5-start", 11, "session-2", "run-ai-2", "tool-start", { itemId: "tool-styles", tool: "Grep", input: { pattern: "grouped-command", path: "renderer/src" } }),
-  event("tools-5-done", 12, "session-2", "run-ai-2", "tool-complete", { itemId: "tool-styles", output: "renderer/src/styles.css" }),
+  event("tools-5-done", 12, "session-2", "run-ai-2", "tool-complete", { itemId: "tool-styles", output: "renderer/src/styles/base.css" }),
   event("tools-6-start", 13, "session-2", "run-ai-2", "tool-start", { itemId: "tool-source", tool: "Read", input: { file_path: "renderer/src/features/ai-console/tool.tsx" } }),
   event("tools-6-done", 14, "session-2", "run-ai-2", "tool-complete", { itemId: "tool-source", output: "CommandGroup renders compact tool rows." }),
   event("tools-7-start", 15, "session-2", "run-ai-2", "tool-start", { itemId: "test-files", tool: "Glob", input: { pattern: "renderer/src/**/*.test.tsx", path: "desktop-app" } }),

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Search, Upload, Video } from "lucide-react";
+import { AlertTriangle, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Upload, Video } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { EmptyState, ErrorState } from "../../design-system/components";
+import { EmptyState, ErrorState, Textarea, SearchInput } from "../../design-system/components";
 import { PreviewRenderer, useFilePreviewController } from "../file-preview";
 import type { PreviewResource } from "../file-preview/model";
 import { ProjectDialog } from "./ProjectDialog";
@@ -237,7 +237,7 @@ export function ProjectMaterialsPanel({
         <small>支持 PDF、文档、图片、音频、视频等</small>
       </button>
       <div className="project-material-url-entry">
-        <textarea
+        <Textarea variant="inline"
           aria-label="资料 URL"
           value={url}
           placeholder={"或者将链接粘贴到这里，从 YouTube、播客或任意网页添加内容\n如需添加多个链接，请使用空格或换行分隔"}
@@ -256,7 +256,7 @@ export function ProjectMaterialsPanel({
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
-      <label className="project-local-search"><Search size={14} /><input aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" /></label>
+      <SearchInput className="project-local-search" variant="outlined" aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" />
       <div className="project-material-filters" role="group" aria-label="资料类型">
         {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button type="button" aria-pressed={filter === item} data-motion="selection" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
       </div>

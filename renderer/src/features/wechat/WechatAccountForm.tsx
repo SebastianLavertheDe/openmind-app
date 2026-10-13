@@ -1,3 +1,4 @@
+import { Input } from "../../design-system/components";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ExternalLink, Info, ShieldCheck } from "lucide-react";
 import { WECHAT_AUTHOR_MAX_LENGTH, WechatAccountInputSchema, type WechatAccountView } from "@shared/wechat";
@@ -94,15 +95,15 @@ export function WechatAccountForm({ account, onSaved, onCancel, onBusyChange }: 
           </div>
           <label className="settings-field" htmlFor={`${prefix}-appid`}>
             <span>{m.appId}</span>
-            <input id={`${prefix}-appid`} className="settings-browser-path-input" value={appId} placeholder={m.appIdPlaceholder} autoComplete="off" spellCheck={false} disabled={saving} onChange={(event) => setAppId(event.target.value)} />
+            <Input id={`${prefix}-appid`} className="settings-browser-path-input" value={appId} placeholder={m.appIdPlaceholder} autoComplete="off" spellCheck={false} disabled={saving} onChange={(event) => setAppId(event.target.value)} />
           </label>
           <label className="settings-field" htmlFor={`${prefix}-secret`}>
             <span>{m.appSecret}</span>
-            <input id={`${prefix}-secret`} className="settings-browser-path-input" type="password" value={appSecret} placeholder={loadedAccount.configured ? m.secretKeepPlaceholder : m.secretPlaceholder} autoComplete="new-password" spellCheck={false} disabled={saving} onChange={(event) => setAppSecret(event.target.value)} />
+            <Input id={`${prefix}-secret`} className="settings-browser-path-input" type="password" value={appSecret} placeholder={loadedAccount.configured ? m.secretKeepPlaceholder : m.secretPlaceholder} autoComplete="new-password" spellCheck={false} disabled={saving} onChange={(event) => setAppSecret(event.target.value)} />
           </label>
           <label className="settings-field" htmlFor={`${prefix}-author`}>
             <span>{m.author}</span>
-            <input id={`${prefix}-author`} className="settings-browser-path-input" value={author} placeholder={m.authorPlaceholder} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={saving} onChange={(event) => setAuthor(event.target.value)} />
+            <Input id={`${prefix}-author`} className="settings-browser-path-input" value={author} placeholder={m.authorPlaceholder} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={saving} onChange={(event) => setAuthor(event.target.value)} />
           </label>
           <p className="wechat-account-hint">{m.verificationHint}</p>
           {error ? <p className="wechat-account-error" role="alert">{error}</p> : null}

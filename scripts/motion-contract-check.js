@@ -57,7 +57,6 @@ function collectCssFiles(dir) {
 function checkBareTransitions() {
   const cssDirs = [
     path.join(rendererDir, "styles"),
-    path.join(rendererDir, "styles.css"),
   ].filter((p) => fs.existsSync(p));
   const cssFiles = new Set();
   for (const target of cssDirs) {

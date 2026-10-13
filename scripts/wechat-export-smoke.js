@@ -29,8 +29,7 @@ app.whenReady().then(async () => {
       import { createRoot } from 'react-dom/client';
       import { WechatExportDialog } from './features/wechat/WechatExportDialog';
       import { applyTheme } from './theme';
-      import './styles.css';
-      import './styles/product.css';
+      import './styles/index.css';
       const account = { appId: 'wx1234567890123456', author: 'OpenMind', configured: true };
       window.__copied = null;
       window.__setTheme = themeMode => applyTheme({ themeMode });

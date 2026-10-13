@@ -1,3 +1,4 @@
+import { Textarea } from "../../design-system/components";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { DocumentToolbar } from "./DocumentToolbar";
@@ -105,7 +106,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
       {!ready && !failed ? <p className="document-editor-loading" role="status">正在打开文档…</p> : null}
       <div ref={hostRef} className="markdown-milkdown" />
       {failed ? <div className="document-editor-fallback"><p role="alert">文档编辑器加载失败，可以继续编辑 Markdown 源文。</p>
-        <textarea aria-label={props.ariaLabel} value={props.value} readOnly={props.readOnly} onChange={event => props.onChange(event.target.value)} />
+        <Textarea variant="inline" aria-label={props.ariaLabel} value={props.value} readOnly={props.readOnly} onChange={event => props.onChange(event.target.value)} />
       </div> : null}
     </div>
     <div ref={floatingRef} className="milkdown milkdown-floating-layer" />

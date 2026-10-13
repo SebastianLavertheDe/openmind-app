@@ -3,7 +3,7 @@ import { Eye, FileText, Pencil, Save, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
-import { ResponsiveActionBar, type ResponsiveAction } from "../../design-system/components";
+import { ResponsiveActionBar, type ResponsiveAction, Textarea } from "../../design-system/components";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 import { useExitPresence } from "../../design-system/use-exit-presence";
@@ -416,7 +416,7 @@ export function AiFilePreviewPane({
                         preview.clearSaveError();
                         setSaveNotice(null);
                       }}
-                    /> : <textarea className="ai-source-editor"
+                    /> : <Textarea variant="inline" className="ai-source-editor"
                       aria-label={m.ai.workbench.editFileContent}
                       value={displayedPreview.draft.content}
                       spellCheck={false}

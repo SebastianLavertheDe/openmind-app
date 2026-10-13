@@ -82,7 +82,7 @@
 .image-config-error { color: var(--danger-fg, var(--danger-500)); margin: 8px 16px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .image-model-empty { margin: 0; padding: 4px 16px 20px; color: var(--muted); font-size: var(--fs-sm); line-height: 1.7; }
 .settings-provider-dialog-body:has(.settings-provider-image-capability) { min-width: 0; grid-template-columns: minmax(0, 1fr); }
-.settings-provider-dialog .settings-field > input { width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-bg); color: var(--text); font: inherit; }
+.settings-provider-dialog .settings-field > input { width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; font: inherit; }
 .settings-provider-image-capability { min-width: 0; margin-top: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-muted); padding: 16px; }
 .settings-provider-image-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .settings-provider-image-heading strong { font-size: var(--fs-sm); }

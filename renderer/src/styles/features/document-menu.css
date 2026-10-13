@@ -98,7 +98,7 @@
   stroke: currentColor;
 }
 :is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-heading { font: 400 19px/22px var(--font-sans); }
-:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-heading sub { position: static; font-size: 11px; line-height: 1; vertical-align: baseline; }
+:is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-heading sub { position: static; font-size: var(--fs-xs); line-height: 1; vertical-align: baseline; }
 :is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) .document-menu-hint {
   grid-column: 3;
   grid-row: 1;

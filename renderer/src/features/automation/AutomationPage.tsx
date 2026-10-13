@@ -4,7 +4,7 @@ import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, Automati
 import type { BrokerRunEvent, RunArtifact } from "@shared/execution-contracts";
 import { matchesSemverRange } from "@shared/skill-manifest-schema";
 import { messages } from "@shared/messages";
-import { ErrorState, LogViewer, Select, ToggleSwitch } from "../../design-system/components";
+import { ErrorState, LogViewer, Select, ToggleSwitch, Input, InputGroup } from "../../design-system/components";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 import type { ConfirmAction } from "../../ai-context";
 
@@ -335,9 +335,9 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
             <div><strong>{m.automation.editor.schedule}</strong><span>{scheduleDescription(triggerType, rule.timezone)}</span></div>
           </div>
           <div className="automation-schedule-fields">
-            {triggerType === "daily" ? <label className="automation-field"><span>{m.automation.editor.executionTime}</span><input aria-label={m.automation.editor.dailyTime} type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label> : null}
-            {triggerType === "weekly" ? <><label className="automation-field"><span>{m.automation.editor.executionTime}</span><input aria-label={m.automation.editor.weeklyTime} type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></label><label className="automation-field"><span>{m.automation.editor.weekDay}</span><input aria-label={m.automation.editor.weeklyDays} value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></label></> : null}
-            {triggerType === "interval" ? <label className="automation-field"><span>{m.automation.editor.intervalMinutes}</span><div className="automation-input-suffix"><input aria-label={m.automation.editor.intervalMinutes} type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>{m.automation.editor.minutes}</span></div></label> : null}
+            {triggerType === "daily" ? <label className="automation-field"><span>{m.automation.editor.executionTime}</span><Input aria-label={m.automation.editor.dailyTime} type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label> : null}
+            {triggerType === "weekly" ? <><label className="automation-field"><span>{m.automation.editor.executionTime}</span><Input aria-label={m.automation.editor.weeklyTime} type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></label><label className="automation-field"><span>{m.automation.editor.weekDay}</span><Input aria-label={m.automation.editor.weeklyDays} value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></label></> : null}
+            {triggerType === "interval" ? <label className="automation-field"><span>{m.automation.editor.intervalMinutes}</span><InputGroup className="automation-input-suffix"><Input variant="inline" aria-label={m.automation.editor.intervalMinutes} type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>{m.automation.editor.minutes}</span></InputGroup></label> : null}
             {triggerType === "hourly" ? <p className="automation-schedule-empty">{m.automation.editor.hourlyHint}</p> : null}
           </div>
         </div>

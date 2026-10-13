@@ -1,3 +1,4 @@
+import { SearchInput } from "./inputs";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -214,8 +215,7 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
       <div className="overflow-box-viewport-wrap">
         {searchOpen && searchable ? (
           <div className="overflow-box-search">
-            <Search size={13} />
-            <input
+            <SearchInput size="sm" variant="outlined"
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}

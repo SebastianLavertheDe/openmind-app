@@ -9,7 +9,7 @@ import type {
 } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
-import { EmptyState, LoadingState, Select, StatusBadge } from "../../design-system/components";
+import { EmptyState, LoadingState, Select, StatusBadge, SearchInput } from "../../design-system/components";
 import { actionLabel, platformLabel, stageLabel } from "./types";
 
 export function HistoryView({ detail, selectedProject, activeFile, versions, files, chooseFile, onVersionsChange, onRestored }: {
@@ -106,7 +106,7 @@ export function ReleaseLogView({ detail, selectedProject }: { detail: CreativePr
   return (
     <div className="creative-release-log">
       <header className="creative-document-header"><div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div></header>
-      <label className="creative-search"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={m.creativeUi.release.searchPlaceholder} /></label>
+      <SearchInput className="creative-search" variant="outlined" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={m.creativeUi.release.searchPlaceholder} />
       <ol className="release-timeline">
         {filtered.length ? filtered.map((event) => (
           <li key={event.id} className={`release-event ${event.action}`}>

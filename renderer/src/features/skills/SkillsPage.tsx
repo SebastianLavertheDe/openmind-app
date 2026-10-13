@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, ChevronDown, Clock3, FolderOpen, GitBranch, Package, Pencil, Plus, RefreshCw, Search, Upload, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock3, FolderOpen, GitBranch, Package, Pencil, Plus, RefreshCw, Upload, X } from "lucide-react";
 import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView, SourceDefinition } from "@shared/contracts";
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
 import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
-import { StatusBadge, useModalFocusScope } from "../../design-system/components";
+import { StatusBadge, useModalFocusScope, SearchInput, Input, Textarea } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
@@ -293,9 +293,8 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       <section ref={skillsLayout.ref} className="skills-layout" data-layout={skillsLayout.mode}>
         <aside className="workspace-card skills-catalog">
           <header className="skills-catalog-header">
-            <label className="skills-search">
-              <Search size={15} aria-hidden />
-              <input
+            <SearchInput className="skills-search"
+                clearAction={query ? { label: m.clearSearch, onClear: () => setQuery("") } : undefined}
                 type="search"
                 aria-label={m.searchAria}
                 placeholder={m.searchPlaceholder}
@@ -303,8 +302,6 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => { if (event.key === "Escape" && query) { event.preventDefault(); setQuery(""); } }}
               />
-              {query ? <button type="button" className="skills-search-clear" data-motion="icon" aria-label={m.clearSearch} onClick={() => setQuery("")}><X size={14} aria-hidden /></button> : null}
-            </label>
             <span className="skills-catalog-count" role="status" aria-live="polite">
               {query ? m.resultCount(filteredItems.length, items.length) : m.skillCount(items.length)}
             </span>
@@ -521,7 +518,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
             <div className="settings-grid-2 skills-source-picker-git">
               <label className="settings-field settings-field--wide">
                 <span>{picker.git}</span>
-                <input
+                <Input
                   className="settings-browser-path-input"
                   type="url"
                   inputMode="url"
@@ -533,7 +530,7 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
               </label>
               <label className="settings-field">
                 <span>{picker.refLabel}</span>
-                <input
+                <Input
                   className="settings-browser-path-input"
                   type="text"
                   placeholder={picker.refPlaceholder}
@@ -913,10 +910,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
           <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />{isRss ? m.ownedSources.addRss : m.ownedSources.addReddit}</button>
           {isRss ? <button type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />{m.ownedSources.importOpml}</button> : null}
         </div> : null}
-        <label className="skills-source-search">
-          <Search size={15} aria-hidden />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} aria-label={copy.searchPlaceholder} />
-        </label>
+        <SearchInput className="skills-source-search" variant="outlined" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} aria-label={copy.searchPlaceholder} />
       </div>
     </header>
 
@@ -1093,7 +1087,7 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
                 setFailure(null);
               }}><X size={13} aria-hidden />{m.common.delete}</button>
             </header>
-            <textarea id={`skills-x-curl-${index}`} ref={(node) => { textareaRefs.current[index] = node; }} value={draft} onChange={(event) => {
+            <Textarea id={`skills-x-curl-${index}`} ref={(node) => { textareaRefs.current[index] = node; }} value={draft} onChange={(event) => {
               const value = event.target.value;
               setDrafts((current) => current.map((item, currentIndex) => currentIndex === index ? value : item));
               setFailure(null);
@@ -1148,9 +1142,9 @@ function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: {
     <section ref={dialogRef} className="skills-source-editor" role="dialog" aria-modal="true" aria-labelledby="skill-source-editor-title" tabIndex={-1}>
       <header><div><h3 id="skill-source-editor-title">{m.sourceEditor.title(Boolean(editing), isReddit)}</h3><p>{m.sourceEditor.description(isReddit)}</p></div><button type="button" data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></header>
       <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <label>{m.sourceEditor.name(isReddit)}<input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></label>
-        <label>{m.sourceEditor.url(isReddit)}<input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></label>
-        <label>{m.sourceEditor.tags}<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></label>
+        <label>{m.sourceEditor.name(isReddit)}<Input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></label>
+        <label>{m.sourceEditor.url(isReddit)}<Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></label>
+        <label>{m.sourceEditor.tags}<Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></label>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
         <footer><button type="button" data-motion="action" onClick={onClose}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</button></footer>
       </form>

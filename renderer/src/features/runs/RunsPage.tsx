@@ -1,3 +1,4 @@
+import { Textarea } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord } from "@shared/contracts";
@@ -225,7 +226,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
               </section>
             ) : null}
             {selected.kind === "workflow" ? <>
-              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
+              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><Textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
               <WorkflowSteps record={selected.record} onRetry={retryStep} actionBusy={selectedActionBusy} />
             </> : <>
               <section className="run-section"><h3>{m.runs.artifacts.title}</h3><ArtifactList artifacts={selectedArtifacts} /></section>

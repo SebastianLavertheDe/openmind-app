@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Bot, Check, Clock3, Download, LoaderCircle, Sparkles } from "lucide-react";
 import type { CreativeProjectDetail, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { Select, StatusBadge } from "../../design-system/components";
+import { Select, StatusBadge, Textarea, Input } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import {
   type PlatformOption,
@@ -60,9 +60,9 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
           options={PLATFORM_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
         />
       </label>
-      <label className="publish-field">{m.creativeUi.publish.summary}<textarea rows={2} value={summary} placeholder={m.creativeUi.publish.summaryPlaceholder} onChange={(event) => onPatch({ summary: event.target.value })} /></label>
-      <label className="publish-field">{m.creativeUi.publish.tags}<input value={tagsValue} placeholder={m.creativeUi.publish.tagsPlaceholder} onChange={(event) => onPatch({ tags: event.target.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })} /></label>
-      <label className="publish-field">{m.creativeUi.publish.cover}<input value={coverPath} placeholder={m.creativeUi.publish.coverPlaceholder} onChange={(event) => onPatch({ coverPath: event.target.value || null })} /></label>
+      <label className="publish-field">{m.creativeUi.publish.summary}<Textarea rows={2} value={summary} placeholder={m.creativeUi.publish.summaryPlaceholder} onChange={(event) => onPatch({ summary: event.target.value })} /></label>
+      <label className="publish-field">{m.creativeUi.publish.tags}<Input value={tagsValue} placeholder={m.creativeUi.publish.tagsPlaceholder} onChange={(event) => onPatch({ tags: event.target.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })} /></label>
+      <label className="publish-field">{m.creativeUi.publish.cover}<Input value={coverPath} placeholder={m.creativeUi.publish.coverPlaceholder} onChange={(event) => onPatch({ coverPath: event.target.value || null })} /></label>
       <ul className="publish-checklist-inline">
         <li className={contentReady ? "passed" : ""}>{contentReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.content}</li>
         <li className={platform ? "passed" : ""}>{platform ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.platform}</li>

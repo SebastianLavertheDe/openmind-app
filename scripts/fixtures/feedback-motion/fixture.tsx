@@ -4,8 +4,7 @@ import type { AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { AiProvider, useAiUi } from "../../../renderer/src/ai-context";
 import { FeedbackHost } from "../../../renderer/src/components/FeedbackHost";
 import { SidebarRecent } from "../../../renderer/src/app/SidebarRecent";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/fixtures/motion", providers: [], runs: [], pendingApprovals: [],

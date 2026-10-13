@@ -1,7 +1,7 @@
 import { ExternalLink, Eye, Pencil, Save } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { StatusBadge } from "../../design-system/components";
+import { StatusBadge, Textarea } from "../../design-system/components";
 import { PreviewRenderer } from "../file-preview";
 import { documentPreviewResource } from "../file-preview/model";
 
@@ -21,7 +21,7 @@ export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, o
     </header>
     <div className={`creative-topic-file-content ${mode}`}>
       {file.truncated ? <p className="creative-warn">{m.creativeUi.topicFile.truncated}</p> : null}
-      {mode === "preview" ? <PreviewRenderer resource={resource} content={draft} layout="file" /> : <textarea aria-label={m.creativeUi.topicFile.editAria} value={draft} spellCheck={false} onChange={(event) => onDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); onSave(); } }} />}
+      {mode === "preview" ? <PreviewRenderer resource={resource} content={draft} layout="file" /> : <Textarea variant="inline" aria-label={m.creativeUi.topicFile.editAria} value={draft} spellCheck={false} onChange={(event) => onDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); onSave(); } }} />}
     </div>
   </>;
 }

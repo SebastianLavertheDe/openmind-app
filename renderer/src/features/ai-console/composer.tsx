@@ -1,3 +1,4 @@
+import { Textarea } from "../../design-system/components";
 import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useIsPresent, usePresence } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
@@ -463,7 +464,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
           </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
-          <textarea
+          <Textarea variant="inline"
             onPaste={handlePaste}
             ref={textareaRef}
             aria-label={m.ai.composer.messageInput}

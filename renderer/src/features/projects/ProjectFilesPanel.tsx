@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, SearchInput } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
@@ -270,10 +270,8 @@ export function ProjectFilesPanel({
 
   const list = (
     <>
-      <label className="project-pane-filter">
-        <input aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
-        {loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
-      </label>
+      <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden /> : <Search aria-hidden />}
+        aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
       <div className="project-item-list project-file-list" data-project-list-motion={listMotion.enabled || undefined} aria-live="polite" aria-busy={loading || undefined}>
         {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? "没有匹配的文件" : "还没有文件"} description={entries.length ? "换一个关键词后再试。" : "可通过右上角加号新建文档或添加资料。"} /> : null}

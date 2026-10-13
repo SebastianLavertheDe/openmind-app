@@ -11,6 +11,7 @@
 .document-plain .document-block { white-space: pre-wrap; }
 .plain-text-reader .document-block { font-family: var(--font-mono); }
 .document-flow.is-virtual { overflow-anchor: none; }
+.document-flow.is-virtual .document-block { position: absolute; top: 0; left: 0; width: 100%; }
 .document-block .markdown-table-scroll { margin: 0; }
 .document-block table { table-layout: fixed; }
 .document-block pre { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { messages } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
@@ -318,7 +318,7 @@ export function ProjectTasksPanel({
   const list = (
     <>
       {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目任务</span><h2>任务</h2></div><button className="icon-button" aria-label="新建任务" onClick={newTask}><Plus size={16} /></button></header> : null}
-      <label className="project-pane-filter"><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="你的任务" /><Search aria-hidden="true" /></label>
+      <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="你的任务" />
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? "没有匹配的任务" : "还没有任务"} description={tasks.length ? "换一个标题关键词后再试。" : "新建任务，让 AI 在当前项目资料中搜索和创作。"} /> : null}
@@ -411,8 +411,8 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
     <div className="project-task-starter">
       <div className="project-task-starter-copy"><span className="project-starter-icon"><Sparkles size={22} /></span><h2>基于“{project.name}”开始创作</h2><p>AI 可以在 <code>materials/</code> 中自行搜索和按需读取资料，不会把全部资料一次性塞进输入。</p></div>
       <div className="project-task-compose-card">
-        <label><span>任务标题（可选）</span><input value={title} onChange={(event) => onTitle(event.target.value)} placeholder="根据首条消息自动生成" /></label>
-        <label><span className="ui-visually-hidden">任务内容</span><textarea autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder="描述你要研究、整理或创作的内容…" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
+        <label><span>任务标题（可选）</span><Input variant="inline" value={title} onChange={(event) => onTitle(event.target.value)} placeholder="根据首条消息自动生成" /></label>
+        <label><span className="ui-visually-hidden">任务内容</span><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder="描述你要研究、整理或创作的内容…" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
         <div className="project-task-compose-footer">
           <span className="project-material-scope">项目资料 · 可按需读取</span>
           <div><select aria-label={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? "任务创建后 Provider 保持不变" : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? "正在创建…" : "开始任务"}</button></div>

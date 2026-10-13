@@ -42,3 +42,12 @@ repository can opt in with `OPENMIND_SKILLS_REPO_ROOT=/absolute/path/to/cctools-
   repository.
 - Preserve support for both `cctools.skill.yaml` and the legacy
   `openmind.skill.yaml` during the manifest migration.
+- Keep all application-owned CSS under `renderer/src/styles/`; the entrypoint is
+  `renderer/src/styles/index.css`. Follow `renderer/src/styles/README.md` for style
+  ownership and maintain theme defaults in `tokens.css`.
+- Use shared `Input`, `Textarea`, and `SearchInput` from `design-system/components`
+  for text controls. Maintain their appearance and interaction states only in
+  `styles/components/inputs.css`; feature styles own layout. Native checkbox,
+  radio, file, range and color controls may remain native.
+- Keep fixed visual styles in CSS. Inline styles are for runtime values or CSS
+  custom properties. Run `npm run audit:styles`; it is also part of the build.

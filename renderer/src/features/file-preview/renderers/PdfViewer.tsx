@@ -1,3 +1,4 @@
+import { Input } from "../../../design-system/components";
 import { memo, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus, Search, X } from "lucide-react";
 import type { PDFDocumentProxy, PDFWorker } from "pdfjs-dist";
@@ -195,7 +196,7 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
     <div className="pdf-scroll" ref={host} />
     {!ready ? <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />正在解析 PDF…</div> : null}
     {findOpen ? <div className="document-findbar">
-      <input autoFocus aria-label="搜索 PDF" value={query} onChange={event => { setQuery(event.target.value); search(event.target.value); }} onKeyDown={event => {
+      <Input size="sm" autoFocus aria-label="搜索 PDF" value={query} onChange={event => { setQuery(event.target.value); search(event.target.value); }} onKeyDown={event => {
         if (event.key === "Enter") search(query, true, event.shiftKey);
         if (event.key === "Escape") { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }
       }} />
@@ -207,7 +208,7 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
     <div className="pdf-toolbar">
       <button aria-label="搜索 PDF" data-motion="icon" onClick={() => setFindOpen(true)}><Search size={15}/></button>
       <button aria-label="上一页" data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft size={15}/></button>
-      <input className="pdf-page-input" aria-label="当前页码" value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
+      <Input variant="inline" size="sm" className="pdf-page-input" aria-label="当前页码" value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
       <span className="pdf-page-total">/ {pages}</span>
       <button aria-label="下一页" data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)}><ChevronRight size={15}/></button>
       <span className="pdf-toolbar-divider"/>

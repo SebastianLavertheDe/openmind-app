@@ -1,0 +1,232 @@
+/* Application design tokens. This file owns the light and dark theme defaults. */:root {
+  color-scheme: light;
+  /* —— 语义表面 token(浅色默认)—— */
+  --app-bg: #f4f7f5;
+  --page-bg: #fbfcfb;
+  --panel-bg: #ffffff;
+  --panel-muted: #f5f5f4;
+  --control-bg: #ffffff;
+  --control-hover: #ececea;
+  --border-subtle: #e7e7e5;
+  /* —— 旧 token 别名映射,保持兼容,逐页迁移 —— */
+  --bg: var(--app-bg);
+  --page: var(--page-bg);
+  --panel: var(--panel-bg);
+  --panel-2: var(--panel-muted);
+  --surface: var(--control-bg);
+  --surface-hover: var(--control-hover);
+  --border: var(--border-subtle);
+  --border-strong: #cececb;
+  --hover: var(--control-hover);
+  /* 文字阶梯 */
+  --text: #171717;
+  --text-dim: #343434;
+  --muted: #737373;
+  --muted-2: #626260;
+  /* Accent and neutral interaction surfaces */
+  --accent: #242424;
+  --accent-fg: #202020;
+  --accent-tint: #eeeeec;
+  --accent-tint-2: #e5e5e2;
+  --accent-strong: #4a4a48;
+  --accent-soft: #d8d8d4;
+  --blue: #4a4a48;
+  --accent-contrast: #ffffff;
+  /* Inline code foreground */
+  --code-fg: #4f4f4d;
+  /* 语义状态色:9 阶色阶 (A2)。--green/--orange/--red 作别名指向 500,旧 CSS 不破。 */
+  --success-50: #ecfdf5; --success-100: #d1fae5; --success-200: #a7f3d0; --success-300: #6ee7b7; --success-400: #34d399; --success-500: #16825d; --success-600: #059669; --success-700: #047857; --success-800: #065f46; --success-900: #064e3b;
+  --warning-50: #fffbeb; --warning-100: #fef3c7; --warning-200: #fde68a; --warning-300: #fcd34d; --warning-400: #fbbf24; --warning-500: #b7791f; --warning-600: #d97706; --warning-700: #b45309; --warning-800: #92400e; --warning-900: #78350f;
+  --danger-50: #fef2f2; --danger-100: #fee2e2; --danger-200: #fecaca; --danger-300: #fca5a5; --danger-400: #f87171; --danger-500: #c2413a; --danger-600: #dc2626; --danger-700: #b91c1c; --danger-800: #991b1b; --danger-900: #7f1d1d;
+  --info-50: #eff6ff; --info-100: #dbeafe; --info-200: #bfdbfe; --info-300: #93c5fd; --info-400: #60a5fa; --info-500: #3b82f6; --info-600: #2563eb; --info-700: #1d4ed8; --info-800: #1e40af; --info-900: #1e3a8a;
+  --green: var(--success-500);
+  --orange: var(--warning-500);
+  --red: var(--danger-500);
+  --on-warning: #15110a;
+  /* 语义色 tint: 用于 chip / 浅底 (8% mix) */
+  --success-tint: color-mix(in srgb, var(--success-500) 8%, var(--panel-bg));
+  --warning-tint: color-mix(in srgb, var(--warning-500) 8%, var(--panel-bg));
+  --danger-tint: color-mix(in srgb, var(--danger-500) 8%, var(--panel-bg));
+  --info-tint: color-mix(in srgb, var(--info-500) 8%, var(--panel-bg));
+  /* 浅色层级:elevation token (A1)。--shadow-card/-hover/-overlay 作别名。 */
+  --hairline: rgba(20, 20, 20, .06);
+  --shadow-1: none;
+  --shadow-2: 0 8px 24px rgba(22, 22, 22, .08);
+  --shadow-3: 0 20px 55px rgba(22, 22, 22, .15);
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-overlay: var(--shadow-3);
+  /* Avatar and accent fills */
+  --gradient-accent: var(--accent);
+  --gradient-codex: #383836;
+  --gradient-claude: #5c5c59;
+  --gradient-user: #72726e;
+  /* 统一圆角刻度:控件 / 卡片 / 容器 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  /* 层叠刻度:base → sticky → overlay → modal → dropdown → global modal → topmost
+     global modal 跨应用 shell；tooltip/lightbox 等临时表面仍使用 topmost。 */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-overlay: 40;
+  --z-modal: 60;
+  --z-dropdown: 100;
+  --z-global-modal: 200;
+  --z-topmost: 1000;
+  /* 4/8 间距刻度,供 padding/gap/margin 复用 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  /* 排版刻度:页面标题 / 区块标题 / 正文 / 辅助 / 代码 / 数字指标 */
+  /* Match Codex: system UI sans for product copy, platform monospace for code. */
+  --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-sans-default);
+  --font-display: var(--font-sans-default);
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --fs-page: 26px;
+  --fs-section: 16px;
+  --fs-body: 13px;
+  --fs-caption: 12px;
+  --fs-code: 13px;
+  --fs-metric: 30px;
+  /* 字号收敛 token (B1):组件统一引用,杜绝硬编码 9/10/11/12/13/14/16/18px */
+  --fs-xs: 12px;   /* meta / 辅助文字下限 */
+  --fs-sm: 12px;   /* caption / meta */
+  --fs-base: 13px; /* 正文小号 / 列表 */
+  --fs-md: 14px;   /* 正文 */
+  --fs-lg: 16px;   /* 区块标题 */
+  --fs-xl: 18px;   /* 空状态标题 */
+  --fs-2xl: 22px;  /* 大标题 */
+  --reader-header-h: 84px;
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-normal: 200ms;
+  --dur-slow: 240ms;
+  --dur-exit: 160ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(.3, 0, 0, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  font: var(--fs-body)/1.5 var(--font-sans-default);
+  background: var(--bg);
+  color: var(--text);
+  --user-message-bg: #e8f3fe;
+  --artifact-bg: var(--panel-bg);
+  --artifact-border: var(--border-subtle);
+  --artifact-warning-fg: var(--warning-700);
+  --artifact-shadow: none;
+  --brand-accent: #12c9a4;
+  --brand-accent-strong: #087b66;
+  --brand-accent-tint: #e5f8f3;
+  --focus-ring: color-mix(in srgb, var(--text) 44%, var(--border-strong));
+  --nav-selected-bg: var(--control-hover);
+  --list-selected-bg: var(--control-hover);
+  --app-chrome-bg:
+    radial-gradient(circle at 4% 4%, rgba(218, 244, 241, .38), transparent 42%),
+    radial-gradient(circle at 16% 94%, rgba(240, 242, 218, .26), transparent 48%),
+    linear-gradient(155deg, #f4f8f6 0%, #f5f7f5 54%, #f8f7f1 100%);
+  --workspace-inset: 8px;
+  --workspace-radius: 14px;
+  --workspace-border: color-mix(in srgb, var(--border-subtle) 82%, transparent);
+  --workspace-shadow: 0 1px 2px rgba(20, 20, 20, .055), 0 10px 28px rgba(20, 20, 20, .10);
+  --reader-font-family: var(--font-sans-default);
+  --reader-font-size: 14px;
+  --reader-line-height: 1.74;
+  --reader-max-width: 68ch;
+  --file-reader-max-width: 92ch;
+  --reader-text: #30302e;
+  --reader-link: #2479c8;
+  --chat-body-size: 14px;
+  --chat-body-line-height: 1.62;
+  --nav-item-height: 30px;
+  --nav-item-radius: 8px;
+  --nav-item-font: 14px;
+  --nav-item-weight: 400;
+  --nav-item-weight-active: 400;
+  --nav-icon-size: 16px;
+  --nav-gap: 8px;
+  --nav-group-gap: 0;
+  --nav-group-label-font: 13px;
+  font-family: var(--font-sans-default);
+  font-size: 13px;
+  line-height: 1.5;
+  --input-height: 34px;
+  --input-height-sm: 28px;
+  --input-textarea-height: 72px;
+  --input-padding-block: 6px;
+  --input-padding-inline: 10px;
+  --input-radius: var(--radius-sm);
+  --input-bg: var(--panel-bg);
+  --input-border: var(--border-subtle);
+  --input-focus-border: var(--focus-ring);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #171716;
+  --page-bg: #20201f;
+  --panel-bg: #20201f;
+  --panel-muted: #262625;
+  --control-bg: #282827;
+  --control-hover: #333331;
+  --border-subtle: #363634;
+  --border-strong: #4d4d49;
+  --text: #f2f2ef;
+  --text-dim: #d5d5d1;
+  --muted: #a2a29c;
+  --muted-2: #9c9c96;
+  --accent: #f0f0ed;
+  --accent-fg: #f0f0ed;
+  --accent-tint: #363634;
+  --accent-tint-2: #42423f;
+  --accent-strong: #c2c2bd;
+  --accent-soft: #555550;
+  --accent-contrast: #181817;
+  --code-fg: #d0d0cb;
+  /* 暗色语义色阶 (A2):提亮以适应深色底 */
+  --success-500: #3dd68c; --success-400: #34d399; --success-600: #059669;
+  --warning-500: #f5a623; --warning-400: #fbbf24; --warning-600: #d97706;
+  --danger-500: #f87171; --danger-400: #fca5a5; --danger-600: #dc2626;
+  --info-500: #60a5fa; --info-400: #93c5fd; --info-600: #2563eb;
+  --green: var(--success-500);
+  --orange: var(--warning-500);
+  --red: var(--danger-500);
+  --on-warning: #16110b;
+  --success-tint: color-mix(in srgb, var(--success-500) 14%, var(--panel-bg));
+  --warning-tint: color-mix(in srgb, var(--warning-500) 14%, var(--panel-bg));
+  --danger-tint: color-mix(in srgb, var(--danger-500) 14%, var(--panel-bg));
+  --info-tint: color-mix(in srgb, var(--info-500) 14%, var(--panel-bg));
+  --hairline: rgba(255, 255, 255, .06);
+  /* 暗色 elevation:inset 顶高光 + 柔和外阴影 (A1) */
+  --shadow-1: none;
+  --shadow-2: 0 10px 28px rgba(0, 0, 0, .24);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, .4);
+  --shadow-card: var(--shadow-1);
+  --shadow-card-hover: var(--shadow-2);
+  --shadow-overlay: var(--shadow-3);
+  --gradient-accent: var(--accent);
+  --gradient-codex: #c7c7c2;
+  --gradient-claude: #a9a9a4;
+  --gradient-user: #8e8e88;
+  --user-message-bg: var(--panel-muted);
+  --artifact-bg: var(--panel-bg);
+  --artifact-border: var(--border-subtle);
+  --artifact-warning-fg: var(--warning-300);
+  --artifact-shadow: none;
+  --reader-text: #d0d0cc;
+  --reader-link: #72aee6;
+  --brand-accent-strong: #38d9b7;
+  --brand-accent-tint: #183a33;
+  --nav-selected-bg: var(--control-hover);
+  --list-selected-bg: var(--control-hover);
+  --app-chrome-bg:
+    radial-gradient(circle at 8% 4%, rgba(35, 74, 67, .56), transparent 38%),
+    linear-gradient(155deg, #191f1d 0%, #1a1c1b 58%, #211f1a 100%);
+  --blue: #c9c9c4;
+  --workspace-border: color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  --workspace-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 14px 36px rgba(0, 0, 0, .34);
+}

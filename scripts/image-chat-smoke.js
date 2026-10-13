@@ -54,8 +54,7 @@ app.whenReady().then(async () => {
       import { AiProvidersSettingsSection } from './features/settings/settings-sections';
       import { IMAGE_PROVIDERS } from '@shared/image-generation';
       import { applyTheme } from './theme';
-      import './styles.css';
-      import './styles/product.css';
+      import './styles/index.css';
       async function main() {
         // Browser preview has its own user-agent guard; keep this fixture explicit.
         Object.defineProperty(navigator, 'userAgent', { value: 'OpenMind image smoke fixture', configurable: true });

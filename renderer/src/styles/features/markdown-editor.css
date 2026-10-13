@@ -196,7 +196,7 @@
 .document-editor-findbar { flex: 0 0 auto; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel); animation: document-tools-in var(--dur-fast) var(--ease-standard); }
 .document-find-row { display: flex; align-items: center; gap: 4px; }
 .document-find-row + .document-find-row { margin-top: 6px; }
-.document-find-row input { flex: 1; min-width: 0; max-width: 360px; height: 30px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 13px; }
+.document-find-row input { flex: 1; min-width: 0; max-width: 360px; height: 30px; padding: 4px 8px; font-size: 13px; }
 .document-find-row span { min-width: 44px; text-align: center; color: var(--muted); font-size: 12px; }
 .document-find-row button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 30px; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); font-size: 12px; }
 .document-find-row button:hover:not(:disabled) { background: var(--control-hover); }

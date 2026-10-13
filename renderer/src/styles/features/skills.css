@@ -118,53 +118,14 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 11px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-2);
-  transition: background var(--dur-fast) var(--ease-standard);
-}
-
-.skills-search:hover,
-.skills-search:focus-within {
-  background: var(--control-hover);
 }
 
 .skills-search input {
   width: 100%;
   min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
   font: inherit;
 }
-
-/* 与项目页过滤框一致：无重轮廓，聚焦反馈只走容器底色。 */
-.skills-search input:focus,
-.skills-search input:focus-visible {
-  outline: 0;
-  box-shadow: none;
-}
-
-.skills-search input::placeholder { color: var(--muted-2); }
 .skills-search input::-webkit-search-cancel-button { display: none; }
-
-.skills-page .skills-search-clear {
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-2);
-}
-
-.skills-page .skills-search-clear:hover { background: var(--control-hover); color: var(--text); }
 
 .skills-catalog-count {
   min-width: 42px;
@@ -519,15 +480,8 @@
   gap: 8px;
   margin: 0;
   padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  color: var(--muted-2);
-  transition: border-color var(--dur-fast, 140ms) ease, box-shadow var(--dur-fast, 140ms) ease;
 }
-.skills-source-search:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 13%, transparent); }
-.skills-source-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--fs-xs); }
-.skills-source-search input::placeholder { color: var(--muted-2); }
+.skills-source-search input { min-width: 0; flex: 1; font: inherit; font-size: var(--fs-xs); }
 
 .skills-source-feedback { margin: 10px 0 0; color: var(--success-600); font-size: var(--fs-xs); }
 .skills-source-feedback.error { color: var(--danger-600); }
@@ -651,15 +605,9 @@
   max-height: min(32dvh, 260px);
   resize: vertical;
   padding: 11px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  outline: 0;
-  background: var(--panel-muted);
-  color: var(--code-fg);
   font: var(--fs-xs)/1.55 var(--font-mono);
   tab-size: 2;
 }
-.skills-x-curl-editor textarea:focus { border-color: var(--border); box-shadow: none; }
 .skills-x-curl-list { display: grid; gap: 12px; }
 .skills-x-curl-item {
   display: grid;
@@ -729,8 +677,7 @@
 .skills-source-editor > header button:hover { background: var(--control-hover); color: var(--text); }
 .skills-source-editor form { min-height: 0; display: grid; gap: 14px; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px 20px; }
 .skills-source-editor label { display: grid; gap: 6px; color: var(--text-dim); font-size: var(--fs-xs); }
-.skills-source-editor input { height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: 0; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; }
-.skills-source-editor input:focus { border-color: var(--focus-ring); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 13%, transparent); }
+.skills-source-editor input { height: 36px; padding: 0 10px; font: inherit; font-size: 12px; }
 .skills-source-editor footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
 .skills-source-editor footer button { min-height: 34px; padding: 0 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text-dim); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
 .skills-source-editor footer button:hover { background: var(--control-hover); }

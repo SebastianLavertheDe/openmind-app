@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Search, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
-import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope } from "../../design-system/components";
+import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope, SearchInput, Input } from "../../design-system/components";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
@@ -423,16 +423,13 @@ export function SkillSettingsSection({
 
       {catalog === "skills" ? <>
         <div className="settings-skill-toolbar">
-          <label className="settings-skill-search">
-            <Search size={14} aria-hidden />
-            <input
+          <SearchInput className="settings-skill-search" variant="outlined"
               type="search"
               value={query}
               aria-label={m.settings.skills.searchAria}
               placeholder={m.settings.skills.searchPlaceholder}
               onChange={(event) => setQuery(event.target.value)}
             />
-          </label>
           <Select
             className="settings-skill-group"
             size="rect"
@@ -497,16 +494,13 @@ export function SkillSettingsSection({
         )}
       </> : <>
         <div className="settings-skill-toolbar settings-mcp-toolbar">
-          <label className="settings-skill-search">
-            <Search size={14} aria-hidden />
-            <input
+          <SearchInput className="settings-skill-search" variant="outlined"
               type="search"
               value={mcpQuery}
               aria-label={m.settings.skills.mcpSearchAria}
               placeholder={m.settings.skills.mcpSearchPlaceholder}
               onChange={(event) => { setAnimateMcpDetails(false); setMcpQuery(event.target.value); }}
             />
-          </label>
         </div>
         {filteredMcpServers.length ? (
           <div className="settings-mcp-list" aria-label={m.settings.skills.mcpListAria}>
@@ -1062,10 +1056,10 @@ export function AiProvidersSettingsSection({
                   <small>{m.settings.providerConfig.presetHint}</small>
                 </label>
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
-                  <label className="settings-field"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
+                  <label className="settings-field"><span>ID</span><Input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><Input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
+                  <label className="settings-field"><span>Base URL</span><Input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><Input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
                     <select className="settings-select" value={newProvider.protocol} onChange={(event) => setNewProvider({ ...newProvider, protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>
@@ -1079,7 +1073,7 @@ export function AiProvidersSettingsSection({
                       <option value="x-api-key">X-API-Key</option>
                     </select>
                   </label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
                 <ProviderImageCapability value={newProvider.imageGeneration} baseUrl={newProvider.baseUrl} onChange={imageGeneration => setNewProvider({ ...newProvider, imageGeneration })} />
               </div>
@@ -1101,11 +1095,11 @@ export function AiProvidersSettingsSection({
             <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
               <div className="settings-provider-dialog-body">
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
-                  <label className="settings-field settings-field--wide"><span>Base URL</span><input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><Input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
+                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><Input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
+                  <label className="settings-field settings-field--wide"><span>Base URL</span><Input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
                   <label className="settings-field settings-field--wide"><span>API Key</span>
-                    <input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={editingApiKey}
+                    <Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={editingApiKey}
                       placeholder={m.settings.providerConfig.unset} autoComplete="off" spellCheck={false}
                       onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
                   </label>
@@ -1121,7 +1115,7 @@ export function AiProvidersSettingsSection({
                   summary={<><span><strong>{m.settings.providerConfig.advanced}</strong><small>{m.settings.providerConfig.advancedDescription}</small></span><ChevronDown size={16} aria-hidden /></>}
                 >
                 <div className="settings-provider-advanced-grid">
-                  <label className="settings-field"><span>ID</span><input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
+                  <label className="settings-field"><span>ID</span><Input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
                     <select className="settings-select" value={editingProvider.protocol} onChange={(event) => update(editingProvider.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
                       <option value="anthropic-messages">anthropic-messages</option>

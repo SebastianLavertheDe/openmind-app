@@ -1,3 +1,4 @@
+import { Input } from "../../design-system/components";
 import { Fragment, createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import type { Element } from "hast";
 import { jsx, jsxs } from "react/jsx-runtime";
@@ -136,7 +137,7 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
     }}>
     {findOpen ? <div className="document-reader-tools">
       <div className="document-findbar">
-        <input autoFocus aria-label="搜索文档内容" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+        <Input size="sm" autoFocus aria-label="搜索文档内容" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
           if (event.key === "Escape") { event.stopPropagation(); setFindOpen(false); root.current?.focus(); }
           if (event.key === "Enter" && matches.length) {
             const next = (matchIndex + (event.shiftKey ? -1 : 1) + matches.length) % matches.length;
@@ -155,7 +156,7 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
       {visible.map(item => <div key={item.key} data-index={item.index} data-document-block={item.index}
         ref={flow.enabled ? flow.measureElement : undefined}
         className={`document-block${blocks[item.index].continuation ? " is-continuation" : ""}${blocks[item.index + 1]?.continuation ? " has-continuation" : ""}`}
-        style={flow.enabled ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start - flow.margin}px)` } : undefined}>
+        style={flow.enabled ? { transform: `translateY(${item.start - flow.margin}px)` } : undefined}>
         <BlockView block={blocks[item.index]} custom={customComponents}/>
       </div>)}
     </div>

@@ -6,8 +6,7 @@ import { AiSidebar } from "../../../renderer/src/components/AiSidebar";
 import { ResponsiveLayoutProvider } from "../../../renderer/src/app/responsive-layout";
 import { CreativeWorkspacePage } from "../../../renderer/src/features/creative/CreativePage";
 import { ProjectsPage } from "../../../renderer/src/features/projects/ProjectsPage";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 // 真实页面组件 + 真实 AI 侧栏 + visual fixture 预载 API（不连真实用户数据）。
 // 构建时注入 layout effect 统计真实页面的提交次数：页面迁移到 slice hooks 后，AI 流式

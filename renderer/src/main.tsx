@@ -2,8 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import { installBrowserPreviewApi } from "./browser-api";
-import "./styles.css";
-import "./styles/product.css";
+import "./styles/index.css";
 
 installBrowserPreviewApi();
 

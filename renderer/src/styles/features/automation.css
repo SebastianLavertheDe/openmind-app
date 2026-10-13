@@ -268,10 +268,6 @@
 .automation-param-field input {
   width: 130px;
   padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel-2);
-  color: var(--text);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -720,19 +716,6 @@
   min-width: 0;
 }
 
-.automation-field input,
-.automation-field textarea,
-.automation-input-editor textarea {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  outline: 0;
-  background: var(--panel);
-  color: var(--text);
-  transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
 .automation-field input {
   height: 34px;
   min-height: 34px;
@@ -745,29 +728,6 @@
   resize: vertical;
   padding: 8px 10px;
   font: var(--fs-base)/1.5 var(--font-sans);
-}
-
-.automation-field input::placeholder,
-.automation-field textarea::placeholder,
-.automation-input-editor textarea::placeholder {
-  color: var(--muted-2);
-}
-
-.automation-field input:hover,
-.automation-field textarea:hover,
-.automation-input-editor textarea:hover {
-  border-color: var(--border-strong);
-}
-
-.automation-field input:focus,
-.automation-field input:focus-visible,
-.automation-field textarea:focus,
-.automation-field textarea:focus-visible,
-.automation-input-editor textarea:focus,
-.automation-input-editor textarea:focus-visible {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* Read-only target display: bound skill of the selected rule, not editable here. */
@@ -873,30 +833,10 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.automation-input-suffix:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.automation-input-suffix input,
-.automation-input-suffix input:hover,
-.automation-input-suffix input:focus,
-.automation-input-suffix input:focus-visible {
-  border: 0;
-  box-shadow: none;
 }
 
 .automation-input-suffix > span {
   padding: 0 10px;
-  border-left: 1px solid var(--hairline);
-  color: var(--muted);
   font-size: var(--fs-xs);
 }
 

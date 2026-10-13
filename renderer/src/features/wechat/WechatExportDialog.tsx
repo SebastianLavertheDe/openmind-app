@@ -4,7 +4,7 @@ import { ArrowLeft, Check, Copy, ImagePlus, LoaderCircle, Send, Settings2, X } f
 import { renderWechatArticle, WECHAT_THEMES } from "@shared/wechat-format";
 import type { WechatAccountView, WechatCover } from "@shared/wechat";
 import { WECHAT_TITLE_MAX_LENGTH, WECHAT_AUTHOR_MAX_LENGTH, WECHAT_DIGEST_MAX_LENGTH } from "@shared/wechat";
-import { useModalFocusScope } from "../../design-system/components";
+import { useModalFocusScope, Input, Textarea } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { WechatAccountForm } from "./WechatAccountForm";
 import "../../styles/features/wechat-export.css";
@@ -109,10 +109,10 @@ export function WechatExportDialog({ open, projectName, outputPath, title, markd
               {accountOpen || (!accountLoading && !account?.configured) ? <WechatAccountForm account={account || undefined} onBusyChange={setAccountBusy} onSaved={next => { setAccount(next); setAuthor(next.author); setAccountOpen(false); setAccountError(""); }} onCancel={account?.configured ? () => setAccountOpen(false) : () => setDraftOpen(false)} /> : <>
                 {accountError ? <p role="alert" className="wechat-export-error">{accountError}<button data-motion="action" type="button" className="settings-subtle-action" onClick={() => setAccountOpen(true)}>配置公众号</button></p> : null}
                 {account?.configured ? <div className="wechat-export-account"><span><Check size={14} />已配置公众号 <small>{account.appId}</small></span><button data-motion="action" type="button" className="icon-button" disabled={disabled} aria-label="编辑公众号配置" onClick={() => setAccountOpen(true)}><Settings2 size={15} /></button></div> : null}
-                <label className="project-field"><span>文章标题</span><input value={articleTitle} maxLength={WECHAT_TITLE_MAX_LENGTH} disabled={disabled} onChange={event => setArticleTitle(event.target.value)} />{articleTitle.length > WECHAT_TITLE_MAX_LENGTH ? <small className="wechat-export-error">标题最多 {WECHAT_TITLE_MAX_LENGTH} 个字，请缩短后发送。</small> : null}</label>
+                <label className="project-field"><span>文章标题</span><Input value={articleTitle} maxLength={WECHAT_TITLE_MAX_LENGTH} disabled={disabled} onChange={event => setArticleTitle(event.target.value)} />{articleTitle.length > WECHAT_TITLE_MAX_LENGTH ? <small className="wechat-export-error">标题最多 {WECHAT_TITLE_MAX_LENGTH} 个字，请缩短后发送。</small> : null}</label>
                 <div className="project-field"><span>封面</span><button data-motion="action" type="button" className={`wechat-cover-picker${cover ? " has-cover" : ""}`} onClick={() => void selectCover()} disabled={disabled}>{cover ? <img src={cover.previewUrl} alt="文章封面" /> : <ImagePlus size={24} />}<span>{cover ? "更换封面" : "选择 JPG / PNG 图片"}</span></button></div>
-                <label className="project-field"><span>作者（选填）</span><input value={author} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={disabled} placeholder={`最多 ${WECHAT_AUTHOR_MAX_LENGTH} 个字`} onChange={event => setAuthor(event.target.value)} /></label>
-                <label className="project-field"><span>摘要（选填）</span><textarea rows={3} value={digest} maxLength={WECHAT_DIGEST_MAX_LENGTH} disabled={disabled} placeholder="留空由微信从正文提取" onChange={event => setDigest(event.target.value)} /></label>
+                <label className="project-field"><span>作者（选填）</span><Input value={author} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={disabled} placeholder={`最多 ${WECHAT_AUTHOR_MAX_LENGTH} 个字`} onChange={event => setAuthor(event.target.value)} /></label>
+                <label className="project-field"><span>摘要（选填）</span><Textarea rows={3} value={digest} maxLength={WECHAT_DIGEST_MAX_LENGTH} disabled={disabled} placeholder="留空由微信从正文提取" onChange={event => setDigest(event.target.value)} /></label>
                 <p className="wechat-export-help">发送后可在公众号草稿箱中继续编辑和预览。</p>
               </>}
             </> : <>

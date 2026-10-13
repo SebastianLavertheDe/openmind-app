@@ -251,14 +251,12 @@
   border-bottom: 1px solid var(--border);
 }
 
+.global-search-symbol { color: var(--accent); }
+
 .global-search-dialog > header input {
   min-width: 0;
   height: 34px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
   font-size: 15px;
-  outline: none;
 }
 
 .global-search-dialog > header button {

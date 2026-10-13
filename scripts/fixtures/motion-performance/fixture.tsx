@@ -1,8 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { App } from "../../../renderer/src/App";
 import { applyTheme } from "../../../renderer/src/theme";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 // Test-only entry: exercise the production theme function without navigating
 // away from the long conversation whose DOM makes theme changes expensive.

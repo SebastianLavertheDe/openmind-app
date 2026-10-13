@@ -4,8 +4,7 @@ import { MarkdownReader } from "../../../renderer/src/components/MarkdownReader"
 import { ColumnSplitter } from "../../../renderer/src/components/ColumnSplitter";
 import { PdfMaterialViewer } from "../../../renderer/src/features/projects/PdfMaterialViewer";
 import { readingSelectionText } from "../../../renderer/src/components/document/document-selection";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 const probe = window as any;
 const params = new URLSearchParams(location.search);

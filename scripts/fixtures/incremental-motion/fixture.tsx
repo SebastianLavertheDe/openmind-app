@@ -6,8 +6,7 @@ import { ChatComposer } from "../../../renderer/src/features/ai-console/composer
 import { ProjectsPage } from "../../../renderer/src/features/projects/ProjectsPage";
 import { AiProvidersSettingsSection } from "../../../renderer/src/features/settings/settings-sections";
 import type { ProjectSummary } from "../../../renderer/src/features/projects/types";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 // Production components, isolated synthetic state. No provider or filesystem IPC.
 const snapshot: AiSnapshot = { projectRoot: "/fixtures/motion", providers: [], sessions: [], runs: [], pendingApprovals: [] };

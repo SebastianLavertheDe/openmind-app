@@ -131,37 +131,12 @@
   gap: 7px;
   margin: 0 1px 2px;
   padding: 0 9px;
-  border: 0;
-  border-radius: var(--nav-item-radius);
-  background: transparent;
-  color: var(--muted-2);
-  transition: background var(--dur-fast) var(--ease-standard);
-}
-
-.settings-nav-search:hover,
-.settings-nav-search:focus-within {
-  background: var(--control-hover);
 }
 
 .settings-nav-search input {
   min-width: 0;
   width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
   font: inherit;
-}
-
-.settings-nav-search input::placeholder {
-  color: var(--muted-2);
-}
-
-/* 与项目页过滤框一致：无重轮廓，聚焦反馈只走容器底色。 */
-.settings-nav-search input:focus,
-.settings-nav-search input:focus-visible {
-  outline: 0;
-  box-shadow: none;
 }
 
 .settings-navigation-scroll {
@@ -693,24 +668,11 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.settings-skill-search:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .settings-skill-search input {
   min-width: 0;
   flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
   font-size: 12px;
 }
 
@@ -1624,16 +1586,6 @@
   margin-bottom: 10px;
 }
 
-.settings-card--mcp .settings-skill-search {
-  border-color: transparent;
-  background: var(--surface);
-}
-
-.settings-card--mcp .settings-skill-search:focus-within {
-  border-color: transparent;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
 .settings-mcp-list {
   gap: 0;
   padding-top: 0;
@@ -1933,14 +1885,6 @@
 .settings-field > small { color: var(--muted-2); font-size: var(--fs-xs); line-height: 1.45; }
 .settings-field .settings-select { width: 100%; max-width: none; min-height: 36px; }
 .settings-field--wide { grid-column: 1 / -1; }
-
-/* Keep API Key selection neutral instead of applying the bright accent ring. */
-.settings-provider-dialog .settings-provider-api-key-input:focus,
-.settings-provider-dialog .settings-provider-api-key-input:focus-visible {
-  border-color: var(--border-strong);
-  box-shadow: none;
-  outline: none;
-}
 
 .settings-provider-advanced-trigger.ui-disclosure-trigger {
   min-height: 42px;

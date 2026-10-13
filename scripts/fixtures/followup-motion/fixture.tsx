@@ -8,8 +8,7 @@ import { ResponsiveLayoutProvider } from "../../../renderer/src/app/responsive-l
 import { AiProvidersSettingsSection, SkillSettingsSection } from "../../../renderer/src/features/settings/settings-sections";
 import { ProjectEditDialog } from "../../../renderer/src/features/projects/ProjectAppearance";
 import type { ProjectSummary } from "../../../renderer/src/features/projects/types";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 const project: ProjectSummary = { id: "fixture", name: "合成项目", description: "", status: "active", materialCount: 0, taskCount: 0, outputCount: 0, createdAt: "", updatedAt: "" };
 const skills: SkillDefinition[] = Array.from({ length: 3 }, (_, i) => ({ id: `fixture-${i}`, title: `合成 Skill ${i}`, description: "用于局部折叠验证", cwd: "/fixtures/motion", command: "echo fixture", permission: "read-only" }));

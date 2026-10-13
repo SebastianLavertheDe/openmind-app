@@ -309,7 +309,7 @@ describe("ProjectsPage", () => {
 
     const search = await screen.findByLabelText("搜索项目");
     expect(search.getAttribute("placeholder")).toBe("你的项目");
-    expect(search.nextElementSibling?.tagName.toLocaleLowerCase()).toBe("svg");
+    expect(search.nextElementSibling?.querySelector("svg")).toBeTruthy();
     fireEvent.change(search, { target: { value: "安全" } });
 
     await waitFor(() => expect(screen.queryByRole("button", { name: /每日简报实验/ })).toBeNull());

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
-import { useModalFocusScope } from "../../design-system/components";
+import { useModalFocusScope, Textarea, Input } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 
 export function ProjectDialog({
@@ -87,8 +87,8 @@ export function ProjectTextField({
     <label className="project-field">
       <span>{label}</span>
       {multiline
-        ? <textarea value={value} placeholder={placeholder} autoFocus={autoFocus} onChange={(event) => onChange(event.target.value)} />
-        : <input value={value} placeholder={placeholder} autoFocus={autoFocus} onChange={(event) => onChange(event.target.value)} />}
+        ? <Textarea value={value} placeholder={placeholder} autoFocus={autoFocus} onChange={(event) => onChange(event.target.value)} />
+        : <Input value={value} placeholder={placeholder} autoFocus={autoFocus} onChange={(event) => onChange(event.target.value)} />}
     </label>
   );
 }

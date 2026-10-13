@@ -7,8 +7,7 @@ import { FeedbackHost } from "../../../renderer/src/components/FeedbackHost";
 import { ProjectsPage } from "../../../renderer/src/features/projects/ProjectsPage";
 import { DailyBriefPage } from "../../../renderer/src/features/daily-brief/DailyBriefPage";
 import type { ProjectSummary } from "../../../renderer/src/features/projects/types";
-import "../../../renderer/src/styles.css";
-import "../../../renderer/src/styles/product.css";
+import "../../../renderer/src/styles/index.css";
 
 // Only synthetic in-memory IPC. No developer content, credentials or filesystem.
 const snapshot: AiSnapshot = { projectRoot: "/fixtures", providers: [], sessions: [], runs: [], pendingApprovals: [] };

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save, Search } from "lucide-react";
+import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save } from "lucide-react";
 import type { ContentEntry } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
 import { useAiUi } from "../../ai-context";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { useContentListLayout } from "../../components/useContentListLayout";
-import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction } from "../../design-system/components";
+import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction, SearchInput, Textarea } from "../../design-system/components";
 import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../file-preview";
 
 export function DailyBriefPage({
@@ -173,7 +173,7 @@ export function DailyBriefPage({
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
           <Tooltip content={m.brief.library.refresh}><button className="icon-button" aria-label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
         </header>
-          <label className="document-library-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} /></label>
+          <SearchInput className="document-library-search" variant="outlined" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} />
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
         <div className="document-file-list entrance-stagger" aria-busy={loading || undefined}>
           {loading && !hasLoaded ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}
@@ -218,7 +218,7 @@ export function DailyBriefPage({
             <section className={`document-content ${preview.mode}`} aria-busy={preview.loading || undefined}>
               {record.truncated ? <div className="document-warning">{m.brief.library.truncated}</div> : null}
               <div key={preview.mode} className="document-content-view">
-                {preview.mode === "preview" ? <PreviewRenderer resource={preview.resource} content={preview.draft.content} layout="file" /> : <textarea aria-label={m.brief.library.editAria} value={preview.draft.content} spellCheck={false} onChange={(event) => preview.setContent(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
+                {preview.mode === "preview" ? <PreviewRenderer resource={preview.resource} content={preview.draft.content} layout="file" /> : <Textarea variant="inline" aria-label={m.brief.library.editAria} value={preview.draft.content} spellCheck={false} onChange={(event) => preview.setContent(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
               </div>
             </section>
           </div>

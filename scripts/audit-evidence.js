@@ -13,7 +13,7 @@ check("renderer routes are lazy loaded", includes("renderer/src/app/route-regist
 check("renderer chunks are manually split", includes("vite.config.ts", "manualChunks(id)") && includes("vite.config.ts", "vendor-markdown"));
 check("large collections remain virtualized or paginated", includes("renderer/src/features/ai-console/AiWorkbench.tsx", "<VirtualList") && includes("electron/ai/rollout.ts", "ordered.slice(offset, offset + params.limit)"));
 check("chat markdown cache is bounded and hash keyed", includes("renderer/src/features/ai-console/message.tsx", "MARKDOWN_CACHE_LIMIT") && includes("renderer/src/features/ai-console/message.tsx", "markdownCacheKey"));
-check("focus and reduced motion styles are present", anyIncludes(["renderer/src/styles.css", "renderer/src/styles/base.css", "renderer/src/styles/tokens.css"], ":focus-visible") && anyIncludes(["renderer/src/styles.css", "renderer/src/styles/base.css"], "prefers-reduced-motion"));
+check("focus and reduced motion styles are present", includes("renderer/src/styles/base.css", ":focus-visible") && includes("renderer/src/styles/base.css", "prefers-reduced-motion"));
 
 check("browser preview is explicitly marked", matches("renderer/src/browser-api.ts", /environment\s*:\s*\{[^}]*\bmode\s*:\s*[\"']preview[\"']/) && includes("renderer/src/app/AppShell.tsx", 'environment.mode === "preview"'));
 check("Electron preload failure cannot silently use preview data", includes("renderer/src/App.tsx", "m.app.preloadMissing") && includes("renderer/src/browser-api.ts", "isElectronRenderer()"));

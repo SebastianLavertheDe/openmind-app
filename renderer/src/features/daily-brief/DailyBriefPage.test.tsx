@@ -100,7 +100,7 @@ describe("DailyBriefPage", () => {
   it("gives the brief search field an explicit accessible name", async () => {
     render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
 
-    expect(await screen.findByRole("textbox", { name: "搜索简报文件" })).toBeTruthy();
+    expect(await screen.findByRole("searchbox", { name: "搜索简报文件" })).toBeTruthy();
   });
 
   it("lists brief files, previews by default, and saves edits", async () => {

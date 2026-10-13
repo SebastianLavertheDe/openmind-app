@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const file = path.join(process.cwd(), "renderer", "src", "styles", "workbuddy-refactor.css");
+const file = path.join(process.cwd(), "renderer", "src", "styles", "tokens.css");
 const source = fs.readFileSync(file, "utf8");
 const light = source.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] || "";
 const dark = source.match(/:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/)?.[1] || "";

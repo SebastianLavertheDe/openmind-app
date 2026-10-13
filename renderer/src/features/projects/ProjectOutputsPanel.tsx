@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Send } from "lucide-react";
+import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Send } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState, StatusBadge } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, StatusBadge, SearchInput } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectOutputEditor } from "./ProjectOutputEditor";
 import { useFilePreviewController } from "../file-preview";
@@ -248,7 +248,7 @@ export function ProjectOutputsPanel({
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
-      <label className="project-local-search"><Search size={14} /><input aria-label="搜索产物" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索产物" /></label>
+      <SearchInput className="project-local-search" variant="outlined" aria-label="搜索产物" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索产物" />
       <div className="project-local-count">全部产物 <span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}

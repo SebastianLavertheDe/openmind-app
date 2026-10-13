@@ -1,3 +1,4 @@
+import { Input } from "../../design-system/components";
 import { createPortal } from "react-dom";
 import {
   Archive,
@@ -238,7 +239,7 @@ export function ProjectEditDialog({
         onClose={onClose}
         onConfirm={() => onSave({ name: name.trim(), icon, color })}
       >
-        <input
+        <Input variant="inline"
           ref={nameInputRef}
           className="project-edit-name"
           aria-label="项目名称"

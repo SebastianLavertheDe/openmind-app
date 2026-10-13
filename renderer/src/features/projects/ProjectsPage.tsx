@@ -23,7 +23,7 @@ import { useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN, useListDetailLayout } from "../../components/useListDetailLayout";
-import { DropdownMenu, EmptyState, ErrorState, Skeleton } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, Skeleton, SearchInput } from "../../design-system/components";
 import { ProjectEditDialog, ProjectIcon, projectColorValue } from "./ProjectAppearance";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectFilesPanel } from "./ProjectFilesPanel";
@@ -464,10 +464,7 @@ export function ProjectsPage({
             </>
           ) : (
             <>
-              <label className="project-pane-filter">
-                <input aria-label="搜索项目" value={query} placeholder="你的项目" onChange={(event) => setQuery(event.target.value)} />
-                <Search aria-hidden="true" />
-              </label>
+              <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label="搜索项目" value={query} placeholder="你的项目" onChange={(event) => setQuery(event.target.value)} />
               {loading ? (
                 <div className="project-list-scroll" aria-busy="true" aria-label="正在加载项目">
                   {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} variant="row" lines={3} label="正在加载项目" />)}
