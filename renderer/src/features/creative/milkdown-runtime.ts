@@ -1,3 +1,4 @@
+import { messages } from "@shared/messages";
 import { Crepe } from "@milkdown/crepe";
 import { commandsCtx, editorViewCtx, serializerCtx } from "@milkdown/kit/core";
 import { $prose, callCommand, insert, replaceAll } from "@milkdown/kit/utils";
@@ -9,7 +10,7 @@ import { Plugin, TextSelection, type SelectionBookmark } from "@milkdown/kit/pro
 import { setBlockType, toggleMark } from "@milkdown/kit/prose/commands";
 import { undo, redo } from "@milkdown/kit/prose/history";
 import { toggleCode, toggleList, toggleQuote } from "./document-commands";
-import { documentBlockMenu, documentMenuPosition } from "./document-block-menu";
+import { getDocumentBlockMenu, documentMenuPosition } from "./document-block-menu";
 import { documentHeadings, documentSearch, documentSearchPlugin, jumpToHeading, replaceSearch, searchDocument, stepSearch, type DocumentHeading, type DocumentSearch } from "./document-navigation";
 import type { EditorSelectionSnapshot } from "./MilkdownEditor";
 
@@ -22,8 +23,8 @@ type TrackedRange = { from: number; to: number; text: string };
 export function uploadImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("图片读取失败"));
-    reader.onerror = () => reject(reader.error ?? new Error("图片读取失败"));
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error(messages.editor.imageReadFailed));
+    reader.onerror = () => reject(reader.error ?? new Error(messages.editor.imageReadFailed));
     reader.readAsDataURL(file);
   });
 }
@@ -39,13 +40,13 @@ export async function createMarkdownEditor(host: HTMLElement, value: string, lab
   const ranges = new Map<number, TrackedRange>();
   let lastSelection: EditorSelectionSnapshot = { start: 0, end: 0, text: "" };
   const crepe = new Crepe({ root: host, defaultValue: value, featureConfigs: {
-    [Crepe.Feature.Placeholder]: { text: "输入正文，或输入 / 插入内容", mode: "block" },
-    [Crepe.Feature.Toolbar]: { boldLabel: "加粗", italicLabel: "斜体", codeLabel: "行内代码", linkLabel: "链接", strikethroughLabel: "删除线", latexLabel: "公式" },
-    [Crepe.Feature.LinkTooltip]: { inputPlaceholder: "粘贴或输入链接" },
-    [Crepe.Feature.CodeMirror]: { searchPlaceholder: "搜索代码语言", copyText: "复制代码", noResultText: "没有匹配的语言", previewToggleText: preview => preview ? "编辑" : "收起预览" },
-    [Crepe.Feature.ImageBlock]: { onUpload: uploadImage, inlineUploadButton: "上传图片", blockUploadButton: "上传图片", blockConfirmButton: "确认", inlineUploadPlaceholderText: "或粘贴图片链接", blockUploadPlaceholderText: "或粘贴图片链接", blockCaptionPlaceholderText: "添加图片说明" },
+    [Crepe.Feature.Placeholder]: { text: messages.editor.placeholder, mode: "block" },
+    [Crepe.Feature.Toolbar]: { boldLabel: messages.editor.bold, italicLabel: messages.editor.italic, codeLabel: messages.editor.inlineCode, linkLabel: messages.editor.link, strikethroughLabel: messages.editor.strikethrough, latexLabel: messages.editor.equation },
+    [Crepe.Feature.LinkTooltip]: { inputPlaceholder: messages.editor.linkPlaceholder },
+    [Crepe.Feature.CodeMirror]: { searchPlaceholder: messages.editor.searchCodeLanguage, copyText: messages.editor.copyCode, noResultText: messages.editor.noMatchingLanguage, previewLabel: messages.editor.codePreview, previewLoading: messages.editor.loadingCodePreview, previewToggleText: preview => preview ? messages.editor.edit : messages.editor.collapsePreview },
+    [Crepe.Feature.ImageBlock]: { onUpload: uploadImage, inlineUploadButton: messages.editor.uploadImage, blockUploadButton: messages.editor.uploadImage, blockConfirmButton: messages.editor.confirm, inlineUploadPlaceholderText: messages.editor.imageLinkPlaceholder, blockUploadPlaceholderText: messages.editor.imageLinkPlaceholder, blockCaptionPlaceholderText: messages.editor.imageCaptionPlaceholder },
     [Crepe.Feature.BlockEdit]: {
-      ...documentBlockMenu,
+      ...getDocumentBlockMenu(),
       blockHandle: { getOffset: () => 4 },
       // Slash menus must render outside the scrolling host or overflow hides them.
       slashMenu: documentMenuPosition(floatingRoot)

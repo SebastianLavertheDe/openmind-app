@@ -1,3 +1,5 @@
+import { messages } from "./messages";
+
 export interface WechatTheme {
   id: string;
   name: string;
@@ -19,11 +21,11 @@ const serif = 'Georgia,"Noto Serif SC","Songti SC",SimSun,serif';
 /** Source-owned registry: adding a theme does not change the Markdown renderer. */
 export const WECHAT_THEME_DEFINITIONS: readonly WechatThemeDefinition[] = [
   {
-    id: "pure", name: "归真", description: "清爽留白，专注内容", accentColor: "#27835c",
+    id: "pure", get name() { return messages.wechatExport.themes.pure.name; }, get description() { return messages.wechatExport.themes.pure.description; }, accentColor: "#27835c",
     styles: () => ({})
   },
   {
-    id: "elegant", name: "雅致", description: "衬线标题，细腻舒展", accentColor: "#477b6a",
+    id: "elegant", get name() { return messages.wechatExport.themes.elegant.name; }, get description() { return messages.wechatExport.themes.elegant.description; }, accentColor: "#477b6a",
     styles: ({ accentColor }) => ({
       h1: `font-family:${serif};text-align:center;letter-spacing:2px;border-bottom:1px solid ${accentColor};padding-bottom:20px;`,
       h2: `font-family:${serif};text-align:center;color:${accentColor};padding:12px 0;border-top:1px solid ${accentColor};border-bottom:1px solid ${accentColor};`,
@@ -32,7 +34,7 @@ export const WECHAT_THEME_DEFINITIONS: readonly WechatThemeDefinition[] = [
     })
   },
   {
-    id: "magazine", name: "杂志", description: "鲜明标题，编辑部质感", accentColor: "#a34235",
+    id: "magazine", get name() { return messages.wechatExport.themes.magazine.name; }, get description() { return messages.wechatExport.themes.magazine.description; }, accentColor: "#a34235",
     styles: ({ accentColor }) => ({
       h1: `font-family:${serif};font-size:2em;line-height:1.4;border-top:5px solid ${accentColor};padding-top:20px;`,
       h2: `font-family:${serif};font-size:1.55em;border-bottom:2px solid ${accentColor};padding-bottom:10px;`,
@@ -42,7 +44,7 @@ export const WECHAT_THEME_DEFINITIONS: readonly WechatThemeDefinition[] = [
     })
   },
   {
-    id: "digest", name: "简报", description: "紧凑层次，高效阅读", accentColor: "#386ba3",
+    id: "digest", get name() { return messages.wechatExport.themes.digest.name; }, get description() { return messages.wechatExport.themes.digest.description; }, accentColor: "#386ba3",
     styles: ({ accentColor }) => ({
       article: "line-height:1.75;letter-spacing:0;",
       h1: "font-size:1.6em;margin-bottom:20px;",
@@ -55,7 +57,12 @@ export const WECHAT_THEME_DEFINITIONS: readonly WechatThemeDefinition[] = [
   }
 ];
 
-export const WECHAT_THEMES: readonly WechatTheme[] = WECHAT_THEME_DEFINITIONS.map(({ styles: _styles, ...theme }) => theme);
+export const WECHAT_THEMES: readonly WechatTheme[] = WECHAT_THEME_DEFINITIONS.map(theme => ({
+  id: theme.id,
+  accentColor: theme.accentColor,
+  get name() { return theme.name; },
+  get description() { return theme.description; }
+}));
 
 export function createWechatStyles(theme: WechatThemeDefinition, context: WechatThemeContext): Record<WechatStyleSlot, string> {
   const { accentColor, fontSize } = context;

@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PanelLeftOpen, RefreshCw } from "lucide-react";
 import type { ContextReference, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
@@ -36,6 +37,7 @@ export function CreativeWorkspacePage({
   initialStage?: Stage;
   initialProjectDir?: string;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const actions = useAiActions();
   const responsiveLayout = useResponsiveLayout();
@@ -139,13 +141,13 @@ export function CreativeWorkspacePage({
     }).catch(() => { /* 保留安全默认值；设置页会展示持久化错误。 */ });
     return () => { active = false; };
   }, []);
-  const activeProjects = useMemo(() => projects.filter((project) => !project.archived && project.stage !== "archived"), [projects]);
+  const activeProjects = useMemo(() => projects.filter((project) => !project.archived && project.stage !== "archived"), [projects, locale]);
   const funnelCounts = useMemo(() => {
     const counts: Record<Bucket, number> = { topic: 0, drafting: 0, pending: 0, published: 0 };
     for (const topic of topics) if (!topic.ignored) counts.topic += 1;
     for (const project of activeProjects) counts[bucketForStage(project.stage)] += 1;
     return counts;
-  }, [topics, activeProjects]);
+  }, [topics, activeProjects, locale]);
 
   const openProject = useCallback(async (project: CreativeProjectSummary) => {
     if (!await resetTopicFile()) return;
@@ -515,6 +517,7 @@ export function CreativeWorkspacePage({
 }
 
 function CreativeStreamSkeleton() {
+  useLocale();
   return (
     <div className="creative-item-list creative-loading-list" aria-busy="true" aria-label={m.creativeUi.editor.loadingTopics}>
       {Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={3} label={m.creativeUi.editor.loadingTopics} />)}

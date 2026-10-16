@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useMemo } from "react";
 import { messages as m } from "@shared/messages";
 import { OverflowBox } from "../../design-system/OverflowBox";
@@ -66,8 +67,9 @@ function parsePatch(patch: string): DiffLine[] {
 }
 
 export function PatchView({ patch }: { patch: string }) {
-  const allLines = useMemo(() => parsePatch(patch), [patch]);
-  const searchLines = useMemo(() => allLines.map((line) => line.text), [allLines]);
+  const locale = useLocale();
+  const allLines = useMemo(() => parsePatch(patch), [patch, locale]);
+  const searchLines = useMemo(() => allLines.map((line) => line.text), [allLines, locale]);
   const expandable = allLines.length > COLLAPSE_THRESHOLD;
 
   return (

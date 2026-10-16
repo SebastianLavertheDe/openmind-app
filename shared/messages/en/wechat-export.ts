@@ -1,0 +1,75 @@
+import type { wechatExportMessages as zhCN } from "../zh-CN/wechat-export";
+import type { TranslationOf } from "../types";
+
+export const wechatExportMessages = {
+  wechatExport: {
+    title: "Export to WeChat Official Account",
+    untitled: "Untitled document",
+    close: "Close WeChat export",
+    backToStyle: "Back to formatting",
+    draftSettings: "Draft settings",
+    loadingAccount: "Loading WeChat account configuration…",
+    configureAccount: "Configure account",
+    configuredAccount: "Account configured",
+    editAccount: "Edit account configuration",
+    articleTitle: "Article title",
+    titleTooLongToSend: (limit: number) => `The title can contain up to ${limit} characters. Shorten it before sending.`,
+    cover: "Cover",
+    coverAlt: "Article cover",
+    changeCover: "Change cover",
+    chooseCover: "Choose a JPG / PNG image",
+    author: "Author (optional)",
+    maxCharacters: (limit: number) => `Up to ${limit} characters`,
+    digest: "Summary (optional)",
+    digestPlaceholder: "Leave blank for WeChat to extract it from the article",
+    draftHint: "After sending, you can continue editing and previewing in your WeChat draft box.",
+    style: "Formatting style",
+    accentColor: "Accent color",
+    fontSize: "Body text size",
+    copyHint: "Copy and paste into the WeChat editor to preserve the formatting.",
+    previewLabel: (theme: string) => `${theme} · Article preview`,
+    previewTitle: "WeChat article formatting preview",
+    openConsole: "Open WeChat console",
+    uploading: "Uploading images and sending. Please wait…",
+    publishHint: "Saved as a draft. Publish it from the WeChat console.",
+    sending: "Sending…",
+    sent: "Sent to draft box",
+    send: "Send to draft box",
+    copying: "Copying…",
+    copy: "Copy formatting",
+    copied: "WeChat formatting copied. Paste it into the WeChat editor.",
+    pushed: "Sent to your WeChat draft box. Check the formatting in the WeChat console.",
+    renderFailed: "This document could not be formatted. Check the content and try again.",
+    operationFailed: "The operation failed. Try again.",
+    titleRequired: "Enter an article title.",
+    coverRequiredToSend: "Choose an article cover before sending.",
+    colors: { green: "Forest green", blue: "Ocean blue", red: "Vermilion", amber: "Amber", cyan: "Teal", purple: "Purple", graphite: "Graphite", theme: "Theme default" },
+    themes: {
+      pure: { name: "Pure", description: "Clean spacing, focused content" },
+      elegant: { name: "Elegant", description: "Serif headings, graceful spacing" },
+      magazine: { name: "Magazine", description: "Bold headings, editorial style" },
+      digest: { name: "Digest", description: "Compact structure, efficient reading" }
+    },
+    image: "Image",
+    warnings: {
+      unsafeImage: "An unsafe or unsupported image URL was removed.",
+      relativeImage: "Local images with relative paths cannot appear in this preview. Upload will be attempted when sending the draft.",
+      localImage: "Local and embedded images cannot be copied to WeChat with the formatting. Add them in the WeChat editor; upload will be attempted when sending the draft.",
+      imageFormat: "GIF / WebP images can appear in the preview. Sending drafts supports only JPG / PNG, so convert the images first.",
+      unsafeLink: "An unsafe or unsupported link URL was removed. The link text was kept.",
+      externalLink: "WeChat may restrict external links. Check them in the WeChat editor.",
+      mermaid: "Mermaid diagrams are kept as code. Replace them with images in the WeChat editor.",
+      math: "Math formulas are kept as LaTeX text. Check them or replace them with images in the WeChat editor.",
+      html: "Raw HTML was ignored for security. Use Markdown formatting instead."
+    },
+    validation: {
+      appId: "Enter a valid WeChat Official Account AppID.",
+      appSecret: "AppSecret must contain 32 letters or digits.",
+      author: (limit: number) => `The author can contain up to ${limit} characters.`,
+      titleRequired: "Enter an article title.",
+      title: (limit: number) => `The title can contain up to ${limit} characters.`,
+      digest: (limit: number) => `The summary can contain up to ${limit} characters.`,
+      coverRequired: "Choose an article cover first."
+    }
+  }
+} as const satisfies TranslationOf<typeof zhCN>;

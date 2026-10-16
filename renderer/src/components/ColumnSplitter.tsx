@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useEffect, useRef } from "react";
 import { messages as m } from "@shared/messages";
 
@@ -33,6 +34,7 @@ export function ColumnSplitter({
   onResizeCancel,
   onResizeActiveChange
 }: ColumnSplitterProps) {
+  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const cancelDrag = useRef<(() => void) | null>(null);
   const callbacks = useRef({ resize, onResizeStart, onResizeCancel, onResizeActiveChange });

@@ -1,3 +1,5 @@
+import { getLocale } from "@shared/messages";
+import { useLocale } from "../../i18n";
 import { Textarea } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
@@ -11,6 +13,7 @@ type RunEntry =
   | { kind: "workflow"; record: WorkflowRunRecord };
 
 export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectConfirmation }: { initialRunId?: string; initialSkillId?: string; confirmAction?: ConfirmAction }) {
+  const locale = useLocale();
   const [entries, setEntries] = useState<RunEntry[]>([]);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -58,7 +61,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
   const skillOptions = useMemo(() => Array.from(new Set([
     ...(initialSkillId ? [initialSkillId] : []),
     ...entries.flatMap((entry) => entry.kind === "skill" ? [entry.record.request.skillId] : entry.record.stepRuns.map((step) => step.skillId))
-  ])).sort((left, right) => left.localeCompare(right)), [entries, initialSkillId]);
+  ])).sort((left, right) => left.localeCompare(right)), [entries, initialSkillId, locale]);
   const visibleEntries = useMemo(() => entries.filter((entry) => {
     if (kindFilter !== "all" && entry.kind !== kindFilter) return false;
     if (stateFilter !== "all" && entry.record.state !== stateFilter) return false;
@@ -67,7 +70,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
       if (entry.kind === "workflow" && !entry.record.stepRuns.some((step) => step.skillId === skillFilter)) return false;
     }
     return true;
-  }), [entries, kindFilter, skillFilter, stateFilter]);
+  }), [entries, kindFilter, skillFilter, stateFilter, locale]);
 
   useEffect(() => {
     if (visibleEntries.some((entry) => entryKey(entry) === selectedKey)) return;
@@ -76,7 +79,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
   const selectedArtifacts = useMemo(() => {
     if (!selected || selected.kind !== "skill") return [];
     return artifacts.filter((artifact) => artifact.runId === selected.record.id);
-  }, [artifacts, selected]);
+  }, [artifacts, selected, locale]);
   const selectedEventRunId = selected?.kind === "skill" ? selected.record.id : "";
   const eventsLoading = Boolean(selectedEventRunId) && (eventState.runId !== selectedEventRunId || eventState.loading);
   const events = eventState.runId === selectedEventRunId ? eventState.events : [];
@@ -180,7 +183,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
       </header>
       {error ? <p role="alert" className="runs-error">{error}</p> : null}
       <div className="runs-filterbar" aria-label={m.runs.filters.aria}>
-        <label>{m.runs.filters.type}<select aria-label={m.runs.filters.typeAria} value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">{m.runs.filters.allTypes}</option><option value="skill">Skill</option><option value="workflow">Workflow</option></select></label>
+        <label>{m.runs.filters.type}<select aria-label={m.runs.filters.typeAria} value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">{m.runs.filters.allTypes}</option><option value="skill">Skill</option><option value="workflow">{m.interface.workflow}</option></select></label>
         <label>{m.runs.filters.state}<select aria-label={m.runs.filters.stateAria} value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">{m.runs.filters.allStates}</option><option value="failed">{m.runs.state.failed}</option><option value="running">{m.runs.state.running}</option><option value="succeeded">{m.runs.state.succeeded}</option><option value="timed_out">{m.runs.state.timedOut}</option><option value="cancelled">{m.runs.state.cancelled}</option></select></label>
         <label>Skill<select aria-label={m.runs.filters.skillAria} value={skillFilter} onChange={(event) => setSkillFilter(event.target.value)}><option value="all">{m.runs.filters.allSkills}</option>{skillOptions.map((skillId) => <option value={skillId} key={skillId}>{skillId}</option>)}</select></label>
         <span>{m.runs.filters.results(visibleEntries.length)}</span>
@@ -244,13 +247,15 @@ function rejectConfirmation(): Promise<boolean> {
 }
 
 function WorkflowSteps({ record, onRetry, actionBusy }: { record: WorkflowRunRecord; onRetry: (stepId: string) => Promise<void>; actionBusy: string | null }) {
-  return <section className="run-section"><h3>Workflow Steps</h3><div className="workflow-step-list">{record.stepRuns.map((step) => {
+  useLocale();
+  return <section className="run-section"><h3>{m.interface.workflowSteps}</h3><div className="workflow-step-list">{record.stepRuns.map((step) => {
     const retrying = actionBusy === `step:${step.stepId}`;
     return <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={retrying || undefined} disabled={Boolean(actionBusy)} onClick={() => void onRetry(step.stepId)}>{retrying ? <LoaderCircle size={14} className="spin" /> : null}{retrying ? m.runs.retryingStep : m.runs.retryStep}</button> : null}</div>;
   })}</div></section>;
 }
 
 function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
+  useLocale();
   if (!artifacts.length) return <p className="runs-muted">{m.runs.artifacts.empty}</p>;
   return <div className="artifact-list">{artifacts.map((artifact) => {
     const location = artifact.logicalPath || artifact.externalPathRef || artifact.id;
@@ -268,6 +273,7 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
 }
 
 function EventList({ events, loading }: { events: BrokerRunEvent[]; loading: boolean }) {
+  useLocale();
   if (loading) return <p className="runs-muted run-events-loading" role="status" aria-live="polite"><LoaderCircle size={14} className="spin" />{m.runs.events.loading}</p>;
   if (!events.length) return <p className="runs-muted">{m.runs.events.empty}</p>;
   return <div className="run-event-list run-events-ready">{events.slice(-80).map((event) => <div key={`${event.runId}-${event.sequence}`} className="run-event-row"><time>{formatTime(event.timestamp)}</time><strong>{event.state}</strong><span>{event.text || event.reason || event.error || ""}</span></div>)}</div>;
@@ -278,7 +284,7 @@ function isTerminal(state: string): boolean { return ["succeeded", "failed", "ti
 function canRetry(state: string): boolean { return ["failed", "timed_out", "cancelled"].includes(state); }
 function stateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
 function stateLabel(state: string): string { return ({ succeeded: m.runs.state.succeeded, failed: m.runs.state.failed, timed_out: m.runs.state.timedOut, cancelled: m.runs.state.cancelled, queued: m.runs.state.queued, inspecting: m.runs.state.inspecting, waiting_execution_consent: m.runs.state.preparing, preparing_runtime: m.runs.state.preparing, running: m.runs.state.running, cancelling: m.runs.state.cancelling, pending: m.runs.state.pending, skipped: m.runs.state.skipped } as Record<string, string>)[state] || state; }
-function formatTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
+function formatTime(value: string): string { return new Date(value).toLocaleString(getLocale(), { hour12: false }); }
 function formatBytes(value: number): string { return value < 1024 ? `${value} B` : value < 1024 * 1024 ? `${Math.round(value / 102.4) / 10} KB` : `${Math.round(value / 104857.6) / 10} MB`; }
 function formatUsage(usage: NonNullable<BrokerRunRecord["usage"]>): string {
   const parts = [

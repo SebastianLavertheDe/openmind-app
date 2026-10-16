@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useCallback, useEffect, useMemo } from "react";
 import { ExternalLink, FileText, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -7,11 +8,12 @@ import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "
 import { projectConversationPreviewSource } from "../features/ai-console/project-preview-source";
 
 export function WorkspaceFilePreview({ path, projectName, onClose, embedded = false }: { path: string; projectName?: string; onClose(): void; embedded?: boolean }) {
+  const locale = useLocale();
   const responsiveLayout = useResponsiveLayout();
   const controller = useFilePreviewController();
   const source = useMemo(() => projectName
     ? projectConversationPreviewSource(path, projectName)
-    : workspaceFileSource(path, { binary: "unsupported" }), [path, projectName]);
+    : workspaceFileSource(path, { binary: "unsupported" }), [path, projectName, locale]);
 
   useEffect(() => {
     void controller.openSource(source, { force: true });
@@ -44,7 +46,7 @@ export function WorkspaceFilePreview({ path, projectName, onClose, embedded = fa
     priority: "essential",
     labelBehavior: "icon",
     onSelect: close
-  }], [close, source]);
+  }], [close, source, locale]);
 
   const resource = controller.resource;
   const error = controller.error && /enoent|not found|no such file|找不到|不存在/i.test(controller.error)

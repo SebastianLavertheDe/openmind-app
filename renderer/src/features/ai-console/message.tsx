@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { isValidElement, memo, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -32,6 +34,7 @@ const markdownCache = new Map<string, { text: string; node: ReactNode }>();
 // Event objects keep a stable identity (mergeEvents), so memo skips sibling
 // rows. Actions come from the stable AiActionsValue slice.
 export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent }) {
+  useLocale();
   const actions = useAiActions();
   const text = String(event.payload.text || "");
   const contexts = Array.isArray(event.payload.contexts) ? event.payload.contexts as ContextReference[] : [];
@@ -70,6 +73,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   blocks?: readonly AssistantContentBlock[];
   keyPrefix?: string;
 }) {
+  const locale = useLocale();
   const actions = useAiActions();
   const parsedBlocks = useMemo(() => {
     if (suppliedBlocks) return suppliedBlocks;
@@ -78,7 +82,7 @@ export const AssistantMessage = memo(function AssistantMessage({
     } catch {
       return null;
     }
-  }, [event, keyPrefix, suppliedBlocks, text]);
+  }, [event, keyPrefix, suppliedBlocks, text, locale]);
   const visibleText = !streaming && parsedBlocks ? assistantBlocksVisibleText(parsedBlocks) : text;
   return (
     <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
@@ -108,6 +112,7 @@ export function AssistantContent({
   blocks: readonly AssistantContentBlock[];
   streaming?: boolean;
 }) {
+  useLocale();
   const lastBlock = blocks.at(-1);
   return (
     <div className="assistant-content">
@@ -131,6 +136,7 @@ export function ChatMarkdown({
   streaming?: boolean;
   className?: string;
 }) {
+  useLocale();
   const classes = ["chat-markdown", streaming ? "markdown-streaming" : "", className].filter(Boolean).join(" ");
   if (!streaming && text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT) {
     return <ChatImageGallery><DocumentReader content={text} math className={classes} customComponents={documentComponents}/></ChatImageGallery>;
@@ -146,6 +152,7 @@ const documentComponents: ReaderComponents = {
   img: ({ node: _node, ...props }) => <SafeMarkdownImage {...props}/>,
   a: ({ node: _node, ...props }) => <MarkdownLink {...props}/>,
   pre: function DocumentCode({ node, ...props }) {
+  useLocale();
     return <MarkdownPre {...props} copyText={useDocumentCodeText(node)}/>;
   },
   code: ({ node: _node, ...props }) => <MarkdownCode {...props}/>
@@ -236,6 +243,7 @@ export function MessageMeta({
   children: ReactNode;
   visuallyHidden?: boolean;
 }) {
+  useLocale();
   const metadataClass = visuallyHidden ? "ui-visually-hidden" : undefined;
   return (
     <div className="message-meta">
@@ -247,6 +255,7 @@ export function MessageMeta({
 }
 
 export function CopyButton({ text }: { text: string }) {
+  useLocale();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -261,6 +270,7 @@ export function CopyButton({ text }: { text: string }) {
 }
 
 function SentContexts({ contexts }: { contexts: ContextReference[] }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   return (
     <AnimatedDisclosure
@@ -278,6 +288,7 @@ function SentContexts({ contexts }: { contexts: ContextReference[] }) {
 }
 
 export function MarkdownLink({ href, onClick, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  useLocale();
   const openPreview = useFilePreview();
   const localPath = localFileReference(href);
   if (!localPath) return <a {...props} href={href} onClick={onClick} target="_blank" rel="noreferrer" />;
@@ -297,6 +308,7 @@ export function MarkdownLink({ href, onClick, ...props }: AnchorHTMLAttributes<H
 }
 
 function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
+  useLocale();
   const openPreview = useFilePreview();
   const text = extractText(children).trim();
   // 含路径分隔符、无空白，或以文件扩展名结尾（如 `Agentic Design Patterns.pdf`）
@@ -323,9 +335,10 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
 }
 
 export function SafeMarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>) {
+  useLocale();
   if (typeof src !== "string" || !src) return null;
   const source = src.startsWith("//") ? `https:${src}` : localFileReference(src) || src;
-  return <ChatImage source={source} title={String(alt || "图片")} />;
+  return <ChatImage source={source} title={String(alt || uiMessages.interface.image)} />;
 }
 
 function chatUrlTransform(url: string, key: string): string {
@@ -334,6 +347,7 @@ function chatUrlTransform(url: string, key: string): string {
 }
 
 function MarkdownPre({ children, copyText, ...props }: HTMLAttributes<HTMLPreElement> & { copyText?: string }) {
+  useLocale();
   const text = copyText ?? extractText(children);
   return (
     <div className="markdown-code-block">

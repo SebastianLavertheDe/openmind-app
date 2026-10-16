@@ -1,3 +1,5 @@
+import { useLocale } from "../../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Video } from "lucide-react";
 import { EmptyState } from "../../../design-system/components";
@@ -10,6 +12,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
   resource: VideoPreviewResource;
   onOpenExternal?(): void;
 }) {
+  const locale = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const layout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE });
   const [currentMs, setCurrentMs] = useState(0);
@@ -17,7 +20,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
   const embedOrigin = useMemo(() => {
     if (!embedUrl) return null;
     try { return new URL(embedUrl).origin; } catch { return null; }
-  }, [embedUrl]);
+  }, [embedUrl, locale]);
 
   useEffect(() => {
     if (!embedOrigin) return;
@@ -74,9 +77,9 @@ export function VideoPreview({ resource, onOpenExternal }: {
             ) : (
               <div className="project-video-unavailable">
                 <Video size={28} />
-                <strong>当前链接无法安全内嵌播放</strong>
-                <p>字幕仍可阅读；可以在浏览器中打开原视频。</p>
-                {onOpenExternal ? <button data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />浏览器打开</button> : null}
+                <strong>{uiMessages.interface.videoCannotEmbed}</strong>
+                <p>{uiMessages.interface.videoExternalHint}</p>
+                {onOpenExternal ? <button data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button> : null}
               </div>
             )}
           </section>
@@ -84,7 +87,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
         <div className="project-video-inspector-column">
           <section className="project-transcript project-video-inspector">
             <div className="project-transcript-list">
-              {!resource.transcript.length ? <EmptyState title="暂无字幕" description="当前视频没有可用的平台字幕；原始链接仍会保留在项目资料中。" /> : null}
+              {!resource.transcript.length ? <EmptyState title={uiMessages.interface.noTranscript} description={uiMessages.interface.transcriptUnavailable} /> : null}
               {resource.transcript.map((item) => {
                 const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
                 return (

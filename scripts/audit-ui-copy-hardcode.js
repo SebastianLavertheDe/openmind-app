@@ -46,3 +46,4 @@ console.log(`[ui-copy-audit] scanned ${sourceFiles(rendererRoot).length} product
 console.log(`[ui-copy-audit] direct Han UI literals: ${findings.length}`);
 for (const finding of findings) console.log(`${finding.file}:${finding.line} ${finding.text}`);
 console.log("[ui-copy-audit] browser-api.ts is excluded because it is the standalone browser-preview fixture dataset, not component copy.");
+if (findings.length) process.exitCode = 1;

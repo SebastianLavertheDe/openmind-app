@@ -3,6 +3,7 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { Definition, FootnoteDefinition, Nodes, Root } from "mdast";
+import { messages } from "./messages";
 import { createWechatStyles, WECHAT_THEME_DEFINITIONS, type WechatStyleSlot } from "./wechat-themes";
 
 export { WECHAT_THEMES } from "./wechat-themes";
@@ -67,18 +68,18 @@ export function renderWechatArticle(markdown: string, options: WechatArticleOpti
   const renderImage = (url: string, alt: string | null | undefined, title?: string | null) => {
     const src = safeUrl(url, true);
     if (!src) {
-      warnings.add("已移除不安全或不支持的图片地址。");
-      return tag("span", escape(alt || "图片"));
+      warnings.add(messages.wechatExport.warnings.unsafeImage);
+      return tag("span", escape(alt || messages.wechatExport.image));
     }
-    if (!/^(?:https?:|data:)/i.test(src)) warnings.add("相对路径的本地图片无法在当前预览中显示，发送草稿时会尝试上传。");
-    if (!/^https?:/i.test(src)) warnings.add("本地和内嵌图片无法随排版复制到微信，请在公众号编辑器中补充；推送草稿时会尝试上传。");
-    if (/^data:image\/(?:gif|webp);/i.test(src) || /\.(?:gif|webp)(?:[?#]|$)/i.test(src)) warnings.add("GIF / WebP 图片可用于排版预览；发送草稿仅支持 JPG / PNG，请先转换图片格式。");
+    if (!/^(?:https?:|data:)/i.test(src)) warnings.add(messages.wechatExport.warnings.relativeImage);
+    if (!/^https?:/i.test(src)) warnings.add(messages.wechatExport.warnings.localImage);
+    if (/^data:image\/(?:gif|webp);/i.test(src) || /\.(?:gif|webp)(?:[?#]|$)/i.test(src)) warnings.add(messages.wechatExport.warnings.imageFormat);
     return `<img src="${escape(src)}" alt="${escape(alt || "")}"${title ? ` title="${escape(title)}"` : ""} style="${escape(styles.image)}">`;
   };
   const renderLink = (url: string, label: string, title?: string | null) => {
     const href = safeUrl(url, false);
-    if (!href) { warnings.add("已移除不安全或不支持的链接地址，保留链接文字。"); return label; }
-    if (/^https?:/i.test(href) && !/^https?:\/\/mp\.weixin\.qq\.com\//i.test(href)) warnings.add("微信可能限制外部链接，请在公众号编辑器中检查链接。");
+    if (!href) { warnings.add(messages.wechatExport.warnings.unsafeLink); return label; }
+    if (/^https?:/i.test(href) && !/^https?:\/\/mp\.weixin\.qq\.com\//i.test(href)) warnings.add(messages.wechatExport.warnings.externalLink);
     return tag("a", label, "link", ` href="${escape(href)}"${title ? ` title="${escape(title)}"` : ""}`);
   };
   function render(node: Nodes): string {
@@ -97,13 +98,13 @@ export function renderWechatArticle(markdown: string, options: WechatArticleOpti
       case "listItem": return tag("li", `${node.checked == null ? "" : node.checked ? "☑ " : "☐ "}${children(node)}`, "item");
       case "inlineCode": return tag("code", escape(node.value), "code");
       case "code":
-        if (node.lang?.toLowerCase() === "mermaid") warnings.add("Mermaid 图表保留为代码，请在公众号编辑器中替换为图片。");
+        if (node.lang?.toLowerCase() === "mermaid") warnings.add(messages.wechatExport.warnings.mermaid);
         return tag("pre", tag("code", escape(node.value)), "pre");
       case "math":
       case "inlineMath":
-        warnings.add("数学公式保留为 LaTeX 文本，请在公众号编辑器中检查或替换为图片。");
+        warnings.add(messages.wechatExport.warnings.math);
         return tag(node.type === "math" ? "pre" : "code", escape(node.value), node.type === "math" ? "pre" : "code");
-      case "html": warnings.add("为安全起见，已忽略原始 HTML；请使用 Markdown 格式。"); return "";
+      case "html": warnings.add(messages.wechatExport.warnings.html); return "";
       case "image": return renderImage(node.url, node.alt, node.title);
       case "imageReference": {
         const definition = definitions.get(id(node.identifier));
@@ -134,7 +135,7 @@ export function renderWechatArticle(markdown: string, options: WechatArticleOpti
   }
   function plain(node: Nodes): string {
     if (node.type === "html" || node.type === "definition" || node.type === "footnoteDefinition") return "";
-    if (node.type === "image" || node.type === "imageReference") return node.alt || "图片";
+    if (node.type === "image" || node.type === "imageReference") return node.alt || messages.wechatExport.image;
     if (node.type === "footnoteReference") return `[${usedFootnotes.indexOf(id(node.identifier)) + 1}]`;
     if (node.type === "break") return "\n";
     if (node.type === "thematicBreak") return "\n—\n";

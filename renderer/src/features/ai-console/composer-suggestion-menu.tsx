@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import {
   FileSearch,
   FileText,
@@ -34,6 +35,7 @@ export type SuggestionMenuProps =
   };
 
 export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
+  useLocale();
   // P2-INT-3: active item 滚出视口时键盘选不到——scrollIntoView({block:'nearest'})
   const activeItemRef = (el: HTMLElement | null) => {
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
@@ -145,6 +147,7 @@ export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
 }
 
 function SuggestionEmpty({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
+  useLocale();
   return (
     <div className="composer-suggestion-empty">
       {icon}

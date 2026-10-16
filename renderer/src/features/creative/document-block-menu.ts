@@ -1,17 +1,18 @@
+import { messages } from "@shared/messages";
 import type { BlockEditFeatureConfig } from "@milkdown/crepe/feature/block-edit";
 import { documentMenuHints, documentMenuIconHtml } from "./document-menu-icons";
 
 /** Keep Crepe's commands and filtering, with common blocks before specialist ones. */
-export const documentBlockMenu: BlockEditFeatureConfig = {
+export const getDocumentBlockMenu = (): BlockEditFeatureConfig => ({
   textGroup: {
-    label: "基础内容", text: { label: "正文" },
-    h1: { label: "标题 1" }, h2: { label: "标题 2" },
-    h3: { label: "标题 3" }, h4: { label: "标题 4" },
-    h5: { label: "标题 5" }, h6: { label: "标题 6" },
-    quote: { label: "引用" }, divider: { label: "分割线" }
+    label: messages.editor.basicContent, text: { label: messages.editor.paragraph },
+    h1: { label: messages.editor.headingOne }, h2: { label: messages.editor.headingTwo },
+    h3: { label: messages.editor.headingThree }, h4: { label: messages.editor.headingFour },
+    h5: { label: messages.editor.headingFive }, h6: { label: messages.editor.headingSix },
+    quote: { label: messages.editor.quote }, divider: { label: messages.editor.divider }
   },
-  listGroup: { label: "列表", bulletList: { label: "无序列表" }, orderedList: { label: "有序列表" }, taskList: { label: "待办列表" } },
-  advancedGroup: { label: "插入", image: { label: "图片" }, codeBlock: { label: "代码块" }, table: { label: "表格" }, math: { label: "公式" } },
+  listGroup: { label: messages.editor.lists, bulletList: { label: messages.editor.bulletList }, orderedList: { label: messages.editor.orderedList }, taskList: { label: messages.editor.taskList } },
+  advancedGroup: { label: messages.editor.insert, image: { label: messages.editor.image }, codeBlock: { label: messages.editor.codeBlock }, table: { label: messages.editor.table }, math: { label: messages.editor.equation } },
   buildMenu: builder => {
     const text = builder.getGroup("text").group.items;
     const lists = builder.getGroup("list").group.items;
@@ -19,14 +20,14 @@ export const documentBlockMenu: BlockEditFeatureConfig = {
     const common = ["text", "h1", "h2", "h3", "bullet-list", "ordered-list", "task-list", "quote", "divider"];
     const items = [...text, ...lists, ...inserts];
     builder.clear();
-    const basic = builder.addGroup("basic", "基础内容");
+    const basic = builder.addGroup("basic", messages.editor.basicContent);
     for (const key of common) {
       const item = items.find(item => item.key === key);
       if (item) basic.addItem(item.key, item);
     }
-    const media = builder.addGroup("insert", "插入内容");
+    const media = builder.addGroup("insert", messages.editor.insertContent);
     for (const item of inserts) media.addItem(item.key, item);
-    const more = builder.addGroup("headings", "更多标题");
+    const more = builder.addGroup("headings", messages.editor.moreHeadings);
     for (const item of text.filter(item => ["h4", "h5", "h6"].includes(item.key))) more.addItem(item.key, item);
 
     // Crepe accepts icon HTML. Grid placement gives hints a separate trailing
@@ -37,7 +38,7 @@ export const documentBlockMenu: BlockEditFeatureConfig = {
         + (hint ? `<span class="document-menu-hint" aria-hidden="true">${hint}</span>` : "");
     }
   }
-};
+});
 
 /** Bound floating menus to the editor pane as well as the window. */
 export function documentMenuPosition(root?: HTMLElement): BlockEditFeatureConfig["slashMenu"] {

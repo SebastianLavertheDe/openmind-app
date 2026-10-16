@@ -1,3 +1,5 @@
+import { useLocale } from "../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { lazy, useEffect, type ReactNode } from "react";
 import {
   CalendarDays,
@@ -72,21 +74,21 @@ type RouteDefinition = {
 
 export const ROUTE_DEFINITIONS: readonly RouteDefinition[] = [
   { page: "onboarding", needsRepo: false, render: ({ route, bootstrap, navigate, onRepo }) => <OnboardingPage key={route.nonce} bootstrap={bootstrap} go={navigate} onRefresh={onRepo} /> },
-  { page: "ai", needsRepo: true, nav: { label: navLabel("ai"), icon: SquarePen, group: "create" }, render: ({ route, aiFilePreviewPath, onAiFilePreviewPathChange }) => <AiWorkbench key={route.nonce} restoredPreviewPath={aiFilePreviewPath} onPreviewPathChange={onAiFilePreviewPathChange} /> },
-  { page: "projects", needsRepo: true, nav: { label: "项目", icon: FolderKanban, group: "core" }, render: ({ route }) => <ProjectsPage key={route.nonce} initialProjectName={route.state.projectName} initialSection={route.state.projectSection} initialItem={route.state.projectItem} /> },
-  { page: "creative", needsRepo: true, nav: { label: navLabel("creative"), icon: FilePenLine, group: "core" }, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
-  { page: "brief", needsRepo: true, nav: { label: navLabel("brief"), icon: CalendarDays, group: "core" }, render: ({ route, embeddedFilePreviewPath, onCloseEmbeddedFilePreview }) => <DailyBriefPage key={route.nonce} initialDate={route.state.date} embeddedFilePreviewPath={embeddedFilePreviewPath} onCloseEmbeddedFilePreview={onCloseEmbeddedFilePreview} /> },
+  { page: "ai", needsRepo: true, nav: { get label() { return navLabel("ai"); }, icon: SquarePen, group: "create" }, render: ({ route, aiFilePreviewPath, onAiFilePreviewPathChange }) => <AiWorkbench key={route.nonce} restoredPreviewPath={aiFilePreviewPath} onPreviewPathChange={onAiFilePreviewPathChange} /> },
+  { page: "projects", needsRepo: true, nav: { get label() { return uiMessages.interface.projects; }, icon: FolderKanban, group: "core" }, render: ({ route }) => <ProjectsPage key={route.nonce} initialProjectName={route.state.projectName} initialSection={route.state.projectSection} initialItem={route.state.projectItem} /> },
+  { page: "creative", needsRepo: true, nav: { get label() { return navLabel("creative"); }, icon: FilePenLine, group: "core" }, render: ({ route }) => <CreativeWorkspacePage key={route.nonce} initialDate={route.state.date} initialStage={route.state.stage} initialProjectDir={route.state.projectDir} /> },
+  { page: "brief", needsRepo: true, nav: { get label() { return navLabel("brief"); }, icon: CalendarDays, group: "core" }, render: ({ route, embeddedFilePreviewPath, onCloseEmbeddedFilePreview }) => <DailyBriefPage key={route.nonce} initialDate={route.state.date} embeddedFilePreviewPath={embeddedFilePreviewPath} onCloseEmbeddedFilePreview={onCloseEmbeddedFilePreview} /> },
   { page: "sources", needsRepo: true, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> },
   { page: "skills", needsRepo: false, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection="skills" initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> },
-  { page: "automation", needsRepo: true, nav: { label: navLabel("automation"), icon: Command, group: "core" }, render: ({ route, confirmAction }) => <AutomationPage key={route.nonce} initialSkillId={route.state.skillId} confirmAction={confirmAction} /> },
+  { page: "automation", needsRepo: true, nav: { get label() { return navLabel("automation"); }, icon: Command, group: "core" }, render: ({ route, confirmAction }) => <AutomationPage key={route.nonce} initialSkillId={route.state.skillId} confirmAction={confirmAction} /> },
   { page: "runs", needsRepo: true, render: ({ route, confirmAction }) => <RunsPage key={route.nonce} initialRunId={route.state.runId} initialSkillId={route.state.skillId} confirmAction={confirmAction} /> },
-  { page: "settings", needsRepo: false, nav: { label: navLabel("settings"), icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection={route.state.settingsSection === "sources" ? "skills" : route.state.settingsSection} initialProviderCategory={route.state.providerCategory} initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> }
+  { page: "settings", needsRepo: false, nav: { get label() { return navLabel("settings"); }, icon: Settings, group: "system" }, render: ({ route, bootstrap, providers, onRepo, onExitSettings, navigate }) => <SettingsPage key={route.nonce} repoRoot={bootstrap.repoRoot} providers={providers} onRepo={onRepo} onBack={onExitSettings} onOpenSession={() => navigate("ai")} initialSection={route.state.settingsSection === "sources" ? "skills" : route.state.settingsSection} initialProviderCategory={route.state.providerCategory} initialSkillId={route.state.skillId} initialSkillImportOpen={route.state.openSkillImport} /> }
 ];
 
 export type NavItem = { id: AppPage; label: string; icon: LucideIcon; group: NavGroup };
 
 export const NAV_ITEMS: readonly NavItem[] = ROUTE_DEFINITIONS.flatMap((route) =>
-  route.nav ? [{ id: route.page, label: route.nav.label, icon: route.nav.icon, group: route.nav.group }] : []
+  route.nav ? [{ id: route.page, get label() { return route.nav!.label; }, icon: route.nav.icon, group: route.nav.group }] : []
 );
 
 export function renderActiveRoute(props: RouteRenderProps): ReactNode {
@@ -102,6 +104,7 @@ export function renderActiveRoute(props: RouteRenderProps): ReactNode {
 
 /** Render-phase redirect: navigation happens in an effect, never during render. */
 function RouteToOnboarding({ navigate }: { navigate: Navigate }): ReactNode {
+  useLocale();
   useEffect(() => { navigate("onboarding"); }, [navigate]);
   return <div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>;
 }

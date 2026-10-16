@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useModalFocusScope, Textarea, Input } from "../../design-system/components";
@@ -8,7 +10,7 @@ export function ProjectDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = "取消",
+  cancelLabel = messages.projectUi.cancel,
   busy = false,
   className,
   backdropClassName,
@@ -30,6 +32,7 @@ export function ProjectDialog({
   onConfirm(): void | Promise<void>;
   onClose(): void;
 }) {
+  useLocale();
   const dialogRef = useRef<HTMLElement>(null);
   const { visible, leaving } = useExitPresence(open, 160);
   const [stashed, setStashed] = useState({ title, description, confirmLabel, cancelLabel, children });
@@ -55,12 +58,12 @@ export function ProjectDialog({
         <form onSubmit={submit}>
           <header>
             <div><h2 id="project-dialog-title">{content.title}</h2>{content.description ? <p>{content.description}</p> : null}</div>
-            <button type="button" className="icon-button" aria-label="关闭" onClick={onClose}><X size={16} /></button>
+            <button type="button" className="icon-button" aria-label={messages.projectUi.close} onClick={onClose}><X size={16} /></button>
           </header>
           <div className="project-dialog-body">{content.children}</div>
           {showFooter ? <footer>
             {content.cancelLabel ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={onClose}>{content.cancelLabel}</button> : null}
-            <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? "处理中…" : content.confirmLabel}</button>
+            <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? messages.projectUi.processing : content.confirmLabel}</button>
           </footer> : null}
         </form>
       </section>
@@ -83,6 +86,7 @@ export function ProjectTextField({
   multiline?: boolean;
   onChange(value: string): void;
 }) {
+  useLocale();
   return (
     <label className="project-field">
       <span>{label}</span>

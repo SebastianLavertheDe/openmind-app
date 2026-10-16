@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Download, Folder, FolderCog, LockKeyhole, PackageCheck, Settings } from "lucide-react";
 import type { AppBootstrap, OpenmindRootStatus, OnboardingState } from "@shared/contracts";
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
+  const locale = useLocale();
   const ai = useAiSnapshot();
   const ui = useAiUi();
   const [root, setRoot] = useState<OpenmindRootStatus | null>(null);
@@ -233,6 +235,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
 }
 
 function OnboardingPanel({ active, number, step, title, children }: { active: boolean; number: string; step: string; title: string; children: React.ReactNode }) {
+  useLocale();
   const headingId = `onboarding-step-${step}-title`;
   return (
     <div className="onboarding-step-panel" data-onboarding-step={step} aria-hidden={!active} inert={!active} aria-labelledby={headingId}>

@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { messages as m } from "@shared/messages";
 import {
@@ -50,6 +51,7 @@ export function AppShell({
   recentTasks?: ReactNode;
   onNewTask?(): void;
 }) {
+  const locale = useLocale();
   // sources / skills remain valid legacy routes, but now live inside the
   // dedicated settings information architecture.
   const settingsMode = page === "settings" || page === "sources" || page === "skills";

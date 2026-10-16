@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, AppBootstrap, AppOverview, DesktopApi, OnboardingState, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { App } from "./App";
+import { setLocale } from "@shared/messages";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -13,7 +14,8 @@ const overview: AppOverview = { repoRoot: "/project", metrics: {}, recent: [] };
 const skills: SkillDefinition[] = [];
 const LAZY_ROUTE_TIMEOUT_MS = 10_000;
 const preferences: UserPreferences = {
-  schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light", density: "default", fontSize: "default",
+  schemaVersion: 1, openmindRoot: "/project/openmind", workspaceRoot: "/project", themeMode: "light",
+  uiLanguage: "zh-CN", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", defaultPermissionProfile: "edit",
   notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
@@ -52,9 +54,19 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  setLocale("zh-CN");
+  document.documentElement.lang = "zh-CN";
 });
 
 describe("App bootstrap", () => {
+  it("restores the saved English interface before displaying the workspace", async () => {
+    installApi({ getPreferences: async () => ({ ...preferences, uiLanguage: "en" }) });
+    render(<App />);
+    await screen.findByRole("button", { name: "Settings" }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.documentElement.lang).toBe("en");
+    expect(screen.getByRole("button", { name: "Projects" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "设置" })).toBeNull();
+  });
   it("renders the splash, then the workspace shell once bootstrap resolves", async () => {
     render(<App />);
     // splash shows first

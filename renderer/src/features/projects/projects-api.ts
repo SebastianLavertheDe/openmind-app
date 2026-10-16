@@ -1,3 +1,4 @@
+import { messages } from "@shared/messages";
 import type { ContextReference, PermissionProfile } from "@shared/contracts";
 import type {
   ProjectDetail,
@@ -52,7 +53,7 @@ type UnknownRecord = Record<string, unknown>;
 async function invoke(method: ProjectMethod, ...args: unknown[]): Promise<unknown> {
   const bridge = window.openmind as unknown as UnknownRecord;
   const candidate = bridge[method];
-  if (typeof candidate !== "function") throw new Error(`当前应用版本尚未提供 ${method}。`);
+  if (typeof candidate !== "function") throw new Error(messages.projectUi.unsupportedApiMethod(method));
   return await (candidate as (...values: unknown[]) => Promise<unknown>).apply(window.openmind, args);
 }
 
@@ -177,7 +178,7 @@ function material(value: unknown): ProjectMaterial {
   const sourceUrl = optionalString(item.sourceUrl || item.url || source.url);
   return {
     relativePath,
-    title: string(item.title || item.name, relativePath.split("/").at(-1) || "未命名资料"),
+    title: string(item.title || item.name, relativePath.split("/").at(-1) || messages.projectUi.untitledMaterial),
     kind: materialKind(item.kind, relativePath),
     status: materialStatus(item.status),
     sourceUrl,
@@ -237,7 +238,7 @@ function task(value: unknown): ProjectTask {
     taskId: string(item.taskId || item.id),
     projectId: string(item.projectId),
     projectName: string(item.projectName),
-    title: string(item.title, "未命名任务"),
+    title: string(item.title, messages.projectUi.untitledTask),
     sessionId: optionalString(item.sessionId) || null,
     previousSessionIds: Array.isArray(item.previousSessionIds)
       ? item.previousSessionIds.map((entry) => string(entry)).filter(Boolean)
@@ -268,7 +269,7 @@ function output(value: unknown): ProjectOutput {
   const relativePath = string(item.relativePath || item.path);
   return {
     relativePath,
-    title: string(item.title || item.name, relativePath.split("/").at(-1)?.replace(/\.md$/i, "") || "未命名文档"),
+    title: string(item.title || item.name, relativePath.split("/").at(-1)?.replace(/\.md$/i, "") || messages.projectUi.untitledDocument),
     content: typeof wrapper.content === "string" ? wrapper.content : typeof item.content === "string" ? item.content : undefined,
     sourceTaskId: optionalString(item.sourceTaskId),
     sourceSessionId: optionalString(item.sourceSessionId),

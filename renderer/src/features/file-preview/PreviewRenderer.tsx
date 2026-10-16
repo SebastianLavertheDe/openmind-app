@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { lazy, Suspense } from "react";
 import type { MarkdownReaderLayout } from "../../components/MarkdownReader";
 import type { PreviewResource } from "./model";
@@ -15,15 +17,16 @@ export function PreviewRenderer({ resource, content, layout = "file", onError, o
   onError?(message: string): void;
   onOpenExternal?(): void;
 }) {
+  useLocale();
   switch (resource.kind) {
     case "image":
       return <ImagePreview key={resource.id} resource={resource} />;
     case "document":
       return <DocumentPreview resource={resource} content={content} layout={layout} />;
     case "pdf":
-      return <Suspense fallback={<div className="preview-state">正在加载 PDF 阅读器…</div>}><PdfPreview resource={resource} onError={onError} /></Suspense>;
+      return <Suspense fallback={<div className="preview-state">{uiMessages.interface.loadingPdf}</div>}><PdfPreview resource={resource} onError={onError} /></Suspense>;
     case "video":
-      return <Suspense fallback={<div className="preview-state">正在加载视频预览…</div>}><VideoPreview key={resource.id} resource={resource} onOpenExternal={onOpenExternal} /></Suspense>;
+      return <Suspense fallback={<div className="preview-state">{uiMessages.interface.loadingVideo}</div>}><VideoPreview key={resource.id} resource={resource} onOpenExternal={onOpenExternal} /></Suspense>;
     case "unsupported":
       return <UnsupportedPreview resource={resource} />;
     default:

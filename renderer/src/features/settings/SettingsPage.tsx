@@ -7,6 +7,7 @@ import { workspaceSessions } from "@shared/ai-session-scope";
 import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
+import { applyLocale, useLocale } from "../../i18n";
 import { SkillsPage } from "../skills";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
@@ -36,7 +37,7 @@ type SettingsSectionDefinition = {
   description: string;
 };
 
-const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
+function settingsSections(): readonly SettingsSectionDefinition[] { return [
   { id: "general", group: "personal", icon: SettingsIcon, ...m.settings.navigation.sections.general },
   { id: "providers", group: "ai", icon: Bot, ...m.settings.navigation.sections.providers },
   { id: "runtime", group: "ai", icon: Cpu, ...m.settings.navigation.sections.runtime },
@@ -47,11 +48,12 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
   { id: "connectors", group: "creation", icon: Plug, ...m.settings.navigation.sections.connectors },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
-];
+]; }
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
 export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image" }) {
+  const locale = useLocale();
   const ai = useAiSnapshot();
   const ui = useAiUi();
   const actions = useAiActions();
@@ -99,6 +101,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.getPreferences();
       setPrefs(next);
       applyTheme(next);
+      applyLocale(next);
       try { setBrowserStatus(await window.openmind.getBrowserSkillStatus()); }
       catch { setBrowserStatus(null); }
       await loadMcpServers();
@@ -169,7 +172,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.updatePreferences(patch);
       setPrefs(next);
       applyTheme(next);
-
+      applyLocale(next);
     });
     saveQueue.current = operation.catch(() => undefined);
     return operation.catch(() => {
@@ -181,13 +184,13 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     });
   }, [ai, loadMcpServers, loadPrefs]);
 
-  const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers]);
+  const defaultProviderId = useMemo(() => prefs?.defaultProvider || providers.find((provider) => provider.available)?.id || "", [prefs?.defaultProvider, providers, locale]);
 
   const archivedSessions = useMemo(() => workspaceSessions(ai.snapshot.sessions, true)
     .filter((session) => session.archived)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions]);
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt)), [ai.snapshot.sessions, locale]);
 
-  const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0];
+  const activeDefinition = settingsSections().find((section) => section.id === activeSection) ?? settingsSections()[0];
 
   const selectSection = useCallback((section: SettingsSectionId) => {
     setActiveSection(section);
@@ -376,6 +379,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
   onBack(): void;
   onSelect(section: SettingsSectionId): void;
 }) {
+  useLocale();
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
@@ -394,7 +398,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
         />
       <nav className="settings-navigation-scroll" aria-label={m.settings.navigation.label}>
         {SETTINGS_GROUPS.map((group) => {
-          const sections = SETTINGS_SECTIONS.filter((section) => section.group === group && (!normalizedQuery || `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)));
+          const sections = settingsSections().filter((section) => section.group === group && (!normalizedQuery || `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)));
           if (!sections.length) return null;
           return (
             <section className="settings-nav-group" key={group}>
@@ -426,7 +430,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
             </section>
           );
         })}
-        {normalizedQuery && !SETTINGS_SECTIONS.some((section) => `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)) ? <p className="settings-nav-empty">{m.settings.navigation.noResults}</p> : null}
+        {normalizedQuery && !settingsSections().some((section) => `${section.title} ${section.description}`.toLocaleLowerCase().includes(normalizedQuery)) ? <p className="settings-nav-empty">{m.settings.navigation.noResults}</p> : null}
       </nav>
     </aside>
   );

@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -10,6 +11,7 @@ import { ApprovalCard } from "./approval";
  * 同时保留输入框，并为长命令和批量审批提供独立的纵向空间。
  */
 export function ApprovalBanner() {
+  useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
   const { events } = useAiEvents();
   const pendingApprovals = snapshot.pendingApprovals.filter(
@@ -46,6 +48,7 @@ export function ApprovalBanner() {
 
 /** P1-APR-4: 多审批批量操作。 */
 function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
+  useLocale();
   const actions = useAiActions();
   const ui = useAiUi();
   const [busy, setBusy] = useState(false);

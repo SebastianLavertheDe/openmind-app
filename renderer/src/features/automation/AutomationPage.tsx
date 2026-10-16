@@ -1,3 +1,5 @@
+import { getLocale } from "@shared/messages";
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { CalendarClock, Check, Clock3, LoaderCircle, Play, Save, Square, Target } from "lucide-react";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot, BrokerRunRecord, InstalledRunnableSkillView, WorkflowRunRecord } from "@shared/contracts";
@@ -15,6 +17,7 @@ type TriggerType = "daily" | "weekly" | "hourly" | "interval";
 type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
 export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmation }: { initialSkillId?: string; confirmAction?: ConfirmAction }) {
+  const locale = useLocale();
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [skillCatalog, setSkillCatalog] = useState<InstalledRunnableSkillView[]>([]);
   const [schedules, setSchedules] = useState<AutomationScheduleSnapshot[]>([]);
@@ -90,7 +93,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   }, [load]);
 
   const selected = rules.find((rule) => rule.id === selectedId) || rules[0];
-  const selectedRuns = useMemo(() => selected ? prioritizeAutomationRuns(runs.filter((run) => run.ruleId === selected.id)) : [], [runs, selected]);
+  const selectedRuns = useMemo(() => selected ? prioritizeAutomationRuns(runs.filter((run) => run.ruleId === selected.id)) : [], [runs, selected, locale]);
   const latestRun = selectedRuns[0];
   const selectedSkill = selected ? findTargetSkill(skillCatalog, selected) : undefined;
   const selectedRuntime = selected ? runtime[selected.target.id] : undefined;
@@ -142,8 +145,8 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
     return () => { cancelled = true; if (pollTimer) window.clearInterval(pollTimer); };
   }, [latestRun?.childRunId, latestRun?.target.type, load]);
 
-  const visibleChildEvents = useMemo(() => mergeRunEvents(childEvents, childRun ? liveEvents[childRun.id] || [] : []), [childEvents, childRun, liveEvents]);
-  const visibleWorkflowSteps = useMemo(() => workflowSteps.map((details) => ({ ...details, events: mergeRunEvents(details.events, details.step.runId ? liveEvents[details.step.runId] || [] : []) })), [liveEvents, workflowSteps]);
+  const visibleChildEvents = useMemo(() => mergeRunEvents(childEvents, childRun ? liveEvents[childRun.id] || [] : []), [childEvents, childRun, liveEvents, locale]);
+  const visibleWorkflowSteps = useMemo(() => workflowSteps.map((details) => ({ ...details, events: mergeRunEvents(details.events, details.step.runId ? liveEvents[details.step.runId] || [] : []) })), [liveEvents, workflowSteps, locale]);
 
   if (loading && !selected) return <div className="feature-page automation-page"><section className="workspace-card"><p>{m.automation.loading}</p></section></div>;
   if (!rules.length) return (
@@ -261,6 +264,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
 }
 
 function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: AutomationRule; skillCatalog: InstalledRunnableSkillView[]; onSaved: () => Promise<void>; onError: (message: string | null) => void }) {
+  useLocale();
   const [triggerType, setTriggerType] = useState<TriggerType>(normalizeTriggerType(rule.trigger.type));
   const [dailyAt, setDailyAt] = useState(rule.trigger.type === "daily" ? rule.trigger.at : "08:00");
   const [weeklyAt, setWeeklyAt] = useState(rule.trigger.type === "weekly" ? rule.trigger.at : "08:00");
@@ -374,12 +378,13 @@ function skillKindLabel(kind: InstalledRunnableSkillView["kind"]): string {
 const RECENT_RUN_DAYS = 3;
 
 function RunHistory({ runs, artifacts }: { runs: AutomationRunRecord[]; artifacts: RunArtifact[] }) {
+  useLocale();
   if (!runs.length) return <p className="automation-params-hint">{m.automation.history.empty}</p>;
   const recentRuns = runs.filter((run) => isWithinRecentDays(run.createdAt, RECENT_RUN_DAYS));
   if (!recentRuns.length) return <p className="automation-params-hint">{m.automation.history.recentEmpty(RECENT_RUN_DAYS)}</p>;
   return <div className="automation-history-list">
     {recentRuns.map((run) => <div className="automation-history-row" key={run.id}><span className={`rule-pill ${runtimeTone(run.state)}`}>{run.state}</span><span>{formatRunTime(run.createdAt)}</span><span>{m.automation.history.attempt(run.attempt)}</span><code>{run.childRunId || m.automation.history.notSubmitted}</code>{run.error ? <small>{run.state === "queued" ? m.automation.history.queuedRetry(run.error) : run.error}</small> : null}</div>)}
-    {artifacts.length ? <div className="automation-artifacts"><strong>Artifacts</strong>{artifacts.map((artifact) => <div className="automation-artifact" key={artifact.id}><span className="automation-artifact-name"><span>{artifact.logicalPath || artifact.externalPathRef || artifact.id}</span></span><small>{artifact.type} · {artifact.size ?? 0} bytes · {artifact.declared ? "declared" : "undeclared"}</small></div>)}</div> : <small className="automation-artifacts-note">{m.automation.history.noArtifact}</small>}
+    {artifacts.length ? <div className="automation-artifacts"><strong>{m.interface.artifacts}</strong>{artifacts.map((artifact) => <div className="automation-artifact" key={artifact.id}><span className="automation-artifact-name"><span>{artifact.logicalPath || artifact.externalPathRef || artifact.id}</span></span><small>{artifact.type} · {m.interface.bytes(artifact.size ?? 0)} · {artifact.declared ? m.interface.declaredArtifact : m.interface.undeclaredArtifact}</small></div>)}</div> : <small className="automation-artifacts-note">{m.automation.history.noArtifact}</small>}
   </div>;
 }
 
@@ -593,7 +598,7 @@ function runLogText(rule: AutomationRule, run: AutomationRunRecord | undefined, 
   const label = child?.request.skillId || rule.target.id;
   return `[${start}] ${m.automation.log.triggered(rule.name)}\n[${start}] ${m.automation.log.childRun(run.childRunId || m.automation.history.notSubmitted)}${formatRuntimeEntries(runtimeEntriesFor(label, events))}${childState}${childError}${automationError}${end}${artifacts}`;
 }
-function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+function formatRunTime(value: string): string { return new Date(value).toLocaleString(getLocale(), { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 /** 按自然日计算：包含今天在内往前 N 天。 */
 function isWithinRecentDays(isoTime: string, days: number): boolean {
   const created = Date.parse(isoTime);
@@ -602,4 +607,4 @@ function isWithinRecentDays(isoTime: string, days: number): boolean {
   startOfToday.setHours(0, 0, 0, 0);
   return created >= startOfToday.getTime() - (days - 1) * 86_400_000;
 }
-function formatLogTime(value: string): string { return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }
+function formatLogTime(value: string): string { return new Date(value).toLocaleTimeString(getLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }

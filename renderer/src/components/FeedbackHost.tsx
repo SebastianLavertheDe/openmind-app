@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
@@ -13,6 +14,7 @@ import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
 const TOAST_LAYOUT_LIMIT = 8;
 
 export function FeedbackHost() {
+  useLocale();
   const ui = useAiUi();
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);

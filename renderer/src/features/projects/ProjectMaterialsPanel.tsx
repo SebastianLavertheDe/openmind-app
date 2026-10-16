@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, FilePlus2, FileText, Globe2, LoaderCircle, Plus, RefreshCw, Upload, Video } from "lucide-react";
@@ -38,6 +40,7 @@ export function ProjectMaterialsPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialMaterialPath || "");
@@ -65,7 +68,7 @@ export function ProjectMaterialsPanel({
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return materials.filter((item) => (filter === "all" || item.kind === filter) && (!needle || `${item.title} ${item.relativePath} ${item.sourceUrl || ""}`.toLocaleLowerCase().includes(needle)));
-  }, [filter, materials, query]);
+  }, [filter, materials, query, locale]);
 
   const openMaterial = useCallback(async (relativePath: string) => {
     if (relativePath === selectedPathRef.current && selectedRef.current?.status === "ready" && previewResourceRef.current) return;
@@ -121,7 +124,7 @@ export function ProjectMaterialsPanel({
     onCreateHandled();
   }, [createRequested, onCreateHandled]);
 
-  const links = useMemo(() => parseMaterialLinks(url), [url]);
+  const links = useMemo(() => parseMaterialLinks(url), [url, locale]);
 
   const addFiles = async (filePaths?: string[]) => {
     if (adding) return;
@@ -134,7 +137,7 @@ export function ProjectMaterialsPanel({
       setAddOpen(false);
       await load();
       if (created[0]?.relativePath) await openMaterial(created[0].relativePath);
-      if (created.length) ui.notify(`已添加并转换 ${created.length} 项资料。`, "success");
+      if (created.length) ui.notify(messages.projectUi.materialsAdded(created.length), "success");
       onChanged();
     } catch (cause) {
       ui.notify(errorText(cause), "error");
@@ -158,7 +161,7 @@ export function ProjectMaterialsPanel({
       .map((file) => typeof window.openmind.pathForFile === "function" ? window.openmind.pathForFile(file) : "")
       .filter(Boolean);
     if (!paths.length) {
-      ui.notify("无法读取拖入文件的路径，请改用点击上传。", "error");
+      ui.notify(messages.projectUi.droppedFilePathUnavailable, "error");
       return;
     }
     void addFiles(paths);
@@ -175,9 +178,9 @@ export function ProjectMaterialsPanel({
         created += 1;
         first ??= material;
       }
-      ui.notify(created > 1 ? `已添加 ${created} 个链接并完成转换。` : "链接已加入项目并完成转换。", "success");
+      ui.notify(created > 1 ? messages.projectUi.linksAdded(created) : messages.projectUi.linkAdded, "success");
     } catch (cause) {
-      ui.notify(created ? `已添加 ${created} 个链接，其余添加失败：${errorText(cause)}` : errorText(cause), "error");
+      ui.notify(created ? messages.projectUi.linksPartiallyAdded(created, errorText(cause)) : errorText(cause), "error");
     } finally {
       setAddOpen(false);
       setUrl("");
@@ -199,7 +202,7 @@ export function ProjectMaterialsPanel({
       setSelected(next);
       if (next.status === "ready") await openMaterial(next.relativePath);
       onChanged();
-      ui.notify(next.status === "ready" ? "资料转换已完成。" : next.error || "资料转换仍然失败。", next.status === "ready" ? "success" : "error");
+      ui.notify(next.status === "ready" ? messages.projectUi.materialConverted : next.error || messages.projectUi.materialConversionStillFailed, next.status === "ready" ? "success" : "error");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -211,8 +214,8 @@ export function ProjectMaterialsPanel({
   const addDialog = (
     <ProjectDialog
       open={addOpen}
-      title="添加资料"
-      confirmLabel="添加链接"
+      title={messages.projectUi.addMaterials}
+      confirmLabel={messages.projectUi.addLinks}
       busy={adding}
       className="project-material-add-dialog"
       showFooter={false}
@@ -223,7 +226,7 @@ export function ProjectMaterialsPanel({
         type="button"
         className={`project-material-upload${dragOver ? " drag-over" : ""}`}
         data-motion="action"
-        aria-label="上传文件"
+        aria-label={messages.projectUi.uploadFiles}
         disabled={adding}
         onClick={() => void addFiles()}
         onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
@@ -233,21 +236,21 @@ export function ProjectMaterialsPanel({
         <span className="project-material-upload-icon" aria-hidden="true">
           {adding ? <LoaderCircle className="spin" size={22} /> : <Upload size={22} />}
         </span>
-        <strong>{adding ? "正在添加资料…" : "拖拽文件到这里，或点击上传文件"}</strong>
-        <small>支持 PDF、文档、图片、音频、视频等</small>
+        <strong>{adding ? messages.projectUi.addingMaterials : messages.projectUi.dropOrUpload}</strong>
+        <small>{messages.projectUi.supportedFileTypes}</small>
       </button>
       <div className="project-material-url-entry">
         <Textarea variant="inline"
-          aria-label="资料 URL"
+          aria-label={messages.projectUi.materialUrl}
           value={url}
-          placeholder={"或者将链接粘贴到这里，从 YouTube、播客或任意网页添加内容\n如需添加多个链接，请使用空格或换行分隔"}
+          placeholder={messages.projectUi.materialUrlPlaceholder}
           disabled={adding}
           onChange={(event) => setUrl(event.target.value)}
         />
         <div className="project-material-url-actions">
           <span>{links.length}/50</span>
           <button type="submit" className="primary-button" disabled={!links.length || adding} aria-busy={adding || undefined}>
-            {adding ? "添加中…" : "添加链接"}
+            {adding ? messages.projectUi.adding : messages.projectUi.addLinks}
           </button>
         </div>
       </div>
@@ -255,15 +258,15 @@ export function ProjectMaterialsPanel({
   );
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">项目资料</span><h2>资料</h2></div><button className="icon-button" aria-label="添加资料" onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
-      <SearchInput className="project-local-search" variant="outlined" aria-label="搜索资料" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资料" />
-      <div className="project-material-filters" role="group" aria-label="资料类型">
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectMaterials}</span><h2>{messages.projectUi.materials}</h2></div><button className="icon-button" aria-label={messages.projectUi.addMaterials} onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
+      <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchMaterials} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchMaterials} />
+      <div className="project-material-filters" role="group" aria-label={messages.projectUi.materialType}>
         {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button type="button" aria-pressed={filter === item} data-motion="selection" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
       </div>
       <div className="project-local-count">{materialFilterLabel(filter)} <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !listError && !preview.error && !filtered.length ? <EmptyState title={materials.length ? "没有匹配的资料" : "还没有资料"} description={materials.length ? "调整搜索词或资料类型后再试。" : "添加 Markdown、文档、网页或受支持的视频链接。"} /> : null}
+        {!loading && !listError && !preview.error && !filtered.length ? <EmptyState title={materials.length ? messages.projectUi.noMatchingMaterials : messages.projectUi.noMaterials} description={materials.length ? messages.projectUi.adjustMaterialSearch : messages.projectUi.addMaterialsHint} /> : null}
         {filtered.map((item) => {
           const Icon = materialIcon(item.kind);
           return <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
@@ -273,7 +276,7 @@ export function ProjectMaterialsPanel({
   );
 
   const error = listError || preview.error;
-  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在读取资料…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
+  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />{messages.projectUi.readingMaterials}</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void load()} /> : selected ? (
     <MaterialDetail
       material={selected}
       resource={preview.resource}
@@ -283,7 +286,7 @@ export function ProjectMaterialsPanel({
       onOpenExternal={() => void preview.source?.openExternal?.()}
     />
   ) : (
-    <EmptyState icon={<FilePlus2 size={30} />} title="选择或添加资料" description="文档和网页会转换为 Markdown；视频保存 URL、元数据和字幕。" action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />添加资料</button>} />
+    <EmptyState icon={<FilePlus2 size={30} />} title={messages.projectUi.selectOrAddMaterials} description={messages.projectUi.materialsStorageHint} action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />{messages.projectUi.addMaterials}</button>} />
   );
 
   if (hosted) {
@@ -297,21 +300,22 @@ export function ProjectMaterialsPanel({
   }
   return (
     <>
-      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="资料" onBack={() => { selectedPathRef.current = ""; setSelectedPath(""); setSelected(null); preview.discard(); void preview.close(); onSelectionChange?.(); }} />
+      <ProjectListDetail storageKey={`openmind:projects:materials-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel={messages.projectUi.materials} onBack={() => { selectedPathRef.current = ""; setSelectedPath(""); setSelected(null); preview.discard(); void preview.close(); onSelectionChange?.(); }} />
       {addDialog}
     </>
   );
 }
 
 function MaterialDetail({ material, resource, projectName, retrying, onRetry, onOpenExternal }: { material: ProjectMaterial; resource: PreviewResource | null; projectName: string; retrying: boolean; onRetry(): void; onOpenExternal(): void }) {
+  useLocale();
   return (
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
       <header className="project-detail-header">
         <div><span className="eyebrow">{materialKindLabel(material.kind)} · {materialStatusLabel(material.status)}</span><h2>{material.title}</h2><p title={material.relativePath}>{material.sourceUrl || material.relativePath}</p></div>
       </header>
-      {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>当前只显示资料的部分内容</strong><p>预览已截断，不能直接转为文档；项目任务仍可按需读取原资料。</p></div></div> : null}
-      {material.status === "failed" ? <div className="project-material-error"><div><strong>资料转换失败</strong><p>{material.error || "没有可用的转换结果，请稍后重试或重新添加。"}</p></div><button type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? "正在重试" : "重试"}</button></div> : null}
-      {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? "正在导入" : "正在转换为 Markdown"}</strong><p>转换完成后，重新进入资料页即可查看。</p></div></div> : null}
+      {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>{messages.projectUi.partialMaterialPreview}</strong><p>{messages.projectUi.truncatedMaterialHint}</p></div></div> : null}
+      {material.status === "failed" ? <div className="project-material-error"><div><strong>{messages.projectUi.materialConversionFailed}</strong><p>{material.error || messages.projectUi.noConversionResult}</p></div><button type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? messages.projectUi.retrying : messages.projectUi.retry}</button></div> : null}
+      {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? messages.projectUi.importing : messages.projectUi.convertingToMarkdown}</strong><p>{messages.projectUi.reopenAfterConversion}</p></div></div> : null}
       {material.status === "ready" && material.kind === "video" && resource?.kind === "video" ? <PreviewRenderer resource={resource} onOpenExternal={resource.playback.kind === "external-only" && resource.playback.sourceUrl ? onOpenExternal : undefined} /> : null}
       {material.status === "ready" && material.kind !== "video" && resource?.kind === "document" ? <DocumentMaterialDetail material={material} resource={resource} projectName={projectName} /> : null}
       {material.status === "ready" && resource?.kind === "unsupported" ? <PreviewRenderer resource={resource} /> : null}
@@ -322,13 +326,14 @@ function MaterialDetail({ material, resource, projectName, retrying, onRetry, on
 type DocumentViewMode = "pdf" | "read" | "markdown";
 
 function DocumentMaterialDetail({ material, resource, projectName }: { material: ProjectMaterial; resource: PreviewResource; projectName: string }) {
+  useLocale();
   const hasPdfOriginal = Boolean(material.originalPath?.toLowerCase().endsWith(".pdf"));
   const [mode, setMode] = useState<DocumentViewMode>(hasPdfOriginal ? "pdf" : "read");
   return (
     <div className="project-markdown-material">
-      <div className="project-preview-mode" role="group" aria-label="资料查看方式">
+      <div className="project-preview-mode" role="group" aria-label={messages.projectUi.materialViewMode}>
         {hasPdfOriginal ? <button className={mode === "pdf" ? "active" : ""} aria-pressed={mode === "pdf"} data-motion="selection" onClick={() => setMode("pdf")}>PDF</button> : null}
-        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} data-motion="selection" onClick={() => setMode("read")}>阅读</button>
+        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} data-motion="selection" onClick={() => setMode("read")}>{messages.projectUi.read}</button>
         <button className={mode === "markdown" ? "active" : ""} aria-pressed={mode === "markdown"} data-motion="selection" onClick={() => setMode("markdown")}>Markdown</button>
       </div>
       <div className="project-material-reader">
@@ -344,6 +349,7 @@ function DocumentMaterialDetail({ material, resource, projectName }: { material:
 
 /** 拉取保留的 PDF 原件，交给内置 pdf.js 阅读器渲染。 */
 function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: string; material: ProjectMaterial; onFallback(): void }) {
+  useLocale();
   const preview = useFilePreviewController();
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
@@ -359,15 +365,15 @@ function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: 
     return (
       <div className="project-pdf-unavailable">
         <FileText size={28} />
-        <strong>无法加载 PDF 原件</strong>
+        <strong>{messages.projectUi.pdfOriginalUnavailable}</strong>
         <p>{error}</p>
-        <button type="button" data-motion="action" onClick={onFallback}>查看提取文本</button>
+        <button type="button" data-motion="action" onClick={onFallback}>{messages.projectUi.viewExtractedText}</button>
       </div>
     );
   }
   return preview.resource?.kind === "pdf"
     ? <PreviewRenderer resource={preview.resource} onError={(message) => setFailed(message)} />
-    : <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />正在加载 PDF 原件…</div>;
+    : <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />{messages.projectUi.loadingOriginalPdf}</div>;
 }
 
 function materialIcon(kind: ProjectMaterialKind) {
@@ -375,7 +381,7 @@ function materialIcon(kind: ProjectMaterialKind) {
 }
 
 function materialFilterLabel(kind: MaterialFilter): string {
-  return kind === "document" ? "文档" : kind === "web" ? "网页" : kind === "video" ? "视频" : "全部";
+  return kind === "document" ? messages.projectUi.document : kind === "web" ? messages.projectUi.webpage : kind === "video" ? messages.projectUi.video : messages.projectUi.all;
 }
 
 function materialKindLabel(kind: ProjectMaterialKind): string {
@@ -383,7 +389,7 @@ function materialKindLabel(kind: ProjectMaterialKind): string {
 }
 
 function materialStatusLabel(status: ProjectMaterial["status"]): string {
-  return status === "importing" ? "导入中" : status === "converting" ? "转换中" : status === "failed" ? "转换失败" : "可用";
+  return status === "importing" ? messages.projectUi.importingStatus : status === "converting" ? messages.projectUi.convertingStatus : status === "failed" ? messages.projectUi.conversionFailedStatus : messages.projectUi.readyStatus;
 }
 
 const MAX_MATERIAL_LINKS = 50;

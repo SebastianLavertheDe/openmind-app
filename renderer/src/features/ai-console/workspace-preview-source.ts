@@ -1,3 +1,4 @@
+import { messages as uiMessages } from "@shared/messages";
 import type { FilePreviewSource } from "../file-preview/model";
 import { workspaceFileSource } from "../file-preview/workspace-file-source";
 
@@ -12,7 +13,7 @@ export function workspacePreviewSource(path: string): FilePreviewSource {
     editable: true,
     binary: "unsupported",
     unsupportedBinaryReason: /\.(?:mp4|mov|webm)$/i.test(path)
-      ? "本地二进制视频暂不支持应用内预览。"
-      : "该二进制文件暂不支持在 AI 文件窗格中预览。"
+      ? uiMessages.interface.binaryVideo
+      : uiMessages.interface.binaryAiFile
   });
 }

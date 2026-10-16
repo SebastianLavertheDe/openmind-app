@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json --noEmit",
     "lint:reporoot": "node scripts/audit-no-reporoot.js",
     "lint:manifests": "tsx scripts/validate-all-skill-manifests.mjs",
-    "build": "npm run clean && npm run audit:styles && npm run typecheck && npm run lint:reporoot && npm run lint:manifests && npm run build:renderer && npm run build:electron",
+    "build": "npm run clean && npm run audit:styles && npm run audit:ui-copy-hardcode && npm run typecheck && npm run lint:reporoot && npm run lint:manifests && npm run build:renderer && npm run build:electron",
     "start": "npm run build && npm run prepare:python-runtime -- --if-missing && electron .",
     "dev": "vite --host 127.0.0.1",
     "dev:electron": "node scripts/dev-electron.mjs",

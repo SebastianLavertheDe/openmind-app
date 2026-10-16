@@ -141,19 +141,19 @@ export class SkillToolRegistry {
   }
 
   submitRun(request: SkillRunRequest): BrokerRunRecord {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.submit(this.admitBrokerRequest(request));
   }
 
   listRuns(): BrokerRunRecord[] { return this.broker?.list() || []; }
 
   getRun(runId: string): BrokerRunRecord {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.get(runId);
   }
 
   getRunEvents(runId: string): BrokerRunEvent[] {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.events(runId);
   }
 
@@ -163,7 +163,7 @@ export class SkillToolRegistry {
   }
 
   retryRun(runId: string): BrokerRunRecord {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.retry(runId, (request) => this.admitBrokerRequest(request));
   }
 
@@ -197,51 +197,51 @@ export class SkillToolRegistry {
   }
 
   retryWorkflowStep(runId: string, stepId: string): WorkflowRunRecord {
-    if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
+    if (!this.workflow) throw new Error(messages.desktopErrors.skill.workflowNotReady);
     const current = this.workflow.get(runId);
     const admission = this.resolveWorkflowAdmission(current.workflowSkillId, current.workflowVersion);
     return this.workflow.retryStep(runId, stepId, admission);
   }
 
   resumeWorkflowRun(runId: string, inputs: Record<string, unknown>, rootGeneration: number, providerBindings: Record<string, string> = {}): WorkflowRunRecord {
-    if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
+    if (!this.workflow) throw new Error(messages.desktopErrors.skill.workflowNotReady);
     const current = this.workflow.get(runId);
-    if (rootGeneration !== this.executionRootGeneration) throw new Error("当前 root snapshot 已过期，拒绝恢复 Workflow。 ");
+    if (rootGeneration !== this.executionRootGeneration) throw new Error(messages.desktopErrors.skill.staleRoot);
     const admission = this.resolveWorkflowAdmission(current.workflowSkillId, current.workflowVersion);
     return this.workflow.resume(runId, admission, inputs, rootGeneration, providerBindings);
   }
 
   cancelRun(runId: string): Promise<boolean> {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.cancel(runId);
   }
 
   startWorkflowRun(request: WorkflowStartRequest): WorkflowRunRecord {
-    if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
+    if (!this.workflow) throw new Error(messages.desktopErrors.skill.workflowNotReady);
     const admission = this.resolveWorkflowAdmission(request.skillId, request.version);
     return this.workflow.start(admission, request.inputs, request.rootGeneration, request.providerBindings);
   }
 
   listWorkflowRuns(): WorkflowRunRecord[] { return this.workflow?.list() || []; }
   getWorkflowRun(runId: string): WorkflowRunRecord {
-    if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
+    if (!this.workflow) throw new Error(messages.desktopErrors.skill.workflowNotReady);
     return this.workflow.get(runId);
   }
   cancelWorkflowRun(runId: string): Promise<boolean> {
-    if (!this.workflow) throw new Error("WorkflowEngine 未初始化。 ");
+    if (!this.workflow) throw new Error(messages.desktopErrors.skill.workflowNotReady);
     return this.workflow.cancel(runId);
   }
 
   private resolveWorkflowAdmission(skillId: string, version?: string): WorkflowAdmission {
     const resolver = this.installedResolver;
-    if (!resolver) throw new Error(`没有已安装的 Workflow Skill：${skillId}`);
+    if (!resolver) throw new Error(messages.desktopErrors.skill.workflowMissing(skillId));
     return resolver.admitWorkflow(skillId, version);
   }
 
   private submitAdmittedWorkflowStep(request: SkillRunRequest): BrokerRunRecord {
-    if (!this.broker) throw new Error("ExecutionBroker 未初始化。 ");
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     const resolver = this.installedResolver;
-    if (!resolver) throw new Error(`没有已安装的 Workflow Step Skill：${request.skillId}`);
+    if (!resolver) throw new Error(messages.desktopErrors.skill.workflowStepMissing(request.skillId));
     resolver.assertAdmittedBrokerRunnable(request);
     return this.broker.submit(request);
   }
@@ -264,7 +264,7 @@ export class SkillToolRegistry {
   ): Promise<string> {
     const invocationId = options.invocationId || `ai:${skillId}:${Date.now()}`;
     if (this.isRunning(invocationId)) throw new Error(messages.errors.skill.alreadyRunning(skillId));
-    if (!this.broker) throw new Error(`Installed Skill ${skillId} 需要 ExecutionBroker 执行;请先绑定 openmind 根目录。`);
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.bindRootFirst(skillId));
     return this.runViaBroker(skillId, input, executionRoot, invocationId, options);
   }
 
@@ -281,15 +281,15 @@ export class SkillToolRegistry {
     options: SkillExecutionOptions
   ): Promise<string> {
     const broker = this.broker;
-    if (!broker) throw new Error("ExecutionBroker 未初始化。");
+    if (!broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     if (path.resolve(executionRoot) !== path.resolve(this.projectRoot)) {
-      throw new Error("Skill 只能在当前工作区的 Broker 计划中运行。");
+      throw new Error(messages.desktopErrors.skill.workspaceOnly);
     }
     if (!this.executionOpenmindRoot || this.executionRootGeneration < 1) {
-      throw new Error("尚未绑定有效的 openmind 根目录，无法创建 Skill Run。");
+      throw new Error(messages.desktopErrors.skill.invalidRoot);
     }
     const installed = this.installedResolver?.installed(skillId);
-    if (!installed) throw new Error(`没有已安装的 Skill：${skillId}。请先完成安装。`);
+    if (!installed) throw new Error(messages.desktopErrors.skill.notInstalled(skillId));
     const sourceId = typeof input.sourceId === "string" ? input.sourceId : undefined;
     const requestInputs = { ...input, date: typeof input.date === "string" ? input.date.replaceAll("-", "") : localDate() };
     return new Promise<string>((resolve, reject) => {
@@ -328,7 +328,7 @@ export class SkillToolRegistry {
   }
 
   private resolveExecutionPlan(request: import("../../shared/execution-contracts").SkillRunRequest, runId: string): Promise<ExecutionPlan> {
-    if (!this.installedResolver) throw new Error(`没有可执行的 Installed Skill：${request.skillId}。请先完成安装并检查包体。`);
+    if (!this.installedResolver) throw new Error(messages.desktopErrors.skill.notExecutable(request.skillId));
     return this.installedResolver.resolve(request, runId);
   }
 

@@ -1,3 +1,4 @@
+import { messages } from "@shared/messages";
 import type { ContentRecord } from "@shared/contracts";
 import {
   documentPreviewResource,
@@ -42,7 +43,7 @@ export function projectMaterialPreviewSource(
       options.onMaterial?.(material);
       externalUrl = projectMaterialExternalUrl(material);
       if (material.status !== "ready") {
-        return unsupportedMaterialResource(material, logicalPath, `资料当前状态为“${material.status}”，暂时无法预览。`);
+        return unsupportedMaterialResource(material, logicalPath, messages.projectUi.materialPreviewUnavailable(material.status));
       }
       if (options.view === "pdf") {
         const original = await projectsApi.readMaterialOriginal(projectName, relativePath);

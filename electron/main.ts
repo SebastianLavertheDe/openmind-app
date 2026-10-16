@@ -17,7 +17,7 @@ import { registerIpcHandlers } from "./ipc-handlers";
 import * as settings from "./lib/settings";
 import * as content from "./lib/content";
 import * as creative from "./lib/creative";
-import { messages } from "../shared/messages";
+import { getLocale, messages, setLocale, subscribeLocale } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
 import { browserSkillStatus, resolveBrowserSkillExecutable, BROWSER_SKILL_REPOSITORY } from "./browser-skill";
@@ -61,6 +61,7 @@ const WINDOW_STATE_SAVE_DELAY_MS = 240;
 
 let mainWindow: BrowserWindow | null = null;
 let aiWorker: AiWorkerClient | null = null;
+subscribeLocale(() => aiWorker?.syncLocale());
 let productService: ProductService | null = null;
 let productServiceRoot = "";
 let projectService: ProjectService | null = null;
@@ -134,6 +135,7 @@ class AiWorkerClient {
       env: buildAiWorkerEnvironment(process.env, {
         OPENMIND_REPO_ROOT: projectRoot,
         OPENMIND_USER_DATA_DIR: app.getPath("userData"),
+        OPENMIND_UI_LANGUAGE: getLocale(),
         ...(stateRoot ? { OPENMIND_STATE_ROOT: stateRoot } : {}),
         ...(settings.resolveOpenmindRoot() ? { OPENMIND_ROOT: settings.resolveOpenmindRoot() } : {}),
         OPENMIND_ROOT_GENERATION: String(settings.getOpenmindRootSnapshot()?.rootGeneration || 1),
@@ -162,8 +164,12 @@ class AiWorkerClient {
   call(method: string, ...args: unknown[]): Promise<unknown> {
     if (this.retired) return Promise.reject(new Error("AI Worker 已关闭。"));
     const id = crypto.randomUUID();
-    this.worker.postMessage({ id, method, args });
+    this.worker.postMessage({ id, method, args, locale: getLocale() });
     return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+  }
+
+  syncLocale(): void {
+    if (!this.retired) this.worker.postMessage({ type: "locale", locale: getLocale() });
   }
 
   activeRunCount(): Promise<number> {
@@ -640,6 +646,7 @@ app.whenReady().then(() => {
   // ADR-001: ensure all app-private directories under userData exist before
   // any service reads or writes them. Idempotent.
   ensureAppPaths(getAppPaths());
+  setLocale(settings.getPreferences().uiLanguage);
   // The backup UI/IPC surface is retired, but a restore transaction created
   // by an older release may still need one final startup rollback.
   new AppStateBackupService(getAppPaths());

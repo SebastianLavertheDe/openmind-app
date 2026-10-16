@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { Input } from "../../design-system/components";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ExternalLink, Info, ShieldCheck } from "lucide-react";
@@ -18,6 +19,7 @@ export type WechatAccountFormProps = {
 
 /** Shared by settings and the article export dialog; secrets are never loaded. */
 export function WechatAccountForm({ account, onSaved, onCancel, onBusyChange }: WechatAccountFormProps) {
+  useLocale();
   const [loadedAccount, setLoadedAccount] = useState<WechatAccountView | null>(account ?? null);
   const [appId, setAppId] = useState(account?.appId ?? "");
   const [appSecret, setAppSecret] = useState("");

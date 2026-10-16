@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
-import { messages } from "../../shared/messages";
+import { messages, zhCN } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { assertOutsideAppManagedProjects, computeRootId, OpenmindPathResolver, resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
 import { OpenmindLocationService, type OpenmindRootHealth } from "../paths/openmind-location-service";
@@ -161,7 +161,7 @@ function canonicalDirectory(candidate: unknown): string | null {
 function assertRootDoesNotConflict(root: string, workspaceRoot?: string): void {
   const conflicts = detectPathConflicts(appPaths(), root, workspaceRoot);
   if (conflicts.length) {
-    throw new Error("openmind 或工作区不能位于应用私有数据目录内。");
+    throw new Error(messages.desktopErrors.root.privateConflict);
   }
 }
 
@@ -295,17 +295,17 @@ function previewOpenmindRoot(candidate: string, activeRunCount = 0): OpenmindRoo
     .inspect(canonicalRoot || normalized);
   const blockingReasons = [...inspected.warnings];
   if (!canonicalRoot) {
-    blockingReasons.unshift("候选路径不存在、不可访问或不是目录。");
+    blockingReasons.unshift(messages.desktopErrors.root.candidateInvalid);
   } else if (
     canonicalDirectory(path.join(canonicalRoot, "openmind"))
     || (path.basename(canonicalRoot).toLowerCase() === "openmind"
       && (fs.existsSync(path.join(path.dirname(canonicalRoot), "config")) || fs.existsSync(path.join(path.dirname(canonicalRoot), ".git"))))
   ) {
-    blockingReasons.unshift("检测到旧版嵌套布局：内容仍在 openmind 子目录中。请先完成扁平化迁移，使 article、config、.agent 等目录直接位于所选目录下。");
+    blockingReasons.unshift(messages.desktopErrors.root.legacyLayout);
   }
-  if (!inspected.readable && !blockingReasons.includes("openmind 根目录不可读。")) blockingReasons.push("openmind 根目录不可读。");
-  if (!inspected.writable && !blockingReasons.includes("openmind 根目录不可写。")) blockingReasons.push("openmind 根目录不可写。");
-  if (activeRunCount > 0) blockingReasons.push("有运行中的任务，暂时不能切换 openmind 根目录。");
+  if (!inspected.readable && !blockingReasons.includes(messages.desktopErrors.root.unreadable)) blockingReasons.push(messages.desktopErrors.root.unreadable);
+  if (!inspected.writable && !blockingReasons.includes(messages.desktopErrors.root.unwritable)) blockingReasons.push(messages.desktopErrors.root.unwritable);
+  if (activeRunCount > 0) blockingReasons.push(messages.desktopErrors.root.activeTasks);
   return {
     candidate: normalized,
     canonicalRoot,
@@ -409,6 +409,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   openmindRoot: "",
   workspaceRoot: "",
   themeMode: "light",
+  uiLanguage: "zh-CN",
   density: "default",
   fontSize: "default",
   autoSaveIntervalMs: 30000,
@@ -422,7 +423,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   notesDir: "openmind",
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
-  defaultPlatform: messages.settings.defaultPlatform,
+  defaultPlatform: zhCN.settings.defaultPlatform,
   defaultLanguage: "zh-CN",
   defaultContentLength: "medium",
   defaultTemplate: "",
@@ -458,7 +459,7 @@ function getPreferences(): UserPreferences {
 
 function updatePreferences(patch: UserPreferencesPatch): UserPreferences {
   if ("openmindRoot" in patch || "workspaceRoot" in patch || "schemaVersion" in patch) {
-    throw new Error("保存目录只能通过专用的目录选择操作修改。");
+    throw new Error(messages.desktopErrors.root.dedicatedPicker);
   }
   const current = loadSettings();
   const preferences = getPreferences();
@@ -511,6 +512,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     openmindRoot: stringPref(source.openmindRoot, DEFAULT_PREFERENCES.openmindRoot, strict, "openmindRoot", 4096),
     workspaceRoot: stringPref(source.workspaceRoot, DEFAULT_PREFERENCES.workspaceRoot, strict, "workspaceRoot", 4096),
     themeMode: enumPref(source.themeMode, ["dark", "light"], DEFAULT_PREFERENCES.themeMode, strict, "themeMode"),
+    uiLanguage: enumPref(source.uiLanguage, ["zh-CN", "en"], DEFAULT_PREFERENCES.uiLanguage, strict, "uiLanguage"),
     density: enumPref(source.density, ["compact", "default", "comfortable"], DEFAULT_PREFERENCES.density, strict, "density"),
     fontSize: enumPref(source.fontSize, ["small", "default", "large"], DEFAULT_PREFERENCES.fontSize, strict, "fontSize"),
     autoSaveIntervalMs: intPref(source.autoSaveIntervalMs, 5000, 600000, DEFAULT_PREFERENCES.autoSaveIntervalMs, strict, "autoSaveIntervalMs"),
@@ -584,7 +586,7 @@ function tagsPref(value: unknown, strict: boolean): string[] {
 
 function startsWithPrefix(key: string, prefix: string): boolean {
   const groups: Record<string, string[]> = {
-    theme: ["themeMode", "density", "fontSize"],
+    theme: ["themeMode", "uiLanguage", "density", "fontSize"],
     save: ["autoSaveIntervalMs", "maxVersions", "archiveAfterDays"],
     content: ["defaultReadFilter", "contentPreviewMode", "markReadOnOpen"],
     ai: ["defaultProvider", "defaultPermissionProfile", "destructiveOpsRequireApproval", "riskScanEnabled"],

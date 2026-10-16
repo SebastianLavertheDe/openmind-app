@@ -1,3 +1,5 @@
+import { getLocale } from "@shared/messages";
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, ChevronDown, Clock3, FolderOpen, GitBranch, Package, Pencil, Plus, RefreshCw, Upload, X } from "lucide-react";
@@ -50,6 +52,7 @@ type SkillSourceUpdateState = {
 };
 
 export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false, onInstallationChange, onAvailabilityChange }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown }) {
+  const locale = useLocale();
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
   const [installedInspections, setInstalledInspections] = useState<Record<string, SkillPackageInspectionView>>({});
   const [runs, setRuns] = useState<BrokerRunRecord[]>([]);
@@ -124,7 +127,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
     await onAvailabilityChange?.();
   }, [load, onAvailabilityChange, onInstallationChange]);
 
-  const items = useMemo(() => buildItems(installed, installedInspections), [installed, installedInspections]);
+  const items = useMemo(() => buildItems(installed, installedInspections), [installed, installedInspections, locale]);
   const filteredItems = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return items.filter((item) => {
@@ -132,10 +135,10 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       const text = `${summary.title} ${summary.id} ${summary.publisher} ${summary.version} ${summary.kind} ${item.kind} ${item.record.sourcePath}`.toLocaleLowerCase();
       return !needle || text.includes(needle);
     });
-  }, [items, query]);
-  const sourceGroups = useMemo(() => groupCatalogItems(items), [items]);
-  const catalogGroups = useMemo(() => groupCatalogItems(filteredItems), [filteredItems]);
-  const filteredIndexById = useMemo(() => new Map(filteredItems.map((item, index) => [item.id, index])), [filteredItems]);
+  }, [items, query, locale]);
+  const sourceGroups = useMemo(() => groupCatalogItems(items), [items, locale]);
+  const catalogGroups = useMemo(() => groupCatalogItems(filteredItems), [filteredItems, locale]);
+  const filteredIndexById = useMemo(() => new Map(filteredItems.map((item, index) => [item.id, index])), [filteredItems, locale]);
 
   useEffect(() => {
     if (filteredItems.some((item) => item.id === selectedId)) return;
@@ -147,14 +150,14 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
   const selectedSummary = selected ? itemSummary(selected) : null;
   const selectedSources = useMemo(() => selectedSummary
     ? sources.filter((source) => source.skillId === selectedSummary.id)
-    : [], [selectedSummary, sources]);
+    : [], [selectedSummary, sources, locale]);
   const selectedRuns = useMemo(() => {
     if (!selectedSummary) return [];
     const cutoff = Date.now() - RUN_HISTORY_WINDOW_MS;
     return runs
       .filter((run) => run.request.skillId === selectedSummary.id && Date.parse(run.createdAt) >= cutoff)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  }, [runs, selectedSummary]);
+  }, [runs, selectedSummary, locale]);
 
   useEffect(() => { setDetailTab("overview"); }, [selectedId]);
 
@@ -382,6 +385,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
 /** Import panel for directory / ZIP / public HTTPS Git sources. Inspection
  * always precedes installation; nothing here executes package code. */
 function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onToggle(): void; onInstalled(): Promise<void> }) {
+  const locale = useLocale();
   const picker = m.sourcePicker;
   const [gitUrl, setGitUrl] = useState("");
   const [gitRef, setGitRef] = useState("");
@@ -711,6 +715,7 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
   onSelect(id: string, revealDetail?: boolean): void;
   onNavigate(index: number): void;
 }) {
+  useLocale();
   const remote = Boolean(group.locator);
   const checking = updateState?.phase === "checking";
   const updating = updateState?.phase === "updating";
@@ -763,6 +768,7 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
 }
 
 function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { item: SkillItem; index: number; total: number; active: boolean; onSelect(): void; onNavigate(index: number): void }) {
+  useLocale();
   const summary = itemSummary(item);
   const attention = needsAttention(item);
   const disabled = item.kind === "installed" && !item.record.enabled;
@@ -791,6 +797,7 @@ function SkillListItem({ item, index, total, active, onSelect, onNavigate }: { i
 }
 
 function SkillOverview({ item, summary }: { item: SkillItem; summary: ManifestSummary }) {
+  useLocale();
   return <section className="skills-overview" aria-label={m.overviewAria}>
     <dl className="skills-overview-grid">
       <div><dt>{m.publisher}</dt><dd>{summary.publisher}</dd></div>
@@ -811,6 +818,7 @@ function SkillDetailTabs({ active, sourceLabel, runCount, onChange }: {
   runCount: number;
   onChange(tab: SkillDetailTab): void;
 }) {
+  useLocale();
   const tabs: Array<{ id: SkillDetailTab; label: string }> = [
     { id: "overview", label: m.detailTabs.overview },
     { id: "sources", label: sourceLabel },
@@ -848,6 +856,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
   onSourceUpdated(source: SourceDefinition): void;
   onReloadSources(): Promise<void>;
 }) {
+  useLocale();
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<SourceEditorState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -975,6 +984,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
   feedback: SkillToggleFeedback | null;
   onToggle?: () => void;
 }) {
+  const locale = useLocale();
   const [curls, setCurls] = useState<string[]>([]);
   const [curlState, setCurlState] = useState<"loading" | "configured" | "missing">("loading");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -1042,6 +1052,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
 }
 
 function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: { initialCurls: string[]; active: boolean; leaving: boolean; onClose(): void; onSaved(curls: string[]): Promise<void> }) {
+  useLocale();
   const [drafts, setDrafts] = useState(() => initialCurls.length ? initialCurls : [""]);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -1107,6 +1118,7 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
 }
 
 function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; active: boolean; leaving: boolean; onClose(): void; onSaved(): Promise<void> }) {
+  useLocale();
   const editing = state.mode === "edit" ? state.source : null;
   const isReddit = kind === "reddit";
   const [name, setName] = useState(editing?.name || "");
@@ -1159,6 +1171,7 @@ function SkillAvailability({ record, summary, busy, feedback, onChange }: {
   feedback?: SkillToggleFeedback;
   onChange(enabled: boolean): void;
 }) {
+  useLocale();
   return <section className="skills-availability" aria-label={m.availability.title} aria-busy={busy || undefined}>
     <div className="skills-availability-copy">
       <h3>{m.availability.title}</h3>
@@ -1183,6 +1196,7 @@ function SkillAvailability({ record, summary, busy, feedback, onChange }: {
 }
 
 function SkillRunHistory({ runs, unavailable = false }: { runs: BrokerRunRecord[]; unavailable?: boolean }) {
+  useLocale();
   return <section className="skills-detail-section skills-run-history" aria-label={m.runHistory.title}>
     <header><h3>{m.runHistory.title}</h3><span>{m.runHistory.summary(RUN_HISTORY_WINDOW_DAYS, runs.length)}</span></header>
     {unavailable ? <div className="skills-run-empty" role="status"><Clock3 size={16} aria-hidden /><span>{m.runHistory.unavailable}</span></div> : !runs.length ? <div className="skills-run-empty"><Clock3 size={16} aria-hidden /><span>{m.runHistory.empty(RUN_HISTORY_WINDOW_DAYS)}</span></div> : (
@@ -1242,7 +1256,7 @@ function sourceLastRun(source: SourceDefinition): string {
   if (!source.lastRunAt) return m.sourceStatus.never;
   const parsed = new Date(source.lastRunAt);
   if (Number.isNaN(parsed.getTime())) return source.lastRunAt;
-  return m.sourceStatus.last(parsed.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }));
+  return m.sourceStatus.last(parsed.toLocaleString(getLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }));
 }
 
 function buildItems(installed: InstalledSkillView[], installedInspectionMap: Record<string, SkillPackageInspectionView> = {}): SkillItem[] {
@@ -1253,7 +1267,7 @@ function buildItems(installed: InstalledSkillView[], installedInspectionMap: Rec
       record,
       inspection: installedInspectionMap[installedInspectionKey(record)]
     }))
-    .sort((left, right) => itemTitle(left).localeCompare(itemTitle(right), "zh-CN"));
+    .sort((left, right) => itemTitle(left).localeCompare(itemTitle(right), getLocale()));
 }
 
 function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
@@ -1278,7 +1292,7 @@ function groupCatalogItems(items: SkillItem[]): SkillCatalogGroup[] {
   return [...groups.values()].sort((left, right) => {
     if (left.key === "local") return 1;
     if (right.key === "local") return -1;
-    return left.title.localeCompare(right.title, "zh-CN");
+    return left.title.localeCompare(right.title, getLocale());
   });
 }
 
@@ -1336,4 +1350,4 @@ function skillListState(item: SkillItem): SkillState {
 function kindLabel(kind: string): string { return ({ process: m.kindLabel.process, agent: m.kindLabel.agent, prompt: m.kindLabel.prompt, workflow: m.kindLabel.workflow } as Record<string, string>)[kind.toLocaleLowerCase()] || kind; }
 function runStateTone(state: string): string { return state === "succeeded" ? "success" : state === "failed" || state === "timed_out" ? "danger" : state === "cancelled" ? "muted" : "running"; }
 function runStateLabel(state: string): string { return ({ succeeded: m.runState.succeeded, failed: m.runState.failed, timed_out: m.runState.timedOut, cancelled: m.runState.cancelled, queued: m.runState.queued, inspecting: m.runState.inspecting, waiting_execution_consent: m.runState.preparing, preparing_runtime: m.runState.preparing, running: m.runState.running, cancelling: m.runState.cancelling } as Record<string, string>)[state] || state; }
-function formatRunTime(value: string): string { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
+function formatRunTime(value: string): string { return new Date(value).toLocaleString(getLocale(), { hour12: false }); }

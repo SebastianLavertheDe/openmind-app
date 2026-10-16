@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
@@ -20,6 +22,7 @@ export function ProjectListDetail({
   detailLabel: string;
   onBack(): void;
 }) {
+  useLocale();
   const hostRef = useRef<HTMLDivElement>(null);
   useResponsiveWorkspaceMinimum("--project-workspace-min", hostRef);
   const responsive = useResponsiveLayout();
@@ -68,7 +71,7 @@ export function ProjectListDetail({
       {!single ? <ColumnSplitter
         side="left"
         collapsed={layout.layout.listCollapsed}
-        ariaLabel={`${detailLabel}列表宽度`}
+        ariaLabel={messages.projectUi.listWidth(detailLabel)}
         ariaValueMin={160}
         ariaValueMax={280}
         ariaValueNow={layout.layout.listWidth}
@@ -87,7 +90,7 @@ export function ProjectListDetail({
           aria-hidden={detailPresence.leaving || undefined}
           inert={detailPresence.leaving || undefined}
         >
-          {single ? <button className="project-detail-back" data-motion="action" onClick={onBack}><ArrowLeft size={15} />返回{detailLabel}列表</button> : null}
+          {single ? <button className="project-detail-back" data-motion="action" onClick={onBack}><ArrowLeft size={15} />{messages.projectUi.backToList(detailLabel)}</button> : null}
           {showDetail ? detail : stashedDetailRef.current}
         </section>
       ) : null}

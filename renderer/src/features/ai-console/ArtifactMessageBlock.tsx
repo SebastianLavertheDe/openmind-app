@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { AlertTriangle, Check, Copy, FileText, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { messages as m } from "@shared/messages";
@@ -10,6 +11,7 @@ export function ArtifactMessageBlock({
   block: AssistantArtifactBlock;
   children: ReactNode;
 }) {
+  useLocale();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {

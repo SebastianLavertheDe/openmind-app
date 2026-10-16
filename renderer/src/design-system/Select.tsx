@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
@@ -47,6 +48,7 @@ export function Select<T extends string>({
   /** 浮层相对触发器的横向对齐方式。 */
   menuAlign?: AnchoredPopoverAlign;
 }) {
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [menuMounted, setMenuMounted] = useState(false);
@@ -66,7 +68,7 @@ export function Select<T extends string>({
 
   const selectedIndex = useMemo(
     () => options.findIndex((option) => option.value === value),
-    [options, value]
+    [options, value, locale]
   );
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
   const initialActiveIndex = selected && !selected.disabled ? selectedIndex : options.findIndex((option) => !option.disabled);

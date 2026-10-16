@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { BrainCircuit, LoaderCircle } from "lucide-react";
 import type { AiEvent } from "@shared/contracts";
@@ -24,6 +25,7 @@ export function ReasoningCard({
   defaultOpen?: boolean;
   pending?: boolean;
 }) {
+  useLocale();
   const content = text || events.map((event) => String(event.payload.text || "")).join("");
   const hasContent = Boolean(content.trim());
   const [open, setOpen] = useState(hasContent && (streaming || defaultOpen));
@@ -95,5 +97,6 @@ export function ReasoningCard({
  * P2-THT-3: 替换三点为 shimmer 文本流 —— fade-in bottom 边缘的 shimmer。
  */
 function ShimmerText() {
+  useLocale();
   return <span className="reasoning-shimmer" aria-hidden="true"><i /><i /><i /></span>;
 }

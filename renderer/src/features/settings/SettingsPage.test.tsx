@@ -4,6 +4,7 @@ import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCa
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
+import { getLocale, setLocale } from "@shared/messages";
 
 const providers: ProviderCapabilities[] = [
   { id: "codex-preview", provider: "codex", label: "Codex CLI", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: false, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
@@ -38,6 +39,7 @@ const mcpServers: McpServerDefinition[] = [];
 
 const defaultPrefs: UserPreferences = {
   schemaVersion: 1, openmindRoot: "/repo", workspaceRoot: "/repo", themeMode: "light",
+  uiLanguage: "zh-CN",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "",
@@ -108,9 +110,39 @@ beforeEach(() => {
   window.openmind = makeApi();
 });
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); setLocale("zh-CN"); document.documentElement.lang = "zh-CN"; });
 
 describe("SettingsPage", () => {
+  it("persists and immediately applies the interface language in both directions", async () => {
+    let stored = { ...defaultPrefs };
+    const updatePreferences = vi.fn(async (patch: Partial<UserPreferences>) => { stored = { ...stored, ...patch }; return stored; });
+    window.openmind = makeApi({ getPreferences: async () => stored, updatePreferences });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await screen.findByRole("heading", { name: "General" });
+    expect(updatePreferences).toHaveBeenCalledWith({ uiLanguage: "en" });
+    expect(document.documentElement.lang).toBe("en");
+    expect(getLocale()).toBe("en");
+    expect(screen.getByRole("group", { name: "Interface language" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    const navigation = screen.getByRole("navigation", { name: "Settings categories" });
+    expect(within(navigation).getByRole("button", { name: "AI and models" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "简体中文" }));
+    await screen.findByRole("heading", { name: "常规" });
+    expect(stored.uiLanguage).toBe("zh-CN");
+    expect(stored.defaultLanguage).toBe(defaultPrefs.defaultLanguage);
+  });
+
+  it("keeps the current language when persistence fails", async () => {
+    window.openmind = makeApi({ updatePreferences: vi.fn().mockRejectedValue(new Error("write failed")) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await screen.findByText("设置保存失败");
+    expect(getLocale()).toBe("zh-CN");
+    expect(screen.getByRole("heading", { name: "常规" })).toBeTruthy();
+  });
   it("opens publication connectors from the creation settings", async () => {
     window.openmind = makeApi({ getWechatAccount: vi.fn().mockResolvedValue({ appId: "", author: "", configured: false }) });
     renderSettings();
@@ -426,9 +458,14 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(saveProviders).toHaveBeenLastCalledWith(expect.objectContaining({
       cli: { claude: "claude-a", codex: "codex-a" }
     })));
-    await waitFor(() => expect(document.querySelector(".settings-cli-provider-dialog")?.parentElement?.getAttribute("data-leaving")).toBe("true"));
-    expect(document.querySelector(".settings-cli-provider-dialog")?.parentElement?.hasAttribute("inert")).toBe(true);
+    // Check the same exit frame before the presence timer removes the dialog.
+    await waitFor(() => {
+      const backdrop = document.querySelector(".settings-cli-provider-dialog")?.parentElement;
+      expect(backdrop?.getAttribute("data-leaving")).toBe("true");
+      expect(backdrop?.hasAttribute("inert")).toBe(true);
+    });
     expect(await screen.findByText("Provider · Codex A")).toBeTruthy();
+    await waitFor(() => expect(document.querySelector(".settings-cli-provider-dialog")).toBeNull());
   });
 
   it("opens Provider configuration in a dialog, cancels local edits, and saves from the dialog", async () => {

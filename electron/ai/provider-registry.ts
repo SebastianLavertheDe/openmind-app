@@ -210,7 +210,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
       if (await runWindowsCommand(command, ["app-server", "--help"])) return null;
       return messages.errors.provider.codexNoAppServer;
     },
-    nativeFailureDiagnostic: messages.errors.provider.codexNativeMissing
+    get nativeFailureDiagnostic() { return messages.errors.provider.codexNativeMissing; }
   },
   {
     kind: "claude",
@@ -223,7 +223,7 @@ const PROVIDER_PROBE_SPECS: ReadonlyArray<ProviderProbeSpec> = [
       if (parseClaudeAuthStatus(await runWindowsCommand(command, ["auth", "status"]))) return null;
       return messages.errors.provider.claudeNotLoggedIn;
     },
-    nativeFailureDiagnostic: messages.errors.provider.claudeNativeMissing
+    get nativeFailureDiagnostic() { return messages.errors.provider.claudeNativeMissing; }
   }
 ];
 
@@ -233,7 +233,7 @@ async function probeWslProvider(distro: string, cwd: string, spec: ProviderProbe
   if (spec.kind === "claude" && managed && !supportsManagedClaudeVersion(found)) {
     return {
       version: null,
-      diagnostic: `WSL Claude Code 托管 Provider 需要 ${MIN_MANAGED_CLAUDE_VERSION.join(".")} 或更高版本；${distro} 当前为 ${found}。`
+      diagnostic: messages.desktopErrors.provider.managedClaudeVersion(MIN_MANAGED_CLAUDE_VERSION.join("."), distro, found)
     };
   }
   const extra = spec.kind === "claude" && managed ? null : await spec.probeWslExtra(distro, cwd);

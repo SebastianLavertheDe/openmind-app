@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
@@ -34,9 +36,9 @@ import type { ProjectCreateAction, ProjectDetail, ProjectSection, ProjectSummary
 
 type ProjectView = "tasks" | "files" | "outputs";
 const VIEW_META: Record<ProjectView, { label: string; icon: typeof ListTodo }> = {
-  tasks: { label: "任务", icon: ListTodo },
-  files: { label: "文件", icon: Files },
-  outputs: { label: "产物", icon: FileOutput }
+  tasks: { get label() { return messages.projectUi.tasks; }, icon: ListTodo },
+  files: { get label() { return messages.projectUi.files; }, icon: Files },
+  outputs: { get label() { return messages.projectUi.outputs; }, icon: FileOutput }
 };
 const PROJECT_VIEWS = Object.keys(VIEW_META) as ProjectView[];
 const projectViewForSection = (section: ProjectSection): ProjectView => section === "outputs" ? "outputs" : section === "tasks" ? "tasks" : "files";
@@ -50,6 +52,7 @@ export function ProjectsPage({
   initialSection?: ProjectSection;
   initialItem?: string;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
@@ -151,9 +154,9 @@ export function ProjectsPage({
     if (!guard?.isDirty()) return true;
     if (await guard.flush()) return true;
     const discard = await confirmRef.current({
-      title: "文档保存失败",
-      body: "修改仍未保存。要放弃这些修改并继续吗？",
-      confirmText: "放弃修改",
+      title: messages.projectUi.documentSaveFailed,
+      body: messages.projectUi.discardUnsavedPrompt,
+      confirmText: messages.projectUi.discardChanges,
       danger: true
     });
     if (discard) guard.discard();
@@ -249,7 +252,7 @@ export function ProjectsPage({
       presentProjectView("tasks");
       setCreateProjectOpen(false);
       setName("");
-      ui.notify(`项目“${next.name}”已创建。`, "success");
+      ui.notify(messages.projectUi.projectCreated(next.name), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -272,7 +275,7 @@ export function ProjectsPage({
       next = await projectsApi.updateProject(next.name, { icon: input.icon, color: input.color });
       replaceProject(current.name, next);
       setEditProject(null);
-      ui.notify(`项目“${next.name}”已更新。`, "success");
+      ui.notify(messages.projectUi.projectUpdated(next.name), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
       void loadProjects();
@@ -288,12 +291,12 @@ export function ProjectsPage({
       const next = await projectsApi.updateProject(project.name, { favorite: !project.favorite });
       const focused = document.activeElement;
       restoreProjectFocus.current = focused instanceof HTMLElement && Boolean(
-        focused.closest(".project-project-menu")?.getAttribute("aria-label") === `${project.name}的项目操作`
+        focused.closest(".project-project-menu")?.getAttribute("aria-label") === messages.projectUi.projectActionsMenu(project.name)
         || focused.closest("[data-project-motion]")?.getAttribute("data-project-motion") === project.id
       );
       setProjectMotion(current => ({ revision: current.revision + 1, relocatedId: project.id }));
       replaceProject(project.name, next);
-      ui.notify(next.favorite ? `已收藏“${next.name}”。` : `已取消收藏“${next.name}”。`, "success");
+      ui.notify(next.favorite ? messages.projectUi.projectFavorited(next.name) : messages.projectUi.projectUnfavorited(next.name), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -311,17 +314,17 @@ export function ProjectsPage({
       const focused = document.activeElement;
       if (focused instanceof HTMLElement && (
         focused.closest("[data-project-motion]")?.getAttribute("data-project-motion") === project.id
-        || focused.closest(".project-project-menu")?.getAttribute("aria-label") === `${project.name}的项目操作`
+        || focused.closest(".project-project-menu")?.getAttribute("aria-label") === messages.projectUi.projectActionsMenu(project.name)
       )) {
         const rows = Array.from(projectListRef.current?.querySelectorAll<HTMLElement>("[data-project-motion]") || []);
         const index = rows.findIndex(row => row.dataset.projectMotion === project.id);
         const target = rows.slice(index + 1).find(row => !row.querySelector("[inert]"))
           || rows.slice(0, index).reverse().find(row => !row.querySelector("[inert]"));
         (target?.querySelector<HTMLElement>(".ui-dropdown-trigger")
-          || workspaceRef.current?.querySelector<HTMLElement>('[aria-label="搜索项目"]'))?.focus({ preventScroll: true });
+          || workspaceRef.current?.querySelector<HTMLElement>('[data-project-search]'))?.focus({ preventScroll: true });
       }
       replaceProject(project.name, next);
-      ui.notify(`项目“${project.name}”已归档。`, "success");
+      ui.notify(messages.projectUi.projectArchived(project.name), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -385,7 +388,7 @@ export function ProjectsPage({
 
   const activeProjectName = activeProject?.name;
   const activeProjects = useMemo(() => projects.filter(project => project.status === "active")
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects, locale]);
   const collectionMotion = useCollectionMotion(activeProjects.length, 40);
   // Retain removals before grouping: the final archived row keeps its group
   // mounted through CSS exit. Filtering and favorite moves are not removals.
@@ -422,20 +425,20 @@ export function ProjectsPage({
           {activeProject ? (
             <>
               <header className="project-pane-project">
-                <button type="button" className="project-pane-back" aria-label="返回项目列表" data-motion="icon" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
+                <button type="button" className="project-pane-back" aria-label={messages.projectUi.backToProjects} data-motion="icon" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
                 <DropdownMenu
                   className="project-pane-create"
-                  ariaLabel="新建项目内容"
-                  menuLabel="新建项目内容"
+                  ariaLabel={messages.projectUi.newProjectContent}
+                  menuLabel={messages.projectUi.newProjectContent}
                   label={<Plus size={16} aria-hidden="true" />}
                 >
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>新建任务</span></button>
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>添加资料</span></button>
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>新建产物</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>{messages.projectUi.newTask}</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>{messages.projectUi.addMaterials}</span></button>
+                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>{messages.projectUi.newOutput}</span></button>
                 </DropdownMenu>
               </header>
-              <div className="project-pane-tabs" role="tablist" aria-label="项目内容类型">
+              <div className="project-pane-tabs" role="tablist" aria-label={messages.projectUi.projectContentType}>
                 {PROJECT_VIEWS.map((value) => {
                   const meta = VIEW_META[value];
                   const Icon = meta.icon;
@@ -464,10 +467,10 @@ export function ProjectsPage({
             </>
           ) : (
             <>
-              <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label="搜索项目" value={query} placeholder="你的项目" onChange={(event) => setQuery(event.target.value)} />
+              <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} data-project-search aria-label={messages.projectUi.searchProjects} value={query} placeholder={messages.projectUi.yourProjects} onChange={(event) => setQuery(event.target.value)} />
               {loading ? (
-                <div className="project-list-scroll" aria-busy="true" aria-label="正在加载项目">
-                  {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} variant="row" lines={3} label="正在加载项目" />)}
+                <div className="project-list-scroll" aria-busy="true" aria-label={messages.projectUi.loadingProjects}>
+                  {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} variant="row" lines={3} label={messages.projectUi.loadingProjects} />)}
                 </div>
               ) : (
                 <LayoutGroup id={projectMotionGroup}>
@@ -475,7 +478,7 @@ export function ProjectsPage({
                   {favoriteProjects.length ? (
                     <ProjectListGroup
                       listMotion={listMotion}
-                      label="收藏"
+                      label={messages.projectUi.favorites}
                       projects={favoriteProjects}
                       activeProjectName={activeProjectName}
                       busyProjectName={projectActionBusy}
@@ -489,7 +492,7 @@ export function ProjectsPage({
                   {recentProjects.length ? (
                     <ProjectListGroup
                       listMotion={listMotion}
-                      label="近期项目"
+                      label={messages.projectUi.recentProjects}
                       projects={recentProjects}
                       activeProjectName={activeProjectName}
                       busyProjectName={projectActionBusy}
@@ -501,7 +504,7 @@ export function ProjectsPage({
                       onArchive={(project) => void archiveProject(project)}
                     />
                   ) : null}
-                  {!filteredProjects.length ? <p className="project-list-empty">{query ? "没有匹配的项目" : "还没有项目"}</p> : null}
+                  {!filteredProjects.length ? <p className="project-list-empty">{query ? messages.projectUi.noMatchingProjects : messages.projectUi.noProjects}</p> : null}
                 </motion.div>
                 </LayoutGroup>
               )}
@@ -511,7 +514,7 @@ export function ProjectsPage({
         <ColumnSplitter
           side="left"
           collapsed={!listVisible}
-          ariaLabel="项目列表宽度"
+          ariaLabel={messages.projectUi.projectListWidth}
           ariaValueMin={LIST_WIDTH_MIN}
           ariaValueMax={LIST_WIDTH_MAX}
           ariaValueNow={layout.layout.listWidth}
@@ -529,23 +532,23 @@ export function ProjectsPage({
             <button
               type="button"
               className="project-list-reopen"
-              aria-label="展开项目列表"
-              title="展开项目列表"
+              aria-label={messages.projectUi.expandProjectList}
+              title={messages.projectUi.expandProjectList}
               data-motion="icon"
               onClick={() => compactWorkspace ? showCompactPane(true) : layout.toggleList()}
             ><PanelLeftOpen size={17} /></button>
           ) : null}
           {activeProject ? <div className={`project-detail-fill${openingProjectName ? " is-opening-project" : ""}`} ref={setDetailHost} aria-hidden={Boolean(openingProjectName) || undefined} inert={Boolean(openingProjectName) || undefined} /> : openingProjectName ? (
-            <div className="project-detail-loading project-opening-state" role="status"><LoaderCircle size={18} className="spin" />正在打开“{openingProjectName}”…</div>
+            <div className="project-detail-loading project-opening-state" role="status"><LoaderCircle size={18} className="spin" />{messages.projectUi.openingProject(openingProjectName)}</div>
           ) : (
             <EmptyState
               icon={<FolderKanban size={30} />}
-              title={query ? "没有匹配的项目" : "选择一个项目"}
-              description={query ? "换一个名称或描述试试。" : "从左侧选择项目，或在同一个空间中组织文件与任务。"}
-              action={!query ? <button className="primary-button" onClick={openCreateDialog}><Plus size={15} />创建项目</button> : undefined}
+              title={query ? messages.projectUi.noMatchingProjects : messages.projectUi.selectProject}
+              description={query ? messages.projectUi.tryAnotherProjectSearch : messages.projectUi.selectProjectHint}
+              action={!query ? <button className="primary-button" onClick={openCreateDialog}><Plus size={15} />{messages.projectUi.createProject}</button> : undefined}
             />
           )}
-          {activeProject && openingProjectName ? <div className="project-opening-overlay" role="status"><LoaderCircle size={18} className="spin" />正在打开“{openingProjectName}”…</div> : null}
+          {activeProject && openingProjectName ? <div className="project-opening-overlay" role="status"><LoaderCircle size={18} className="spin" />{messages.projectUi.openingProject(openingProjectName)}</div> : null}
         </section>
       </div>
       {attachedPanelsReady ? (
@@ -555,8 +558,8 @@ export function ProjectsPage({
           {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onSelectionChange={handleFileSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
         </>
       ) : null}
-      <ProjectDialog open={createProjectOpen} title="创建项目" description="项目名会作为本地目录名，请使用清晰且稳定的名称。" confirmLabel="创建项目" busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
-        <ProjectTextField label="项目名称" value={name} placeholder="例如：AI 安全研究" autoFocus onChange={setName} />
+      <ProjectDialog open={createProjectOpen} title={messages.projectUi.createProject} description={messages.projectUi.projectNameHint} confirmLabel={messages.projectUi.createProject} busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>
+        <ProjectTextField label={messages.projectUi.projectName} value={name} placeholder={messages.projectUi.projectNamePlaceholder} autoFocus onChange={setName} />
       </ProjectDialog>
       <ProjectEditDialog project={editProject} busy={busy} onClose={() => setEditProject(null)} onSave={saveProjectEdits} />
     </div>
@@ -588,6 +591,7 @@ function ProjectListGroup({
   onToggleFavorite(project: ProjectSummary): void;
   onArchive(project: ProjectSummary): void;
 }) {
+  useLocale();
   return (
     <motion.section className="project-list-group" aria-label={label} data-collection-motion
       layout={listMotion.enabled ? "position" : false} layoutDependency={listMotion.revision}
@@ -628,15 +632,15 @@ function ProjectListGroup({
             <DropdownMenu
               className="project-list-actions"
               menuClassName="project-project-menu"
-              ariaLabel={`项目操作：${project.name}`}
-              menuLabel={`${project.name}的项目操作`}
+              ariaLabel={messages.projectUi.projectActions(project.name)}
+              menuLabel={messages.projectUi.projectActionsMenu(project.name)}
               menuInert={listMotion.leavingProjectIds.has(project.id)}
               disabled={Boolean(openingProjectName) || busyProjectName === project.name}
               label={<MoreHorizontal size={17} aria-hidden="true" />}
             >
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />编辑</button>
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? "取消收藏" : "收藏"}</button>
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />归档</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />{messages.projectUi.edit}</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? messages.projectUi.removeFavorite : messages.projectUi.favorites}</button>
+              <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />{messages.projectUi.archive}</button>
             </DropdownMenu>
           </div>
           </motion.div>

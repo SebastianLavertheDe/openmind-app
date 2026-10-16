@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { SearchInput } from "./inputs";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
@@ -87,6 +88,7 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
   onExpandAll,
   "data-testid": testId
 }, ref) {
+  const locale = useLocale();
   const contentRef = useRef<HTMLDivElement>(null);
   const topShadowRef = useRef<HTMLDivElement>(null);
   const bottomShadowRef = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
         return hay.includes(normalizedQuery) ? index : -1;
       })
       .filter((index): index is number => index >= 0);
-  }, [lines, query, caseSensitive, normalizedQuery]);
+  }, [lines, query, caseSensitive, normalizedQuery, locale]);
 
   const matchCount = matches.length;
   const activeLineIndex = matchCount ? matches[activeMatch] : -1;

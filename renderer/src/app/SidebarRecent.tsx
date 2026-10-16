@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
@@ -34,6 +35,7 @@ function statusClass(status: AiSession["status"]): string {
 }
 
 export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: string | null; onOpen(session: AiSession): void }) {
+  const locale = useLocale();
   const { snapshot } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
@@ -45,11 +47,11 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
     snapshot.sessions
       .filter((session) => !session.archived)
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.createdAt.localeCompare(a.createdAt)),
-    [snapshot.sessions]
+    [snapshot.sessions, locale]
   );
   const pendingSessionIds = useMemo(
     () => new Set(snapshot.pendingApprovals.map((approval) => approval.sessionId)),
-    [snapshot.pendingApprovals]
+    [snapshot.pendingApprovals, locale]
   );
 
   if (!recent.length) return null;
@@ -162,6 +164,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
 
 /** Only long histories virtualize; the same keyed row hosts survive threshold changes. */
 function RecentTaskList({ sessions, renderRow }: { sessions: AiSession[]; renderRow(session: AiSession): ReactNode }) {
+  useLocale();
   const virtual = sessions.length > 20;
   const scroller = useRef<HTMLDivElement>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);

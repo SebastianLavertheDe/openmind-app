@@ -1,4 +1,5 @@
 import type { Root } from "hast";
+import type { Locale } from "./messages";
 
 export type DocumentBlock = {
   id: string;
@@ -17,7 +18,7 @@ export type ReadingDocument = {
 };
 export type DocumentMatch = { start: number; end: number; block: number };
 export type DocumentWorkerRequest =
-  | { type: "parse"; content: string; math: boolean }
+  | { type: "parse"; content: string; math: boolean; locale?: Locale }
   | { type: "find"; query: string; id: number };
 export type DocumentWorkerResponse =
   | { type: "document"; document: ReadingDocument }

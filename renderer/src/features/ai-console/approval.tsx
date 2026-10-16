@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, ApprovalRequest, RiskFinding } from "@shared/contracts";
@@ -8,6 +9,7 @@ import { useExitPresence } from "../../design-system/use-exit-presence";
 import { asRecord, scalar } from "./timeline";
 
 export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalRequest; risks?: RiskFinding[] }) {
+  useLocale();
   const actions = useAiActions();
   const ui = useAiUi();
   const [busyAction, setBusyAction] = useState<"accept" | "accept-session" | "decline" | null>(null);
@@ -173,6 +175,7 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
 }
 
 function DangerousCommandText({ text }: { text: string }) {
+  useLocale();
   const chunks = text.split(/(\brm\s+-rf\b|\brm\b|\bsudo\b|\bRemove-Item\b|\bdel\b|\bformat\b|>>?|chmod\s+777|\bcurl\b|\bwget\b|\biwr\b|\bInvoke-WebRequest\b)/gi);
   return (
     <>
@@ -186,6 +189,7 @@ function DangerousCommandText({ text }: { text: string }) {
 }
 
 export function ApprovalDecisionEvent({ event }: { event: AiEvent }) {
+  useLocale();
   const decision = String(event.payload.decision || "processed");
   const declined = decision === "decline";
   const subject = approvalDecisionSubject(event);

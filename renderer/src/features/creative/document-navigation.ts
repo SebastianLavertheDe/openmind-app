@@ -1,3 +1,4 @@
+import { messages } from "@shared/messages";
 import type { Node } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
@@ -12,7 +13,7 @@ const emptySearch: DocumentSearch = { query: "", matches: [], index: -1 };
 export function documentHeadings(doc: Node): DocumentHeading[] {
   const headings: DocumentHeading[] = [];
   doc.descendants((node, pos) => {
-    if (node.type.name === "heading") headings.push({ pos, level: node.attrs.level, text: node.textContent || "未命名标题" });
+    if (node.type.name === "heading") headings.push({ pos, level: node.attrs.level, text: node.textContent || messages.editor.untitledHeading });
   });
   return headings;
 }

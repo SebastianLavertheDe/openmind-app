@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import type { ReactNode } from "react";
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -9,6 +10,7 @@ export function StatusBadge({
   tone?: "neutral" | "success" | "warning" | "danger" | "info";
   children: ReactNode;
 }) {
+  useLocale();
   return <span className={`ui-status-badge ${tone}`}>{children}</span>;
 }
 
@@ -23,6 +25,7 @@ export function EmptyState({
   icon?: ReactNode;
   action?: ReactNode;
 }) {
+  useLocale();
   return (
     <div className="ui-empty-state">
       {icon ? <div className="ui-empty-icon">{icon}</div> : null}
@@ -34,10 +37,12 @@ export function EmptyState({
 }
 
 export function LoadingState({ label = m.designSystem.loadingDefault }: { label?: string }) {
+  useLocale();
   return <div className="ui-loading-state"><LoaderCircle size={18} className="spin" /><span>{label}</span></div>;
 }
 
 export function ErrorState({ message, retry }: { message: string; retry?(): void }) {
+  useLocale();
   return (
     <div className="ui-error-state" role="alert">
       <AlertTriangle size={20} aria-hidden="true" />
@@ -57,6 +62,7 @@ export function Skeleton({
   /** block=默认块状骨架;card=卡片容器;row=列表行;metric=指标卡 */
   variant?: "block" | "card" | "row" | "metric";
 }) {
+  useLocale();
   const variantClass =
     variant === "card" ? "ui-skeleton-card"
     : variant === "row" ? "ui-skeleton-row"

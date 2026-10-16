@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Check, ChevronDown, ChevronRight, ImagePlus, Settings2 } from "lucide-react";
@@ -17,7 +19,7 @@ function useImageConfiguration() {
     void window.openmind.getImageConfiguration?.().then(value => {
       if (request === revision.current) { setConfiguration(value); setError(""); }
     }).catch(cause => {
-      if (request === revision.current) { setConfiguration(null); setError(cause instanceof Error ? cause.message : "图片配置加载失败"); }
+      if (request === revision.current) { setConfiguration(null); setError(cause instanceof Error ? cause.message : uiMessages.interface.imageConfigFailed); }
     });
   }, []);
   useEffect(() => {
@@ -36,6 +38,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   value: ImageSelection | null | undefined;
   onChange(value: ImageSelection | null): void;
 }) {
+  useLocale();
   const { configuration, error: configurationError, refresh } = useImageConfiguration();
   const [open, setOpen] = useState(false);
   const [providerId, setProviderId] = useState("");
@@ -75,7 +78,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   // removed Provider's models as interactive choices during configuration refresh.
   const visibleProvider = activeProvider || (submenuPresence.visible ? previousProvider.current : undefined);
   const definition = IMAGE_PROVIDERS.find(item => item.id === visibleProvider?.provider);
-  const label = [activeAgent?.label, selectedModel?.name].filter(Boolean).join(" · ") || "选择模型";
+  const label = [activeAgent?.label, selectedModel?.name].filter(Boolean).join(" · ") || uiMessages.interface.selectModel;
   useEffect(() => {
     if (!configuration) return;
     if (value === undefined || (value && (!selected || value.providerId !== selected.providerId))) onChange(selected);
@@ -138,7 +141,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
     try {
       const saved = await window.openmind.selectImageModel(selection);
       onChange(saved.defaultSelection); refresh(); setOpen(false); trigger.current?.focus();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "图片模型选择失败"); refresh(); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : uiMessages.interface.imageModelFailed); refresh(); }
     finally { setBusy(false); }
   };
   const navigate = (event: KeyboardEvent<HTMLDivElement>, nested = false) => {
@@ -162,39 +165,39 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   return <>
     <div className="chip-select provider-select composer-model-picker" data-open={open || undefined}>
       <button type="button" ref={trigger} className="chip-select-trigger" data-motion="selection" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
-        aria-label={`选择模型：${label}`} title={selectedModel ? `${label}（${selectedProvider?.name}）` : label}
+        aria-label={uiMessages.interface.selectNamedModel(label)} title={selectedModel ? `${label}（${selectedProvider?.name}）` : label}
         onClick={() => { if (!open) refresh(); setProviderId(""); setError(""); setOpen(current => !current); }}>
         {selectedModel ? <ImagePlus size={15} /> : <Bot size={15} />}<span className="chip-select-value">{label}</span><ChevronDown size={12} className="chip-select-chevron" />
       </button>
     </div>
     {presence.visible ? createPortal(<>
-      <div ref={menu} id={id} className="composer-model-menu" role="menu" aria-label="选择模型" style={menuStyle} data-side={popover.side}
+      <div ref={menu} id={id} className="composer-model-menu" role="menu" aria-label={uiMessages.interface.selectModel} style={menuStyle} data-side={popover.side}
         data-leaving={presence.leaving || undefined} inert={!open || undefined} aria-hidden={!open || undefined} onKeyDown={event => navigate(event)}>
         <div className="composer-model-surface">
-        <div role="group" aria-label="AI 会话" className="composer-model-group">
-          <div className="composer-model-heading">AI 会话</div>
+        <div role="group" aria-label={uiMessages.interface.aiSession} className="composer-model-group">
+          <div className="composer-model-heading">{uiMessages.interface.aiSession}</div>
           {agents.map(agent => <button type="button" role="menuitemradio" data-agent={agent.id} data-motion="selection" key={agent.id} aria-checked={agentId === agent.id}
             onMouseEnter={() => setProviderId("")} onFocus={() => setProviderId("")} onClick={() => { onProviderChange(agent.id); setOpen(false); trigger.current?.focus(); }}>
-            <Bot size={18} /><span><strong>{agent.label}</strong><small>{agent.detectedModel || (agent.provider === "claude" ? "整理资料 · 内容创作" : "项目任务 · 内容创作")}</small></span>{agentId === agent.id ? <Check size={15} /> : null}
+            <Bot size={18} /><span><strong>{agent.label}</strong><small>{agent.detectedModel || (agent.provider === "claude" ? uiMessages.interface.contentTasks : uiMessages.interface.projectTasks)}</small></span>{agentId === agent.id ? <Check size={15} /> : null}
           </button>)}
-          {!agents.length ? <p className="image-model-empty">暂无可用的 Claude Code 或 Codex，请先在设置中连接。</p> : null}
+          {!agents.length ? <p className="image-model-empty">{uiMessages.interface.providerUnavailable}</p> : null}
         </div>
-        <div role="group" aria-label="图片生成" className="composer-model-group">
-          <div className="composer-model-heading">图片生成</div>
+        <div role="group" aria-label={uiMessages.interface.imageGeneration} className="composer-model-group">
+          <div className="composer-model-heading">{uiMessages.interface.imageGeneration}</div>
           {providers.map(item => <button type="button" role="menuitem" data-motion="selection" data-provider={item.id} key={item.id}
             ref={activeProvider?.id === item.id ? providerAnchor : undefined} aria-haspopup="menu" aria-expanded={activeProvider?.id === item.id} aria-controls={activeProvider?.id === item.id ? `${id}-images` : undefined}
             onMouseEnter={() => setProviderId(item.id)} onClick={() => setProviderId(item.id)} onFocus={() => setProviderId(item.id)}>
-            <ProviderMark provider={item.provider} /><span><strong>{item.name}</strong><small>{item.models.length} 个图片模型</small></span>{selected?.providerId === item.id ? <Check size={15} /> : null}<ChevronRight size={13} />
+            <ProviderMark provider={item.provider} /><span><strong>{item.name}</strong><small>{uiMessages.interface.imageModelCount(item.models.length)}</small></span>{selected?.providerId === item.id ? <Check size={15} /> : null}<ChevronRight size={13} />
           </button>)}
-          {!providers.length ? <p className="image-model-empty">{configuration ? "暂无可用的图片模型。请在 Provider 配置中开启「支持图片生成」并选择模型。" : configurationError ? "无法读取图片模型配置，请检查 Provider 配置后重试。" : "正在读取图片模型…"}</p> : null}
+          {!providers.length ? <p className="image-model-empty">{configuration ? uiMessages.interface.noImageModels : configurationError ? uiMessages.interface.imageModelsFailed : uiMessages.interface.loadingImageModels}</p> : null}
         </div>
         {error || configurationError ? <p className="image-config-error" role="alert">{error || configurationError}</p> : null}
         <div className="image-model-menu-footer">
-          <button type="button" role="menuitem" data-motion="action" onMouseEnter={() => setProviderId("")} onFocus={() => setProviderId("")} onClick={() => { setOpen(false); openImageProviderSettings(); }}><Settings2 size={14} />管理 Provider</button>
+          <button type="button" role="menuitem" data-motion="action" onMouseEnter={() => setProviderId("")} onFocus={() => setProviderId("")} onClick={() => { setOpen(false); openImageProviderSettings(); }}><Settings2 size={14} />{uiMessages.interface.manageProviders}</button>
         </div>
         </div>
       </div>
-      {submenuPresence.visible && visibleProvider && definition ? <div ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={`${visibleProvider.name} 图片模型`} aria-busy={busy}
+      {submenuPresence.visible && visibleProvider && definition ? <div ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={uiMessages.interface.providerImageModels(visibleProvider.name)} aria-busy={busy}
         style={submenuPosition} data-side={submenuSide} data-leaving={!submenuOpen || undefined} inert={!submenuOpen || undefined} aria-hidden={!submenuOpen || undefined} onKeyDown={event => navigate(event, true)}>
         <div className="composer-model-surface" key={visibleProvider.id}>
         <div className="composer-model-heading">{visibleProvider.name}</div>
@@ -211,5 +214,6 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
 }
 
 function ProviderMark({ provider }: { provider: ImageProviderKind }) {
-  return <span className={`image-provider-mark is-${provider}`} aria-hidden="true">{provider === "volcengine" ? "豆" : provider === "openai" ? "O" : "G"}</span>;
+  useLocale();
+  return <span className={`image-provider-mark is-${provider}`} aria-hidden="true">{provider === "volcengine" ? uiMessages.interface.doubaoMark : provider === "openai" ? "O" : "G"}</span>;
 }

@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
   Archive,
@@ -9,7 +10,7 @@ import {
   Save
 } from "lucide-react";
 import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
-import { messages as m } from "@shared/messages";
+import { getLocale, messages as m } from "@shared/messages";
 import { EmptyState, StatusBadge, Tabs } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
 import { PublishForm, TopicWorkspace, WritingStats } from "./panels";
@@ -105,6 +106,7 @@ export function CreativeDetailPane({
   insertLocalFileLink(): Promise<void>;
   updateManifest(patch: Record<string, unknown>): Promise<void>;
 }) {
+  useLocale();
   if (selectedTopicFile) {
     return <TopicFileWorkspace
       file={selectedTopicFile}
@@ -218,6 +220,7 @@ function CreativeDocumentEditor({
   insertLocalFileLink(): Promise<void>;
   updateManifest(patch: Record<string, unknown>): Promise<void>;
 }) {
+  useLocale();
   const published = stage === "published";
   const publish = (detail.manifest as Record<string, unknown> | undefined)?.publish as Record<string, unknown> | undefined;
   const exported = String(publish?.exportedPath || "");
@@ -236,7 +239,7 @@ function CreativeDocumentEditor({
       <nav className="document-tabs">{Object.keys(detail.files || {}).map((file) => <button data-motion="selection" key={file} className={activeFile === file ? "active" : ""} onClick={() => void chooseFile(file)}>{file}</button>)}</nav>
       {published ? (
         <section className="published-summary">
-          <header><StatusBadge tone="success">{m.creativeUi.editor.publishedSummary}</StatusBadge>{publish?.publishedAt ? <span>{new Date(String(publish.publishedAt)).toLocaleString("zh-CN")}</span> : null}{publish?.platform ? <em>{platformLabel(String(publish.platform))}</em> : null}</header>
+          <header><StatusBadge tone="success">{m.creativeUi.editor.publishedSummary}</StatusBadge>{publish?.publishedAt ? <span>{new Date(String(publish.publishedAt)).toLocaleString(getLocale())}</span> : null}{publish?.platform ? <em>{platformLabel(String(publish.platform))}</em> : null}</header>
           <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <button data-motion="icon" onClick={() => void window.openmind.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</button> : null}</p>
           <div className="publish-actions"><button data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</button><button data-motion="action" onClick={() => void window.openmind.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</button></div>
           <small>{m.creativeUi.editor.publishMetricsNote}</small>

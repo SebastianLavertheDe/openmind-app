@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, ImageOff, LoaderCircle, Maximize2, Minimize2, X } from "lucide-react";
@@ -17,11 +19,13 @@ const GalleryContext = createContext<GalleryContextValue | null>(null);
 
 /** One gallery per conversation, shared by generated artifacts and Markdown. */
 export function ChatImageGallery({ children, projectName }: { children: ReactNode; projectName?: string }) {
+  useLocale();
   const parent = useContext(GalleryContext);
   return parent ? children : <OwnedGallery projectName={projectName}>{children}</OwnedGallery>;
 }
 
 function OwnedGallery({ children, projectName }: { children: ReactNode; projectName?: string }) {
+  const locale = useLocale();
   const images = useRef(new Map<string, GalleryImage>());
   const [viewer, setViewer] = useState<{ images: GalleryImage[]; index: number; open: boolean; revision: number } | null>(null);
   const register = useCallback((image: GalleryImage) => {
@@ -37,7 +41,7 @@ function OwnedGallery({ children, projectName }: { children: ReactNode; projectN
     const unique = ordered.filter((value, index) => ordered.findIndex(other => other.source === value.source) === index);
     setViewer(previous => ({ images: unique, index: Math.max(0, unique.findIndex(value => value.source === image.source)), open: true, revision: (previous?.revision || 0) + 1 }));
   }, []);
-  const value = useMemo(() => ({ register, open, projectName }), [register, open, projectName]);
+  const value = useMemo(() => ({ register, open, projectName }), [register, open, projectName, locale]);
   return <GalleryContext.Provider value={value}>
     {children}
     {viewer ? <ImageLightbox key={viewer.revision} images={viewer.images} initialIndex={viewer.index} open={viewer.open} projectName={projectName} onClose={() => setViewer(value => value ? { ...value, open: false } : null)} /> : null}
@@ -55,16 +59,17 @@ function useImageData(source: string, variant: "thumbnail" | "original", project
       return;
     }
     const request = window.openmind.readChatImage?.({ source, variant, ...(projectName ? { projectName } : {}) });
-    if (!request) { setState({ source, error: "图片预览不可用" }); return; }
+    if (!request) { setState({ source, error: uiMessages.interface.imageUnavailable }); return; }
     void request.then(data => { if (current) setState({ source, data }); }, cause => {
-      if (current) setState({ source, error: cause instanceof Error ? cause.message : "图片加载失败" });
+      if (current) setState({ source, error: cause instanceof Error ? cause.message : uiMessages.interface.imageLoadFailed });
     });
     return () => { current = false; };
   }, [source, variant, projectName, revision]);
   return state.source === source ? state : { source };
 }
 
-export function ChatImage({ source, title = "图片" }: { source: string; title?: string }) {
+export function ChatImage({ source, title = uiMessages.interface.image }: { source: string; title?: string }) {
+  useLocale();
   const gallery = useContext(GalleryContext);
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
@@ -82,18 +87,19 @@ export function ChatImage({ source, title = "图片" }: { source: string; title?
   useEffect(() => gallery?.register({ id, source, title, element: button.current }), [gallery, id, source, title]);
   return <span className="chat-image-card">
     <button ref={button} type="button" className="chat-image-thumbnail" data-motion="action"
-      aria-label={data.error ? `重新加载图片：${title}` : `查看原图：${title}`}
+      aria-label={data.error ? uiMessages.interface.reloadImage(title) : uiMessages.interface.viewOriginal(title)}
       onClick={() => data.error ? setRevision(value => value + 1) : gallery?.open({ id, source, title, element: button.current })}>
       {data.data ? <img src={data.data.dataUrl} alt={title} loading="lazy" decoding="async" />
-        : <span className="chat-image-placeholder" role="status">{data.error ? <><ImageOff size={22} /><span>图片加载失败 · 点击重试</span></> : <LoaderCircle size={22} className="spin" />}</span>}
-      {data.data ? <span className="chat-image-open"><Maximize2 size={13} />查看原图</span> : null}
+        : <span className="chat-image-placeholder" role="status">{data.error ? <><ImageOff size={22} /><span>{uiMessages.interface.imageRetry}</span></> : <LoaderCircle size={22} className="spin" />}</span>}
+      {data.data ? <span className="chat-image-open"><Maximize2 size={13} />{uiMessages.interface.originalImage}</span> : null}
     </button>
     {data.error ? <span className="chat-image-error">{data.error}</span> : null}
   </span>;
 }
 
 export function GeneratedImages({ images }: { images: readonly GeneratedImage[] }) {
-  return <div className="generated-images" aria-label="生成的图片">
+  useLocale();
+  return <div className="generated-images" aria-label={uiMessages.interface.generatedImage}>
     {images.map(image => <div className="generated-image" key={image.id}>
       <ChatImage source={image.source} title={image.title} />
       <span className="generated-image-caption">{IMAGE_PROVIDERS.find(provider => provider.id === image.provider)?.models.find(model => model.id === image.model)?.name || image.model}</span>
@@ -104,6 +110,7 @@ export function GeneratedImages({ images }: { images: readonly GeneratedImage[] 
 function ImageLightbox({ images, initialIndex, open, projectName, onClose }: {
   images: GalleryImage[]; initialIndex: number; open: boolean; projectName?: string; onClose(): void;
 }) {
+  const locale = useLocale();
   const [index, setIndex] = useState(initialIndex);
   const [actualSize, setActualSize] = useState(true);
   const [dragX, setDragX] = useState(0);
@@ -130,16 +137,16 @@ function ImageLightbox({ images, initialIndex, open, projectName, onClose }: {
   if (!presence.visible || !current) return null;
   return createPortal(<div className="chat-image-lightbox ui-overlay" data-focus-scope-backdrop data-leaving={presence.leaving || undefined}
     onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div ref={dialog} className="chat-image-dialog" role="dialog" aria-modal="true" aria-label="图片查看器" tabIndex={-1}
+    <div ref={dialog} className="chat-image-dialog" role="dialog" aria-modal="true" aria-label={uiMessages.interface.imageViewer} tabIndex={-1}
       inert={!open || undefined} aria-hidden={!open || undefined}
       onKeyDown={event => {
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); if (displayedImages.length > 1) step(event.key === "ArrowLeft" ? -1 : 1); }
       }}>
       <header className="chat-image-toolbar">
-        <div><strong>图片预览</strong><span aria-live="polite">{index + 1} / {displayedImages.length}{data.data?.width ? ` · ${data.data.width} × ${data.data.height}` : ""}</span></div>
+        <div><strong>{uiMessages.interface.imagePreview}</strong><span aria-live="polite">{index + 1} / {displayedImages.length}{data.data?.width ? ` · ${data.data.width} × ${data.data.height}` : ""}</span></div>
         <div>
-          <button type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={() => setActualSize(value => !value)} aria-label={actualSize ? "适应窗口" : "原始尺寸"} title={actualSize ? "适应窗口" : "原始尺寸"}>{actualSize ? <Minimize2 size={17} /> : <Maximize2 size={17} />}<span>{actualSize ? "适应窗口" : "原始尺寸"}</span></button>
-          <button ref={closeButton} type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={onClose} aria-label="关闭图片预览"><X size={20} /></button>
+          <button type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={() => setActualSize(value => !value)} aria-label={actualSize ? uiMessages.interface.fitWindow : uiMessages.interface.originalSize} title={actualSize ? uiMessages.interface.fitWindow : uiMessages.interface.originalSize}>{actualSize ? <Minimize2 size={17} /> : <Maximize2 size={17} />}<span>{actualSize ? uiMessages.interface.fitWindow : uiMessages.interface.originalSize}</span></button>
+          <button ref={closeButton} type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={onClose} aria-label={uiMessages.interface.closeImage}><X size={20} /></button>
         </div>
       </header>
       <div ref={stage} className={`chat-image-stage${actualSize ? " is-original" : ""}`} data-dragging={dragging || undefined}
@@ -170,13 +177,13 @@ function ImageLightbox({ images, initialIndex, open, projectName, onClose }: {
         onTouchCancel={() => { setDragging(false); setDragX(0); touch.current = null; }}>
         {data.data ? <img key={current.id} className="chat-image-full" src={data.data.dataUrl} alt={current.title} draggable={false}
           data-direction={direction < 0 ? "previous" : "next"} style={{ transform: dragX ? `translateX(${dragX}px)` : undefined }} />
-          : <div className="chat-image-loading" role="status">{data.error ? <><ImageOff size={30} /><span>{data.error}</span></> : <><LoaderCircle className="spin" size={28} /><span>正在加载原图…</span></>}</div>}
+          : <div className="chat-image-loading" role="status">{data.error ? <><ImageOff size={30} /><span>{data.error}</span></> : <><LoaderCircle className="spin" size={28} /><span>{uiMessages.interface.loadingOriginal}</span></>}</div>}
       </div>
       {displayedImages.length > 1 ? <>
-        <button type="button" className="chat-image-nav is-previous" data-motion="icon" aria-label="上一张图片" onClick={() => step(-1)}><ChevronLeft size={24} /></button>
-        <button type="button" className="chat-image-nav is-next" data-motion="icon" aria-label="下一张图片" onClick={() => step(1)}><ChevronRight size={24} /></button>
+        <button type="button" className="chat-image-nav is-previous" data-motion="icon" aria-label={uiMessages.interface.previousImage} onClick={() => step(-1)}><ChevronLeft size={24} /></button>
+        <button type="button" className="chat-image-nav is-next" data-motion="icon" aria-label={uiMessages.interface.nextImage} onClick={() => step(1)}><ChevronRight size={24} /></button>
       </> : null}
-      <footer className="chat-image-bottom"><span>{current.title}</span>{displayedImages.length > 1 ? <small>← → 切换图片 · 滑动查看</small> : null}</footer>
+      <footer className="chat-image-bottom"><span>{current.title}</span>{displayedImages.length > 1 ? <small>{uiMessages.interface.imageKeys}</small> : null}</footer>
     </div>
   </div>, document.body);
 }

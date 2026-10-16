@@ -16,12 +16,12 @@ import {
 } from "@shared/display-labels";
 import { messages } from "@shared/messages";
 
-export const STAGES = buildWorkflowStages();
+export const STAGES = buildWorkflowStages().map((stage) => ({ ...stage, get label() { return stageLabel(stage.id); } }));
 export type Stage = CreativeWorkflowStage;
 
 export type Bucket = CreativeBucketId;
 
-export const BUCKETS = buildCreativeBuckets();
+export const BUCKETS = buildCreativeBuckets().map((bucket) => ({ ...bucket, get label() { return messages.creative.bucket[bucket.id]; } }));
 
 export { bucketForStage };
 
@@ -29,7 +29,7 @@ export type StreamFilter = Bucket | "all";
 
 export type PlatformOption = { id: string; label: string; file: string };
 
-export const PLATFORM_OPTIONS = buildPlatformOptions();
+export const PLATFORM_OPTIONS = buildPlatformOptions().map((platform) => ({ ...platform, get label() { return platformLabel(platform.id); } }));
 
 export function preferredFile(files: string[], stage: Stage): string {
   return preferredCreativeFile(files, stage);

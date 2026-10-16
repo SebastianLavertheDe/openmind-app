@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ImageCapabilitySchema } from "./image-generation";
+import { messages } from "./messages";
 
 /**
  * Pure schema + types for the plaintext `config/providers.yaml` provider
@@ -11,7 +12,7 @@ import { ImageCapabilitySchema } from "./image-generation";
 
 export const PROVIDERS_YAML_SCHEMA_VERSION = 1 as const;
 
-const IdentifierSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "标识只能包含字母、数字、点、下划线和连字符。");
+const IdentifierSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, { error: () => messages.providerUi.validation.identifier });
 
 export const ProviderProtocolSchema = z.enum([
   "openai-chat",
@@ -54,13 +55,13 @@ const ProviderYamlEntryObjectSchema = z.object({
   authMode: ProviderAuthModeSchema.default("bearer"),
   apiKey: z.string().min(1).max(2048),
   baseUrl: z.string().trim().min(1).max(2048).refine((value) => isSafeBaseUrl(value), {
-    message: "Base URL 必须是无凭据的 HTTPS URL；HTTP 仅允许 localhost/loopback。"
+    error: () => messages.providerUi.validation.baseUrl
   }),
   model: z.string().trim().min(1).max(200),
   /** Image understanding alone does not grant image-generation capability. */
   imageGeneration: ImageCapabilitySchema.nullable().optional(),
   proxyUrl: z.string().trim().max(2048).default("").refine((value) => !value || isSafeProxyUrl(value), {
-    message: "Proxy URL 必须是无凭据的 HTTP(S) URL。"
+    error: () => messages.providerUi.validation.proxyUrl
   }),
   proxyPolicy: ProxyPolicySchema.default("system"),
   tlsPolicy: TlsPolicySchema.default("verify")
@@ -124,13 +125,13 @@ export interface ProviderPreset {
 }
 
 export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
-  { id: "deepseek", name: "DeepSeek", protocol: "anthropic-messages", authMode: "bearer", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-v4-flash" },
-  { id: "anthropic", name: "Anthropic", protocol: "anthropic-messages", authMode: "x-api-key", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-6" },
-  { id: "glm", name: "智谱 GLM", protocol: "anthropic-messages", authMode: "bearer", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-5.2[1m]" },
-  { id: "doubao", name: "火山豆包", protocol: "openai-chat", authMode: "bearer", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-pro-32k" },
-  { id: "openai", name: "OpenAI", protocol: "openai-chat", authMode: "bearer", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  { id: "openai-responses", name: "OpenAI · Codex", protocol: "openai-responses", authMode: "bearer", baseUrl: "https://api.openai.com/v1", model: "gpt-5.3-codex" },
-  { id: "gemini", name: "Google Gemini", protocol: "openai-chat", authMode: "bearer", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" }
+  { id: "deepseek", get name() { return messages.providerUi.providerNames.deepseek; }, protocol: "anthropic-messages", authMode: "bearer", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-v4-flash" },
+  { id: "anthropic", get name() { return messages.providerUi.providerNames.anthropic; }, protocol: "anthropic-messages", authMode: "x-api-key", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-6" },
+  { id: "glm", get name() { return messages.providerUi.providerNames.glm; }, protocol: "anthropic-messages", authMode: "bearer", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-5.2[1m]" },
+  { id: "doubao", get name() { return messages.providerUi.providerNames.doubao; }, protocol: "openai-chat", authMode: "bearer", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-pro-32k" },
+  { id: "openai", get name() { return messages.providerUi.providerNames.openai; }, protocol: "openai-chat", authMode: "bearer", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  { id: "openai-responses", get name() { return messages.providerUi.providerNames.openaiCodex; }, protocol: "openai-responses", authMode: "bearer", baseUrl: "https://api.openai.com/v1", model: "gpt-5.3-codex" },
+  { id: "gemini", get name() { return messages.providerUi.providerNames.gemini; }, protocol: "openai-chat", authMode: "bearer", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" }
 ];
 
 export function supportsCliProvider(
@@ -210,7 +211,7 @@ function validateProviderProxy(
     context.addIssue({
       code: "custom",
       path: ["proxyUrl"],
-      message: "proxyPolicy 为 explicit 时必须填写 Proxy URL。"
+      message: messages.providerUi.validation.explicitProxyRequired
     });
   }
 }
@@ -222,15 +223,15 @@ function validateProvidersDocument(
   const ids = new Set<string>();
   value.providers.forEach((provider, index) => {
     if (ids.has(provider.id)) {
-      context.addIssue({ code: "custom", path: ["providers", index, "id"], message: `Provider ID 重复：${provider.id}` });
+      context.addIssue({ code: "custom", path: ["providers", index, "id"], message: messages.providerUi.validation.duplicateId(provider.id) });
     }
     ids.add(provider.id);
   });
   const defaultProvider = value.providers.find((provider) => provider.id === value.default);
   if (!defaultProvider) {
-    context.addIssue({ code: "custom", path: ["default"], message: `默认 Provider 不存在：${value.default}` });
+    context.addIssue({ code: "custom", path: ["default"], message: messages.providerUi.validation.defaultMissing(value.default) });
   } else if (!defaultProvider.enabled) {
-    context.addIssue({ code: "custom", path: ["default"], message: `默认 Provider 已停用：${value.default}` });
+    context.addIssue({ code: "custom", path: ["default"], message: messages.providerUi.validation.defaultDisabled(value.default) });
   }
   for (const kind of ["claude", "codex"] as const) {
     const id = value.cli[kind];
@@ -240,7 +241,7 @@ function validateProvidersDocument(
       context.addIssue({
         code: "custom",
         path: ["cli", kind],
-        message: `${kind} 绑定的 Provider 不存在：${id}`
+        message: messages.providerUi.validation.bindingMissing(kind, id)
       });
       continue;
     }
@@ -248,21 +249,21 @@ function validateProvidersDocument(
       context.addIssue({
         code: "custom",
         path: ["cli", kind],
-        message: `${kind} 绑定的 Provider 已停用：${id}`
+        message: messages.providerUi.validation.bindingDisabled(kind, id)
       });
     } else if (!supportsCliProvider(kind, provider.protocol)) {
       context.addIssue({
         code: "custom",
         path: ["cli", kind],
         message: kind === "claude"
-          ? "Claude Code 只能绑定 anthropic-messages Provider。"
-          : "Codex CLI 只能绑定 openai-responses Provider。"
+          ? messages.providerUi.validation.claudeProtocol
+          : messages.providerUi.validation.codexProtocol
       });
     } else if (provider.tlsPolicy !== "verify") {
       context.addIssue({
         code: "custom",
         path: ["cli", kind],
-        message: `${kind === "claude" ? "Claude Code" : "Codex CLI"} 托管 Provider 仅支持 tlsPolicy: verify。`
+        message: messages.providerUi.validation.managedTls(kind === "claude" ? "Claude Code" : "Codex CLI")
       });
     }
   }

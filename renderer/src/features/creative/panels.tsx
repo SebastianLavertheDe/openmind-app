@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useMemo, useState } from "react";
 import { Bot, Check, Clock3, Download, LoaderCircle, Sparkles } from "lucide-react";
 import type { CreativeProjectDetail, CreativeTopic } from "@shared/contracts";
@@ -10,10 +11,11 @@ import {
 } from "./types";
 
 export function TopicWorkspace({ topic, date, createProject, addContext, creatingKey = null }: { topic: CreativeTopic; date: string; createProject(platform?: PlatformOption): void; addContext(): void; creatingKey?: string | null }) {
+  useLocale();
   const [showPlatform, setShowPlatform] = useState(false);
   return (
     <div className="topic-workspace">
-      <header><div><span className="eyebrow">Recommended Topic · {date}</span><h1>{topic.title || m.creative.defaults.unnamedTopic}</h1><p>{topic.platform || m.creative.defaults.topicCreation}{topic.score ? ` · ${m.creativeUi.topic.score(topic.score)}` : ""}</p></div>
+      <header><div><span className="eyebrow">{m.interface.recommendedTopic} · {date}</span><h1>{topic.title || m.creative.defaults.unnamedTopic}</h1><p>{topic.platform || m.creative.defaults.topicCreation}{topic.score ? ` · ${m.creativeUi.topic.score(topic.score)}` : ""}</p></div>
         <div><button data-motion="icon" onClick={addContext}><Bot size={14} />{m.creativeUi.topic.askAi}</button><button data-motion="icon" disabled={Boolean(creatingKey)} onClick={() => setShowPlatform((value) => !value)}><Sparkles size={14} />{m.creativeUi.topic.createDraft}</button></div>
       </header>
       {topic.projectDir ? <div className="topic-existing"><Check size={14} />{m.creativeUi.topic.hasDraft}</div> : null}
@@ -33,6 +35,7 @@ export function TopicWorkspace({ topic, date, createProject, addContext, creatin
 }
 
 export function PublishForm({ detail, content, exporting, enforceChecklist = true, onExport, onPatch }: { detail: CreativeProjectDetail; content: string; exporting: boolean; enforceChecklist?: boolean; onExport(): void; onPatch(patch: Record<string, unknown>): void }) {
+  useLocale();
   const manifestRecord = (detail.manifest || {}) as Record<string, unknown>;
   const publish = (manifestRecord.publish as Record<string, unknown> | undefined) || {};
   const platform = String(publish.platform || "");
@@ -48,7 +51,7 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
   const requiredMet = Boolean(platform) && contentReady && (!enforceChecklist || (titleReady && summaryReady && tagsReady && coverReady));
   return (
     <section className="publish-form">
-      <header><div><span className="eyebrow">Ready</span><h2>{m.creativeUi.publish.title}</h2></div><StatusBadge tone={exported ? "success" : "neutral"}>{exported ? m.creativeUi.publish.exported : m.creativeUi.publish.pendingExport}</StatusBadge></header>
+      <header><div><span className="eyebrow">{m.interface.ready}</span><h2>{m.creativeUi.publish.title}</h2></div><StatusBadge tone={exported ? "success" : "neutral"}>{exported ? m.creativeUi.publish.exported : m.creativeUi.publish.pendingExport}</StatusBadge></header>
       <p className="publish-note">{m.creativeUi.publish.note}</p>
       <label className="publish-field">{m.creativeUi.publish.platformLabel}
         <Select
@@ -82,6 +85,7 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
 }
 
 export function WritingStats({ content }: { content: string }) {
+  const locale = useLocale();
   const stats = useMemo(() => {
     const text = content.replace(/[#>*_`\-]/g, "");
     const chars = text.replace(/\s/g, "").length;
@@ -91,7 +95,7 @@ export function WritingStats({ content }: { content: string }) {
     const links = (content.match(/(?<!\!)\[[^\]]+\]\([^)]+\)/g) || []).length;
     const longBlocks = content.split(/\n\s*\n/).filter((block) => block.replace(/\s/g, "").length > 400).length;
     return { chars, headings, paragraphs, images, links, longBlocks };
-  }, [content]);
+  }, [content, locale]);
   return (
     <section className="writing-stats" aria-label={m.creativeUi.writingStats.aria}>
       <span><strong>{stats.chars}</strong>{m.creativeUi.stats.chars}</span>

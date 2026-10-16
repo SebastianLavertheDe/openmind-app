@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MessageCircle, X } from "lucide-react";
@@ -11,6 +12,7 @@ import { WechatAccountForm, type WechatAccountView } from "./WechatAccountForm";
 const m = messages.wechat.account;
 
 export function WechatSettingsSection() {
+  useLocale();
   const ui = useAiUi();
   const [account, setAccount] = useState<WechatAccountView | null>(null);
   const [loading, setLoading] = useState(true);

@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   AlertTriangle,
@@ -77,6 +78,7 @@ const CHAT_SCROLL_UP_EPSILON = 1;
 export type { ChatDraftSubmitHandler } from "./composer";
 
 export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { compact?: boolean; onDraftSubmit?: ChatDraftSubmitHandler }) {
+  const locale = useLocale();
   const { events, loadingSessionId, hasOlderTurns, historyLoading, loadOlderTurns } = useAiEvents();
   const { snapshot, activeSession, activeRun, sessionActiveRun } = useAiSnapshot();
   const setDraft = useSetAiDraft();
@@ -97,18 +99,18 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const timelineEvents = useMemo(() => {
     if (compact) return compactEvents(events, sessionActiveRun?.id);
     return selectRecentTurnEvents(events, historyLimit);
-  }, [events, sessionActiveRun?.id, compact, historyLimit]);
+  }, [events, sessionActiveRun?.id, compact, historyLimit, locale]);
   const hiddenEvents = compact ? 0 : Math.max(0, events.length - timelineEvents.length);
   const canLoadHistory = !compact && (hiddenEvents > 0 || hasOlderTurns);
   const visible = useMemo(
     () => groupTimeline(timelineEvents, snapshot.runs),
-    [snapshot.runs, timelineEvents]
+    [snapshot.runs, timelineEvents, locale]
   );
   const processRuns = useMemo(() => {
     const runs = new Map(snapshot.runs.map((run) => [run.id, run]));
     if (sessionActiveRun) runs.set(sessionActiveRun.id, sessionActiveRun);
     return runs;
-  }, [sessionActiveRun, snapshot.runs]);
+  }, [sessionActiveRun, snapshot.runs, locale]);
   const renderItems = useMemo(
     () => {
       const folded = foldProcessSteps(visible, processRuns);
@@ -125,14 +127,14 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       }
       return groupChatToolItems(folded);
     },
-    [sessionActiveRun, processRuns, visible]
+    [sessionActiveRun, processRuns, visible, locale]
   );
   const activeRunId = sessionActiveRun?.id || null;
   const activeTodoEvents = useMemo(
     () => selectRunTodoEvents(events, activeRunId),
-    [activeRunId, events]
+    [activeRunId, events, locale]
   );
-  const activeRunHasTool = useMemo(() => hasOpenTool(timelineEvents, activeRunId), [activeRunId, timelineEvents]);
+  const activeRunHasTool = useMemo(() => hasOpenTool(timelineEvents, activeRunId), [activeRunId, timelineEvents, locale]);
   const pendingThoughtEligible = Boolean(
     sessionActiveRun
     && sessionActiveRun.status === "running"
@@ -358,6 +360,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
 });
 
 function SessionLoading({ visible }: { visible: boolean }) {
+  useLocale();
   return <div className="chat-session-loading" data-visible={visible || undefined} role="status" aria-live="polite" aria-label={m.ai.chat.loadingHistory}>
     <span>{m.ai.chat.loadingHistory}</span>
     <i /><i /><i />
@@ -379,6 +382,7 @@ const TimelineItems = memo(function TimelineItems({
   activeRunId: string | null;
   activeRunHasTool: boolean;
 }) {
+  useLocale();
   const presenceItems = useExitingList(items, timelineItemKey, TIMELINE_EXIT_MS);
   const committedKeys = useRef(new Set(items.map(timelineItemKey)));
   const enteringKeys = new Set(
@@ -436,6 +440,7 @@ function ProcessTimelineItem({
   live: boolean;
   activeRunHasTool: boolean;
 }) {
+  useLocale();
   const terminalWithTransient = ["failed", "cancelled", "conflicted"].includes(item.run.status);
   const { streaming, reasoningStreaming, assistantBlocks } = useAiStreaming(live || terminalWithTransient ? item.run.id : null);
   const hasArtifact = containsAssistantArtifact(assistantBlocks);
@@ -472,6 +477,7 @@ function ProcessTimelineItem({
 }
 
 function StandaloneLiveProcess({ runId, pendingEligible }: { runId: string | null; pendingEligible: boolean }) {
+  useLocale();
   const { streaming, reasoningStreaming, assistantBlocks } = useAiStreaming(runId);
   if (!runId) return null;
   if (containsAssistantArtifact(assistantBlocks)) {
@@ -628,6 +634,7 @@ function toolEventKey(event: AiEvent): string {
 }
 
 function EmptyChat({ onPick }: { onPick?: (prompt: string) => void }) {
+  useLocale();
   const { snapshot } = useAiSnapshot();
   const prompts = m.ai.chat.emptyPrompts;
   const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
@@ -679,6 +686,7 @@ function CompletedProcess({
   hideLiveCommentary?: boolean;
   pending?: boolean;
 }) {
+  useLocale();
   const processing = ["queued", "running", "waiting-approval", "applying"].includes(run.status);
   const forceOpen = processing || missingFinal || run.status === "failed" || run.status === "conflicted";
   const [open, setOpen] = useState(forceOpen);
@@ -769,6 +777,7 @@ const TraceStepList = memo(function TraceStepList({
   processing: boolean;
   liveCurrent: boolean;
 }) {
+  useLocale();
   if (!processing) return <TraceStepBlocks steps={steps} run={run} />;
 
   const cycles = groupTraceCycles(steps);
@@ -794,6 +803,7 @@ const TraceStepList = memo(function TraceStepList({
 });
 
 function TraceStepBlocks({ steps, run }: { steps: TraceStep[]; run: AiRun }) {
+  useLocale();
   const blocks: Array<{ type: "step"; step: TraceStep } | { type: "tool-group"; key: string; steps: ToolStep[] }> = [];
   let tools: ToolStep[] = [];
   const flush = () => {
@@ -841,6 +851,7 @@ function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {
 }
 
 function ToolGroupView({ item }: { item: ToolGroupItem }) {
+  useLocale();
   const firstStep = item.steps[0];
   const tool = String(firstStep?.events[0]?.payload.tool || firstStep?.events[0]?.payload.command || firstStep?.events[0]?.payload.skillId || m.ai.tool.fallbackName);
   const single = item.steps.length === 1;
@@ -868,6 +879,7 @@ function processDuration(startedAt: string, completedAt?: string | null): string
 }
 
 function ProcessNarrative({ text, streaming = false }: { text: string; streaming?: boolean }) {
+  const locale = useLocale();
   const visibleText = useMemo(() => {
     if (streaming || !text.includes(MARKDOWN_ARTIFACT_START_FENCE)) return text;
     try {
@@ -877,7 +889,7 @@ function ProcessNarrative({ text, streaming = false }: { text: string; streaming
     } catch {
       return text;
     }
-  }, [streaming, text]);
+  }, [streaming, text, locale]);
   if (!visibleText.trim()) return null;
   return (
     <div className="process-narrative-block" aria-live={streaming ? "polite" : undefined}>
@@ -898,6 +910,7 @@ function commentaryText(events: AiEvent[]): string {
 }
 
 function TraceStepView({ step, run, folded = false }: { step: TraceStep; run: AiRun; folded?: boolean }) {
+  useLocale();
   if (step.type === "commentary") {
     return <ProcessNarrative text={commentaryText(step.events)} />;
   }
@@ -983,6 +996,7 @@ function approvalRequestSubject(event: AiEvent): string {
 }
 
 function EventRow({ event }: { event: AiEvent }) {
+  useLocale();
   if (event.kind === "image-artifact") {
     const image = GeneratedImageSchema.safeParse(event.payload.image);
     return image.success ? <GeneratedImages images={[image.data]} /> : null;

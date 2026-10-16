@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useState } from "react";
 import { Check, ChevronRight, Circle, ListChecks, LoaderCircle, Route } from "lucide-react";
 import type { AiEvent } from "@shared/contracts";
@@ -21,6 +22,7 @@ export function selectRunTodoEvents(events: AiEvent[], runId: string | null): Ai
 }
 
 export function ActiveTodoFloat({ events, active }: { events: AiEvent[]; active: boolean }) {
+  useLocale();
   const items = projectTodoItems(events);
   const incomplete = items.some((item) => item.status !== "completed");
   const presence = useExitPresence(active && items.length > 0 && incomplete, 160);
@@ -55,6 +57,7 @@ export function ActiveTodoFloat({ events, active }: { events: AiEvent[]; active:
 }
 
 export function WorkStateCard({ planEvents, todoEvents }: { planEvents: AiEvent[]; todoEvents: AiEvent[] }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const planEvent = planEvents.at(-1);
   const planText = String(planEvent?.payload.text || "").trim();
@@ -108,6 +111,7 @@ export function WorkStateCard({ planEvents, todoEvents }: { planEvents: AiEvent[
 }
 
 export function PlanCard({ events }: { events: AiEvent[] }) {
+  useLocale();
   const items = extractPlanItems(events);
   if (!items.length) return null;
   return (

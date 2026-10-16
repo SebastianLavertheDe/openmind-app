@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useMemo, useState } from "react";
 import { FileClock, History } from "lucide-react";
 import type {
@@ -7,7 +8,7 @@ import type {
   CreativeReleaseEvent,
   CreativeVersion
 } from "@shared/contracts";
-import { messages as m } from "@shared/messages";
+import { getLocale, messages as m } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
 import { EmptyState, LoadingState, Select, StatusBadge, SearchInput } from "../../design-system/components";
 import { actionLabel, platformLabel, stageLabel } from "./types";
@@ -22,6 +23,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   onVersionsChange(versions: CreativeVersion[]): void;
   onRestored(detail: CreativeProjectDetail): void;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
@@ -41,7 +43,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   const diff = useMemo(() => {
     if (!leftContent && !rightContent) return [];
     return lineDiff(leftContent.split(/\r?\n/), rightContent.split(/\r?\n/));
-  }, [leftContent, rightContent]);
+  }, [leftContent, rightContent, locale]);
   const diffTruncated = diff.length > 600;
   const visibleDiff = diffTruncated ? diff.slice(0, 600) : diff;
   const restore = async (version: CreativeVersion) => {
@@ -68,14 +70,14 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
               value={leftId}
               onChange={(value) => { setLeftId(value); void loadVersion(value, setLeftContent); }}
               placeholder={m.creativeUi.history.currentContent}
-              options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString("zh-CN")}` }))}
+              options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString(getLocale())}` }))}
             /></label>
             <label>{m.creativeUi.history.versionB}<Select
               size="rect"
               value={rightId}
               onChange={(value) => { setRightId(value); void loadVersion(value, setRightContent); }}
               placeholder={m.creativeUi.history.currentContent}
-              options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString("zh-CN")}` }))}
+              options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString(getLocale())}` }))}
             /></label>
           </div>
           <pre className="history-diff" aria-label={m.creativeUi.history.diffAria}>{visibleDiff.length ? visibleDiff.map((line, index) => <span key={index} className={`diff-${line.type}`}>{line.type === "add" ? "+ " : line.type === "del" ? "- " : "  "}{line.text}{"\n"}</span>) : m.creativeUi.history.pickTwoVersions}</pre>
@@ -85,7 +87,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
             {versions.length ? versions.map((version) => (
               <div key={version.id} className="version-row">
                 <FileClock size={14} />
-                <div><strong title={version.note}>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString("zh-CN")} · {Math.round(version.size / 1024)} KB</small></div>
+                <div><strong title={version.note}>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString(getLocale())} · {Math.round(version.size / 1024)} KB</small></div>
                 <button data-motion="icon" onClick={() => window.openmind.openPath(version.path)}>{m.common.open}</button>
                 <button className="primary-button" onClick={() => void restore(version)}>{m.creativeUi.history.restoreAsNew}</button>
               </div>
@@ -98,6 +100,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
 }
 
 export function ReleaseLogView({ detail, selectedProject }: { detail: CreativeProjectDetail | null; selectedProject: CreativeProjectSummary | null }) {
+  useLocale();
   const [events, setEvents] = useState<CreativeReleaseEvent[]>([]);
   const [filter, setFilter] = useState("");
   useEffect(() => { if (detail) void window.openmind.getCreativeReleaseLog(detail.dir).then(setEvents).catch(() => setEvents([])); else setEvents([]); }, [detail?.dir]);
@@ -110,7 +113,7 @@ export function ReleaseLogView({ detail, selectedProject }: { detail: CreativePr
       <ol className="release-timeline">
         {filtered.length ? filtered.map((event) => (
           <li key={event.id} className={`release-event ${event.action}`}>
-            <span className="release-time">{new Date(event.createdAt).toLocaleString("zh-CN")}</span>
+            <span className="release-time">{new Date(event.createdAt).toLocaleString(getLocale())}</span>
             <strong>{actionLabel(event.action)}</strong>
             {event.platform ? <em>{platformLabel(event.platform)}</em> : null}
             {event.status ? <StatusBadge tone={event.status === "exported" || event.status === "approved" ? "success" : event.status === "cancelled" ? "warning" : "neutral"}>{event.status}</StatusBadge> : null}
@@ -124,6 +127,7 @@ export function ReleaseLogView({ detail, selectedProject }: { detail: CreativePr
 }
 
 export function AnalyticsView({ analytics, loading }: { analytics: CreativeAnalytics | null; loading: boolean }) {
+  useLocale();
   if (loading && !analytics) return <LoadingState label={m.creativeUi.analytics.loading} />;
   if (!analytics) return <EmptyState title={m.creativeUi.analytics.noData} description={m.creativeUi.analytics.noDataDesc} />;
   const stageMax = Math.max(1, ...analytics.stages.map((item) => item.count));

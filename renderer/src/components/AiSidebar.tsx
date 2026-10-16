@@ -1,3 +1,5 @@
+import { useLocale } from "../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MessageSquare, Minimize2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -84,6 +86,7 @@ function setNumericAttribute(element: HTMLElement, name: string, value: number):
 }
 
 export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) {
+  const locale = useLocale();
   const { activeSession } = useAiSnapshot();
   const parentOpenFilePreview = useFilePreview();
   const ui = useAiUi();
@@ -100,7 +103,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     parentOpenFilePreview?.(path, previewProjectName ? { projectName: previewProjectName } : undefined);
   }, [parentOpenFilePreview, previewProjectName]);
   const handleProjectDraftSubmit = useCallback(async (input: ChatDraftSubmitInput) => {
-    if (!projectComposeTarget) throw new Error("没有可归属的项目。");
+    if (!projectComposeTarget) throw new Error(uiMessages.interface.noProject);
     const created = await projectsApi.createTask(projectComposeTarget.projectName, firstLine(input.prompt), input.providerId);
     const result = await projectsApi.startTaskRun(
       projectComposeTarget.projectName,
@@ -417,5 +420,5 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
 }
 
 function firstLine(value: string): string {
-  return value.trim().split(/\r?\n/)[0].slice(0, 80) || "未命名任务";
+  return value.trim().split(/\r?\n/)[0].slice(0, 80) || uiMessages.interface.untitledTask;
 }

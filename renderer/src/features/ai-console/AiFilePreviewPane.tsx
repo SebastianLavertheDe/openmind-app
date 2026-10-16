@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Eye, FileText, Pencil, Save, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -53,6 +55,7 @@ export function AiFilePreviewPane({
   onPreviewPathChange?: (path: string | null) => void;
   children: ReactNode;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const responsiveLayout = useResponsiveLayout();
   const surfaceKind = surface.kind;
@@ -100,7 +103,7 @@ export function AiFilePreviewPane({
     saving: preview.saving,
     dirty: preview.dirty,
     canEditContent: preview.canEditContent
-  } : null, [preview.canEditContent, preview.dirty, preview.draft, preview.error, preview.loading, preview.mode, preview.resource, preview.saveError, preview.saving, preview.source]);
+  } : null, [preview.canEditContent, preview.dirty, preview.draft, preview.error, preview.loading, preview.mode, preview.resource, preview.saveError, preview.saving, preview.source, locale]);
   const displayedPreview = livePreview || previewSnapshotRef.current;
 
   useLayoutEffect(() => {
@@ -178,8 +181,8 @@ export function AiFilePreviewPane({
         return;
       }
       ui.notify(isBinaryPreviewPath(targetPath)
-        ? "该文件是二进制格式，请在项目“文件”页查看。"
-        : "未能在当前项目中找到该文件；请在项目“文件”页确认文件名。", "error");
+        ? uiMessages.interface.binaryProjectFile
+        : uiMessages.interface.projectFileMissing, "error");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     }

@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { Input } from "../../design-system/components";
 import { createPortal } from "react-dom";
 import {
@@ -79,85 +81,85 @@ import type { ProjectColor, ProjectSummary } from "./types";
 type ProjectIconOption = { id: string; label: string; icon: LucideIcon };
 
 export const PROJECT_COLOR_OPTIONS: Array<{ id: ProjectColor; label: string; value: string }> = [
-  { id: "neutral", label: "黑色", value: "#202124" },
-  { id: "gray", label: "灰色", value: "#97999f" },
-  { id: "blue", label: "蓝色", value: "#0d7df2" },
-  { id: "cyan", label: "青色", value: "#5accc7" },
-  { id: "green", label: "绿色", value: "#20c844" },
-  { id: "indigo", label: "靛蓝", value: "#5858cf" },
-  { id: "purple", label: "紫色", value: "#9b51df" },
-  { id: "pink", label: "粉色", value: "#e72898" },
-  { id: "red", label: "红色", value: "#ef4a3e" },
-  { id: "orange", label: "橙色", value: "#ff8a00" },
-  { id: "yellow", label: "黄色", value: "#ffc400" },
-  { id: "brown", label: "棕色", value: "#8d5815" }
+  { id: "neutral", get label() { return messages.projectUi.black; }, value: "#202124" },
+  { id: "gray", get label() { return messages.projectUi.gray; }, value: "#97999f" },
+  { id: "blue", get label() { return messages.projectUi.blue; }, value: "#0d7df2" },
+  { id: "cyan", get label() { return messages.projectUi.cyan; }, value: "#5accc7" },
+  { id: "green", get label() { return messages.projectUi.green; }, value: "#20c844" },
+  { id: "indigo", get label() { return messages.projectUi.indigo; }, value: "#5858cf" },
+  { id: "purple", get label() { return messages.projectUi.purple; }, value: "#9b51df" },
+  { id: "pink", get label() { return messages.projectUi.pink; }, value: "#e72898" },
+  { id: "red", get label() { return messages.projectUi.red; }, value: "#ef4a3e" },
+  { id: "orange", get label() { return messages.projectUi.orange; }, value: "#ff8a00" },
+  { id: "yellow", get label() { return messages.projectUi.yellow; }, value: "#ffc400" },
+  { id: "brown", get label() { return messages.projectUi.brown; }, value: "#8d5815" }
 ];
 
 export const PROJECT_ICON_OPTIONS: ProjectIconOption[] = [
-  { id: "package-open", label: "包裹", icon: PackageOpen },
-  { id: "calculator", label: "计算器", icon: Calculator },
-  { id: "image", label: "图片", icon: Image },
-  { id: "audio-lines", label: "音频", icon: AudioLines },
-  { id: "clapperboard", label: "视频", icon: Clapperboard },
-  { id: "book-open", label: "书籍", icon: BookOpen },
-  { id: "link", label: "链接", icon: Link },
-  { id: "layers", label: "图层", icon: Layers },
-  { id: "traffic-cone", label: "路标", icon: TrafficCone },
-  { id: "server", label: "服务器", icon: Server },
-  { id: "compass", label: "指南针", icon: Compass },
-  { id: "chart", label: "图表", icon: ChartNoAxesCombined },
-  { id: "bot", label: "机器人", icon: Bot },
-  { id: "message-circle", label: "对话", icon: MessageCircle },
-  { id: "message-square", label: "消息", icon: MessageSquareText },
-  { id: "clock", label: "时钟", icon: Clock3 },
-  { id: "map-pin", label: "地点", icon: MapPin },
-  { id: "bell", label: "提醒", icon: Bell },
-  { id: "satellite", label: "卫星", icon: Satellite },
-  { id: "key", label: "钥匙", icon: KeyRound },
-  { id: "lock", label: "锁", icon: LockKeyhole },
-  { id: "laptop", label: "笔记本电脑", icon: Laptop },
-  { id: "monitor", label: "显示器", icon: Monitor },
-  { id: "battery", label: "电池", icon: BatteryCharging },
-  { id: "hammer", label: "工具", icon: Hammer },
-  { id: "flag", label: "旗帜", icon: Flag },
-  { id: "bookmark", label: "书签", icon: Bookmark },
-  { id: "database", label: "数据库", icon: Database },
-  { id: "code", label: "代码", icon: Code2 },
-  { id: "terminal", label: "终端", icon: SquareTerminal },
-  { id: "calendar", label: "日历", icon: CalendarDays },
-  { id: "mail", label: "邮件", icon: Mail },
-  { id: "folder", label: "文件夹", icon: Folder },
-  { id: "archive", label: "归档盒", icon: Archive },
-  { id: "graduation-cap", label: "教育", icon: GraduationCap },
-  { id: "landmark", label: "机构", icon: Landmark },
-  { id: "store", label: "商店", icon: Store },
-  { id: "feather", label: "写作", icon: Feather },
-  { id: "music-list", label: "音乐列表", icon: ListMusic },
-  { id: "handbag", label: "手提包", icon: Handbag },
-  { id: "map-pinned", label: "地图定位", icon: MapPinned },
-  { id: "plane", label: "飞机", icon: Plane },
-  { id: "car", label: "汽车", icon: Car },
-  { id: "ship", label: "船", icon: Ship },
-  { id: "dumbbell", label: "健身", icon: Dumbbell },
-  { id: "gift", label: "礼物", icon: Gift },
-  { id: "cake", label: "蛋糕", icon: CakeSlice },
-  { id: "binoculars", label: "望远镜", icon: Binoculars },
-  { id: "money", label: "财务", icon: CircleDollarSign },
-  { id: "gem", label: "宝石", icon: Gem },
-  { id: "users", label: "团队", icon: UsersRound },
-  { id: "person", label: "人物", icon: PersonStanding },
-  { id: "bike", label: "自行车", icon: Bike },
-  { id: "utensils", label: "餐饮", icon: Utensils },
-  { id: "coffee", label: "咖啡", icon: Coffee },
-  { id: "glass", label: "饮品", icon: GlassWater },
-  { id: "gamepad", label: "游戏", icon: Gamepad2 },
-  { id: "glasses", label: "眼镜", icon: Glasses },
-  { id: "camera", label: "相机", icon: Camera },
-  { id: "film", label: "电影", icon: Film },
-  { id: "briefcase", label: "工作", icon: BriefcaseBusiness },
-  { id: "map", label: "地图", icon: MapIcon },
-  { id: "music", label: "音乐", icon: Music2 },
-  { id: "palette", label: "设计", icon: Palette }
+  { id: "package-open", get label() { return messages.projectUi.package; }, icon: PackageOpen },
+  { id: "calculator", get label() { return messages.projectUi.calculator; }, icon: Calculator },
+  { id: "image", get label() { return messages.projectUi.image; }, icon: Image },
+  { id: "audio-lines", get label() { return messages.projectUi.audio; }, icon: AudioLines },
+  { id: "clapperboard", get label() { return messages.projectUi.video; }, icon: Clapperboard },
+  { id: "book-open", get label() { return messages.projectUi.books; }, icon: BookOpen },
+  { id: "link", get label() { return messages.projectUi.link; }, icon: Link },
+  { id: "layers", get label() { return messages.projectUi.layers; }, icon: Layers },
+  { id: "traffic-cone", get label() { return messages.projectUi.signpost; }, icon: TrafficCone },
+  { id: "server", get label() { return messages.projectUi.server; }, icon: Server },
+  { id: "compass", get label() { return messages.projectUi.compass; }, icon: Compass },
+  { id: "chart", get label() { return messages.projectUi.chart; }, icon: ChartNoAxesCombined },
+  { id: "bot", get label() { return messages.projectUi.robot; }, icon: Bot },
+  { id: "message-circle", get label() { return messages.projectUi.conversation; }, icon: MessageCircle },
+  { id: "message-square", get label() { return messages.projectUi.message; }, icon: MessageSquareText },
+  { id: "clock", get label() { return messages.projectUi.clock; }, icon: Clock3 },
+  { id: "map-pin", get label() { return messages.projectUi.location; }, icon: MapPin },
+  { id: "bell", get label() { return messages.projectUi.notification; }, icon: Bell },
+  { id: "satellite", get label() { return messages.projectUi.satellite; }, icon: Satellite },
+  { id: "key", get label() { return messages.projectUi.key; }, icon: KeyRound },
+  { id: "lock", get label() { return messages.projectUi.lock; }, icon: LockKeyhole },
+  { id: "laptop", get label() { return messages.projectUi.laptop; }, icon: Laptop },
+  { id: "monitor", get label() { return messages.projectUi.monitor; }, icon: Monitor },
+  { id: "battery", get label() { return messages.projectUi.battery; }, icon: BatteryCharging },
+  { id: "hammer", get label() { return messages.projectUi.tools; }, icon: Hammer },
+  { id: "flag", get label() { return messages.projectUi.flag; }, icon: Flag },
+  { id: "bookmark", get label() { return messages.projectUi.bookmark; }, icon: Bookmark },
+  { id: "database", get label() { return messages.projectUi.database; }, icon: Database },
+  { id: "code", get label() { return messages.projectUi.code; }, icon: Code2 },
+  { id: "terminal", get label() { return messages.projectUi.terminal; }, icon: SquareTerminal },
+  { id: "calendar", get label() { return messages.projectUi.calendar; }, icon: CalendarDays },
+  { id: "mail", get label() { return messages.projectUi.email; }, icon: Mail },
+  { id: "folder", get label() { return messages.projectUi.folder; }, icon: Folder },
+  { id: "archive", get label() { return messages.projectUi.archiveBox; }, icon: Archive },
+  { id: "graduation-cap", get label() { return messages.projectUi.education; }, icon: GraduationCap },
+  { id: "landmark", get label() { return messages.projectUi.institution; }, icon: Landmark },
+  { id: "store", get label() { return messages.projectUi.shop; }, icon: Store },
+  { id: "feather", get label() { return messages.projectUi.writing; }, icon: Feather },
+  { id: "music-list", get label() { return messages.projectUi.playlist; }, icon: ListMusic },
+  { id: "handbag", get label() { return messages.projectUi.handbag; }, icon: Handbag },
+  { id: "map-pinned", get label() { return messages.projectUi.mapLocation; }, icon: MapPinned },
+  { id: "plane", get label() { return messages.projectUi.airplane; }, icon: Plane },
+  { id: "car", get label() { return messages.projectUi.car; }, icon: Car },
+  { id: "ship", get label() { return messages.projectUi.boat; }, icon: Ship },
+  { id: "dumbbell", get label() { return messages.projectUi.fitness; }, icon: Dumbbell },
+  { id: "gift", get label() { return messages.projectUi.gift; }, icon: Gift },
+  { id: "cake", get label() { return messages.projectUi.cake; }, icon: CakeSlice },
+  { id: "binoculars", get label() { return messages.projectUi.binoculars; }, icon: Binoculars },
+  { id: "money", get label() { return messages.projectUi.finance; }, icon: CircleDollarSign },
+  { id: "gem", get label() { return messages.projectUi.gem; }, icon: Gem },
+  { id: "users", get label() { return messages.projectUi.team; }, icon: UsersRound },
+  { id: "person", get label() { return messages.projectUi.person; }, icon: PersonStanding },
+  { id: "bike", get label() { return messages.projectUi.bicycle; }, icon: Bike },
+  { id: "utensils", get label() { return messages.projectUi.dining; }, icon: Utensils },
+  { id: "coffee", get label() { return messages.projectUi.coffee; }, icon: Coffee },
+  { id: "glass", get label() { return messages.projectUi.drink; }, icon: GlassWater },
+  { id: "gamepad", get label() { return messages.projectUi.gaming; }, icon: Gamepad2 },
+  { id: "glasses", get label() { return messages.projectUi.glasses; }, icon: Glasses },
+  { id: "camera", get label() { return messages.projectUi.camera; }, icon: Camera },
+  { id: "film", get label() { return messages.projectUi.film; }, icon: Film },
+  { id: "briefcase", get label() { return messages.projectUi.work; }, icon: BriefcaseBusiness },
+  { id: "map", get label() { return messages.projectUi.map; }, icon: MapIcon },
+  { id: "music", get label() { return messages.projectUi.music; }, icon: Music2 },
+  { id: "palette", get label() { return messages.projectUi.design; }, icon: Palette }
 ];
 
 const PROJECT_ICONS = new Map(PROJECT_ICON_OPTIONS.map((option) => [option.id, option.icon]));
@@ -167,6 +169,7 @@ export function projectColorValue(color?: ProjectColor): string {
 }
 
 export function ProjectIcon({ name, size = 18, className }: { name?: string; size?: number; className?: string }) {
+  useLocale();
   const Icon = PROJECT_ICONS.get(name || "") || Database;
   return <Icon className={className} size={size} strokeWidth={2.25} aria-hidden="true" />;
 }
@@ -182,6 +185,7 @@ export function ProjectEditDialog({
   onClose(): void;
   onSave(input: { name: string; icon: string; color: ProjectColor }): void | Promise<void>;
 }) {
+  const locale = useLocale();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("database");
   const [color, setColor] = useState<ProjectColor>("neutral");
@@ -230,8 +234,8 @@ export function ProjectEditDialog({
     <>
       <ProjectDialog
         open={Boolean(project)}
-        title="编辑项目"
-        confirmLabel="更新"
+        title={messages.projectUi.editProject}
+        confirmLabel={messages.projectUi.update}
         cancelLabel={null}
         busy={busy}
         className="project-dialog-compact"
@@ -242,12 +246,12 @@ export function ProjectEditDialog({
         <Input variant="inline"
           ref={nameInputRef}
           className="project-edit-name"
-          aria-label="项目名称"
+          aria-label={messages.projectUi.projectName}
           value={name}
           maxLength={80}
           onChange={(event) => setName(event.target.value)}
         />
-        <section className="project-appearance-card" aria-label="项目外观">
+        <section className="project-appearance-card" aria-label={messages.projectUi.projectAppearance}>
           <button
             ref={iconTriggerRef}
             type="button"
@@ -257,13 +261,13 @@ export function ProjectEditDialog({
             aria-expanded={iconPickerOpen}
             onClick={() => setIconPickerOpen((current) => !current)}
           >
-            <span>图标</span>
+            <span>{messages.projectUi.icon}</span>
             <span className="project-icon-picker-current" style={{ color: colorValue } as CSSProperties}>
               <ProjectIcon name={icon} size={16} />
               <ChevronRight size={14} aria-hidden="true" />
             </span>
           </button>
-          <div className="project-color-grid" role="group" aria-label="项目颜色">
+          <div className="project-color-grid" role="group" aria-label={messages.projectUi.projectColor}>
             {PROJECT_COLOR_OPTIONS.map((option) => (
               <button
                 key={option.id}
@@ -290,7 +294,7 @@ export function ProjectEditDialog({
           aria-hidden={!pickerOpen || undefined}
           inert={!pickerOpen}
           data-leaving={pickerPresence.leaving || undefined}
-          aria-label="选择项目图标"
+          aria-label={messages.projectUi.chooseProjectIcon}
           data-side={popover.side}
           style={popover.style}
         >

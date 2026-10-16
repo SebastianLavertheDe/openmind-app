@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { ExternalLink, Eye, Pencil, Save } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -6,6 +7,7 @@ import { PreviewRenderer } from "../file-preview";
 import { documentPreviewResource } from "../file-preview/model";
 
 export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, onDraft, onSave, onOpenExternal }: { file: ContentRecord; draft: string; mode: "preview" | "edit"; dirty: boolean; saving: boolean; onMode(mode: "preview" | "edit"): void; onDraft(value: string): void; onSave(): void; onOpenExternal(): void }) {
+  useLocale();
   const resource = documentPreviewResource(file, `topic:${file.path}`);
   return <>
     <header className="creative-document-header topic-file-header">

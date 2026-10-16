@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save } from "lucide-react";
 import type { ContentEntry } from "@shared/contracts";
@@ -18,6 +19,7 @@ export function DailyBriefPage({
   embeddedFilePreviewPath?: string | null;
   onCloseEmbeddedFilePreview?(): void;
 }) {
+  const locale = useLocale();
   const layoutRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const listLayout = useContentListLayout();
@@ -124,7 +126,7 @@ export function DailyBriefPage({
   const filteredFiles = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return files.filter((file) => !needle || `${file.name} ${file.path}`.toLocaleLowerCase().includes(needle));
-  }, [files, query]);
+  }, [files, query, locale]);
 
   const selectFile = async (path: string) => {
     if (path === selectedPath) {
@@ -196,7 +198,7 @@ export function DailyBriefPage({
         {embeddedFilePreviewPath ? (
           <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={closeEmbeddedFilePreview} embedded />
         ) : preview.error ? <ErrorState message={preview.error} retry={() => void load()} /> : preview.loading || pendingPath ? (
-          <div className="document-detail-opening" role="status" aria-live="polite"><LoaderCircle size={18} className="spin" />正在打开“{briefFileLabel(files.find((file) => file.path === pendingPath)?.name || pendingPath.split(/[\\/]/).at(-1) || pendingPath)}”…</div>
+          <div className="document-detail-opening" role="status" aria-live="polite"><LoaderCircle size={18} className="spin" />{m.interface.openingNamed(briefFileLabel(files.find((file) => file.path === pendingPath)?.name || pendingPath.split(/[\\/]/).at(-1) || pendingPath))}</div>
         ) : record && preview.resource ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">

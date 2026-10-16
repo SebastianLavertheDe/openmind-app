@@ -1,7 +1,8 @@
 import { RunScheduler } from "./scheduler";
 import { AUTO_MODEL } from "../../shared/model-catalog";
+import { setLocale, type Locale } from "../../shared/messages";
 
-type WorkerRequest = { id: string; method: string; args: unknown[] };
+type WorkerRequest = { id: string; method: string; args: unknown[]; locale?: Locale; type?: string };
 const parentPort = (process as unknown as { parentPort?: { on(event: string, callback: (message: { data: WorkerRequest }) => void): void; postMessage(message: unknown): void } }).parentPort;
 if (!parentPort) throw new Error("AI worker must run as an Electron utility process.");
 const port = parentPort;
@@ -11,6 +12,7 @@ if (!projectRoot) throw new Error("OPENMIND_REPO_ROOT is required.");
 const stateRoot = process.env.OPENMIND_STATE_ROOT?.trim() || undefined;
 const openmindRoot = process.env.OPENMIND_ROOT?.trim() || undefined;
 const rootGeneration = Number(process.env.OPENMIND_ROOT_GENERATION) || 1;
+setLocale(process.env.OPENMIND_UI_LANGUAGE === "en" ? "en" : "zh-CN");
 
 const scheduler = new RunScheduler(
   projectRoot,
@@ -27,6 +29,8 @@ const scheduler = new RunScheduler(
 void scheduler.refreshProviders();
 
 port.on("message", ({ data }) => {
+  if (data.locale) setLocale(data.locale);
+  if (data.type === "locale") return;
   void dispatch(data as WorkerRequest).then(
     (result) => port.postMessage({ type: "response", id: (data as WorkerRequest).id, result }),
     (error) => port.postMessage({ type: "response", id: (data as WorkerRequest).id, error: error instanceof Error ? error.message : String(error) })

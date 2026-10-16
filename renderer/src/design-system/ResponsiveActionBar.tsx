@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { messages as m } from "@shared/messages";
@@ -49,6 +50,7 @@ function ActionButton({
   entering?: boolean;
   leaving?: boolean;
 }) {
+  useLocale();
   const Icon = action.icon;
   const text = action.labelBehavior === "icon"
     ? undefined
@@ -112,6 +114,7 @@ export function ResponsiveActionBar({
   overflowLabel?: string;
   className?: string;
 }) {
+  useLocale();
   const visible = actions.filter((action) => isResponsivePriorityVisible(presentation, action.priority));
   const overflow = actions.filter((action) => !isResponsivePriorityVisible(presentation, action.priority));
   const animatedVisible = useExitingList(visible, actionKey, RESPONSIVE_EXIT_MS);
@@ -188,6 +191,7 @@ export function ResponsiveContextBadge({
   shortLabel?: string;
   tone?: "neutral" | "success" | "warning" | "danger";
 }) {
+  useLocale();
   const shown = isResponsivePriorityVisible(presentation, priority);
   const presence = useExitPresence(shown, RESPONSIVE_EXIT_MS);
   const currentContent = { label, shortLabel, tone };

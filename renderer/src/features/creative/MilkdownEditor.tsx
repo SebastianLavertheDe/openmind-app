@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { Textarea } from "../../design-system/components";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
@@ -26,6 +28,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
   documentHeader?: ReactNode;
   accessory?: ReactNode;
 }>((props, ref) => {
+  const locale = useLocale();
   const hostRef = useRef<HTMLDivElement>(null);
   const floatingRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<MilkdownRuntime | null>(null);
@@ -80,7 +83,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
       disposed = true; runtimeRef.current = null; host.remove();
       void creation.catch(() => {}).then(() => runtime?.destroy());
     };
-  }, []);
+  }, [locale]);
   useEffect(() => { runtimeRef.current?.setValue(props.value); }, [props.value]);
   useEffect(() => { runtimeRef.current?.setLabel(props.ariaLabel); }, [props.ariaLabel]);
   useEffect(() => { runtimeRef.current?.setReadOnly(Boolean(props.readOnly)); }, [props.readOnly]);
@@ -88,7 +91,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
   return <div ref={shellRef} className={`markdown-editor-shell${props.readOnly ? " is-readonly" : ""}${props.documentHeader ? " has-document-header" : ""}`} aria-busy={!ready && !failed}
     onKeyDown={event => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") { event.preventDefault(); event.stopPropagation(); openSearch(); }
-      if (event.key === "Escape" && outlineOpen) { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[aria-label="文档大纲"]')?.focus(); }
+      if (event.key === "Escape" && outlineOpen) { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }
     }}>
     <DocumentToolbar ready={ready} readOnly={props.readOnly} format={format} outlineOpen={outlineOpen}
       onOutline={() => { setOutlineOpen(open => !open); setFindOpen(false); runtimeRef.current?.search(""); }} onSearch={openSearch}
@@ -96,16 +99,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
       onAction={action => runtimeRef.current?.run(action)} onHeading={level => runtimeRef.current?.setHeading(level)} onInsertLocalFile={props.onInsertLocalFile} />
     {findOpen ? <DocumentFindbar search={search} readOnly={props.readOnly} onQuery={query => runtimeRef.current?.search(query)}
       onStep={direction => runtimeRef.current?.stepSearch(direction)} onReplace={(value, all) => runtimeRef.current?.replaceSearch(value, all)} onClose={closeSearch} /> : null}
-    {outlineOpen ? <nav className="document-editor-outline" aria-label="文档章节">
-      <header><strong>文档大纲</strong><button type="button" data-motion="icon" aria-label="关闭大纲" onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[aria-label="文档大纲"]')?.focus(); }}><X size={16} /></button></header>
+    {outlineOpen ? <nav className="document-editor-outline" aria-label={messages.editor.documentSections}>
+      <header><strong>{messages.editor.outline}</strong><button type="button" data-motion="icon" aria-label={messages.editor.closeOutline} onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }}><X size={16} /></button></header>
       {headings.length ? headings.map(heading => <button type="button" data-motion="selection" key={heading.pos} style={{ paddingInlineStart: 12 + (heading.level - 1) * 12 }} title={heading.text}
-        onClick={() => { runtimeRef.current?.jumpToHeading(heading.pos); setOutlineOpen(false); }}>{heading.text}</button>) : <p>添加章节标题后，会显示在这里。</p>}
+        onClick={() => { runtimeRef.current?.jumpToHeading(heading.pos); setOutlineOpen(false); }}>{heading.text}</button>) : <p>{messages.editor.emptyOutline}</p>}
     </nav> : null}
     <div className="document-editor-scroll">
       {props.documentHeader ? <div className="document-editor-heading">{props.documentHeader}</div> : null}
-      {!ready && !failed ? <p className="document-editor-loading" role="status">正在打开文档…</p> : null}
+      {!ready && !failed ? <p className="document-editor-loading" role="status">{messages.editor.openingDocument}</p> : null}
       <div ref={hostRef} className="markdown-milkdown" />
-      {failed ? <div className="document-editor-fallback"><p role="alert">文档编辑器加载失败，可以继续编辑 Markdown 源文。</p>
+      {failed ? <div className="document-editor-fallback"><p role="alert">{messages.editor.editorLoadFailed}</p>
         <Textarea variant="inline" aria-label={props.ariaLabel} value={props.value} readOnly={props.readOnly} onChange={event => props.onChange(event.target.value)} />
       </div> : null}
     </div>

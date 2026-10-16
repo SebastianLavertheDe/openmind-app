@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } from "lucide-react";
@@ -77,6 +78,7 @@ export function GlobalSearch({
   navigate: Navigate;
   onOpenContent(path: string): void;
 }) {
+  const locale = useLocale();
   const { activeSession } = useAiSnapshot();
   const actions = useAiActions();
   const [query, setQuery] = useState("");
@@ -119,7 +121,7 @@ export function GlobalSearch({
     };
   }, [visible, query]);
 
-  const action = useMemo(() => interpretAction(query), [query]);
+  const action = useMemo(() => interpretAction(query), [query, locale]);
   const actionOffset = action ? 1 : 0;
   // 默认选中第一项：有动作时选中动作，否则选中首个结果。
   useEffect(() => { setActiveIndex(0); setActionError(null); }, [query]);
@@ -130,7 +132,7 @@ export function GlobalSearch({
       const items = results.filter((result) => result.kind === kind);
       return items.length ? [{ kind, items }] : [];
     });
-  }, [results]);
+  }, [results, locale]);
 
   const runAction = async (target: PaletteAction) => {
     if (running) return;

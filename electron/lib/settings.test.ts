@@ -122,6 +122,19 @@ describe("settings path handling", () => {
     expect(findRepoRoot()).toBe(repo);
   });
 
+  it("migrates and persists UI language independently of content language", () => {
+    saveSettings({ defaultLanguage: "zh-CN" });
+    expect(getPreferences().uiLanguage).toBe("zh-CN");
+    updatePreferences({ uiLanguage: "en" });
+    expect(getPreferences().uiLanguage).toBe("en");
+    expect(getPreferences().defaultLanguage).toBe("zh-CN");
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).uiLanguage).toBe("en");
+    expect(() => updatePreferences({ uiLanguage: "fr" as "en" })).toThrow();
+    expect(getPreferences().uiLanguage).toBe("en");
+    resetPreferences("theme");
+    expect(getPreferences().uiLanguage).toBe("zh-CN");
+  });
+
   it("preferences API surfaces are callable and return valid defaults", () => {
     const prefs = getPreferences();
     expect(prefs.themeMode).toBe("light");

@@ -1,3 +1,4 @@
+import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
 import {
@@ -32,20 +33,20 @@ function utf8ByteLength(value: string): number {
 export const ProjectNameSchema = z.string().superRefine((raw, context) => {
   const value = raw.normalize("NFC");
   if (!value) {
-    context.addIssue({ code: "custom", message: "项目名不能为空。" });
+    context.addIssue({ code: "custom", message: messages.validation.project.nameRequired });
     return;
   }
   if ([...value].length > MAX_PROJECT_NAME_CODE_POINTS || utf8ByteLength(value) > MAX_PROJECT_NAME_UTF8_BYTES) {
-    context.addIssue({ code: "custom", message: "项目名最多 80 个字符且不能超过 180 字节。" });
+    context.addIssue({ code: "custom", message: messages.validation.project.nameLength(MAX_PROJECT_NAME_CODE_POINTS, MAX_PROJECT_NAME_UTF8_BYTES) });
   }
   if (FORBIDDEN_PROJECT_NAME_CHARACTERS.test(value) || ENCODED_PATH_TOKEN.test(value)) {
-    context.addIssue({ code: "custom", message: "项目名包含跨平台文件系统不支持的字符。" });
+    context.addIssue({ code: "custom", message: messages.validation.project.nameCharacters });
   }
   if (value !== value.trim() || value.includes("..") || value.startsWith(".") || value.endsWith(".")) {
-    context.addIssue({ code: "custom", message: "项目名不能包含 ..、前导点、尾部点或首尾空白。" });
+    context.addIssue({ code: "custom", message: messages.validation.project.namePath });
   }
   if (WINDOWS_RESERVED_NAME.test(value)) {
-    context.addIssue({ code: "custom", message: "项目名不能使用 Windows 保留设备名。" });
+    context.addIssue({ code: "custom", message: messages.validation.project.nameReserved });
   }
 }).transform((value) => value.normalize("NFC"));
 export type ProjectName = z.infer<typeof ProjectNameSchema>;
@@ -127,7 +128,7 @@ export const ProjectUpdateInputSchema = z.object({
   color: ProjectColorSchema.optional(),
   favorite: z.boolean().optional()
 }).refine((input) => input.icon !== undefined || input.color !== undefined || input.favorite !== undefined, {
-  message: "至少需要更新一项项目设置。"
+  error: () => messages.validation.project.updateRequired
 });
 export type ProjectUpdateInput = z.input<typeof ProjectUpdateInputSchema>;
 
@@ -139,7 +140,7 @@ export type ProjectMaterialStatus = z.infer<typeof ProjectMaterialStatusSchema>;
 
 export const ProjectMaterialSourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("file"), originalName: z.string().min(1).max(255) }),
-  z.object({ type: z.literal("url"), url: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。") })
+  z.object({ type: z.literal("url"), url: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }) })
 ]);
 export type ProjectMaterialSource = z.infer<typeof ProjectMaterialSourceSchema>;
 
@@ -171,13 +172,13 @@ export type ProjectVideoTranscriptSegment = z.infer<typeof ProjectVideoTranscrip
 
 export const ProjectVideoReadMetadataSchema = z.object({
   provider: z.string().min(1).max(80),
-  sourceUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。"),
-  embedUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。").nullable().default(null),
+  sourceUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }),
+  embedUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }).nullable().default(null),
   videoId: z.string().min(1).max(500).nullable().default(null),
   mediaType: z.string().min(1).max(80).default("video"),
   title: z.string().min(1).max(500),
   durationMs: z.number().int().nonnegative().nullable().default(null),
-  thumbnailUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。").nullable().default(null),
+  thumbnailUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }).nullable().default(null),
   transcript: z.array(ProjectVideoTranscriptSegmentSchema).max(100_000).default([]),
   transcriptSource: z.string().min(1).max(80).nullable().default(null)
 });
@@ -212,7 +213,7 @@ export type ProjectAddFilesInput = z.input<typeof ProjectAddFilesInputSchema>;
 
 export const ProjectAddUrlInputSchema = z.object({
   projectName: ProjectNameSchema,
-  url: z.string().url().refine((value) => /^https?:\/\//i.test(value), "只支持 HTTP(S) URL。")
+  url: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl })
 });
 export type ProjectAddUrlInput = z.input<typeof ProjectAddUrlInputSchema>;
 
@@ -243,7 +244,7 @@ export const ProjectTaskSchema = z.object({
   sessionId: z.string().min(1).max(160).nullable().default(null),
   /** Immutable provenance for Outputs after a rename intentionally clears the active cwd-bound Session. */
   previousSessionIds: z.array(z.string().min(1).max(160)).max(10_000)
-    .refine((values) => new Set(values).size === values.length, "历史 Session 不能重复。")
+    .refine((values) => new Set(values).size === values.length, { error: () => messages.validation.project.duplicateSession })
     .default([]),
   providerId: z.string().min(1).max(160),
   status: ProjectTaskStatusSchema.default("active"),
@@ -293,7 +294,7 @@ export const ProjectStartTaskRunInputSchema = z.object({
   contexts: z.array(ContextReferenceSchema).max(50).default([])
 }).superRefine((input, context) => {
   if (!input.sessionId && !input.providerId) {
-    context.addIssue({ code: "custom", path: ["providerId"], message: "新 Project Task 必须指定 Provider。" });
+    context.addIssue({ code: "custom", path: ["providerId"], message: messages.validation.project.providerRequired });
   }
 });
 export type ProjectStartTaskRunInput = Omit<z.input<typeof ProjectStartTaskRunInputSchema>, "contexts"> & {
@@ -321,10 +322,10 @@ export const ProjectOutputSchema = z.object({
   updatedAt: z.string().datetime()
 }).superRefine((output, context) => {
   if (!output.sourceTaskId && (output.sourceSessionId || output.sourceMessageId)) {
-    context.addIssue({ code: "custom", path: ["sourceTaskId"], message: "Output Session/Message 来源必须绑定 Project Task。" });
+    context.addIssue({ code: "custom", path: ["sourceTaskId"], message: messages.validation.project.outputTaskRequired });
   }
   if (output.sourceMessageId && !output.sourceSessionId) {
-    context.addIssue({ code: "custom", path: ["sourceSessionId"], message: "Output Message 来源必须绑定 Session。" });
+    context.addIssue({ code: "custom", path: ["sourceSessionId"], message: messages.validation.project.outputSessionRequired });
   }
 });
 export type ProjectOutput = z.infer<typeof ProjectOutputSchema>;
@@ -345,10 +346,10 @@ export const ProjectCreateOutputInputSchema = z.object({
   sourceArtifactIndex: z.number().int().nonnegative().optional()
 }).superRefine((output, context) => {
   if (!output.sourceTaskId && (output.sourceSessionId || output.sourceMessageId)) {
-    context.addIssue({ code: "custom", path: ["sourceTaskId"], message: "Output Session/Message 来源必须绑定 Project Task。" });
+    context.addIssue({ code: "custom", path: ["sourceTaskId"], message: messages.validation.project.outputTaskRequired });
   }
   if (output.sourceMessageId && !output.sourceSessionId) {
-    context.addIssue({ code: "custom", path: ["sourceSessionId"], message: "Output Message 来源必须绑定 Session。" });
+    context.addIssue({ code: "custom", path: ["sourceSessionId"], message: messages.validation.project.outputSessionRequired });
   }
 });
 export type ProjectCreateOutputInput = z.input<typeof ProjectCreateOutputInputSchema>;

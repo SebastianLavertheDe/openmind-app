@@ -8,6 +8,7 @@ import {
   OPENMIND_V4_OPTIONAL_TOP_LEVEL as OPENMIND_OPTIONAL_TOP_LEVEL
 } from "../../shared/openmind-layout-v4";
 import { computeRootId, type OpenmindRootSnapshot } from "./openmind-path-resolver";
+import { messages } from "../../shared/messages";
 
 export type RootBinding = {
   rootId: string;
@@ -58,12 +59,12 @@ export class OpenmindLocationService {
     if (!raw) return emptyHealth(this.activeRunCount());
     let root: string;
     try { root = fs.realpathSync(path.resolve(raw)); }
-    catch { return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: ["openmind 根目录不存在或无法解析。"] }; }
+    catch { return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: [messages.desktopErrors.root.unresolved] }; }
 
     let stat: fs.Stats;
     try { stat = fs.statSync(root); }
-    catch { return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: ["openmind 根目录不可访问。"] }; }
-    if (!stat.isDirectory()) return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: ["openmind 根路径不是目录。"] };
+    catch { return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: [messages.desktopErrors.root.inaccessible] }; }
+    if (!stat.isDirectory()) return { ...emptyHealth(this.activeRunCount()), configured: true, warnings: [messages.desktopErrors.root.notDirectory] };
 
     const readable = canAccess(root, fs.constants.R_OK);
     const writable = canAccess(root, fs.constants.W_OK);
@@ -73,9 +74,9 @@ export class OpenmindLocationService {
     const unknownPreservedEntries = [...observed].filter((name) => !known.has(name)).sort();
     const missingCreateIfNeededEntries = OPENMIND_CREATE_IF_NEEDED_TOP_LEVEL.filter((name) => !observed.has(name));
     const conflicts = detectPathConflicts(this.options.paths, root);
-    const warnings = [...conflicts.map((conflict) => `路径冲突：${conflict.kind}`)];
-    if (!readable) warnings.push("openmind 根目录不可读。");
-    if (!writable) warnings.push("openmind 根目录不可写。");
+    const warnings = [...conflicts.map((conflict) => messages.desktopErrors.root.conflict(conflict.kind))];
+    if (!readable) warnings.push(messages.desktopErrors.root.unreadable);
+    if (!writable) warnings.push(messages.desktopErrors.root.unwritable);
     return {
       configured: true,
       rootId: computeRootId(root),
@@ -95,12 +96,12 @@ export class OpenmindLocationService {
 
   bind(candidate: string, current?: RootBinding): RootBinding {
     const root = canonicalDirectory(candidate);
-    if (!root) throw new Error("无法绑定不存在或不可访问的 openmind 根目录。");
+    if (!root) throw new Error(messages.desktopErrors.root.bindUnavailable);
     const health = this.inspect(root);
-    if (!health.readable || !health.writable || health.warnings.some((warning) => warning.startsWith("路径冲突"))) {
-      throw new Error(health.warnings.join("；") || "openmind 根目录不可用。");
+    if (!health.readable || !health.writable || detectPathConflicts(this.options.paths, root).length > 0) {
+      throw new Error(health.warnings.join(messages.desktopErrors.root.warningSeparator) || messages.desktopErrors.root.unavailable);
     }
-    if (this.activeRunCount() > 0) throw new Error("有运行中的任务，暂时不能切换 openmind 根目录。");
+    if (this.activeRunCount() > 0) throw new Error(messages.desktopErrors.root.activeTasks);
     const sameRoot = current?.activeLocation === root;
     return {
       rootId: current?.rootId || computeRootId(root),

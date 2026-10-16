@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { History } from "lucide-react";
@@ -30,6 +31,7 @@ export function AiWorkbench({
    * its own task creation and persistence boundary. */
   onDraftSubmit?: ChatDraftSubmitHandler;
 } = {}) {
+  const locale = useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
   const responsiveLayout = useResponsiveLayout();
   const projectMode = surface.kind === "project-task";
@@ -50,7 +52,7 @@ export function AiWorkbench({
     if (!session) return null;
     const caps = snapshot.providers.find((item) => item.id === session.providerId) ?? null;
     return effectiveModelInfo(session.provider, AUTO_MODEL, caps);
-  }, [activeSession, snapshot.providers]);
+  }, [activeSession, snapshot.providers, locale]);
 
   const toggleHistory = useCallback(() => setHistoryOpen((current) => !current), []);
 
@@ -203,13 +205,14 @@ function displaySessionPath(session: AiSession, fallbackRoot: string): string {
 }
 
 export function AiSessionNavigation() {
+  const locale = useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
   const actions = useAiActions();
   const sessions = useMemo(() => workspaceSessions(snapshot.sessions, true)
     .sort((left, right) => {
       if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
       return right.createdAt.localeCompare(left.createdAt);
-    }), [snapshot.sessions]);
+    }), [snapshot.sessions, locale]);
 
   const onSessionListKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -252,6 +255,7 @@ export function AiSessionNavigation() {
 }
 
 function SessionItem({ session }: { session: AiSession }) {
+  useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
   const actions = useAiActions();
   const active = activeSession?.id === session.id;

@@ -14,6 +14,7 @@ import { FeedbackHost } from "./components/FeedbackHost";
 import { useExitPresence } from "./design-system/use-exit-presence";
 import { FilePreviewProvider, type OpenFilePreviewOptions } from "./features/ai-console/file-preview-context";
 import { applyTheme } from "./theme";
+import { applyLocale, useLocale } from "./i18n";
 
 const WorkspaceFilePreview = lazy(() => import("./components/WorkspaceFilePreview")
   .then((module) => ({ default: module.WorkspaceFilePreview })));
@@ -22,6 +23,7 @@ const NAV_COLLAPSED_KEY = "openmind.nav.collapsed.v1";
 type Bootstrap = RouteBootstrap;
 
 export function App() {
+  useLocale();
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -29,7 +31,10 @@ export function App() {
       setError(m.app.preloadMissing);
       return;
     }
-    void window.openmind.getBootstrap().then(setBootstrap).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    void Promise.all([
+      window.openmind.getBootstrap(),
+      window.openmind.getPreferences().then((preferences) => { applyLocale(preferences); applyTheme(preferences); })
+    ]).then(([next]) => setBootstrap(next)).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
   }, []);
   if (error) return <div className="fatal"><strong>{m.app.fatalTitle}</strong><pre>{error}</pre></div>;
   if (!bootstrap) return <div className="splash"><div className="brand-mark">CC</div><span>{m.app.splashStarting}</span></div>;
@@ -38,6 +43,7 @@ export function App() {
 }
 
 function WorkspaceHost({ bootstrap, setBootstrap, aiStorageScope }: { bootstrap: Bootstrap; setBootstrap(value: Bootstrap): void; aiStorageScope: string }) {
+  useLocale();
   // Route state lives above the keyed AI provider so setup can survive the
   // final AI hydration remount; ordinary scope switches are reset explicitly
   // below instead of relying on an outer component remount.
@@ -75,6 +81,7 @@ function Workspace({
   route: AppRoute;
   setRoute: Dispatch<SetStateAction<AppRoute>>;
 }) {
+  const locale = useLocale();
   const responsiveLayout = useResponsiveLayout();
   // A valid openmind root plus the official cctools-skills repository installed
   // are the actual first-start gate. The checklist remains available during
@@ -228,10 +235,10 @@ function Workspace({
     confirmAction: ui.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, ui.confirm, refreshBootstrap, exitSettings]);
+  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, ui.confirm, refreshBootstrap, exitSettings, locale]);
   const aiSidebarElement = useMemo(
     () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
-    [showAiCompanion, navCollapsed]
+    [showAiCompanion, navCollapsed, locale]
   );
   const recentTasksElement = useMemo(() => <SidebarRecent
     activeSessionId={
@@ -253,7 +260,7 @@ function Workspace({
       void actions.setActiveSession(session.id);
       navigate("ai");
     }}
-  />, [route.page, activeSession?.id, activeSession?.scope.type, actions.setActiveSession, navigate]);
+  />, [route.page, activeSession?.id, activeSession?.scope.type, actions.setActiveSession, navigate, locale]);
   const routeContent = useMemo(() => (
     <>
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
@@ -283,7 +290,7 @@ function Workspace({
         </Suspense>
       ) : null}
     </>
-  ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible]);
+  ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible, locale]);
   return (
     <FilePreviewProvider open={openWorkspaceFile}>
       <AppShell

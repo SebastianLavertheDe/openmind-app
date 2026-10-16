@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Quote } from "lucide-react";
@@ -15,6 +16,7 @@ type SelectionAction = {
 };
 
 export function ContentSelectionQuote({ content, children }: { content: ContentRecord; children: ReactNode }) {
+  const locale = useLocale();
   const actions = useAiActions();
   const ui = useAiUi();
   const surfaceRef = useRef<HTMLDivElement>(null);

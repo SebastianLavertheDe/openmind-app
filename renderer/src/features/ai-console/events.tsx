@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import type { ReactNode } from "react";
 import { Archive, CheckCircle2, CircleX, LoaderCircle, ShieldAlert, Users } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
@@ -6,6 +7,7 @@ import { firstLine } from "./timeline";
 import { ConversationCell } from "./conversation-cell";
 
 export function SystemEvent({ text, icon, danger = false }: { text: string; icon: ReactNode; danger?: boolean }) {
+  useLocale();
   return (
     <ConversationCell
       tone={danger ? "error" : "system"}
@@ -22,6 +24,7 @@ export function SystemEvent({ text, icon, danger = false }: { text: string; icon
 
 /** A quiet process milestone, used only for user-relevant system events. */
 export function ProcessSystemEvent({ event }: { event: AiEvent }) {
+  useLocale();
   const subtype = String(event.payload.subtype || "");
   const semanticType = String(event.payload.semanticType || "");
   const compacted = semanticType === "context_compaction" || ["compact_boundary", "context_compacted"].includes(subtype);
@@ -42,6 +45,7 @@ export function ProcessSystemEvent({ event }: { event: AiEvent }) {
  * component; neither source is presented as a user-authored Todo.
  */
 export function SubtaskTrace({ events, runStatus }: { events: AiEvent[]; runStatus?: RunStatus }) {
+  useLocale();
   if (!events.length) return null;
   const first = events[0];
   const last = events.at(-1) || first;
@@ -145,6 +149,7 @@ function lastNonEmpty(values: string[]): string {
 }
 
 export function ErrorEvent({ event }: { event: AiEvent }) {
+  useLocale();
   const text = String(event.payload.text || m.ai.events.runFailed);
   return (
     <ConversationCell

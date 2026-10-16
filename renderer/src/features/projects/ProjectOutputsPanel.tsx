@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { getLocale, messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Send } from "lucide-react";
@@ -46,6 +48,7 @@ export function ProjectOutputsPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selectedPath, setSelectedPath] = useState(initialOutputPath || "");
@@ -87,7 +90,7 @@ export function ProjectOutputsPanel({
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return outputs.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
-  }, [outputs, query]);
+  }, [outputs, query, locale]);
   const listMotion = useCollectionMotion(filtered.length, 40);
 
   const acceptOutput = useCallback((next: ProjectOutput) => {
@@ -126,9 +129,9 @@ export function ProjectOutputsPanel({
     if (!dirtyRef.current) return true;
     if (await save()) return true;
     const discard = await confirmRef.current({
-      title: "文档保存失败",
-      body: "修改仍未保存。要放弃这些修改并继续吗？",
-      confirmText: "放弃修改",
+      title: messages.projectUi.documentSaveFailed,
+      body: messages.projectUi.discardUnsavedPrompt,
+      confirmText: messages.projectUi.discardChanges,
       danger: true
     });
     if (discard) discardChanges();
@@ -189,7 +192,7 @@ export function ProjectOutputsPanel({
     isDirty: () => dirtyRef.current,
     flush: save,
     discard: discardChanges
-  }), [discardChanges, save]);
+  }), [discardChanges, save, locale]);
   useEffect(() => {
     onNavigationGuardChange?.(navigationGuard);
     return () => onNavigationGuardChange?.(null);
@@ -247,28 +250,28 @@ export function ProjectOutputsPanel({
   const saving = preview.saving || saveState === "saving";
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">Markdown 创作</span><h2>文档</h2></div><button className="icon-button" aria-label="新建文档" onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
-      <SearchInput className="project-local-search" variant="outlined" aria-label="搜索产物" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索产物" />
-      <div className="project-local-count">全部产物 <span>{filtered.length}</span></div>
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><button className="icon-button" aria-label={messages.projectUi.newDocument} onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
+      <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
+      <div className="project-local-count">{messages.projectUi.allOutputs}<span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? "没有匹配的产物" : "还没有产物"} description={outputs.length ? "换一个标题关键词后再试。" : "项目任务完成后，完整生成的文章会自动保存在这里；也可以通过加号新建产物。"} /> : null}
+        {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? messages.projectUi.noMatchingOutputs : messages.projectUi.noOutputs} description={outputs.length ? messages.projectUi.tryAnotherTitle : messages.projectUi.outputsHint} /> : null}
         {filtered.map((item) => <button key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
           if (item.relativePath === selectedPathRef.current && previewResourceRef.current) onSelectionChange?.(item.relativePath);
           else void readOutput(item.relativePath);
-        }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? "来自项目任务 · " : ""}{formatTime(item.updatedAt)}</small></span></button>)}
+        }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? messages.projectUi.fromProjectTask(formatTime(item.updatedAt)) : formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
   );
 
-  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />正在读取文档…</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
+  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />{messages.projectUi.readingDocument}</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
     <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
       <header className="project-output-header">
         <div ref={outputActionsRef} className="project-output-actions">
           <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label="文档查看方式"><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />编辑</button></div>
-          <DropdownMenu className="project-output-menu" label={<MoreHorizontal size={16} />} ariaLabel="成品更多操作" menuLabel="成品操作" restoreFocusOnSelect={false}>
-            <button type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />导出到微信公众号</button>
+          <div className="project-preview-mode" role="group" aria-label={messages.projectUi.documentViewMode}><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />{messages.projectUi.edit}</button></div>
+          <DropdownMenu className="project-output-menu" label={<MoreHorizontal size={16} />} ariaLabel={messages.projectUi.moreOutputActions} menuLabel={messages.projectUi.outputActions} restoreFocusOnSelect={false}>
+            <button type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />{messages.projectUi.exportToWeChat}</button>
           </DropdownMenu>
         </div>
       </header>
@@ -278,13 +281,13 @@ export function ProjectOutputsPanel({
       </div>
     </div>
   ) : (
-    <EmptyState icon={<FileOutput size={30} />} title="选择或新建文档" description="文档会作为 Markdown 文件保存在当前项目中。" action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />新建文档</button>} />
+    <EmptyState icon={<FileOutput size={30} />} title={messages.projectUi.selectOrCreateDocument} description={messages.projectUi.documentsStorageHint} action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />{messages.projectUi.newDocument}</button>} />
   );
 
   const dialogs = (
     <>
-    <ProjectDialog open={createOpen} title="新建文档" description="创建一个保存在当前项目中的 Markdown 文档。" confirmLabel="创建并编辑" busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
-      <ProjectTextField label="文档标题" value={createTitle} placeholder="例如：AI 安全行业分析" autoFocus onChange={setCreateTitle} />
+    <ProjectDialog open={createOpen} title={messages.projectUi.newDocument} description={messages.projectUi.createDocumentHint} confirmLabel={messages.projectUi.createAndEdit} busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
+      <ProjectTextField label={messages.projectUi.documentTitle} value={createTitle} placeholder={messages.projectUi.documentTitlePlaceholder} autoFocus onChange={setCreateTitle} />
     </ProjectDialog>
     {wechatExport ? <WechatExportDialog open={wechatExport.open} projectName={project.name} outputPath={wechatExport.path} title={wechatExport.title} markdown={wechatExport.content}
       onClose={() => setWechatExport(current => current ? { ...current, open: false } : null)}
@@ -302,22 +305,22 @@ export function ProjectOutputsPanel({
   }
   return (
     <>
-      <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel="文档" onBack={() => void closeDetail()} />
+      <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel={messages.projectUi.document} onBack={() => void closeDetail()} />
       {dialogs}
     </>
   );
 }
 
 function saveLabel(state: SaveState, dirty: boolean): string {
-  if (state === "saving") return "保存中";
-  if (state === "saved") return "已保存";
-  if (state === "failed") return "保存失败";
-  return dirty ? "待保存" : "已保存";
+  if (state === "saving") return messages.projectUi.saving;
+  if (state === "saved") return messages.projectUi.saved;
+  if (state === "failed") return messages.projectUi.saveFailed;
+  return dirty ? messages.projectUi.pendingSave : messages.projectUi.saved;
 }
 
 function formatTime(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat(getLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function errorText(cause: unknown): string {

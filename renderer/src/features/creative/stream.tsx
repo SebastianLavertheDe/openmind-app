@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useMemo, useRef } from "react";
 import type { CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -29,6 +30,7 @@ export function FunnelBar({
   active: StreamFilter;
   onSelect(value: StreamFilter): void;
 }) {
+  useLocale();
   return (
     <nav className="creative-funnel" aria-label={m.creativeUi.stream.funnelAria}>
       {BUCKETS.map((bucket) => (
@@ -72,6 +74,7 @@ export function TodayStream({
   onOpenTopicFile(path: string): void;
   onOpenProject(project: CreativeProjectSummary): void;
 }) {
+  const locale = useLocale();
   const listRef = useRef<HTMLDivElement | null>(null);
   const needle = search.trim().toLocaleLowerCase();
   const hasSearch = Boolean(needle);
@@ -102,11 +105,11 @@ export function TodayStream({
         if (a.kind === "project" && b.kind === "project") return String(b.project.updatedAt || "").localeCompare(String(a.project.updatedAt || ""));
         return 0;
       });
-  }, [filter, needle, projects, topics]);
+  }, [filter, needle, projects, topics, locale]);
 
   const sections = useMemo(() => BUCKETS
     .map((bucket) => ({ bucket, items: visible.filter((item) => bucketOfItem(item) === bucket.id) }))
-    .filter((section) => section.items.length), [visible]);
+    .filter((section) => section.items.length), [visible, locale]);
 
   if (!visible.length) {
     return (
@@ -162,6 +165,7 @@ function TopicDateGroups({
   onOpenTopic(topic: CreativeTopic): void;
   onOpenTopicFile(path: string): void;
 }) {
+  useLocale();
   const groups = new Map<string, Array<Extract<StreamItem, { kind: "topic" }>>>();
   for (const item of items) {
     const key = `${topicDate(item.topic)}|${topicLabel(item.topic)}`;
@@ -201,6 +205,7 @@ function StreamCard({
   active: boolean;
   onOpen(): void;
 }) {
+  useLocale();
   if (item.kind === "topic") {
     const { topic } = item;
     const status = `${platformLabel(topic.platform || "") || m.creative.bucket.topic}${topic.score ? m.creativeUi.stream.recommendScore(topic.score) : ""}${topic.projectDir ? m.creativeUi.stream.hasDraft : ""}`;

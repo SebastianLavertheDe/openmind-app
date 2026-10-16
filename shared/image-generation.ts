@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { messages } from "./messages";
 
 export const ImageProviderKindSchema = z.enum(["volcengine", "openai", "google"]);
 export type ImageProviderKind = z.infer<typeof ImageProviderKindSchema>;
@@ -9,19 +10,19 @@ export type ImageProviderKind = z.infer<typeof ImageProviderKindSchema>;
  * https://ai.google.dev/gemini-api/docs/generate-content/image-generation
  */
 export const IMAGE_PROVIDERS = [
-  { id: "volcengine", name: "字节火山", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", models: [
-    { id: "doubao-seedream-5-0-flash-260915", name: "Doubao-Seedream-5.0-flash", description: "快速生成 · 日常创作" },
-    { id: "doubao-seedream-5-0-pro-260628", name: "Doubao-Seedream-5.0-Pro", description: "精细画面 · 专业创作" }
+  { id: "volcengine", get name() { return messages.providerUi.providerNames.volcengine; }, baseUrl: "https://ark.cn-beijing.volces.com/api/v3", models: [
+    { id: "doubao-seedream-5-0-flash-260915", name: "Doubao-Seedream-5.0-flash", get description() { return messages.providerUi.imageModels.seedreamFlash; } },
+    { id: "doubao-seedream-5-0-pro-260628", name: "Doubao-Seedream-5.0-Pro", get description() { return messages.providerUi.imageModels.seedreamPro; } }
   ] },
-  { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", models: [
-    { id: "gpt-image-2.5-sunburst", name: "GPT Image 2.5 Sunburst", description: "细节与编辑精度" },
-    { id: "gpt-image-2.5-flare", name: "GPT Image 2.5 Flare", description: "快速生成 · 高品质" },
-    { id: "gpt-image-2", name: "GPT Image 2", description: "通用图像创作" }
+  { id: "openai", get name() { return messages.providerUi.providerNames.openai; }, baseUrl: "https://api.openai.com/v1", models: [
+    { id: "gpt-image-2.5-sunburst", name: "GPT Image 2.5 Sunburst", get description() { return messages.providerUi.imageModels.imageSunburst; } },
+    { id: "gpt-image-2.5-flare", name: "GPT Image 2.5 Flare", get description() { return messages.providerUi.imageModels.imageFlare; } },
+    { id: "gpt-image-2", name: "GPT Image 2", get description() { return messages.providerUi.imageModels.imageGeneral; } }
   ] },
-  { id: "google", name: "Google", baseUrl: "https://generativelanguage.googleapis.com/v1", models: [
-    { id: "gemini-nano-banana-2.1", name: "Nano Banana 2.1", description: "高效生成 · 图文表达" },
-    { id: "gemini-3.1-flash-image", name: "Nano Banana 2", description: "快速生成 · 多图融合" },
-    { id: "gemini-3-pro-image", name: "Nano Banana Pro", description: "专业设计 · 复杂创作" }
+  { id: "google", get name() { return messages.providerUi.providerNames.google; }, baseUrl: "https://generativelanguage.googleapis.com/v1", models: [
+    { id: "gemini-nano-banana-2.1", name: "Nano Banana 2.1", get description() { return messages.providerUi.imageModels.banana21; } },
+    { id: "gemini-3.1-flash-image", name: "Nano Banana 2", get description() { return messages.providerUi.imageModels.banana2; } },
+    { id: "gemini-3-pro-image", name: "Nano Banana Pro", get description() { return messages.providerUi.imageModels.bananaPro; } }
   ] }
 ] as const;
 
@@ -29,18 +30,18 @@ export const ImageSelectionSchema = z.object({
   providerId: z.string().min(1).max(120).optional(),
   provider: ImageProviderKindSchema,
   model: z.string().min(1).max(160)
-}).strict().refine(value => IMAGE_PROVIDERS.find(provider => provider.id === value.provider)?.models.some(model => model.id === value.model), "图片模型不属于所选服务商。");
+}).strict().refine(value => IMAGE_PROVIDERS.find(provider => provider.id === value.provider)?.models.some(model => model.id === value.model), { error: () => messages.providerUi.validation.imageModelProvider });
 export type ImageSelection = z.infer<typeof ImageSelectionSchema>;
 
 /** Opt-in generation capability on a shared text Provider connection. */
 export const ImageCapabilitySchema = z.object({
   provider: ImageProviderKindSchema,
-  models: z.array(z.string().min(1).max(160)).min(1, "请至少选择一个图片模型。").max(8)
+  models: z.array(z.string().min(1).max(160)).min(1, { error: () => messages.providerUi.validation.imageModelRequired }).max(8)
 }).strict().superRefine((value, context) => {
   const supported = IMAGE_PROVIDERS.find(provider => provider.id === value.provider)!;
-  if (new Set(value.models).size !== value.models.length) context.addIssue({ code: "custom", path: ["models"], message: "图片模型不能重复。" });
+  if (new Set(value.models).size !== value.models.length) context.addIssue({ code: "custom", path: ["models"], message: messages.providerUi.validation.imageModelDuplicate });
   value.models.forEach((model, index) => {
-    if (!supported.models.some(entry => entry.id === model)) context.addIssue({ code: "custom", path: ["models", index], message: "请选择该服务商支持的图片生成模型。" });
+    if (!supported.models.some(entry => entry.id === model)) context.addIssue({ code: "custom", path: ["models", index], message: messages.providerUi.validation.imageModelSupported });
   });
 });
 export type ImageCapability = z.infer<typeof ImageCapabilitySchema>;
@@ -50,7 +51,7 @@ export const ImageProviderInputSchema = z.object({
   baseUrl: z.string().url().max(2048).refine(value => {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash;
-  }, "请输入不含凭据和查询参数的 HTTPS 地址。"),
+  }, { error: () => messages.providerUi.validation.imageBaseUrl }),
   apiKey: z.string().trim().max(2048),
   authMode: z.enum(["bearer", "x-api-key"]).optional(),
   enabled: z.boolean()

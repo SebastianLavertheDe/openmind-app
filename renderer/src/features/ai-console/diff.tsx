@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, Files, FolderOpen } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
@@ -27,7 +28,8 @@ function useStableEventSequence(events: AiEvent[]): AiEvent[] {
 }
 
 export function ChangeTraceCard({ event, run }: { event: AiEvent; run: AiRun }) {
-  const events = useMemo(() => [event], [event]);
+  const locale = useLocale();
+  const events = useMemo(() => [event], [event, locale]);
   return <ChangeCard events={events} run={run} variant="trace" />;
 }
 
@@ -38,15 +40,17 @@ export function ChangeTraceCard({ event, run }: { event: AiEvent; run: AiRun }) 
  * provider event granularity into the conversation.
  */
 export function ChangeReviewCard({ events, run }: { events: AiEvent[]; run: AiRun }) {
+  useLocale();
   if (!events.length && !run.changeSet?.files.length) return null;
   return <ChangeCard events={events} run={run} variant="review" />;
 }
 
 function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; variant: "trace" | "review" }) {
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const openPreview = useFilePreview();
   const stableEvents = useStableEventSequence(events);
-  const files = useMemo(() => changeFiles(run.changeSet, stableEvents), [run.changeSet, stableEvents]);
+  const files = useMemo(() => changeFiles(run.changeSet, stableEvents), [run.changeSet, stableEvents, locale]);
   const fileLabel = files.length ? m.ai.diff.editedFiles(files.length) : m.ai.diff.editedFile;
   if (variant === "review") {
     const visibleFiles = open ? files : files.slice(0, 3);

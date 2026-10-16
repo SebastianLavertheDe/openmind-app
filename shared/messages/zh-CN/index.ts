@@ -5,12 +5,27 @@ import { featureMessages } from "./features";
 import { creativeUiMessages } from "./creative-ui";
 import { aiMessages } from "./ai";
 import { slashMessages } from "./slash";
+import type { TranslationOf } from "../types";
+import { editorMessages } from "./editor";
+import { interfaceMessages } from "./interface";
+import { providerUiMessages } from "./provider-ui";
+import { wechatExportMessages } from "./wechat-export";
+import { desktopErrorMessages } from "./desktop-errors";
+import { validationMessages } from "./validation";
+import { browserPreviewMessages } from "./browser-preview";
 
 const { settings: settingsDefaults, brief: briefBackend, ...electronRest } = electronMessages;
 const { settings: settingsPage, brief: briefPage, ...featureRest } = featureMessages;
 
-/** 当前默认 locale 的全部 UI / 交互文案（不做 i18n 框架，集中维护于此）。 */
+/** Canonical message keys and interpolation signatures for every supported locale. */
 export const zhCN = {
+  ...editorMessages,
+  ...interfaceMessages,
+  ...providerUiMessages,
+  ...wechatExportMessages,
+  ...desktopErrorMessages,
+  ...validationMessages,
+  ...browserPreviewMessages,
   ...coreMessages,
   ...appMessages,
   ...electronRest,
@@ -22,4 +37,4 @@ export const zhCN = {
   slash: slashMessages
 } as const;
 
-export type Messages = typeof zhCN;
+export type Messages = TranslationOf<typeof zhCN>;

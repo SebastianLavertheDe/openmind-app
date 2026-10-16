@@ -1,3 +1,6 @@
+import { getLocale } from "@shared/messages";
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
@@ -17,37 +20,44 @@ const m = messages;
 type SavePreferences = (patch: Partial<UserPreferences>) => Promise<void>;
 
 const THEME_OPTIONS: Array<{ value: UserPreferences["themeMode"]; label: string }> = [
-  { value: "light", label: m.settings.theme.light },
-  { value: "dark", label: m.settings.theme.dark }
+  { value: "light", get label() { return m.settings.theme.light; } },
+  { value: "dark", get label() { return m.settings.theme.dark; } }
 ];
 
 const DENSITY_OPTIONS: Array<{ value: UserPreferences["density"]; label: string }> = [
-  { value: "compact", label: m.settings.density.compact },
-  { value: "default", label: m.settings.density.default },
-  { value: "comfortable", label: m.settings.density.comfortable }
+  { value: "compact", get label() { return m.settings.density.compact; } },
+  { value: "default", get label() { return m.settings.density.default; } },
+  { value: "comfortable", get label() { return m.settings.density.comfortable; } }
 ];
 
 const FONT_SIZE_OPTIONS: Array<{ value: UserPreferences["fontSize"]; label: string }> = [
-  { value: "small", label: m.settings.fontSize.small },
-  { value: "default", label: m.settings.fontSize.default },
-  { value: "large", label: m.settings.fontSize.large }
+  { value: "small", get label() { return m.settings.fontSize.small; } },
+  { value: "default", get label() { return m.settings.fontSize.default; } },
+  { value: "large", get label() { return m.settings.fontSize.large; } }
 ];
 
 const PERMISSION_OPTIONS: Array<{ value: UserPreferences["defaultPermissionProfile"]; label: string }> = [
-  { value: "read-only", label: m.settings.permissions.readOnly },
-  { value: "edit", label: m.settings.permissions.edit },
-  { value: "auto", label: m.settings.permissions.auto }
+  { value: "read-only", get label() { return m.settings.permissions.readOnly; } },
+  { value: "edit", get label() { return m.settings.permissions.edit; } },
+  { value: "auto", get label() { return m.settings.permissions.auto; } }
 ];
 
 const AUTO_SAVE_OPTIONS = [5_000, 15_000, 30_000, 60_000].map((value) => ({
   value: String(value),
-  label: value < 60_000 ? m.settings.duration.seconds(value / 1000) : m.settings.duration.oneMinute
+  get label() { return value < 60_000 ? m.settings.duration.seconds(value / 1000) : m.settings.duration.oneMinute; }
 }));
-const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), label: m.settings.duration.days(value) }));
+const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), get label() { return m.settings.duration.days(value); } }));
 
 export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
+  useLocale();
   return (
     <SettingsPanel title={m.settings.appearance.title} scope={m.settings.scopes.localPreference}>
+      <PreferenceRow title={m.interface.language} description={m.interface.languageHint}>
+        <SegmentedControl value={prefs.uiLanguage} options={[
+          { value: "zh-CN", get label() { return m.interface.chinese; } },
+          { value: "en", get label() { return m.interface.english; } }
+        ]} label={m.interface.language} onChange={(uiLanguage) => void save({ uiLanguage })} />
+      </PreferenceRow>
       <PreferenceRow title={m.settings.appearance.theme} description={m.settings.theme.description}>
         <SegmentedControl value={prefs.themeMode} options={THEME_OPTIONS} label={m.settings.appearance.theme} onChange={(themeMode) => void save({ themeMode })} />
       </PreferenceRow>
@@ -76,6 +86,7 @@ export function ProviderSettingsSection({
   save: SavePreferences;
   onSaveProviderConfiguration(input: ProvidersYamlInput): Promise<void>;
 }) {
+  const locale = useLocale();
   const [installingCli, setInstallingCli] = useState<"claude" | "codex" | null>(null);
   const [installProgress, setInstallProgress] = useState<CliInstallProgress | null>(null);
   const [installError, setInstallError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
@@ -100,7 +111,7 @@ export function ProviderSettingsSection({
 
   const compatibleProviders = useMemo(() => renderedCli && providerConfiguration
     ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(renderedCli, entry.protocol))
-    : [], [providerConfiguration, renderedCli]);
+    : [], [providerConfiguration, renderedCli, locale]);
 
   useEffect(() => window.openmind.onCliInstallProgress?.((progress) => {
     setInstallProgress(progress);
@@ -318,6 +329,7 @@ export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }
   onToggle(enabled: boolean): void;
   onRefresh(): void;
 }) {
+  useLocale();
   const enabled = status?.enabled ?? false;
   const tone = status?.ready ? "success" : status?.phase === "error" ? "danger" : enabled ? "warning" : "neutral";
   const label = busy ? (enabled ? m.settings.pythonRuntime.status.updating : m.settings.pythonRuntime.status.installing) : status?.ready ? m.settings.pythonRuntime.status.available : status?.phase === "error" ? m.settings.pythonRuntime.status.needsAction : enabled ? m.settings.pythonRuntime.status.preparing : m.settings.pythonRuntime.status.disabled;
@@ -366,6 +378,7 @@ export function SkillSettingsSection({
   onOpenDirectory(path: string): void;
   onOpenMcpSettings(): void;
 }) {
+  const locale = useLocale();
   const [catalog, setCatalog] = useState<"skills" | "mcp">(mode || "skills");
   const [query, setQuery] = useState("");
   const [mcpQuery, setMcpQuery] = useState("");
@@ -374,14 +387,14 @@ export function SkillSettingsSection({
   const [expandedMcpId, setExpandedMcpId] = useState<string | null>(null);
   const [animateMcpDetails, setAnimateMcpDetails] = useState(false);
   const disclosureTokens = useMotionTokens();
-  const groups = useMemo(() => Array.from(new Set(skills.map(skillGroup))).sort((left, right) => left.localeCompare(right, "zh-CN")), [skills]);
+  const groups = useMemo(() => Array.from(new Set(skills.map(skillGroup))).sort((left, right) => left.localeCompare(right, getLocale())), [skills, locale]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return skills
       .filter((skill) => group === "all" || skillGroup(skill) === group)
       .filter((skill) => !needle || `${skill.title} ${skill.id} ${skill.description} ${skillGroup(skill)}`.toLocaleLowerCase().includes(needle))
-      .sort((left, right) => skillGroup(left).localeCompare(skillGroup(right), "zh-CN") || left.title.localeCompare(right.title, "zh-CN") || left.id.localeCompare(right.id));
-  }, [group, query, skills]);
+      .sort((left, right) => skillGroup(left).localeCompare(skillGroup(right), getLocale()) || left.title.localeCompare(right.title, getLocale()) || left.id.localeCompare(right.id));
+  }, [group, query, skills, locale]);
   const filteredMcpServers = useMemo(() => {
     const needle = mcpQuery.trim().toLocaleLowerCase();
     if (!needle) return mcpServers;
@@ -391,10 +404,10 @@ export function SkillSettingsSection({
       const tools = server.tools.filter((tool) => `${tool.title} ${tool.id} ${tool.description} ${tool.inputs.join(" ")} ${tool.outputs.join(" ")}`.toLocaleLowerCase().includes(needle));
       return tools.length ? [{ ...server, tools }] : [];
     });
-  }, [mcpQuery, mcpServers]);
+  }, [mcpQuery, mcpServers, locale]);
 
   const groupOptions = [
-    { value: "all", label: m.settings.skills.allGroups },
+    { value: "all", get label() { return m.settings.skills.allGroups; } },
     ...groups.map((value) => ({ value, label: value }))
   ];
 
@@ -415,8 +428,8 @@ export function SkillSettingsSection({
         value={catalog}
         label={m.settings.skills.catalogAria}
         tabs={[
-          { value: "skills" as const, label: m.settings.skills.skillsTab, count: skills.length, icon: <Package size={14} aria-hidden /> },
-          { value: "mcp" as const, label: m.settings.skills.mcpTab, count: mcpServers.length, icon: <Server size={14} aria-hidden /> }
+          { value: "skills" as const, get label() { return m.settings.skills.skillsTab; }, count: skills.length, icon: <Package size={14} aria-hidden /> },
+          { value: "mcp" as const, get label() { return m.settings.skills.mcpTab; }, count: mcpServers.length, icon: <Server size={14} aria-hidden /> }
         ]}
         onChange={setCatalog}
       /> : null}
@@ -576,10 +589,12 @@ export function SkillSettingsSection({
 }
 
 function SkillDetail({ label, value }: { label: string; value: string }) {
+  useLocale();
   return <div><dt>{label}</dt><dd><code title={value}>{value}</code></dd></div>;
 }
 
 export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
+  useLocale();
   return (
     <SettingsPanel title={m.settings.permissions.title} scope={m.settings.scopes.runtimeRules}>
       <PreferenceRow title={m.settings.permissions.defaultLabel} description={m.settings.permissions.defaultDescription}>
@@ -602,6 +617,7 @@ export function BrowserSettingsSection({ status, busy, onInstall, onRefresh, onO
   onRefresh(): void;
   onOpenDocs(): void;
 }) {
+  useLocale();
   return (
     <SettingsPanel title={m.settings.browser.connectionTitle} scope={m.settings.browser.scope} variant="resource">
       <div className="settings-resource-row settings-browser-backend">
@@ -633,6 +649,7 @@ export function BrowserSettingsSection({ status, busy, onInstall, onRefresh, onO
 }
 
 export function PathSettingsSection({ openmind, notes, onSelectOpenmind, onOpenNotes }: { openmind: string; notes: string; onSelectOpenmind(): void; onOpenNotes(): void }) {
+  useLocale();
   return (
     <SettingsPanel title={m.settings.paths.title} scope={m.settings.scopes.localProject}>
       <div className="settings-path-list">
@@ -655,6 +672,7 @@ export function ArchivedSessionsSettingsSection({
   onOpen(sessionId: string): void;
   onRestore(sessionId: string): void;
 }) {
+  useLocale();
   return (
     <SettingsPanel title={m.settings.archivedSessions.title} scope={m.settings.archivedSessions.scope(sessions.length)}>
       <p className="settings-archived-description">{m.settings.archivedSessions.description}</p>
@@ -689,6 +707,7 @@ export function ArchivedSessionsSettingsSection({
 }
 
 export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserPreferences; save: SavePreferences; onReset(): void }) {
+  useLocale();
   return (
     <>
     <SettingsPanel title={m.settings.workflow.panels.stages} scope={m.settings.scopes.contentFlow} action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
@@ -760,6 +779,7 @@ export function AiProvidersSettingsSection({
   notify(message: string, tone?: "info" | "success" | "error"): void;
   initialCategory?: "text" | "image";
 }) {
+  useLocale();
   const [category, setCategory] = useState<"text" | "image">(initialCategory);
   useEffect(() => { setCategory(initialCategory); }, [initialCategory]);
   const [draft, setDraft] = useState<ProviderYamlInputEntry[]>([]);
@@ -872,7 +892,7 @@ export function AiProvidersSettingsSection({
       return false;
     }
     if (nextDraft.some(entry => entry.imageGeneration && !entry.imageGeneration.models.length)) {
-      notify("请至少选择一个图片模型，或关闭图片生成。", "info");
+      notify(uiMessages.interface.selectImageModel, "info");
       return false;
     }
     const providers = nextDraft.map((entry) => ({ ...entry, apiKey: nextApiKeyKeys[entry.id] ?? "" }));
@@ -995,13 +1015,13 @@ export function AiProvidersSettingsSection({
       <SettingsPanel title={m.settings.providerConfig.title} scope={m.settings.providerConfig.count(draft.length)} variant="standard"
         action={<button ref={addTriggerRef} type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
         <p className="settings-note settings-provider-list-note">{m.settings.providerConfig.note}</p>
-        <Tabs<"text" | "image"> value={category} onChange={setCategory} label="Provider 分类" tabs={[
-          { value: "text", label: `文本 Provider (${draft.length})` },
-          { value: "image", label: `图片 Provider (${draft.filter(entry => entry.imageGeneration).length})` }
+        <Tabs<"text" | "image"> value={category} onChange={setCategory} label={uiMessages.interface.providerCategories} tabs={[
+          { value: "text", label: uiMessages.interface.textProviderCount(draft.length) },
+          { value: "image", label: uiMessages.interface.imageProviderCount(draft.filter(entry => entry.imageGeneration).length) }
         ]} />
         <div className="settings-provider-config-list">
           {draft.length === 0 ? <p className="settings-note">{m.settings.providerConfig.empty}</p> : null}
-          {draft.length > 0 && category === "image" && !draft.some(entry => entry.imageGeneration) ? <p className="settings-note">暂无图片 Provider。编辑已有 Provider，开启「支持图片生成」即可在这里复用。</p> : null}
+          {draft.length > 0 && category === "image" && !draft.some(entry => entry.imageGeneration) ? <p className="settings-note">{uiMessages.interface.noImageProviders}</p> : null}
           {draft.filter(entry => category === "text" || entry.imageGeneration).map((entry) => {
             const displayName = entry.name || entry.id;
             const apiKeyDrafted = Boolean((apiKeyKeys[entry.id] ?? "").trim());
@@ -1013,7 +1033,7 @@ export function AiProvidersSettingsSection({
                   <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
                     aria-label={m.settings.providerConfig.editAria(displayName)} onClick={(event) => void openEditDialog(entry, event.currentTarget)} disabled={busy}>
                     <span className="settings-provider-config-identity">
-                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}{entry.imageGeneration ? <StatusBadge tone="neutral">文本 · 图片</StatusBadge> : null}</span>
+                      <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}{entry.imageGeneration ? <StatusBadge tone="neutral">{uiMessages.interface.textAndImages}</StatusBadge> : null}</span>
                       <span className="settings-provider-config-meta"><code>{category === "image" && entry.imageGeneration ? entry.imageGeneration.models.map(id => IMAGE_PROVIDERS.find(provider => provider.id === entry.imageGeneration!.provider)?.models.find(model => model.id === id)?.name || id).join(" · ") : `${entry.protocol} · ${entry.model || m.settings.providerConfig.noModel}`}</code><span data-state={apiKeyState}>{apiKeyStatus}</span></span>
                     </span>
                   </button>
@@ -1146,14 +1166,17 @@ export function AiProvidersSettingsSection({
 }
 
 function SettingsPanel({ title, scope, action, variant = "standard", children }: { title: string; scope: string; action?: ReactNode; variant?: "standard" | "resource" | "mcp"; children: ReactNode }) {
+  useLocale();
   return <section className={`settings-card settings-card--${variant}`} data-entrance-item><header><div className="settings-card-title"><h2>{title}</h2><span>{scope}</span></div>{action}</header><div className="settings-card-body">{children}</div></section>;
 }
 
 function PreferenceRow({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  useLocale();
   return <div className="settings-preference-row"><div className="settings-preference-copy"><strong>{title}</strong><p>{description}</p></div><div className="settings-preference-control">{children}</div></div>;
 }
 
 function PathRow({ label, path, buttonLabel, onClick }: { label: string; path: string; buttonLabel: string; onClick(): void }) {
+  useLocale();
   return <div className="settings-path-card"><small>{label}</small><code>{path || m.settings.paths.unset}</code><button type="button" data-motion="icon" onClick={onClick}><FolderOpen size={13} />{buttonLabel}</button></div>;
 }
 
@@ -1188,7 +1211,7 @@ function providersViewAsInput(view: ProvidersYamlView, cli: CliProviderBindings)
 function formatSessionDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 function skillGroup(skill: SkillDefinition): string {

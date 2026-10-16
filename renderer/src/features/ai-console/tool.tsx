@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
@@ -52,6 +54,7 @@ export const CommandGroup = memo(function CommandGroup({
   runStatus,
   standaloneWhenSingle = false
 }: CommandGroupProps) {
+  const locale = useLocale();
   const callStates = calls.map((call) => ({ call, state: toolCallState(call.events, runStatus) }));
   const commandsOnly = calls.every((call) => {
     const first = call.events[0];
@@ -155,11 +158,12 @@ function VirtualCommandList({ calls, runStatus, expandedKeys, onOpenChange, labe
   onOpenChange(key: string, open: boolean): void;
   label: string;
 }) {
+  const locale = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const pendingFocus = useRef<string | null>(null);
   const pinned = useMemo(() => calls.flatMap((call, index) =>
-    call.key === focusedKey || expandedKeys.has(call.key) ? [index] : []), [calls, expandedKeys, focusedKey]);
+    call.key === focusedKey || expandedKeys.has(call.key) ? [index] : []), [calls, expandedKeys, focusedKey, locale]);
   const virtualizer = useVirtualizer({
     count: calls.length,
     getScrollElement: () => scroller.current,
@@ -254,6 +258,7 @@ export function ToolCallCard({
   open,
   onOpenChange
 }: ToolCallCardProps) {
+  const locale = useLocale();
   const stableEvents = useStableEventSequence(events);
   const derived = useMemo(() => {
     const first = stableEvents[0];
@@ -280,7 +285,7 @@ export function ToolCallCard({
       operation: toolOperationSummary(tool, input),
       category
     };
-  }, [runStatus, stableEvents]);
+  }, [runStatus, stableEvents, locale]);
   const { tool, callState, input, outputs, failureValue, failureText, operation, category } = derived;
   const failed = callState === "failed" || callState === "conflicted";
   const conflicted = callState === "conflicted";
@@ -289,7 +294,7 @@ export function ToolCallCard({
   const running = callState === "running";
   const actionLabel = conflicted ? s.run.conflicted : failed ? t.runFailed : cancelled ? s.cancelled : incomplete ? t.incomplete : running ? t.running : t.ran;
   const imageTool = tool.endsWith("openmind_generate_image");
-  const displayTool = imageTool ? "生成图片" : tool;
+  const displayTool = imageTool ? uiMessages.interface.generateImage : tool;
   const summaryLabel = category === "command" ? operation : displayTool;
   const titleOperation = toolTitleOperation(category, operation, tool);
   const inlineOperation = category === "command" ? "" : titleOperation && titleOperation !== tool ? titleOperation : "";
@@ -365,6 +370,7 @@ export function toolIcon(_tool: string, running: boolean, failed: boolean, cance
 }
 
 function ChunkedText({ lines }: { lines: TerminalLine[] }) {
+  useLocale();
   const [limit, setLimit] = useState(OUTPUT_CHUNK_SIZE);
   const total = terminalTextLength(lines);
   const visibleLines = limitTerminalLines(lines, limit);
@@ -422,6 +428,7 @@ const ToolResultTerminal = memo(function ToolResultTerminal({
   failureValue: unknown;
   failureText: string;
 }) {
+  useLocale();
   const inputRecord = asRecord(input);
   const outputRecords = outputs.map((event) => asRecord(event.payload.output || event.payload));
   const detailFailureText = failureText || (failed && failureValue ? toolValueText(failureValue) : "");
@@ -455,13 +462,14 @@ const ToolResultTerminal = memo(function ToolResultTerminal({
   const exitStatus = exitCode && exitCode !== "0" ? "failed" : "success";
   return (
     <section className="command-terminal">
-      {exitCode ? <small className={`terminal-exit-badge ${exitStatus}`} aria-label={`${t.exitCode} ${exitCode}`}>exit {exitCode}</small> : null}
+      {exitCode ? <small className={`terminal-exit-badge ${exitStatus}`} aria-label={`${t.exitCode} ${exitCode}`}>{m.interface.exitCode(exitCode)}</small> : null}
       <ChunkedText lines={displayLines} />
     </section>
   );
 });
 
 function ReadFileSummary({ path, failed, failureText }: { path: string; failed: boolean; failureText: string }) {
+  useLocale();
   const openPreview = useFilePreview();
   const previewPath = localFileReference(path) || path;
   const name = fileName(previewPath);

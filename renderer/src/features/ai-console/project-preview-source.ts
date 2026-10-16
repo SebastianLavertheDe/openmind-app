@@ -1,3 +1,4 @@
+import { messages as uiMessages } from "@shared/messages";
 import type { FilePreviewSource } from "../file-preview/model";
 import { isBinaryPreviewPath, workspaceFileSource } from "../file-preview/workspace-file-source";
 import { projectMaterialPreviewSource } from "../projects/project-material-preview-source";
@@ -18,7 +19,7 @@ export type ResolvedPreviewSource = {
 export function projectConversationPreviewSource(targetPath: string, projectName: string): FilePreviewSource {
   let delegatePromise: Promise<FilePreviewSource> | null = null;
   const delegate = () => delegatePromise ||= resolveProjectPreviewSource(targetPath, projectName).then((resolved) => {
-    if (!resolved) throw new Error("未能在当前项目中找到该文件；请在项目“文件”页确认文件名。");
+    if (!resolved) throw new Error(uiMessages.interface.projectFileMissing);
     return resolved.source;
   });
   return {
@@ -52,7 +53,7 @@ export async function resolveProjectPreviewSource(targetPath: string, projectNam
   if (material) {
     const logicalPath = `openmind/projects/${projectName}/${material.value}`;
     if (material.original && !/\.pdf$/i.test(material.value)) {
-      return { source: unsupportedPreviewSource(logicalPath, "该资料原件是二进制格式，请在项目“文件”页查看。"), logicalPath };
+      return { source: unsupportedPreviewSource(logicalPath, uiMessages.interface.binaryMaterial), logicalPath };
     }
     return {
       source: projectMaterialPreviewSource(projectName, material.item.relativePath, {
@@ -71,7 +72,7 @@ export async function resolveProjectPreviewSource(targetPath: string, projectNam
     };
   }
   if (isBinaryPreviewPath(relativeTarget)) {
-    return { source: unsupportedPreviewSource(logicalTarget, "该文件是二进制格式，请在项目“文件”页查看。"), logicalPath: logicalTarget };
+    return { source: unsupportedPreviewSource(logicalTarget, uiMessages.interface.binaryProjectFile), logicalPath: logicalTarget };
   }
   // Project metadata and other text files remain readable, but never editable.
   return { source: workspaceFileSource(logicalTarget), logicalPath: logicalTarget };

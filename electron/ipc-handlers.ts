@@ -40,7 +40,7 @@ import { readImagePreview } from "./lib/image-preview";
 import { readChatImage } from "./images/chat-image";
 import { ImageConfigurationStore } from "./images/image-configuration";
 import { ChatImageRequestSchema, ImageSelectionSchema } from "../shared/image-generation";
-import { messages } from "../shared/messages";
+import { messages, setLocale } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import {
@@ -76,16 +76,16 @@ const StringArgSchema = z.string().min(1).max(4096);
 const IdentifierArgSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const OptionalStringArgSchema = z.string().min(1).max(4096).optional();
 const RequestIdSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
-const FileContentSchema = z.string().max(5 * 1024 * 1024, messages.errors.file.tooLarge);
+const FileContentSchema = z.string().max(5 * 1024 * 1024, { error: () => messages.errors.file.tooLarge });
 const XFollowingCurlsSchema = z.array(z.string()
   .trim()
   .min(1)
-  .max(1024 * 1024, messages.errors.file.tooLarge)
-  .refine((value) => /^curl(?:\s|')/i.test(value), messages.skillCenter.xCurl.invalid))
+  .max(1024 * 1024, { error: () => messages.errors.file.tooLarge })
+  .refine((value) => /^curl(?:\s|')/i.test(value), { error: () => messages.skillCenter.xCurl.invalid }))
   .min(1)
-  .max(20, messages.skillCenter.xCurl.tooMany);
+  .max(20, { error: () => messages.skillCenter.xCurl.tooMany });
 const DateArgSchema = z.string().regex(/^\d{4}-?\d{2}-?\d{2}$/).transform((value) => value.replaceAll("-", ""));
-const HttpUrlArgSchema = z.string().url().refine((value) => /^https?:\/\//i.test(value), messages.errors.url.httpOnly);
+const HttpUrlArgSchema = z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.errors.url.httpOnly });
 
 function parseString(value: unknown): string {
   return StringArgSchema.parse(value);
@@ -96,7 +96,7 @@ function parseOptionalString(value: unknown): string | undefined {
 }
 
 function parseCliToolId(value: unknown): "claude" | "codex" {
-  if (value !== "claude" && value !== "codex") throw new Error("CLI 必须是 claude 或 codex。 ");
+  if (value !== "claude" && value !== "codex") throw new Error(messages.desktopErrors.cli.invalidId);
   return value;
 }
 
@@ -108,7 +108,7 @@ function parseOptionalDate(value: unknown): string {
   return value == null || value === "" ? "" : parseDate(value);
 }
 
-async function assertNoActiveTasks(ctx: IpcMainContext, message = "有运行中的任务，暂时不能切换 openmind 根目录。"): Promise<void> {
+async function assertNoActiveTasks(ctx: IpcMainContext, message = messages.desktopErrors.root.activeTasks): Promise<void> {
   const count = await ctx.getActiveRunCount();
   if (count > 0) throw new Error(message);
 }
@@ -119,7 +119,7 @@ async function assertNoActiveProjectTaskRun(
   taskId: string
 ): Promise<void> {
   const count = Number(await ctx.ensureAiWorker().call("active-project-task-count", projectId, taskId)) || 0;
-  if (count > 0) throw new Error("这个 Project Task 仍有运行中的 AI 任务，暂时不能归档。");
+  if (count > 0) throw new Error(messages.desktopErrors.project.taskRunning);
 }
 
 class AsyncSerialGate {
@@ -180,11 +180,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const skillPackages = () => ctx.ensureSkillPackageService();
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
   const sharedPython = () => {
-    if (!ctx.ensureSharedPythonRuntimeService) throw new Error("内置 Python 运行时服务尚未初始化。 ");
+    if (!ctx.ensureSharedPythonRuntimeService) throw new Error(messages.desktopErrors.services.pythonNotReady);
     return ctx.ensureSharedPythonRuntimeService();
   };
   const wechat = () => {
-    if (!ctx.ensureWechatService) throw new Error("微信公众号服务尚未初始化。 ");
+    if (!ctx.ensureWechatService) throw new Error(messages.desktopErrors.services.wechatNotReady);
     return ctx.ensureWechatService();
   };
   // Project run admission and mutations share one gate. The active-run check
@@ -200,8 +200,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.chooseWechatCover,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择公众号文章封面", properties: ["openFile"],
-          filters: [{ name: "JPG / PNG 图片", extensions: ["jpg", "jpeg", "png"] }]
+          title: messages.desktopErrors.dialogs.wechatCover, properties: ["openFile"],
+          filters: [{ name: messages.desktopErrors.dialogs.imageFiles, extensions: ["jpg", "jpeg", "png"] }]
         });
         if (result.canceled || !result.filePaths[0]) return null;
         return wechat().authorizeCover(result.filePaths[0]);
@@ -400,7 +400,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.selectOpenmindRoot,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 OpenMind 私人数据仓库目录",
+          title: messages.desktopErrors.dialogs.openmindRoot,
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
@@ -426,11 +426,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.selectWorkspaceRoot,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 AI/代码工作区目录",
+          title: messages.desktopErrors.dialogs.workspaceRoot,
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
-        await assertNoActiveTasks(ctx, "有运行中的任务，暂时不能切换 AI/代码工作区目录。");
+        await assertNoActiveTasks(ctx, messages.desktopErrors.root.activeWorkspaceTasks);
         const workspaceRoot = settings.setWorkspaceRoot(result.filePaths[0]);
         ctx.restartAiWorker();
         return workspaceRoot;
@@ -447,6 +447,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (patch) => {
         const next = UserPreferencesSchema.parse(settings.updatePreferences(UserPreferencesPatchSchema.parse(patch)));
         ctx.syncWindowTheme(next.themeMode);
+        setLocale(next.uiLanguage);
         return next;
       }
     },
@@ -455,6 +456,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (section) => {
         const next = UserPreferencesSchema.parse(settings.resetPreferences(parseOptionalString(section)));
         ctx.syncWindowTheme(next.themeMode);
+        setLocale(next.uiLanguage);
         return next;
       }
     },
@@ -500,7 +502,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.installCliTool,
       handler: async (cli) => {
         const service = ctx.ensureCliInstallerService?.();
-        if (!service) throw new Error("当前环境不支持一键安装 CLI。 ");
+        if (!service) throw new Error(messages.desktopErrors.cli.installUnsupported);
         return service.install(parseCliToolId(cli));
       }
     },
@@ -508,7 +510,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.upgradeCliTool,
       handler: async (cli) => {
         const service = ctx.ensureCliInstallerService?.();
-        if (!service) throw new Error("当前环境不支持升级 CLI。 ");
+        if (!service) throw new Error(messages.desktopErrors.cli.upgradeUnsupported);
         return service.upgrade(parseCliToolId(cli));
       }
     },
@@ -516,7 +518,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.checkCliToolUpdate,
       handler: async (cli) => {
         const service = ctx.ensureCliInstallerService?.();
-        if (!service) throw new Error("当前环境不支持检查 CLI 版本。 ");
+        if (!service) throw new Error(messages.desktopErrors.cli.versionUnsupported);
         return service.checkForUpdate(parseCliToolId(cli));
       }
     },
@@ -559,17 +561,17 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.selectSkillPackageSource,
       handler: async () => {
         const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-          title: "选择 Skill 目录或 ZIP",
+          title: messages.desktopErrors.dialogs.skillSource,
           properties: ["openFile", "openDirectory"],
-          filters: [{ name: "Skill package", extensions: ["zip"] }]
+          filters: [{ name: messages.desktopErrors.dialogs.skillPackage, extensions: ["zip"] }]
         });
         if (result.canceled || !result.filePaths[0]) return null;
         const locator = result.filePaths[0];
         let stat;
-        try { stat = await fs.stat(locator); } catch { throw new Error("所选 Skill 来源不可读取。 "); }
+        try { stat = await fs.stat(locator); } catch { throw new Error(messages.desktopErrors.skill.sourceUnreadable); }
         if (stat.isDirectory()) return { type: "directory" as const, locator };
         if (stat.isFile() && path.extname(locator).toLocaleLowerCase() === ".zip") return { type: "zip" as const, locator };
-        throw new Error("Skill 来源必须是目录或 .zip 文件。 ");
+        throw new Error(messages.desktopErrors.skill.sourceFormat);
       }
     },
     {
@@ -636,8 +638,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           const projectService = projects();
           const task = projectService.findProjectTaskBySessionId(input.sessionId!);
           if (!task) return ai().call("start", input);
-          if (task.status === "archived") throw new Error("已归档的 Project Task 不能继续创作。");
-          if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不允许在续写时切换。");
+          if (task.status === "archived") throw new Error(messages.desktopErrors.project.taskArchived);
+          if (input.providerId !== task.providerId) throw new Error(messages.desktopErrors.project.providerSwitch);
           const projectRoot = projectService.resolveProjectRoot(task.projectName);
           const contexts = input.contexts.map((context) => {
             if (!context.path) return context;
@@ -687,7 +689,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async (rawInput) => {
         const input = ProjectRenameInputSchema.parse(rawInput);
         return projectAdmission.run(async () => {
-          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能重命名 Project。");
+          await assertNoActiveTasks(ctx, messages.desktopErrors.project.activeRename);
           return projects().renameProject(input.projectName, input.newName);
         });
       }
@@ -705,7 +707,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: async (rawInput) => {
         const input = ProjectArchiveInputSchema.parse(rawInput);
         return projectAdmission.run(async () => {
-          await assertNoActiveTasks(ctx, "有运行中的 AI 任务，暂时不能归档 Project。");
+          await assertNoActiveTasks(ctx, messages.desktopErrors.project.activeArchive);
           return projects().archiveProject(input.projectName, input.archived);
         });
       }
@@ -719,11 +721,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           ? input.filePaths
           : await (async () => {
             const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
-              title: "添加项目资料",
+              title: messages.desktopErrors.dialogs.projectFiles,
               properties: ["openFile", "multiSelections"],
               filters: [
-                { name: "支持的项目资料", extensions: ["md", "markdown", "txt", "pdf", "docx", "pptx", "xlsx"] },
-                { name: "All Files", extensions: ["*"] }
+                { name: messages.desktopErrors.dialogs.supportedProjectFiles, extensions: ["md", "markdown", "txt", "pdf", "docx", "pptx", "xlsx"] },
+                { name: messages.desktopErrors.dialogs.allFiles, extensions: ["*"] }
               ]
             });
             return result.canceled ? [] : result.filePaths;
@@ -854,7 +856,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         return projectAdmission.run(async () => {
           const projectService = projects();
           const task = projectService.getProjectTask(input.projectName, input.taskId);
-          if (task.status === "archived") throw new Error("已归档的 Project Task 不能继续创作。");
+          if (task.status === "archived") throw new Error(messages.desktopErrors.project.taskArchived);
           const projectRoot = projectService.resolveProjectRoot(input.projectName);
           const trustedContexts = input.contexts.map((context) => {
             if (!context.path) return context;
@@ -866,10 +868,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           let trustedInput: Record<string, unknown>;
           if (input.sessionId) {
             if (!task.sessionId || task.sessionId !== input.sessionId) {
-              throw new Error("AI Session 不属于该 Project Task。");
+              throw new Error(messages.desktopErrors.project.sessionMismatch);
             }
             if (input.providerId && input.providerId !== task.providerId) {
-              throw new Error("Project Task Provider 不允许在续写时切换。");
+              throw new Error(messages.desktopErrors.project.providerSwitch);
             }
             trustedInput = {
               sessionId: input.sessionId,
@@ -879,8 +881,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               contexts: trustedContexts
             };
           } else {
-            if (task.sessionId) throw new Error("Project Task 已有 Session，续写必须携带原 Session ID。");
-            if (input.providerId !== task.providerId) throw new Error("Project Task Provider 不一致。");
+            if (task.sessionId) throw new Error(messages.desktopErrors.project.sessionRequired);
+            if (input.providerId !== task.providerId) throw new Error(messages.desktopErrors.project.providerMismatch);
             trustedInput = {
               projectRoot,
               projectId: task.projectId,
@@ -904,7 +906,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
               || result.run.scope.projectId !== task.projectId
               || result.run.scope.projectName !== input.projectName
               || result.run.scope.taskId !== input.taskId) {
-              throw new Error("AI Worker 返回了不匹配的 Project Session。");
+              throw new Error(messages.desktopErrors.project.workerSessionMismatch);
             }
             const bound = projectService.bindProjectTaskSession(
               input.projectName,
@@ -966,7 +968,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const input = ProjectDownloadFileInputSchema.parse(rawInput);
         const source = projects().resolveProjectExportFile(input.projectName, input.kind, input.relativePath);
         const result = await dialog.showSaveDialog(ctx.getMainWindow()!, {
-          title: "下载文件",
+          title: messages.desktopErrors.dialogs.download,
           defaultPath: path.basename(source)
         });
         if (result.canceled || !result.filePath) return { canceled: true, savedPath: null };

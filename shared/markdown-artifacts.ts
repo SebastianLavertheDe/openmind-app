@@ -1,3 +1,4 @@
+import { messages } from "./messages";
 export const MARKDOWN_ARTIFACT_START_FENCE = "~~~~openmind-artifact";
 export const MARKDOWN_ARTIFACT_END_FENCE = "~~~~";
 
@@ -106,7 +107,7 @@ export class ArtifactFenceParser {
         type: "artifact",
         key: `artifact:${this.keyPrefix}:${blockIndex}`,
         artifactType: "markdown",
-        title: extractedTitle || (unnamedCount > 1 ? `未命名产物 ${unnamedIndex}` : "未命名产物"),
+        title: extractedTitle || (unnamedCount > 1 ? messages.validation.artifact.untitledNumbered(unnamedIndex) : messages.validation.artifact.untitled),
         content,
         status: block.status
       });

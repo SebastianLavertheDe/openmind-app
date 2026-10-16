@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { MarkdownReader, type MarkdownReaderLayout } from "./MarkdownReader";
@@ -5,6 +6,7 @@ import { ContentSelectionQuote } from "./ContentSelectionQuote";
 import { DocumentReader } from "./document/DocumentReader";
 
 export function ContentPreview({ content, layout = "article" }: { content: ContentRecord; layout?: MarkdownReaderLayout }) {
+  useLocale();
   const raw = content.content || "";
   const extension = (content.ext || content.extension || content.path || "").toLocaleLowerCase();
   const isHtml = extension.endsWith(".html") || /<html|<!doctype/i.test(raw.slice(0, 500));

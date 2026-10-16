@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { Textarea } from "../../design-system/components";
 import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useIsPresent, usePresence } from "motion/react";
@@ -152,6 +153,7 @@ export type ChatDraftSubmitInput = {
 export type ChatDraftSubmitHandler = (input: ChatDraftSubmitInput) => Promise<void>;
 
 export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmitHandler } = {}) {
+  const locale = useLocale();
   // Slices instead of the full controller: the composer must not re-render on
   // every streamed event flush, only on the snapshot/UI/actions values it renders.
   const { snapshot, activeSession, sessionActiveRun, queuedRuns, pendingContexts, skills } = useAiSnapshot();
@@ -275,7 +277,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       .filter((candidate) => candidate.score >= 0)
       .sort((left, right) => right.score - left.score || left.skill.id.localeCompare(right.skill.id))
       .map((candidate) => candidate.skill);
-  }, [skills, trigger]);
+  }, [skills, trigger, locale]);
   const suggestionCount = trigger?.kind === "mention" ? fileResults.length : trigger?.kind === "command" ? skillResults.length : 0;
   useEffect(() => {
     setActiveSuggestion(0);
@@ -614,6 +616,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
 }
 
 function ComposerSendIcon({ loading }: { loading: boolean }) {
+  useLocale();
   return (
     <span key={loading ? "loading" : "send"} className="composer-send-icon" aria-hidden="true">
       {loading ? <LoaderCircle className="spin" size={16} /> : <ArrowUp size={18} />}
@@ -622,6 +625,7 @@ function ComposerSendIcon({ loading }: { loading: boolean }) {
 }
 
 function ContextTrayPresence({ contexts }: { contexts: ContextReference[] }) {
+  useLocale();
   const { exitMs } = useMotionTokens();
   const open = contexts.length > 0;
   const presence = useExitPresence(open, exitMs);
@@ -633,6 +637,7 @@ function ContextTrayPresence({ contexts }: { contexts: ContextReference[] }) {
 }
 
 const ContextMotionItem = forwardRef<HTMLDivElement, { enabled: boolean; dependency: string; children: ReactNode }>(function ContextMotionItem({ enabled, dependency, children }, ref) {
+  useLocale();
   const [present, safeToRemove] = usePresence();
   const reduced = useMotionPreference();
   const tokens = useMotionTokens();
@@ -648,6 +653,7 @@ const ContextMotionItem = forwardRef<HTMLDivElement, { enabled: boolean; depende
 });
 
 export function ContextTray({ contexts, active = true }: { contexts: ContextReference[]; active?: boolean }) {
+  const locale = useLocale();
   const actions = useAiActions();
   // Budget counts DOM participants, never truncates user data.
   const collectionMotion = useCollectionMotion(contexts.length, 32);
@@ -917,6 +923,7 @@ function ContextReferenceChip({
   onDrop(): void;
   onDragEnd(): void;
 }) {
+  useLocale();
   const actions = useAiActions();
   const [open, setOpen] = useState(false);
   const inCollection = useIsPresent();
@@ -1040,6 +1047,7 @@ function ChipSelect({ className = "", icon, label, value, options, onChange }: {
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

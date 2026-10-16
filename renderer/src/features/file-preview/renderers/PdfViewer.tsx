@@ -1,3 +1,5 @@
+import { useLocale } from "../../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { Input } from "../../../design-system/components";
 import { memo, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus, Search, X } from "lucide-react";
@@ -25,6 +27,7 @@ const PDF_RESIZE_SETTLE_MS = 140;
 export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, onError }: {
   data: Uint8Array; title: string; onError(message: string): void;
 }) {
+  useLocale();
   const host = useRef<HTMLDivElement>(null);
   const controller = useRef<{ viewer: PDFViewer; bus: EventBus } | null>(null);
   const errorRef = useRef(onError);
@@ -190,31 +193,31 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
     fit.current = false;
     viewer.updateScale({ scaleFactor: Math.min(4, Math.max(.25, viewer.currentScale + delta)) / viewer.currentScale, drawingDelay: 120 });
   }
-  return <div className="project-pdf-viewer" role="region" aria-label={`${title} PDF 预览`} tabIndex={0} onKeyDown={event => {
+  return <div className="project-pdf-viewer" role="region" aria-label={uiMessages.interface.pdfPreview(title)} tabIndex={0} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") { event.preventDefault(); event.stopPropagation(); setFindOpen(true); }
   }}>
     <div className="pdf-scroll" ref={host} />
-    {!ready ? <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />正在解析 PDF…</div> : null}
+    {!ready ? <div className="project-pdf-loading"><LoaderCircle className="spin" size={18} />{uiMessages.interface.parsingPdf}</div> : null}
     {findOpen ? <div className="document-findbar">
-      <Input size="sm" autoFocus aria-label="搜索 PDF" value={query} onChange={event => { setQuery(event.target.value); search(event.target.value); }} onKeyDown={event => {
+      <Input size="sm" autoFocus aria-label={uiMessages.interface.searchPdf} value={query} onChange={event => { setQuery(event.target.value); search(event.target.value); }} onKeyDown={event => {
         if (event.key === "Enter") search(query, true, event.shiftKey);
         if (event.key === "Escape") { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }
       }} />
       <span>{matches.current} / {matches.total}</span>
-      <button aria-label="上一个匹配" data-motion="icon" onClick={() => search(query, true, true)}><ChevronLeft size={14} /></button>
-      <button aria-label="下一个匹配" data-motion="icon" onClick={() => search(query, true)}><ChevronRight size={14} /></button>
-      <button aria-label="关闭搜索" data-motion="icon" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }}><X size={14} /></button>
+      <button aria-label={uiMessages.interface.previousMatch} data-motion="icon" onClick={() => search(query, true, true)}><ChevronLeft size={14} /></button>
+      <button aria-label={uiMessages.interface.nextMatch} data-motion="icon" onClick={() => search(query, true)}><ChevronRight size={14} /></button>
+      <button aria-label={uiMessages.interface.closeSearch} data-motion="icon" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }}><X size={14} /></button>
     </div> : null}
     <div className="pdf-toolbar">
-      <button aria-label="搜索 PDF" data-motion="icon" onClick={() => setFindOpen(true)}><Search size={15}/></button>
-      <button aria-label="上一页" data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft size={15}/></button>
-      <Input variant="inline" size="sm" className="pdf-page-input" aria-label="当前页码" value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
+      <button aria-label={uiMessages.interface.searchPdf} data-motion="icon" onClick={() => setFindOpen(true)}><Search size={15}/></button>
+      <button aria-label={uiMessages.interface.previousPage} data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)}><ChevronLeft size={15}/></button>
+      <Input variant="inline" size="sm" className="pdf-page-input" aria-label={uiMessages.interface.currentPage} value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
       <span className="pdf-page-total">/ {pages}</span>
-      <button aria-label="下一页" data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)}><ChevronRight size={15}/></button>
+      <button aria-label={uiMessages.interface.nextPage} data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)}><ChevronRight size={15}/></button>
       <span className="pdf-toolbar-divider"/>
-      <button aria-label="缩小" data-motion="icon" disabled={percent <= 25} onClick={() => zoom(-.1)}><Minus size={15}/></button>
-      <button className="pdf-zoom-label" data-motion="action" title="适应宽度" onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</button>
-      <button aria-label="放大" data-motion="icon" disabled={percent >= 400} onClick={() => zoom(.1)}><Plus size={15}/></button>
+      <button aria-label={uiMessages.interface.zoomOut} data-motion="icon" disabled={percent <= 25} onClick={() => zoom(-.1)}><Minus size={15}/></button>
+      <button className="pdf-zoom-label" data-motion="action" title={uiMessages.interface.fitWidth} onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</button>
+      <button aria-label={uiMessages.interface.zoomIn} data-motion="icon" disabled={percent >= 400} onClick={() => zoom(.1)}><Plus size={15}/></button>
     </div>
   </div>;
 });

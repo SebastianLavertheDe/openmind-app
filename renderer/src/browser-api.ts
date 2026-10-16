@@ -1,3 +1,4 @@
+import { messages } from "@shared/messages";
 import type {
   AiEvent,
   AiSnapshot,
@@ -135,6 +136,7 @@ export function installBrowserPreviewApi(): boolean {
     openmindRoot: previewOpenmindRoot,
     workspaceRoot: snapshot.projectRoot,
     themeMode: "light" as const,
+    uiLanguage: "zh-CN" as const,
     density: "default" as const,
     fontSize: "default" as const,
     autoSaveIntervalMs: 30000,
@@ -338,7 +340,7 @@ export function installBrowserPreviewApi(): boolean {
   }];
   const previewProjectDetail = (name: string): ProjectDetail => {
     const current = previewProjects.find((project) => project.name === name);
-    if (!current) throw new Error("项目不存在");
+    if (!current) throw new Error(messages.browserPreview.projectMissing);
     const project: ProjectSummary = {
       ...current,
       materialCount: previewProjectMaterials.filter((item) => item.projectName === name).length,
@@ -383,18 +385,18 @@ export function installBrowserPreviewApi(): boolean {
       { path: "openmind/article/demo.md", name: "工程级 AI 工作台设计.md", kind: "articles" },
       { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
-    readImagePreview: async () => { throw new Error("浏览器预览模式无法读取本地图片，请在桌面应用中打开。"); },
-    readChatImage: async () => { throw new Error("请在桌面应用中预览会话图片。"); },
+    readImagePreview: async () => { throw new Error(messages.browserPreview.localImageUnavailable); },
+    readChatImage: async () => { throw new Error(messages.browserPreview.chatImageUnavailable); },
     getImageConfiguration: async () => ({ defaultSelection: null, providers: [] }),
-    selectImageModel: async () => { throw new Error("请在桌面应用中选择图片模型。"); },
+    selectImageModel: async () => { throw new Error(messages.browserPreview.imageModelUnavailable); },
     getWechatAccount: async () => ({ appId: "", author: "", configured: false }),
-    saveWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中配置微信公众号，浏览器预览不会保存 AppSecret。"); },
-    disconnectWechatAccount: async () => { throw new Error("请在 OpenMind 桌面版中管理微信公众号配置。"); },
-    chooseWechatCover: async () => { throw new Error("请在 OpenMind 桌面版中选择公众号封面。"); },
-    pushWechatDraft: async () => { throw new Error("请在 OpenMind 桌面版中发送到微信公众号草稿箱。"); },
+    saveWechatAccount: async () => { throw new Error(messages.browserPreview.wechatSaveUnavailable); },
+    disconnectWechatAccount: async () => { throw new Error(messages.browserPreview.wechatManageUnavailable); },
+    chooseWechatCover: async () => { throw new Error(messages.browserPreview.wechatCoverUnavailable); },
+    pushWechatDraft: async () => { throw new Error(messages.browserPreview.wechatDraftUnavailable); },
     copyWechatArticle: async ({ html, text }) => {
       if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined" || ClipboardItem.supports?.("text/html") === false) {
-        throw new Error("当前浏览器不支持复制富文本，请在 OpenMind 桌面版中复制公众号排版。");
+        throw new Error(messages.browserPreview.richClipboardUnavailable);
       }
       await navigator.clipboard.write([new ClipboardItem({
         "text/html": new Blob([html], { type: "text/html" }),
@@ -418,7 +420,7 @@ export function installBrowserPreviewApi(): boolean {
     listSources: async () => previewSources,
     updateSource: async (id, patch) => {
       const current = previewSources.find((source) => source.id === id);
-      if (!current) throw new Error("数据源不存在");
+      if (!current) throw new Error(messages.browserPreview.sourceMissing);
       const updated: SourceDefinition = {
         ...current,
         ...patch,
@@ -437,7 +439,7 @@ export function installBrowserPreviewApi(): boolean {
     importOpml: async () => 2,
     listProjects: async () => previewProjects.map((project) => previewProjectDetail(project.name).project),
     createProject: async (input) => {
-      if (previewProjects.some((project) => project.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) throw new Error("项目名已存在");
+      if (previewProjects.some((project) => project.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) throw new Error(messages.browserPreview.projectNameExists);
       const now = new Date().toISOString();
       const project: ProjectSummary = { schemaVersion: 2, id: crypto.randomUUID(), name: input.name, description: input.description || "", status: "active", icon: "database", color: "neutral", favorite: false, materialCount: 0, taskCount: 0, outputCount: 0, createdAt: now, updatedAt: now };
       previewProjects = [project, ...previewProjects];
@@ -485,7 +487,7 @@ export function installBrowserPreviewApi(): boolean {
     },
     retryMaterialExtraction: async ({ projectName, relativePath }) => {
       const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
-      if (!current) throw new Error("资料不存在");
+      if (!current) throw new Error(messages.browserPreview.materialMissing);
       const material = { ...current, status: "ready" as const, errorCode: null, errorMessage: null, updatedAt: new Date().toISOString() };
       previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
       return material;
@@ -499,14 +501,14 @@ export function installBrowserPreviewApi(): boolean {
     },
     renameProjectMaterial: async ({ projectName, relativePath, newTitle }) => {
       const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
-      if (!current) throw new Error("资料不存在");
+      if (!current) throw new Error(messages.browserPreview.materialMissing);
       const material: ProjectMaterial = { ...current, title: newTitle, updatedAt: new Date().toISOString() };
       previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
       return material;
     },
     moveProjectMaterial: async ({ projectName, relativePath, targetProjectName }) => {
       const current = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
-      if (!current) throw new Error("资料不存在");
+      if (!current) throw new Error(messages.browserPreview.materialMissing);
       const material: ProjectMaterial = { ...current, projectName: targetProjectName, updatedAt: new Date().toISOString() };
       previewProjectMaterials = previewProjectMaterials.map((item) => item === current ? material : item);
       previewProjectDetail(projectName);
@@ -515,11 +517,11 @@ export function installBrowserPreviewApi(): boolean {
     },
     readProjectMaterial: async ({ projectName, relativePath }) => {
       const material = previewProjectMaterials.find((item) => item.projectName === projectName && item.relativePath === relativePath);
-      if (!material) throw new Error("资料不存在");
+      if (!material) throw new Error(messages.browserPreview.materialMissing);
       return { material, content: previewProjectMaterialContent.get(relativePath) || "", truncated: false, ...(material.kind === "video" ? { video: previewProjectVideo } : {}) };
     },
     readProjectMaterialOriginal: async () => {
-      throw new Error("预览环境没有保留的 PDF 原件，请使用桌面版查看。");
+      throw new Error(messages.browserPreview.originalPdfUnavailable);
     },
     listProjectMaterials: async (projectName) => previewProjectMaterials.filter((item) => item.projectName === projectName),
     createProjectTask: async ({ projectName, title, providerId }) => {
@@ -533,26 +535,26 @@ export function installBrowserPreviewApi(): boolean {
     listProjectTasks: async (projectName) => previewProjectTasks.filter((task) => task.projectName === projectName && task.status !== "archived"),
     listProjectTaskMessages: async ({ projectName, taskId }) => {
       const task = previewProjectTasks.find((item) => item.projectName === projectName && item.taskId === taskId);
-      if (!task) throw new Error("任务不存在");
+      if (!task) throw new Error(messages.browserPreview.taskMissing);
       return [] as ProjectTaskMessage[];
     },
     renameProjectTask: async ({ projectName, taskId, title }) => {
       const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
-      if (!current) throw new Error("任务不存在");
+      if (!current) throw new Error(messages.browserPreview.taskMissing);
       const task: ProjectTask = { ...current, title, updatedAt: new Date().toISOString() };
       previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
       return task;
     },
     archiveProjectTask: async ({ projectName, taskId }) => {
       const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
-      if (!current) throw new Error("任务不存在");
+      if (!current) throw new Error(messages.browserPreview.taskMissing);
       const task: ProjectTask = { ...current, status: "archived", updatedAt: new Date().toISOString() };
       previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
       return task;
     },
     projectStartTaskRun: async ({ projectName, taskId }) => {
       const current = previewProjectTasks.find((task) => task.projectName === projectName && task.taskId === taskId);
-      if (!current) throw new Error("任务不存在");
+      if (!current) throw new Error(messages.browserPreview.taskMissing);
       const task = { ...current, sessionId: "preview-session", updatedAt: new Date().toISOString() };
       previewProjectTasks = previewProjectTasks.map((item) => item.taskId === taskId ? task : item);
       return { task, session: snapshot.sessions[0], run: snapshot.runs[0] };
@@ -569,12 +571,12 @@ export function installBrowserPreviewApi(): boolean {
     },
     readProjectOutput: async ({ projectName, relativePath }) => {
       const result = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
-      if (!result) throw new Error("成品不存在");
+      if (!result) throw new Error(messages.browserPreview.outputMissing);
       return result;
     },
     saveProjectOutput: async ({ projectName, relativePath, title, content }) => {
       const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
-      if (!current) throw new Error("成品不存在");
+      if (!current) throw new Error(messages.browserPreview.outputMissing);
       const result = { output: { ...current.output, title: title || current.output.title, updatedAt: new Date().toISOString() }, content };
       previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
       return result;
@@ -587,14 +589,14 @@ export function installBrowserPreviewApi(): boolean {
     },
     renameProjectOutput: async ({ projectName, relativePath, newTitle }) => {
       const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
-      if (!current) throw new Error("成品不存在");
+      if (!current) throw new Error(messages.browserPreview.outputMissing);
       const result = { output: { ...current.output, title: newTitle, updatedAt: new Date().toISOString() }, content: current.content };
       previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
       return result;
     },
     moveProjectOutput: async ({ projectName, relativePath, targetProjectName }) => {
       const current = previewProjectOutputs.find((entry) => entry.output.projectName === projectName && entry.output.relativePath === relativePath);
-      if (!current) throw new Error("成品不存在");
+      if (!current) throw new Error(messages.browserPreview.outputMissing);
       const result = { output: { ...current.output, projectName: targetProjectName, sourceTaskId: null, sourceSessionId: null, sourceMessageId: null, updatedAt: new Date().toISOString() }, content: current.content };
       previewProjectOutputs = previewProjectOutputs.map((entry) => entry === current ? result : entry);
       previewProjectDetail(projectName);
@@ -704,8 +706,8 @@ export function installBrowserPreviewApi(): boolean {
     getOnboardingState: async () => onboardingState,
     updateOnboardingState: async (patch) => { onboardingState = { ...onboardingState, ...patch }; return onboardingState; },
     resetPreferences: async () => { preferences = { ...preferences, themeMode: "light", density: "default", fontSize: "default" }; return preferences; },
-    getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "预览模式不连接浏览器。" }),
-    installBrowserSkill: async () => { throw new Error("浏览器预览不支持安装 BrowserSkill。 "); },
+    getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: messages.browserPreview.browserDisconnected }),
+    installBrowserSkill: async () => { throw new Error(messages.browserPreview.browserSkillInstallUnavailable); },
     getMcpServers: async () => [],
     getProviders: async (): Promise<ProvidersYamlView> => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
     getProviderApiKey: async (): Promise<string> => "",
@@ -714,11 +716,11 @@ export function installBrowserPreviewApi(): boolean {
     setSharedPythonRuntimeEnabled: async (enabled) => ({ enabled, phase: enabled ? "ready" : "disabled", target: "windows-x64", pythonVersion: enabled ? "3.12.10" : null, uvVersion: enabled ? "0.8.15" : null, managedSkills: enabled ? 3 : 0, ready: enabled, lastError: null }),
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
-    installCliTool: async () => { throw new Error("浏览器预览不支持一键安装 CLI。 "); },
-    upgradeCliTool: async () => { throw new Error("浏览器预览不支持升级 CLI。 "); },
+    installCliTool: async () => { throw new Error(messages.browserPreview.cliInstallUnavailable); },
+    upgradeCliTool: async () => { throw new Error(messages.browserPreview.cliUpgradeUnavailable); },
     checkCliToolUpdate: async (cli) => ({ cli, installed: false, currentVersion: null, latestVersion: null, updateAvailable: false, canUpgrade: false, checkedAt: new Date().toISOString(), source: "unknown" }),
     cancelCliToolInstall: async () => false,
-    openCliLogin: async () => { throw new Error("浏览器预览不支持打开终端登录。 "); },
+    openCliLogin: async () => { throw new Error(messages.browserPreview.cliLoginUnavailable); },
     aiRefreshSkills: async () => skills,
     inspectInstalledSkill: async (key) => previewSkillInspections.get(previewInstalledSkills.find((skill) => skill.key === key)?.id || "") || null,
     listInstalledSkills: async () => previewInstalledSkills,
@@ -726,33 +728,33 @@ export function installBrowserPreviewApi(): boolean {
     listInstalledRunnableSkills: async () => [],
     setInstalledSkillEnabled: async (key, digest, enabled) => {
       const current = previewInstalledSkills.find((skill) => skill.key === key && skill.digest === digest);
-      if (!current) throw new Error("Skill 不存在");
+      if (!current) throw new Error(messages.browserPreview.skillMissing);
       const updated = { ...current, enabled };
       previewInstalledSkills = previewInstalledSkills.map((skill) => skill.key === key ? updated : skill);
       return updated;
     },
     listSkillRuns: async () => [],
-    getSkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
+    getSkillRun: async () => { throw new Error(messages.browserPreview.skillRunUnavailable); },
     getSkillRunEvents: async () => [],
     listRunArtifacts: async () => [],
-    retrySkillRun: async () => { throw new Error("浏览器预览不执行真实 Skill Run。 "); },
-    retryWorkflowStep: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    retrySkillRun: async () => { throw new Error(messages.browserPreview.skillRunUnavailable); },
+    retryWorkflowStep: async () => { throw new Error(messages.browserPreview.workflowUnavailable); },
     deleteRunHistory: async () => false,
     cancelSkillRun: async () => false,
     listWorkflowRuns: async () => [],
-    getWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
-    resumeWorkflowRun: async () => { throw new Error("浏览器预览不执行真实 Workflow。 "); },
+    getWorkflowRun: async () => { throw new Error(messages.browserPreview.workflowUnavailable); },
+    resumeWorkflowRun: async () => { throw new Error(messages.browserPreview.workflowUnavailable); },
     cancelWorkflowRun: async () => false,
     listAutomationRules: async () => previewAutomationRules,
-    saveAutomationRule: async () => { throw new Error("浏览器预览不管理 Automation Rule。 "); },
+    saveAutomationRule: async () => { throw new Error(messages.browserPreview.automationRuleUnavailable); },
     deleteAutomationRule: async () => false,
-    runAutomationNow: async () => { throw new Error("浏览器预览不执行真实 Automation。 "); },
+    runAutomationNow: async () => { throw new Error(messages.browserPreview.automationRunUnavailable); },
     listAutomationRuns: async () => [],
     listAutomationSchedules: async () => [],
     aiPrewarm: async () => true,
-    aiStartRun: async () => { throw new Error("浏览器预览不执行真实 AI 任务。"); },
+    aiStartRun: async () => { throw new Error(messages.browserPreview.aiRunUnavailable); },
     aiCancelRun: async () => true,
-    aiUpdateSession: async () => { throw new Error("预览模式没有会话。"); },
+    aiUpdateSession: async () => { throw new Error(messages.browserPreview.sessionUnavailable); },
     aiGetEvents: async () => previewEvents,
     aiResolveApproval: async () => true,
     onAiEvent: (callback) => { listeners.add(callback as never); return () => listeners.delete(callback as never); },

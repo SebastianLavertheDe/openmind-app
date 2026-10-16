@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages as uiMessages } from "@shared/messages";
 import { Input } from "../../design-system/components";
 import { Fragment, createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import type { Element } from "hast";
@@ -19,10 +21,11 @@ export function useDocumentCodeText(node?: Element): string | undefined {
 }
 
 export function ReaderImage({ src, alt }: ComponentProps<"img">) {
+  useLocale();
   const value = typeof src === "string" ? src.trim() : "";
   return /^data:image\/(?:png|gif|jpe?g|webp|avif);base64,/i.test(value)
     ? <img src={value} alt={alt || ""}/>
-    : value ? <a href={value} target="_blank" rel="noreferrer">{alt || "远程图片（未自动加载）"}</a> : <span>{alt || "图片"}</span>;
+    : value ? <a href={value} target="_blank" rel="noreferrer">{alt || uiMessages.interface.remoteImage}</a> : <span>{alt || uiMessages.interface.image}</span>;
 }
 const components: ReaderComponents = {
   a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer"/>,
@@ -38,6 +41,7 @@ const BlockView = memo(function BlockView({ block, custom }: { block: DocumentBl
 export const DocumentReader = memo(function DocumentReader({ content, className = "", math = false, plain = false, customComponents }: {
   content: string; className?: string; math?: boolean; plain?: boolean; customComponents?: ReaderComponents;
 }) {
+  const locale = useLocale();
   const { document: model, error, find } = useReadingDocument(content, math, plain);
   const blocks = model?.blocks || emptyBlocks;
   const root = useRef<HTMLElement>(null);
@@ -137,7 +141,7 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
     }}>
     {findOpen ? <div className="document-reader-tools">
       <div className="document-findbar">
-        <Input size="sm" autoFocus aria-label="搜索文档内容" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+        <Input size="sm" autoFocus aria-label={uiMessages.interface.searchDocument} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
           if (event.key === "Escape") { event.stopPropagation(); setFindOpen(false); root.current?.focus(); }
           if (event.key === "Enter" && matches.length) {
             const next = (matchIndex + (event.shiftKey ? -1 : 1) + matches.length) % matches.length;
@@ -145,12 +149,12 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
           }
         }}/>
         <span>{matches.length ? matchIndex + 1 : 0} / {matches.length}</span>
-        <button aria-label="上一个匹配" data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
-        <button aria-label="下一个匹配" data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
-        <button aria-label="关闭搜索" data-motion="icon" onClick={() => setFindOpen(false)}><X size={14}/></button>
+        <button aria-label={uiMessages.interface.previousMatch} data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
+        <button aria-label={uiMessages.interface.nextMatch} data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
+        <button aria-label={uiMessages.interface.closeSearch} data-motion="icon" onClick={() => setFindOpen(false)}><X size={14}/></button>
       </div>
     </div> : null}
-    {error ? <p role="alert">{error}</p> : !model ? <p role="status">正在打开文档…</p> : null}
+    {error ? <p role="alert">{error}</p> : !model ? <p role="status">{uiMessages.interface.openingDocument}</p> : null}
     <CodeTextContext.Provider value={model?.code || emptyCode}>
     <div ref={flow.ref} className={`document-flow${flow.enabled ? " is-virtual" : ""}`} style={flow.enabled ? { height: flow.virtualizer.getTotalSize() } : undefined}>
       {visible.map(item => <div key={item.key} data-index={item.index} data-document-block={item.index}

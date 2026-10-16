@@ -1,3 +1,4 @@
+import { messages as uiMessages } from "@shared/messages";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -90,7 +91,7 @@ function safeTree(node: RootContent): void {
   }
   if (node.tagName === "img" && !/^data:image\/(png|gif|jpe?g|webp|avif);base64,/i.test(String(node.properties.src || ""))) {
     const src = node.properties.src;
-    const label = String(node.properties.alt || (src ? "远程图片（未自动加载）" : "图片"));
+    const label = String(node.properties.alt || (src ? uiMessages.interface.remoteImage : uiMessages.interface.image));
     // Model the safe link's actual text, so image labels do not shift selection
     // offsets for all subsequent text in the same paragraph.
     node.tagName = src ? "a" : "span";

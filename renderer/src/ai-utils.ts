@@ -1,3 +1,4 @@
+import { getLocale } from "@shared/messages";
 import type { AiEvent, AiRun, AiSession, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 
@@ -207,7 +208,7 @@ export function sessionStatusLabel(status: AiSession["status"] | string): string
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return m.ai.common.notRecorded;
-  return new Date(value).toLocaleString("zh-CN", {
+  return new Date(value).toLocaleString(getLocale(), {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

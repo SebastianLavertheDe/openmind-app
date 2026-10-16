@@ -1,7 +1,8 @@
+import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
-import { messages } from "@shared/messages";
+import { getLocale, messages } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
@@ -37,6 +38,7 @@ export function ProjectTasksPanel({
   listHost?: HTMLElement | null;
   detailHost?: HTMLElement | null;
 }) {
+  const locale = useLocale();
   const ai = useAiSnapshot();
   const ui = useAiUi();
   const actions = useAiActions();
@@ -71,12 +73,12 @@ export function ProjectTasksPanel({
         && isTerminalProjectTaskRunStatus(run.status);
     })
     .map((run) => run.id)
-    .sort(), [ai.snapshot.runs, ai.snapshot.sessions, project.id]);
+    .sort(), [ai.snapshot.runs, ai.snapshot.sessions, project.id, locale]);
   const terminalProjectRunSignature = terminalProjectRunIds.join("|");
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return tasks.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
-  }, [query, tasks]);
+  }, [query, tasks, locale]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,9 +166,9 @@ export function ProjectTasksPanel({
       onChanged();
       if (updated.sessionId && ai.snapshot.sessions.some((session) => session.id === updated.sessionId)) {
         try { await actions.updateSession(updated.sessionId, { title: updated.title }); }
-        catch { ui.notify("任务已重命名，但会话标题暂未同步。", "error"); }
+        catch { ui.notify(messages.projectUi.taskSessionRenameFailed, "error"); }
       }
-      ui.notify(`任务已重命名为“${updated.title}”。`, "success");
+      ui.notify(messages.projectUi.taskRenamed(updated.title), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -176,9 +178,9 @@ export function ProjectTasksPanel({
 
   const removeTask = async (task: ProjectTask) => {
     const confirmed = await ui.confirm({
-      title: "删除任务",
-      body: `确定删除“${task.title}”吗？任务将从列表中移除。`,
-      confirmText: "删除",
+      title: messages.projectUi.deleteTask,
+      body: messages.projectUi.deleteTaskPrompt(task.title),
+      confirmText: messages.projectUi.delete,
       danger: true
     });
     if (!confirmed) return;
@@ -190,7 +192,7 @@ export function ProjectTasksPanel({
         setSelectedId("");
       }
       onChanged();
-      ui.notify("任务已删除。", "success");
+      ui.notify(messages.projectUi.taskDeleted, "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     }
@@ -317,11 +319,11 @@ export function ProjectTasksPanel({
   const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">项目任务</span><h2>任务</h2></div><button className="icon-button" aria-label="新建任务" onClick={newTask}><Plus size={16} /></button></header> : null}
-      <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="你的任务" />
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectTasks}</span><h2>{messages.projectUi.tasks}</h2></div><button className="icon-button" aria-label={messages.projectUi.newTask} onClick={newTask}><Plus size={16} /></button></header> : null}
+      <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label={messages.projectUi.searchTasks} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.yourTasks} />
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? "没有匹配的任务" : "还没有任务"} description={tasks.length ? "换一个标题关键词后再试。" : "新建任务，让 AI 在当前项目资料中搜索和创作。"} /> : null}
+        {!loading && !error && !filtered.length ? <EmptyState title={tasks.length ? messages.projectUi.noMatchingTasks : messages.projectUi.noTasks} description={tasks.length ? messages.projectUi.tryAnotherTitle : messages.projectUi.tasksHint} /> : null}
         {filtered.map((item, index) => {
           const active = item.taskId === selectedId && !creating;
           return (
@@ -334,12 +336,12 @@ export function ProjectTasksPanel({
               <DropdownMenu
                 className="project-task-more"
                 menuClassName="project-task-menu"
-                ariaLabel={`任务操作：${item.title}`}
-                menuLabel={`${item.title}的任务操作`}
+                ariaLabel={messages.projectUi.taskActions(item.title)}
+                menuLabel={messages.projectUi.taskActionsMenu(item.title)}
                 label={<MoreHorizontal size={16} aria-hidden="true" />}
               >
-                <button type="button" role="menuitem" data-motion="action" onClick={() => beginRenameTask(item)}><Pencil size={15} aria-hidden="true" />重命名</button>
-                <button type="button" role="menuitem" data-motion="action" className="danger" onClick={() => void removeTask(item)}><Trash2 size={15} aria-hidden="true" />删除</button>
+                <button type="button" role="menuitem" data-motion="action" onClick={() => beginRenameTask(item)}><Pencil size={15} aria-hidden="true" />{messages.projectUi.rename}</button>
+                <button type="button" role="menuitem" data-motion="action" className="danger" onClick={() => void removeTask(item)}><Trash2 size={15} aria-hidden="true" />{messages.projectUi.delete}</button>
               </DropdownMenu>
             </div>
           );
@@ -348,8 +350,8 @@ export function ProjectTasksPanel({
     </>
   );
 
-  const renameDialog = <ProjectDialog open={Boolean(renameTarget)} title="重命名任务" confirmLabel="保存" busy={taskActionBusy} onClose={() => setRenameTarget(null)} onConfirm={renameTask}>
-    <ProjectTextField label="任务名称" value={renameTitle} autoFocus onChange={setRenameTitle} />
+  const renameDialog = <ProjectDialog open={Boolean(renameTarget)} title={messages.projectUi.renameTask} confirmLabel={messages.projectUi.save} busy={taskActionBusy} onClose={() => setRenameTarget(null)} onConfirm={renameTask}>
+    <ProjectTextField label={messages.projectUi.taskName} value={renameTitle} autoFocus onChange={setRenameTitle} />
   </ProjectDialog>;
 
   const starter = <TaskStarter
@@ -375,7 +377,7 @@ export function ProjectTasksPanel({
     </div>
   ) : selected?.sessionId ? (
     <div className="project-task-session">
-      {activeProjectSession ? <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={continueFromWorkbench} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />正在打开项目任务…</div> : <ErrorState message={error || "会话不属于当前项目任务，已阻止显示。"} retry={() => setActivationNonce((value) => value + 1)} />}
+      {activeProjectSession ? <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={continueFromWorkbench} /> : activatingSession ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />{messages.projectUi.openingProjectTask}</div> : <ErrorState message={error || messages.projectUi.taskSessionMismatch} retry={() => setActivationNonce((value) => value + 1)} />}
     </div>
   ) : error ? <ErrorState message={error} retry={() => void load()} /> : (
     projectDraftWorkbench
@@ -390,7 +392,7 @@ export function ProjectTasksPanel({
       </>
     );
   }
-  return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel="任务" onBack={() => { setCreating(false); setSelectedId(""); }} />{renameDialog}</>;
+  return <><ProjectListDetail storageKey={`openmind:projects:tasks-layout:${project.name}`} detailOpen={creating || Boolean(selected)} list={list} detail={detail} detailLabel={messages.projectUi.tasks} onBack={() => { setCreating(false); setSelectedId(""); }} />{renameDialog}</>;
 }
 
 function TaskStarter({ project, title, prompt, providerId, providerLocked, providers, sending, error, onTitle, onPrompt, onProvider, onStart }: {
@@ -407,15 +409,16 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
   onProvider(value: string): void;
   onStart(): void;
 }) {
+  useLocale();
   return (
     <div className="project-task-starter">
-      <div className="project-task-starter-copy"><span className="project-starter-icon"><Sparkles size={22} /></span><h2>基于“{project.name}”开始创作</h2><p>AI 可以在 <code>materials/</code> 中自行搜索和按需读取资料，不会把全部资料一次性塞进输入。</p></div>
+      <div className="project-task-starter-copy"><span className="project-starter-icon"><Sparkles size={22} /></span><h2>{messages.projectUi.taskStarterTitle(project.name)}</h2><p>{messages.projectUi.taskContextHint("materials/")}</p></div>
       <div className="project-task-compose-card">
-        <label><span>任务标题（可选）</span><Input variant="inline" value={title} onChange={(event) => onTitle(event.target.value)} placeholder="根据首条消息自动生成" /></label>
-        <label><span className="ui-visually-hidden">任务内容</span><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder="描述你要研究、整理或创作的内容…" onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
+        <label><span>{messages.projectUi.optionalTaskTitle}</span><Input variant="inline" value={title} onChange={(event) => onTitle(event.target.value)} placeholder={messages.projectUi.autoTaskTitle} /></label>
+        <label><span className="ui-visually-hidden">{messages.projectUi.taskContent}</span><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder={messages.projectUi.taskPromptPlaceholder} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
         <div className="project-task-compose-footer">
-          <span className="project-material-scope">项目资料 · 可按需读取</span>
-          <div><select aria-label={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? "任务创建后 Provider 保持不变" : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? "正在创建…" : "开始任务"}</button></div>
+          <span className="project-material-scope">{messages.projectUi.taskMaterialsHint}</span>
+          <div><select aria-label={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? messages.projectUi.taskProviderLocked : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? messages.projectUi.creating : messages.projectUi.startTask}</button></div>
         </div>
         {error ? <p className="project-form-error">{error}</p> : null}
       </div>
@@ -424,11 +427,11 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
 }
 
 function firstLine(value: string): string {
-  return value.trim().split(/\r?\n/)[0].slice(0, 80) || "未命名任务";
+  return value.trim().split(/\r?\n/)[0].slice(0, 80) || messages.projectUi.untitledTask;
 }
 
 function taskStatus(value: ProjectTask["status"]): string {
-  return value === "completed" ? "已完成" : value === "failed" ? "失败" : value === "archived" ? "已归档" : "进行中";
+  return value === "completed" ? messages.projectUi.completed : value === "failed" ? messages.projectUi.failed : value === "archived" ? messages.projectUi.archived : messages.projectUi.inProgress;
 }
 
 export function isTerminalProjectTaskRunStatus(value: string | undefined): boolean {
@@ -437,7 +440,7 @@ export function isTerminalProjectTaskRunStatus(value: string | undefined): boole
 
 function formatTime(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat(getLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function errorText(cause: unknown): string {

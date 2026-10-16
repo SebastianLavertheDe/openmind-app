@@ -1,3 +1,4 @@
+import { messages } from "./messages";
 import { z } from "zod";
 
 const LocalLocatorSchema = z.string().trim().min(1).max(4096);
@@ -5,21 +6,21 @@ const GitRefSchema = z.string().trim().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-
 
 const GitLocatorSchema = LocalLocatorSchema.superRefine((value, context) => {
   if (/[\u0000-\u001f\u007f]/.test(value)) {
-    context.addIssue({ code: "custom", message: "Git 地址不能包含控制字符。" });
+    context.addIssue({ code: "custom", message: messages.validation.skillSource.controlCharacters });
     return;
   }
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    context.addIssue({ code: "custom", message: "Git 地址必须是有效的 HTTPS URL。" });
+    context.addIssue({ code: "custom", message: messages.validation.skillSource.invalidUrl });
     return;
   }
   if (url.protocol !== "https:") {
-    context.addIssue({ code: "custom", message: "Git 来源只允许 HTTPS，不支持 SSH、file 或 HTTP 地址。" });
+    context.addIssue({ code: "custom", message: messages.validation.skillSource.httpsOnly });
   }
   if (!url.hostname || url.username || url.password || url.hash || url.search) {
-    context.addIssue({ code: "custom", message: "Git 地址不能包含凭据、查询参数或片段。" });
+    context.addIssue({ code: "custom", message: messages.validation.skillSource.privateUrl });
   }
 });
 

@@ -1,3 +1,4 @@
+import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
 
@@ -686,7 +687,7 @@ export const AddRssSourceInputSchema = z.object({
   name: z.string().min(1).max(160),
   url: z.string().min(1).max(2048),
   kind: SourceKindSchema.default("rss"),
-  frequency: z.string().min(1).max(80).default("每日流水线"),
+  frequency: z.string().min(1).max(80).default(() => messages.source.frequencyPipeline),
   tags: z.array(z.string().min(1).max(40)).default([])
 });
 export type AddRssSourceInput = z.input<typeof AddRssSourceInputSchema>;
@@ -860,7 +861,7 @@ export const CreativeProjectManifestSchema = z.object({
   sources: z.array(z.string()).default([]),
   platforms: z.record(z.string(), z.string()).default({}),
   tags: z.array(z.string()).default([]),
-  owner: z.string().default("本地用户"),
+  owner: z.string().default(() => messages.creative.defaults.owner),
   notes: z.string().max(20000).default(""),
   progress: z.number().min(0).max(100).default(0),
   asset_collection: z.string().nullable().default(null),
@@ -1008,6 +1009,8 @@ export const UserPreferencesSchema = z.object({
    */
   workspaceRoot: z.string().default(""),
   themeMode: z.enum(["dark", "light"]).default("light"),
+  /** App interface language, independent of the language of created content. */
+  uiLanguage: z.enum(["zh-CN", "en"]).default("zh-CN"),
   density: z.enum(["compact", "default", "comfortable"]).default("default"),
   fontSize: z.enum(["small", "default", "large"]).default("default"),
   autoSaveIntervalMs: z.number().int().min(5000).max(600000).default(30000),

@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { messages as m } from "@shared/messages";
 
@@ -16,9 +17,10 @@ export function LogViewer({
   status?: ReactNode;
   actions?: ReactNode;
 }) {
+  const locale = useLocale();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const followRef = useRef(true);
-  const lines = useMemo(() => splitLogLines(text), [text]);
+  const lines = useMemo(() => splitLogLines(text), [text, locale]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;

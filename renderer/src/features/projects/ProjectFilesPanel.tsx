@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n";
+import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
@@ -44,6 +46,7 @@ export function ProjectFilesPanel({
   listHost: HTMLElement;
   detailHost: HTMLElement;
 }) {
+  const locale = useLocale();
   const ui = useAiUi();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
@@ -120,11 +123,11 @@ export function ProjectFilesPanel({
     onCreateHandled();
   }, [onCreateHandled, updateSelection]);
 
-  const entries = useMemo(() => projectFileEntries(materials, outputs), [materials, outputs]);
+  const entries = useMemo(() => projectFileEntries(materials, outputs), [materials, outputs, locale]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return entries.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
-  }, [entries, query]);
+  }, [entries, query, locale]);
   const listMotion = useCollectionMotion(filtered.length, 40);
 
   const handleNavigationGuard = useCallback((guard: ProjectOutputNavigationGuard | null) => {
@@ -137,9 +140,9 @@ export function ProjectFilesPanel({
     if (!guard?.isDirty()) return true;
     if (await guard.flush()) return true;
     const discard = await confirmRef.current({
-      title: "文档保存失败",
-      body: "修改仍未保存。要放弃这些修改并继续吗？",
-      confirmText: "放弃修改",
+      title: messages.projectUi.documentSaveFailed,
+      body: messages.projectUi.discardUnsavedPrompt,
+      confirmText: messages.projectUi.discardChanges,
       danger: true
     });
     if (discard) guard.discard();
@@ -184,7 +187,7 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection({ kind: target.kind, relativePath: next.relativePath });
       await load();
       onChanged();
-      ui.notify(`已重命名为“${next.title}”。`, "success");
+      ui.notify(messages.projectUi.renamedFile(next.title), "success");
     } catch (cause) {
       setActionError(errorText(cause));
       ui.notify(errorText(cause), "error");
@@ -222,7 +225,7 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection(null);
       await load();
       onChanged();
-      ui.notify(`已移动到项目“${moveDestination}”。`, "success");
+      ui.notify(messages.projectUi.movedToProject(moveDestination), "success");
     } catch (cause) {
       setActionError(errorText(cause));
       ui.notify(errorText(cause), "error");
@@ -236,7 +239,7 @@ export function ProjectFilesPanel({
     setActionBusy(`${entry.kind}:${entry.relativePath}`);
     try {
       const result = await projectsApi.downloadFile(project.name, entry.kind, entry.relativePath);
-      if (!result.canceled && result.savedPath) ui.notify(`文件已保存到 ${result.savedPath}`, "success");
+      if (!result.canceled && result.savedPath) ui.notify(messages.projectUi.fileSavedTo(result.savedPath), "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -247,9 +250,9 @@ export function ProjectFilesPanel({
   const deleteEntry = async (entry: ProjectFileEntry) => {
     if (actionBusy) return;
     const confirmed = await confirmRef.current({
-      title: "删除文件",
-      body: `确定删除“${entry.title}”吗？该文件将从项目中移除。`,
-      confirmText: "删除",
+      title: messages.projectUi.deleteFile,
+      body: messages.projectUi.deleteFilePrompt(entry.title),
+      confirmText: messages.projectUi.delete,
       danger: true
     });
     if (!confirmed) return;
@@ -260,7 +263,7 @@ export function ProjectFilesPanel({
       if (isSelected(entry)) updateSelection(null);
       await load();
       onChanged();
-      ui.notify("文件已删除。", "success");
+      ui.notify(messages.projectUi.fileDeleted, "success");
     } catch (cause) {
       ui.notify(errorText(cause), "error");
     } finally {
@@ -271,10 +274,10 @@ export function ProjectFilesPanel({
   const list = (
     <>
       <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden /> : <Search aria-hidden />}
-        aria-label="搜索文件" value={query} placeholder="你的文件" onChange={(event) => setQuery(event.target.value)} />
+        aria-label={messages.projectUi.searchFiles} value={query} placeholder={messages.projectUi.yourFiles} onChange={(event) => setQuery(event.target.value)} />
       <div className="project-item-list project-file-list" data-project-list-motion={listMotion.enabled || undefined} aria-live="polite" aria-busy={loading || undefined}>
         {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
-        {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? "没有匹配的文件" : "还没有文件"} description={entries.length ? "换一个关键词后再试。" : "可通过右上角加号新建文档或添加资料。"} /> : null}
+        {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? messages.projectUi.noMatchingFiles : messages.projectUi.noFiles} description={entries.length ? messages.projectUi.tryAnotherKeyword : messages.projectUi.addFilesHint} /> : null}
         {hasLoaded ? filtered.map((item) => {
           const Icon = fileIcon(item);
           const active = Boolean(selection && sameSelection(selection, item));
@@ -294,24 +297,24 @@ export function ProjectFilesPanel({
               </button>
               <DropdownMenu
                 className="project-file-more"
-                ariaLabel={`文件操作：${item.title}`}
-                menuLabel={`${item.title}的文件操作`}
+                ariaLabel={messages.projectUi.fileActions(item.title)}
+                menuLabel={messages.projectUi.fileActionsMenu(item.title)}
                 disabled={actionBusy === `${item.kind}:${item.relativePath}`}
                 label={<MoreHorizontal size={15} aria-hidden="true" />}
               >
                 <button type="button" role="menuitem" data-motion="action" onClick={() => { setRenameTitle(item.title); setActionError(null); setRenameTarget(item); }}>
-                  <PencilLine size={15} aria-hidden="true" /><span>重命名</span>
+                  <PencilLine size={15} aria-hidden="true" /><span>{messages.projectUi.rename}</span>
                 </button>
                 <button type="button" role="menuitem" data-motion="action" onClick={() => void beginMove(item)}>
-                  <FolderInput size={15} aria-hidden="true" /><span>移动到其他项目</span>
+                  <FolderInput size={15} aria-hidden="true" /><span>{messages.projectUi.moveToAnotherProject}</span>
                 </button>
                 {item.materialKind !== "video" ? (
                   <button type="button" role="menuitem" data-motion="action" onClick={() => void downloadEntry(item)}>
-                    <Download size={15} aria-hidden="true" /><span>下载</span>
+                    <Download size={15} aria-hidden="true" /><span>{messages.projectUi.download}</span>
                   </button>
                 ) : null}
                 <button type="button" role="menuitem" data-motion="action" onClick={() => void deleteEntry(item)}>
-                  <Trash2 size={15} aria-hidden="true" /><span>删除</span>
+                  <Trash2 size={15} aria-hidden="true" /><span>{messages.projectUi.delete}</span>
                 </button>
               </DropdownMenu>
             </div>
@@ -357,7 +360,7 @@ export function ProjectFilesPanel({
       detailHost={detailHost}
     />
   ) : createPortal(
-    <EmptyState icon={<Files size={30} />} title="选择或新建文件" description="从左侧选择文件，或通过加号新建文档、添加资料。" />,
+    <EmptyState icon={<Files size={30} />} title={messages.projectUi.selectOrCreateFile} description={messages.projectUi.selectOrCreateFileHint} />,
     detailHost
   );
 
@@ -367,22 +370,22 @@ export function ProjectFilesPanel({
       {detail}
       <ProjectDialog
         open={Boolean(renameTarget)}
-        title="重命名"
-        confirmLabel="确认"
+        title={messages.projectUi.rename}
+        confirmLabel={messages.projectUi.confirm}
         busy={actionBusy === "rename"}
         className="project-dialog-compact"
         backdropClassName="project-dialog-backdrop-clear"
         onClose={() => setRenameTarget(null)}
         onConfirm={() => void submitRename()}
       >
-        <ProjectTextField label="名称" value={renameTitle} autoFocus onChange={setRenameTitle} />
+        <ProjectTextField label={messages.projectUi.name} value={renameTitle} autoFocus onChange={setRenameTitle} />
         {actionError ? <p className="project-dialog-error" role="alert">{actionError}</p> : null}
       </ProjectDialog>
       <ProjectDialog
         open={Boolean(moveTarget)}
-        title={moveTarget ? `移动“${moveTarget.title}”` : "移动文件"}
-        description="文件将从当前项目移动到目标项目。"
-        confirmLabel="移动"
+        title={moveTarget ? messages.projectUi.moveNamedFile(moveTarget.title) : messages.projectUi.moveFile}
+        description={messages.projectUi.moveFileHint}
+        confirmLabel={messages.projectUi.move}
         busy={actionBusy === "move"}
         className="project-dialog-compact"
         backdropClassName="project-dialog-backdrop-clear"
@@ -390,9 +393,9 @@ export function ProjectFilesPanel({
         onConfirm={() => void submitMove()}
       >
         <label className="project-field">
-          <span>目标项目</span>
+          <span>{messages.projectUi.destinationProject}</span>
           <select
-            aria-label="目标项目"
+            aria-label={messages.projectUi.destinationProject}
             value={moveDestination}
             disabled={moveOptionsLoading}
             onChange={(event) => setMoveDestination(event.target.value)}

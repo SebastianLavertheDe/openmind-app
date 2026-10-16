@@ -1,6 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@shared/messages";
 import { DocumentToolbar } from "./DocumentToolbar";
+
+afterEach(() => act(() => setLocale("zh-CN")));
 
 function mount() {
   const callbacks = { onOutline: vi.fn(), onSearch: vi.fn(), onAction: vi.fn(), onHeading: vi.fn(), onMenuOpen: vi.fn() };
@@ -9,6 +12,20 @@ function mount() {
 }
 
 describe("document toolbar menus", () => {
+  it("updates toolbar labels and open menus when the UI language changes", async () => {
+    const { onHeading } = mount();
+    fireEvent.click(screen.getByRole("button", { name: "段落格式" }));
+    await screen.findByRole("menu", { name: "段落格式" });
+    act(() => setLocale("en"));
+    const menu = await screen.findByRole("menu", { name: "Paragraph format" });
+    expect(screen.getByRole("button", { name: "Document outline" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "文档大纲" })).toBeNull();
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Heading 3" }));
+    expect(onHeading).toHaveBeenCalledWith(3);
+    act(() => setLocale("zh-CN"));
+    expect(screen.getByRole("button", { name: "文档大纲" })).toBeTruthy();
+  });
+
   it("uses a custom paragraph menu, focuses the current format and chooses by keyboard", async () => {
     const { container, onHeading, onMenuOpen } = mount();
     expect(container.querySelector("select")).toBeNull();

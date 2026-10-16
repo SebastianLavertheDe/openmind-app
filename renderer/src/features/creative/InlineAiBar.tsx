@@ -1,3 +1,4 @@
+import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -22,6 +23,7 @@ export function InlineAiBar({
   disabled?: boolean;
   onReplace(start: number, end: number, replacement: string, bookmark?: number): boolean | void;
 }) {
+  useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
   const actions = useAiActions();
   const ui = useAiUi();
@@ -62,8 +64,8 @@ export function InlineAiBar({
       const text = typeof message?.payload.text === "string" ? message.payload.text : lastStream.current;
       setFinalText(text); setDone(true);
       if (run.status === "failed") setError(run.error || m.creativeUi.inlineAi.generateFailed);
-      else if (run.status === "cancelled") setError("改写已取消。");
-      else if (!text.trim()) setError("没有生成可替换的内容，请重试。");
+      else if (run.status === "cancelled") setError(m.editor.rewriteCanceled);
+      else if (!text.trim()) setError(m.editor.noReplacementGenerated);
     }).catch(cause => {
       if (active) { setError(cause instanceof Error ? cause.message : String(cause)); setDone(true); }
     });
@@ -102,7 +104,7 @@ export function InlineAiBar({
   const accept = () => {
     if (!range || disabled || !finalText.trim()) return;
     if (onReplace(range.start, range.end, finalText, range.bookmark) === false) {
-      setError("选中的内容已经改变，请重新选择后改写。");
+      setError(m.editor.selectionChanged);
       return;
     }
     reset();
@@ -164,7 +166,7 @@ export function InlineAiBar({
           </header>
           {error ? <p className="inline-error">{error}</p> : null}
           <pre className="inline-ai-out" aria-live="polite">{error ? null : (preview || (busy ? m.creativeUi.inlineAi.busyEllipsis : m.creativeUi.inlineAi.noOutput))}</pre>
-          {!busy && !error && range ? <p className="inline-ai-foot">确认后替换选中文字，修改会自动保存。</p> : null}
+          {!busy && !error && range ? <p className="inline-ai-foot">{m.editor.confirmReplacement}</p> : null}
         </div>
       ) : null}
     </div>

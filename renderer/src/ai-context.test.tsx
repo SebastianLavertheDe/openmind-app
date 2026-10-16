@@ -2,7 +2,7 @@ import { act, cleanup, render, renderHook, screen } from "@testing-library/react
 import { memo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
-import { messages as m } from "@shared/messages";
+import { messages as m, setLocale } from "@shared/messages";
 import { AiProvider, useAi, useAiDraft, useAiStreaming, useAiUi, type AiController } from "./ai-context";
 import { useTopicFileEditor } from "./features/creative/use-topic-file-editor";
 
@@ -154,6 +154,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  setLocale("zh-CN");
   window.localStorage.clear();
 });
 
@@ -201,6 +202,32 @@ function flushTimers(): void {
 }
 
 describe("AiProvider streaming store via event pump", () => {
+  it("preserves queued streaming, reasoning and final messages across interface language changes", () => {
+    const subscribe = vi.spyOn(window.openmind, "onAiEvent");
+    render(
+      <AiProvider initial={activeSnapshot} skills={skills}>
+        <StreamingText runId="run-sequence" />
+        <DurableAssistantTexts />
+      </AiProvider>
+    );
+
+    emit({ kind: "transient", event: { kind: "assistant-delta", runId: "run-sequence", payload: { text: "Hello" } } });
+    emit({ kind: "transient", event: { kind: "reasoning-delta", runId: "run-sequence", payload: { text: "Thinking" } } });
+    act(() => setLocale("en"));
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    flushTimers();
+    expect(screen.getByTestId("streaming").textContent).toBe("Hello");
+    expect(screen.getByTestId("reasoning").textContent).toBe("Thinking");
+
+    emit({ kind: "transient", event: { kind: "assistant-delta", runId: "run-sequence", payload: { text: " world" } } });
+    emit({ kind: "event", event: assistantEvent("final-locale", 1, "Hello world", "final") });
+    act(() => setLocale("zh-CN"));
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    flushTimers();
+    expect(screen.getByTestId("streaming").textContent).toBe("");
+    expect(JSON.parse(screen.getByTestId("durable-assistant-texts").textContent || "[]")).toEqual(["Hello world"]);
+  });
+
   it("keeps the main controller stable while draft subscribers update and persistence is debounced", () => {
     let controller: AiController | null = null;
     let setDraft: ((value: string) => void) | null = null;
