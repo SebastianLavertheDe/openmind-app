@@ -56,7 +56,7 @@ export const aiMessages = {
     jumpToBottom: "回到底部",
     currentProject: "当前工作区",
     emptyTitle: "从资料到创作，让 AI 帮你推进",
-    emptyBody: "选择一项内容任务，或直接描述目标。AI 会读取当前工作区，在你的权限范围内整理资料、生成内容并运行流程。",
+    emptyBody: "直接描述目标。AI 会读取当前工作区，在你的权限范围内整理资料、生成内容并运行流程。",
     emptyHint: "Ctrl/⌘ + K 搜索任务 · Ctrl/⌘ + Enter 发送",
     processing: "正在处理",
     processed: "已处理",

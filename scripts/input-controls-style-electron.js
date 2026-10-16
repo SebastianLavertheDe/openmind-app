@@ -8,6 +8,7 @@ const output = path.resolve(__dirname, "..", ".build", "input-controls-style");
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-input-controls-"));
 app.setPath("userData", userData);
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("force-device-scale-factor", "1");
 const report = [];
 const errors = [];
 
@@ -40,7 +41,15 @@ app.whenReady().then(async () => {
         assert.equal(focused.focused, !focused.disabled, `${context}: native focus`);
         assert.equal(focused.outline, "none", `${context}: focus outline`);
         assert.ok(Math.abs(before.height - focused.height) < .5, `${context}: focus changes height`);
+        if (id === "inline-editor") {
+          assert.equal(focused.shadow, "none", `${context}: composer must not draw an inner focus line`);
+          assert.ok(focused.height >= 146, `${context}: composer minimum height`);
+          assert.ok(focused.paddingTop >= 20 && focused.paddingLeft >= 20 && focused.paddingBottom >= 66,
+            `${context}: composer needs text insets and space for its toolbar`);
+        }
         if (focused.surface) {
+          assert.ok(focused.surface.height <= 60, `${context}: search surface stretches vertically`);
+          assert.ok(focused.surface.overflow <= 1, `${context}: control surface overflows its parent`);
           assert.equal(focused.borderWidth, "0px", `${context}: inner border`);
           assert.equal(focused.shadow, "none", `${context}: inner shadow`);
           assert.equal(focused.surface.shadow, "none", `${context}: surface glow`);
@@ -89,6 +98,8 @@ async function inspect(win, id) {
     const css = getComputedStyle(node);
     const surface = node.closest('.ui-search-input, .ui-input-group');
     const surfaceCss = surface && getComputedStyle(surface);
+    const surfaceRect = surface?.getBoundingClientRect();
+    const parentRect = surface?.parentElement.getBoundingClientRect();
     const rect = node.getBoundingClientRect();
     const color = document.createElement('span'); color.style.color = 'var(--danger-500)'; document.body.append(color);
     const danger = getComputedStyle(color).color; color.remove();
@@ -96,6 +107,8 @@ async function inspect(win, id) {
       readOnly: node.readOnly, invalid: node.getAttribute('aria-invalid') === 'true', height: rect.height,
       x: Math.round(rect.left + Math.min(30, rect.width / 2)), y: Math.round(rect.top + rect.height / 2),
       borderWidth: css.borderTopWidth, borderColor: css.borderTopColor, outline: css.outlineStyle, shadow: css.boxShadow, danger,
-      surface: surfaceCss && { borderColor: surfaceCss.borderTopColor, shadow: surfaceCss.boxShadow } };
+      paddingTop: parseFloat(css.paddingTop), paddingLeft: parseFloat(css.paddingLeft), paddingBottom: parseFloat(css.paddingBottom),
+      surface: surfaceCss && { borderColor: surfaceCss.borderTopColor, shadow: surfaceCss.boxShadow,
+        height: surfaceRect.height, overflow: Math.max(0, surfaceRect.right - parentRect.right, parentRect.left - surfaceRect.left) } };
   })()`);
 }

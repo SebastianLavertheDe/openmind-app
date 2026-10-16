@@ -2,13 +2,13 @@ import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Check, ChevronDown, ChevronRight, ImagePlus, Settings2 } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, ImagePlus } from "lucide-react";
 import type { AiSnapshot } from "@shared/contracts";
 import { IMAGE_PROVIDERS, type ImageConfiguration, type ImageProviderKind, type ImageSelection } from "@shared/image-generation";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
-import { PROVIDER_CONFIGURATION_CHANGED, openImageProviderSettings } from "../../provider-configuration-events";
+import { PROVIDER_CONFIGURATION_CHANGED } from "../../provider-configuration-events";
 
 function useImageConfiguration() {
   const [configuration, setConfiguration] = useState<ImageConfiguration | null>(null);
@@ -192,9 +192,6 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
           {!providers.length ? <p className="image-model-empty">{configuration ? uiMessages.interface.noImageModels : configurationError ? uiMessages.interface.imageModelsFailed : uiMessages.interface.loadingImageModels}</p> : null}
         </div>
         {error || configurationError ? <p className="image-config-error" role="alert">{error || configurationError}</p> : null}
-        <div className="image-model-menu-footer">
-          <button type="button" role="menuitem" data-motion="action" onMouseEnter={() => setProviderId("")} onFocus={() => setProviderId("")} onClick={() => { setOpen(false); openImageProviderSettings(); }}><Settings2 size={14} />{uiMessages.interface.manageProviders}</button>
-        </div>
         </div>
       </div>
       {submenuPresence.visible && visibleProvider && definition ? <div ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={uiMessages.interface.providerImageModels(visibleProvider.name)} aria-busy={busy}

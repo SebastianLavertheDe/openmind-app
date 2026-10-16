@@ -20,7 +20,7 @@ export const aiMessages = {
   },
   chat: {
     loadingHistory: "Loading…", loadMoreEvents: (n: number) => `Load ${count(n, "earlier event")}`, loadOlderTurns: "Load earlier turns", transcriptLabel: "Conversation messages", jumpToBottom: "Jump to bottom", currentProject: "Current workspace",
-    emptyTitle: "Turn your sources into content with AI", emptyBody: "Choose a content task or describe your goal. AI reads the current workspace to organize sources, create content, and run workflows within your permissions.",
+    emptyTitle: "Turn your sources into content with AI", emptyBody: "Describe your goal. AI reads the current workspace to organize sources, create content, and run workflows within your permissions.",
     emptyHint: "Ctrl/⌘ + K to search tasks · Ctrl/⌘ + Enter to send", processing: "Processing", processed: "Processed", finalMissing: "Final reply missing",
     finalMissingDetail: "The provider finished without returning a final reply. This run was not marked as successful.",
     emptyPrompts: [

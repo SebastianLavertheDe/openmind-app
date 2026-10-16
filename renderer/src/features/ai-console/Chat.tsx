@@ -14,7 +14,7 @@ import type { AiEvent, AiRun } from "@shared/contracts";
 import { GeneratedImageSchema, type GeneratedImage } from "@shared/image-generation";
 import { ChatImageGallery, GeneratedImages } from "./ChatImages";
 import { messages as m } from "@shared/messages";
-import { useAiEvents, useAiSnapshot, useAiStreaming, useSetAiDraft } from "../../ai-context";
+import { useAiEvents, useAiSnapshot, useAiStreaming } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useExitingList } from "../../design-system/use-exiting-list";
@@ -81,7 +81,6 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const locale = useLocale();
   const { events, loadingSessionId, hasOlderTurns, historyLoading, loadOlderTurns } = useAiEvents();
   const { snapshot, activeSession, activeRun, sessionActiveRun } = useAiSnapshot();
-  const setDraft = useSetAiDraft();
   const [nearBottom, setNearBottom] = useState(true);
   const jumpBottomPresence = useExitPresence(!nearBottom, 160);
   const [historyLimit, setHistoryLimit] = useState(compact ? 80 : 300);
@@ -293,7 +292,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         >
           {sessionLoading ? <SessionLoading visible={showSessionSkeleton} /> : null}
           {!sessionLoading && !visible.length && !sessionActiveRun
-            ? <EmptyChat onPick={setDraft} />
+            ? <EmptyChat />
             : null}
           {!sessionLoading && canLoadHistory ? (
             <button
@@ -633,10 +632,9 @@ function toolEventKey(event: AiEvent): string {
   return String(payload.itemId || payload.toolUseId || payload.tool_use_id || payload.id || payload.callId || event.id);
 }
 
-function EmptyChat({ onPick }: { onPick?: (prompt: string) => void }) {
+function EmptyChat() {
   useLocale();
   const { snapshot } = useAiSnapshot();
-  const prompts = m.ai.chat.emptyPrompts;
   const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   return (
     <div className="chat-empty">
@@ -648,21 +646,6 @@ function EmptyChat({ onPick }: { onPick?: (prompt: string) => void }) {
       <div className="chat-empty-icon"><Bot size={22} aria-hidden /></div>
       <h3>{m.ai.chat.emptyTitle}</h3>
       <p>{m.ai.chat.emptyBody}</p>
-      {/* P1-CHAT-1: 与资料、简报、创作和自动化对应的快捷任务 */}
-      <div className="chat-empty-prompts">
-        {prompts.map((prompt) => (
-          <button
-            key={prompt.title}
-            type="button"
-            className="chat-empty-prompt"
-            onClick={() => onPick?.(prompt.prompt)}
-          >
-            <strong>{prompt.title}</strong>
-            <span>{prompt.body}</span>
-          </button>
-        ))}
-      </div>
-      <p className="chat-empty-hint">{m.ai.chat.emptyHint}</p>
     </div>
   );
 }

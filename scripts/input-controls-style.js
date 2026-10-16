@@ -18,6 +18,8 @@ fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><head><m
   body { overflow: auto; }
   .input-probe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px; padding: 16px; }
   .input-probe-example { min-width: 0; display: grid; align-content: start; gap: 8px; }
+  .input-probe-layout > :not(strong) { height: 320px; }
+  .input-probe-layout > .creative-workspace { grid-template-columns: minmax(0, 1fr); }
   </style></head><body><div id="root"></div><script src="./fixture.js"></script></body></html>`);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;

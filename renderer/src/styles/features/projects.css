@@ -98,6 +98,7 @@
 }
 
 .project-local-search {
+  width: auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -190,6 +191,7 @@
 .project-pane-tabs > button.active b { color: var(--muted-2); }
 
 .project-pane-filter {
+  width: auto;
   min-width: 0;
   height: 34px;
   flex: 0 0 auto;

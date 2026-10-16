@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { IMAGE_PROVIDERS, type ImageSelection, type ImageConfiguration } from "@shared/image-generation";
-import { announceProviderConfiguration, OPEN_IMAGE_PROVIDER_SETTINGS } from "../../provider-configuration-events";
+import { announceProviderConfiguration } from "../../provider-configuration-events";
 import { ChatMarkdown } from "./message";
 import { ChatImageGallery, GeneratedImages } from "./ChatImages";
 import { ComposerModelPicker } from "./ComposerModelPicker";
@@ -84,17 +84,15 @@ describe("composer model picker", () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith({ providerId: "google", provider: "google", model: "gemini-nano-banana-2.1" }));
     expect(onChange).toHaveBeenCalledWith({ providerId: "google", provider: "google", model: "gemini-nano-banana-2.1" });
   });
-  it("offers shared Provider settings when no image-capable connection is available", async () => {
+  it("shows the unavailable-model hint without a Provider management footer", async () => {
     api({ getImageConfiguration: async () => ({ defaultSelection: null, providers: [] }) });
-    const openSettings = vi.fn();
-    window.addEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openSettings, { once: true });
     render(<ComposerModelPicker providers={[]} providerId="" onProviderChange={() => {}} value={null} onChange={() => {}} />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("button", { name: "选择模型：选择模型" }));
     expect(screen.queryByRole("menuitemradio")).toBeNull();
     expect(screen.getByText(/暂无可用的图片模型/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("menuitem", { name: "管理 Provider" }));
-    expect(openSettings).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menuitem", { name: "管理 Provider" })).toBeNull();
+    expect(document.querySelector(".image-model-menu-footer")).toBeNull();
   });
   it("filters unsupported, unchecked, disabled and unconfigured models and clears revoked selections", async () => {
     const model = IMAGE_PROVIDERS[0].models[0];

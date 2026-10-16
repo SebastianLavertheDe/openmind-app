@@ -76,6 +76,17 @@ npm run dev:electron
 
 开发约定见 [AGENTS.md](AGENTS.md)。更多说明：[AI 工作台](docs/AI_WORKSPACE.md)、[公众号导出](docs/wechat-export.md)、[支持与恢复](docs/SUPPORT_AND_RECOVERY.md)。
 
+## 许可证
+
+OpenMind Desktop 采用 [OpenMind Desktop Community License 1.0](LICENSE)，公开源码并允许以下用途：
+
+- **个人使用、企业内部使用与修改、商业内容创作免费。** 可以用它接单，销售使用它创作的文章、报告、视频等许可范围内的内容。
+- **允许非商业免费分发原版或修改版。** 分发时需附带许可证、保留适用声明，并标明修改。
+- **软件本身的商业化需另行取得书面授权。** 包括售卖或商业分发软件、将软件或其代码纳入商业软件产品，以及向外部用户提供商业托管服务；靠广告变现的服务也在此范围内。
+- **创作内容不被要求分成、加水印、署名或公开源码。** 第三方素材、依赖和独立分发的 Skill 仍按各自适用条款处理。
+
+这是带有商业限制的源码可见社区许可证，不属于 OSI 认可的开源许可证。以上为说明摘要，正式条款以 `LICENSE` 中的英文原文为准。商业授权请联系[仓库维护者](https://github.com/SebastianLavertheDe/openmind-app)。
+
 ## TODO
 
 - [ ] **完善视频工作流：** 进一步完善视频下载、转写、摘要与写作素材的衔接，提升桌面端的完整使用体验。

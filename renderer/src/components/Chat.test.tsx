@@ -159,23 +159,19 @@ afterEach(() => {
 });
 
 describe("Chat composer", () => {
-  it("grounds the empty state in the content workspace and inserts an actionable prompt", async () => {
-    const user = userEvent.setup();
+  it("grounds the empty state in the content workspace without task cards or shortcut hints", () => {
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
 
     expect(screen.getAllByText(m.ai.chat.currentProject).length).toBeGreaterThan(0);
     expect(screen.getAllByText("project").length).toBeGreaterThan(0);
     expect(screen.getByText("从资料到创作，让 AI 帮你推进")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "整理资料库 归类新增资料，提炼要点并保留来源" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "生成每日简报 汇总今日重点、趋势与后续行动" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "开始内容创作 筛选选题，生成大纲和首版草稿" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "检查自动化 汇总最近运行结果与待处理问题" })).toBeTruthy();
+    for (const prompt of m.ai.chat.emptyPrompts) {
+      expect(screen.queryByRole("button", { name: `${prompt.title} ${prompt.body}` })).toBeNull();
+    }
+    expect(screen.queryByText(m.ai.chat.emptyHint)).toBeNull();
     expect(screen.getByRole("button", { name: m.ai.composer.openWorkspace })).toBeTruthy();
     expect(screen.getByRole("button", { name: m.ai.composer.addAttachment })).toBeTruthy();
     expect(screen.getByLabelText(m.ai.composer.messageInput).getAttribute("placeholder")).toBe(m.ai.composer.placeholderNew);
-    await user.click(screen.getByRole("button", { name: `${m.ai.chat.emptyPrompts[0].title} ${m.ai.chat.emptyPrompts[0].body}` }));
-
-    expect((screen.getByLabelText(m.ai.composer.messageInput) as HTMLTextAreaElement).value).toBe(m.ai.chat.emptyPrompts[0].prompt);
   });
 
   it("keeps the draft on failure and ignores Enter while IME is composing", async () => {

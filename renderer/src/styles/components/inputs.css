@@ -38,6 +38,8 @@
 .ui-textarea[data-variant="inline"] { min-height: 0; }
 .ui-input[data-variant="inline"]:focus,
 .ui-textarea[data-variant="inline"]:focus { box-shadow: inset 0 -1px 0 var(--input-focus-border); }
+/* The composer surface already provides focus feedback for its editor. */
+.composer-editor .ui-textarea[data-variant="inline"]:focus { box-shadow: none; }
 
 .ui-input[readonly],
 .ui-textarea[readonly] { color: var(--text-dim); }

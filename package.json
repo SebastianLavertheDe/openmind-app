@@ -3,6 +3,7 @@
   "version": "1.0.24",
   "description": "A cross-platform desktop control center for openmind.",
   "author": "OpenMind",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "engines": {
     "node": ">=22.12.0"
@@ -98,9 +99,14 @@
     "afterSign": "scripts/finalize-bundled-python-runtime.cjs",
     "files": [
       ".build/**/*",
+      "LICENSE",
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "LICENSE",
+        "to": "LICENSE"
+      },
       {
         "from": "resources/python-runtime",
         "to": "python-runtime",

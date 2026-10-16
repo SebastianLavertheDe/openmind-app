@@ -62,6 +62,8 @@
 }
 
 .brief-library-page .document-library-search {
+  flex: 0 0 auto;
+  width: auto;
   min-height: clamp(34px, 4.1cqw, 38px);
   margin-bottom: clamp(8px, 1.3cqw, 12px);
 }

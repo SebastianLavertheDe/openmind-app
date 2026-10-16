@@ -1,4 +1,4 @@
-# OpenMind Desktop 开源准备 TODO
+# OpenMind Desktop 源码公开准备 TODO
 
 创建日期：2026-09-18。依据当前源码与开源准备分析；所有未完成事项均保持 `[ ]`，实际完成并验证后再勾选。
 
@@ -7,12 +7,12 @@
 - App 必须安装指定的 `cctools-skills` 库，保留首启安装门禁；不增加跳过基础 Skill 库进入 App 的流程。
 - App 源码、Skill 包源码、用户内容及 Electron `userData` 分别维护；不把 Skill 源码树或真实用户数据复制进本仓库。
 - 保持 `cctools.skill.yaml` 和旧版 `openmind.skill.yaml` 的兼容性。
-- 许可证选择、第三方授权条件和正式发布范围尚需确认，本文不预设已获授权或已通过验收。
+- App 已采用源码可见的 OpenMind Desktop Community License 1.0；第三方授权条件和正式发布范围仍需核查，本文不预设已获第三方授权或已通过发布验收。
 - 公开源码、发布预览安装包、发布稳定安装包分阶段推进；签名、公证、自动更新不作为公开源码的前置条件。
 
 ## 第一批：公开仓库前完成
 
-- [ ] **OSS-01：确定 App 许可证。** 添加根目录 `LICENSE`，填写正确的版权主体，在 README 说明授权范围；不要替第三方代码声明授权。
+- [x] **OSS-01：确定 App 许可证。** 已添加根目录 `LICENSE`，采用 OpenMind Desktop Community License 1.0；中英文 README 已说明社区许可和商业授权范围，第三方组件及独立 Skill 的适用条款不变。打包配置包含许可证副本。
 - [ ] **OSS-02：确定基础 Skill 库许可证。** 在独立 `cctools-skills` 仓库完成，检查每个包及其第三方资产的授权，确认与 App 配套分发的条件。
 - [ ] **OSS-03：补齐仓库元数据。** 在 `package.json` 添加 `license`、`repository`、`bugs`、`homepage`。保留 `private: true` 防止误发布到 npm。
 - [ ] **OSS-04：扫描全部 Git 历史。** 使用 Gitleaks 等工具检查所有准备公开的分支和标签，区分真实凭据与测试夹具；如发现真实凭据，先撤销/轮换，再决定历史清理方案。输出报告不得包含原始秘密。

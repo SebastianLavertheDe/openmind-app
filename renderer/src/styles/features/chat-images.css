@@ -76,9 +76,6 @@
 .image-model-list small, .image-provider-hint { font-size: var(--fs-xs); color: var(--muted); }
 .image-model-list svg { flex-shrink: 0; color: var(--accent-fg); }
 .image-provider-hint { padding: 6px 10px 0; }
-.image-model-menu-footer { display: flex; justify-content: space-between; gap: 8px; padding: 8px; border-top: 1px solid var(--border); }
-.image-model-menu-footer button { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: var(--fs-xs); transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); }
-.image-model-menu-footer button:hover { background: var(--panel-muted); color: var(--text); }
 .image-config-error { color: var(--danger-fg, var(--danger-500)); margin: 8px 16px; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .image-model-empty { margin: 0; padding: 4px 16px 20px; color: var(--muted); font-size: var(--fs-sm); line-height: 1.7; }
 .settings-provider-dialog-body:has(.settings-provider-image-capability) { min-width: 0; grid-template-columns: minmax(0, 1fr); }

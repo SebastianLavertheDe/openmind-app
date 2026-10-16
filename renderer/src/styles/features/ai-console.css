@@ -2043,6 +2043,12 @@
   font: var(--fs-md)/1.6 var(--font-display);
 }
 
+/* Preserve the editor's spacing against the shared inline control reset. */
+.composer-editor .ui-textarea[data-variant="inline"] {
+  min-height: 146px;
+  padding: 20px 20px 66px;
+}
+
 /* P0-CMP-2: 发送按钮内嵌右下角 */
 .composer-send-wrap {
   position: absolute;

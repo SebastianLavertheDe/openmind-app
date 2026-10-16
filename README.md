@@ -76,6 +76,17 @@ The runtime preparation step downloads the Python runtime used by Skills. After 
 
 Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](docs/AI_WORKSPACE.md), [WeChat export](docs/wechat-export.md), and [support and recovery](docs/SUPPORT_AND_RECOVERY.md).
 
+## License
+
+OpenMind Desktop is source-available under the [OpenMind Desktop Community License 1.0](LICENSE).
+
+- Personal use, internal business use and modification, and commercial content creation are permitted without license fees. You may sell articles, reports, videos, and other permitted Content you create with the app.
+- Noncommercial redistribution of the original app or a modified version is permitted if you include the license, retain applicable notices, and identify modifications.
+- Selling or commercially distributing the app, including it or its code in a commercial software product, or providing its functionality to outside users as a commercial hosted service requires a separate written commercial license. Advertising-supported access is included in this restriction.
+- The license imposes no revenue share, watermark, attribution, or source-disclosure requirement on your Content. Third-party materials and external Skills remain subject to their own applicable terms.
+
+This is a source-available community license with commercial restrictions, rather than an OSI-approved open-source license. The English text in `LICENSE` is authoritative. Contact the [repository maintainer](https://github.com/SebastianLavertheDe/openmind-app) for commercial licensing.
+
 ## TODO
 
 - [ ] **Improve the video workflow:** refine downloading, transcription, summaries, and integration with writing projects.
