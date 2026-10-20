@@ -459,14 +459,14 @@ function runGitCommand(args: string[], options: GitCommandOptions): Promise<{ st
 }
 
 export type GitPackageCandidate = {
-  /** 仓库内相对路径（根包为 "."，顶层子包为目录名，.claude/skills 下为带前缀路径）。 */
+  /** 仓库内相对路径，使用正斜杠分隔；根包为 "."。 */
   ref: string;
   absPath: string;
 };
 
 /**
  * 收集一个 Git checkout 内的全部 Skill 包候选：
- * 仓库根本身、一级子目录、`.claude/skills/*` 子目录。
+ * 仓库根本身、一级子目录、`.claude/skills/*` 子目录及 BrowserSkill 的 CLI 内置包。
  * 多包仓库（Skill 集合仓库）返回全部候选，由调用方选择。
  */
 export function resolveGitPackageCandidates(checkoutRoot: string): GitPackageCandidate[] {
@@ -492,6 +492,10 @@ export function resolveGitPackageCandidates(checkoutRoot: string): GitPackageCan
   };
   addChildren(checkoutRoot, (name) => name);
   addChildren(path.join(checkoutRoot, ".claude", "skills"), (name) => `.claude/skills/${name}`);
+
+  // BrowserSkill moved its standalone skill/ package into the Rust CLI crate.
+  const browserSkillRoot = path.join(checkoutRoot, "crates", "bsk-cli", "skill");
+  if (hasSkillDescriptor(browserSkillRoot)) add("crates/bsk-cli/skill", browserSkillRoot);
 
   return out;
 }

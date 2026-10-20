@@ -231,6 +231,91 @@ describe("CliInstallerService", () => {
     );
   });
 
+  it.each([
+    ["codex", "@openai/codex", "0.162.1", "0.163.0"],
+    ["claude", "@anthropic-ai/claude-code", "2.1.259", "2.1.304"]
+  ] as const)("falls back to official npm metadata when %s's native channel fails", async (cli, packageName, currentVersion, latestVersion) => {
+    const transport = vi.fn<CliInstallerTransport>()
+      .mockResolvedValueOnce({ statusCode: 403, body: Buffer.from("blocked") })
+      .mockResolvedValueOnce({ statusCode: 200, body: Buffer.from(JSON.stringify({ name: packageName, version: latestVersion })) });
+    const commandRunner = vi.fn(async () => ({ stdout: currentVersion, stderr: "" }));
+    const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), {
+      platform: "win32", arch: "x64", transport, commandRunner, systemPathResolver: () => `C:\\tools\\${cli}.exe`
+    });
+
+    await expect(service.checkForUpdate(cli)).resolves.toMatchObject({
+      currentVersion, latestVersion, updateAvailable: true, source: "npm", canUpgrade: true
+    });
+    expect(transport).toHaveBeenLastCalledWith(`https://registry.npmjs.org/${packageName.replace("/", "%2f")}/latest`, expect.any(AbortSignal));
+    expect(commandRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds a stalled native channel and tries the fallback after timeout", async () => {
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((delay) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), delay);
+      return controller.signal;
+    });
+    try {
+      const transport = vi.fn<CliInstallerTransport>()
+        .mockImplementationOnce((_url, signal) => new Promise((_resolve, reject) => {
+          signal!.addEventListener("abort", () => reject(signal!.reason), { once: true });
+        }))
+        .mockResolvedValueOnce({ statusCode: 200, body: Buffer.from(JSON.stringify({ name: "@anthropic-ai/claude-code", version: "2.1.304" })) });
+      const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), { transport, systemPathResolver: () => null });
+      const pending = service.checkForUpdate("claude");
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(pending).resolves.toMatchObject({ latestVersion: "2.1.304", source: "npm" });
+      expect(timeout).toHaveBeenCalledWith(5_000);
+      expect(transport).toHaveBeenCalledTimes(2);
+    } finally {
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["codex", "claude"] as const)("does not treat an HTML error page as a %s release", async (cli) => {
+    const transport = vi.fn<CliInstallerTransport>().mockResolvedValue({ statusCode: 200, body: Buffer.from("<html>Proxy 1.2.3: access denied</html>") });
+    const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), { transport, systemPathResolver: () => null });
+    await expect(service.checkForUpdate(cli)).resolves.toMatchObject({
+      latestVersion: null, source: "unknown", updateAvailable: false, error: { code: "invalid-response" }
+    });
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { name: "unrelated-package", version: "1.2.3" },
+    { name: "@openai/codex", version: "1.2.3-beta.1" }
+  ])("rejects unrelated or prerelease npm metadata: %j", async (metadata) => {
+    const transport = vi.fn<CliInstallerTransport>()
+      .mockResolvedValueOnce({ statusCode: 403, body: Buffer.from("blocked") })
+      .mockResolvedValueOnce({ statusCode: 200, body: Buffer.from(JSON.stringify(metadata)) });
+    const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), { transport, systemPathResolver: () => null });
+    await expect(service.checkForUpdate("codex")).resolves.toMatchObject({ latestVersion: null, error: { code: "invalid-response" } });
+  });
+
+  it("returns the local version and a safe HTTP reason when every source fails", async () => {
+    const transport = vi.fn<CliInstallerTransport>().mockResolvedValue({ statusCode: 503, body: Buffer.from("unavailable") });
+    const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), {
+      transport, systemPathResolver: () => "C:\\tools\\codex.exe",
+      commandRunner: async () => ({ stdout: "codex-cli 0.162.1", stderr: "" })
+    });
+    await expect(service.checkForUpdate("codex")).resolves.toMatchObject({
+      installed: true, currentVersion: "0.162.1", latestVersion: null, source: "unknown", updateAvailable: false,
+      error: { code: "http", statusCode: 503 }
+    });
+  });
+
+  it("does not expose raw network errors to the renderer", async () => {
+    const service = new CliInstallerService(buildAppPaths(path.join(root, "user-data")), {
+      transport: async () => { throw new Error("network error with private proxy configuration"); }, systemPathResolver: () => null
+    });
+    const result = await service.checkForUpdate("claude");
+    expect(result.error).toEqual({ code: "network" });
+    expect(JSON.stringify(result)).not.toContain("private proxy");
+  });
+
   it("rejects a redirect from the official Claude host", async () => {
     const paths = buildAppPaths(path.join(root, "user-data"));
     const commandRunner = vi.fn();

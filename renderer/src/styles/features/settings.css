@@ -578,6 +578,16 @@
   color: var(--success-600, var(--accent-fg));
 }
 
+.settings-provider-version-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-provider-version-busy svg {
+  flex-shrink: 0;
+}
+
 .settings-provider-version-error {
   grid-area: error;
   display: inline-flex;

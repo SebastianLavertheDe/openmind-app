@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCapabilities, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
@@ -320,6 +320,84 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(upgradeCliTool).toHaveBeenCalledWith("codex"));
     await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledTimes(2));
     expect(screen.getByText("已是最新")).toBeTruthy();
+  });
+
+  it.each([
+    ["codex", "Codex CLI"],
+    ["claude", "Claude Code"]
+  ] as const)("keeps %s's inline spinner visible through upgrade and version refresh", async (cli, label) => {
+    let finishUpgrade!: () => void;
+    let finishRecheck!: () => void;
+    const checkCliToolUpdate = vi.fn()
+      .mockResolvedValueOnce({ cli, installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-10-20T00:00:00Z", source: "official" })
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => { finishRecheck = resolve; });
+        return { cli, installed: true, currentVersion: "1.1.0", latestVersion: "1.1.0", updateAvailable: false, canUpgrade: true, checkedAt: "2026-10-20T00:01:00Z", source: "official" };
+      });
+    const upgradeCliTool = vi.fn(async () => {
+      await new Promise<void>((resolve) => { finishUpgrade = resolve; });
+      return { cli, installed: true, version: "1.1.0", digest: null, sourceUrl: null, installedAt: null, executablePath: `/tools/${cli}` };
+    });
+    window.openmind = makeApi({ checkCliToolUpdate, upgradeCliTool, aiRefreshProviders: vi.fn().mockResolvedValue(undefined) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    fireEvent.click(screen.getByRole("button", { name: `${label} 更多操作` }));
+    fireEvent.click(within(screen.getByRole("menu", { name: `${label} 操作` })).getByRole("menuitem", { name: "检查更新" }));
+    await screen.findByText("可更新至 v1.1.0");
+    fireEvent.click(screen.getByRole("button", { name: `${label} 更多操作` }));
+    fireEvent.click(within(screen.getByRole("menu", { name: `${label} 操作` })).getByRole("menuitem", { name: "更新到 v1.1.0" }));
+
+    const status = screen.getByText("更新中…", { selector: "small" });
+    expect(status.getAttribute("role")).toBe("status");
+    expect(status.querySelector("svg.spin")).toBeTruthy();
+    expect(screen.queryByText("可更新至 v1.1.0")).toBeNull();
+    expect(screen.getByRole("button", { name: `${label} 更多操作` }).hasAttribute("disabled")).toBe(true);
+    await act(async () => finishUpgrade());
+    await waitFor(() => expect(checkCliToolUpdate).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("更新中…", { selector: "small" }).querySelector("svg.spin")).toBeTruthy();
+    await act(async () => finishRecheck());
+    expect(await screen.findByText("已是最新")).toBeTruthy();
+    expect(screen.queryByText("更新中…", { selector: "small" })).toBeNull();
+    expect(screen.getByRole("button", { name: `${label} 更多操作` }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("clears the inline updating state when an upgrade fails", async () => {
+    window.openmind = makeApi({
+      checkCliToolUpdate: vi.fn().mockResolvedValue({ cli: "codex", installed: true, currentVersion: "1.0.0", latestVersion: "1.1.0", updateAvailable: true, canUpgrade: true, checkedAt: "2026-10-20T00:00:00Z", source: "official" }),
+      upgradeCliTool: vi.fn().mockRejectedValue(new Error("下载失败"))
+    });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "检查更新" }));
+    await screen.findByText("可更新至 v1.1.0");
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "更新到 v1.1.0" }));
+    expect(await screen.findByText("更新失败：下载失败")).toBeTruthy();
+    expect(screen.queryByText("更新中…", { selector: "small" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Codex CLI 更多操作" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it.each([
+    [{ code: "network" }, "无法连接更新来源，请检查网络后重试"],
+    [{ code: "timeout" }, "检查更新超时，请重试"],
+    [{ code: "http", statusCode: 403 }, "更新来源返回 HTTP 403，请稍后重试"],
+    [{ code: "invalid-response" }, "更新来源未返回有效版本，请稍后重试"]
+  ] as const)("shows the update failure reason: %j", async (error, message) => {
+    window.openmind = makeApi({ checkCliToolUpdate: vi.fn().mockResolvedValue({
+      cli: "codex", installed: true, currentVersion: "0.162.1", latestVersion: null,
+      updateAvailable: false, canUpgrade: true, checkedAt: "2026-10-20T00:00:00Z", source: "unknown", error
+    }) });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory("AI 与模型");
+    fireEvent.click(screen.getByRole("button", { name: "Codex CLI 更多操作" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Codex CLI 操作" })).getByRole("menuitem", { name: "检查更新" }));
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.queryByText("暂无法确认最新版本")).toBeNull();
+    expect(screen.queryByText("已是最新")).toBeNull();
   });
 
   it("uses manual copy steps for an unavailable WSL provider", async () => {

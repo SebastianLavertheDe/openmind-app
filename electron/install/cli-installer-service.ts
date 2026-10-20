@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { gunzipSync, unzipSync } from "fflate";
 import { getAppPaths, type AppPaths } from "../paths/app-paths-service";
+import type { CliToolUpdateView } from "../../shared/contracts";
 
 /** The first distribution phase deliberately promises only native Windows/macOS. */
 export type CliToolId = "claude" | "codex";
@@ -36,16 +37,7 @@ export type CliInstallStatus = {
   executablePath: string;
 };
 
-export type CliToolUpdate = {
-  cli: CliToolId;
-  installed: boolean;
-  currentVersion: string | null;
-  latestVersion: string | null;
-  updateAvailable: boolean;
-  canUpgrade: boolean;
-  checkedAt: string;
-  source: "official" | "npm" | "unknown";
-};
+export type CliToolUpdate = CliToolUpdateView;
 
 export type CliInstallerErrorCode =
   | "platform-unsupported"
@@ -125,6 +117,8 @@ const CODEX_VERSION_ENDPOINT = "https://releases.openai.com/codex/channels/lates
 const CODEX_OFFICIAL_HOSTS = new Set(["chatgpt.com", "releases.openai.com"]);
 const MAX_INSTALL_SCRIPT_BYTES = 16 * 1024 * 1024;
 const SYSTEM_PATH_RESOLVE_TIMEOUT_MS = 5_000;
+const VERSION_LOOKUP_TIMEOUT_MS = 5_000;
+const CLI_NPM_PACKAGES = { codex: "@openai/codex", claude: "@anthropic-ai/claude-code" } as const;
 
 export function detectCliToolPlatform(platform: NodeJS.Platform = process.platform, arch: string = process.arch): CliToolPlatform | null {
   if (platform === "win32") return arch === "x64" || arch === "ia32" ? "windows-x64" : arch === "arm64" ? "windows-arm64" : null;
@@ -246,29 +240,43 @@ export class CliInstallerService {
     const current = this.status(cli);
     const detected = current.installed ? { installed: true, executablePath: current.executablePath } : this.detect(cli);
     const currentVersion = current.version || await this.probeExecutableVersion(detected.executablePath);
-    const source = "official";
+    let source: CliToolUpdate["source"] = "unknown";
     let latestVersion: string | null = null;
-    try {
-      const url = cli === "codex"
-        ? CODEX_VERSION_ENDPOINT
-        : CLAUDE_VERSION_ENDPOINT;
-      const response = await this.transport(url);
-      if (response.statusCode !== 200) throw new Error(`HTTP ${response.statusCode}`);
-      if (cli === "codex") {
-        let payload: unknown;
-        try { payload = JSON.parse(response.body.toString("utf8")); } catch { payload = null; }
-        const tagName = payload && typeof payload === "object" && typeof (payload as { tag_name?: unknown }).tag_name === "string"
-          ? (payload as { tag_name: string }).tag_name
-          : "";
-        latestVersion = parseVersion(tagName.replace(/^rust-v/, ""));
-      } else {
-        // The endpoint returns a plain-text version such as "2.1.233".
-        latestVersion = parseVersion(response.body.toString("utf8"));
+    let error: CliToolUpdate["error"];
+    const packageName = CLI_NPM_PACKAGES[cli];
+    const sources = [
+      { url: cli === "codex" ? CODEX_VERSION_ENDPOINT : CLAUDE_VERSION_ENDPOINT, source: "official" },
+      // Read metadata only. Upgrades still use the official native installer.
+      { url: `https://registry.npmjs.org/${packageName.replace("/", "%2f")}/latest`, source: "npm" }
+    ] as const;
+    for (const candidate of sources) {
+      const signal = AbortSignal.timeout(VERSION_LOOKUP_TIMEOUT_MS);
+      try {
+        const response = await this.transport(candidate.url, signal);
+        if (response.statusCode !== 200) {
+          error = { code: "http", statusCode: response.statusCode };
+          continue;
+        }
+        const text = response.body.toString("utf8").trim();
+        if (candidate.source === "official" && cli === "claude") {
+          latestVersion = parseReleaseVersion(text);
+        } else {
+          const payload = JSON.parse(text) as { name?: unknown; version?: unknown; tag_name?: unknown } | null;
+          const version = candidate.source === "npm"
+            ? payload?.name === packageName ? payload.version : null
+            : payload?.tag_name;
+          latestVersion = parseReleaseVersion(version);
+        }
+        if (!latestVersion) {
+          error = { code: "invalid-response" };
+          continue;
+        }
+        source = candidate.source;
+        error = undefined;
+        break;
+      } catch (cause) {
+        error = { code: signal.aborted ? "timeout" : cause instanceof SyntaxError ? "invalid-response" : "network" };
       }
-    } catch {
-      // Version checks are best-effort. The caller still receives the local
-      // version and can use the official upgrade path when available.
-      latestVersion = null;
     }
     const comparison = currentVersion && latestVersion ? compareVersions(currentVersion, latestVersion) : null;
     const managedPlatform = detectCliToolPlatform(this.platform, this.arch);
@@ -285,7 +293,8 @@ export class CliInstallerService {
       updateAvailable: comparison !== null ? comparison < 0 : false,
       canUpgrade,
       checkedAt: new Date().toISOString(),
-      source: current.installed || detected.installed ? source : "unknown"
+      source,
+      ...(error ? { error } : {})
     };
   }
 
@@ -587,6 +596,11 @@ function sha256Tree(root: string): string {
 
 function parseVersion(value: string): string | null {
   return value.match(/\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/)?.[0] || null;
+}
+
+/** Release metadata must be a version, never a number embedded in an HTML error page. */
+function parseReleaseVersion(value: unknown): string | null {
+  return typeof value === "string" ? value.match(/^(?:rust-v|v)?(\d+\.\d+\.\d+)$/)?.[1] || null : null;
 }
 
 function compareVersions(left: string, right: string): number | null {

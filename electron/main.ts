@@ -20,7 +20,7 @@ import * as creative from "./lib/creative";
 import { getLocale, messages, setLocale, subscribeLocale } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
-import { browserSkillStatus, resolveBrowserSkillExecutable, BROWSER_SKILL_REPOSITORY } from "./browser-skill";
+import { browserSkillStatus, resolveBrowserSkillExecutable, installBrowserSkillPackage } from "./browser-skill";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
@@ -109,8 +109,7 @@ function getMcpServers() {
 }
 
 async function installBrowserSkill() {
-  const installed = await ensureSkillSourceService().install({ type: "git", locator: BROWSER_SKILL_REPOSITORY }, ["skill"]);
-  for (const record of installed) ensureSkillPackageService().setEnabled(record.key, record.digest, true);
+  await installBrowserSkillPackage(ensureSkillSourceService(), ensureSkillPackageService());
   if (aiWorker) await aiWorker.call("refresh-skills");
   return getBrowserSkillStatus();
 }

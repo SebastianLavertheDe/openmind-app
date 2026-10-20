@@ -547,7 +547,11 @@ export const CliToolUpdateSchema = z.object({
   updateAvailable: z.boolean(),
   canUpgrade: z.boolean(),
   checkedAt: z.string(),
-  source: z.enum(["official", "npm", "unknown"])
+  source: z.enum(["official", "npm", "unknown"]),
+  error: z.object({
+    code: z.enum(["network", "timeout", "http", "invalid-response"]),
+    statusCode: z.number().int().min(100).max(599).optional()
+  }).optional()
 });
 export type CliToolUpdateView = z.infer<typeof CliToolUpdateSchema>;
 

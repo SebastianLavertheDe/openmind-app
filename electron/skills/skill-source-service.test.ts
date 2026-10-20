@@ -60,10 +60,10 @@ describe("SkillSourceService", () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it("imports BrowserSkill from skill/ while preserving Git provenance and installing under its declared name", async () => {
+  it.each(["skill", "crates/bsk-cli/skill"])("imports BrowserSkill from %s while preserving Git provenance and installing under its declared name", async (packageRef) => {
     const runGit: GitCommandRunner = async (args) => {
       if (args[0] === "rev-parse") return { stdout: `${REVISION}\n`, stderr: "" };
-      const source = path.join(args.at(-1)!, "skill");
+      const source = path.join(args.at(-1)!, packageRef);
       fs.mkdirSync(source, { recursive: true });
       fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: browser-skill\ndescription: Use the logged-in browser through bsk\n---\n# BrowserSkill\n");
       return { stdout: "", stderr: "" };
@@ -71,10 +71,10 @@ describe("SkillSourceService", () => {
     const source = new SkillSourceService(new SkillPackageService(paths), paths, runGit);
     const input = { type: "git" as const, locator: "https://github.com/Tencent/BrowserSkill" };
     const inspection = await source.inspect(input);
-    expect(inspection.packages[0]).toMatchObject({ packageRef: "skill", valid: true, manifest: { id: "browser-skill" } });
-    const [installed] = await source.install(input, ["skill"]);
+    expect(inspection.packages[0]).toMatchObject({ packageRef, valid: true, manifest: { id: "browser-skill" } });
+    const [installed] = await source.install(input, [packageRef]);
     expect(installed.packagePath).toBe(path.join(paths.skills!, "browser-skill"));
-    expect(installed).toMatchObject({ sourcePackageRef: "skill", sourceRevision: REVISION });
+    expect(installed).toMatchObject({ sourcePackageRef: packageRef, sourceRevision: REVISION });
   });
 
   it("validates HTTPS Git, uses a shallow non-interactive clone, and cleans the checkout", async () => {

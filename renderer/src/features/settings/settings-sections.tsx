@@ -3,7 +3,7 @@ import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
@@ -18,6 +18,17 @@ import { ProviderImageCapability, defaultImageCapability } from "./ProviderImage
 const m = messages;
 
 type SavePreferences = (patch: Partial<UserPreferences>) => Promise<void>;
+
+function cliVersionStatus(update: CliToolUpdateView): string {
+  switch (update.error?.code) {
+    case "network": return m.settings.provider.versionNetworkError;
+    case "timeout": return m.settings.provider.versionTimeout;
+    case "http": return m.settings.provider.versionHttpError(update.error.statusCode);
+    case "invalid-response": return m.settings.provider.versionInvalidResponse;
+  }
+  return update.updateAvailable ? m.settings.provider.updateAvailable(update.latestVersion)
+    : update.latestVersion && update.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown;
+}
 
 const THEME_OPTIONS: Array<{ value: UserPreferences["themeMode"]; label: string }> = [
   { value: "light", get label() { return m.settings.theme.light; } },
@@ -228,10 +239,12 @@ export function ProviderSettingsSection({
                   {cliKind ? <div className="settings-provider-runtime-meta">
                     {provider.version !== null ? <small>v{provider.version}</small> : null}
                     <small>{boundProvider ? m.settings.provider.usingProvider(boundProvider.name) : m.settings.provider.usingOwnConfiguration(provider.label)}</small>
-                    {versionCheck ? <small className={!versionCheck.updateAvailable && versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : undefined} role="status">
-                      {versionCheck.updateAvailable ? m.settings.provider.updateAvailable(versionCheck.latestVersion) : versionCheck.latestVersion && versionCheck.currentVersion ? m.settings.provider.latest : m.settings.provider.latestUnknown}
+                    {upgrading || versionCheckBusy === cliKind ? <small className="settings-provider-version-busy" role="status" aria-live="polite">
+                      <LoaderCircle size={13} className="spin" aria-hidden="true" />
+                      {upgrading ? m.settings.provider.updating : m.settings.provider.checking}
+                    </small> : versionCheck ? <small className={!versionCheck.updateAvailable && versionCheck.latestVersion && versionCheck.currentVersion ? "settings-provider-version-latest" : undefined} role="status">
+                      {cliVersionStatus(versionCheck)}
                     </small> : null}
-                    {versionCheckBusy === cliKind ? <small role="status">{m.settings.provider.checking}</small> : null}
                     {installError?.cli === cliKind && !canInstall ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.upgradeFailed}{installError.message}</small> : null}
                     {versionError?.cli === cliKind ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.versionFailed(versionError.message)}</small> : null}
                   </div> : null}

@@ -2,9 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { browserSkillStatus, resolveBrowserSkillExecutable, type BrowserSkillCommand } from "./browser-skill";
+import { browserSkillStatus, installBrowserSkillPackage, resolveBrowserSkillExecutable, type BrowserSkillCommand } from "./browser-skill";
 import { buildAppPaths, ensureAppPaths } from "./paths/app-paths-service";
 import { SkillPackageService } from "./skills/skill-package-service";
+import { SkillSourceService, type GitCommandRunner } from "./skills/skill-source-service";
 
 describe("BrowserSkill connection", () => {
   let root: string;
@@ -23,6 +24,31 @@ describe("BrowserSkill connection", () => {
     fs.writeFileSync(path.join(source, "SKILL.md"), "---\nname: browser-skill\ndescription: Browser tasks\n---\nUse bsk.\n");
     return packages.install(source);
   }
+
+  it.each(["skill", "crates/bsk-cli/skill"])("installs and enables BrowserSkill from %s without installing unrelated packages", async (packageRef) => {
+    const paths = buildAppPaths(path.join(root, "userdata"), path.join(root, "content", ".agent", "skills"));
+    const runGit: GitCommandRunner = async (args) => {
+      if (args[0] === "rev-parse") return { stdout: `${"a".repeat(40)}\n`, stderr: "" };
+      for (const [ref, name] of [[packageRef, "browser-skill"], ["other", "other-skill"]]) {
+        const source = path.join(args.at(-1)!, ref);
+        fs.mkdirSync(source, { recursive: true });
+        fs.writeFileSync(path.join(source, "SKILL.md"), `---\nname: ${name}\ndescription: Browser tasks\n---\nUse bsk.\n`);
+        fs.mkdirSync(path.join(source, "references"));
+        fs.writeFileSync(path.join(source, "references", "environment.md"), "Fixture reference\n");
+      }
+      return { stdout: "", stderr: "" };
+    };
+    const sources = new SkillSourceService(packages, paths, runGit);
+    await installBrowserSkillPackage(sources, packages);
+    const installed = packages.listInstalled();
+    expect(installed).toHaveLength(1);
+    expect(installed[0]).toMatchObject({ id: "browser-skill", sourcePackageRef: packageRef });
+    expect(packages.isEnabled(installed[0])).toBe(true);
+    expect(fs.readFileSync(path.join(installed[0].packagePath, "references", "environment.md"), "utf8")).toBe("Fixture reference\n");
+    packages.setEnabled(installed[0].key, installed[0].digest, false);
+    await installBrowserSkillPackage(sources, packages);
+    expect(packages.isEnabled(packages.listInstalled()[0])).toBe(true);
+  });
 
   it("reports a missing Skill and CLI without executing a command", async () => {
     const run = vi.fn();

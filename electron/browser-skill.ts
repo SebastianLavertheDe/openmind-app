@@ -5,11 +5,26 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { BrowserSkillStatus } from "../shared/contracts";
 import type { SkillPackageService } from "./skills/skill-package-service";
+import type { SkillSourceService } from "./skills/skill-source-service";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 
 export const BROWSER_SKILL_REPOSITORY = "https://github.com/Tencent/BrowserSkill";
 export const BROWSER_SKILL_ID = "browser-skill";
 const execute = promisify(execFile);
+
+export async function installBrowserSkillPackage(
+  sources: Pick<SkillSourceService, "inspect" | "install">,
+  packages: Pick<SkillPackageService, "setEnabled">
+): Promise<void> {
+  const source = { type: "git" as const, locator: BROWSER_SKILL_REPOSITORY };
+  const inspection = await sources.inspect(source);
+  const candidates = inspection.packages.filter((entry) => entry.manifest?.id === BROWSER_SKILL_ID);
+  if (candidates.length !== 1) {
+    throw new Error("BrowserSkill 来源中未找到唯一的 browser-skill 指令包，请检查官方仓库结构。");
+  }
+  const installed = await sources.install(source, [candidates[0].packageRef]);
+  for (const record of installed) packages.setEnabled(record.key, record.digest, true);
+}
 
 export function resolveBrowserSkillExecutable(userData: string | undefined, environment: NodeJS.ProcessEnv = process.env): string | null {
   const filename = process.platform === "win32" ? "bsk.exe" : "bsk";
