@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION, WorkflowRunRecordSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowRunRecord } from "../../shared/execution-contracts";
 import { AutomationRepository } from "./automation-repository";
 import { AutomationScheduler } from "./automation-scheduler";
 import type { AutomationEnvironment } from "./automation-environment";
+import { DEFAULT_AUTOMATION_RULES } from "../../shared/automation-defaults";
 
 const roots: string[] = [];
 
@@ -33,19 +34,106 @@ describe("AutomationRepository", () => {
     expect(reloaded.getRule("daily-brief")).toMatchObject({ lastScheduledKey: "2026-08-05", lastTriggeredAt: "2026-08-05T08:00:00.000Z" });
   });
 
-  it("seeds default rules once and does not resurrect a deliberate delete", () => {
+  it("creates defaults only on opt-in, persists opt-out and restores them on re-enable", () => {
     const root = makeRoot();
     const paths = buildAppPaths(path.join(root, "user-data"));
     ensureAppPaths(paths);
     const repository = new AutomationRepository(paths);
-    expect(repository.ensureDefaultRules().map((rule) => rule.id)).toEqual(["rss-capture", "x-following-capture", "reddit-capture", "daily-topic-generation"]);
+    expect(repository.getDefaultSkillsEnabled()).toBe(false);
+    expect(repository.listRules()).toEqual([]);
+    repository.setDefaultRulesEnabled(true);
+    expect(repository.listRules().map((rule) => rule.id)).toEqual(["rss-capture", "x-following-capture", "reddit-capture", "daily-topic-generation"]);
     expect(repository.removeRule("rss-capture")).toBe(true);
     const reloaded = new AutomationRepository(paths);
-    expect(reloaded.ensureDefaultRules().map((rule) => rule.id)).toEqual(["x-following-capture", "reddit-capture", "daily-topic-generation"]);
+    expect(reloaded.getDefaultSkillsEnabled()).toBe(true);
+    expect(reloaded.listRules().map((rule) => rule.id)).toEqual(["x-following-capture", "reddit-capture", "daily-topic-generation"]);
+    reloaded.setDefaultRulesEnabled(false);
+    expect(new AutomationRepository(paths).getDefaultSkillsEnabled()).toBe(false);
+    expect(reloaded.listRules().every((rule) => !rule.enabled)).toBe(true);
+    reloaded.setDefaultRulesEnabled(true);
+    expect(reloaded.listRules()).toHaveLength(4);
+    expect(reloaded.listRules().every((rule) => rule.enabled)).toBe(true);
+  });
+
+  it("preserves old seeded settings without inspecting the Skill store", () => {
+    const paths = buildAppPaths(path.join(makeRoot(), "user-data"));
+    ensureAppPaths(paths);
+    fs.writeFileSync(path.join(paths.automation, "registry.json"), JSON.stringify({
+      schemaVersion: 1, defaultsSeeded: true, rules: [], runs: []
+    }));
+    expect(new AutomationRepository(paths).getDefaultSkillsEnabled()).toBe(true);
   });
 });
 
 describe("AutomationScheduler", () => {
+  it("starts without installing or seeding default jobs", async () => {
+    const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
+    harness.scheduler.start();
+    try {
+      await harness.scheduler.tick();
+      expect(harness.scheduler.listRules()).toEqual([]);
+      expect(harness.submitted).toEqual([]);
+      expect(harness.scheduler.getDefaultSkillsEnabled()).toBe(false);
+    } finally { harness.scheduler.close(); }
+  });
+
+  it("stops built-in running jobs and queued retries while preserving custom jobs", async () => {
+    const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
+    harness.scheduler.setDefaultSkillsEnabled(true);
+    const reddit = DEFAULT_AUTOMATION_RULES.find((rule) => rule.id === "reddit-capture")!;
+    harness.scheduler.saveRule({ ...reddit, concurrencyPolicy: "queue" });
+    harness.scheduler.saveRule(rule({ id: "custom" }));
+    await harness.scheduler.runNow("reddit-capture");
+    await harness.scheduler.runNow("reddit-capture");
+    await harness.scheduler.runNow("rss-capture");
+    await harness.scheduler.runNow("custom");
+
+    await harness.scheduler.stopDefaultSkills();
+    harness.scheduler.setDefaultSkillsEnabled(false);
+    expect(harness.scheduler.listRuns("reddit-capture").map((run) => run.state)).toEqual(["cancelled", "cancelled"]);
+    expect(harness.scheduler.listRuns("rss-capture")[0].state).toBe("cancelled");
+    expect(harness.scheduler.listRuns("custom")[0].state).toBe("running");
+    expect(harness.scheduler.getRule("custom").enabled).toBe(true);
+    expect(() => harness.scheduler.saveRule({ ...reddit, enabled: true })).toThrow("请先");
+    const count = harness.submitted.length;
+    await harness.scheduler.tick();
+    expect(harness.submitted).toHaveLength(count);
+  });
+
+  it("waits for workflow child processes to exit before finishing stop", async () => {
+    const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"), { cancelSkill: async () => true });
+    harness.scheduler.setDefaultSkillsEnabled(true);
+    const run = await harness.scheduler.runNow("rss-capture");
+    harness.children.set("workflow-child", child("workflow-child", "cancelling", "rss-article-saver"));
+    harness.workflows.get(run.childRunId!)!.stepRuns.push({ runId: "workflow-child", state: "running" } as never);
+    let stopped = false;
+    const stopping = harness.scheduler.stopDefaultSkills().then(() => { stopped = true; });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    harness.children.get("workflow-child")!.state = "cancelled";
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it("leaves defaults disabled and the switch retryable if a child does not stop", async () => {
+    const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"), { cancelSkill: async () => true });
+    harness.scheduler.setDefaultSkillsEnabled(true);
+    const run = await harness.scheduler.runNow("rss-capture");
+    harness.children.set("stuck", child("stuck", "running", "rss-article-saver"));
+    harness.workflows.get(run.childRunId!)!.stepRuns.push({ runId: "stuck", state: "running" } as never);
+    const now = vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValue(10_001);
+    try {
+      await expect(harness.scheduler.stopDefaultSkills()).rejects.toThrow("内置任务尚未停止");
+      expect(harness.scheduler.getDefaultSkillsEnabled()).toBe(true);
+      expect(harness.scheduler.listRules().every((rule) => !rule.enabled)).toBe(true);
+      await harness.scheduler.tick();
+      expect(harness.scheduler.listRuns("rss-capture")[0].state).toBe("cancelled");
+      now.mockReturnValueOnce(0).mockReturnValue(10_001);
+      await expect(harness.scheduler.stopDefaultSkills()).rejects.toThrow("内置任务尚未停止");
+      harness.children.get("stuck")!.state = "cancelled";
+      await harness.scheduler.stopDefaultSkills();
+    } finally { now.mockRestore(); }
+  });
   it("runs a daily rule once, reconciles the child and deduplicates the schedule key", async () => {
     const harness = createHarness(new Date("2026-08-05T08:01:00.000Z"));
     harness.scheduler.saveRule(rule({ id: "daily", trigger: { type: "daily", at: "08:00" } }));
@@ -275,6 +363,7 @@ function rule(overrides: Record<string, unknown> = {}) {
 }
 
 function createHarness(initialNow: Date, options: {
+  cancelSkill?: (id: string) => Promise<boolean>;
   fileFingerprint?: (paths: readonly string[]) => string | undefined;
   environment?: () => AutomationEnvironment;
   onWorkflowSubmitted?: (record: WorkflowRunRecord) => WorkflowRunRecord;
@@ -317,8 +406,8 @@ function createHarness(initialNow: Date, options: {
       if (!record) throw new Error(`missing workflow ${runId}`);
       return record;
     },
-    cancelSkill: async () => true,
-    cancelWorkflow: async () => true,
+    cancelSkill: options.cancelSkill || (async (id) => { children.get(id)!.state = "cancelled"; return true; }),
+    cancelWorkflow: async (id) => { workflows.get(id)!.state = "cancelled"; return true; },
     fileFingerprint: options.fileFingerprint,
     environment: options.environment
   });

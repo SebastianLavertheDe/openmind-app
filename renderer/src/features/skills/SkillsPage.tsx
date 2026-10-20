@@ -10,6 +10,7 @@ import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { StatusBadge, useModalFocusScope, SearchInput, Input, Textarea } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
+import { DefaultSkillsToggle } from "./DefaultSkillsToggle";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 
@@ -291,6 +292,12 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
         <div><span className="eyebrow">{m.eyebrow}</span><h1>{m.title}</h1><p>{m.description}</p></div>
       </header> : null}
 
+      <DefaultSkillsToggle onChange={async () => {
+        await load(false);
+        notifyInstalledSkillCatalogChanged();
+        await onInstallationChange?.();
+        await onAvailabilityChange?.();
+      }} />
       {error ? <p className="skills-error" role="alert">{error}</p> : null}
       {sourcePickerApiAvailable ? <SkillSourcePicker open={sourcePickerOpen} onToggle={() => setSourcePickerOpen((open) => !open)} onInstalled={onSourceInstalled} /> : null}
       <section ref={skillsLayout.ref} className="skills-layout" data-layout={skillsLayout.mode}>

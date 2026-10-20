@@ -82,8 +82,14 @@ describe("installBrowserPreviewApi", () => {
     expect((await window.openmind.getOpenmindRoot()).health.configured).toBe(false);
     await window.openmind.setOpenmindRoot("/fixtures/openmind-data");
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: false });
-    await window.openmind.installSkillSource?.({ type: "git", locator: "https://github.com/example/skills.git" });
+    expect(await window.openmind.getDefaultSkillsEnabled()).toBe(false);
+    expect(await window.openmind.listAutomationRules()).toEqual([]);
+    await window.openmind.setDefaultSkillsEnabled(true);
     expect(await window.openmind.getBootstrap()).toMatchObject({ validRepo: true, skillsInstalled: true });
+    expect((await window.openmind.listAutomationRules()).every((rule) => rule.enabled)).toBe(true);
+    await window.openmind.setDefaultSkillsEnabled(false);
+    expect(await window.openmind.listInstalledSkills()).toEqual([]);
+    expect((await window.openmind.listAutomationRules()).some((rule) => rule.enabled)).toBe(false);
   });
 
   it("content API returns preview articles", async () => {

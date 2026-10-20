@@ -73,6 +73,8 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "aiRefreshSkills", channel: IPC.AI_REFRESH_SKILLS },
   { method: "inspectInstalledSkill", channel: IPC.SKILL_INSPECT_INSTALLED },
   { method: "listInstalledSkills", channel: IPC.SKILL_LIST_INSTALLED },
+  { method: "getDefaultSkillsEnabled", channel: IPC.DEFAULT_SKILLS_GET },
+  { method: "setDefaultSkillsEnabled", channel: IPC.DEFAULT_SKILLS_SET },
   { method: "listInstalledRunnableSkills", channel: IPC.SKILL_LIST_RUNNABLE },
   { method: "setInstalledSkillEnabled", channel: IPC.SKILL_SET_ENABLED },
   { method: "selectSkillPackageSource", channel: IPC.SKILL_SOURCE_SELECT },

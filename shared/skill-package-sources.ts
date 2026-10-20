@@ -57,7 +57,7 @@ export function parseSkillPackageSourceInput(value: unknown): SkillPackageSource
   return SkillPackageSourceInputSchema.parse(value);
 }
 
-/** Official first-start skill repository; installing it is part of the onboarding gate. */
+/** Optional default Skill repository, installed explicitly from Settings. */
 export const OPENMIND_SKILLS_REPO_URL = "https://github.com/SebastianLavertheDe/cctools-skills";
 
 /** Canonical form used for local source provenance and receipt comparison. */

@@ -10,6 +10,10 @@ export type AppPage =
   | "ai"
   | "settings";
 
+export function isDefaultSkillsPage(page: AppPage): boolean {
+  return page === "creative" || page === "brief";
+}
+
 export type AppRouteState = {
   date?: string;
   projectDir?: string;

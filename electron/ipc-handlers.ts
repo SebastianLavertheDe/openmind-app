@@ -24,7 +24,7 @@ import {
   SharedPythonRuntimeStatusSchema,
   type GlobalSearchResult
 } from "../shared/contracts";
-import { OPENMIND_SKILLS_REPO_URL, SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
+import { SkillPackageSourceInputSchema } from "../shared/skill-package-sources";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import type { ProductService } from "./product/product-service";
 import type { OpenmindFileSearch } from "./openmind-file-search";
@@ -32,6 +32,7 @@ import type { SkillPackageService } from "./skills/skill-package-service";
 import { toSkillPackageInspectionView } from "./skills/skill-package-service";
 import type { SkillSourceService } from "./skills/skill-source-service";
 import { SkillSourceService as SkillSourceServiceImpl } from "./skills/skill-source-service";
+import { DefaultSkillsService } from "./skills/default-skills-service";
 import { listProvidersForUi, readProviderApiKeyForUi, saveProvidersFromInput } from "./config/providers-yaml";
 import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { normalizeOpenmindSelection } from "./openmind-file-search";
@@ -220,21 +221,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
         const workspaceRoot = openmindRoot;
         // `validRepo` is retained in the wire contract for one release. It
         // means only that an explicit, usable openmind save root is bound.
-        // Setup checks Skill installation presence only; integrity/provenance
-        // disagreements remain visible in Skill Center and fail at execution.
         const validRepo = Boolean(openmindRoot && settings.isValidOpenmindRoot(openmindRoot));
         const aiWorkspace = workspaceRoot;
         const hasAiWorkspace = Boolean(aiWorkspace);
-        // No openmind root bound → no skill store; skip the service entirely so
-        // bootstrap never constructs a null-root store on a fresh machine.
-        const skillsInstalled = validRepo
-          ? skillSources().hasInstallation(OPENMIND_SKILLS_REPO_URL)
-          : false;
-        const appReady = validRepo && skillsInstalled && hasAiWorkspace;
+        const appReady = validRepo && hasAiWorkspace;
         return {
           repoRoot,
           validRepo,
-          skillsInstalled,
           onboardingCompleted: settings.getOnboardingState().completed,
           openmindRoot,
           workspaceRoot,
@@ -389,12 +382,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     // --- ADR-001 openmindRoot / workspaceRoot handlers ---
     {
       channel: C.setOpenmindRoot,
-      handler: async (value) => {
+      handler: (value) => projectAdmission.run(async () => {
         await assertNoActiveTasks(ctx);
         const result = settings.setOpenmindRoot(parseString(value));
         ctx.restartAiWorker();
         return result;
-      }
+      })
     },
     {
       channel: C.selectOpenmindRoot,
@@ -430,10 +423,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           properties: ["openDirectory"]
         });
         if (result.canceled || !result.filePaths[0]) return null;
-        await assertNoActiveTasks(ctx, messages.desktopErrors.root.activeWorkspaceTasks);
-        const workspaceRoot = settings.setWorkspaceRoot(result.filePaths[0]);
-        ctx.restartAiWorker();
-        return workspaceRoot;
+        return projectAdmission.run(async () => {
+          await assertNoActiveTasks(ctx, messages.desktopErrors.root.activeWorkspaceTasks);
+          const workspaceRoot = settings.setWorkspaceRoot(result.filePaths[0]);
+          ctx.restartAiWorker();
+          return workspaceRoot;
+        });
       }
     },
     { channel: C.getPreferences, handler: () => UserPreferencesSchema.parse(settings.getPreferences()) },
@@ -548,6 +543,26 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalledViews() },
+    {
+      channel: C.getDefaultSkillsEnabled,
+      handler: async () => settings.resolveOpenmindRoot()
+        ? z.boolean().parse(await ai().call("default-skills-get")) : false
+    },
+    {
+      channel: C.setDefaultSkillsEnabled,
+      handler: (rawEnabled) => {
+        const enabled = z.boolean().parse(rawEnabled);
+        return projectAdmission.run(async () => {
+          const worker = ai();
+          const service = new DefaultSkillsService(skillPackages(), skillSources(), {
+            stop: () => worker.call("default-skills-stop"),
+            setEnabled: (value) => worker.call("default-skills-set", value),
+            refresh: () => worker.call("refresh-skills")
+          });
+          return service.setEnabled(enabled);
+        });
+      }
+    },
     { channel: C.listInstalledRunnableSkills, handler: () => skillPackages().listInstalledRunnableViews() },
     {
       channel: C.setInstalledSkillEnabled,
@@ -590,12 +605,12 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     {
       channel: C.installSkillSource,
-      handler: async (input, selected) => {
+      handler: (input, selected) => projectAdmission.run(async () => {
         const refs = selected == null ? undefined : z.array(z.string().max(4096)).parse(selected);
         const records = await skillSources().install(SkillPackageSourceInputSchema.parse(input), refs);
         ctx.restartAiWorker();
         return records.map((record) => skillPackages().toInstalledView(record));
-      }
+      })
     },
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },

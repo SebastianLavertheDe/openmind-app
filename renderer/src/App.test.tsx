@@ -28,6 +28,7 @@ function installApi(overrides: Partial<DesktopApi> = {}) {
   window.openmind = {
     getBootstrap: async () => ({ repoRoot: "/project", openmindRoot: "/project/openmind", workspaceRoot: "/project", validRepo: true, skillsInstalled: true, runtime: "test", environment: { mode: "desktop", platform: "linux" }, overview, skills, ai: snapshot }),
     getPreferences: async () => preferences,
+    getDefaultSkillsEnabled: async () => true,
     aiRefresh: async () => snapshot,
     aiRefreshProviders: async () => undefined,
     aiGetEvents: async () => [],
@@ -206,16 +207,15 @@ describe("App bootstrap", () => {
     expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("1");
   });
 
-  it("keeps the same setup track mounted while the root and RSS gates advance", async () => {
+  it("keeps the same setup track mounted when root selection advances to Provider setup", async () => {
     const setupSnapshot: AiSnapshot = { ...snapshot, providers: [], sessions: [] };
     let rootSelected = false;
-    let rssInstalled = false;
     const getBootstrap = vi.fn(async (): Promise<AppBootstrap> => ({
       repoRoot: rootSelected ? "/project" : "",
       openmindRoot: rootSelected ? "/project/openmind" : "",
       workspaceRoot: rootSelected ? "/project" : "",
       validRepo: rootSelected,
-      skillsInstalled: rssInstalled,
+      skillsInstalled: false,
       onboardingCompleted: false,
       runtime: "test",
       environment: { mode: "desktop", platform: "linux" },
@@ -252,10 +252,7 @@ describe("App bootstrap", () => {
       },
       getOnboardingState: async () => ({ completed: false, skill: "pending", provider: "pending" }),
       getProviders: async () => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
-      installSkillSource: async () => {
-        rssInstalled = true;
-        return [];
-      }
+      installSkillSource: vi.fn()
     });
 
     render(<App />);
@@ -267,14 +264,10 @@ describe("App bootstrap", () => {
     const confirm = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 私人数据仓库" });
     fireEvent.click(within(confirm).getByRole("button", { name: "确认绑定" }));
 
-    await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" });
-    expect(document.querySelector(".onboarding-step-track")).toBe(track);
-    expect(track?.dataset.currentStep).toBe("2");
-
-    fireEvent.click(screen.getByRole("button", { name: "安装 RSS 源" }));
     await screen.findByRole("heading", { level: 2, name: "连接 AI Provider" });
     expect(document.querySelector(".onboarding-step-track")).toBe(track);
-    expect(track?.dataset.currentStep).toBe("3");
+    expect(track?.dataset.currentStep).toBe("2");
+    expect(window.openmind.installSkillSource).not.toHaveBeenCalled();
   }, 15_000);
 
   it("remounts AI state when openmindRoot changes", async () => {
@@ -305,6 +298,7 @@ describe("App bootstrap", () => {
     const rootBSnapshot: AiSnapshot = { ...snapshot, projectRoot: "/openmind-b", sessions: [] };
     let bootstrapCalls = 0;
     installApi({
+      getDefaultSkillsEnabled: async () => bootstrapCalls === 1,
       getBootstrap: async () => {
         bootstrapCalls += 1;
         return bootstrapCalls === 1
@@ -348,6 +342,8 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".settings-page")).toBeNull();
     expect(document.querySelector(".creative-workspace-page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
   }, 15_000);
 
   it("keeps setup open through the ready AI remount and hydrates that snapshot after finishing", async () => {
@@ -361,7 +357,7 @@ describe("App bootstrap", () => {
         projectId: "project",
         scope: { type: "workspace" },
         projectRoot: "/project",
-        title: "Ready after Skill install",
+        title: "Ready after root selection",
         provider: "codex",
         providerId: "codex-native",
         providerSessionId: null,
@@ -376,30 +372,30 @@ describe("App bootstrap", () => {
         skillSnapshot: []
       }]
     };
-    let installed = false;
+    let rootSelected = false;
     let onboardingState: OnboardingState = { completed: false, skill: "pending", provider: "pending" };
     installApi({
       getBootstrap: async () => ({
         repoRoot: "/project",
-        openmindRoot: "/project/openmind",
-        workspaceRoot: "/project",
-        validRepo: true,
-        skillsInstalled: installed,
+        openmindRoot: rootSelected ? "/project/openmind" : "",
+        workspaceRoot: rootSelected ? "/project" : "",
+        validRepo: rootSelected,
+        skillsInstalled: false,
         onboardingCompleted: onboardingState.completed,
         runtime: "test",
         environment: { mode: "desktop", platform: "linux" },
         overview,
         skills,
-        ai: installed ? readySnapshot : setupSnapshot
+        ai: rootSelected ? readySnapshot : setupSnapshot
       }),
       getOpenmindRoot: async () => ({
         openmindRoot: "/project/openmind",
         workspaceRoot: "/project",
         health: {
-          configured: true,
-          accessible: true,
-          readable: true,
-          writable: true,
+          configured: rootSelected,
+          accessible: rootSelected,
+          readable: rootSelected,
+          writable: rootSelected,
           missingInitializeEntries: [],
           missingCreateIfNeededEntries: [],
           optionalObservedEntries: [],
@@ -416,28 +412,31 @@ describe("App bootstrap", () => {
         return onboardingState;
       },
       getProviders: async () => ({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] }),
-      installSkillSource: async () => {
-        installed = true;
-        return [];
-      }
+      selectOpenmindRoot: async () => "/project/openmind",
+      previewOpenmindRoot: async () => ({
+        candidate: "/project/openmind", canonicalRoot: "/project/openmind",
+        health: { configured: true, accessible: true, readable: true, writable: true, missingInitializeEntries: [], missingCreateIfNeededEntries: [], optionalObservedEntries: [], unknownPreservedEntries: [], symlinkWarnings: [], activeRunCount: 0, warnings: [] },
+        canBind: true, blockingReasons: []
+      }),
+      setOpenmindRoot: async () => { rootSelected = true; return "/project/openmind"; }
     });
 
     render(<App />);
-    const install = await screen.findByRole("button", { name: "安装 RSS 源" });
-    await waitFor(() => expect((install as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(install);
+    fireEvent.click(await screen.findByRole("button", { name: "选择文件夹" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "确认绑定 OpenMind 私人数据仓库" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "确认绑定" }));
 
     const providerHeading = await screen.findByRole("heading", { level: 2, name: "连接 AI Provider" }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".onboarding-page")).toBeTruthy();
-    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("3");
+    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("2");
     await waitFor(() => expect(document.activeElement).toBe(providerHeading));
     fireEvent.click(screen.getByRole("button", { name: "稍后配置" }));
     const finishHeading = await screen.findByRole("heading", { level: 2, name: "准备完成" });
-    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("4");
+    expect(document.querySelector<HTMLElement>(".onboarding-step-track")?.dataset.currentStep).toBe("3");
     await waitFor(() => expect(document.activeElement).toBe(finishHeading));
     fireEvent.click(screen.getByRole("button", { name: "进入工作台" }));
 
-    expect((await screen.findAllByText("Ready after Skill install", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Ready after root selection", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS })).length).toBeGreaterThan(0);
     expect(document.querySelector(".onboarding-page")).toBeNull();
   }, 15_000);
 
@@ -476,8 +475,9 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
   }, 15_000);
 
-  it("does not expose the Skill import entry while the required RSS setup is incomplete", async () => {
+  it("opens the app when no default Skills are installed", async () => {
     installApi({
+      getDefaultSkillsEnabled: async () => false,
       getBootstrap: async () => ({
         repoRoot: "/project",
         openmindRoot: "/project/openmind",
@@ -493,12 +493,90 @@ describe("App bootstrap", () => {
       })
     });
     render(<App />);
-    await waitFor(() => expect(document.querySelector(".onboarding-page")).toBeTruthy());
-
-    expect(await screen.findByRole("heading", { level: 2, name: "安装 RSS 源" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "打开导入入口" })).toBeNull();
+    await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
+    expect(document.querySelector(".onboarding-page")).toBeNull();
     expect(document.querySelector(".settings-page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
+    expect(screen.getByRole("button", { name: "项目" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "自动化" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "设置" })).toBeTruthy();
   }, 15_000);
+
+  it.each([
+    ["创作", ".creative-workspace-page"],
+    ["每日简报", ".brief-library-page"]
+  ])("updates navigation after toggling defaults and leaves %s when disabled", async (label, selector) => {
+    let enabled = false;
+    const setDefaultSkillsEnabled = vi.fn(async (next: boolean) => {
+      enabled = next;
+      return next;
+    });
+    installApi({
+      getDefaultSkillsEnabled: async () => enabled,
+      setDefaultSkillsEnabled,
+      listInstalledSkills: async () => [],
+      listSkillRuns: async () => [],
+      listSources: async () => [],
+      listContent: async () => []
+    });
+    render(<App />);
+    await screen.findByRole("button", { name: "设置" });
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
+
+    const openDefaults = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "设置" }));
+      const settingsNav = await screen.findByRole("navigation", { name: "设置分类" });
+      fireEvent.click(within(settingsNav).getByRole("button", { name: /Skills/ }));
+      const toggle = await screen.findByRole("switch", { name: "默认 Skills 与内置定时任务" });
+      await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
+      return toggle;
+    };
+    const enable = await openDefaults();
+    fireEvent.click(enable);
+    await waitFor(() => {
+      expect(enable.getAttribute("aria-checked")).toBe("true");
+      expect((enable as HTMLButtonElement).disabled).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
+    expect(screen.getByRole("button", { name: "创作" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "每日简报" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    await waitFor(() => expect(document.querySelector(selector)).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+
+    const disable = await openDefaults();
+    fireEvent.click(disable);
+    await waitFor(() => {
+      expect(disable.getAttribute("aria-checked")).toBe("false");
+      expect((disable as HTMLButtonElement).disabled).toBe(false);
+      expect(document.querySelector(selector)).toBeNull();
+    });
+    expect(document.querySelector(".settings-page")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
+    await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
+    expect(setDefaultSkillsEnabled.mock.calls).toEqual([[true], [false]]);
+  }, 15_000);
+
+  it.each(["creative-project", "content"] as const)("keeps a %s search result from opening a disabled default page", async (kind) => {
+    installApi({
+      getDefaultSkillsEnabled: async () => false,
+      searchWorkspace: async () => [{
+        id: "disabled-result", kind, title: "Saved result", subtitle: "", path: null,
+        date: "2026-10-20", status: null, targetId: "saved-project"
+      }]
+    });
+    render(<App />);
+    await screen.findByRole("button", { name: "新建任务" });
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.change(await screen.findByLabelText("说一句话或搜索资料、创作、会话和自动化"), { target: { value: "Saved result" } });
+    fireEvent.click(await screen.findByText("Saved result"));
+    await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
+    expect(document.querySelector(".creative-workspace-page")).toBeNull();
+    expect(document.querySelector(".brief-library-page")).toBeNull();
+  });
 
   it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {
     window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));

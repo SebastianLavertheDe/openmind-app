@@ -67,6 +67,9 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "workflow-run-resume": return scheduler.resumeWorkflowRun(first as never);
     case "workflow-run-cancel": return scheduler.cancelWorkflowRun(String(first));
     case "automation-rules-list": return scheduler.listAutomationRules();
+    case "default-skills-get": return scheduler.getDefaultSkillsEnabled();
+    case "default-skills-set": return scheduler.setDefaultSkillsEnabled(first === true);
+    case "default-skills-stop": return scheduler.stopDefaultSkills();
     case "automation-rule-save": return scheduler.saveAutomationRule(first as never);
     case "automation-rule-delete": return scheduler.deleteAutomationRule(String(first));
     case "automation-run-now": return scheduler.runAutomationNow(String(first));

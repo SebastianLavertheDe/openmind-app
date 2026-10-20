@@ -33,7 +33,6 @@ import { CliInstallerService } from "./install/cli-installer-service";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
-import { OPENMIND_SKILLS_REPO_URL } from "../shared/skill-package-sources";
 import { configureUserDataPath } from "./paths/user-data-bootstrap";
 import { WechatAccountStore } from "./wechat/wechat-account-store";
 import { WechatService } from "./wechat/wechat-service";
@@ -214,7 +213,7 @@ class AiWorkerClient {
 function ensureAiWorker(): AiWorkerClient {
   if (aiWorker) return aiWorker;
   if (!hasRequiredStartupConfiguration()) {
-    throw new Error("请先配置 openmind 保存目录并安装官方 cctools-skills。");
+    throw new Error(messages.errors.repo.selectValidFirst);
   }
   // AI file access is deliberately rooted at the selected OpenMind content
   // directory. The legacy optional code-workspace preference is not an AI
@@ -298,16 +297,10 @@ function ensureSkillSourceService(): SkillSourceService {
   return skillSourceService;
 }
 
-/** Startup gate checks installation presence only and never reaches Git.
- * Package integrity remains enforced when a Skill is inspected or executed. */
+/** Skills are optional; startup only needs a usable content root. */
 function hasRequiredStartupConfiguration(): boolean {
   const openmindRoot = settings.resolveOpenmindRoot();
-  if (!openmindRoot || !settings.isValidOpenmindRoot(openmindRoot)) return false;
-  try {
-    return ensureSkillSourceService().hasInstallation(OPENMIND_SKILLS_REPO_URL);
-  } catch {
-    return false;
-  }
+  return Boolean(openmindRoot && settings.isValidOpenmindRoot(openmindRoot));
 }
 
 /** Ensure a directory exists (idempotent). */
@@ -607,6 +600,10 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       const article = articles[0] ? await api.readContent(articles[0].path) : null;
       const fileSearch = await api.searchOpenmindFiles("desktop-e2e", 10);
       const browser = await api.getBrowserSkillStatus();
+      const defaultSkillsEnabled = await api.getDefaultSkillsEnabled();
+      const automationRules = await api.listAutomationRules();
+      if (defaultSkillsEnabled || automationRules.length) throw new Error("Fresh startup enabled default Skills or schedules");
+      if (await api.setDefaultSkillsEnabled(false)) throw new Error("Default Skills opt-out failed");
       return {
         documentReady: document.readyState,
         rootMounted: Boolean(document.querySelector("#root")),

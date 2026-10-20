@@ -7,8 +7,9 @@ import { AppShell } from "./app/AppShell";
 import { ResponsiveLayoutProvider, useResponsiveLayout } from "./app/responsive-layout";
 import { SidebarRecent } from "./app/SidebarRecent";
 import { GlobalSearch } from "./app/GlobalSearch";
-import type { AppRoute, AppRouteState, Navigate } from "./app/routes";
+import { isDefaultSkillsPage, type AppRoute, type AppRouteState, type Navigate } from "./app/routes";
 import { renderActiveRoute, type RouteBootstrap } from "./app/route-registry";
+import { useDefaultSkillsEnabled } from "./app/use-default-skills-enabled";
 import { AiSidebar } from "./components/AiSidebar";
 import { FeedbackHost } from "./components/FeedbackHost";
 import { useExitPresence } from "./design-system/use-exit-presence";
@@ -47,14 +48,14 @@ function WorkspaceHost({ bootstrap, setBootstrap, aiStorageScope }: { bootstrap:
   // Route state lives above the keyed AI provider so setup can survive the
   // final AI hydration remount; ordinary scope switches are reset explicitly
   // below instead of relying on an outer component remount.
-  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo && bootstrap.skillsInstalled ? "ai" : "onboarding", state: {}, nonce: 0 }));
+  const [route, setRoute] = useState<AppRoute>(() => ({ page: bootstrap.validRepo ? "ai" : "onboarding", state: {}, nonce: 0 }));
   // Keep the whole setup tree mounted while bootstrap advances through its
-  // root and Skill gates. Otherwise changing either key remounts OnboardingPage
+  // root setup. Otherwise changing the key remounts OnboardingPage
   // and the horizontal track jumps directly to the next panel instead of
   // animating there. Setup cannot expose drafts or sessions, so it can safely
   // use one transient provider; leaving setup remounts the provider from the
   // final scoped bootstrap before the workbench becomes visible.
-  const aiReady = bootstrap.validRepo && bootstrap.skillsInstalled && Boolean(bootstrap.workspaceRoot);
+  const aiReady = bootstrap.validRepo && Boolean(bootstrap.workspaceRoot);
   const previousAiStorageScope = useRef(aiStorageScope);
   useEffect(() => {
     const scopeChanged = previousAiStorageScope.current !== aiStorageScope;
@@ -83,8 +84,8 @@ function Workspace({
 }) {
   const locale = useLocale();
   const responsiveLayout = useResponsiveLayout();
-  // A valid openmind root plus the official cctools-skills repository installed
-  // are the actual first-start gate. The checklist remains available during
+  const defaultSkillsEnabled = useDefaultSkillsEnabled(bootstrap.openmindRoot, bootstrap.validRepo);
+  // A valid openmind root is the only first-start gate. The checklist remains available during
   // setup, while an already configured workspace still opens directly on a
   // later launch even if an old app-private onboarding flag is stale.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -109,6 +110,10 @@ function Workspace({
     return next;
   }, [setBootstrap]);
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
+    if (!defaultSkillsEnabled && isDefaultSkillsPage(page)) {
+      page = "ai";
+      state = {};
+    }
     if (page === "settings" || page === "skills" || page === "sources") {
       setSettingsRouteState({
         ...state,
@@ -125,7 +130,15 @@ function Workspace({
       if (samePage && sameState) return current;
       return { page, state, nonce: current.nonce + 1 };
     });
-  }, []);
+  }, [defaultSkillsEnabled, setRoute]);
+  useEffect(() => {
+    if (defaultSkillsEnabled) return;
+    // Settings overlays the previous route. Replace that route without closing
+    // settings when its switch is turned off.
+    setRoute((current) => isDefaultSkillsPage(current.page)
+      ? { page: "ai", state: {}, nonce: current.nonce + 1 }
+      : current);
+  }, [defaultSkillsEnabled, setRoute]);
   useEffect(() => {
     const openImageSettings = () => navigate("settings", { settingsSection: "providers", providerCategory: "image" });
     window.addEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openImageSettings);
@@ -295,6 +308,7 @@ function Workspace({
     <FilePreviewProvider open={openWorkspaceFile}>
       <AppShell
       page={settingsOpen ? "settings" : route.page}
+      defaultSkillsEnabled={defaultSkillsEnabled}
       navigate={navigate}
       onOpenSearch={openSearch}
       navCollapsed={navCollapsed}

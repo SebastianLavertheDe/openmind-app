@@ -11,12 +11,14 @@ import {
   type AutomationRuleInput,
   type AutomationRunRecord
 } from "../../shared/automation-contracts";
-import { DEFAULT_AUTOMATION_RULES } from "../../shared/automation-defaults";
+import { DEFAULT_AUTOMATION_RULES, isDefaultAutomationRule } from "../../shared/automation-defaults";
 import type { AppPaths } from "../paths/app-paths-service";
+import { messages } from "../../shared/messages";
 
 type AutomationRegistry = {
   schemaVersion: typeof AUTOMATION_SCHEMA_VERSION;
   defaultsSeeded: boolean;
+  defaultSkillsEnabled: boolean;
   rules: AutomationRule[];
   runs: AutomationRunRecord[];
 };
@@ -32,24 +34,36 @@ export class AutomationRepository {
 
   listRules(): AutomationRule[] { return this.read().rules.map((rule) => ({ ...rule })); }
 
-  /** Seed policy once; subsequent deletes/edits are user-owned durable state. */
-  ensureDefaultRules(): AutomationRule[] {
+  getDefaultSkillsEnabled(): boolean { return this.read().defaultSkillsEnabled; }
+
+  /** Only an explicit toggle creates/restores defaults; startup never seeds them. */
+  setDefaultRulesEnabled(enabled: boolean, commitSetting = true): void {
     const registry = this.read();
-    if (registry.defaultsSeeded) return registry.rules.map((rule) => ({ ...rule }));
+    if (enabled && registry.rules.some((rule) =>
+      DEFAULT_AUTOMATION_RULES.some((item) => item.id === rule.id) && !isDefaultAutomationRule(rule))) {
+      throw new Error(messages.skillCenter.defaults.ruleConflict);
+    }
+    const now = new Date().toISOString();
+    const rules = registry.rules.map((rule) => isDefaultAutomationRule(rule)
+      ? { ...rule, enabled, updatedAt: now }
+      : rule);
     const existing = new Set(registry.rules.map((rule) => rule.id));
-    const seeded = DEFAULT_AUTOMATION_RULES.filter((rule) => !existing.has(rule.id)).map((input) => {
-      const now = new Date().toISOString();
-      return AutomationRuleSchema.parse({
+    if (enabled) {
+      rules.push(...DEFAULT_AUTOMATION_RULES.filter((rule) => !existing.has(rule.id)).map((input) => AutomationRuleSchema.parse({
         schemaVersion: AUTOMATION_SCHEMA_VERSION,
         ...AutomationRuleInputSchema.parse(input),
         lastTriggeredAt: null,
         lastScheduledKey: null,
         createdAt: now,
         updatedAt: now
-      });
+      })));
+    }
+    this.write({
+      ...registry,
+      defaultsSeeded: registry.defaultsSeeded || enabled,
+      defaultSkillsEnabled: commitSetting ? enabled : registry.defaultSkillsEnabled,
+      rules
     });
-    this.write({ ...registry, defaultsSeeded: true, rules: [...registry.rules, ...seeded] });
-    return [...registry.rules, ...seeded].map((rule) => ({ ...rule }));
   }
 
   getRule(id: string): AutomationRule | undefined { return this.read().rules.find((rule) => rule.id === id); }
@@ -112,14 +126,17 @@ export class AutomationRepository {
   }
 
   private read(): AutomationRegistry {
-    if (!fs.existsSync(this.filePath)) return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: false, rules: [], runs: [] };
+    if (!fs.existsSync(this.filePath)) return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: false, defaultSkillsEnabled: false, rules: [], runs: [] };
     try {
       const raw = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AutomationRegistry>;
       if (raw.schemaVersion !== AUTOMATION_SCHEMA_VERSION || !Array.isArray(raw.rules) || !Array.isArray(raw.runs)) throw new Error("Automation registry schema mismatch");
       const rules = raw.rules.map((rule) => AutomationRuleSchema.parse(rule));
       const runs = raw.runs.map((run) => AutomationRunRecordSchema.parse(run));
       if (new Set(rules.map((rule) => rule.id)).size !== rules.length) throw new Error("Automation Rule ID 重复");
-      return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: raw.defaultsSeeded === true, rules, runs };
+      // Preserve the existing opt-in for older installations without inspecting Skills.
+      const defaultSkillsEnabled = typeof raw.defaultSkillsEnabled === "boolean"
+        ? raw.defaultSkillsEnabled : raw.defaultsSeeded === true;
+      return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: raw.defaultsSeeded === true, defaultSkillsEnabled, rules, runs };
     } catch (error) {
       throw new Error(`Automation registry 无法读取，拒绝覆盖现有状态：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -129,6 +146,7 @@ export class AutomationRepository {
     const normalized = {
       schemaVersion: AUTOMATION_SCHEMA_VERSION,
       defaultsSeeded: registry.defaultsSeeded,
+      defaultSkillsEnabled: registry.defaultSkillsEnabled,
       rules: registry.rules.map((rule) => AutomationRuleSchema.parse(rule)),
       runs: registry.runs.map((run) => AutomationRunRecordSchema.parse(run)).slice(-500)
     } satisfies AutomationRegistry;

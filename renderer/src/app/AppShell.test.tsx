@@ -16,6 +16,7 @@ describe("AppShell", () => {
     const setNavCollapsed = vi.fn();
     render(
       <AppShell
+        defaultSkillsEnabled
         page="brief"
         navigate={navigate}
         onOpenSearch={openSearch}
@@ -45,6 +46,7 @@ describe("AppShell", () => {
     const setNavCollapsed = vi.fn();
     render(
       <AppShell
+        defaultSkillsEnabled
         page="brief"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -67,6 +69,7 @@ describe("AppShell", () => {
   it("uses a dedicated settings shell without the application navigation or toolbar", () => {
     const { container } = render(
       <AppShell
+        defaultSkillsEnabled
         page="settings"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -91,6 +94,7 @@ describe("AppShell", () => {
   it("exposes one draggable Mica-backed shell on Windows desktop", () => {
     const { container, unmount } = render(
       <AppShell
+        defaultSkillsEnabled
         page="sources"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -130,7 +134,7 @@ describe("AppShell", () => {
     try {
       const { container } = render(
         <ResponsiveLayoutProvider>
-          <AppShell page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" runtime="linux" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
+          <AppShell defaultSkillsEnabled page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" runtime="linux" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -167,6 +171,7 @@ describe("AppShell", () => {
       const { container } = render(
         <ResponsiveLayoutProvider>
           <AppShell
+            defaultSkillsEnabled
             page="creative"
             navigate={vi.fn()}
             onOpenSearch={vi.fn()}
@@ -237,6 +242,7 @@ describe("AppShell", () => {
       const { container } = render(
         <ResponsiveLayoutProvider>
           <AppShell
+            defaultSkillsEnabled
             page="creative"
             navigate={vi.fn()}
             onOpenSearch={vi.fn()}
@@ -266,6 +272,7 @@ describe("AppShell", () => {
   it("does not mark New Task active while an existing AI session is open", () => {
     render(
       <AppShell
+        defaultSkillsEnabled
         page="ai"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -290,6 +297,7 @@ describe("AppShell", () => {
   it("renders a compact task-first navigation with settings pinned to bottom", () => {
     render(
       <AppShell
+        defaultSkillsEnabled
         page="creative"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -343,7 +351,7 @@ describe("AppShell", () => {
       };
       const { rerender } = render(
         <ResponsiveLayoutProvider>
-          <AppShell {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
+          <AppShell defaultSkillsEnabled {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
             <div>Sources</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -353,7 +361,7 @@ describe("AppShell", () => {
 
       rerender(
         <ResponsiveLayoutProvider>
-          <AppShell {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
+          <AppShell defaultSkillsEnabled {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
             <div>Sources</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -367,6 +375,7 @@ describe("AppShell", () => {
   it("renders recent tasks slot between core nav and settings", () => {
     render(
       <AppShell
+        defaultSkillsEnabled
         page="brief"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
@@ -393,6 +402,7 @@ describe("AppShell", () => {
   it("renders the global recent-task slot on the projects page too", () => {
     render(
       <AppShell
+        defaultSkillsEnabled
         page="projects"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}

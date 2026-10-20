@@ -112,7 +112,6 @@
 
 .onboarding-step-track[data-current-step="2"] { transform: translateX(-100%); }
 .onboarding-step-track[data-current-step="3"] { transform: translateX(-200%); }
-.onboarding-step-track[data-current-step="4"] { transform: translateX(-300%); }
 
 .onboarding-step-panel {
   min-width: 0;

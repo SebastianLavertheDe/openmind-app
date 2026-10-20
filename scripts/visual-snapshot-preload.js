@@ -18,6 +18,7 @@ const openmindRoot = repoRoot;
 const longPath = "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md";
 const approvalCommand = String.raw`powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath '\\wsl.localhost\Ubuntu\fixtures\openmind-data\daily-summary\20260617_daily_summary.md' -Force | Select-Object FullName,Length,LastWriteTime; wsl.exe -d Ubuntu -- bash -lc 'test -f /fixtures/openmind-data/post/20260617/posts.json && ls -la /fixtures/openmind-data/post/20260617/posts.json'"`;
 let visualMode = process.argv.includes("--openmind-visual-onboarding") ? "onboarding" : "normal";
+let visualDefaultSkillsEnabled = visualMode !== "onboarding";
 let approvalResolved = false;
 
 const providers = [
@@ -603,7 +604,9 @@ const api = {
     const record = visualInstalledSkills.find((item) => item.key === key && item.digest === digest);
     return record ? visualSkillInspection(record) : null;
   },
-  listInstalledSkills: async () => visualInstalledSkills,
+  listInstalledSkills: async () => visualDefaultSkillsEnabled ? visualInstalledSkills : [],
+  getDefaultSkillsEnabled: async () => visualDefaultSkillsEnabled,
+  setDefaultSkillsEnabled: async (enabled) => { visualDefaultSkillsEnabled = enabled; return enabled; },
   setInstalledSkillEnabled: async (key, digest, enabled) => {
     visualInstalledSkills = visualInstalledSkills.map((item) => item.key === key && item.digest === digest ? { ...item, enabled } : item);
     return visualInstalledSkills.find((item) => item.key === key && item.digest === digest);

@@ -6,7 +6,7 @@ OpenMind Desktop is a personal workspace for collecting information, organizing 
 
 ## Highlights
 
-- **203 curated RSS feeds.** The official [Skill library](https://github.com/SebastianLavertheDe/cctools-skills) includes 122 general feeds and 81 WeChat Official Account feeds, covering AI, technology, engineering, and more. Install it during setup and customize your subscriptions.
+- **203 curated RSS feeds.** The official [Skill library](https://github.com/SebastianLavertheDe/cctools-skills) includes 122 general feeds and 81 WeChat Official Account feeds, covering AI, technology, engineering, and more. Enable default Skills in Settings and customize your subscriptions.
 - **Add your own materials.** Import web URLs, PDF files, and YouTube video links into your projects, and keep them together as sources for reading and writing.
 - **From reading to writing.** Collect articles as Markdown, generate daily summaries and topic ideas, and use your reading materials to develop drafts and projects.
 - **Your choice of AI.** Configure your own AI Provider for summaries and writing, and connect Claude Code or Codex CLI for AI conversations.
@@ -45,8 +45,8 @@ Desktop builds target Windows 11 and macOS. Linux is available for development a
 ### First launch
 
 1. **Choose a data folder.** Select a folder for your OpenMind content and personal configuration.
-2. **Install the official Skills.** Click **Install RSS sources** in the setup wizard. The app installs [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills), which provides RSS collection and the starter feed list. An internet connection is needed for installation; this step is required before entering the workspace.
-3. **Configure AI.** In **Settings → AI & Models**, add an AI Provider, enter its Base URL, API key, and text model, and select a default provider. For AI conversations, also install or connect Claude Code or Codex CLI and complete the connection setup shown in the app. You can choose **Set up later** during onboarding and configure AI when you need it.
+2. **Configure AI (optional).** In **Settings → AI & Models**, add an AI Provider, enter its Base URL, API key, and text model, and select a default provider. For AI conversations, also install or connect Claude Code or Codex CLI and complete the connection setup shown in the app. You can choose **Set up later** during onboarding and configure AI when you need it.
+3. **Enable default Skills when needed.** Startup does not require or check for the official Skill library. In **Settings → Skills**, turn on **Default Skills and built-in schedules** to install [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills) and enable RSS, X, Reddit, and daily topic jobs. This switch starts off on new installations; installation requires an internet connection. Turning it off stops these jobs and removes the official Skills, preserving generated content, personal settings, other Skill sources, and custom schedules.
 4. **Start collecting and creating.** Customize subscriptions in Settings, run RSS collection or the RSS-to-summary workflow in Skill Center, read the results in your library, and use them in writing projects.
 
 AI features send requests to the provider you configure. Use your own credentials and keep your data folder and provider configuration private.

@@ -29,6 +29,7 @@ export function installBrowserPreviewApi(): boolean {
   const onboardingPreview = new URLSearchParams(window.location.search).get("preview") === "onboarding";
   let previewRootReady = !onboardingPreview;
   let previewSkillsReady = !onboardingPreview;
+  let previewDefaultSkillsEnabled = !onboardingPreview;
   let snapshot: AiSnapshot = {
     projectRoot: previewProjectRoot,
     providers: onboardingPreview ? [] : [
@@ -723,7 +724,13 @@ export function installBrowserPreviewApi(): boolean {
     openCliLogin: async () => { throw new Error(messages.browserPreview.cliLoginUnavailable); },
     aiRefreshSkills: async () => skills,
     inspectInstalledSkill: async (key) => previewSkillInspections.get(previewInstalledSkills.find((skill) => skill.key === key)?.id || "") || null,
-    listInstalledSkills: async () => previewInstalledSkills,
+    listInstalledSkills: async () => previewSkillsReady ? previewInstalledSkills : [],
+    getDefaultSkillsEnabled: async () => previewDefaultSkillsEnabled,
+    setDefaultSkillsEnabled: async (enabled) => {
+      previewDefaultSkillsEnabled = enabled;
+      previewSkillsReady = enabled;
+      return enabled;
+    },
     installSkillSource: async () => { previewSkillsReady = true; return []; },
     listInstalledRunnableSkills: async () => [],
     setInstalledSkillEnabled: async (key, digest, enabled) => {
@@ -745,7 +752,8 @@ export function installBrowserPreviewApi(): boolean {
     getWorkflowRun: async () => { throw new Error(messages.browserPreview.workflowUnavailable); },
     resumeWorkflowRun: async () => { throw new Error(messages.browserPreview.workflowUnavailable); },
     cancelWorkflowRun: async () => false,
-    listAutomationRules: async () => previewAutomationRules,
+    listAutomationRules: async () => !previewSkillsReady && onboardingPreview ? []
+      : previewAutomationRules.map((rule) => ({ ...rule, enabled: previewDefaultSkillsEnabled })),
     saveAutomationRule: async () => { throw new Error(messages.browserPreview.automationRuleUnavailable); },
     deleteAutomationRule: async () => false,
     runAutomationNow: async () => { throw new Error(messages.browserPreview.automationRunUnavailable); },

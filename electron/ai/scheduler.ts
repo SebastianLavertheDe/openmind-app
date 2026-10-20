@@ -266,6 +266,12 @@ export class RunScheduler {
   cancelWorkflowRun(runId: string): Promise<boolean> { return this.skillTools.cancelWorkflowRun(runId); }
 
   listAutomationRules(): AutomationRule[] { return this.automation?.listRules() || []; }
+  getDefaultSkillsEnabled(): boolean { return this.automation?.getDefaultSkillsEnabled() ?? false; }
+  setDefaultSkillsEnabled(enabled: boolean): boolean {
+    if (!this.automation) throw new Error("AutomationScheduler is not initialized.");
+    return this.automation.setDefaultSkillsEnabled(enabled);
+  }
+  async stopDefaultSkills(): Promise<void> { await this.automation?.stopDefaultSkills(); }
   saveAutomationRule(input: AutomationRuleInput): AutomationRule {
     if (!this.automation) throw new Error("AutomationScheduler 未初始化。 ");
     return this.automation.saveRule(input);

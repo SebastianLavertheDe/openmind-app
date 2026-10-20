@@ -71,6 +71,8 @@ const demoRun = BrokerRunRecordSchema.parse({
 });
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
+    getDefaultSkillsEnabled: async () => false,
+    setDefaultSkillsEnabled: async (enabled: boolean) => enabled,
     inspectInstalledSkill: async () => inspection,
     listInstalledSkills: async () => [installedSkill],
     setInstalledSkillEnabled: async (_key: string, _digest: string, enabled: boolean) => ({ ...installedSkill, enabled }),
@@ -492,7 +494,7 @@ describe("SkillsPage", () => {
     renderPage({ listInstalledSkills: async () => [] });
 
     expect(await screen.findByText("还没有可管理的 Skill")).toBeTruthy();
-    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getAllByRole("switch")).toEqual([screen.getByRole("switch", { name: "默认 Skills 与内置定时任务" })]);
     expect(screen.queryByText("后续可用性")).toBeNull();
   });
 

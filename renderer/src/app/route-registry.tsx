@@ -94,9 +94,9 @@ export const NAV_ITEMS: readonly NavItem[] = ROUTE_DEFINITIONS.flatMap((route) =
 export function renderActiveRoute(props: RouteRenderProps): ReactNode {
   const entry = ROUTE_DEFINITIONS.find((route) => route.page === props.route.page);
   if (!entry) return null;
-  if (entry.needsRepo && (!props.bootstrap.validRepo || !props.bootstrap.skillsInstalled)) {
-    // An unbound openmind root (or missing official skill repo) routes the user
-    // back to onboarding instead of rendering a dead-end panel.
+  if (entry.needsRepo && !props.bootstrap.validRepo) {
+    // An unbound openmind root routes the user back to onboarding instead of
+    // rendering a dead-end panel.
     return <RouteToOnboarding navigate={props.navigate} />;
   }
   return entry.render(props);

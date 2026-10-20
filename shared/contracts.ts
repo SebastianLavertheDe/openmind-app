@@ -1105,8 +1105,8 @@ export type AppBootstrap = {
   /** Compatibility alias for the active AI root; current Main returns openmindRoot. */
   workspaceRoot: string;
   validRepo: boolean;
-  /** True when the official cctools-skills repository is installed (first-start gate, mandatory). */
-  skillsInstalled: boolean;
+  /** Legacy bootstrap field. Skill installation no longer gates startup. */
+  skillsInstalled?: boolean;
   /** False only while the first-start checklist still needs attention. */
   onboardingCompleted?: boolean;
   runtime: string;
@@ -1267,6 +1267,8 @@ export interface DesktopApi {
   /** 静态检查 App 私有安装包，不执行包内代码。 */
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
+  getDefaultSkillsEnabled(): Promise<boolean>;
+  setDefaultSkillsEnabled(enabled: boolean): Promise<boolean>;
   /** Process/Workflow catalog for Automation and Broker UI; never includes Agent Skills. */
   listInstalledRunnableSkills(): Promise<InstalledRunnableSkillView[]>;
   /** Change the default for future sessions without mutating existing sessions. */

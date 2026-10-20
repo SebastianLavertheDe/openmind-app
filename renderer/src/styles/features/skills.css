@@ -938,3 +938,32 @@
 @media (max-width: 620px) {
   .skills-source-picker-local-option { align-items: flex-start; flex-direction: column; }
 }
+.skills-defaults {
+  padding: var(--space-4);
+}
+
+.skills-defaults-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.skills-defaults-row > div {
+  min-width: 0;
+}
+
+.skills-defaults h2 {
+  margin: 0;
+  font-size: var(--fs-section);
+}
+
+.skills-defaults p {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.skills-defaults p.skills-error {
+  color: var(--danger-500);
+}

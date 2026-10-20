@@ -45,8 +45,8 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 ### 首次启动
 
 1. **选择数据目录。** 选择保存 OpenMind 内容和个人配置的文件夹。
-2. **安装官方 Skill。** 在首启引导中点击 **安装 RSS 源**，应用会安装 [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills)，提供 RSS 采集能力和默认订阅。安装需要联网，这一步完成后才能进入工作台。
-3. **配置 AI。** 在 **设置 → AI 与模型** 中添加 AI Provider，填写 Base URL、API Key 和文本模型，并选择默认 Provider。使用 AI 会话时，还需要安装或连接 Claude Code / Codex CLI，并按应用提示完成连接配置。首启时也可以选择 **稍后配置**，需要 AI 功能时再补充。
+2. **配置 AI（可选）。** 在 **设置 → AI 与模型** 中添加 AI Provider，填写 Base URL、API Key 和文本模型，并选择默认 Provider。使用 AI 会话时，还需要安装或连接 Claude Code / Codex CLI，并按应用提示完成连接配置。首启时也可以选择 **稍后配置**，需要 AI 功能时再补充。
+3. **按需开启默认 Skills。** 启动时不检查或要求安装官方 Skill 库。在 **设置 → Skills** 中开启 **默认 Skills 与内置定时任务**，即可自动安装 [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills)，并启用 RSS、X、Reddit 采集和每日选题任务。新安装时开关默认关闭，安装需要联网。关闭后停止这些任务并删除官方 Skills，保留已生成内容、个人配置、其他来源的 Skills 和自定义定时任务。
 4. **开始采集和创作。** 在设置中调整订阅，在技能中心运行 RSS 采集或 RSS 到摘要工作流，再到资料库阅读结果，并用于写作项目。
 
 AI 功能会向你配置的 Provider 发送请求。请使用自己的凭据，并将数据目录和 Provider 配置保留为私人数据。

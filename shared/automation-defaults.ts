@@ -1,6 +1,11 @@
 import { messages } from "./messages";
 import type { AutomationRuleInput } from "./automation-contracts";
 
+export function isDefaultAutomationRule(rule: Pick<AutomationRuleInput, "id" | "target">): boolean {
+  return DEFAULT_AUTOMATION_RULES.some((item) =>
+    item.id === rule.id && item.target.type === rule.target.type && item.target.id === rule.target.id);
+}
+
 /**
  * Default Automation rules. Mirror the Linux crontab pipeline so the desktop
  * app runs the same four scheduled jobs a user has on WSL:

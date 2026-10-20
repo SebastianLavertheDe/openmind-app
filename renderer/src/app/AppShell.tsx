@@ -9,7 +9,7 @@ import {
   PanelLeftOpen,
   Search
 } from "lucide-react";
-import type { AppPage, Navigate } from "./routes";
+import { isDefaultSkillsPage, type AppPage, type Navigate } from "./routes";
 import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
 import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
@@ -20,6 +20,7 @@ import { useMotionTokens } from "../design-system/motion-tokens";
 
 export function AppShell({
   page,
+  defaultSkillsEnabled,
   navigate,
   onOpenSearch,
   navCollapsed,
@@ -36,6 +37,7 @@ export function AppShell({
   onNewTask
 }: {
   page: AppPage;
+  defaultSkillsEnabled: boolean;
   navigate: Navigate;
   onOpenSearch(): void;
   navCollapsed: boolean;
@@ -52,6 +54,7 @@ export function AppShell({
   onNewTask?(): void;
 }) {
   const locale = useLocale();
+  const navItems = NAV_ITEMS.filter((item) => defaultSkillsEnabled || !isDefaultSkillsPage(item.id));
   // sources / skills remain valid legacy routes, but now live inside the
   // dedicated settings information architecture.
   const settingsMode = page === "settings" || page === "sources" || page === "skills";
@@ -205,7 +208,7 @@ export function AppShell({
         <div className="app-nav-body">
           <nav aria-label={m.shell.navMain}>
             {(["create", "core"] as NavGroup[]).map((group) => {
-              const items = NAV_ITEMS.filter((item) => item.group === group);
+              const items = navItems.filter((item) => item.group === group);
               if (!items.length) return null;
               return (
                 <div className={`nav-group nav-group-${group}`} key={group}>
@@ -216,7 +219,7 @@ export function AppShell({
             })}
             {recentTasks}
             {(() => {
-              const items = NAV_ITEMS.filter((item) => item.group === "system");
+              const items = navItems.filter((item) => item.group === "system");
               if (!items.length) return null;
               return (
                 <div className="nav-group nav-group-system" key="system">

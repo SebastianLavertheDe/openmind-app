@@ -37,10 +37,11 @@ describe("renderActiveRoute repo gate", () => {
     await waitFor(() => expect(p.navigate).toHaveBeenCalledWith("onboarding"));
   });
 
-  it("redirects to onboarding when the official skills repo is not installed", async () => {
+  it("renders without redirecting when the official skills repo is not installed", () => {
     const p = props({ ...baseBootstrap, skillsInstalled: false });
     render(<>{renderActiveRoute(p)}</>);
-    await waitFor(() => expect(p.navigate).toHaveBeenCalledWith("onboarding"));
+    expect(p.navigate).not.toHaveBeenCalled();
+    expect(document.querySelector(".route-loading")).toBeNull();
   });
 
   it("does not forward the AI conversation catalog into the Automation route", () => {

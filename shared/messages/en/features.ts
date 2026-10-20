@@ -56,6 +56,18 @@ export const featureMessages = {
   },
 
   skillCenter: {
+    defaults: {
+      title: "Default Skills and built-in schedules",
+      description: "Turn on to install default Skills and enable RSS, X, Reddit, and daily topic schedules. Turn off to stop these jobs and remove their Skills, keeping generated content and personal settings.",
+      installing: "Installing default Skills and enabling built-in schedules…",
+      disabling: "Stopping built-in jobs and removing default Skills…",
+      loadFailed: "Could not load default Skills settings.",
+      changeFailed: "Could not update default Skills. Please try again.",
+      stopTimeout: "Built-in jobs are still stopping. Skills were kept; please try turning this off again shortly.",
+      enableFirst: "First turn on default Skills and built-in schedules in Skills settings.",
+      ruleConflict: "A custom schedule uses a built-in rule ID. Please update that schedule first.",
+      retry: "Retry"
+    },
     eyebrow: "SKILL CENTER",
     title: "Skills",
     description: "Install, inspect, and manage local Skill packages. Packages must pass static checks and have a ready runtime before they can run.",
@@ -228,7 +240,7 @@ export const featureMessages = {
   onboarding: {
     eyebrow: "FIRST START",
     title: "Set up your local workspace",
-    description: "Complete these 4 steps to get started. The app stores folder connections and setup status. Your existing content stays in place.",
+    description: "Complete these 3 steps to get started. The app stores folder connections and setup status. Your existing content stays in place.",
     progress: (current: number, total: number) => `Step ${current} / ${total}`,
     progressLabel: "First-time setup progress",
     previousStep: "Previous",
@@ -256,7 +268,7 @@ export const featureMessages = {
     skipProvider: "Set up later",
     providerSkipped: "Provider setup skipped",
     finishTitle: "You’re ready",
-    finishBody: "Your local workspace is ready to use. You can adjust all optional settings from the main app at any time.",
+    finishBody: "Your local workspace is ready. To use default Skills and built-in schedules, turn them on in Settings → Skills.",
     finishSummaryLabel: "Setup summary",
     finishSafety: "Configuration is stored only in the app’s private settings",
     finish: "Open workspace",

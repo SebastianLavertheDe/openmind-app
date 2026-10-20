@@ -1,9 +1,8 @@
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, Folder, FolderCog, LockKeyhole, PackageCheck, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Folder, FolderCog, LockKeyhole, Settings } from "lucide-react";
 import type { AppBootstrap, OpenmindRootStatus, OnboardingState } from "@shared/contracts";
 import { messages } from "@shared/messages";
-import { OPENMIND_SKILLS_REPO_URL } from "@shared/skill-package-sources";
 import type { Navigate } from "../../app/routes";
 import { useAiSnapshot, useAiUi } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
@@ -23,15 +22,14 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   const ui = useAiUi();
   const [root, setRoot] = useState<OpenmindRootStatus | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState>(DEFAULT_ONBOARDING);
-  const [skillsRepoReady, setSkillsRepoReady] = useState(bootstrap.skillsInstalled);
   const [configuredProvider, setConfiguredProvider] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"root" | "state" | "skills" | null>(null);
+  const [busy, setBusy] = useState<"root" | "state" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [nextRoot, nextState, providers, nextBootstrap] = await Promise.all([
+      const [nextRoot, nextState, providers] = await Promise.all([
         window.openmind.getOpenmindRoot(),
         window.openmind.getOnboardingState?.() || Promise.resolve(DEFAULT_ONBOARDING),
         window.openmind.getProviders?.() || Promise.resolve(null),
@@ -39,7 +37,6 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
       ]);
       setRoot(nextRoot);
       setOnboarding(nextState);
-      setSkillsRepoReady(nextBootstrap.validRepo && nextBootstrap.skillsInstalled);
       setConfiguredProvider(Boolean(providers?.providers.some((provider) => provider.enabled && provider.apiKeySet)));
       setError(null);
     } catch (cause) {
@@ -50,9 +47,6 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
   }, [onRefresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
-    setSkillsRepoReady(bootstrap.validRepo && bootstrap.skillsInstalled);
-  }, [bootstrap.validRepo, bootstrap.skillsInstalled]);
 
   const chooseRoot = async () => {
     setBusy("root");
@@ -87,31 +81,17 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
     }
   };
 
-  const installSkillsRepo = async () => {
-    setBusy("skills");
-    setError(null);
-    try {
-      if (!window.openmind.installSkillSource) throw new Error(m.errors.installUnsupported);
-      await window.openmind.installSkillSource({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : m.errors.installFailed);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const rootReady = Boolean(bootstrap.validRepo || (root?.health.configured && root.health.accessible && root.health.readable && root.health.writable));
   const providerReady = Boolean(configuredProvider || ai.snapshot.providers.some((provider) => provider.available));
   const providerStatus = providerReady ? "complete" : onboarding.provider;
-  const canFinish = rootReady && skillsRepoReady && providerStatus !== "pending";
-  const availableStep: 1 | 2 | 3 | 4 = !rootReady ? 1 : !skillsRepoReady ? 2 : providerStatus === "pending" ? 3 : 4;
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(availableStep);
+  const canFinish = rootReady && providerStatus !== "pending";
+  const availableStep: 1 | 2 | 3 = !rootReady ? 1 : providerStatus === "pending" ? 2 : 3;
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(availableStep);
   const previousAvailableStep = useRef(availableStep);
   const mountedStep = useRef(currentStep).current;
   const rootPath = loading ? m.checkingRoot : rootReady ? bootstrap.repoRoot : m.rootMissing;
   const providerState = providerReady ? m.providerReady : m.providerPending;
-  const currentTitle = [m.rootTitle, m.skillTitle, m.providerTitle, m.finishTitle][currentStep - 1];
+  const currentTitle = [m.rootTitle, m.providerTitle, m.finishTitle][currentStep - 1];
 
   useEffect(() => {
     const previous = previousAvailableStep.current;
@@ -149,16 +129,16 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
           ) : null}
         </div>
         {currentStep < availableStep ? (
-          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3 | 4)}>
+          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3)}>
             {m.nextStep}<ArrowRight size={15} aria-hidden />
           </button>
         ) : null}
-        <span className="onboarding-step-count" aria-label={m.progress(currentStep, 4)}>{currentStep} / 4</span>
+        <span className="onboarding-step-count" aria-label={m.progress(currentStep, 3)}>{currentStep} / 3</span>
       </header>
 
       <div className="onboarding-body">
         {error ? <p className="onboarding-error" role="alert">{error}</p> : null}
-        <p className="ui-visually-hidden" aria-live="polite">{m.progress(currentStep, 4)}：{currentTitle}</p>
+        <p className="ui-visually-hidden" aria-live="polite">{m.progress(currentStep, 3)}：{currentTitle}</p>
 
         <section className="onboarding-step-viewport" aria-label={m.progressLabel}>
           <div className="onboarding-step-track" data-current-step={currentStep}>
@@ -177,24 +157,7 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.rootSafety}</p>
             </OnboardingPanel>
 
-            <OnboardingPanel active={currentStep === 2} number="02" step="2" title={m.skillTitle}>
-              <p className="onboarding-step-description">{m.skillBody}</p>
-              <output className="onboarding-path" aria-label={m.skillSourceLabel}>
-                <span title={OPENMIND_SKILLS_REPO_URL}>{loading ? m.checkingSkills : OPENMIND_SKILLS_REPO_URL}</span>
-                <PackageCheck size={20} aria-hidden />
-              </output>
-              <div className="onboarding-actions">
-                {skillsRepoReady
-                  ? <span className="onboarding-inline-status"><Check size={14} aria-hidden />{m.skillReady}</span>
-                  : <button type="button" className="primary-button onboarding-primary-action" data-motion="action" disabled={busy !== null || !rootReady} onClick={() => void installSkillsRepo()}>
-                      <Download size={16} aria-hidden />
-                      {busy === "skills" ? m.installingSkillsRepo : m.installSkillsRepo}
-                    </button>}
-              </div>
-              <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.skillSafety}</p>
-            </OnboardingPanel>
-
-            <OnboardingPanel active={currentStep === 3} number="03" step="3" title={m.providerTitle}>
+            <OnboardingPanel active={currentStep === 2} number="02" step="2" title={m.providerTitle}>
               <p className="onboarding-step-description">{m.providerBody}</p>
               <output className="onboarding-path" aria-label={m.providerStatusLabel}>
                 <span title={providerState}>{providerState}</span>
@@ -209,11 +172,10 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.providerSafety}</p>
             </OnboardingPanel>
 
-            <OnboardingPanel active={currentStep === 4} number="04" step="4" title={m.finishTitle}>
+            <OnboardingPanel active={currentStep === 3} number="03" step="3" title={m.finishTitle}>
               <p className="onboarding-step-description">{m.finishBody}</p>
               <div className="onboarding-ready-summary" aria-label={m.finishSummaryLabel}>
                 <span><Check size={15} aria-hidden />{m.rootSelected}</span>
-                <span><Check size={15} aria-hidden />{m.skillReady}</span>
                 <span className={providerStatus === "skipped" ? "optional" : undefined}>{providerStatus === "skipped" ? m.providerSkipped : m.providerReady}</span>
               </div>
               <div className="onboarding-actions">
@@ -226,8 +188,8 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
           </div>
         </section>
 
-        <div className="onboarding-segments" role="progressbar" aria-label={m.progressLabel} aria-valuemin={1} aria-valuemax={4} aria-valuenow={currentStep} aria-valuetext={m.progress(currentStep, 4)}>
-          {[1, 2, 3, 4].map((step) => <span key={step} className={step <= currentStep ? "active" : undefined} />)}
+        <div className="onboarding-segments" role="progressbar" aria-label={m.progressLabel} aria-valuemin={1} aria-valuemax={3} aria-valuenow={currentStep} aria-valuetext={m.progress(currentStep, 3)}>
+          {[1, 2, 3].map((step) => <span key={step} className={step <= currentStep ? "active" : undefined} />)}
         </div>
       </div>
     </div>

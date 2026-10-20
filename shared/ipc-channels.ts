@@ -90,6 +90,8 @@ export const IPC = {
   WORKFLOW_RUN_RESUME: "workflow:run-resume",
   WORKFLOW_RUN_CANCEL: "workflow:run-cancel",
   AUTOMATION_RULES_LIST: "automation:rules-list",
+  DEFAULT_SKILLS_GET: "skills:defaults-get",
+  DEFAULT_SKILLS_SET: "skills:defaults-set",
   AUTOMATION_RULE_SAVE: "automation:rule-save",
   AUTOMATION_RULE_DELETE: "automation:rule-delete",
   AUTOMATION_RUN_NOW: "automation:run-now",

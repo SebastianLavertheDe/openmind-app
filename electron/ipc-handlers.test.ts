@@ -47,9 +47,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(131);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(131);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(131);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(133);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(133);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(133);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -564,6 +564,30 @@ describe("registerIpcHandlers", () => {
 });
 
 describe("handler forwarding — getBootstrap 复合逻辑", () => {
+  it("validates the default Skills toggle and refreshes the current worker after installation", async () => {
+    const calls: string[] = [];
+    const worker = { call: vi.fn(async (method: string, value?: unknown) => {
+      calls.push(method);
+      return value;
+    }) };
+    const install = vi.fn(async () => {
+      calls.push("install");
+      return [{ key: "cctools/default", digest: "a".repeat(64) }];
+    });
+    const setEnabled = vi.fn();
+    const ctx = makeCtx({
+      ensureAiWorker: () => worker,
+      ensureSkillSourceService: () => ({ install }) as never,
+      ensureSkillPackageService: () => ({ listInstalled: () => [], setEnabled }) as never
+    });
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, "true")).toThrow();
+    expect(worker.call).not.toHaveBeenCalled();
+    expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, true)).toBe(true);
+    expect(calls).toEqual(["install", "refresh-skills", "default-skills-set"]);
+    expect(setEnabled).toHaveBeenCalledWith("cctools/default", "a".repeat(64), true);
+    expect(ctx.restartAiWorker).not.toHaveBeenCalled();
+  });
+
   it("validRepo 时委托 ai().call('skills') 和 ('snapshot')", async () => {
     const ai = makeAiSpy();
     const { product } = makeProductSpy();
@@ -601,11 +625,12 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(result.ai.providers).toEqual([]);
   });
 
-  it("已绑定 openmindRoot 但官方来源未安装时仍停在启动门禁且不调 ai", async () => {
+  it("starts without consulting official Skill installation state", async () => {
     const ai = makeAiSpy();
+    const ensureSkillSourceService = vi.fn(() => { throw new Error("Startup must not check Skills"); });
     const ctx = makeCtx({
       ensureAiWorker: () => ai as never,
-      ensureSkillSourceService: () => ({ hasInstallation: () => false }) as never
+      ensureSkillSourceService
     });
     const settings = await import("./lib/settings");
     vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue("/workspace/openmind");
@@ -615,9 +640,10 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     const result = await invokeHandler(ctx, IPC_METHOD_CHANNELS.getBootstrap) as { validRepo: boolean; skillsInstalled: boolean; skills: unknown[] };
 
     expect(result.validRepo).toBe(true);
-    expect(result.skillsInstalled).toBe(false);
-    expect(result.skills).toEqual([]);
-    expect(ai.call).not.toHaveBeenCalled();
+    expect(result.skillsInstalled).toBeUndefined();
+    expect(ensureSkillSourceService).not.toHaveBeenCalled();
+    expect(ai.call).toHaveBeenCalledWith("skills");
+    expect(ai.call).toHaveBeenCalledWith("snapshot");
   });
 });
 

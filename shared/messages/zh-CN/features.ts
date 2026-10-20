@@ -53,6 +53,18 @@ export const featureMessages = {
   },
 
   skillCenter: {
+    defaults: {
+      title: "默认 Skills 与内置定时任务",
+      description: "开启后自动安装默认 Skills，并启用 RSS、X、Reddit 采集和每日选题定时任务。关闭后停止这些任务并删除对应 Skills，保留已生成内容和个人配置。",
+      installing: "正在安装默认 Skills 并启用内置定时任务…",
+      disabling: "正在停止内置任务并移除默认 Skills…",
+      loadFailed: "无法读取默认 Skills 设置。",
+      changeFailed: "更新默认 Skills 失败，请重试。",
+      stopTimeout: "内置任务尚未停止，Skills 已保留，请稍后重试关闭。",
+      enableFirst: "请先在 Skills 设置中开启默认 Skills 与内置定时任务。",
+      ruleConflict: "已有自定义任务使用了内置任务的 ID，请先调整该任务。",
+      retry: "重试"
+    },
     eyebrow: "SKILL CENTER",
     title: "Skills",
     description: "安装、检查和管理本地 Skill 包；包代码必须通过静态检查并完成 Runtime 就绪后才能运行。",
@@ -225,7 +237,7 @@ export const featureMessages = {
   onboarding: {
     eyebrow: "FIRST START",
     title: "先准备本地工作台",
-    description: "按顺序完成 4 项首次设置即可开始。App 只保存路径绑定与设置状态，不会移动、重命名或清理现有内容。",
+    description: "按顺序完成 3 项首次设置即可开始。App 只保存路径绑定与设置状态，不会移动、重命名或清理现有内容。",
     progress: (current: number, total: number) => `步骤 ${current} / ${total}`,
     progressLabel: "首次启动设置进度",
     previousStep: "上一步",
@@ -253,7 +265,7 @@ export const featureMessages = {
     skipProvider: "稍后配置",
     providerSkipped: "已跳过 Provider 配置",
     finishTitle: "准备完成",
-    finishBody: "本地工作台已经可以使用。进入主界面后，仍可随时调整所有可选设置。",
+    finishBody: "本地工作台已经可以使用。如需默认 Skills 和内置定时任务，可在设置 → Skills 中开启。",
     finishSummaryLabel: "首次设置摘要",
     finishSafety: "配置只保存在应用私有设置中",
     finish: "进入工作台",

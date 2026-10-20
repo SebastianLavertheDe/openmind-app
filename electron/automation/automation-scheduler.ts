@@ -10,6 +10,8 @@ import {
 import { AutomationRepository } from "./automation-repository";
 import { detectAutomationEnvironment, type AutomationEnvironment } from "./automation-environment";
 import { AutomationLeader } from "./automation-leader";
+import { isDefaultAutomationRule } from "../../shared/automation-defaults";
+import { messages } from "../../shared/messages";
 
 type SkillSubmitter = (request: SkillRunRequest) => BrokerRunRecord;
 type WorkflowSubmitter = (request: WorkflowStartRequest) => WorkflowRunRecord;
@@ -48,6 +50,7 @@ export class AutomationScheduler {
   private readonly tickMs: number;
   private timer: ReturnType<typeof setInterval> | null = null;
   private firstTick = true;
+  private defaultSkillsStopping = false;
   private readonly leader?: AutomationLeader;
   private readonly fileFingerprint?: (paths: readonly string[]) => string | undefined;
   private readonly environment: () => AutomationEnvironment;
@@ -62,7 +65,6 @@ export class AutomationScheduler {
 
   start(): void {
     if (this.timer) return;
-    this.options.repository.ensureDefaultRules();
     void this.tick();
     this.timer = setInterval(() => void this.tick(), this.tickMs);
     if (typeof this.timer === "object" && "unref" in this.timer) this.timer.unref();
@@ -75,6 +77,64 @@ export class AutomationScheduler {
   }
 
   listRules(): AutomationRule[] { return this.options.repository.listRules(); }
+  getDefaultSkillsEnabled(): boolean { return this.options.repository.getDefaultSkillsEnabled(); }
+  setDefaultSkillsEnabled(enabled: boolean): boolean {
+    this.options.repository.setDefaultRulesEnabled(enabled);
+    this.defaultSkillsStopping = false;
+    return enabled;
+  }
+
+  async stopDefaultSkills(): Promise<void> {
+    // Disable admission before awaiting cancellation. Keep the switch on until
+    // package removal succeeds, so a failed removal can be retried in Settings.
+    this.options.repository.setDefaultRulesEnabled(false, false);
+    this.defaultSkillsStopping = true;
+    for (const record of this.listRuns()) {
+      const active = ["queued", "running"].includes(record.state);
+      // A Workflow can already be cancelled while its Broker children are
+      // still stopping. Recheck those children on a retried opt-out too.
+      const cancelledWorkflow = record.state === "cancelled" && record.target.type === "workflow" && record.childRunId;
+      if (!isDefaultAutomationRule({ id: record.ruleId, target: record.target })
+        || (!active && !cancelledWorkflow)) continue;
+      if (record.childRunId) {
+        const rule = { target: record.target };
+        let child: BrokerRunRecord | WorkflowRunRecord;
+        try { child = this.readChild(rule, record.childRunId); }
+        catch (error) {
+          if (!active) continue; // Previously removed terminal history.
+          throw error;
+        }
+        const skillRunIds = rule.target.type === "skill"
+          ? [record.childRunId]
+          : (child as WorkflowRunRecord).stepRuns.flatMap((step) => step.state === "running" && step.runId ? [step.runId] : []);
+        await this.cancelChild(rule, record.childRunId);
+        const stillRunning = (id: string) => {
+          try { return !["succeeded", "failed", "timed_out", "cancelled"].includes(this.options.readSkill(id).state); }
+          catch (error) {
+            if (!active) return false; // A terminal child's history may have been removed.
+            throw error;
+          }
+        };
+        // Reissue cancellation for a Workflow whose terminal state prevents
+        // WorkflowEngine.cancel() from visiting its still-running children.
+        if (rule.target.type === "workflow") {
+          for (const id of skillRunIds.filter(stillRunning)) await this.options.cancelSkill(id);
+        }
+        // Workflow cancellation can finish before its processes exit.
+        const deadline = Date.now() + 10_000;
+        while (skillRunIds.some(stillRunning)) {
+          if (Date.now() >= deadline) throw new Error(messages.skillCenter.defaults.stopTimeout);
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
+      const current = this.options.repository.getRun(record.id);
+      if (current && ["queued", "running"].includes(current.state)) {
+        this.options.repository.updateRun(record.id, {
+          state: "cancelled", retryAt: null, completedAt: this.now().toISOString(), error: null
+        });
+      }
+    }
+  }
   getRule(id: string): AutomationRule {
     const rule = this.options.repository.getRule(id);
     if (!rule) throw new Error(`Automation Rule 不存在：${id}`);
@@ -83,6 +143,10 @@ export class AutomationScheduler {
 
   saveRule(rawInput: AutomationRuleInput): AutomationRule {
     const input = AutomationRuleInputSchema.parse(rawInput);
+    if (isDefaultAutomationRule(input) && input.enabled
+      && (this.defaultSkillsStopping || !this.getDefaultSkillsEnabled())) {
+      throw new Error(messages.skillCenter.defaults.enableFirst);
+    }
     rejectSecretLikeValues(input.inputs || {});
     assertTimezone(input.timezone || "UTC");
     if (input.trigger.type === "cron") validateCron(input.trigger.expression);
@@ -276,7 +340,7 @@ export class AutomationScheduler {
     for (const record of this.options.repository.listRuns()) {
       if (record.state !== "queued" || (record.retryAt && new Date(record.retryAt).getTime() > at.getTime())) continue;
       const rule = this.options.repository.getRule(record.ruleId);
-      if (!rule) continue;
+      if (!rule || !rule.enabled) continue;
       const active = this.options.repository.listRuns(rule.id).some((run) => run.id !== record.id && run.state === "running");
       if (active && rule.concurrencyPolicy === "queue") continue;
       if (active && rule.concurrencyPolicy === "skip") {
@@ -288,6 +352,10 @@ export class AutomationScheduler {
   }
 
   private async launch(record: AutomationRunRecord, rule: AutomationRule, at: Date): Promise<void> {
+    if (!this.options.repository.getRule(rule.id)?.enabled) {
+      this.options.repository.updateRun(record.id, { state: "cancelled", retryAt: null, completedAt: at.toISOString() });
+      return;
+    }
     try {
       const version = rule.target.versionPolicy === "*"
         ? undefined
@@ -332,11 +400,11 @@ export class AutomationScheduler {
     }
   }
 
-  private readChild(rule: AutomationRule, childRunId: string): BrokerRunRecord | WorkflowRunRecord {
+  private readChild(rule: Pick<AutomationRule, "target">, childRunId: string): BrokerRunRecord | WorkflowRunRecord {
     return rule.target.type === "skill" ? this.options.readSkill(childRunId) : this.options.readWorkflow(childRunId);
   }
 
-  private cancelChild(rule: AutomationRule, childRunId: string): Promise<boolean> {
+  private cancelChild(rule: Pick<AutomationRule, "target">, childRunId: string): Promise<boolean> {
     return rule.target.type === "skill" ? this.options.cancelSkill(childRunId) : this.options.cancelWorkflow(childRunId);
   }
 }
