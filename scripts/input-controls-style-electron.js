@@ -33,6 +33,7 @@ app.whenReady().then(async () => {
         const context = `${theme} ${width} ${id}`;
         assert.equal(before.outline, "none", `${context}: outer outline`);
         if (!before.disabled) {
+          win.webContents.sendInputEvent({ type: "mouseMove", x: before.x, y: before.y });
           win.webContents.sendInputEvent({ type: "mouseDown", x: before.x, y: before.y, button: "left", clickCount: 1 });
           win.webContents.sendInputEvent({ type: "mouseUp", x: before.x, y: before.y, button: "left", clickCount: 1 });
           await settle(win);
@@ -57,9 +58,15 @@ app.whenReady().then(async () => {
         } else if (!id.startsWith("inline")) {
           assert.equal(focused.borderWidth, "1px", `${context}: form border`);
           assert.equal(focused.shadow, "none", `${context}: form glow`);
-          if (focused.invalid) assert.equal(focused.borderColor, focused.danger, `${context}: error survives focus`);
+          if (focused.invalid) assert.equal(focused.borderColor, focused.danger, `${context}: error survives focus and hover`);
+          else if (!focused.disabled) assert.equal(focused.borderColor, focused.focusBorder, `${context}: focus border survives hover`);
+          win.webContents.sendInputEvent({ type: "mouseMove", x: 0, y: 0 });
+          await settle(win);
+          const pointerAway = await inspect(win, id);
+          assert.equal(pointerAway.borderColor, focused.borderColor, `${context}: moving the pointer must not change a focused border`);
         }
         report.push({ theme, width, height, id, before, focused });
+        win.webContents.sendInputEvent({ type: "mouseMove", x: 0, y: 0 });
         await win.webContents.executeJavaScript(`document.activeElement?.blur()`);
         await settle(win);
       }
@@ -102,11 +109,13 @@ async function inspect(win, id) {
     const parentRect = surface?.parentElement.getBoundingClientRect();
     const rect = node.getBoundingClientRect();
     const color = document.createElement('span'); color.style.color = 'var(--danger-500)'; document.body.append(color);
-    const danger = getComputedStyle(color).color; color.remove();
+    const danger = getComputedStyle(color).color;
+    color.style.color = 'var(--input-focus-border)';
+    const focusBorder = getComputedStyle(color).color; color.remove();
     return { focused: document.activeElement === node, focusVisible: node.matches(':focus-visible'), disabled: node.disabled,
       readOnly: node.readOnly, invalid: node.getAttribute('aria-invalid') === 'true', height: rect.height,
       x: Math.round(rect.left + Math.min(30, rect.width / 2)), y: Math.round(rect.top + rect.height / 2),
-      borderWidth: css.borderTopWidth, borderColor: css.borderTopColor, outline: css.outlineStyle, shadow: css.boxShadow, danger,
+      borderWidth: css.borderTopWidth, borderColor: css.borderTopColor, outline: css.outlineStyle, shadow: css.boxShadow, danger, focusBorder,
       paddingTop: parseFloat(css.paddingTop), paddingLeft: parseFloat(css.paddingLeft), paddingBottom: parseFloat(css.paddingBottom),
       surface: surfaceCss && { borderColor: surfaceCss.borderTopColor, shadow: surfaceCss.boxShadow,
         height: surfaceRect.height, overflow: Math.max(0, surfaceRect.right - parentRect.right, parentRect.left - surfaceRect.left) } };

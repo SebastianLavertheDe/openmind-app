@@ -258,7 +258,7 @@ export function Select<T extends string>({
             </button>
           ))}
         </div>,
-        document.body
+        rootRef.current?.closest<HTMLElement>("[data-focus-scope-backdrop]") || document.body
       ) : null}
     </div>
   );

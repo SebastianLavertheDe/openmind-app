@@ -175,7 +175,7 @@ export function DailyBriefPage({
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
           <Tooltip content={m.brief.library.refresh}><button className="icon-button" aria-label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
         </header>
-          <SearchInput className="document-library-search" variant="outlined" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} />
+          <SearchInput className="document-library-search" variant="quiet" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} />
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
         <div className="document-file-list entrance-stagger" aria-busy={loading || undefined}>
           {loading && !hasLoaded ? Array.from({ length: 7 }, (_, index) => <Skeleton key={index} variant="row" lines={2} label={m.brief.library.loading} />) : null}

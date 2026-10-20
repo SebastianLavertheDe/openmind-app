@@ -173,14 +173,15 @@ function Workspace({
     setWorkspaceFilePath(path);
   }, []);
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
-  const embeddedFilePreviewPath = route.page === "brief" ? workspaceFilePath : null;
-  const standaloneFilePreviewPath = route.page === "brief" ? null : workspaceFilePath;
+  const usesEmbeddedFilePreview = route.page === "brief" || route.page === "creative";
+  const embeddedFilePreviewPath = usesEmbeddedFilePreview ? workspaceFilePath : null;
+  const standaloneFilePreviewPath = usesEmbeddedFilePreview ? null : workspaceFilePath;
   const standalonePreviewOpen = Boolean(standaloneFilePreviewPath) && !settingsOpen;
   const standalonePreviewPresence = useExitPresence(standalonePreviewOpen, 160);
   const lastStandaloneFilePreviewPath = useRef<string | null>(standaloneFilePreviewPath);
   if (standaloneFilePreviewPath) lastStandaloneFilePreviewPath.current = standaloneFilePreviewPath;
   const renderedStandaloneFilePreviewPath = standaloneFilePreviewPath ?? lastStandaloneFilePreviewPath.current;
-  const standalonePreviewCovered = route.page !== "brief" && !settingsOpen && standalonePreviewPresence.visible;
+  const standalonePreviewCovered = !usesEmbeddedFilePreview && !settingsOpen && standalonePreviewPresence.visible;
   useEffect(() => writeStorage(NAV_COLLAPSED_KEY, navCollapsed), [navCollapsed]);
   useEffect(() => { void window.openmind.getPreferences().then(applyTheme).catch(() => { /* 浅色为 :root 默认,失败无需处理 */ }); }, []);
   useEffect(() => {
@@ -285,7 +286,7 @@ function Workspace({
           {renderActiveRoute({ route, ...routeRenderProps })}
         </div>
       </Suspense>
-      {standalonePreviewPresence.visible && renderedStandaloneFilePreviewPath && route.page !== "brief" && !settingsOpen ? (
+      {standalonePreviewPresence.visible && renderedStandaloneFilePreviewPath && !usesEmbeddedFilePreview && !settingsOpen ? (
         <div
           className="standalone-file-preview-presence"
           data-leaving={standalonePreviewPresence.leaving || undefined}
@@ -303,7 +304,7 @@ function Workspace({
         </Suspense>
       ) : null}
     </>
-  ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible, locale]);
+  ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible, usesEmbeddedFilePreview, locale]);
   return (
     <FilePreviewProvider open={openWorkspaceFile}>
       <AppShell

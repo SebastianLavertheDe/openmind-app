@@ -680,7 +680,7 @@ describe("App bootstrap", () => {
     expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy();
   }, 15_000);
 
-  it("opens companion file references in the brief detail pane while keeping the file list", async () => {
+  it.each(["每日简报", "创作"] as const)("opens companion file references inside %s while keeping the file list", async (page) => {
     const path = "openmind/daily-topic/20260728_daily_topic.md";
     const briefPath = "openmind/daily-summary/20260728_daily_summary.md";
     const openPath = vi.fn(async (value: string) => value);
@@ -768,20 +768,32 @@ describe("App bootstrap", () => {
         parseErrors: 0
       }),
       listContent: async () => [{ path: briefPath, name: "20260728_daily_summary.md", size: 1280, modifiedAt: "2026-07-28T14:00:00.000Z" }],
+      getAllCreativeTopics: async () => [{ date: "20260728", label: "2026-07-28", file: briefPath, topics: [{ title: "保留文件列表" }] }],
+      getCreativeProjects: async () => [],
       readContent,
       openPath
     });
 
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    fireEvent.click(screen.getByRole("button", { name: page }));
+    if (page === "创作") {
+      fireEvent.click(await screen.findByRole("button", { name: /2026-07-28 选题管理文件/ }, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
+      await screen.findByRole("heading", { name: "当前每日简报" });
+      fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
+    }
+    const listSelector = page === "创作" ? ".creative-list-pane" : ".brief-library-page .document-library-list";
+    const originalList = document.querySelector(listSelector);
     fireEvent.click(await screen.findByRole("button", { name: path }));
 
     const preview = await screen.findByRole("complementary", { name: "文件预览" });
-    const briefList = document.querySelector(".brief-library-page .document-library-list");
+    const briefList = document.querySelector(listSelector);
     expect(briefList).toBeTruthy();
+    expect(briefList).toBe(originalList);
     expect(briefList?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBeNull();
-    expect(preview.closest(".document-library-detail")).toBeTruthy();
+    expect(briefList?.closest(".settings-preserved-route")?.hasAttribute("inert")).toBe(false);
+    expect(preview.closest(page === "创作" ? ".creative-main-pane" : ".document-library-detail")).toBeTruthy();
+    expect(document.querySelector(".standalone-file-preview-presence")).toBeNull();
     expect(preview.classList.contains("is-embedded")).toBe(true);
     expect(await screen.findByRole("heading", { name: "左侧文件预览" })).toBeTruthy();
     expect(readContent).toHaveBeenCalledWith(path);
@@ -792,7 +804,16 @@ describe("App bootstrap", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "关闭文件预览" }));
     expect(await screen.findByRole("heading", { name: "当前每日简报" })).toBeTruthy();
-    expect(briefList).toBeTruthy();
+    expect(document.querySelector(listSelector)).toBe(originalList);
+    if (page === "创作") {
+      const selectedFile = screen.getByRole("button", { name: /2026-07-28 选题管理文件/ });
+      expect(selectedFile.classList.contains("active")).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: path }));
+      await screen.findByRole("complementary", { name: "文件预览" });
+      fireEvent.click(selectedFile);
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "文件预览" })).toBeNull());
+      expect(await screen.findByRole("heading", { name: "当前每日简报" })).toBeTruthy();
+    }
   });
 
   it("restores the AI file split for a conversation but clears it for a new task", async () => {

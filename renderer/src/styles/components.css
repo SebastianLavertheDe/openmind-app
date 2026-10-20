@@ -833,9 +833,15 @@ button.ui-metric-card:hover {
   background: var(--surface-hover, var(--control-hover));
 }
 
+.ui-select-trigger:focus-visible {
+  border-color: var(--input-focus-border);
+  outline: none;
+  box-shadow: none;
+}
+
 .ui-select[data-open="true"] .ui-select-trigger {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--input-focus-border);
+  box-shadow: none;
 }
 
 .ui-select[data-disabled="true"] .ui-select-trigger {
@@ -863,9 +869,14 @@ button.ui-metric-card:hover {
   max-width: 220px;
 }
 
+.ui-select.rect .ui-select-value {
+  font-weight: 400;
+}
+
 .ui-select-chevron {
   color: var(--muted-2);
   flex: none;
+  margin-inline-start: auto;
   transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
 }
 

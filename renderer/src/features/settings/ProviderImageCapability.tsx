@@ -1,7 +1,7 @@
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { IMAGE_PROVIDERS, type ImageCapability } from "@shared/image-generation";
-import { ToggleSwitch } from "../../design-system/components";
+import { Select, ToggleSwitch } from "../../design-system/components";
 
 export function defaultImageCapability(baseUrl: string): ImageCapability {
   let host = "";
@@ -21,12 +21,15 @@ export function ProviderImageCapability({ value, baseUrl, disabled, onChange }: 
       <ToggleSwitch checked={Boolean(value)} label={uiMessages.interface.supportsImages} disabled={disabled} onChange={checked => onChange(checked ? defaultImageCapability(baseUrl) : null)} />
     </div>
     {value && definition ? <div className="settings-provider-image-fields">
-      <label className="settings-field"><span>{uiMessages.interface.imageServiceType}</span>
-        <select className="settings-select" value={value.provider} disabled={disabled} data-motion="selection" onChange={event => {
-          const provider = IMAGE_PROVIDERS.find(entry => entry.id === event.target.value)!;
-          onChange({ provider: provider.id, models: [provider.models[0].id] });
-        }}>{IMAGE_PROVIDERS.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select>
-      </label>
+      <div className="settings-field"><span>{uiMessages.interface.imageServiceType}</span>
+        <Select className="settings-select" size="rect" ariaLabel={uiMessages.interface.imageServiceType}
+          value={value.provider} disabled={disabled}
+          options={IMAGE_PROVIDERS.map(provider => ({ value: provider.id, label: provider.name }))}
+          onChange={providerId => {
+            const provider = IMAGE_PROVIDERS.find(entry => entry.id === providerId)!;
+            onChange({ provider: provider.id, models: [provider.models[0].id] });
+          }} />
+      </div>
       <fieldset disabled={disabled} className="settings-provider-image-models"><legend>{uiMessages.interface.availableImageModels}</legend>
         {definition.models.map(model => <label key={model.id}>
           <input type="checkbox" checked={value.models.includes(model.id)} onChange={event => onChange({ ...value, models: event.target.checked ? [...value.models, model.id] : value.models.filter(id => id !== model.id) })} />

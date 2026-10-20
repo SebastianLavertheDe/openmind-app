@@ -156,6 +156,7 @@ export function useModalFocusScope({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || topModalScope()?.id !== scope.id) return;
       if (event.key === "Escape") {
+        if (container.querySelector('[role="listbox"][data-open]')) return;
         event.preventDefault();
         event.stopPropagation();
         onDismissRef.current();

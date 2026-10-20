@@ -23,8 +23,8 @@
 .ui-textarea { min-height: var(--input-textarea-height); resize: vertical; line-height: 1.5; }
 .ui-input::placeholder,
 .ui-textarea::placeholder { color: var(--muted-2); opacity: 1; }
-.ui-input:hover:not(:disabled),
-.ui-textarea:hover:not(:disabled) { border-color: var(--border-strong); }
+.ui-input:where(:hover:not(:disabled)),
+.ui-textarea:where(:hover:not(:disabled)) { border-color: var(--border-strong); }
 .ui-input:focus,
 .ui-textarea:focus { border-color: var(--input-focus-border); outline: none; box-shadow: none; }
 
@@ -73,7 +73,8 @@
 .ui-search-input:hover,
 .ui-search-input:focus-within { background: var(--control-hover); }
 .ui-search-input[data-variant="outlined"] { border-color: var(--input-border); background: var(--input-bg); }
-.ui-search-input[data-variant="outlined"]:focus-within { border-color: var(--input-focus-border); }
+.ui-search-input[data-variant="outlined"]:focus-within { border-color: var(--input-border); }
+.ui-search-input[data-variant="outlined"]:focus-within .ui-search-input-icon { color: var(--text); }
 .ui-input-group { border-color: var(--input-border); background: var(--input-bg); }
 .ui-input-group:focus-within { border-color: var(--input-focus-border); }
 .ui-input-group > span { border-left: 1px solid var(--input-border); color: var(--muted); }

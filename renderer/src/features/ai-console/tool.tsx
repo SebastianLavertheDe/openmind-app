@@ -382,8 +382,6 @@ function ChunkedText({ lines }: { lines: TerminalLine[] }) {
       <OverflowBox
         className="command-terminal-overflow"
         maxHeight={360}
-        expandAllLabel={hasMore ? t.expandAllOutput : undefined}
-        onExpandAll={hasMore ? () => setLimit(total) : undefined}
       >
         <pre className="command-terminal-output">
           {visibleLines.map((line, index) => (

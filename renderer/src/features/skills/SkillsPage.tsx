@@ -303,7 +303,7 @@ export function SkillsPage({ initialSkillId, embedded = false, initialSourcePick
       <section ref={skillsLayout.ref} className="skills-layout" data-layout={skillsLayout.mode}>
         <aside className="workspace-card skills-catalog">
           <header className="skills-catalog-header">
-            <SearchInput className="skills-search"
+            <SearchInput className="skills-search" variant="quiet"
                 clearAction={query ? { label: m.clearSearch, onClear: () => setQuery("") } : undefined}
                 type="search"
                 aria-label={m.searchAria}

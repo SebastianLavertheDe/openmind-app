@@ -7,6 +7,7 @@ import { useAiActions, useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { EmptyState, ErrorState, PageHeader, Skeleton, SearchInput } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
+import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN } from "../../components/useListDetailLayout";
 import { useContentListLayout } from "../../components/useContentListLayout";
 import { type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./MarkdownEditor";
@@ -31,11 +32,15 @@ type TopicWithDate = CreativeTopic & { sourceDate: string; sourceLabel: string; 
 export function CreativeWorkspacePage({
   initialDate,
   initialStage,
-  initialProjectDir
+  initialProjectDir,
+  embeddedFilePreviewPath = null,
+  onCloseEmbeddedFilePreview
 }: {
   initialDate?: string;
   initialStage?: Stage;
   initialProjectDir?: string;
+  embeddedFilePreviewPath?: string | null;
+  onCloseEmbeddedFilePreview?(): void;
 }) {
   const locale = useLocale();
   const ui = useAiUi();
@@ -97,13 +102,13 @@ export function CreativeWorkspacePage({
     setAutoSaveStatus("idle");
   }, [draftSource]);
   const layout = useContentListLayout();
-  const hasCompactDetail = Boolean(selectedTopicFilePath || selectedTopic || selectedProject);
+  const hasCompactDetail = Boolean(selectedTopicFilePath || selectedTopic || selectedProject || embeddedFilePreviewPath);
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
 
   useEffect(() => {
     if (!compactWorkspace) return;
     setCompactListOpen(!hasCompactDetail);
-  }, [compactWorkspace, hasCompactDetail, selectedProject?.dir, selectedTopic?.id, selectedTopic?.title, selectedTopicFilePath]);
+  }, [compactWorkspace, hasCompactDetail, selectedProject?.dir, selectedTopic?.id, selectedTopic?.title, selectedTopicFilePath, embeddedFilePreviewPath]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,6 +156,7 @@ export function CreativeWorkspacePage({
 
   const openProject = useCallback(async (project: CreativeProjectSummary) => {
     if (!await resetTopicFile()) return;
+    onCloseEmbeddedFilePreview?.();
     const intent = ++projectOpenIntentRef.current;
     const previous = creativeSelectionRef.current;
     if (compactWorkspace) setCompactListOpen(false);
@@ -182,7 +188,7 @@ export function CreativeWorkspacePage({
     } finally {
       if (intent === projectOpenIntentRef.current) setDetailLoadingProjectDir(null);
     }
-  }, [compactWorkspace, stage, resetTopicFile]);
+  }, [compactWorkspace, stage, resetTopicFile, onCloseEmbeddedFilePreview]);
 
   useEffect(() => {
     if (!initialProjectDir || !projects.length) return;
@@ -421,7 +427,7 @@ export function CreativeWorkspacePage({
           <aside className={`creative-list-pane${listVisible ? "" : " collapsed"}`}>
             {!listVisible ? null : (
               <>
-                <SearchInput className="creative-search" variant="outlined" aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} />
+                <SearchInput className="creative-search" variant="quiet" aria-label={m.creativeUi.workspace.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={m.creativeUi.workspace.search} />
                 {loading ? <CreativeStreamSkeleton /> : (
                   <TodayStream
                     topics={topics}
@@ -431,8 +437,8 @@ export function CreativeWorkspacePage({
                     selectedTopic={selectedTopic}
                     selectedProject={selectedProject}
                     selectedTopicFile={selectedTopicFilePath}
-                    onOpenTopic={(topic) => { void (async () => { if (!await resetTopicFile()) return; if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); })(); }}
-                    onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
+                    onOpenTopic={(topic) => { void (async () => { if (!await resetTopicFile()) return; onCloseEmbeddedFilePreview?.(); if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(topic); })(); }}
+                    onOpenTopicFile={(path) => void openTopicFile(path).then((opened) => { if (opened) { onCloseEmbeddedFilePreview?.(); if (compactWorkspace) setCompactListOpen(false); setSelectedProject(null); setDetail(null); setSelectedTopic(null); } })}
                     onOpenProject={(project) => void openProject(project)}
                   />
                 )}
@@ -464,7 +470,7 @@ export function CreativeWorkspacePage({
                 onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
               ><PanelLeftOpen size={17} /></button>
             ) : null}
-            <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}${detail && !detailLoadingProjectDir ? " is-ready" : ""}`} data-stage={stage} aria-busy={Boolean(detailLoadingProjectDir) || undefined}>
+            {embeddedFilePreviewPath ? <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={() => onCloseEmbeddedFilePreview?.()} embedded /> : <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}${detail && !detailLoadingProjectDir ? " is-ready" : ""}`} data-stage={stage} aria-busy={Boolean(detailLoadingProjectDir) || undefined}>
               <CreativeDetailPane
                 stage={stage}
                 detail={detail}
@@ -509,7 +515,7 @@ export function CreativeWorkspacePage({
                 insertLocalFileLink={insertLocalFileLink}
                 updateManifest={updateManifest}
               />
-            </div>
+            </div>}
           </section>
       </div>
     </div>
