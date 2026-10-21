@@ -1,3 +1,4 @@
+import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { ExternalLink, Eye, Pencil, Save } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";
@@ -13,10 +14,10 @@ export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, o
     <header className="creative-document-header topic-file-header">
       <div><div className="document-status"><StatusBadge tone="info">{m.creativeUi.topicFile.badge}</StatusBadge><span>{dirty ? m.creativeUi.topicFile.dirty : m.creativeUi.topicFile.saved}</span></div><h1>{file.name || file.path.split(/[\\/]/).at(-1)}</h1><p>{file.path}</p></div>
       <div className="topic-file-actions">
-        <div className="preview-mode-toggle" role="group" aria-label={m.creativeUi.topicFile.viewMode}>
-          <button data-motion="selection" className={mode === "preview" ? "active" : ""} onClick={() => onMode("preview")}><Eye size={13} />{m.creativeUi.topicFile.preview}</button>
-          <button data-motion="selection" className={mode === "edit" ? "active" : ""} disabled={file.truncated} onClick={() => onMode("edit")}><Pencil size={13} />{m.creativeUi.topicFile.edit}</button>
-        </div>
+        <SegmentedControl value={mode} onChange={onMode} label={m.creativeUi.topicFile.viewMode} options={[
+          { value: "preview", label: m.creativeUi.topicFile.preview, icon: <Eye size={13} /> },
+          { value: "edit", label: m.creativeUi.topicFile.edit, icon: <Pencil size={13} />, disabled: file.truncated }
+        ]} />
         <button className="topic-file-action topic-file-save-action" data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? m.creativeUi.topicFile.saving : m.creativeUi.topicFile.save}</button>
         <button className="topic-file-action" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{m.creativeUi.topicFile.open}</button>
       </div>

@@ -1,3 +1,4 @@
+import { useClipboard } from "../../design-system/use-clipboard";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
@@ -30,11 +31,10 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const [workflowRun, setWorkflowRun] = useState<WorkflowRunRecord | null>(null);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepDetails[]>([]);
   const [liveEvents, setLiveEvents] = useState<Record<string, BrokerRunEvent[]>>({});
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useClipboard({ successMs: 1600 });
   const [loading, setLoading] = useState(true);
   const [runCommand, setRunCommand] = useState<{ ruleId: string; phase: "starting" | "stopping" } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const copyTimer = useRef<number>(0);
   const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
@@ -72,7 +72,6 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
     window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);
     return () => window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, refreshCatalog);
   }, [load]);
-  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
   useEffect(() => window.openmind.onSkillEvent((event) => {
     const skillId = String(event.skillId || "");
     if (!skillId) return;
@@ -190,15 +189,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   };
 
   const copyLogs = async () => {
-    if (!consoleText.trim()) return;
-    try {
-      await navigator.clipboard.writeText(consoleText);
-      setCopied(true);
-      window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
+    if (consoleText.trim()) await copy(consoleText);
   };
 
   return (

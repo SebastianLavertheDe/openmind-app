@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { Input } from "../../design-system/components";
@@ -197,7 +198,7 @@ export function ProjectEditDialog({
   const pickerOpen = Boolean(project) && iconPickerOpen;
   const pickerPresence = useExitPresence(pickerOpen, tokens.exitMs);
   const closePicker = useCallback(() => setIconPickerOpen(false), []);
-  useModalFocusScope({ open: pickerOpen, containerRef: iconPickerRef, triggerRef: iconTriggerRef, onDismiss: closePicker, layer: "global" });
+  useModalFocusScope({ open: pickerOpen, containerRef: iconPickerRef, triggerRef: iconTriggerRef, onDismiss: closePicker, dismissOnOutside: true, layer: "global" });
   const popover = useAnchoredPopover({
     open: pickerPresence.visible,
     anchorRef: iconTriggerRef,
@@ -217,17 +218,6 @@ export function ProjectEditDialog({
     const frame = requestAnimationFrame(() => nameInputRef.current?.select());
     return () => cancelAnimationFrame(frame);
   }, [project]);
-
-  useEffect(() => {
-    if (!iconPickerOpen) return;
-    const close = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (iconTriggerRef.current?.contains(target) || iconPickerRef.current?.contains(target)) return;
-      setIconPickerOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [iconPickerOpen]);
 
   const colorValue = projectColorValue(color);
   return (
@@ -301,21 +291,12 @@ export function ProjectEditDialog({
           {PROJECT_ICON_OPTIONS.map((option) => {
             const Icon = option.icon;
             return (
-              <button
-                key={option.id}
-                type="button"
-                className={icon === option.id ? "selected" : ""}
-                data-motion="selection"
-                aria-label={option.label}
-                aria-pressed={icon === option.id}
-                title={option.label}
-                onClick={() => {
+              <IconButton key={option.id} type="button" className={icon === option.id ? "selected" : ""} data-motion="selection" aria-pressed={icon === option.id} onClick={() => {
                   setIcon(option.id);
                   setIconPickerOpen(false);
-                }}
-              >
+                }} label={option.label}>
                   <Icon size={17} strokeWidth={2.2} aria-hidden="true" />
-              </button>
+              </IconButton>
             );
           })}
         </div>,

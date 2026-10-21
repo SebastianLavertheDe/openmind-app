@@ -73,6 +73,7 @@
   --z-modal: 60;
   --z-dropdown: 100;
   --z-global-modal: 200;
+  --z-select: 300;
   --z-topmost: 1000;
   /* 4/8 间距刻度,供 padding/gap/margin 复用 */
   --space-1: 4px;

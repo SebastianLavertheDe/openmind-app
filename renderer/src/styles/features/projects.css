@@ -216,7 +216,6 @@
   flex-direction: column;
 }
 .project-pane-section > .project-item-list { flex: 1; }
-.project-pane-section > .project-material-filters { flex: 0 0 auto; }
 
 /* Files and outputs share entrance and selection feedback, without row delays. */
 .project-content-row {
@@ -677,9 +676,6 @@
 .project-task-menu > button:hover { background: var(--control-hover); color: var(--text); }
 .project-task-menu > button.danger { color: var(--danger); }
 .project-item-skeleton { height: 55px; border-radius: 8px; background: linear-gradient(90deg, var(--panel-muted), var(--panel-2), var(--panel-muted)); background-size: 200% 100%; animation: skeleton-shimmer 1.4s linear infinite; }
-.project-material-filters { display: flex; gap: 2px; overflow-x: auto; padding: 0 12px 8px; }
-.project-material-filters button { padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: var(--fs-xs); }
-.project-material-filters button.active { background: var(--panel-2); color: var(--text); }
 .project-local-detail > .ui-empty-state,
 .project-local-detail > .ui-error-state,
 .project-detail-loading { margin: auto; }
@@ -700,7 +696,7 @@
 .project-task-compose-card textarea { min-height: 120px; resize: vertical; padding: 12px 2px; line-height: 1.55; }
 .project-task-compose-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .project-task-compose-footer > div { display: flex; align-items: center; gap: 8px; }
-.project-task-compose-footer select { min-height: 34px; max-width: 180px; }
+.project-task-compose-footer .ui-select { max-width: 180px; }
 .project-material-scope { color: var(--muted); font-size: var(--fs-xs); }
 .project-form-error { margin: 10px 0 0; color: var(--danger); font-size: var(--fs-xs); }
 .project-task-session { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); }
@@ -732,7 +728,7 @@
 .project-material-error > div { min-width: 0; flex: 1; }
 .project-material-error > button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 .project-markdown-material { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
-.project-markdown-material > .project-preview-mode { justify-self: end; margin: 10px 16px; }
+.project-markdown-material > .ui-segmented { justify-self: end; margin: 10px 16px; }
 .project-material-reader { min-height: 0; overflow: auto; }
 .project-material-reader > pre { min-height: 100%; margin: 0; padding: 30px 44px 70px; overflow: auto; color: var(--text-dim); font: 12px/1.65 var(--font-mono); white-space: pre-wrap; }
 .project-material-reader > .reader-markdown { margin: 0 auto; padding: 34px 48px 80px; }
@@ -835,14 +831,8 @@
 .project-field { display: grid; gap: 7px; color: var(--muted); font-size: var(--fs-xs); }
 .project-field input,
 .project-field textarea { width: 100%; padding: 9px 10px; }
-.project-field select { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
+.project-field .ui-select { width: 100%; }
 .project-field textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
-.project-field select:focus,
-.project-field select:focus-visible {
-  border-color: var(--focus-ring);
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 16%, transparent);
-}
 
 .project-dialog-backdrop-clear { background: transparent; backdrop-filter: none; }
 .project-dialog-compact { width: min(340px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 14px; overflow: visible; box-shadow: 0 16px 48px rgba(0, 0, 0, .16), 0 2px 8px rgba(0, 0, 0, .08); }
@@ -1005,7 +995,7 @@
   .project-task-starter { padding: 22px 16px; }
   .project-task-compose-footer { align-items: stretch; flex-direction: column; }
   .project-task-compose-footer > div { justify-content: space-between; }
-  .project-task-compose-footer select { flex: 1; }
+  .project-task-compose-footer .ui-select { flex: 1; }
   .project-task-session-bar { align-items: flex-start; flex-direction: column; }
   .project-video-player { min-height: auto; padding: 10px; }
   .project-output-title { width: 100%; }

@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { Input } from "../../design-system/components";
@@ -149,9 +150,9 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
           }
         }}/>
         <span>{matches.length ? matchIndex + 1 : 0} / {matches.length}</span>
-        <button aria-label={uiMessages.interface.previousMatch} data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronLeft size={14}/></button>
-        <button aria-label={uiMessages.interface.nextMatch} data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }}><ChevronRight size={14}/></button>
-        <button aria-label={uiMessages.interface.closeSearch} data-motion="icon" onClick={() => setFindOpen(false)}><X size={14}/></button>
+        <IconButton data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex - 1 + matches.length) % matches.length; setMatchIndex(next); jump(matches[next]); }} className="" label={uiMessages.interface.previousMatch}><ChevronLeft size={14}/></IconButton>
+        <IconButton data-motion="icon" disabled={!matches.length} onClick={() => { const next = (matchIndex + 1) % matches.length; setMatchIndex(next); jump(matches[next]); }} className="" label={uiMessages.interface.nextMatch}><ChevronRight size={14}/></IconButton>
+        <IconButton data-motion="icon" onClick={() => setFindOpen(false)} className="" label={uiMessages.interface.closeSearch}><X size={14}/></IconButton>
       </div>
     </div> : null}
     {error ? <p role="alert">{error}</p> : !model ? <p role="status">{uiMessages.interface.openingDocument}</p> : null}

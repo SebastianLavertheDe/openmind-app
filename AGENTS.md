@@ -49,5 +49,13 @@ repository can opt in with `OPENMIND_SKILLS_REPO_ROOT=/absolute/path/to/cctools-
   for text controls. Maintain their appearance and interaction states only in
   `styles/components/inputs.css`; feature styles own layout. Native checkbox,
   radio, file, range and color controls may remain native.
+- Use shared `Select` from `design-system/components` for dropdown choices; native
+  `<select>` belongs only inside that component. Keep its UI and motion in
+  `styles/components.css`. Grouped model menus reuse `SelectMenuSurface`.
+- Reuse `Dialog`, `ImageViewer`, `Tabs`, `SegmentedControl`, `AnimatedDisclosure`
+  and `IconButton` for matching interactions. Portalled menus use
+  `useDismissableLayer`; resizing uses `usePointerResize`; plain-text copying
+  uses `useClipboard` or `CopyButton`. Preserve feature-specific data loading,
+  unsaved-change guards and optimized geometry updates in the owning feature.
 - Keep fixed visual styles in CSS. Inline styles are for runtime values or CSS
   custom properties. Run `npm run audit:styles`; it is also part of the build.

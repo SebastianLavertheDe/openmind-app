@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "..");
 const rendererRoot = process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, "renderer", "src");
 const stylesRoot = path.join(rendererRoot, "styles");
 const inputOwner = path.join(rendererRoot, "design-system", "inputs.tsx");
+const selectOwner = path.join(rendererRoot, "design-system", "Select.tsx");
 const nativeInputTypes = new Set(["checkbox", "radio", "file", "hidden", "range", "color", "button", "submit", "reset", "image"]);
 const failures = [];
 const controlClasses = new Set(["ui-input", "ui-textarea", "ui-search-input", "ui-input-group"]);
@@ -53,6 +54,7 @@ for (const file of files(rendererRoot)) {
         }
       }
       if (tag === "textarea" && file !== inputOwner) fail(node, "use the shared Textarea component");
+      if (tag === "select" && file !== selectOwner) fail(node, "use the shared Select component");
       if (tag === "input" && file !== inputOwner) {
         const type = node.attributes.properties.find((property) => ts.isJsxAttribute(property) && property.name.getText(parsed) === "type");
         const initializer = type?.initializer;

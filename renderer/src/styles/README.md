@@ -47,6 +47,38 @@ Native checkbox/radio/file/range/color controls are separate from text inputs.
 Fixed visual declarations belong in CSS. Runtime geometry, user-selected colors,
 progress values and CSS custom properties can be supplied by components.
 
+## Select controls
+
+Use `Select` from `design-system/components` for dropdown choices, including
+settings, filters, permissions and dialog fields. Supply `options`, `value`,
+`onChange` and a localized `ariaLabel`; use `size="rect"` for forms. `autoFocus`,
+`title` and `disabled` apply to the visible trigger. `menuSide` and `menuAlign`
+control its preferred placement while the shared popover keeps it in view.
+
+`SelectMenuSurface` supplies the same rounded panel, option spacing and
+fade/translate/scale transitions to simple selects and grouped model menus.
+Maintain this appearance in `components.css`; feature styles own control layout
+and semantic states. Native `<select>` is reserved for Select's internal proxy;
+`audit:styles` rejects native selects in feature code.
+
+## Shared interactions
+
+`Dialog` owns the modal surface, backdrop dismissal, focus scope, portal and exit
+presence; features own its header, form, footer and layout. Owners that retain a
+data snapshot during exit may pass their existing `presence`. `dismissDisabled`
+is an explicit busy-state policy. `ImageViewer` shares this shell and owns image
+navigation, keyboard and swipe handling; each feature still loads its own image
+data. Maintain viewer styles in `components/image-viewer.css`.
+
+Menus and popovers share `useDismissableLayer` so the foremost child handles Esc
+before its parent, including across portals. Keep anchoring in
+`useAnchoredPopover`. Use `Tabs` or `SegmentedControl` for related choices (their
+change callbacks may await a navigation guard), `AnimatedDisclosure` for animated
+expansion, and `IconButton` for accessible icon actions with shared tooltips.
+`usePointerResize` owns pointer batching and cancellation; consumers own geometry.
+`useClipboard` owns copy feedback and timer cleanup; rich clipboard formats keep
+their typed IPC implementation.
+
 Run `npm run audit:styles` to check these boundaries, including appearance overrides
 on shared controls and their feature classes. The build runs it automatically.
 Run `npm run visual:inputs` for Electron checks of focus, error states and layout

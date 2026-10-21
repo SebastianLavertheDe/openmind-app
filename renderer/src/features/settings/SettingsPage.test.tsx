@@ -600,43 +600,50 @@ describe("SettingsPage", () => {
   });
 
   it("uses the animated image service selector inside the Provider dialog without dismissing it on Escape", async () => {
-    const providerView = {
-      schemaVersion: 1 as const, default: "images", cli: { claude: null, codex: null },
-      providers: [{
-        id: "images", name: "图片服务", enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
-        baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "text-model", apiKeySet: true,
-        proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const,
-        imageGeneration: { provider: "volcengine" as const, models: ["doubao-seedream-5-0-flash-260915"] }
-      }]
-    };
-    const saveProviders = vi.fn().mockResolvedValue(providerView);
-    window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), getProviderApiKey: vi.fn().mockResolvedValue("fixture-key"), saveProviders });
-    renderSettings();
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("AI 与模型");
-    fireEvent.click(await screen.findByRole("button", { name: "编辑 图片服务 配置" }));
-    const dialog = await screen.findByRole("dialog", { name: "编辑 图片服务" });
-    const trigger = within(dialog).getByRole("button", { name: "图片服务类型 下拉菜单" });
-    fireEvent.click(trigger);
-    const menu = screen.getByRole("listbox", { name: "图片服务类型" });
-    expect(menu.closest("[data-focus-scope-backdrop]")).toBe(dialog.closest("[data-focus-scope-backdrop]"));
-    expect(menu.classList.contains("ui-select-menu")).toBe(true);
-    await waitFor(() => expect(document.activeElement).toBe(within(menu).getByRole("option", { name: "字节火山" })));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    expect(screen.getByRole("dialog", { name: "编辑 图片服务" })).toBe(dialog);
-    await waitFor(() => expect(menu.hasAttribute("data-leaving")).toBe(true));
-    expect(menu.hasAttribute("inert")).toBe(true);
-    await waitFor(() => expect(screen.queryByRole("listbox", { name: "图片服务类型" })).toBeNull());
-    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    const previousExit = document.documentElement.style.getPropertyValue("--dur-exit");
+    document.documentElement.style.setProperty("--dur-exit", "160ms");
+    try {
+      const providerView = {
+        schemaVersion: 1 as const, default: "images", cli: { claude: null, codex: null },
+        providers: [{
+          id: "images", name: "图片服务", enabled: true, protocol: "openai-chat" as const, authMode: "bearer" as const,
+          baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "text-model", apiKeySet: true,
+          proxyUrl: "", proxyPolicy: "system" as const, tlsPolicy: "verify" as const,
+          imageGeneration: { provider: "volcengine" as const, models: ["doubao-seedream-5-0-flash-260915"] }
+        }]
+      };
+      const saveProviders = vi.fn().mockResolvedValue(providerView);
+      window.openmind = makeApi({ getProviders: vi.fn().mockResolvedValue(providerView), getProviderApiKey: vi.fn().mockResolvedValue("fixture-key"), saveProviders });
+      renderSettings();
+      await screen.findByRole("heading", { name: "常规" });
+      openCategory("AI 与模型");
+      fireEvent.click(await screen.findByRole("button", { name: "编辑 图片服务 配置" }));
+      const dialog = await screen.findByRole("dialog", { name: "编辑 图片服务" });
+      const trigger = within(dialog).getByRole("button", { name: "图片服务类型：字节火山 下拉菜单" });
+      fireEvent.click(trigger);
+      const menu = screen.getByRole("listbox", { name: "图片服务类型" });
+      expect(menu.closest("[data-focus-scope-backdrop]")).toBe(dialog.closest("[data-focus-scope-backdrop]"));
+      expect(menu.classList.contains("ui-select-menu")).toBe(true);
+      await waitFor(() => expect(document.activeElement).toBe(within(menu).getByRole("option", { name: "字节火山" })));
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      expect(screen.getByRole("dialog", { name: "编辑 图片服务" })).toBe(dialog);
+      await waitFor(() => expect(menu.hasAttribute("data-leaving")).toBe(true));
+      expect(menu.hasAttribute("inert")).toBe(true);
+      await waitFor(() => expect(screen.queryByRole("listbox", { name: "图片服务类型" })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
 
-    fireEvent.click(trigger);
-    fireEvent.click(within(screen.getByRole("listbox", { name: "图片服务类型" })).getByRole("option", { name: "OpenAI" }));
-    expect((within(dialog).getByRole("checkbox", { name: /GPT Image 2.5 Sunburst/ }) as HTMLInputElement).checked).toBe(true);
-    expect(within(dialog).queryByRole("checkbox", { name: /Doubao-Seedream/ })).toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存配置" }));
-    await waitFor(() => expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
-      providers: [expect.objectContaining({ imageGeneration: { provider: "openai", models: ["gpt-image-2.5-sunburst"] } })]
-    })));
+      fireEvent.click(trigger);
+      fireEvent.click(within(screen.getByRole("listbox", { name: "图片服务类型" })).getByRole("option", { name: "OpenAI" }));
+      expect((within(dialog).getByRole("checkbox", { name: /GPT Image 2.5 Sunburst/ }) as HTMLInputElement).checked).toBe(true);
+      expect(within(dialog).queryByRole("checkbox", { name: /Doubao-Seedream/ })).toBeNull();
+      fireEvent.click(within(dialog).getByRole("button", { name: "保存配置" }));
+      await waitFor(() => expect(saveProviders).toHaveBeenCalledWith(expect.objectContaining({
+        providers: [expect.objectContaining({ imageGeneration: { provider: "openai", models: ["gpt-image-2.5-sunburst"] } })]
+      })));
+    } finally {
+      if (previousExit) document.documentElement.style.setProperty("--dur-exit", previousExit);
+      else document.documentElement.style.removeProperty("--dur-exit");
+    }
   });
 
   it("saves a Provider removal immediately", async () => {

@@ -1,10 +1,11 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { getLocale, messages } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea, Select } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
@@ -319,7 +320,7 @@ export function ProjectTasksPanel({
   const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectTasks}</span><h2>{messages.projectUi.tasks}</h2></div><button className="icon-button" aria-label={messages.projectUi.newTask} onClick={newTask}><Plus size={16} /></button></header> : null}
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectTasks}</span><h2>{messages.projectUi.tasks}</h2></div><IconButton className="icon-button" onClick={newTask} label={messages.projectUi.newTask}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label={messages.projectUi.searchTasks} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.yourTasks} />
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
@@ -418,7 +419,7 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
         <label><span className="ui-visually-hidden">{messages.projectUi.taskContent}</span><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder={messages.projectUi.taskPromptPlaceholder} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
         <div className="project-task-compose-footer">
           <span className="project-material-scope">{messages.projectUi.taskMaterialsHint}</span>
-          <div><select aria-label={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? messages.projectUi.taskProviderLocked : undefined} onChange={(event) => onProvider(event.target.value)}>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.label}</option>)}</select><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? messages.projectUi.creating : messages.projectUi.startTask}</button></div>
+          <div><Select size="rect" ariaLabel={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? messages.projectUi.taskProviderLocked : undefined} onChange={onProvider} options={providers.map(provider => ({ value: provider.id, label: provider.label }))} /><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? messages.projectUi.creating : messages.projectUi.startTask}</button></div>
         </div>
         {error ? <p className="project-form-error">{error}</p> : null}
       </div>

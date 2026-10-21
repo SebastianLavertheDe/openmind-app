@@ -9,3 +9,7 @@ export * from "./LogViewer";
 export * from "./Tooltip";
 export * from "./ResponsiveActionBar";
 export * from "./use-modal-focus-scope";
+export * from "./Dialog";
+export * from "./IconButton";
+export * from "./CopyButton";
+export * from "./use-clipboard";

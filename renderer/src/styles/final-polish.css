@@ -3,7 +3,6 @@
 
 .app-nav,
 .app-nav nav button,
-.app-project-status,
 .icon-button,
 .ui-segmented button,
 .ui-tabs button,
@@ -113,7 +112,7 @@ details[open] > :not(summary) {
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
 }
 
-body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger, .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .app-project-status span, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
+body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger, .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
   color: var(--muted);
 }
 

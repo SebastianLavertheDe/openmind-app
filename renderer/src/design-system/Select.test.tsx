@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Select } from "./Select";
+import { useModalFocusScope } from "./use-modal-focus-scope";
 
 afterEach(() => {
   cleanup();
@@ -24,6 +25,12 @@ function Harness({ initial = "" as "" | "a" | "b" | "c" }) {
 
 function getTrigger() {
   return screen.getByRole("button", { name: /下拉菜单/ });
+}
+
+function ModalHarness({ onDismiss }: { onDismiss(): void }) {
+  const ref = useRef<HTMLElement>(null);
+  useModalFocusScope({ open: true, containerRef: ref, onDismiss });
+  return <section ref={ref} role="dialog" aria-modal="true"><Harness /><button>after select</button></section>;
 }
 
 describe("Select (custom dropdown)", () => {
@@ -89,7 +96,7 @@ describe("Select (custom dropdown)", () => {
     const onChange = vi.fn();
     render(<Select value="" options={OPTIONS} onChange={onChange} ariaLabel="排序" placeholder="选择" />);
     const trigger = getTrigger();
-    fireEvent.click(trigger);
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
     const listbox = screen.getByRole("listbox", { name: "排序" });
     // 从定位到的第一项开始,按两次下到 Gamma,再 Enter
     fireEvent.keyDown(listbox, { key: "ArrowDown" });
@@ -109,6 +116,7 @@ describe("Select (custom dropdown)", () => {
   });
 
   it("keeps an inert leaving menu mounted for the full 160ms exit", () => {
+    document.documentElement.style.setProperty("--dur-exit", "160ms");
     vi.useFakeTimers();
     try {
       render(<Harness />);
@@ -118,13 +126,48 @@ describe("Select (custom dropdown)", () => {
       const leaving = document.querySelector(".ui-select-menu") as HTMLElement;
       expect(leaving?.getAttribute("data-leaving")).toBe("true");
       expect(leaving?.hasAttribute("inert")).toBe(true);
+      expect(leaving.querySelector(".ui-select-surface")?.getAttribute("data-leaving")).toBe("true");
       act(() => vi.advanceTimersByTime(159));
       expect(document.querySelector(".ui-select-menu")).toBe(leaving);
       act(() => vi.advanceTimersByTime(1));
       expect(document.querySelector(".ui-select-menu")).toBeNull();
     } finally {
       vi.useRealTimers();
+      document.documentElement.style.removeProperty("--dur-exit");
     }
+  });
+
+  it("focuses the visible trigger in a dialog and dismisses its menu before the dialog", async () => {
+    const onDismiss = vi.fn();
+    render(<ModalHarness onDismiss={onDismiss} />);
+    const trigger = getTrigger();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    fireEvent.click(trigger);
+    const list = screen.getByRole("listbox");
+    const option = within(list).getByRole("option", { name: "Alpha" });
+    await waitFor(() => expect(document.activeElement).toBe(option));
+    fireEvent.keyDown(option, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves autofocus and the tooltip while closing a newly disabled control", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<Select value="a" options={OPTIONS} onChange={onChange} autoFocus title="Provider is locked" />);
+    const trigger = getTrigger();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.getAttribute("title")).toBe("Provider is locked");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    rerender(<Select value="a" options={OPTIONS} onChange={onChange} disabled title="Provider is locked" />);
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(trigger.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("closes when clicking outside", async () => {

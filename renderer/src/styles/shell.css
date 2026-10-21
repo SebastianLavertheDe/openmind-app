@@ -30,7 +30,7 @@
 .app-nav {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   padding: 16px 12px 12px;
   border-right: 1px solid var(--border);
@@ -153,8 +153,7 @@
 }
 
 .app-nav.collapsed .brand-copy,
-.app-nav.collapsed nav span,
-.app-nav.collapsed .app-project-status div {
+.app-nav.collapsed nav span {
   display: none;
 }
 
@@ -162,42 +161,9 @@
   margin: 5px 0 0;
 }
 
-.app-nav.collapsed nav button,
-.app-nav.collapsed .app-project-status {
+.app-nav.collapsed nav button {
   justify-content: center;
   padding-inline: 0;
-}
-
-.app-project-status {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  color: var(--muted);
-}
-
-.app-project-status div {
-  min-width: 0;
-}
-
-.app-project-status strong,
-.app-project-status span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-project-status strong {
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-}
-
-.app-project-status span {
-  font-size: var(--fs-xs);
 }
 
 .app-stage {

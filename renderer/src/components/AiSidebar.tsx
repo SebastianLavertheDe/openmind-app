@@ -1,3 +1,5 @@
+import { IconButton } from "../design-system/IconButton";
+import { usePointerResize } from "../design-system/use-pointer-resize";
 import { useLocale } from "../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -264,7 +266,35 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     };
   }, [floating, floatingInlineGutter, modal, mode, navCollapsed, responsiveLayout]);
 
-  const rail = <button ref={railTriggerRef} className="ai-rail" data-entering={exitingPanel || undefined} data-motion="icon" aria-label={m.ai.sidebar.expand} title={m.ai.sidebar.expand} onClick={() => ui.setPanelMode("default")}><MessageSquare size={18} /></button>;
+  const startResize = usePointerResize(event => {
+    const element = event.currentTarget;
+    const shell = element.closest<HTMLElement>(".app-shell");
+    shell?.classList.add("ai-sidebar-resizing");
+    const startBounds = liveSidebarBounds({ layout: responsiveLayout, navCollapsed,
+      floating: modal || floating, floatingInlineGutter: floating ? floatingInlineGutter : 0 });
+    const startWidth = sidebarRef.current?.getBoundingClientRect().width
+      || sidebarWidthForRatio(ratiosRef.current[mode], startBounds);
+    let liveWidth = startWidth;
+    return {
+      move(_delta, total) {
+        // Keep per-frame writes local to the grid; commit React state only on release.
+        liveWidth = Math.max(startBounds.minInlineSize, Math.min(startBounds.maxInlineSize, startWidth - total));
+        shell?.style.setProperty("grid-template-columns", `var(--nav-width, 260px) minmax(0, 1fr) ${Math.round(liveWidth)}px`);
+        element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
+      },
+      end(cancelled) {
+        if (cancelled) liveWidth = startWidth;
+        document.documentElement.style.setProperty("--ai-sidebar-preferred-width", `${Math.round(liveWidth)}px`);
+        shell?.style.removeProperty("grid-template-columns");
+        shell?.classList.remove("ai-sidebar-resizing");
+        setRatios(current => ({ ...current, [mode]: sidebarRatioForWidth(liveWidth, startBounds) }));
+        element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
+        sidebarRef.current?.setAttribute("data-layout-width", String(Math.round(liveWidth)));
+      }
+    };
+  }, panelOpen && !full && !detached);
+
+  const rail = <IconButton ref={railTriggerRef} className="ai-rail" data-entering={exitingPanel || undefined} data-motion="icon" onClick={() => ui.setPanelMode("default")} label={m.ai.sidebar.expand}><MessageSquare size={18} /></IconButton>;
   if (!panelOpen && !exitingPanel) return rail;
   // Once the viewport selects a single canvas it remains the visual surface,
   // even if a persisted/fullscreen panel mode is active.
@@ -287,18 +317,11 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
       >
         <div className="ai-sidebar-actions">
           {renderState.full ? (
-            <button type="button" data-motion="icon" aria-label={m.ai.sidebar.exitFullscreen} title={m.ai.sidebar.exitFullscreen} onClick={dismissModal}>
+            <IconButton type="button" data-motion="icon" onClick={dismissModal} className="" label={m.ai.sidebar.exitFullscreen}>
               <Minimize2 size={17} aria-hidden="true" />
-            </button>
+            </IconButton>
           ) : null}
-          <button
-            type="button"
-            className="ai-sidebar-close"
-            data-motion="icon"
-            aria-label={m.ai.sidebar.close}
-            title={m.ai.sidebar.close}
-            onClick={() => ui.setPanelMode("collapsed")}
-          ><X size={18} aria-hidden="true" /></button>
+          <IconButton type="button" className="ai-sidebar-close" data-motion="icon" onClick={() => ui.setPanelMode("collapsed")} label={m.ai.sidebar.close}><X size={18} aria-hidden="true" /></IconButton>
         </div>
         {!renderState.full && !renderState.detached ? (
           <div
@@ -335,74 +358,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
                 [mode]: sidebarRatioForWidth(liveWidth + delta, liveBounds)
               }));
             }}
-            onPointerDown={(event) => {
-              if (event.button > 0 || event.isPrimary === false) return;
-              event.preventDefault();
-              const element = event.currentTarget;
-              element.setPointerCapture?.(event.pointerId);
-              const shell = element.closest<HTMLElement>(".app-shell");
-              shell?.classList.add("ai-sidebar-resizing");
-              const startX = event.clientX;
-              const startBounds = liveSidebarBounds({
-                layout: responsiveLayout,
-                navCollapsed,
-                floating: modal || floating,
-                floatingInlineGutter: floating ? floatingInlineGutter : 0
-              });
-              const startWidth = sidebarRef.current?.getBoundingClientRect().width
-                || sidebarWidthForRatio(ratiosRef.current[mode], startBounds);
-              let latestX = startX;
-              let liveWidth = startWidth;
-              let moveFrame = 0;
-              const commitMove = () => {
-                moveFrame = 0;
-                // 拖拽期间绕过 React 与根级 CSS 变量：根变量每帧变化会让全文档
-                // 样式失效（219 个 SVG 图标全部重排，实测拖动 1 秒 10 万+ 次
-                // "SVG changed" 失效、单次布局 35ms+）。把像素列直接内联写到
-                // shell 上，失效范围限定在网格轨道本身；松手后恢复变量并提交比例。
-                liveWidth = Math.max(startBounds.minInlineSize, Math.min(startBounds.maxInlineSize, startWidth + startX - latestX));
-                shell?.style.setProperty("grid-template-columns", `var(--nav-width, 260px) minmax(0, 1fr) ${Math.round(liveWidth)}px`);
-                element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
-              };
-              const move = (moveEvent: PointerEvent) => {
-                if (moveEvent.pointerId !== event.pointerId) return;
-                latestX = moveEvent.clientX;
-                if (!moveFrame) moveFrame = window.requestAnimationFrame(commitMove);
-              };
-              const cleanup = () => {
-                if (moveFrame) window.cancelAnimationFrame(moveFrame);
-                if (element.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture(event.pointerId);
-                shell?.classList.remove("ai-sidebar-resizing");
-                window.removeEventListener("pointermove", move);
-                window.removeEventListener("pointerup", up);
-                window.removeEventListener("pointercancel", cancel);
-                window.removeEventListener("keydown", key);
-              };
-              const finish = (restore: boolean) => {
-                if (restore) liveWidth = startWidth;
-                else if (moveFrame) commitMove();
-                // 先把最终宽度同步为根变量（全文档失效只在松手时发生一次），
-                // 再移除拖拽期的内联网格覆盖；随后的 setRatios 提交比例状态，
-                // layout effect 会把变量重写为 calc 形式（宽度不变）。
-                document.documentElement.style.setProperty("--ai-sidebar-preferred-width", `${Math.round(liveWidth)}px`);
-                shell?.style.removeProperty("grid-template-columns");
-                setRatios((current) => ({ ...current, [mode]: sidebarRatioForWidth(liveWidth, startBounds) }));
-                element.setAttribute("aria-valuenow", String(Math.round(liveWidth)));
-                sidebarRef.current?.setAttribute("data-layout-width", String(Math.round(liveWidth)));
-                cleanup();
-              };
-              const key = (keyEvent: KeyboardEvent) => {
-                if (keyEvent.key !== "Escape") return;
-                keyEvent.preventDefault();
-                finish(true);
-              };
-              const up = () => finish(false);
-              const cancel = () => finish(true);
-              window.addEventListener("pointermove", move);
-              window.addEventListener("pointerup", up, { once: true });
-              window.addEventListener("pointercancel", cancel, { once: true });
-              window.addEventListener("keydown", key);
-            }}
+            onPointerDown={startResize}
           />
         ) : null}
         <Suspense fallback={<div className="route-loading" role="status"><div className="route-loading-skeleton" /></div>}>

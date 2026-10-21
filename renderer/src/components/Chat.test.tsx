@@ -1268,6 +1268,71 @@ describe("chat timeline", () => {
     await waitFor(() => expect((screen.getByLabelText("AI 消息") as HTMLTextAreaElement).value).toBe("test"));
   });
 
+  it.each(["changes", "write", "change-set"] as const)(
+    "waits for the final reply and completed run before showing edited files (%s)",
+    async (source) => {
+      const changeSet = makeChangeSet();
+      const run = { ...makeRun(), changeSet: source === "change-set" ? changeSet : null };
+      const changeEvents = source === "write" ? [
+        makeEvent("write-start", "tool-start", { itemId: "write-1", tool: "Write", input: { file_path: "src/app.ts" } }, 2),
+        makeEvent("write-done", "tool-complete", { itemId: "write-1", tool: "Write", output: "ok" }, 3)
+      ] : source === "changes" ? [
+        makeEvent("changes", "changes", { changeSet }, 2)
+      ] : [];
+      window.openmind.aiGetEvents = async () => [
+        makeEvent("user", "user-message", { text: "patch app" }, 1),
+        ...changeEvents
+      ];
+      const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+
+      await screen.findByText("patch app");
+      expect(container.querySelector(".change-review-card")).toBeNull();
+
+      act(() => {
+        aiListener?.({ kind: "transient", event: makeEvent("delta", "assistant-delta", { text: "Finishing edits" }, 4) });
+      });
+      await screen.findByText("Finishing edits");
+      expect(container.querySelector(".change-review-card")).toBeNull();
+
+      act(() => {
+        aiListener?.({ kind: "event", event: makeEvent("answer", "assistant-message", { text: "Saved.", phase: "final" }, 5) });
+      });
+      await screen.findByText("Saved.");
+      expect(container.querySelector(".assistant-message")).toBeNull();
+      expect(container.querySelector(".change-review-card")).toBeNull();
+
+      act(() => {
+        const completedRun = { ...run, status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
+        aiListener?.({ kind: "snapshot", snapshot: snapshotForRun(completedRun, "idle") });
+      });
+      const review = await screen.findByRole("region", { name: "已编辑 1 个文件" });
+      const answer = screen.getByText("Saved.").closest(".assistant-message")!;
+      expect(Boolean(answer.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(within(review).getByRole("button", { name: "src/app.ts" })).toBeTruthy();
+      expect(review.textContent).not.toMatch(/[+-]\d+/);
+    }
+  );
+
+  it("waits for the final reply when run completion arrives before it", async () => {
+    const changeSet = makeChangeSet();
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z", changeSet };
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "patch app" }, 1),
+      makeEvent("changes", "changes", { changeSet }, 2)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+
+    await screen.findByText("最终回复缺失");
+    expect(container.querySelector(".change-review-card")).toBeNull();
+
+    act(() => {
+      aiListener?.({ kind: "event", event: makeEvent("answer", "assistant-message", { text: "Saved.", phase: "final" }, 3) });
+    });
+    const review = await screen.findByRole("region", { name: "已编辑 1 个文件" });
+    const answer = screen.getByText("Saved.").closest(".assistant-message")!;
+    expect(Boolean(answer.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
   it("renders a compact edited-files context that opens files in the preview", async () => {
     const user = userEvent.setup();
     const openPreview = vi.fn();

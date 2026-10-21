@@ -1,16 +1,18 @@
 import { useLocale } from "../i18n";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { useAnchoredPopover, type AnchoredPopoverAlign } from "./use-anchored-popover";
+import { useAnchoredPopover, type AnchoredPopoverAlign, type AnchoredPopoverSide } from "./use-anchored-popover";
 import { useExitPresence } from "./use-exit-presence";
+import { useMotionTokens } from "./motion-tokens";
+import { SelectMenuSurface } from "./SelectMenuSurface";
+import { useDismissableLayer } from "./use-dismissable-layer";
 
 /**
  * Select — 自定义下拉选择器,替代浏览器原生 <select>。
  *
- * 设计来源:AI Console 的 P0-CMP-3 ChipSelect (composer.tsx)。提升到 design-system
- * 供全 app 复用,统一替代各功能页散落的原生 <select>。
+ * 供全 app 复用。普通选择和分组模型菜单共用 SelectMenuSurface 的 UI 与动效。
  *
  * 特性:
  *  - 胶囊/矩形两种 size,接入 token 系统(颜色/圆角/阴影/动效)
@@ -30,7 +32,10 @@ export function Select<T extends string>({
   disabled = false,
   ariaLabel,
   className,
-  menuAlign = "start"
+  title,
+  autoFocus,
+  menuAlign = "start",
+  menuSide = "bottom"
 }: {
   value: T | "";
   options: Array<{ value: T; label: string; disabled?: boolean }>;
@@ -45,24 +50,30 @@ export function Select<T extends string>({
   ariaLabel?: string;
   /** 附加到根节点的 class(用于页面级定制宽度/对齐) */
   className?: string;
+  title?: string;
+  autoFocus?: boolean;
   /** 浮层相对触发器的横向对齐方式。 */
   menuAlign?: AnchoredPopoverAlign;
+  menuSide?: AnchoredPopoverSide;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const listId = useId();
   const [menuMounted, setMenuMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const focusFrameRef = useRef<number | null>(null);
   const shouldRestoreFocusRef = useRef(false);
-  const { visible, leaving } = useExitPresence(menuMounted, 160);
+  const { exitMs } = useMotionTokens();
+  const { visible, leaving } = useExitPresence(menuMounted, exitMs);
   const popover = useAnchoredPopover({
     open: visible,
     anchorRef: triggerRef,
     floatingRef: listRef,
     align: menuAlign,
+    preferredSide: menuSide,
     matchAnchorWidth: true
   });
 
@@ -79,6 +90,9 @@ export function Select<T extends string>({
   useEffect(() => {
     if (open) setMenuMounted(true);
   }, [open]);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
   useEffect(() => {
     if (!menuMounted || open || leaving) return;
     setMenuMounted(false);
@@ -100,43 +114,24 @@ export function Select<T extends string>({
     });
   }, [open, initialActiveIndex]);
 
-  // 点外部关闭
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const targetNode = event.target as Node;
-      if (!rootRef.current?.contains(targetNode) && !listRef.current?.contains(targetNode)) {
-        shouldRestoreFocusRef.current = false;
-        if (focusFrameRef.current !== null) {
-          cancelAnimationFrame(focusFrameRef.current);
-          focusFrameRef.current = null;
-        }
-        setOpen(false);
-        // Closing the animated menu during pointerdown can remove the focused
-        // option before the browser's default focus transfer runs (notably in
-        // Electron/WebKit and jsdom). Preserve the native outside-click
-        // behavior explicitly for keyboard and screen-reader users.
-        const target = event.target as { disabled?: boolean; focus?: () => void } | null;
-        if (target && !target.disabled && typeof target.focus === "function") {
+  useDismissableLayer({
+    open, contentRefs: [rootRef, listRef], triggerRef, restoreFocus: false,
+    onDismiss(reason, event) {
+      shouldRestoreFocusRef.current = reason === "escape";
+      if (focusFrameRef.current !== null) {
+        cancelAnimationFrame(focusFrameRef.current);
+        focusFrameRef.current = null;
+      }
+      setOpen(false);
+      if (reason === "outside") {
+        const target = event.target as HTMLElement | null;
+        if (target && !(target as HTMLButtonElement).disabled && typeof target.focus === "function") {
           target.focus();
-          queueMicrotask(() => target.focus?.());
+          queueMicrotask(() => target.focus());
         }
       }
-    };
-    const onKeyDown = (event: KeyboardEvent | globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && open) {
-        event.preventDefault();
-        shouldRestoreFocusRef.current = true;
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+    }
+  });
 
   // 关闭后恢复焦点到 trigger
   useEffect(() => {
@@ -149,7 +144,7 @@ export function Select<T extends string>({
   }, [open, menuMounted, visible, leaving]);
 
   const choose = (option: { value: T; disabled?: boolean } | undefined) => {
-    if (!option || option.disabled) return;
+    if (disabled || !option || option.disabled) return;
     onChange(option.value);
     shouldRestoreFocusRef.current = true;
     setOpen(false);
@@ -195,6 +190,7 @@ export function Select<T extends string>({
       ref={rootRef}
       data-open={open || undefined}
       data-disabled={disabled || undefined}
+      data-value={value}
     >
       <select
         className="ui-select-native-proxy"
@@ -213,8 +209,19 @@ export function Select<T extends string>({
         className="ui-select-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${accessibleName} ${m.designSystem.selectButton}`}
+        aria-controls={open ? listId : undefined}
+        aria-label={`${accessibleName}${selected ? `：${selected.label}` : ""} ${m.designSystem.selectButton}`}
         disabled={disabled}
+        title={title}
+        autoFocus={autoFocus}
+        data-motion="selection"
+        onKeyDown={(event) => {
+          if (!disabled && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+            event.preventDefault();
+            shouldRestoreFocusRef.current = true;
+            setOpen(true);
+          }
+        }}
         onClick={() => {
           if (disabled) return;
           shouldRestoreFocusRef.current = true;
@@ -229,6 +236,7 @@ export function Select<T extends string>({
       {visible ? createPortal(
         <div
           ref={listRef}
+          id={listId}
           className={`ui-select-menu${className ? ` ${className.split(/\s+/).filter(Boolean).map((token) => `${token}-menu`).join(" ")}` : ""}`}
           role="listbox"
           aria-label={accessibleName}
@@ -240,12 +248,15 @@ export function Select<T extends string>({
           style={popover.style}
           onKeyDown={onKeyDownList}
         >
+          <SelectMenuSurface side={popover.side} leaving={leaving}>
           {options.map((option, index) => (
             <button
               key={option.value}
               type="button"
               role="option"
               data-index={index}
+              data-value={option.value}
+              data-motion="selection"
               aria-selected={option.value === value}
               tabIndex={open && index === activeIndex ? 0 : -1}
               disabled={option.disabled}
@@ -257,6 +268,7 @@ export function Select<T extends string>({
               {option.value === value ? <Check size={13} className="ui-select-check" /> : null}
             </button>
           ))}
+          </SelectMenuSurface>
         </div>,
         rootRef.current?.closest<HTMLElement>("[data-focus-scope-backdrop]") || document.body
       ) : null}

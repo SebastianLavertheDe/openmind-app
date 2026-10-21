@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { Textarea } from "../../design-system/components";
@@ -100,7 +101,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
     {findOpen ? <DocumentFindbar search={search} readOnly={props.readOnly} onQuery={query => runtimeRef.current?.search(query)}
       onStep={direction => runtimeRef.current?.stepSearch(direction)} onReplace={(value, all) => runtimeRef.current?.replaceSearch(value, all)} onClose={closeSearch} /> : null}
     {outlineOpen ? <nav className="document-editor-outline" aria-label={messages.editor.documentSections}>
-      <header><strong>{messages.editor.outline}</strong><button type="button" data-motion="icon" aria-label={messages.editor.closeOutline} onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }}><X size={16} /></button></header>
+      <header><strong>{messages.editor.outline}</strong><IconButton type="button" data-motion="icon" onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }} className="" label={messages.editor.closeOutline}><X size={16} /></IconButton></header>
       {headings.length ? headings.map(heading => <button type="button" data-motion="selection" key={heading.pos} style={{ paddingInlineStart: 12 + (heading.level - 1) * 12 }} title={heading.text}
         onClick={() => { runtimeRef.current?.jumpToHeading(heading.pos); setOutlineOpen(false); }}>{heading.text}</button>) : <p>{messages.editor.emptyOutline}</p>}
     </nav> : null}

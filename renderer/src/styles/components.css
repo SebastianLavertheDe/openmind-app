@@ -806,7 +806,7 @@ button.ui-metric-card:hover {
   padding: 5px 10px;
   border: 1px solid var(--border);
   background: var(--panel-bg);
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
               background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
@@ -824,7 +824,7 @@ button.ui-metric-card:hover {
 .ui-select.rect .ui-select-trigger {
   border-radius: var(--radius-sm);
   font-size: var(--fs-body);
-  min-height: 33px;
+  min-height: 36px;
   padding: 0 10px;
 }
 
@@ -886,34 +886,74 @@ button.ui-metric-card:hover {
 
 .ui-select-menu {
   position: fixed;
-  z-index: var(--z-overlay);
+  z-index: var(--z-select);
+  min-width: 140px;
   max-height: min(320px, 60vh);
   max-width: calc(100vw - 16px);
-  overflow-y: auto;
+  color: var(--text);
+}
+
+/* Position the outer menu; animate only this shared inner surface so its
+   measured anchor box stays still, including the model picker's submenus. */
+.ui-select-surface {
+  --select-enter-x: 0px;
+  --select-enter-y: -8px;
+  --select-exit-x: 0px;
+  --select-exit-y: -4px;
+  max-height: inherit;
+  overflow: auto;
   padding: 4px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   background: var(--panel-bg);
-  box-shadow: var(--shadow-2);
-  animation: ui-select-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
+  box-shadow: var(--shadow-overlay);
+  opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  transform-origin: top center;
+  transition: opacity var(--dur-normal) var(--ease-standard),
+              translate var(--dur-normal) var(--ease-standard),
+              scale var(--dur-normal) var(--ease-standard);
 }
 
-.ui-select-menu[data-leaving="true"] {
-  animation: ui-select-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards;
-}
-
-@keyframes ui-select-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes ui-select-out {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-2px); }
-}
-
-.ui-select-menu[data-side="top"] {
+.ui-select-surface[data-side="top"] {
+  --select-enter-y: 8px;
+  --select-exit-y: 4px;
   transform-origin: bottom center;
+}
+
+.ui-select-surface:is([data-side="left"], [data-side="right"]) {
+  --select-enter-y: 0px;
+  --select-exit-y: 0px;
+  transition-duration: var(--dur-fast);
+}
+
+.ui-select-surface[data-side="left"] {
+  --select-enter-x: 6px;
+  --select-exit-x: 6px;
+  transform-origin: top right;
+}
+
+.ui-select-surface[data-side="right"] {
+  --select-enter-x: -6px;
+  --select-exit-x: -6px;
+  transform-origin: top left;
+}
+
+.ui-select-menu[data-leaving] { pointer-events: none; }
+.ui-select-surface[data-leaving] {
+  opacity: 0;
+  translate: var(--select-exit-x) var(--select-exit-y);
+  scale: .99;
+  transition-duration: var(--dur-exit);
+}
+
+@starting-style {
+  .ui-select-surface {
+    opacity: 0;
+    translate: var(--select-enter-x) var(--select-enter-y);
+    scale: .98;
+  }
 }
 
 .ui-select-option {
@@ -921,14 +961,15 @@ button.ui-metric-card:hover {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: transparent;
   color: var(--text-dim);
   font-size: var(--fs-sm);
   text-align: left;
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
 }
 
 .ui-select-option:hover:not(:disabled),
@@ -938,13 +979,18 @@ button.ui-metric-card:hover {
   outline: none;
 }
 
+.ui-select-surface :is([role="option"], [role="menuitem"], [role="menuitemradio"]):focus-visible {
+  outline: none;
+  background: var(--panel-muted);
+}
+
 .ui-select-option:disabled {
   opacity: .45;
   cursor: not-allowed;
 }
 
 .ui-select-option.active {
-  background: var(--accent-tint);
+  background: var(--panel-muted);
   color: var(--accent-fg);
   font-weight: 600;
 }
@@ -952,6 +998,7 @@ button.ui-metric-card:hover {
 .ui-select-option-label {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ui-select-check {
@@ -1010,12 +1057,15 @@ button.ui-metric-card:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ui-select-surface,
   .ui-select-menu,
   .ui-select-chevron,
   .ui-select-trigger,
   .ui-skeleton-card > span,
   .ui-skeleton-row > span,
   .ui-skeleton-metric > span { animation: none; transition: none; }
+  .ui-select-surface,
+  .ui-select-surface[data-leaving] { translate: none; scale: none; }
 }
 
 /* Shared first-mount entrance choreography. Only explicitly marked children

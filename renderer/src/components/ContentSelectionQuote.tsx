@@ -1,3 +1,4 @@
+import { useDismissableLayer } from "../design-system/use-dismissable-layer";
 import { useLocale } from "../i18n";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -82,12 +83,11 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
     window.getSelection()?.removeAllRanges();
   }, [action, actions.addContext, ui, content]);
 
+  useDismissableLayer({ open: Boolean(action), contentRefs: [actionRef], triggerRef: surfaceRef,
+    restoreFocus: false, onDismiss: () => setAction(null) });
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && action) {
-        setAction(null);
-        return;
-      }
       if (action && (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLocaleLowerCase() === "a") {
         event.preventDefault();
         quoteSelection();

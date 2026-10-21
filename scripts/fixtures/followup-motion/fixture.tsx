@@ -30,7 +30,7 @@ function Fixture() {
   return <Profiler id="followup" onRender={(_id, _phase, duration) => probe.commits.push({ time: performance.now(), duration })}>
     {scene.startsWith("recent") || scene === "drawer" ? <AiProvider key={scene} initial={{ ...snapshot, sessions: sessions.slice(0, count) }}>
       <AppShell page="brief" navigate={() => {}} onOpenSearch={() => {}} navCollapsed={false} setNavCollapsed={() => {}}
-        repoRoot="/fixtures/motion" runtime="fixture" environment={{ mode: "preview", platform: "linux" }} pendingApprovals={0} aiMode="collapsed"
+        repoRoot="/fixtures/motion" environment={{ mode: "preview", platform: "linux" }} pendingApprovals={0} aiMode="collapsed"
         recentTasks={<SidebarRecent activeSessionId={null} onOpen={session => { probe.opened = session.id; }} />}>
         <button data-motion="action" data-followup-outside>正文操作</button>
       </AppShell>

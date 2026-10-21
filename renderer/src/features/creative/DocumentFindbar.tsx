@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { Input } from "../../design-system/components";
@@ -21,9 +22,9 @@ export function DocumentFindbar({ search, readOnly, onQuery, onStep, onReplace, 
         if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); onStep(event.shiftKey ? -1 : 1); }
       }} />
       <span role="status">{search.matches.length ? search.index + 1 : 0} / {search.matches.length}</span>
-      <button type="button" data-motion="icon" aria-label={messages.editor.previousMatch} disabled={!search.matches.length} onClick={() => onStep(-1)}><ChevronUp size={16} /></button>
-      <button type="button" data-motion="icon" aria-label={messages.editor.nextMatch} disabled={!search.matches.length} onClick={() => onStep(1)}><ChevronDown size={16} /></button>
-      <button type="button" data-motion="icon" aria-label={messages.editor.closeFind} onClick={onClose}><X size={16} /></button>
+      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(-1)} className="" label={messages.editor.previousMatch}><ChevronUp size={16} /></IconButton>
+      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(1)} className="" label={messages.editor.nextMatch}><ChevronDown size={16} /></IconButton>
+      <IconButton type="button" data-motion="icon" onClick={onClose} className="" label={messages.editor.closeFind}><X size={16} /></IconButton>
     </div>
     {!readOnly ? <div className="document-find-row">
       <Input size="sm" aria-label={messages.editor.replaceWith} placeholder={messages.editor.replaceWith} value={replacement} onChange={event => setReplacement(event.target.value)} />

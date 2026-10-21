@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { hasLayerAbove, isDismissableBranch, registerDismissableLayer, subscribeDismissableLayers } from "./use-dismissable-layer";
 
 const FOCUSABLE = [
   "a[href]",
@@ -83,7 +84,7 @@ function syncBackgroundIsolation(): void {
     for (const child of Array.from(parent.children)) {
       if (!(child instanceof HTMLElement) || child === branch) continue;
       const isModal = activeModalScopes.some((scope) => child.contains(scope.container));
-      if (child.dataset.focusScopeBackdrop != null && !isModal) continue;
+      if ((child.dataset.focusScopeBackdrop != null && !isModal) || isDismissableBranch(child, topModalScope()!.container)) continue;
       required.add(child);
     }
     branch = parent;
@@ -102,7 +103,8 @@ function syncBackgroundIsolation(): void {
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
-    .filter((element) => !element.closest("[inert]") && element.getAttribute("aria-hidden") !== "true");
+    .filter((element) => !element.closest("[inert]") && element.getAttribute("aria-hidden") !== "true"
+      && !element.classList.contains("ui-select-native-proxy"));
 }
 
 /**
@@ -118,6 +120,7 @@ export function useModalFocusScope({
   triggerRef,
   initialFocusRef,
   onDismiss,
+  dismissOnOutside = false,
   layer = "modal"
 }: {
   open: boolean;
@@ -126,6 +129,7 @@ export function useModalFocusScope({
   initialFocusRef?: RefObject<HTMLElement | null>;
   onDismiss(): void;
   layer?: ModalLayer;
+  dismissOnOutside?: boolean;
 }): void {
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
@@ -145,23 +149,23 @@ export function useModalFocusScope({
 
     const returnTarget = triggerRef?.current
       || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const unregisterLayer = registerDismissableLayer({
+      contentRefs: [containerRef], triggerRef: { current: returnTarget },
+      modalPriority: LAYER_PRIORITY[layer], outside: dismissOnOutside,
+      onDismiss: () => onDismissRef.current()
+    });
+    const unsubscribe = subscribeDismissableLayers(syncBackgroundIsolation);
     syncBackgroundIsolation();
 
+    if (!hasLayerAbove(container)) initialFocusRef?.current?.focus();
     const frame = window.requestAnimationFrame(() => {
-      if (topModalScope()?.id !== scope.id) return;
+      if (topModalScope()?.id !== scope.id || hasLayerAbove(container)) return;
       const targets = focusableElements(container);
       (initialFocusRef?.current || targets[0] || container).focus();
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || topModalScope()?.id !== scope.id) return;
-      if (event.key === "Escape") {
-        if (container.querySelector('[role="listbox"][data-open]')) return;
-        event.preventDefault();
-        event.stopPropagation();
-        onDismissRef.current();
-        return;
-      }
+      if (event.defaultPrevented || topModalScope()?.id !== scope.id || hasLayerAbove(container)) return;
       if (event.key !== "Tab") return;
       const targets = focusableElements(container);
       if (!targets.length) {
@@ -184,6 +188,8 @@ export function useModalFocusScope({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown, true);
+      unsubscribe();
+      unregisterLayer();
       const wasTop = topModalScope()?.id === scope.id;
       const scopeIndex = activeModalScopes.findIndex((candidate) => candidate.id === scope.id);
       if (scopeIndex >= 0) activeModalScopes.splice(scopeIndex, 1);
@@ -208,5 +214,5 @@ export function useModalFocusScope({
         target.focus();
       });
     };
-  }, [containerRef, initialFocusRef, layer, open, triggerRef]);
+  }, [containerRef, dismissOnOutside, initialFocusRef, layer, open, triggerRef]);
 }

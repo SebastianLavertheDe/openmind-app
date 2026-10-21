@@ -1,3 +1,5 @@
+import { IconButton } from "../../design-system/IconButton";
+import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -97,29 +99,10 @@ export function AiWorkbench({
     };
   }, [historyOpen, responsiveLayout.shell]);
 
-  useEffect(() => {
-    if (!historyOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      const button = historyButtonRef.current;
-      const menu = historyFlyoutRef.current;
-      if (button?.contains(target) || menu?.contains(target)) return;
-      setHistoryOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setHistoryOpen(false);
-        historyButtonRef.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [historyOpen]);
+  useDismissableLayer({
+    open: historyOpen, contentRefs: [historyFlyoutRef], triggerRef: historyButtonRef,
+    onDismiss: () => setHistoryOpen(false)
+  });
 
   return (
     <>
@@ -153,17 +136,9 @@ export function AiWorkbench({
                 tone={sessionStatusTone(activeSession.status)}
               />
             ) : null}
-            {!projectMode ? <button
-              ref={historyButtonRef}
-              className="icon-button history-toggle"
-              aria-label={m.ai.session.recent}
-              title={m.ai.session.recent}
-              aria-haspopup="menu"
-              aria-expanded={historyOpen}
-              onClick={toggleHistory}
-            >
+            {!projectMode ? <IconButton ref={historyButtonRef} className="icon-button history-toggle" aria-haspopup="menu" aria-expanded={historyOpen} onClick={toggleHistory} label={m.ai.session.recent}>
               <History size={16} />
-            </button> : null}
+            </IconButton> : null}
           </div>
         </header>
         <Chat onDraftSubmit={onDraftSubmit} />
@@ -173,6 +148,7 @@ export function AiWorkbench({
           ref={historyFlyoutRef}
           className="history-flyout"
           data-leaving={historyPresence.leaving || undefined}
+          inert={!historyOpen || undefined} aria-hidden={!historyOpen || undefined}
           data-side={historyPopover.side}
           role="menu"
           aria-label={m.ai.session.recent}

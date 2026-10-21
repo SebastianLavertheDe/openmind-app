@@ -1,3 +1,4 @@
+import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, Save } from "lucide-react";
@@ -205,10 +206,10 @@ export function DailyBriefPage({
               <button type="button" className="brief-detail-back" data-motion="action" onClick={() => void showBriefList()}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>
               <div><span className="eyebrow">{preview.mode === "preview" ? m.brief.library.previewMode : preview.dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
               <div className="document-detail-actions">
-                <div className="preview-mode-toggle" role="group" aria-label={m.brief.library.viewMode}>
-                  <button type="button" aria-pressed={preview.mode === "preview"} className={preview.mode === "preview" ? "active" : ""} data-motion="selection" onClick={() => void preview.setMode("preview")}><Eye size={14} />{m.brief.library.preview}</button>
-                  <button type="button" aria-pressed={preview.mode === "edit"} className={preview.mode === "edit" ? "active" : ""} disabled={!preview.canEditContent} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />{m.brief.library.edit}</button>
-                </div>
+                <SegmentedControl value={preview.mode} onChange={mode => preview.setMode(mode)} label={m.brief.library.viewMode} options={[
+                  { value: "preview", label: m.brief.library.preview, icon: <Eye size={14} /> },
+                  { value: "edit", label: m.brief.library.edit, icon: <Pencil size={14} />, disabled: !preview.canEditContent }
+                ]} />
                 <ResponsiveActionBar
                   actions={fileActions}
                   presentation={actionPresentation}

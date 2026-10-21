@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { getLocale, messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -250,7 +251,7 @@ export function ProjectOutputsPanel({
   const saving = preview.saving || saveState === "saving";
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><button className="icon-button" aria-label={messages.projectUi.newDocument} onClick={() => { setCreateTitle(""); setCreateOpen(true); }}><Plus size={16} /></button></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton className="icon-button" onClick={() => { setCreateTitle(""); setCreateOpen(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
       <div className="project-local-count">{messages.projectUi.allOutputs}<span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>

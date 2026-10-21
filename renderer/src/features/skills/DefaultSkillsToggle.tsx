@@ -48,7 +48,7 @@ export function DefaultSkillsToggle({ onChange }: { onChange(): Promise<void> })
       </div>
       {busy ? <p role="status">{enabled ? m.disabling : m.installing}</p> : null}
       {error ? <p className="skills-error" role="alert">{error}</p> : null}
-      {enabled === null && error ? <button type="button" className="ghost-button" onClick={() => void load()}>{m.retry}</button> : null}
+      {enabled === null && error ? <button type="button" className="ghost-button" data-motion="action" onClick={() => void load()}>{m.retry}</button> : null}
     </section>
   );
 }

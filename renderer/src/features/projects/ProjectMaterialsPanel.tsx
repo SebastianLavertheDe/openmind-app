@@ -1,3 +1,5 @@
+import { IconButton } from "../../design-system/IconButton";
+import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
@@ -258,11 +260,10 @@ export function ProjectMaterialsPanel({
   );
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectMaterials}</span><h2>{messages.projectUi.materials}</h2></div><button className="icon-button" aria-label={messages.projectUi.addMaterials} onClick={() => setAddOpen(true)}><Plus size={16} /></button></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectMaterials}</span><h2>{messages.projectUi.materials}</h2></div><IconButton className="icon-button" onClick={() => setAddOpen(true)} label={messages.projectUi.addMaterials}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchMaterials} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchMaterials} />
-      <div className="project-material-filters" role="group" aria-label={messages.projectUi.materialType}>
-        {(["all", "document", "web", "video"] as MaterialFilter[]).map((item) => <button type="button" aria-pressed={filter === item} data-motion="selection" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{materialFilterLabel(item)}</button>)}
-      </div>
+      <SegmentedControl value={filter} onChange={setFilter} label={messages.projectUi.materialType}
+        options={(["all", "document", "web", "video"] as MaterialFilter[]).map(value => ({ value, label: materialFilterLabel(value) }))} />
       <div className="project-local-count">{materialFilterLabel(filter)} <span>{filtered.length}</span></div>
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
@@ -331,11 +332,10 @@ function DocumentMaterialDetail({ material, resource, projectName }: { material:
   const [mode, setMode] = useState<DocumentViewMode>(hasPdfOriginal ? "pdf" : "read");
   return (
     <div className="project-markdown-material">
-      <div className="project-preview-mode" role="group" aria-label={messages.projectUi.materialViewMode}>
-        {hasPdfOriginal ? <button className={mode === "pdf" ? "active" : ""} aria-pressed={mode === "pdf"} data-motion="selection" onClick={() => setMode("pdf")}>PDF</button> : null}
-        <button className={mode === "read" ? "active" : ""} aria-pressed={mode === "read"} data-motion="selection" onClick={() => setMode("read")}>{messages.projectUi.read}</button>
-        <button className={mode === "markdown" ? "active" : ""} aria-pressed={mode === "markdown"} data-motion="selection" onClick={() => setMode("markdown")}>Markdown</button>
-      </div>
+      <SegmentedControl value={mode} onChange={setMode} label={messages.projectUi.materialViewMode} options={[
+        ...(hasPdfOriginal ? [{ value: "pdf" as const, label: "PDF" }] : []),
+        { value: "read", label: messages.projectUi.read }, { value: "markdown", label: "Markdown" }
+      ]} />
       <div className="project-material-reader">
         {mode === "pdf" && hasPdfOriginal
           ? <PdfMaterialFrame projectName={projectName} material={material} onFallback={() => setMode("read")} />

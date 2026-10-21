@@ -341,14 +341,7 @@
 }
 
 .settings-page .settings-select {
-  height: auto;
   min-width: 132px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font-size: inherit;
   color-scheme: inherit;
 }
 
@@ -1477,9 +1470,6 @@
 .settings-preference-control .ui-select-trigger,
 .settings-inline-controls .ui-select-trigger {
   min-height: 34px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
 }
 
 .settings-page .settings-select {
@@ -1893,7 +1883,7 @@
 .settings-field { min-width: 0; display: grid; gap: 6px; }
 .settings-field > span { color: var(--text-dim); font-size: var(--fs-xs); font-weight: 400; }
 .settings-field > small { color: var(--muted-2); font-size: var(--fs-xs); line-height: 1.45; }
-.settings-field .settings-select { width: 100%; max-width: none; min-height: 36px; }
+.settings-field .settings-select { width: 100%; max-width: none; }
 .settings-field--wide { grid-column: 1 / -1; }
 
 .settings-provider-advanced-trigger.ui-disclosure-trigger {
@@ -2198,7 +2188,7 @@
   border: 1px solid var(--border, #d0d5dd); border-radius: 8px; background: none;
 }
 .settings-provider-wsl-steps { margin-top: 8px; font-size: 12px; }
-.settings-provider-wsl-steps summary { cursor: pointer; color: var(--muted); }
+.settings-provider-wsl-steps > .ui-disclosure-trigger { gap: 6px; color: var(--muted); font-size: inherit; }
 .settings-provider-wsl-steps ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .settings-provider-wsl-steps li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .settings-provider-wsl-steps code { font-size: var(--fs-xs); }

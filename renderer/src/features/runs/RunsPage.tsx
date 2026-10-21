@@ -1,6 +1,6 @@
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
-import { Textarea } from "../../design-system/components";
+import { Select, Textarea } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord } from "@shared/contracts";
@@ -183,9 +183,16 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
       </header>
       {error ? <p role="alert" className="runs-error">{error}</p> : null}
       <div className="runs-filterbar" aria-label={m.runs.filters.aria}>
-        <label>{m.runs.filters.type}<select aria-label={m.runs.filters.typeAria} value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}><option value="all">{m.runs.filters.allTypes}</option><option value="skill">Skill</option><option value="workflow">{m.interface.workflow}</option></select></label>
-        <label>{m.runs.filters.state}<select aria-label={m.runs.filters.stateAria} value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">{m.runs.filters.allStates}</option><option value="failed">{m.runs.state.failed}</option><option value="running">{m.runs.state.running}</option><option value="succeeded">{m.runs.state.succeeded}</option><option value="timed_out">{m.runs.state.timedOut}</option><option value="cancelled">{m.runs.state.cancelled}</option></select></label>
-        <label>Skill<select aria-label={m.runs.filters.skillAria} value={skillFilter} onChange={(event) => setSkillFilter(event.target.value)}><option value="all">{m.runs.filters.allSkills}</option>{skillOptions.map((skillId) => <option value={skillId} key={skillId}>{skillId}</option>)}</select></label>
+        <label>{m.runs.filters.type}<Select<typeof kindFilter> size="rect" ariaLabel={m.runs.filters.typeAria} value={kindFilter} onChange={setKindFilter} options={[
+          { value: "all", label: m.runs.filters.allTypes }, { value: "skill", label: "Skill" }, { value: "workflow", label: m.interface.workflow }
+        ]} /></label>
+        <label>{m.runs.filters.state}<Select size="rect" ariaLabel={m.runs.filters.stateAria} value={stateFilter} onChange={setStateFilter} options={[
+          { value: "all", label: m.runs.filters.allStates }, { value: "failed", label: m.runs.state.failed }, { value: "running", label: m.runs.state.running },
+          { value: "succeeded", label: m.runs.state.succeeded }, { value: "timed_out", label: m.runs.state.timedOut }, { value: "cancelled", label: m.runs.state.cancelled }
+        ]} /></label>
+        <label>Skill<Select size="rect" ariaLabel={m.runs.filters.skillAria} value={skillFilter} onChange={setSkillFilter} options={[
+          { value: "all", label: m.runs.filters.allSkills }, ...skillOptions.map(value => ({ value, label: value }))
+        ]} /></label>
         <span>{m.runs.filters.results(visibleEntries.length)}</span>
       </div>
       <section className="runs-layout">

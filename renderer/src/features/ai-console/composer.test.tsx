@@ -92,7 +92,7 @@ describe("ChatComposer permissions", () => {
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("auto");
 
     fireEvent.click(screen.getByRole("button", { name: /权限.*自动执行/ }));
-    fireEvent.click(screen.getByRole("option", { name: "只读" }));
+    fireEvent.click(within(screen.getByRole("listbox", { name: "权限" })).getByRole("option", { name: "只读" }));
 
     expect(document.querySelector(".permission-select")?.getAttribute("data-value")).toBe("read-only");
   });
@@ -275,16 +275,18 @@ describe("ContextTray image lightbox", () => {
     const close = await waitFor(() => screen.getByRole("button", { name: "关闭预览" }));
     await waitFor(() => expect(document.activeElement).toBe(close));
 
-    // focusables order in the dialog: 关闭预览, 上一张, 下一张. Tabbing past 下一张 wraps to 关闭预览.
+    // The shared viewer also offers fit/original sizing; every control stays in the focus loop.
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "上一张" }));
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "下一张" }));
     await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "适应窗口" }));
+    await user.tab();
     expect(document.activeElement).toBe(close);
   });
 
-  it("renders every image as a slide in the track", async () => {
+  it("shows only the active original and switches it when navigating", async () => {
     const user = userEvent.setup();
     render(
       <AiProvider initial={snapshot}>
@@ -295,15 +297,14 @@ describe("ContextTray image lightbox", () => {
     await user.click(screen.getByAltText("pasted-1"));
     const dialog = await screen.findByRole("dialog");
 
-    // Both images mount as slides (the active one centered, the next one
-    // translated off to the right) so prev/next can slide between them.
-    const slides = within(dialog).getAllByRole("img");
-    expect(slides).toHaveLength(2);
-    expect(slides[0].getAttribute("alt")).toBe("pasted-1");
-    expect(slides[1].getAttribute("alt")).toBe("pasted-2");
+    expect(within(dialog).getAllByRole("img")).toHaveLength(1);
+    expect(within(dialog).getByRole("img").getAttribute("alt")).toBe("pasted-1");
+    await user.click(screen.getByRole("button", { name: "下一张" }));
+    expect(within(dialog).getAllByRole("img")).toHaveLength(1);
+    expect(within(dialog).getByRole("img").getAttribute("alt")).toBe("pasted-2");
   });
 
-  it("toggles a dragging state on touch start/end for swipe motion", async () => {
+  it("tracks horizontal touch movement and cancels it without navigating", async () => {
     const user = userEvent.setup();
     render(
       <AiProvider initial={snapshot}>
@@ -314,11 +315,13 @@ describe("ContextTray image lightbox", () => {
     await user.click(screen.getByAltText("pasted-1"));
     const dialog = await screen.findByRole("dialog");
 
-    fireEvent.touchStart(dialog);
-    expect(dialog.hasAttribute("data-dragging")).toBe(true);
-
-    fireEvent.touchEnd(dialog);
-    expect(dialog.hasAttribute("data-dragging")).toBe(false);
+    const stage = within(dialog).getByRole("img").parentElement!;
+    fireEvent.touchStart(stage, { touches: [{ clientX: 120, clientY: 100 }] });
+    fireEvent.touchMove(stage, { touches: [{ clientX: 90, clientY: 100 }] });
+    expect(stage.hasAttribute("data-dragging")).toBe(true);
+    fireEvent.touchCancel(stage);
+    expect(stage.hasAttribute("data-dragging")).toBe(false);
+    expect(screen.getByText("1 / 2")).toBeTruthy();
   });
 
   it("advances to the next image on a left swipe past the threshold", async () => {
@@ -333,9 +336,9 @@ describe("ContextTray image lightbox", () => {
     const dialog = await screen.findByRole("dialog");
     expect(screen.getByText("1 / 2")).toBeTruthy();
 
-    // Swipe left: 100 → 40 (dx = -60, past the 40px threshold) → next image.
-    fireEvent.touchStart(dialog, { changedTouches: [{ clientX: 100 }] });
-    fireEvent.touchEnd(dialog, { changedTouches: [{ clientX: 40 }] });
+    const stage = within(dialog).getByRole("img").parentElement!;
+    fireEvent.touchStart(stage, { touches: [{ clientX: 140, clientY: 100 }] });
+    fireEvent.touchEnd(stage, { changedTouches: [{ clientX: 40, clientY: 100 }] });
     expect(screen.getByText("2 / 2")).toBeTruthy();
   });
 });

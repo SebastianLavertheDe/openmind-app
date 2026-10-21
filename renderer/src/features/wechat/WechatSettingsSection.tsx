@@ -1,10 +1,11 @@
+import { IconButton } from "../../design-system/IconButton";
+import { Dialog } from "../../design-system/Dialog";
 import { useLocale } from "../../i18n";
 import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { MessageCircle, X } from "lucide-react";
 import { messages } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
-import { StatusBadge, useModalFocusScope } from "../../design-system/components";
+import { StatusBadge, } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { WechatAccountForm, type WechatAccountView } from "./WechatAccountForm";
@@ -30,7 +31,7 @@ export function WechatSettingsSection() {
   const presence = useExitPresence(editing, exitMs);
   const close = () => { if (!saving) setEditing(false); };
 
-  useModalFocusScope({ open: editing, containerRef: dialogRef, triggerRef, onDismiss: close, layer: "global" });
+
 
   useEffect(() => {
     let active = true;
@@ -84,13 +85,9 @@ export function WechatSettingsSection() {
         </div> : null}</div> : null}
       </div>
     </section>
-    {presence.visible && account ? createPortal(
-      <div ref={dialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop data-leaving={!editing || undefined} inert={!editing || undefined} aria-hidden={!editing || undefined} onMouseDown={close}>
-        <section className="settings-provider-dialog wechat-account-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
-          <header><div><h2 id={titleId}>{m.dialogTitle}</h2><p>{m.dialogDescription}</p></div><button type="button" className="settings-subtle-action" data-motion="icon" aria-label={messages.common.close} disabled={saving} onClick={close}><X size={16} aria-hidden /></button></header>
+    {presence.visible && account ? <Dialog as="section" open={editing} presence={presence} triggerRef={triggerRef} onClose={close} dismissDisabled={saving} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={dialogRef} className="settings-provider-dialog wechat-account-dialog" aria-labelledby={titleId}>
+          <header><div><h2 id={titleId}>{m.dialogTitle}</h2><p>{m.dialogDescription}</p></div><IconButton type="button" className="settings-subtle-action" data-motion="icon" disabled={saving} onClick={close} label={messages.common.close}><X size={16} aria-hidden /></IconButton></header>
           <WechatAccountForm key={formInstance} account={account} onBusyChange={setSaving} onCancel={close} onSaved={(next) => { setAccount(next); setEditing(false); ui.notify(m.saved, "success"); }} />
-        </section>
-      </div>, document.body
-    ) : null}
+        </Dialog> : null}
   </>;
 }

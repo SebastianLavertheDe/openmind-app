@@ -1,6 +1,7 @@
+import { useClipboard } from "../../design-system/use-clipboard";
 import { useLocale } from "../../i18n";
 import { AlertTriangle, Check, Copy, FileText, LoaderCircle } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { messages as m } from "@shared/messages";
 import type { AssistantArtifactBlock } from "./artifact-fence";
 
@@ -12,16 +13,7 @@ export function ArtifactMessageBlock({
   children: ReactNode;
 }) {
   useLocale();
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(block.content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1_500);
-    } catch {
-      setCopied(false);
-    }
-  };
+  const { copied, copy } = useClipboard();
 
   return (
     <section
@@ -42,7 +34,7 @@ export function ArtifactMessageBlock({
             </span>
           </div>
         </div>
-        <button type="button" className="assistant-artifact-copy" data-motion="action" aria-label={copied ? m.ai.message.copied : m.ai.message.copyArtifact} title={m.ai.message.copyArtifact} onClick={() => void copy()}>
+        <button type="button" className="assistant-artifact-copy" data-motion="action" aria-label={copied ? m.ai.message.copied : m.ai.message.copyArtifact} title={m.ai.message.copyArtifact} onClick={() => void copy(block.content)}>
           {copied ? <Check size={14} strokeWidth={1.5} aria-hidden /> : <Copy size={14} strokeWidth={1.5} aria-hidden />}
           <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copy}</span>
         </button>

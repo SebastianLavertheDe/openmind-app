@@ -23,7 +23,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={setNavCollapsed}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={2}
         aiMode="default"
@@ -53,7 +52,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={setNavCollapsed}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
@@ -76,7 +74,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="collapsed"
@@ -101,7 +98,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="Windows → WSL"
         environment={{ mode: "desktop", platform: "win32" }}
         pendingApprovals={0}
         aiMode="collapsed"
@@ -134,7 +130,7 @@ describe("AppShell", () => {
     try {
       const { container } = render(
         <ResponsiveLayoutProvider>
-          <AppShell defaultSkillsEnabled page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" runtime="linux" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
+          <AppShell defaultSkillsEnabled page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -178,7 +174,6 @@ describe("AppShell", () => {
             navCollapsed={true}
             setNavCollapsed={vi.fn()}
             repoRoot="/repo"
-            runtime="linux"
             environment={{ mode: "desktop", platform: "linux" }}
             pendingApprovals={0}
             aiMode="collapsed"
@@ -249,7 +244,6 @@ describe("AppShell", () => {
             navCollapsed={false}
             setNavCollapsed={vi.fn()}
             repoRoot="/repo"
-            runtime="linux"
             environment={{ mode: "desktop", platform: "linux" }}
             pendingApprovals={0}
             aiMode="wide"
@@ -279,7 +273,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiSessionOpen
@@ -304,7 +297,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
@@ -326,7 +318,7 @@ describe("AppShell", () => {
     expect(creative.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("uses structured environment state instead of parsing the runtime label", () => {
+  it("uses structured environment state for preview status", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query: string) => ({
       matches: query.includes("840px"),
@@ -351,7 +343,7 @@ describe("AppShell", () => {
       };
       const { rerender } = render(
         <ResponsiveLayoutProvider>
-          <AppShell defaultSkillsEnabled {...props} runtime="Preview-shaped diagnostic text" environment={{ mode: "desktop", platform: "linux" }}>
+          <AppShell defaultSkillsEnabled {...props} environment={{ mode: "desktop", platform: "linux" }}>
             <div>Sources</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -361,7 +353,7 @@ describe("AppShell", () => {
 
       rerender(
         <ResponsiveLayoutProvider>
-          <AppShell defaultSkillsEnabled {...props} runtime="linux" environment={{ mode: "preview", platform: "web" }}>
+          <AppShell defaultSkillsEnabled {...props} environment={{ mode: "preview", platform: "web" }}>
             <div>Sources</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -382,7 +374,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="default"
@@ -409,7 +400,6 @@ describe("AppShell", () => {
         navCollapsed={false}
         setNavCollapsed={vi.fn()}
         repoRoot="/repo"
-        runtime="linux"
         environment={{ mode: "desktop", platform: "linux" }}
         pendingApprovals={0}
         aiMode="collapsed"

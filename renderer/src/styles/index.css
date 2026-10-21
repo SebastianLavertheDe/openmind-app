@@ -3,6 +3,7 @@
 @import "./shell.css";
 @import "./components.css";
 @import "./components/inputs.css";
+@import "./components/image-viewer.css";
 @import "./features/settings.css";
 @import "./features/daily-brief.css";
 @import "./features/creative.css";

@@ -1,3 +1,5 @@
+import { IconButton } from "../../design-system/IconButton";
+import { CopyButton } from "../../design-system/CopyButton";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { isValidElement, memo, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
@@ -7,7 +9,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import { CheckCircle2, Copy, GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
+import { GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
 import type { AiEvent, ContextReference } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDateTime } from "../../ai-utils";
@@ -49,10 +51,10 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
         {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
             "你 + 时间"视觉隐藏，保留无障碍语义。 */}
         <MessageMeta label={m.ai.message.you} timestamp={event.timestamp} visuallyHidden>
-          <button data-motion="icon" aria-label={m.ai.message.quoteMessage} title={m.ai.message.quote} onClick={() => actions.addContext(messageContext(event, text))}><Quote size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.editResend} title={m.ai.message.editResend} onClick={() => actions.editRun(event.runId)}><Pencil size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.branchFromMessage} title={m.ai.message.branchFromMessage} onClick={() => void actions.branchRun(event.runId)}><GitFork size={13} /></button>
-          <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void actions.rerun(event.runId)}><Redo2 size={13} /></button>
+          <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))} className="" label={m.ai.message.quoteMessage} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => actions.editRun(event.runId)} className="" label={m.ai.message.editResend}><Pencil size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)} className="" label={m.ai.message.branchFromMessage}><GitFork size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)} className="" label={m.ai.message.rerun}><Redo2 size={13} /></IconButton>
           <CopyButton text={text} />
         </MessageMeta>
       </div>
@@ -90,9 +92,9 @@ export const AssistantMessage = memo(function AssistantMessage({
         <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>
-              {event ? <button data-motion="icon" aria-label={m.ai.message.quoteReply} title={m.ai.message.quote} onClick={() => actions.addContext(messageContext(event, text))}><Quote size={13} /></button> : null}
-              {event ? <button data-motion="icon" aria-label={m.ai.message.branchFromReply} title={m.ai.message.branchFromReply} onClick={() => void actions.branchRun(event.runId)}><GitFork size={13} /></button> : null}
-              {event ? <button data-motion="icon" aria-label={m.ai.message.rerun} title={m.ai.message.rerun} onClick={() => void actions.rerun(event.runId)}><Redo2 size={13} /></button> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))} className="" label={m.ai.message.quoteReply} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)} className="" label={m.ai.message.branchFromReply}><GitFork size={13} /></IconButton> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)} className="" label={m.ai.message.rerun}><Redo2 size={13} /></IconButton> : null}
               <CopyButton text={visibleText} />
             </>
           )}
@@ -254,20 +256,7 @@ export function MessageMeta({
   );
 }
 
-export function CopyButton({ text }: { text: string }) {
-  useLocale();
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1_500);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return <button data-motion="icon" aria-label={copied ? m.ai.message.copied : m.ai.message.copy} title={copied ? m.ai.message.copied : m.ai.message.copy} onClick={() => void copy()}>{copied ? <CheckCircle2 className="copy-check-pop" size={13} /> : <Copy size={13} />}</button>;
-}
+export { CopyButton } from "../../design-system/CopyButton";
 
 function SentContexts({ contexts }: { contexts: ContextReference[] }) {
   useLocale();

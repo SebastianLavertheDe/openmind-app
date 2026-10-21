@@ -1,3 +1,4 @@
+import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
@@ -8,6 +9,7 @@ import { IMAGE_PROVIDERS, type ImageConfiguration, type ImageProviderKind, type 
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
+import { SelectMenuSurface } from "../../design-system/SelectMenuSurface";
 import { PROVIDER_CONFIGURATION_CHANGED } from "../../provider-configuration-events";
 
 function useImageConfiguration() {
@@ -49,7 +51,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   const submenu = useRef<HTMLDivElement>(null);
   const providerAnchor = useRef<HTMLButtonElement>(null);
   const [submenuPosition, setSubmenuPosition] = useState<CSSProperties>({ visibility: "hidden" });
-  const [submenuSide, setSubmenuSide] = useState("right");
+  const [submenuSide, setSubmenuSide] = useState<"left" | "right">("right");
   const id = useId();
   const { exitMs } = useMotionTokens();
   const presence = useExitPresence(open, exitMs);
@@ -85,17 +87,12 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   }, [configuration, value, selected?.providerId, selected?.model, onChange]);
   useEffect(() => {
     if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node) && !submenu.current?.contains(event.target as Node) && !trigger.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); setOpen(false); trigger.current?.focus(); }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
     const frame = requestAnimationFrame(() => (menu.current?.querySelector<HTMLButtonElement>("[data-agent][aria-checked=true]") || menu.current?.querySelector<HTMLButtonElement>("button"))?.focus());
-    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); cancelAnimationFrame(frame); };
+    return () => cancelAnimationFrame(frame);
   }, [open]);
+  useDismissableLayer({ open, contentRefs: [menu, submenu], triggerRef: trigger, onDismiss: () => setOpen(false) });
+  useDismissableLayer({ open: open && Boolean(activeProvider), contentRefs: [submenu], triggerRef: providerAnchor, restoreFocus: false,
+    onDismiss: reason => { if (reason === "escape") providerAnchor.current?.focus(); setProviderId(""); } });
   useLayoutEffect(() => {
     if (!presence.visible || !activeProvider) return;
     const position = () => {
@@ -154,7 +151,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
       items[next]?.focus();
     } else if (event.key === "ArrowRight" && !nested && activeProvider) {
       event.preventDefault(); submenu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    } else if (nested && ["ArrowLeft", "Escape"].includes(event.key)) {
+    } else if (nested && event.key === "ArrowLeft") {
       event.preventDefault();
       providerAnchor.current?.focus();
       setProviderId("");
@@ -173,7 +170,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
     {presence.visible ? createPortal(<>
       <div ref={menu} id={id} className="composer-model-menu" role="menu" aria-label={uiMessages.interface.selectModel} style={menuStyle} data-side={popover.side}
         data-leaving={presence.leaving || undefined} inert={!open || undefined} aria-hidden={!open || undefined} onKeyDown={event => navigate(event)}>
-        <div className="composer-model-surface">
+        <SelectMenuSurface className="composer-model-surface" side={popover.side} leaving={presence.leaving}>
         <div role="group" aria-label={uiMessages.interface.aiSession} className="composer-model-group">
           <div className="composer-model-heading">{uiMessages.interface.aiSession}</div>
           {agents.map(agent => <button type="button" role="menuitemradio" data-agent={agent.id} data-motion="selection" key={agent.id} aria-checked={agentId === agent.id}
@@ -192,11 +189,11 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
           {!providers.length ? <p className="image-model-empty">{configuration ? uiMessages.interface.noImageModels : configurationError ? uiMessages.interface.imageModelsFailed : uiMessages.interface.loadingImageModels}</p> : null}
         </div>
         {error || configurationError ? <p className="image-config-error" role="alert">{error || configurationError}</p> : null}
-        </div>
+        </SelectMenuSurface>
       </div>
       {submenuPresence.visible && visibleProvider && definition ? <div ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={uiMessages.interface.providerImageModels(visibleProvider.name)} aria-busy={busy}
         style={submenuPosition} data-side={submenuSide} data-leaving={!submenuOpen || undefined} inert={!submenuOpen || undefined} aria-hidden={!submenuOpen || undefined} onKeyDown={event => navigate(event, true)}>
-        <div className="composer-model-surface" key={visibleProvider.id}>
+        <SelectMenuSurface className="composer-model-surface" key={visibleProvider.id} side={submenuSide} leaving={!submenuOpen}>
         <div className="composer-model-heading">{visibleProvider.name}</div>
         <div className="image-model-list">
           {definition.models.filter(model => visibleProvider.models.includes(model.id)).map(model => <button type="button" role="menuitemradio" data-motion="selection" key={model.id} aria-checked={selected?.providerId === visibleProvider.id && selected?.model === model.id} disabled={busy || !submenuOpen}
@@ -204,7 +201,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
             <ImagePlus size={18} /><span><strong>{model.name}</strong><small>{model.description}</small></span>{selected?.providerId === visibleProvider.id && selected?.model === model.id ? <Check size={15} /> : null}
           </button>)}
         </div>
-        </div>
+        </SelectMenuSurface>
       </div> : null}
     </>, document.body) : null}
   </>;

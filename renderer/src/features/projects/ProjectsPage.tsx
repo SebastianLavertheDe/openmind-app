@@ -1,6 +1,8 @@
+import { IconButton } from "../../design-system/IconButton";
+import { Tabs } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
-import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useExitingList } from "../../design-system/use-exiting-list";
@@ -164,8 +166,9 @@ export function ProjectsPage({
   }, []);
 
   const navigateProject = useCallback(async (action: () => void) => {
-    if (!await canLeaveCurrentOutput()) return;
+    if (!await canLeaveCurrentOutput()) return false;
     action();
+    return true;
   }, [canLeaveCurrentOutput]);
 
   const presentProjectView = useCallback((next: ProjectView) => {
@@ -348,26 +351,6 @@ export function ProjectsPage({
     presentProjectView(next);
   }, [activeProject?.name, presentProjectView]);
 
-  const handleViewKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>, current: ProjectView) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const currentIndex = PROJECT_VIEWS.indexOf(current);
-    const nextIndex = event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? PROJECT_VIEWS.length - 1
-        : event.key === "ArrowRight"
-          ? (currentIndex + 1) % PROJECT_VIEWS.length
-          : (currentIndex - 1 + PROJECT_VIEWS.length) % PROJECT_VIEWS.length;
-    const next = PROJECT_VIEWS[nextIndex];
-    void navigateProject(() => {
-      selectView(next);
-      window.requestAnimationFrame(() => {
-        document.querySelector<HTMLButtonElement>(`[data-project-view="${next}"]`)?.focus();
-      });
-    });
-  }, [navigateProject, selectView]);
-
   const handleTaskSelectionChange = useCallback((taskId?: string) => {
     if (compactWorkspace && taskId) {
       restoreCompactFocusRef.current = true;
@@ -425,7 +408,7 @@ export function ProjectsPage({
           {activeProject ? (
             <>
               <header className="project-pane-project">
-                <button type="button" className="project-pane-back" aria-label={messages.projectUi.backToProjects} data-motion="icon" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })}><ArrowLeft size={15} /></button>
+                <IconButton type="button" className="project-pane-back" data-motion="icon" onClick={() => void navigateProject(() => { setActiveProject(null); ui.setPanelMode("collapsed"); })} label={messages.projectUi.backToProjects}><ArrowLeft size={15} /></IconButton>
                 <div className="project-pane-title" title={activeProject.name}><strong>{activeProject.name}</strong></div>
                 <DropdownMenu
                   className="project-pane-create"
@@ -438,31 +421,14 @@ export function ProjectsPage({
                   <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>{messages.projectUi.newOutput}</span></button>
                 </DropdownMenu>
               </header>
-              <div className="project-pane-tabs" role="tablist" aria-label={messages.projectUi.projectContentType}>
-                {PROJECT_VIEWS.map((value) => {
+              <Tabs value={view} className="project-pane-tabs" label={messages.projectUi.projectContentType}
+                onChange={next => navigateProject(() => selectView(next))}
+                tabs={PROJECT_VIEWS.map(value => {
                   const meta = VIEW_META[value];
                   const Icon = meta.icon;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      role="tab"
-                      id={`project-view-tab-${value}`}
-                      className={view === value ? "active" : ""}
-                      aria-selected={view === value}
-                      aria-controls="project-section-panel"
-                      tabIndex={view === value ? 0 : -1}
-                      data-project-view={value}
-                      data-motion="selection"
-                      onClick={() => void navigateProject(() => selectView(value))}
-                      onKeyDown={(event) => handleViewKeyDown(event, value)}
-                    >
-                      <Icon aria-hidden="true" />
-                      <span>{meta.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                  return { value, label: <span>{meta.label}</span>, icon: <Icon aria-hidden="true" />,
+                    id: `project-view-tab-${value}`, controls: "project-section-panel", attributes: { "data-project-view": value } };
+                })} />
               <div className="project-pane-section" id="project-section-panel" role="tabpanel" aria-labelledby={`project-view-tab-${view}`} ref={setSectionListHost} />
             </>
           ) : (
@@ -529,14 +495,7 @@ export function ProjectsPage({
           data-compact-visible={compactDetailPresence.visible || undefined}
           aria-hidden={compactWorkspace && listVisible || undefined} inert={compactWorkspace && listVisible || undefined}>
           {!listVisible ? (
-            <button
-              type="button"
-              className="project-list-reopen"
-              aria-label={messages.projectUi.expandProjectList}
-              title={messages.projectUi.expandProjectList}
-              data-motion="icon"
-              onClick={() => compactWorkspace ? showCompactPane(true) : layout.toggleList()}
-            ><PanelLeftOpen size={17} /></button>
+            <IconButton type="button" className="project-list-reopen" data-motion="icon" onClick={() => compactWorkspace ? showCompactPane(true) : layout.toggleList()} label={messages.projectUi.expandProjectList}><PanelLeftOpen size={17} /></IconButton>
           ) : null}
           {activeProject ? <div className={`project-detail-fill${openingProjectName ? " is-opening-project" : ""}`} ref={setDetailHost} aria-hidden={Boolean(openingProjectName) || undefined} inert={Boolean(openingProjectName) || undefined} /> : openingProjectName ? (
             <div className="project-detail-loading project-opening-state" role="status"><LoaderCircle size={18} className="spin" />{messages.projectUi.openingProject(openingProjectName)}</div>

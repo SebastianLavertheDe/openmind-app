@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { useEffect, useState } from "react";
@@ -40,8 +41,8 @@ export function DocumentToolbar({ ready, readOnly, format, outlineOpen, onOutlin
   };
   const disabled = (action: EditorAction) => !ready || action === "undo" && !format.canUndo || action === "redo" && !format.canRedo;
   return <div className="document-editor-toolbar" role="toolbar" aria-label={readOnly ? messages.editor.documentNavigation : messages.editor.documentFormatting}>
-    <button type="button" title={messages.editor.outline} aria-label={messages.editor.outline} aria-pressed={outlineOpen} data-document-outline-trigger data-motion="selection" onClick={onOutline}><ListTree size={16} /></button>
-    <button type="button" title={messages.editor.findShortcut} aria-label={messages.editor.findAndReplace} data-motion="selection" disabled={!ready} onClick={onSearch}><Search size={16} /></button>
+    <IconButton type="button" aria-pressed={outlineOpen} data-document-outline-trigger data-motion="selection" onClick={onOutline} className="" label={messages.editor.outline}><ListTree size={16} /></IconButton>
+    <IconButton type="button" data-motion="selection" disabled={!ready} onClick={onSearch} className="" label={messages.editor.findAndReplace} tooltip={messages.editor.findShortcut}><Search size={16} /></IconButton>
     <span className="document-toolbar-divider" aria-hidden="true" />
     {readOnly ? <span className="document-reading-label">{messages.editor.readingMode}</span> : <>
       <DocumentMenu label={<><span>{format.heading ? messages.editor.heading(format.heading) : messages.editor.paragraph}</span><ChevronDown size={14} /></>}
@@ -58,10 +59,7 @@ export function DocumentToolbar({ ready, readOnly, format, outlineOpen, onOutlin
             radio active={format.heading === level} onClick={() => onHeading(level)} />)}
         </div>
       </DocumentMenu>
-      {tools.filter(tool => primary.has(tool.action)).map(({ action, label, icon: Icon }) => <button key={action} type="button" title={label} aria-label={label}
-        className={responsive.has(action) ? "document-tool-responsive" : undefined}
-        data-motion="selection" disabled={disabled(action)} aria-pressed={action === "undo" || action === "redo" ? undefined : format.active.includes(action)}
-        onMouseDown={event => event.preventDefault()} onClick={() => onAction(action)}><Icon size={16} /></button>)}
+      {tools.filter(tool => primary.has(tool.action)).map(({ action, label, icon: Icon }) => <IconButton key={action} type="button" className={responsive.has(action) ? "document-tool-responsive" : undefined} data-motion="selection" disabled={disabled(action)} aria-pressed={action === "undo" || action === "redo" ? undefined : format.active.includes(action)} onMouseDown={event => event.preventDefault()} onClick={() => onAction(action)} label={label}><Icon size={16} /></IconButton>)}
       <DocumentMenu label={<MoreHorizontal size={16} />} name={messages.editor.moreFormatting} open={menu === "more"} disabled={!ready}
         align="end" onOpenChange={open => changeMenu("more", open)}>
         {moreGroups.map(group => <div key={group.label} className="document-menu-group">

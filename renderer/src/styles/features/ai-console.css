@@ -1971,36 +1971,6 @@
   text-underline-offset: 2px;
 }
 
-/* Image preview lightbox (ContextTray). Enter/exit motion; reduced-motion is
-   handled globally (styles.css sets animation-duration:0s !important) and the
-   JS close path skips the exit delay when prefers-reduced-motion matches. */
-.image-lightbox { animation: image-lightbox-in var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
-.image-lightbox[data-leaving] { animation: image-lightbox-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
-.image-lightbox .lightbox-image { animation: image-lightbox-zoom var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
-@keyframes image-lightbox-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes image-lightbox-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes image-lightbox-zoom { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
-
-/* Multi-image slide track. Every image mounts as a full-viewport slide and is
-   translated by (index - active) * 100%, so prev/next — whether triggered by
-   the chevrons, arrow keys, or a swipe — glides the whole row horizontally.
-   While dragging (data-dragging) we drop the transition so the image tracks
-   the finger; on release it snaps back or advances with the transition on. */
-.image-lightbox .lightbox-track { position: absolute; inset: 0; }
-.image-lightbox .lightbox-slide {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  will-change: transform;
-  transition: transform var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1));
-}
-.image-lightbox[data-dragging] .lightbox-slide { transition: none; }
-@media (prefers-reduced-motion: reduce) {
-  .image-lightbox .lightbox-slide { transition: none; }
-}
-
 /* KaTeX 数学公式（$...$ 行内 / $$...$$ 块级）。katex.min.css 提供基础排版，
    这里只做与聊天气泡的尺寸/溢出适配——长公式横向滚动而不是撑破布局。 */
 .chat-markdown .katex {
@@ -2149,105 +2119,7 @@
 .chip-select-value { color: var(--text-dim); font-weight: 600; }
 .chip-select-chevron { color: var(--muted-2); transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .chip-select[data-open] .chip-select-chevron { transform: rotate(180deg); }
-.chip-select-menu {
-  z-index: 30;
-  min-width: 140px;
-  max-width: calc(100vw - 16px);
-  max-height: min(320px, calc(100vh - 16px));
-  overflow: auto;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--panel-bg);
-  box-shadow: var(--shadow-2);
-  animation: chip-select-in var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-.chip-select-menu[data-leaving] { animation: chip-select-out var(--dur-exit, 160ms) var(--ease-exit, cubic-bezier(.4, 0, 1, 1)) forwards; }
-@keyframes chip-select-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes chip-select-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(4px); } }
-.chip-select-option {
-  display: block;
-  width: 100%;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  text-align: left;
-  cursor: pointer;
-}
-.chip-select-option:hover { background: var(--surface-hover); }
-.chip-select-option.active { background: var(--accent-tint); color: var(--accent-fg); font-weight: 600; }
 
-/* ====================================================================
-   P2-CTX-1: lightbox inline style 抽离到 class
-   ==================================================================== */
-.image-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-topmost);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.82);
-  overflow: hidden;
-  cursor: zoom-out;
-}
-.lightbox-slide {
-  transition: transform var(--dur-normal, 200ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-.image-lightbox[data-dragging] .lightbox-slide { transition: none; }
-.lightbox-image {
-  max-width: 82vw;
-  max-height: 92vh;
-  border-radius: var(--radius-sm);
-  user-select: none;
-  cursor: default;
-}
-.image-lightbox:not([data-multiple]) .lightbox-image { max-width: 92vw; }
-.lightbox-close-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  cursor: pointer;
-}
-.lightbox-nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  cursor: pointer;
-}
-.lightbox-nav-btn.prev { left: 16px; }
-.lightbox-nav-btn.next { right: 16px; }
-.lightbox-counter {
-  position: absolute;
-  bottom: 18px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: var(--fs-sm);
-  pointer-events: none;
-}
 
 /* P2-CTX-2: 图片 chip hover 放大 + tooltip */
 .context-chip.image-chip {

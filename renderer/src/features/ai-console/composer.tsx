@@ -1,12 +1,15 @@
+import { IconButton } from "../../design-system/IconButton";
+import { ImageViewer } from "../../design-system/ImageViewer";
+import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
-import { Textarea } from "../../design-system/components";
-import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Select, Textarea } from "../../design-system/components";
+import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useIsPresent, usePresence } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { useMotionPreference } from "../../design-system/use-motion-preference";
 import { createPortal } from "react-dom";
-import { ArrowUp, ChevronDown, ChevronLeft, ChevronRight, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
@@ -29,7 +32,6 @@ import {
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const COMPRESS_THRESHOLD = 512 * 1024;
 const COMPRESS_MAX_EDGE = 1568;
-const LIGHTBOX_EXIT_MS = 160;
 
 type ComposerCaretAnchor = { left: number; top: number; height: number; width: number };
 
@@ -75,10 +77,7 @@ function measureTextareaCaret(textarea: HTMLTextAreaElement): ComposerCaretAncho
   };
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+
 
 function readAsDataURL(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -449,7 +448,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
         {errorVisible && stashedError ? (
           <div className="composer-error ui-overlay" data-leaving={errorLeaving || undefined} role="alert">
             <span>{stashedError}</span>
-            <button data-motion="icon" aria-label={m.ai.composer.closeError} onClick={() => { setLocalError(null); ui.clearError(); }}><X size={13} /></button>
+            <IconButton data-motion="icon" onClick={() => { setLocalError(null); ui.clearError(); }} className="" label={m.ai.composer.closeError}><X size={13} /></IconButton>
           </div>
         ) : null}
         {queuedRuns.length ? (
@@ -536,18 +535,12 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             )
           ) : null}
           <div className="composer-editor-actions">
-            <button
-              type="button"
-              className="composer-add-context"
-              onClick={() => void actions.addFiles()}
-              aria-label={m.ai.composer.addAttachment}
-              title={m.ai.composer.addAttachment}
-            >
+            <IconButton type="button" className="composer-add-context" onClick={() => void actions.addFiles()} label={m.ai.composer.addAttachment}>
               <Plus size={20} />
-            </button>
-            <ChipSelect
+            </IconButton>
+            <Select<PermissionProfile>
               className="permission-select"
-              icon={<ShieldCheck size={16} />}
+              leadingIcon={<ShieldCheck size={16} />}
               label={m.ai.permission.label}
               value={permissionProfile}
               options={[
@@ -555,7 +548,9 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 { value: "edit", label: m.ai.permission.edit },
                 { value: "auto", label: m.ai.permission.auto }
               ]}
-              onChange={(value) => setPermissionProfile(value as PermissionProfile)}
+              menuSide="top"
+              menuAlign="end"
+              onChange={setPermissionProfile}
             />
             {ui.projectComposeTarget && !activeSession ? (
               <span
@@ -661,17 +656,6 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
   const [dragId, setDragId] = useState<string | null>(null);
   const [chipOverflow, setChipOverflow] = useState({ start: false, end: false });
   const [enlargedId, setEnlargedId] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
-  // Horizontal slide track state: dragX is the live finger offset (px) while
-  // swiping, dragging drops the CSS transition so the image tracks the finger,
-  // then on release we snap (or advance past the threshold) with transition on.
-  const [dragX, setDragX] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const touchStartX = useRef<number | null>(null);
-  const closeTimer = useRef<number | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
 
   const updateChipOverflow = useCallback(() => {
@@ -697,73 +681,9 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
   }, [contexts, updateChipOverflow]);
 
   const images = contexts.filter((c) => c.kind === "image" && Boolean(c.content));
-  const imagesRef = useRef(images);
-  imagesRef.current = images;
-  // Track the open image by ID, not index, so reordering or removing other
-  // contexts can never shift which image is displayed.
-  const safeIndex = enlargedId ? images.findIndex((c) => c.id === enlargedId) : -1;
+  const safeIndex = enlargedId ? images.findIndex(image => image.id === enlargedId) : -1;
   const isOpen = active && safeIndex >= 0;
-  const hasMultiple = images.length > 1;
-
-  const stepImage = useCallback((dir: number) => setEnlargedId((id) => {
-    const imgs = imagesRef.current;
-    if (!id) return id;
-    const i = imgs.findIndex((c) => c.id === id);
-    if (i < 0) return id;
-    return imgs[(i + dir + imgs.length) % imgs.length].id;
-  }), []);
-
-  const openAt = useCallback((id: string) => {
-    if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; }
-    setLeaving(false);
-    setDragX(0);
-    setDragging(false);
-    setEnlargedId(id);
-  }, []);
-
-  const close = useCallback(() => {
-    if (!isOpen || closeTimer.current) return;
-    if (prefersReducedMotion()) { setEnlargedId(null); return; }
-    setLeaving(true);
-    closeTimer.current = window.setTimeout(() => {
-      setEnlargedId(null);
-      setLeaving(false);
-      closeTimer.current = null;
-    }, LIGHTBOX_EXIT_MS);
-  }, [isOpen]);
-
-  // Keyboard (Esc / arrows / Tab trap) + focus capture while open; restore focus on unmount.
-  useEffect(() => {
-    if (!isOpen) return;
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const raf = window.requestAnimationFrame(() => closeBtnRef.current?.focus());
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); close(); return; }
-      if (event.key === "ArrowLeft" && hasMultiple) { stepImage(-1); return; }
-      if (event.key === "ArrowRight" && hasMultiple) { stepImage(1); return; }
-      if (event.key !== "Tab") return;
-      const focusables = Array.from(
-        dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        ) || []
-      );
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables.at(-1) || first;
-      const active = document.activeElement;
-      if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKey);
-      previousFocus.current?.focus?.();
-      previousFocus.current = null;
-    };
-  }, [isOpen, hasMultiple, close, stepImage]);
-
-  useEffect(() => () => { if (closeTimer.current) window.clearTimeout(closeTimer.current); }, []);
+  const openAt = useCallback((id: string) => setEnlargedId(id), []);
 
   return (
     <div className="context-tray" role="group" aria-label={m.ai.context.count(contexts.length)}>
@@ -784,7 +704,7 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
           {context.kind === "image" ? (
             <div className="context-chip image-chip" title={context.label}>
               <button aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></button>
-              <button aria-label={m.ai.context.remove} title={m.ai.context.remove} className="image-chip-remove" onClick={() => actions.removeContext(context.id)}><X size={11} /></button>
+              <IconButton className="image-chip-remove" onClick={() => actions.removeContext(context.id)} label={m.ai.context.remove}><X size={11} /></IconButton>
             </div>
           ) : (
             <ContextReferenceChip
@@ -816,88 +736,10 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
         <Trash2 size={12} />
         {m.ai.context.clear}
       </button>
-      {isOpen ? (
-        <div
-          ref={dialogRef}
-          className="image-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={m.ai.composer.imagePreview}
-          data-leaving={leaving || undefined}
-          data-dragging={dragging || undefined}
-          data-multiple={hasMultiple || undefined}
-          onClick={close}
-          onTouchStart={(event) => {
-            touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
-            if (hasMultiple && !prefersReducedMotion()) setDragging(true);
-          }}
-          onTouchMove={(event) => {
-            if (touchStartX.current === null || !hasMultiple || prefersReducedMotion()) return;
-            const dx = (event.changedTouches?.[0]?.clientX ?? touchStartX.current) - touchStartX.current;
-            setDragX(dx);
-          }}
-          onTouchEnd={(event) => {
-            const startX = touchStartX.current;
-            touchStartX.current = null;
-            setDragging(false);
-            setDragX(0);
-            if (startX === null || !hasMultiple) return;
-            const endX = event.changedTouches?.[0]?.clientX ?? startX;
-            const dx = endX - startX;
-            if (Math.abs(dx) > 40) stepImage(dx > 0 ? -1 : 1);
-          }}
-        >
-          <div className="lightbox-track">
-            {images.map((im, i) => (
-              <div
-                key={im.id}
-                className="lightbox-slide"
-                style={{ transform: `translateX(calc(${(i - safeIndex) * 100}% + ${dragX}px))` }}
-              >
-                <img
-                  className="lightbox-image"
-                  src={im.content}
-                  alt={im.label}
-                  draggable={false}
-                  onClick={(event) => event.stopPropagation()}
-                />
-              </div>
-            ))}
-          </div>
-          <button
-            data-motion="icon"
-            ref={closeBtnRef}
-            className="lightbox-close-btn"
-            aria-label={m.ai.composer.closePreview}
-            onClick={(event) => { event.stopPropagation(); close(); }}
-          >
-            <X size={18} />
-          </button>
-          {hasMultiple ? (
-            <>
-              <button
-                data-motion="icon"
-                className="lightbox-nav-btn prev"
-                aria-label={m.ai.composer.previousImage}
-                onClick={(event) => { event.stopPropagation(); stepImage(-1); }}
-              >
-                <ChevronLeft size={22} />
-              </button>
-              <button
-                data-motion="icon"
-                className="lightbox-nav-btn next"
-                aria-label={m.ai.composer.nextImage}
-                onClick={(event) => { event.stopPropagation(); stepImage(1); }}
-              >
-                <ChevronRight size={22} />
-              </button>
-              <div className="lightbox-counter">
-                {safeIndex + 1} / {images.length}
-              </div>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      <ImageViewer open={isOpen} images={images.map(image => ({ id: image.id, title: image.label }))}
+        selectedId={enlargedId} onSelect={setEnlargedId} onClose={() => setEnlargedId(null)}
+        src={images[safeIndex]?.content} label={m.ai.composer.imagePreview} closeLabel={m.ai.composer.closePreview}
+        previousLabel={m.ai.composer.previousImage} nextLabel={m.ai.composer.nextImage} />
     </div>
   );
 }
@@ -948,26 +790,10 @@ function ContextReferenceChip({
     previousPosition.current = { index, total };
   }, [index, total, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || detailRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismissableLayer({
+    open: open && present, contentRefs: [detailRef], triggerRef,
+    onDismiss: () => setOpen(false)
+  });
 
   return (
     <div
@@ -1017,146 +843,12 @@ function ContextReferenceChip({
           document.body
         ) : null}
       </div>
-      <button
-        type="button"
-        className="context-chip-remove"
-        data-motion="icon"
-        aria-label={m.ai.context.removeNamed(context.label)}
-        title={m.ai.context.removeThis}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
+      <IconButton type="button" className="context-chip-remove" data-motion="icon" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
           event.stopPropagation();
           actions.removeContext(context.id);
-        }}
-      >
+        }} label={m.ai.context.removeNamed(context.label)} tooltip={m.ai.context.removeThis}>
         <X size={12} aria-hidden />
-      </button>
-    </div>
-  );
-}
-
-/**
- * P0-CMP-3: 自定义 select —— 胶囊 chip + 下拉,替代浏览器原生 <select>。
- * 点击 chip 展开 listbox,选中后收起;点外面/Esc 关闭。
- */
-function ChipSelect({ className = "", icon, label, value, options, onChange }: {
-  className?: string;
-  icon?: ReactNode;
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  useLocale();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === value);
-  const menuPresence = useExitPresence(open, 160);
-  const popover = useAnchoredPopover({
-    open: menuPresence.visible,
-    anchorRef: triggerRef,
-    floatingRef: menuRef,
-    preferredSide: "top",
-    align: "end"
-  });
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=option]") ?? [])
-        .find((item) => item.dataset.value === value)
-        ?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open, value]);
-
-  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=option]") ?? []);
-    if (!items.length || !["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) return;
-    event.preventDefault();
-    if (event.key === "Tab") {
-      setOpen(false);
-      triggerRef.current?.focus();
-      return;
-    }
-    const current = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? items.length - 1
-        : event.key === "ArrowDown"
-          ? current < 0 || current === items.length - 1 ? 0 : current + 1
-          : current <= 0 ? items.length - 1 : current - 1;
-    items[next]?.focus();
-  };
-
-  return (
-    <div className={`chip-select ${className}`.trim()} ref={ref} data-open={open || undefined} data-value={value}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="chip-select-trigger"
-        aria-label={`${label}：${selected?.label || value}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={`${label}：${selected?.label || value}`}
-        data-motion="selection"
-        onClick={() => setOpen((current) => !current)}
-      >
-        {icon ? <span className="chip-select-icon" aria-hidden>{icon}</span> : null}
-        <span className="chip-select-label">{label}</span>
-        <span className="chip-select-value">{selected?.label || value}</span>
-        <ChevronDown size={12} className="chip-select-chevron" />
-      </button>
-      {menuPresence.visible && typeof document !== "undefined" ? createPortal(
-        <div
-          ref={menuRef}
-          className="chip-select-menu"
-          role="listbox"
-          aria-label={label}
-          data-side={popover.side}
-          data-leaving={menuPresence.leaving || undefined}
-          style={popover.style}
-          onKeyDown={onMenuKeyDown}
-        >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={`chip-select-option${option.value === value ? " active" : ""}`}
-              data-value={option.value}
-              data-motion="selection"
-              onClick={() => { onChange(option.value); setOpen(false); triggerRef.current?.focus(); }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>,
-        document.body
-      ) : null}
+      </IconButton>
     </div>
   );
 }

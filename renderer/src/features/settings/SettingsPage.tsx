@@ -1,3 +1,4 @@
+import { useClipboard } from "../../design-system/use-clipboard";
 import { SearchInput } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
@@ -258,13 +259,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   };
 
+  const { copy: copyText } = useClipboard();
   const copySkillInvocation = async (skillId: string) => {
-    try {
-      await navigator.clipboard.writeText(`/${skillId}`);
-      ui.notify(m.settings.skills.copySuccess(skillId), "success");
-    } catch {
-      ui.notify(m.settings.skills.copyFailed, "error");
-    }
+    if (await copyText(`/${skillId}`)) ui.notify(m.settings.skills.copySuccess(skillId), "success");
+    else ui.notify(m.settings.skills.copyFailed, "error");
   };
 
   const openSkillDirectory = async (path: string) => {

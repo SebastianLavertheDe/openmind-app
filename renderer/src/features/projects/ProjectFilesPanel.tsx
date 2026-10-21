@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
 import { useAiUi } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState, SearchInput } from "../../design-system/components";
+import { DropdownMenu, EmptyState, ErrorState, SearchInput, Select } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
@@ -394,14 +394,14 @@ export function ProjectFilesPanel({
       >
         <label className="project-field">
           <span>{messages.projectUi.destinationProject}</span>
-          <select
-            aria-label={messages.projectUi.destinationProject}
+          <Select
+            size="rect"
+            ariaLabel={messages.projectUi.destinationProject}
             value={moveDestination}
             disabled={moveOptionsLoading}
-            onChange={(event) => setMoveDestination(event.target.value)}
-          >
-            {moveOptions.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
-          </select>
+            onChange={setMoveDestination}
+            options={moveOptions.map(item => ({ value: item.name, label: item.name }))}
+          />
         </label>
         {actionError ? <p className="project-dialog-error" role="alert">{actionError}</p> : null}
       </ProjectDialog>

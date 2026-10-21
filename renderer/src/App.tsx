@@ -315,7 +315,6 @@ function Workspace({
       navCollapsed={navCollapsed}
       setNavCollapsed={setNavCollapsed}
       repoRoot={bootstrap.repoRoot}
-      runtime={bootstrap.runtime}
       environment={bootstrap.environment}
       pendingApprovals={snapshot.pendingApprovals.length}
       aiSessionOpen={Boolean(activeSession)}

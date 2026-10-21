@@ -1,14 +1,13 @@
+import { Dialog } from "../design-system/Dialog";
 import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { createPortal } from "react-dom";
 import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } from "lucide-react";
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import type { Navigate } from "./routes";
 import { useAiActions, useAiSnapshot } from "../ai-context";
-import { Tooltip, SearchInput } from "../design-system/components";
+import { IconButton, SearchInput } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
-import { useModalFocusScope } from "../design-system/use-modal-focus-scope";
 
 type PaletteAction = {
   intent: "summarize" | "create-draft" | "compare";
@@ -90,13 +89,7 @@ export function GlobalSearch({
   const scopeRef = useRef<HTMLDivElement>(null);
 
   const { visible, leaving } = useExitPresence(open, 160);
-  useModalFocusScope({
-    open: visible,
-    containerRef: scopeRef,
-    triggerRef,
-    onDismiss: onClose,
-    layer: "global"
-  });
+
 
   useEffect(() => {
     if (!visible || query.trim().length < 2) {
@@ -194,15 +187,7 @@ export function GlobalSearch({
   let flatIndex = actionOffset - 1;
   const showHint = query.trim().length < 2;
   const showEmpty = !loading && query.trim().length >= 2 && !results.length && !action;
-  return createPortal(
-    <div
-      ref={scopeRef}
-      className="global-search-scrim ui-overlay"
-      data-leaving={leaving || undefined}
-      onClick={onClose}
-      tabIndex={-1}
-    >
-      <section className="global-search-dialog" role="dialog" aria-modal="true" aria-label={m.search.dialogLabel} onClick={(event) => event.stopPropagation()}>
+  return <Dialog as="section" open={open} presence={{ visible, leaving }} retainFocusDuringExit onClose={onClose} containerRef={scopeRef} triggerRef={triggerRef} backdropClassName="global-search-scrim ui-overlay" className="global-search-dialog" aria-label={m.search.dialogLabel}>
         <header>
           <Sparkles size={18} className="global-search-symbol" />
           <SearchInput leadingIcon={null}
@@ -213,7 +198,7 @@ export function GlobalSearch({
             placeholder={m.search.placeholder}
           />
           {loading ? <span className="global-search-loading">{m.search.loading}</span> : null}
-          <Tooltip content={m.common.close}><button data-motion="icon" aria-label={m.common.close} onClick={onClose}><X size={16} /></button></Tooltip>
+          <IconButton className="" label={m.common.close} onClick={onClose}><X size={16} /></IconButton>
         </header>
         <div className="global-search-results" role="listbox" aria-label={m.search.resultsAria}>
           {showHint ? <div className="global-search-hint">{m.search.hintShort}</div> : null}
@@ -264,10 +249,7 @@ export function GlobalSearch({
             </section>
           ))}
         </div>
-      </section>
-    </div>,
-    document.body
-  );
+      </Dialog>;
 }
 
 function groupLabel(kind: GlobalSearchResult["kind"]): string {

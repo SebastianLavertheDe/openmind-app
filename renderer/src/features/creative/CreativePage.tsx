@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PanelLeftOpen, RefreshCw } from "lucide-react";
@@ -461,14 +462,7 @@ export function CreativeWorkspacePage({
           />
           <section className={`creative-main-pane${listVisible ? "" : " list-collapsed"}`}>
             {!listVisible ? (
-              <button
-                type="button"
-                className="creative-list-reopen"
-                aria-label={m.creativeUi.workspace.expandList}
-                title={m.creativeUi.workspace.expandList}
-                data-motion="icon"
-                onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()}
-              ><PanelLeftOpen size={17} /></button>
+              <IconButton type="button" className="creative-list-reopen" data-motion="icon" onClick={() => compactWorkspace ? setCompactListOpen(true) : layout.toggleList()} label={m.creativeUi.workspace.expandList}><PanelLeftOpen size={17} /></IconButton>
             ) : null}
             {embeddedFilePreviewPath ? <WorkspaceFilePreview path={embeddedFilePreviewPath} onClose={() => onCloseEmbeddedFilePreview?.()} embedded /> : <div key={creativeDetailMotionKey} className={`creative-detail-transition stage-${stage}${detail && !detailLoadingProjectDir ? " is-ready" : ""}`} data-stage={stage} aria-busy={Boolean(detailLoadingProjectDir) || undefined}>
               <CreativeDetailPane

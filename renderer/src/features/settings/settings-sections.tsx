@@ -1,14 +1,16 @@
+import { IconButton } from "../../design-system/IconButton";
+import { CopyButton } from "../../design-system/CopyButton";
+import { Dialog } from "../../design-system/Dialog";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
 import { messages } from "@shared/messages";
-import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, useModalFocusScope, SearchInput, Input } from "../../design-system/components";
+import { DropdownMenu, SegmentedControl, Select, StatusBadge, Tabs, ToggleSwitch, SearchInput, Input } from "../../design-system/components";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
@@ -16,6 +18,15 @@ import { IMAGE_PROVIDERS } from "@shared/image-generation";
 import { ProviderImageCapability, defaultImageCapability } from "./ProviderImageCapability";
 
 const m = messages;
+
+const PROVIDER_PROTOCOL_OPTIONS: Array<{ value: ProviderProtocol; label: string }> = [
+  { value: "anthropic-messages", label: "anthropic-messages" },
+  { value: "openai-chat", label: "openai-chat" },
+  { value: "openai-responses", label: "openai-responses" }
+];
+const PROVIDER_AUTH_OPTIONS: Array<{ value: ProviderAuthMode; label: string }> = [
+  { value: "bearer", label: "Bearer Token" }, { value: "x-api-key", label: "X-API-Key" }
+];
 
 type SavePreferences = (patch: Partial<UserPreferences>) => Promise<void>;
 
@@ -98,6 +109,7 @@ export function ProviderSettingsSection({
   onSaveProviderConfiguration(input: ProvidersYamlInput): Promise<void>;
 }) {
   const locale = useLocale();
+  const [wslStepsOpen, setWslStepsOpen] = useState<Record<string, boolean>>({});
   const [installingCli, setInstallingCli] = useState<"claude" | "codex" | null>(null);
   const [installProgress, setInstallProgress] = useState<CliInstallProgress | null>(null);
   const [installError, setInstallError] = useState<{ cli: "claude" | "codex"; message: string } | null>(null);
@@ -118,7 +130,7 @@ export function ProviderSettingsSection({
     if (!bindingBusy) setConfiguringCli(null);
   };
 
-  useModalFocusScope({ open: Boolean(configuringCli) && providerDialogPresence.visible, containerRef: providerDialogRef, onDismiss: closeProviderDialog, layer: "global" });
+
 
   const compatibleProviders = useMemo(() => renderedCli && providerConfiguration
     ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(renderedCli, entry.protocol))
@@ -248,14 +260,15 @@ export function ProviderSettingsSection({
                     {installError?.cli === cliKind && !canInstall ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.upgradeFailed}{installError.message}</small> : null}
                     {versionError?.cli === cliKind ? <small className="settings-provider-runtime-error" role="alert">{m.settings.provider.versionFailed(versionError.message)}</small> : null}
                   </div> : null}
-                  {provider.runtime === "wsl" && !provider.available ? <details className="settings-provider-wsl-steps">
-                    <summary>{m.settings.provider.wslStepsTitle}</summary>
+                  {provider.runtime === "wsl" && !provider.available ? <AnimatedDisclosure className="settings-provider-wsl-steps" open={Boolean(wslStepsOpen[provider.id])}
+                    onOpenChange={open => setWslStepsOpen(current => ({ ...current, [provider.id]: open }))}
+                    summary={<><ChevronDown size={13} />{m.settings.provider.wslStepsTitle}</>} unmountOnExit>
                     <ol>
-                      <li><code>{wslInstallCommand}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(wslInstallCommand)}>{m.settings.provider.copyCommand}</button></li>
-                      <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void navigator.clipboard?.writeText(provider.provider === "claude" ? "claude /login" : "codex login")}>{m.settings.provider.copyCommand}</button></li>
+                      <li><code>{wslInstallCommand}</code><CopyButton text={wslInstallCommand} label={m.settings.provider.copyCommand} className="settings-provider-recheck" showLabel /></li>
+                      <li><code>{provider.provider === "claude" ? "claude /login" : "codex login"}</code><CopyButton text={provider.provider === "claude" ? "claude /login" : "codex login"} label={m.settings.provider.copyCommand} className="settings-provider-recheck" showLabel /></li>
                       <li>{m.settings.provider.wslStepsRecheck}</li>
                     </ol>
-                  </details> : null}
+                  </AnimatedDisclosure> : null}
                 </div>
                 <div className="settings-provider-actions">
                   {canInstall ? <div className="settings-provider-install settings-provider-install--action">
@@ -292,24 +305,14 @@ export function ProviderSettingsSection({
         </div>
       </SettingsPanel>
 
-      {providerDialogPresence.visible && renderedCli && typeof document !== "undefined" ? createPortal(
-        <div
-          ref={providerDialogRef}
-          className="modal-scrim settings-provider-dialog-scrim ui-overlay"
-          data-focus-scope-backdrop
-          data-leaving={providerDialogPresence.leaving || undefined}
-          aria-hidden={providerDialogPresence.leaving || undefined}
-          inert={providerDialogPresence.leaving || undefined}
-          onMouseDown={closeProviderDialog}
-        >
-          <section className="settings-provider-dialog settings-cli-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="cli-provider-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+      {providerDialogPresence.visible && renderedCli && typeof document !== "undefined" ? <Dialog as="section" open={Boolean(configuringCli)} presence={providerDialogPresence} onClose={closeProviderDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={providerDialogRef} className="settings-provider-dialog settings-cli-provider-dialog" aria-labelledby="cli-provider-dialog-title">
             <header>
               <div>
                 <span>{m.settings.provider.providerDialogEyebrow}</span>
                 <h2 id="cli-provider-dialog-title">{m.settings.provider.providerDialogTitle(renderedCli === "claude" ? "Claude Code" : "Codex CLI")}</h2>
                 <p>{m.settings.provider.providerDialogDescription(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")}</p>
               </div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.provider.closeProviderDialog} onClick={closeProviderDialog}><X size={16} /></button>
+              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={closeProviderDialog} label={m.settings.provider.closeProviderDialog}><X size={16} /></IconButton>
             </header>
             <form onSubmit={(event) => void saveProviderBinding(event)}>
               <div className="settings-provider-dialog-body settings-cli-provider-options" role="radiogroup" aria-label={m.settings.provider.providerOptionsAria}>
@@ -328,10 +331,7 @@ export function ProviderSettingsSection({
                 <button type="submit" className="primary-button" disabled={providerConfigurationBusy || bindingBusy}>{bindingBusy ? m.settings.provider.savingProvider : m.settings.provider.saveProvider}</button>
               </footer>
             </form>
-          </section>
-        </div>,
-        document.body
-      ) : null}
+          </Dialog> : null}
     </>
   );
 }
@@ -856,8 +856,8 @@ export function AiProvidersSettingsSection({
     dismissEditDialog();
   };
 
-  useModalFocusScope({ open: adding, containerRef: addDialogRef, triggerRef: addTriggerRef, onDismiss: closeAddDialog, layer: "global" });
-  useModalFocusScope({ open: Boolean(editingProviderId), containerRef: editDialogRef, triggerRef: editTriggerRef, onDismiss: cancelEditDialog, layer: "global" });
+
+
 
   useEffect(() => {
     if (!view) return;
@@ -1071,21 +1071,17 @@ export function AiProvidersSettingsSection({
         </div>
       </SettingsPanel>
 
-      {addPresence.visible && newProvider && typeof document !== "undefined" ? createPortal(
-        <div ref={addDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop
-          data-leaving={!adding || undefined} inert={!adding || undefined} aria-hidden={!adding || undefined} onMouseDown={closeAddDialog}>
-          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="add-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+      {addPresence.visible && newProvider && typeof document !== "undefined" ? <Dialog as="section" open={adding} presence={addPresence} triggerRef={addTriggerRef} onClose={closeAddDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={addDialogRef} className="settings-provider-dialog" aria-labelledby="add-provider-title">
             <header>
               <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="add-provider-title">{m.settings.providerConfig.addTitle}</h2><p>{m.settings.providerConfig.addDescription}</p></div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.providerConfig.closeAdd} onClick={closeAddDialog}><X size={16} /></button>
+              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={closeAddDialog} label={m.settings.providerConfig.closeAdd}><X size={16} /></IconButton>
             </header>
             <form onSubmit={addProvider}>
               <div className="settings-provider-dialog-body">
                 <label className="settings-field settings-field--wide"><span>{m.settings.providerConfig.preset}</span>
-                  <select className="settings-select" value={presetId} aria-label={m.settings.providerConfig.preset} onChange={(event) => changePreset(event.target.value)} autoFocus data-motion="selection">
-                    {PROVIDER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-                    <option value="custom">{m.settings.providerConfig.custom}</option>
-                  </select>
+                  <Select size="rect" className="settings-select" value={presetId} ariaLabel={m.settings.providerConfig.preset} onChange={changePreset} autoFocus options={[
+                    ...PROVIDER_PRESETS.map(preset => ({ value: preset.id, label: preset.name })), { value: "custom", label: m.settings.providerConfig.custom }
+                  ]} />
                   <small>{m.settings.providerConfig.presetHint}</small>
                 </label>
                 <div className="settings-grid-2">
@@ -1094,17 +1090,10 @@ export function AiProvidersSettingsSection({
                   <label className="settings-field"><span>Base URL</span><Input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><Input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
-                    <select className="settings-select" value={newProvider.protocol} onChange={(event) => setNewProvider({ ...newProvider, protocol: event.target.value as ProviderProtocol })} data-motion="selection">
-                      <option value="anthropic-messages">anthropic-messages</option>
-                      <option value="openai-chat">openai-chat</option>
-                      <option value="openai-responses">openai-responses</option>
-                    </select>
+                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={newProvider.protocol} onChange={protocol => setNewProvider({ ...newProvider, protocol })} options={PROVIDER_PROTOCOL_OPTIONS} />
                   </label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
-                    <select className="settings-select" value={newProvider.authMode} onChange={(event) => setNewProvider({ ...newProvider, authMode: event.target.value as ProviderAuthMode })}>
-                      <option value="bearer">Bearer Token</option>
-                      <option value="x-api-key">X-API-Key</option>
-                    </select>
+                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={newProvider.authMode} onChange={authMode => setNewProvider({ ...newProvider, authMode })} options={PROVIDER_AUTH_OPTIONS} />
                   </label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
                 </div>
@@ -1112,18 +1101,12 @@ export function AiProvidersSettingsSection({
               </div>
               <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>{m.settings.providerConfig.cancel}</button><button type="submit" className="primary-button"><Plus size={14} />{m.settings.providerConfig.addToList}</button></footer>
             </form>
-          </section>
-        </div>,
-        document.body
-      ) : null}
+          </Dialog> : null}
 
-      {editPresence.visible && editingProvider && typeof document !== "undefined" ? createPortal(
-        <div ref={editDialogRef} className="modal-scrim settings-provider-dialog-scrim ui-overlay" data-focus-scope-backdrop
-          data-leaving={!editingProviderId || undefined} inert={!editingProviderId || undefined} aria-hidden={!editingProviderId || undefined} onMouseDown={cancelEditDialog}>
-          <section className="settings-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-provider-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+      {editPresence.visible && editingProvider && typeof document !== "undefined" ? <Dialog as="section" open={Boolean(editingProviderId)} presence={editPresence} triggerRef={editTriggerRef} onClose={cancelEditDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={editDialogRef} className="settings-provider-dialog" aria-labelledby="edit-provider-title">
             <header>
               <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="edit-provider-title">{m.settings.providerConfig.editTitle(editingProvider.name || editingProvider.id)}</h2><p>{m.settings.providerConfig.editDescription}</p></div>
-              <button type="button" className="settings-subtle-action" data-motion="icon" aria-label={m.settings.providerConfig.cancelEdit(editingProvider.name || editingProvider.id)} onClick={cancelEditDialog}><X size={16} /></button>
+              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={cancelEditDialog} label={m.settings.providerConfig.cancelEdit(editingProvider.name || editingProvider.id)}><X size={16} /></IconButton>
             </header>
             <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
               <div className="settings-provider-dialog-body">
@@ -1150,17 +1133,10 @@ export function AiProvidersSettingsSection({
                 <div className="settings-provider-advanced-grid">
                   <label className="settings-field"><span>ID</span><Input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
-                    <select className="settings-select" value={editingProvider.protocol} onChange={(event) => update(editingProvider.id, { protocol: event.target.value as ProviderProtocol })} data-motion="selection">
-                      <option value="anthropic-messages">anthropic-messages</option>
-                      <option value="openai-chat">openai-chat</option>
-                      <option value="openai-responses">openai-responses</option>
-                    </select>
+                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={editingProvider.protocol} onChange={protocol => update(editingProvider.id, { protocol })} options={PROVIDER_PROTOCOL_OPTIONS} />
                   </label>
                   <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
-                    <select className="settings-select" value={editingProvider.authMode} onChange={(event) => update(editingProvider.id, { authMode: event.target.value as ProviderAuthMode })}>
-                      <option value="bearer">Bearer Token</option>
-                      <option value="x-api-key">X-API-Key</option>
-                    </select>
+                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={editingProvider.authMode} onChange={authMode => update(editingProvider.id, { authMode })} options={PROVIDER_AUTH_OPTIONS} />
                   </label>
                 </div>
                 </AnimatedDisclosure>
@@ -1170,10 +1146,7 @@ export function AiProvidersSettingsSection({
                 <button type="submit" className="primary-button" disabled={busy}>{busy ? m.settings.providerConfig.saving : m.settings.providerConfig.save}</button>
               </footer>
             </form>
-          </section>
-        </div>,
-        document.body
-      ) : null}
+          </Dialog> : null}
     </>
   );
 }

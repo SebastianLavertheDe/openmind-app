@@ -2,58 +2,61 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "./use-anchored-popover";
 import { useExitPresence } from "./use-exit-presence";
+import { useDismissableLayer } from "./use-dismissable-layer";
 
-export function SegmentedControl<T extends string>({
-  value,
-  options,
-  onChange,
-  label
-}: {
+type SelectionChange<T> = (value: T) => void | boolean | Promise<void | boolean>;
+type Choice<T> = { value: T; label: ReactNode; count?: number; icon?: ReactNode; disabled?: boolean };
+
+export function SegmentedControl<T extends string>({ value, options, onChange, label, className = "" }: {
   value: T;
-  options: Array<{ value: T; label: string; count?: number }>;
-  onChange(value: T): void;
+  options: Choice<T>[];
+  onChange: SelectionChange<T>;
   label: string;
+  className?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, options.map((option) => option.value), value, onChange);
-
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, options.filter(option => !option.disabled).map(option => option.value), value, onChange);
   useLayoutEffect(() => {
     const root = rootRef.current;
     const active = root?.querySelector<HTMLButtonElement>("button.active");
     if (!root || !active) return;
-    root.style.setProperty("--seg-thumb-left", `${active.offsetLeft}px`);
-    root.style.setProperty("--seg-thumb-width", `${active.offsetWidth}px`);
-    if (root.hasAttribute("data-motion-ready")) return;
-    const frame = window.requestAnimationFrame(() => root.setAttribute("data-motion-ready", "true"));
-    return () => window.cancelAnimationFrame(frame);
+    const sync = () => {
+      root.style.setProperty("--seg-thumb-left", `${active.offsetLeft}px`);
+      root.style.setProperty("--seg-thumb-width", `${active.offsetWidth}px`);
+    };
+    sync();
+    const frame = root.hasAttribute("data-motion-ready") ? 0
+      : window.requestAnimationFrame(() => root.setAttribute("data-motion-ready", "true"));
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(root);
+    root.querySelectorAll("button").forEach(button => observer?.observe(button));
+    window.addEventListener("resize", sync);
+    return () => { if (frame) window.cancelAnimationFrame(frame); observer?.disconnect(); window.removeEventListener("resize", sync); };
   }, [options, value]);
-
-  return (
-    <div ref={rootRef} className="ui-segmented" role="group" aria-label={label} onKeyDown={onKeyDown}>
-      {options.map((option) => <button data-motion="selection" key={option.value} data-value={option.value} tabIndex={value === option.value ? 0 : -1} aria-pressed={value === option.value} className={value === option.value ? "active" : ""} onClick={() => onChange(option.value)}>{option.label}{option.count == null ? null : <span>{option.count}</span>}</button>)}
-    </div>
-  );
+  return <div ref={rootRef} className={`ui-segmented${className ? ` ${className}` : ""}`} role="group" aria-label={label} onKeyDown={onKeyDown}>
+    {options.map(option => <button type="button" data-motion="selection" key={option.value} data-value={option.value}
+      tabIndex={value === option.value ? 0 : -1} aria-pressed={value === option.value} disabled={option.disabled}
+      className={value === option.value ? "active" : ""} onClick={() => void onChange(option.value)}>
+      {option.icon}{option.label}{option.count == null ? null : <span>{option.count}</span>}
+    </button>)}
+  </div>;
 }
 
-export function Tabs<T extends string>({
-  value,
-  tabs,
-  onChange,
-  label,
-  className = ""
-}: {
+export function Tabs<T extends string>({ value, tabs, onChange, label, className = "" }: {
   value: T;
-  tabs: Array<{ value: T; label: string; count?: number; icon?: ReactNode }>;
-  onChange(value: T): void;
+  tabs: Array<Choice<T> & { id?: string; controls?: string; attributes?: Record<`data-${string}`, string> }>;
+  onChange: SelectionChange<T>;
   label: string;
   className?: string;
 }) {
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, tabs.map((tab) => tab.value), value, onChange);
-  return (
-    <div className={className || "ui-tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
-      {tabs.map((tab) => <button data-motion="selection" key={tab.value} data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} className={value === tab.value ? "active" : ""} onClick={() => onChange(tab.value)}>{tab.icon}{tab.label}{tab.count == null ? null : <span>{tab.count}</span>}</button>)}
-    </div>
-  );
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, tabs.filter(tab => !tab.disabled).map(tab => tab.value), value, onChange);
+  return <div className={className || "ui-tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+    {tabs.map(tab => <button {...tab.attributes} type="button" data-motion="selection" key={tab.value} id={tab.id} aria-controls={tab.controls}
+      data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} disabled={tab.disabled}
+      className={value === tab.value ? "active" : ""} onClick={() => void onChange(tab.value)}>
+      {tab.icon}{tab.label}{tab.count == null ? null : <span>{tab.count}</span>}
+    </button>)}
+  </div>;
 }
 
 export function ToggleSwitch({
@@ -84,31 +87,25 @@ export function ToggleSwitch({
   );
 }
 
-function handleRovingKeys<T extends string>(
-  event: KeyboardEvent<HTMLDivElement>,
-  values: T[],
-  current: T,
-  onChange: (value: T) => void
-): void {
-  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+function handleRovingKeys<T extends string>(event: KeyboardEvent<HTMLDivElement>, values: T[], current: T, onChange: SelectionChange<T>): void {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || !values.length) return;
   event.preventDefault();
   const index = Math.max(0, values.indexOf(current));
-  const nextIndex = event.key === "Home"
-    ? 0
-    : event.key === "End"
-      ? values.length - 1
-      : event.key === "ArrowRight"
-        ? Math.min(values.length - 1, index + 1)
-        : Math.max(0, index - 1);
+  const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? values.length - 1
+    : (index + (event.key === "ArrowRight" ? 1 : -1) + values.length) % values.length;
   const next = values[nextIndex];
-  if (!next) return;
   const root = event.currentTarget;
-  onChange(next);
-  requestAnimationFrame(() => {
-    Array.from(root.querySelectorAll<HTMLButtonElement>("button[data-value]"))
-      .find((button) => button.dataset.value === next)
-      ?.focus();
-  });
+  const focus = (accepted: void | boolean) => {
+    if (accepted === false) return;
+    requestAnimationFrame(() => {
+      if (!root.isConnected) return;
+      Array.from(root.querySelectorAll<HTMLButtonElement>("button[data-value]"))
+        .find(button => button.dataset.value === next)?.focus();
+    });
+  };
+  const result = onChange(next);
+  if (result instanceof Promise) void result.then(focus);
+  else focus(result);
 }
 
 export function DropdownMenu({
@@ -175,18 +172,10 @@ export function DropdownMenu({
     return () => cancelAnimationFrame(frame);
   }, [open, visible]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      closeMenu(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [closeMenu, open]);
+  useDismissableLayer({
+    open, contentRefs: [rootRef, menuRef], triggerRef, restoreFocus: false,
+    onDismiss: reason => closeMenu(reason === "escape")
+  });
 
   useEffect(() => {
     if (open || visible || !restoreFocusRef.current) return;

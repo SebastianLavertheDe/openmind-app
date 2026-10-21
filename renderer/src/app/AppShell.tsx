@@ -26,7 +26,6 @@ export function AppShell({
   navCollapsed,
   setNavCollapsed,
   repoRoot,
-  runtime,
   environment,
   pendingApprovals,
   aiSessionOpen,
@@ -43,7 +42,6 @@ export function AppShell({
   navCollapsed: boolean;
   setNavCollapsed(value: boolean): void;
   repoRoot: string;
-  runtime: string;
   environment: AppEnvironment;
   pendingApprovals: number;
   aiSessionOpen?: boolean;
@@ -230,10 +228,6 @@ export function AppShell({
             })()}
           </nav>
         </div>
-        <footer className="app-project-status">
-          <Boxes size={16} />
-          <div><strong>{runtime}</strong><span title={repoRoot}>{repoRoot}</span></div>
-        </footer>
       </aside> : null}
       <section className={`app-stage${showGlobalToolbar ? "" : " app-stage-without-toolbar"}`}>
         {showGlobalToolbar ? <header className="global-toolbar">

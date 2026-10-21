@@ -1,8 +1,10 @@
+import { IconButton } from "../../design-system/IconButton";
+import { Dialog } from "../../design-system/Dialog";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
-import { useModalFocusScope, Textarea, Input } from "../../design-system/components";
+import { Textarea, Input } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 
 export function ProjectDialog({
@@ -34,12 +36,13 @@ export function ProjectDialog({
 }) {
   useLocale();
   const dialogRef = useRef<HTMLElement>(null);
+  const titleId = useId();
   const { visible, leaving } = useExitPresence(open, 160);
   const [stashed, setStashed] = useState({ title, description, confirmLabel, cancelLabel, children });
   useEffect(() => {
     if (open) setStashed({ title, description, confirmLabel, cancelLabel, children });
   }, [cancelLabel, children, confirmLabel, description, open, title]);
-  useModalFocusScope({ open: open && visible, containerRef: dialogRef, onDismiss: onClose, layer: "global" });
+
   if (!visible) return null;
   const content = open ? { title, description, confirmLabel, cancelLabel, children } : stashed;
   const submit = (event: FormEvent) => {
@@ -47,18 +50,11 @@ export function ProjectDialog({
     if (!busy) void onConfirm();
   };
   return (
-    <div
-      className={`project-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`}
-      data-leaving={leaving || undefined}
-      aria-hidden={leaving || undefined}
-      inert={leaving || undefined}
-      onMouseDown={onClose}
-    >
-      <section ref={dialogRef} className={`project-dialog${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}>
+    <Dialog as="section" open={open} presence={{ visible, leaving }} onClose={onClose} portal={false} backdropClassName={`project-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`} containerRef={dialogRef} className={`project-dialog${className ? ` ${className}` : ""}`} aria-labelledby={titleId} role="dialog">
         <form onSubmit={submit}>
           <header>
-            <div><h2 id="project-dialog-title">{content.title}</h2>{content.description ? <p>{content.description}</p> : null}</div>
-            <button type="button" className="icon-button" aria-label={messages.projectUi.close} onClick={onClose}><X size={16} /></button>
+            <div><h2 id={titleId}>{content.title}</h2>{content.description ? <p>{content.description}</p> : null}</div>
+            <IconButton type="button" className="icon-button" onClick={onClose} label={messages.projectUi.close}><X size={16} /></IconButton>
           </header>
           <div className="project-dialog-body">{content.children}</div>
           {showFooter ? <footer>
@@ -66,8 +62,7 @@ export function ProjectDialog({
             <button type="submit" className="primary-button" disabled={busy} aria-busy={busy || undefined}>{busy ? messages.projectUi.processing : content.confirmLabel}</button>
           </footer> : null}
         </form>
-      </section>
-    </div>
+      </Dialog>
   );
 }
 

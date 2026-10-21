@@ -550,16 +550,15 @@
 }
 
 .skills-source-rules {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 16px;
+  display: block;
   margin-top: 14px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--panel-muted) 42%, var(--panel));
 }
-.skills-source-rules > div { min-width: 0; display: flex; align-items: baseline; gap: 9px; }
+.skills-source-rules > .ui-disclosure-trigger { grid-column: 1 / -1; width: 100%; min-width: 0; justify-content: space-between; gap: 16px; }
+.skills-source-rules-summary { min-width: 0; display: flex; align-items: baseline; gap: 9px; }
+.skills-source-rules > .ui-disclosure-content { grid-column: 1 / -1; }
 .skills-source-rules strong { color: var(--text-dim); font-size: var(--fs-xs); font-weight: 600; }
 .skills-source-rules span { overflow: hidden; color: var(--muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
 .skills-source-rules p { grid-column: 1 / -1; margin: 0; padding-top: 9px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-xs); line-height: 1.55; }
@@ -829,7 +828,7 @@
   .skills-source-row { padding-inline: 7px; }
   .skills-source-rules { grid-template-columns: 1fr; }
   .skills-source-rules button { justify-self: start; }
-  .skills-source-rules > div { display: grid; gap: 4px; }
+  .skills-source-rules-summary { display: grid; gap: 4px; }
   .skills-source-rules span { white-space: normal; }
   .skills-availability { grid-template-columns: 1fr; }
   .skills-availability-control { justify-content: space-between; }

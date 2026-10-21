@@ -1,3 +1,4 @@
+import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
@@ -327,12 +328,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         </div>
         {/* P1-CHAT-2: compact jump-to-bottom control */}
         {jumpBottomPresence.visible ? (
-          <button
-            type="button"
-            className="jump-bottom"
-            data-leaving={jumpBottomPresence.leaving || undefined}
-            aria-label={m.ai.chat.jumpToBottom}
-            onClick={() => {
+          <IconButton type="button" className="jump-bottom" data-leaving={jumpBottomPresence.leaving || undefined} onClick={() => {
               const target = scroller.current;
               if (!target) return;
               followLatest.current = true;
@@ -342,10 +338,9 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
                 follow: true
               });
               target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
-            }}
-          >
+            }} label={m.ai.chat.jumpToBottom}>
             <ArrowDown size={16} strokeWidth={1.8} aria-hidden />
-          </button>
+          </IconButton>
         ) : null}
       </div>
       <div className="chat-bottom-stack">
@@ -568,7 +563,7 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
     });
     if (images.length) result.push({ type: "image-artifacts", key: `image-artifacts:${run.id}`, run, images });
     if (finalResponse) result.push(finalResponse);
-    if (artifactEvents.length || run.changeSet?.files.length) {
+    if (finalResponse && (artifactEvents.length || run.changeSet?.files.length)) {
       result.push({
         type: "changes-artifact",
         key: `changes-artifact:${run.id}`,
