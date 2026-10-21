@@ -1,21 +1,24 @@
 import { useLocale } from "../../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, Video } from "lucide-react";
+import { ExternalLink, RefreshCw, Video } from "lucide-react";
 import { EmptyState } from "../../../design-system/components";
 import { useContainerLayoutMode } from "../../../design-system/use-container-layout-mode";
 import type { VideoPreviewResource } from "../model";
 
 export const VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE = 720;
 
-export function VideoPreview({ resource, onOpenExternal }: {
+export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retryingTranscript = false }: {
   resource: VideoPreviewResource;
   onOpenExternal?(): void;
+  onRetryTranscript?(): void;
+  retryingTranscript?: boolean;
 }) {
   const locale = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const layout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE });
   const [currentMs, setCurrentMs] = useState(0);
+  const [playerError, setPlayerError] = useState(false);
   const embedUrl = trustedYoutubeEmbedUrl(resource);
   const embedOrigin = useMemo(() => {
     if (!embedUrl) return null;
@@ -28,9 +31,10 @@ export function VideoPreview({ resource, onOpenExternal }: {
       if (event.origin !== embedOrigin || event.source !== frameRef.current?.contentWindow) return;
       try {
         const payload = typeof event.data === "string"
-          ? JSON.parse(event.data) as { event?: string; info?: { currentTime?: unknown } }
-          : event.data as { event?: string; info?: { currentTime?: unknown } };
-        const currentTime = payload?.event === "infoDelivery" ? payload.info?.currentTime : undefined;
+          ? JSON.parse(event.data) as { event?: string; info?: number | { currentTime?: unknown } }
+          : event.data as { event?: string; info?: number | { currentTime?: unknown } };
+        if (payload?.event === "onError" && typeof payload.info === "number") setPlayerError(true);
+        const currentTime = payload?.event === "infoDelivery" && typeof payload.info === "object" ? payload.info?.currentTime : undefined;
         if (typeof currentTime === "number" && Number.isFinite(currentTime)) setCurrentMs(currentTime * 1000);
       } catch {
         // Ignore unrelated messages from the already validated player origin.
@@ -46,6 +50,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
       event: "listening",
       id: `file-preview-video-${resource.id}`
     }), embedOrigin);
+    frameRef.current.contentWindow.postMessage(JSON.stringify({ event: "command", func: "addEventListener", args: ["onError"] }), embedOrigin);
   };
 
   const seek = (milliseconds: number) => {
@@ -60,7 +65,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
   };
 
   return (
-    <div ref={layout.ref} className={`project-video-layout layout-${layout.mode}`} data-layout-width={layout.inlineSize ? Math.round(layout.inlineSize) : undefined}>
+    <div ref={layout.ref} className={`project-video-layout layout-${layout.mode}${resource.transcript.length ? "" : " has-no-transcript"}`} data-layout-width={layout.inlineSize ? Math.round(layout.inlineSize) : undefined}>
       <div className="project-video-detail">
         <div className="project-video-media-column">
           <section className="project-video-player">
@@ -70,6 +75,7 @@ export function VideoPreview({ resource, onOpenExternal }: {
                 title={resource.title}
                 src={embedUrl}
                 onLoad={connectEmbeddedPlayer}
+                referrerPolicy="strict-origin-when-cross-origin"
                 sandbox="allow-scripts allow-same-origin allow-presentation"
                 allow="autoplay; encrypted-media; picture-in-picture"
                 allowFullScreen
@@ -83,11 +89,16 @@ export function VideoPreview({ resource, onOpenExternal }: {
               </div>
             )}
           </section>
+          {embedUrl && onOpenExternal ? <div className="project-video-playback-help" role={playerError ? "status" : undefined}>
+            <p>{playerError ? uiMessages.interface.youtubePlaybackFailed : uiMessages.interface.youtubePlaybackHint}</p>
+            <button type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button>
+          </div> : null}
         </div>
         <div className="project-video-inspector-column">
           <section className="project-transcript project-video-inspector">
             <div className="project-transcript-list">
-              {!resource.transcript.length ? <EmptyState title={uiMessages.interface.noTranscript} description={uiMessages.interface.transcriptUnavailable} /> : null}
+              {!resource.transcript.length ? <EmptyState title={uiMessages.interface.transcriptNotFetched} description={resource.warnings?.join("\n") || uiMessages.interface.transcriptFetchHint}
+                action={onRetryTranscript ? <button type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} className={retryingTranscript ? "spin" : undefined} />{retryingTranscript ? uiMessages.interface.fetchingTranscript : uiMessages.interface.retryTranscript}</button> : undefined} /> : null}
               {resource.transcript.map((item) => {
                 const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
                 return (

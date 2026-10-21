@@ -53,7 +53,6 @@ export function ReasoningCard({
   const provider = events[0]?.provider;
   const label = streaming || pending ? m.ai.thought.thinking : provider === "codex" ? m.ai.thought.codexSummary : m.ai.thought.process;
   const elapsed = formatDuration(startTime.current, new Date(liveNow).toISOString());
-  const chars = content.length;
   const preview = hasContent && !open ? firstLine(content) : "";
 
   // pending 态：思考中但还没内容
@@ -69,7 +68,6 @@ export function ReasoningCard({
     );
   }
 
-  const meta = streaming ? null : m.ai.common.chars(chars);
   const title = streaming ? <strong>{m.ai.thought.streaming}</strong> : preview ? <small>{preview}</small> : null;
   return (
     <AnimatedDisclosure
@@ -81,7 +79,6 @@ export function ReasoningCard({
         <>
           {streaming ? <LoaderCircle className="spin" size={14} /> : <BrainCircuit size={14} />}
           <span className="reasoning-title">{title}</span>
-          {meta ? <span className="reasoning-meta">{meta}</span> : null}
         </>
       }
     >

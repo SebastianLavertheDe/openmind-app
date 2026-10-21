@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, net, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -248,7 +248,7 @@ function ensureProjectService(): ProjectService {
   if (!projectService || projectServiceRoot !== openmindRoot) {
     projectService = new ProjectService(openmindRoot, {
       stateRoot: resolveAiStateRoot(),
-      materialConverters: createDefaultProjectMaterialConverters()
+      materialConverters: createDefaultProjectMaterialConverters({ video: { youtubeFetch: (input, init) => net.fetch(input instanceof URL ? input.toString() : input, init) } })
     });
     projectServiceRoot = openmindRoot;
   }

@@ -20,10 +20,18 @@ describe("useVirtualFlow resize measurement", () => {
     act(() => result.current.ref(flow));
     act(() => host.dispatchEvent(new Event("scroll")));
     expect(measure).not.toHaveBeenCalled();
+    expect(flow.style.height).toBe("");
     rerender({ count: 100 });
     expect(measure).toHaveBeenCalled();
     expect(result.current.width).toBe(440);
+    const row = document.createElement("div");
+    row.style.transform = "translate3d(0, 500px, 0)";
+    flow.append(row);
+    flow.style.height = "1000px";
     rerender({ count: 10 });
+    act(() => result.current.ref(flow));
+    expect(flow.style.height).toBe("");
+    expect(row.style.transform).toBe("");
     measure.mockClear();
     act(() => host.dispatchEvent(new Event("scroll")));
     expect(measure).not.toHaveBeenCalled();
@@ -102,5 +110,20 @@ describe("useVirtualFlow resize measurement", () => {
       "translate3d(0, 150px, 0)"
     ]);
     expect(container.style.height).toBe("170px");
+
+    // A drag can finish at its original width without changing cached sizes.
+    // Settling still has to replace the temporary positions and total height.
+    for (const row of container.children) (row as HTMLElement).getBoundingClientRect = () => ({ height: 50 }) as DOMRect;
+    reflowMountedVirtualRows({
+      container,
+      items: heights.map((_, index) => ({ index, key: `row-${index}`, start: index * 50, size: 50 })),
+      cachedSizes: new Map(heights.map((_, index) => [`row-${index}`, 50])),
+      scrollMargin: 0,
+      totalSize: 150
+    });
+    expect(Array.from(container.children, row => (row as HTMLElement).style.transform)).toEqual([
+      "translate3d(0, 0px, 0)", "translate3d(0, 50px, 0)", "translate3d(0, 100px, 0)"
+    ]);
+    expect(container.style.height).toBe("150px");
   });
 });

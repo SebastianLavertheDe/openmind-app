@@ -92,6 +92,7 @@ export function projectMaterialVideoResource(material: ProjectMaterial, logicalP
     title: material.title,
     playback,
     transcript,
+    warnings: video?.warnings,
     durationMs: video?.durationMs
   };
 }

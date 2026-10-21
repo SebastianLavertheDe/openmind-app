@@ -39,6 +39,7 @@ export type ProjectVideo = {
   mediaUrl?: string;
   posterUrl?: string;
   transcript?: ProjectTranscriptSegment[];
+  warnings?: string[];
 };
 
 export type ProjectMaterial = {

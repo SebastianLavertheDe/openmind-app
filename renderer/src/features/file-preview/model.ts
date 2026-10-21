@@ -42,6 +42,7 @@ export type VideoPreviewResource = {
   title: string;
   playback: VideoPlayback;
   transcript: PreviewTranscriptSegment[];
+  warnings?: string[];
   durationMs?: number;
 };
 

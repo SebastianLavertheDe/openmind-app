@@ -9,7 +9,7 @@ import type {
 // process even though document conversion runs in a worker thread.
 import { SUPPORTED_DOCUMENT_EXTENSIONS } from "./document-extensions";
 import { convertDocumentInWorker } from "./document-converter";
-import { convertVideoUrlToMarkdown, extractYoutubeVideoId } from "./video-converter";
+import { convertVideoUrlToMarkdown, extractYoutubeVideoId, type VideoConversionOptions } from "./video-converter";
 import { convertWebPageToMarkdown } from "./web-converter";
 
 function sourceStem(source: ProjectMaterialConversionSource): string {
@@ -55,6 +55,7 @@ export class DocumentProjectMaterialConverter implements ProjectMaterialConverte
 
 export class VideoProjectMaterialConverter implements ProjectMaterialConverter {
   readonly id = "project-video-markdown-v1";
+  constructor(private readonly options: VideoConversionOptions = {}) {}
 
   supports(source: ProjectMaterialConversionSource): boolean {
     return source.type === "url" && Boolean(extractYoutubeVideoId(source.url) || isDirectVideoUrl(source.url));
@@ -72,7 +73,7 @@ export class VideoProjectMaterialConverter implements ProjectMaterialConverter {
 
   async convert(request: Parameters<ProjectMaterialConverter["convert"]>[0]) {
     if (request.source.type !== "url") throw new Error("视频转换器缺少 URL");
-    const result = await convertVideoUrlToMarkdown(request.source.url);
+    const result = await convertVideoUrlToMarkdown(request.source.url, this.options);
     return { content: result.markdown, mimeType: "text/markdown", title: result.video.title };
   }
 }
@@ -101,10 +102,10 @@ export class WebProjectMaterialConverter implements ProjectMaterialConverter {
   }
 }
 
-export function createDefaultProjectMaterialConverters(): ProjectMaterialConverter[] {
+export function createDefaultProjectMaterialConverters(options: { video?: VideoConversionOptions } = {}): ProjectMaterialConverter[] {
   return [
     new DocumentProjectMaterialConverter(),
-    new VideoProjectMaterialConverter(),
+    new VideoProjectMaterialConverter(options.video),
     new WebProjectMaterialConverter()
   ];
 }

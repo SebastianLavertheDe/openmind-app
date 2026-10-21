@@ -10,12 +10,14 @@ import { ImagePreview } from "./renderers/ImagePreview";
 const PdfPreview = lazy(() => import("./renderers/PdfPreview"));
 const VideoPreview = lazy(() => import("./renderers/VideoPreview"));
 
-export function PreviewRenderer({ resource, content, layout = "file", onError, onOpenExternal }: {
+export function PreviewRenderer({ resource, content, layout = "file", onError, onOpenExternal, onRetryTranscript, retryingTranscript }: {
   resource: PreviewResource;
   content?: string;
   layout?: MarkdownReaderLayout;
   onError?(message: string): void;
   onOpenExternal?(): void;
+  onRetryTranscript?(): void;
+  retryingTranscript?: boolean;
 }) {
   useLocale();
   switch (resource.kind) {
@@ -26,7 +28,7 @@ export function PreviewRenderer({ resource, content, layout = "file", onError, o
     case "pdf":
       return <Suspense fallback={<div className="preview-state">{uiMessages.interface.loadingPdf}</div>}><PdfPreview resource={resource} onError={onError} /></Suspense>;
     case "video":
-      return <Suspense fallback={<div className="preview-state">{uiMessages.interface.loadingVideo}</div>}><VideoPreview key={resource.id} resource={resource} onOpenExternal={onOpenExternal} /></Suspense>;
+      return <Suspense fallback={<div className="preview-state">{uiMessages.interface.loadingVideo}</div>}><VideoPreview key={resource.id} resource={resource} onOpenExternal={onOpenExternal} onRetryTranscript={onRetryTranscript} retryingTranscript={retryingTranscript} /></Suspense>;
     case "unsupported":
       return <UnsupportedPreview resource={resource} />;
     default:

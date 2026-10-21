@@ -144,6 +144,16 @@ export function useVirtualFlow({ count, keyAt, estimate, pinned = [], enabled = 
       const sizes = Array.from(element.children, node => ({ index: Number((node as HTMLElement).dataset.index), height: node.getBoundingClientRect().height }));
       instanceRef.current.measure();
       for (const size of sizes) if (Number.isFinite(size.index)) instanceRef.current.resizeItem(size.index, size.height);
+      // Drag reflow writes positions outside the virtualizer's DOM cache. Even
+      // if the final sizes match that cache, restore every mounted position.
+      const instance = instanceRef.current;
+      reflowMountedVirtualRows({
+        container: element,
+        items: instance.getVirtualItems(),
+        cachedSizes: instance.itemSizeCache,
+        scrollMargin: instance.options.scrollMargin,
+        totalSize: instance.getTotalSize()
+      });
     };
     const update = () => {
       frame = 0;
@@ -217,7 +227,14 @@ export function useVirtualFlow({ count, keyAt, estimate, pinned = [], enabled = 
     };
   }, [element, enabled, count, keyAt]);
   const ref = useCallback((node: HTMLDivElement | null) => {
-    elementRef.current = node; setElement(node); virtualizer.containerRef(node);
-  }, [virtualizer]);
+    elementRef.current = node; setElement(node);
+    // The virtualizer exclusively owns inline geometry in virtual mode.
+    // Returning to normal flow must also clear geometry on reused DOM nodes.
+    virtualizer.containerRef(enabled ? node : null);
+    if (node && !enabled) {
+      node.style.removeProperty("height");
+      for (const child of node.children) if (child instanceof HTMLElement) child.style.removeProperty("transform");
+    }
+  }, [enabled, virtualizer]);
   return { ref, element, virtualizer, measureElement: virtualizer.measureElement, enabled, width: geometry.width, margin: geometry.margin, scroll };
 }

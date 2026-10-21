@@ -201,6 +201,11 @@
   margin: 2px 10px;
   padding: 0 8px;
 }
+
+.project-list-pane[data-view="projects"] > .project-pane-filter {
+  margin-top: 12px;
+}
+
 .project-pane-filter input {
   min-width: 0;
   flex: 1;
@@ -785,6 +790,19 @@
 .project-video-layout.layout-stacked .project-video-inspector-column { display: block; overflow: visible; }
 .project-video-layout.layout-stacked .project-video-player { padding-bottom: 14px; }
 .project-video-layout.layout-stacked .project-video-inspector { min-height: 360px; }
+
+.project-video-media-column { grid-template-rows: minmax(0, 1fr) auto; }
+.project-video-playback-help { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 0 18px 14px; color: var(--muted); font-size: var(--fs-xs); }
+.project-video-playback-help p { flex: 1 1 240px; margin: 0; line-height: 1.5; }
+.project-video-playback-help button,
+.project-transcript-list > .ui-empty-state button { display: inline-flex; align-items: center; gap: 6px; }
+.project-video-layout.has-no-transcript { overflow-y: auto; background: var(--panel); }
+.project-video-layout.has-no-transcript .project-video-detail { height: auto; min-height: 100%; display: block; overflow: visible; background: var(--panel); }
+.project-video-layout.has-no-transcript .project-video-media-column,
+.project-video-layout.has-no-transcript .project-video-inspector-column { display: block; overflow: visible; }
+.project-video-layout.has-no-transcript .project-video-media-column { max-width: 960px; margin-inline: auto; }
+.project-video-layout.has-no-transcript .project-video-inspector { min-height: 0; }
+.project-video-layout.has-no-transcript .project-transcript-list > .ui-empty-state { min-height: 0; padding: 24px 18px; }
 
 /* Project files and the AI companion form one continuous resizable canvas.
    The existing shell ratio is the outer YouMind-style divider; the video

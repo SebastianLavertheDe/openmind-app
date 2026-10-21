@@ -157,11 +157,10 @@ export const DocumentReader = memo(function DocumentReader({ content, className 
     </div> : null}
     {error ? <p role="alert">{error}</p> : !model ? <p role="status">{uiMessages.interface.openingDocument}</p> : null}
     <CodeTextContext.Provider value={model?.code || emptyCode}>
-    <div ref={flow.ref} className={`document-flow${flow.enabled ? " is-virtual" : ""}`} style={flow.enabled ? { height: flow.virtualizer.getTotalSize() } : undefined}>
+    <div ref={flow.ref} className={`document-flow${flow.enabled ? " is-virtual" : ""}`}>
       {visible.map(item => <div key={item.key} data-index={item.index} data-document-block={item.index}
         ref={flow.enabled ? flow.measureElement : undefined}
-        className={`document-block${blocks[item.index].continuation ? " is-continuation" : ""}${blocks[item.index + 1]?.continuation ? " has-continuation" : ""}`}
-        style={flow.enabled ? { transform: `translateY(${item.start - flow.margin}px)` } : undefined}>
+        className={`document-block${blocks[item.index].continuation ? " is-continuation" : ""}${blocks[item.index + 1]?.continuation ? " has-continuation" : ""}`}>
         <BlockView block={blocks[item.index]} custom={customComponents}/>
       </div>)}
     </div>

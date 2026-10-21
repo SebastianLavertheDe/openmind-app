@@ -30,6 +30,7 @@ type CommandGroupProps = {
   calls: CommandCall[];
   runStatus?: RunStatus;
   standaloneWhenSingle?: boolean;
+  flat?: boolean;
 };
 type ToolCallCardProps = {
   events: AiEvent[];
@@ -52,7 +53,8 @@ function useStableEventSequence(events: AiEvent[]): AiEvent[] {
 export const CommandGroup = memo(function CommandGroup({
   calls,
   runStatus,
-  standaloneWhenSingle = false
+  standaloneWhenSingle = false,
+  flat = false
 }: CommandGroupProps) {
   const locale = useLocale();
   const callStates = calls.map((call) => ({ call, state: toolCallState(call.events, runStatus) }));
@@ -81,7 +83,7 @@ export const CommandGroup = memo(function CommandGroup({
     if (!nextOpen) setExpandedKeys(new Set());
   };
 
-  if (standaloneWhenSingle && calls.length === 1) {
+  if (!flat && standaloneWhenSingle && calls.length === 1) {
     const call = calls[0];
     return (
       <ToolCallCard
@@ -101,6 +103,30 @@ export const CommandGroup = memo(function CommandGroup({
   const groupClass = groupState === "incomplete"
     ? "failed incomplete"
     : groupState === "conflicted" ? "failed conflicted" : groupState;
+  const list = calls.length > 40 ? <VirtualCommandList
+    calls={calls}
+    runStatus={runStatus}
+    expandedKeys={expandedKeys}
+    onOpenChange={setCallOpen}
+    label={accessibleLabel}
+  /> : <div
+    className="command-group-list"
+    role={calls.length > 8 ? "region" : undefined}
+    aria-label={calls.length > 8 ? accessibleLabel : undefined}
+    tabIndex={calls.length > 8 ? 0 : undefined}
+  >
+    {calls.map((call) => (
+      <ToolCallCard
+        key={call.key}
+        events={call.events}
+        runStatus={runStatus}
+        grouped
+        open={expandedKeys.has(call.key)}
+        onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
+      />
+    ))}
+  </div>;
+  if (flat) return <div className={`command-group flat ${groupClass}`}>{list}</div>;
   return (
     <AnimatedDisclosure
       className={`command-group ${commandsOnly ? "commands" : "tools"} ${groupClass}`}
@@ -119,33 +145,12 @@ export const CommandGroup = memo(function CommandGroup({
         </>
       }
     >
-      {calls.length > 40 ? <VirtualCommandList
-        calls={calls}
-        runStatus={runStatus}
-        expandedKeys={expandedKeys}
-        onOpenChange={setCallOpen}
-        label={accessibleLabel}
-      /> : <div
-        className="command-group-list"
-        role={calls.length > 8 ? "region" : undefined}
-        aria-label={calls.length > 8 ? accessibleLabel : undefined}
-        tabIndex={calls.length > 8 ? 0 : undefined}
-      >
-        {calls.map((call) => (
-          <ToolCallCard
-            key={call.key}
-            events={call.events}
-            runStatus={runStatus}
-            grouped
-            open={expandedKeys.has(call.key)}
-            onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
-          />
-        ))}
-      </div>}
+      {list}
     </AnimatedDisclosure>
   );
 }, (previous, next) => previous.runStatus === next.runStatus
   && previous.standaloneWhenSingle === next.standaloneWhenSingle
+  && previous.flat === next.flat
   && previous.calls.length === next.calls.length
   && previous.calls.every((call, index) => call.key === next.calls[index].key
     && sameEventSequence(call.events, next.calls[index].events)));

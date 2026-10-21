@@ -180,7 +180,8 @@ export const ProjectVideoReadMetadataSchema = z.object({
   durationMs: z.number().int().nonnegative().nullable().default(null),
   thumbnailUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }).nullable().default(null),
   transcript: z.array(ProjectVideoTranscriptSegmentSchema).max(100_000).default([]),
-  transcriptSource: z.string().min(1).max(80).nullable().default(null)
+  transcriptSource: z.string().min(1).max(80).nullable().default(null),
+  warnings: z.array(z.string().max(4_000)).max(100).default([])
 });
 export type ProjectVideoReadMetadata = z.infer<typeof ProjectVideoReadMetadataSchema>;
 

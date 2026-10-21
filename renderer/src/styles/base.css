@@ -165,23 +165,13 @@ button:where(:not(.ui-select-trigger, .ui-select-option)):focus-visible, input:n
 @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes stream-blink { 50% { opacity: 0; } }
 .assistant-message .message-meta {
-  min-height: 0;
-  height: 0;
-  overflow: visible;
-  justify-content: flex-end;
+  min-height: 26px;
+  margin-top: 6px;
+  justify-content: flex-start;
   color: transparent;
   letter-spacing: 0;
 }
 .assistant-message .message-actions {
-  position: absolute;
-  z-index: 3;
-  top: -2px;
-  right: 0;
-  opacity: 0;
-}
-.assistant-message:hover .message-actions,
-.assistant-message:focus-within .message-actions,
-.assistant-message.streaming .message-actions {
   opacity: 1;
 }
 .chat-markdown { color: var(--text-dim); line-height: 1.5; }

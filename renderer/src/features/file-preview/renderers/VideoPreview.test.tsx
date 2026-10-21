@@ -35,6 +35,34 @@ describe("trustedYoutubeEmbedUrl", () => {
 });
 
 describe("VideoPreview", () => {
+  it("offers browser playback for a YouTube embed and allows retrying missing captions", () => {
+    const onOpenExternal = vi.fn();
+    const onRetryTranscript = vi.fn();
+    const video = resource("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1");
+    video.warnings = ["YouTube 要求登录或人机验证"];
+    const { container, rerender } = render(<VideoPreview resource={video} onOpenExternal={onOpenExternal} onRetryTranscript={onRetryTranscript} />);
+    expect(container.querySelector(".has-no-transcript")).toBeTruthy();
+    expect(screen.getByText("YouTube 要求登录或人机验证")).toBeTruthy();
+    expect(screen.queryByText("暂无字幕")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "浏览器打开" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新获取字幕" }));
+    expect(onOpenExternal).toHaveBeenCalledOnce();
+    expect(onRetryTranscript).toHaveBeenCalledOnce();
+    rerender(<VideoPreview resource={video} onRetryTranscript={onRetryTranscript} retryingTranscript />);
+    expect((screen.getByRole("button", { name: "正在获取字幕…" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("reports player errors only from its owned YouTube frame", () => {
+    const video = resource("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1");
+    render(<VideoPreview resource={video} onOpenExternal={() => {}} />);
+    const frame = screen.getByTitle("Video") as HTMLIFrameElement;
+    const report = (origin: string) => act(() => window.dispatchEvent(new MessageEvent("message", { origin, source: frame.contentWindow, data: JSON.stringify({ event: "onError", info: 150 }) })));
+    report("https://evil.example.com");
+    expect(screen.queryByText("当前视频无法在内嵌播放器中播放，请在浏览器打开原视频。")).toBeNull();
+    report("https://www.youtube-nocookie.com");
+    expect(screen.getByText("当前视频无法在内嵌播放器中播放，请在浏览器打开原视频。")).toBeTruthy();
+  });
+
   it("keeps direct media external-only", () => {
     const onOpenExternal = vi.fn();
     render(<VideoPreview resource={{

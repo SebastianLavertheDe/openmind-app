@@ -176,7 +176,9 @@ export class ProjectMaterialService {
     const index = records.findIndex((item) => item.relativePath === relativePath);
     if (index < 0) throw new Error("项目资料不存在。");
     const current = records[index];
-    if (current.status !== "failed") return current;
+    const refreshingVideo = current.status === "ready" && current.kind === "video"
+      && !this.read(projectName, relativePath).video?.transcript.length;
+    if (current.status !== "failed" && !refreshingVideo) return current;
     const converter = this.converters.find((candidate) => candidate.id === current.converterId);
     if (!converter) throw new Error(`资料转换器不可用：${current.converterId || "unknown"}`);
 
@@ -236,6 +238,10 @@ export class ProjectMaterialService {
       this.replaceRecord(projectName, relativePath, ready);
       return ready;
     } catch (error) {
+      if (refreshingVideo) {
+        this.replaceRecord(projectName, relativePath, current);
+        throw error;
+      }
       return this.markFailed(projectName, relativePath, error);
     } finally {
       this.endActiveConversion(lease);

@@ -1467,6 +1467,10 @@
   min-width: 112px;
 }
 
+.settings-preference-control > .settings-permission-select {
+  min-width: 0;
+}
+
 .settings-preference-control .ui-select-trigger,
 .settings-inline-controls .ui-select-trigger {
   min-height: 34px;

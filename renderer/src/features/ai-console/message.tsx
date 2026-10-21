@@ -89,6 +89,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   return (
     <article className={`message assistant-message${streaming ? " streaming" : ""}`}>
       <div className="message-body">
+        {parsedBlocks
+          ? <AssistantContent blocks={parsedBlocks} streaming={streaming} />
+          : <ChatMarkdown text={text} streaming={streaming} />}
         <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>
@@ -99,9 +102,6 @@ export const AssistantMessage = memo(function AssistantMessage({
             </>
           )}
         </MessageMeta>
-        {parsedBlocks
-          ? <AssistantContent blocks={parsedBlocks} streaming={streaming} />
-          : <ChatMarkdown text={text} streaming={streaming} />}
       </div>
     </article>
   );

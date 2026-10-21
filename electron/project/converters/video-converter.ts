@@ -1,7 +1,6 @@
 import path from "node:path";
-import { YoutubeTranscript, type TranscriptResponse } from "youtube-transcript";
+import { YoutubeTranscript, YoutubeTranscriptDisabledError, type TranscriptResponse } from "youtube-transcript";
 import { parsePublicHttpUrl, resolvePublicUrl, type AddressResolver } from "./public-url";
-import { safeHttpGet } from "./safe-http";
 
 export type VideoProvider = "youtube" | "direct";
 export type DirectVideoType = "mp4" | "webm" | "hls";
@@ -34,6 +33,7 @@ export type VideoConversionOptions = {
   resolver?: AddressResolver;
   preferredLanguage?: string;
   localTranscriber?: LocalVideoTranscriber;
+  youtubeFetch?: typeof globalThis.fetch;
 };
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -44,13 +44,13 @@ function isAllowedYoutubeFetchHost(hostname: string): boolean {
   return YOUTUBE_FETCH_HOSTS.some((host) => value === host || value.endsWith(`.${host}`));
 }
 
-async function youtubeProviderFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+async function youtubeProviderFetch(input: string | URL | Request, init?: RequestInit, request: typeof globalThis.fetch = fetch): Promise<Response> {
   let current = typeof input === "string" || input instanceof URL ? new URL(input.toString()) : new URL(input.url);
   for (let redirects = 0; redirects <= 3; redirects += 1) {
-    if (current.protocol !== "https:" || !isAllowedYoutubeFetchHost(current.hostname)) {
+    if (current.protocol !== "https:" || current.port || current.username || current.password || !isAllowedYoutubeFetchHost(current.hostname)) {
       throw new Error("字幕服务返回了不受信任的地址");
     }
-    const response = await fetch(current, {
+    const response = await request(current, {
       ...init,
       redirect: "manual",
       signal: init?.signal ?? AbortSignal.timeout(20_000)
@@ -117,14 +117,17 @@ function directVideoType(url: URL): DirectVideoType | null {
   return null;
 }
 
-async function getYoutubeMetadata(videoId: string): Promise<Pick<ProjectVideoDescriptor, "title" | "thumbnailUrl">> {
+async function getYoutubeMetadata(videoId: string, request?: typeof globalThis.fetch): Promise<Pick<ProjectVideoDescriptor, "title" | "thumbnailUrl">> {
   const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
   try {
-    const response = await safeHttpGet(
+    const response = await youtubeProviderFetch(
       `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(canonicalUrl)}`,
-      { maxBytes: 256 * 1024, timeoutMs: 10_000 }
+      { signal: AbortSignal.timeout(10_000) }, request
     );
-    const value = JSON.parse(response.body.toString("utf8")) as { title?: unknown; thumbnail_url?: unknown };
+    if (!response.ok) throw new Error(`YouTube HTTP ${response.status}`);
+    const body = await response.text();
+    if (body.length > 256 * 1024) throw new Error("视频信息过大");
+    const value = JSON.parse(body) as { title?: unknown; thumbnail_url?: unknown };
     return {
       title: cleanLine(typeof value.title === "string" ? value.title : "") || `YouTube ${videoId}`,
       thumbnailUrl: typeof value.thumbnail_url === "string" ? value.thumbnail_url : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
@@ -136,16 +139,36 @@ async function getYoutubeMetadata(videoId: string): Promise<Pick<ProjectVideoDes
 
 async function createYoutubeDescriptor(videoId: string, options: VideoConversionOptions): Promise<ProjectVideoDescriptor> {
   const sourceUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const metadata = await getYoutubeMetadata(videoId);
+  const metadata = await getYoutubeMetadata(videoId, options.youtubeFetch);
   const warnings: string[] = [];
   let transcript: VideoTranscriptCue[] = [];
+  let transcriptIssue = "";
   try {
     transcript = transcriptResponseToCues(await YoutubeTranscript.fetchTranscript(videoId, {
       ...(options.preferredLanguage ? { lang: options.preferredLanguage } : {}),
-      fetch: youtubeProviderFetch
+      fetch: async (input, init) => {
+        const response = await youtubeProviderFetch(input, init, options.youtubeFetch);
+        if ([403, 429].includes(response.status)) {
+          transcriptIssue = "YouTube 限制了当前字幕请求，请稍后重试；原视频可在已登录的浏览器中打开。";
+        } else if (!response.ok) {
+          transcriptIssue = `字幕请求失败（HTTP ${response.status}），请检查网络或稍后重试。`;
+        }
+        const url = typeof input === "string" || input instanceof URL ? new URL(input.toString()) : new URL(input.url);
+        if (url.pathname === "/watch" && response.ok) {
+          transcriptIssue = "";
+          const page = await response.clone().text();
+          if (/LOGIN_REQUIRED|sign in to confirm|class="g-recaptcha"/i.test(page)) {
+            transcriptIssue = "YouTube 要求登录或人机验证，当前未能获取字幕；原视频可在已登录的浏览器中打开。";
+          }
+        }
+        return response;
+      }
     }));
+    if (!transcript.length) warnings.push(transcriptIssue || "YouTube 返回了空字幕，请稍后重新获取。");
   } catch (error) {
-    warnings.push(error instanceof Error ? `未获取到平台字幕：${error.message}` : "未获取到平台字幕");
+    warnings.push(transcriptIssue || (error instanceof YoutubeTranscriptDisabledError
+      ? "YouTube 未向当前请求提供字幕，可能与登录验证或视频未公开字幕有关。可以稍后重试。"
+      : error instanceof Error ? `字幕获取失败：${error.message}` : "字幕获取失败，请检查网络后重试。"));
   }
   let transcriptSource: ProjectVideoDescriptor["transcriptSource"] = transcript.length > 0 ? "platform" : "none";
   if (transcript.length === 0 && options.localTranscriber) {
@@ -204,7 +227,8 @@ export function videoDescriptorToMarkdown(video: ProjectVideoDescriptor): string
   const transcript = video.transcript.length > 0
     ? video.transcript.map((cue) => `[${formatTimestamp(cue.startMs)}–${formatTimestamp(cue.endMs)}] ${cleanLine(cue.text)}`).join("\n\n")
     : "_（暂无字幕）_";
-  return `# ${cleanLine(video.title)}\n\n## 元数据\n\n${metadata.join("\n")}\n\n## 字幕\n\n${transcript}\n`;
+  const warnings = video.warnings.length ? `\n\n## 导入提示\n\n${video.warnings.map(warning => `- ${cleanLine(warning)}`).join("\n")}` : "";
+  return `# ${cleanLine(video.title)}\n\n## 元数据\n\n${metadata.join("\n")}${warnings}\n\n## 字幕\n\n${transcript}\n`;
 }
 
 function parseTimestamp(value: string): number | null {
@@ -252,7 +276,8 @@ export function parseVideoMarkdown(markdown: string): ProjectVideoDescriptor | n
     thumbnailUrl,
     transcript,
     transcriptSource,
-    warnings: []
+    warnings: (markdown.split(/^## 导入提示\s*$/m)[1]?.split(/^## /m)[0] || "")
+      .split(/\r?\n/).filter(line => line.startsWith("- ")).map(line => line.slice(2).trim()).filter(Boolean)
   };
 }
 

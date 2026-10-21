@@ -153,7 +153,8 @@ function video(value: unknown): ProjectVideo | undefined {
     embedUrl: optionalString(item.embedUrl),
     mediaUrl: directMediaUrl(optionalString(item.mediaUrl || item.playbackUrl || item.sourceUrl), mediaType),
     posterUrl: optionalString(item.posterUrl || item.thumbnailUrl),
-    transcript: rawTranscript.map(segment).filter((item): item is ProjectTranscriptSegment => Boolean(item))
+    transcript: rawTranscript.map(segment).filter((item): item is ProjectTranscriptSegment => Boolean(item)),
+    warnings: Array.isArray(item.warnings) ? item.warnings.filter((value): value is string => typeof value === "string") : []
   };
 }
 

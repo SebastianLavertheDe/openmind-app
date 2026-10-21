@@ -35,6 +35,35 @@ function calls(count: number): CommandCall[] {
 }
 
 describe("large command groups", () => {
+  it("shows flat tool summaries directly and opens each result independently", () => {
+    const { container, rerender } = render(<CommandGroup calls={calls(2)} runStatus="completed" />);
+    expect(container.querySelectorAll(".tool-event")).toHaveLength(0);
+    rerender(<CommandGroup calls={calls(2)} runStatus="completed" flat />);
+    expect(container.querySelector(".command-group > .ui-disclosure-trigger")).toBeNull();
+    const triggers = container.querySelectorAll<HTMLButtonElement>(".tool-event > .ui-disclosure-trigger");
+    expect(triggers).toHaveLength(2);
+    expect(container.textContent).toContain("scan-0");
+    expect(container.textContent).toContain("scan-1");
+    expect(container.textContent).not.toContain("result 0");
+    fireEvent.click(triggers[0]);
+    expect(triggers[0].getAttribute("aria-expanded")).toBe("true");
+    expect(triggers[1].getAttribute("aria-expanded")).toBe("false");
+    expect(container.textContent).toContain("result 0");
+    fireEvent.click(triggers[1]);
+    expect(triggers[0].getAttribute("aria-expanded")).toBe("true");
+    expect(container.textContent).toContain("result 1");
+  });
+
+  it("keeps flat tool histories bounded and navigable without a group header", async () => {
+    const { container } = render(<CommandGroup calls={calls(500)} runStatus="completed" flat />);
+    expect(container.querySelector(".command-group > .ui-disclosure-trigger")).toBeNull();
+    expect(container.querySelectorAll(".tool-event").length).toBeGreaterThan(5);
+    expect(container.querySelectorAll(".tool-event").length).toBeLessThan(30);
+    const list = container.querySelector<HTMLElement>(".command-group-list")!;
+    fireEvent.keyDown(list, { key: "End" });
+    await waitFor(() => expect(document.activeElement?.closest("[data-command-index]")?.getAttribute("data-command-index")).toBe("499"));
+  });
+
   it("bounds mounted cards and keeps the exit content mounted for its animation", async () => {
     const { container } = render(<CommandGroup calls={calls(500)} runStatus="completed" />);
     const trigger = container.querySelector<HTMLButtonElement>(".command-group > button")!;

@@ -7,6 +7,7 @@ import type {
   ProjectMaterialConverter
 } from "./material-service";
 import { ProjectService } from "./project-service";
+import { videoDescriptorToMarkdown } from "./converters/video-converter";
 
 const fixtures: string[] = [];
 
@@ -29,6 +30,30 @@ function fixture(options: Partial<ConstructorParameters<typeof ProjectService>[1
 }
 
 describe("ProjectService", () => {
+  it("refreshes captions on a ready video and preserves its readable material if refreshing throws", async () => {
+    let mode: "empty" | "fail" | "captions" = "empty";
+    const converter: ProjectMaterialConverter = {
+      id: "fixture-video",
+      supports: source => source.type === "url",
+      target: () => ({ kind: "video", directory: "videos", fileName: "fixture.video.md", title: "Fixture" }),
+      convert: async () => {
+        if (mode === "fail") throw new Error("Fixture offline");
+        return { content: videoDescriptorToMarkdown({ provider: "youtube", sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", videoId: "dQw4w9WgXcQ", title: "Fixture", transcript: mode === "captions" ? [{ startMs: 7000, endMs: 11000, text: "Retrieved captions" }] : [], transcriptSource: mode === "captions" ? "platform" : "none", warnings: mode === "empty" ? ["Fixture blocked"] : [] }) };
+      }
+    };
+    const { service } = fixture({ materialConverters: [converter] });
+    service.createProject({ name: "Videos" });
+    const material = await service.addProjectUrl("Videos", "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    const original = service.readProjectMaterial("Videos", material.relativePath);
+    expect(original.video?.warnings).toEqual(["Fixture blocked"]);
+    mode = "fail";
+    await expect(service.retryMaterialExtraction("Videos", material.relativePath)).rejects.toThrow("Fixture offline");
+    expect(service.readProjectMaterial("Videos", material.relativePath).content).toBe(original.content);
+    mode = "captions";
+    expect((await service.retryMaterialExtraction("Videos", material.relativePath)).status).toBe("ready");
+    expect(service.readProjectMaterial("Videos", material.relativePath).video?.transcript[0].text).toBe("Retrieved captions");
+  });
+
   it("lists summaries without task detail scans, and reuses only unchanged validated metadata", () => {
     const { service } = fixture();
     service.createProject({ name: "Summary" });

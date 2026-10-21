@@ -836,7 +836,7 @@ function ToolGroupView({ item }: { item: ToolGroupItem }) {
   return (
     <div className={`trace-step tool tool-group-step${single ? ` ${toolCategory(tool)}` : ""}`}>
       {single ? <span className="trace-step-marker">{toolIcon(tool, false, false)}</span> : null}
-      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} standaloneWhenSingle />
+      <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} flat />
     </div>
   );
 }

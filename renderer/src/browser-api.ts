@@ -312,7 +312,8 @@ export function installBrowserPreviewApi(): boolean {
       { startMs: 19_000, endMs: 25_000, text: "every once in a while a revolutionary product comes along" },
       { startMs: 26_000, endMs: 34_000, text: "today Apple is going to reinvent the phone" }
     ],
-    transcriptSource: "platform"
+    transcriptSource: "platform",
+    warnings: []
   };
   let previewProjectTasks: ProjectTask[] = [{
     taskId: "3c111111-1111-4111-8111-111111111111",
