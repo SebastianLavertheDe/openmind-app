@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { ExternalLink, Eye, Pencil, Save } from "lucide-react";
@@ -18,13 +19,13 @@ export function TopicFileWorkspace({ file, draft, mode, dirty, saving, onMode, o
           { value: "preview", label: m.creativeUi.topicFile.preview, icon: <Eye size={13} /> },
           { value: "edit", label: m.creativeUi.topicFile.edit, icon: <Pencil size={13} />, disabled: file.truncated }
         ]} />
-        <button className="topic-file-action topic-file-save-action" data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? m.creativeUi.topicFile.saving : m.creativeUi.topicFile.save}</button>
-        <button className="topic-file-action" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{m.creativeUi.topicFile.open}</button>
+        <Button className="topic-file-action topic-file-save-action" data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving || file.truncated} onClick={onSave}><Save size={14} />{saving ? m.creativeUi.topicFile.saving : m.creativeUi.topicFile.save}</Button>
+        <Button className="topic-file-action" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{m.creativeUi.topicFile.open}</Button>
       </div>
     </header>
     <div className={`creative-topic-file-content ${mode}`}>
       {file.truncated ? <p className="creative-warn">{m.creativeUi.topicFile.truncated}</p> : null}
-      {mode === "preview" ? <PreviewRenderer resource={resource} content={draft} layout="file" /> : <Textarea variant="inline" aria-label={m.creativeUi.topicFile.editAria} value={draft} spellCheck={false} onChange={(event) => onDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); onSave(); } }} />}
+      {mode === "preview" ? <PreviewRenderer resource={resource} content={draft} layout="file" /> : <Textarea variant="code" aria-label={m.creativeUi.topicFile.editAria} value={draft} spellCheck={false} onChange={(event) => onDraft(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); onSave(); } }} />}
     </div>
   </>;
 }

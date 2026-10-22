@@ -1,11 +1,13 @@
-import { IconButton } from "../../design-system/IconButton";
+import { DialogHeader } from "../../design-system/components";
+import { Button } from "../../design-system/components";
+
 import { Dialog } from "../../design-system/Dialog";
 import { useLocale } from "../../i18n";
 import { useEffect, useId, useRef, useState } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { messages } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
-import { StatusBadge, } from "../../design-system/components";
+import { StatusBadge } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { WechatAccountForm, type WechatAccountView } from "./WechatAccountForm";
@@ -30,8 +32,6 @@ export function WechatSettingsSection() {
   const { exitMs } = useMotionTokens();
   const presence = useExitPresence(editing, exitMs);
   const close = () => { if (!saving) setEditing(false); };
-
-
 
   useEffect(() => {
     let active = true;
@@ -73,21 +73,21 @@ export function WechatSettingsSection() {
             <div className="settings-resource-copy"><strong>{m.title}</strong><p>{m.description}</p>{account.configured ? <small>{account.appId}{account.author ? ` · ${account.author}` : ""}</small> : null}</div>
             <div className="settings-resource-actions">
               <StatusBadge tone={account.configured ? "success" : "neutral"}>{account.configured ? m.configured : m.unconfigured}</StatusBadge>
-              <button type="button" className="settings-subtle-action" data-motion="action" ref={triggerRef} disabled={removing} onClick={() => { setFormInstance((value) => value + 1); setEditing(true); }}>{account.configured ? m.edit : m.connect}</button>
+              <Button variant="ghost" type="button"  data-motion="action" ref={triggerRef} disabled={removing} onClick={() => { setFormInstance((value) => value + 1); setEditing(true); }}>{account.configured ? m.edit : m.connect}</Button>
             </div>
           </div>
-          {account.configured ? <div className="settings-panel-footer"><span className="wechat-account-hint">{m.storageHint}</span><button type="button" className="settings-subtle-action wechat-account-remove" data-motion="action" disabled={removing} onClick={() => void disconnect()}>{removing ? m.disconnecting : m.disconnect}</button></div> : null}
+          {account.configured ? <div className="settings-panel-footer"><span className="wechat-account-hint">{m.storageHint}</span><Button variant="ghost" type="button" className="wechat-account-remove" data-motion="action" disabled={removing} onClick={() => void disconnect()}>{removing ? m.disconnecting : m.disconnect}</Button></div> : null}
         </> : null}
         {removing && !account ? <p className="wechat-account-hint" role="status">{m.disconnecting}</p> : null}
         {error ? <div className="wechat-account-load-error"><p className="wechat-account-error" role="alert">{error}</p>{!account ? <div className="settings-resource-actions">
-          <button type="button" className="settings-subtle-action" data-motion="action" disabled={loading || removing} onClick={() => setLoadAttempt((value) => value + 1)}>{m.retry}</button>
-          <button type="button" className="settings-subtle-action wechat-account-remove" data-motion="action" disabled={loading || removing} onClick={() => void disconnect()}>{m.disconnect}</button>
+          <Button variant="ghost" type="button"  data-motion="action" disabled={loading || removing} onClick={() => setLoadAttempt((value) => value + 1)}>{m.retry}</Button>
+          <Button variant="ghost" type="button" className="wechat-account-remove" data-motion="action" disabled={loading || removing} onClick={() => void disconnect()}>{m.disconnect}</Button>
         </div> : null}</div> : null}
       </div>
     </section>
-    {presence.visible && account ? <Dialog as="section" open={editing} presence={presence} triggerRef={triggerRef} onClose={close} dismissDisabled={saving} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={dialogRef} className="settings-provider-dialog wechat-account-dialog" aria-labelledby={titleId}>
-          <header><div><h2 id={titleId}>{m.dialogTitle}</h2><p>{m.dialogDescription}</p></div><IconButton type="button" className="settings-subtle-action" data-motion="icon" disabled={saving} onClick={close} label={messages.common.close}><X size={16} aria-hidden /></IconButton></header>
-          <WechatAccountForm key={formInstance} account={account} onBusyChange={setSaving} onCancel={close} onSaved={(next) => { setAccount(next); setEditing(false); ui.notify(m.saved, "success"); }} />
+    {presence.visible && account ? <Dialog size="lg" as="section" open={editing} presence={presence} triggerRef={triggerRef} onClose={close} dismissDisabled={saving}  containerRef={dialogRef} className="wechat-account-dialog" aria-labelledby={titleId}>
+          <DialogHeader title={m.dialogTitle} titleId={titleId} description={m.dialogDescription} onClose={close} closeDisabled={saving} closeLabel={messages.common.close} />
+          <WechatAccountForm layout="dialog" key={formInstance} account={account} onBusyChange={setSaving} onCancel={close} onSaved={(next) => { setAccount(next); setEditing(false); ui.notify(m.saved, "success"); }} />
         </Dialog> : null}
   </>;
 }

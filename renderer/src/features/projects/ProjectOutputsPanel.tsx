@@ -1,3 +1,4 @@
+import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { getLocale, messages } from "@shared/messages";
@@ -251,13 +252,13 @@ export function ProjectOutputsPanel({
   const saving = preview.saving || saveState === "saving";
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton className="icon-button" onClick={() => { setCreateTitle(""); setCreateOpen(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton  onClick={() => { setCreateTitle(""); setCreateOpen(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
       <div className="project-local-count">{messages.projectUi.allOutputs}<span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? messages.projectUi.noMatchingOutputs : messages.projectUi.noOutputs} description={outputs.length ? messages.projectUi.tryAnotherTitle : messages.projectUi.outputsHint} /> : null}
-        {filtered.map((item) => <button key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
+        {filtered.map((item) => <button aria-pressed={Boolean(item.relativePath === selectedPath)} key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
           if (item.relativePath === selectedPathRef.current && previewResourceRef.current) onSelectionChange?.(item.relativePath);
           else void readOutput(item.relativePath);
         }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? messages.projectUi.fromProjectTask(formatTime(item.updatedAt)) : formatTime(item.updatedAt)}</small></span></button>)}
@@ -272,7 +273,7 @@ export function ProjectOutputsPanel({
           <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
           <div className="project-preview-mode" role="group" aria-label={messages.projectUi.documentViewMode}><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />{messages.projectUi.edit}</button></div>
           <DropdownMenu className="project-output-menu" label={<MoreHorizontal size={16} />} ariaLabel={messages.projectUi.moreOutputActions} menuLabel={messages.projectUi.outputActions} restoreFocusOnSelect={false}>
-            <button type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />{messages.projectUi.exportToWeChat}</button>
+            <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />{messages.projectUi.exportToWeChat}</MenuItem>
           </DropdownMenu>
         </div>
       </header>
@@ -282,7 +283,7 @@ export function ProjectOutputsPanel({
       </div>
     </div>
   ) : (
-    <EmptyState icon={<FileOutput size={30} />} title={messages.projectUi.selectOrCreateDocument} description={messages.projectUi.documentsStorageHint} action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} />{messages.projectUi.newDocument}</button>} />
+    <EmptyState icon={<FileOutput size={30} />} title={messages.projectUi.selectOrCreateDocument} description={messages.projectUi.documentsStorageHint} action={<Button variant="primary"  onClick={() => setCreateOpen(true)}><Plus size={15} />{messages.projectUi.newDocument}</Button>} />
   );
 
   const dialogs = (

@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { useLocale } from "../../i18n";
 import { AlertTriangle, Check, Copy, FileText, LoaderCircle } from "lucide-react";
@@ -34,10 +35,10 @@ export function ArtifactMessageBlock({
             </span>
           </div>
         </div>
-        <button type="button" className="assistant-artifact-copy" data-motion="action" aria-label={copied ? m.ai.message.copied : m.ai.message.copyArtifact} title={m.ai.message.copyArtifact} onClick={() => void copy(block.content)}>
+        <Button type="button" className="assistant-artifact-copy" data-motion="action" aria-label={copied ? m.ai.message.copied : m.ai.message.copyArtifact} title={m.ai.message.copyArtifact} onClick={() => void copy(block.content)}>
           {copied ? <Check size={14} strokeWidth={1.5} aria-hidden /> : <Copy size={14} strokeWidth={1.5} aria-hidden />}
           <span aria-live="polite">{copied ? m.ai.message.copied : m.ai.message.copy}</span>
-        </button>
+        </Button>
       </header>
       <div className="assistant-artifact-content">{children}</div>
       {block.status === "incomplete" ? (

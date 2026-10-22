@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -6,7 +7,7 @@ import type { ContextReference, CreativeProjectDetail, CreativeProjectSummary, C
 import { messages as m } from "@shared/messages";
 import { useAiActions, useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
-import { EmptyState, ErrorState, PageHeader, Skeleton, SearchInput } from "../../design-system/components";
+import { ErrorState, PageHeader, Skeleton, SearchInput } from "../../design-system/components";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { LIST_WIDTH_MAX, LIST_WIDTH_MIN } from "../../components/useListDetailLayout";
@@ -15,18 +16,7 @@ import { type EditorSelectionSnapshot, type MarkdownEditorHandle } from "./Markd
 import { FunnelBar, TodayStream } from "./stream";
 import { useTopicFileEditor } from "./use-topic-file-editor";
 import { CreativeDetailPane } from "./CreativeDetailPane";
-import {
-  type Bucket,
-  type PlatformOption,
-  type Stage,
-  type StreamFilter,
-  bucketForStage,
-  displayDate,
-  normalizeDate,
-  preferredFile,
-  stageLabel,
-  today
-} from "./types";
+import { type Bucket, type PlatformOption, type Stage, type StreamFilter, bucketForStage, displayDate, normalizeDate, preferredFile, stageLabel, today } from "./types";
 
 type TopicWithDate = CreativeTopic & { sourceDate: string; sourceLabel: string; sourceFile: string };
 
@@ -416,7 +406,7 @@ export function CreativeWorkspacePage({
           eyebrow={m.creativeUi.workspace.eyebrow}
           title={m.creativeUi.workspace.title}
           description={m.creativeUi.workspace.description}
-          actions={<button data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />{m.creativeUi.workspace.refresh}</button>}
+          actions={<Button variant="ghost" data-motion="action" aria-busy={loading || undefined} disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />{m.creativeUi.workspace.refresh}</Button>}
         />
         <FunnelBar counts={funnelCounts} active={streamFilter} onSelect={setStreamFilter} />
       </div>

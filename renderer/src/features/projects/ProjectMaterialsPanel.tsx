@@ -1,3 +1,5 @@
+import { FileDropzone } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
@@ -224,11 +226,11 @@ export function ProjectMaterialsPanel({
       onClose={() => setAddOpen(false)}
       onConfirm={addUrls}
     >
-      <button
+      <FileDropzone
         type="button"
-        className={`project-material-upload${dragOver ? " drag-over" : ""}`}
+        dragOver={dragOver}
         data-motion="action"
-        aria-label={messages.projectUi.uploadFiles}
+        label={messages.projectUi.uploadFiles}
         disabled={adding}
         onClick={() => void addFiles()}
         onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
@@ -240,7 +242,7 @@ export function ProjectMaterialsPanel({
         </span>
         <strong>{adding ? messages.projectUi.addingMaterials : messages.projectUi.dropOrUpload}</strong>
         <small>{messages.projectUi.supportedFileTypes}</small>
-      </button>
+      </FileDropzone>
       <div className="project-material-url-entry">
         <Textarea variant="inline"
           aria-label={messages.projectUi.materialUrl}
@@ -251,16 +253,16 @@ export function ProjectMaterialsPanel({
         />
         <div className="project-material-url-actions">
           <span>{links.length}/50</span>
-          <button type="submit" className="primary-button" disabled={!links.length || adding} aria-busy={adding || undefined}>
+          <Button variant="primary" type="submit"  disabled={!links.length || adding} aria-busy={adding || undefined}>
             {adding ? messages.projectUi.adding : messages.projectUi.addLinks}
-          </button>
+          </Button>
         </div>
       </div>
     </ProjectDialog>
   );
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectMaterials}</span><h2>{messages.projectUi.materials}</h2></div><IconButton className="icon-button" onClick={() => setAddOpen(true)} label={messages.projectUi.addMaterials}><Plus size={16} /></IconButton></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectMaterials}</span><h2>{messages.projectUi.materials}</h2></div><IconButton  onClick={() => setAddOpen(true)} label={messages.projectUi.addMaterials}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchMaterials} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchMaterials} />
       <SegmentedControl value={filter} onChange={setFilter} label={messages.projectUi.materialType}
         options={(["all", "document", "web", "video"] as MaterialFilter[]).map(value => ({ value, label: materialFilterLabel(value) }))} />
@@ -270,7 +272,7 @@ export function ProjectMaterialsPanel({
         {!loading && !listError && !preview.error && !filtered.length ? <EmptyState title={materials.length ? messages.projectUi.noMatchingMaterials : messages.projectUi.noMaterials} description={materials.length ? messages.projectUi.adjustMaterialSearch : messages.projectUi.addMaterialsHint} /> : null}
         {filtered.map((item) => {
           const Icon = materialIcon(item.kind);
-          return <button key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
+          return <button aria-pressed={Boolean(item.relativePath === selectedPath)} key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void openMaterial(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
         })}
       </div>
     </>
@@ -287,7 +289,7 @@ export function ProjectMaterialsPanel({
       onOpenExternal={() => void preview.source?.openExternal?.()}
     />
   ) : (
-    <EmptyState icon={<FilePlus2 size={30} />} title={messages.projectUi.selectOrAddMaterials} description={messages.projectUi.materialsStorageHint} action={<button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={15} />{messages.projectUi.addMaterials}</button>} />
+    <EmptyState icon={<FilePlus2 size={30} />} title={messages.projectUi.selectOrAddMaterials} description={messages.projectUi.materialsStorageHint} action={<Button variant="primary"  onClick={() => setAddOpen(true)}><Plus size={15} />{messages.projectUi.addMaterials}</Button>} />
   );
 
   if (hosted) {
@@ -315,7 +317,7 @@ function MaterialDetail({ material, resource, projectName, retrying, onRetry, on
         <div><span className="eyebrow">{materialKindLabel(material.kind)} · {materialStatusLabel(material.status)}</span><h2>{material.title}</h2><p title={material.relativePath}>{material.sourceUrl || material.relativePath}</p></div>
       </header>
       {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>{messages.projectUi.partialMaterialPreview}</strong><p>{messages.projectUi.truncatedMaterialHint}</p></div></div> : null}
-      {material.status === "failed" ? <div className="project-material-error"><div><strong>{messages.projectUi.materialConversionFailed}</strong><p>{material.error || messages.projectUi.noConversionResult}</p></div><button type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? messages.projectUi.retrying : messages.projectUi.retry}</button></div> : null}
+      {material.status === "failed" ? <div className="project-material-error"><div><strong>{messages.projectUi.materialConversionFailed}</strong><p>{material.error || messages.projectUi.noConversionResult}</p></div><Button variant="ghost" type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? messages.projectUi.retrying : messages.projectUi.retry}</Button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? messages.projectUi.importing : messages.projectUi.convertingToMarkdown}</strong><p>{messages.projectUi.reopenAfterConversion}</p></div></div> : null}
       {material.status === "ready" && material.kind === "video" && resource?.kind === "video" ? <PreviewRenderer resource={resource} onOpenExternal={onOpenExternal} onRetryTranscript={onRetry} retryingTranscript={retrying} /> : null}
       {material.status === "ready" && material.kind !== "video" && resource?.kind === "document" ? <DocumentMaterialDetail material={material} resource={resource} projectName={projectName} /> : null}
@@ -367,7 +369,7 @@ function PdfMaterialFrame({ projectName, material, onFallback }: { projectName: 
         <FileText size={28} />
         <strong>{messages.projectUi.pdfOriginalUnavailable}</strong>
         <p>{error}</p>
-        <button type="button" data-motion="action" onClick={onFallback}>{messages.projectUi.viewExtractedText}</button>
+        <Button variant="ghost" type="button" data-motion="action" onClick={onFallback}>{messages.projectUi.viewExtractedText}</Button>
       </div>
     );
   }

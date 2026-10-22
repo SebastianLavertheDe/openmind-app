@@ -693,7 +693,7 @@ describe("Project file selection", () => {
     fireEvent.click(within(outputMenu).getByRole("menuitem", { name: "移动到其他项目" }));
     await waitFor(() => expect(listProjects).toHaveBeenCalled());
     const moveDialog = await screen.findByRole("dialog", { name: "移动“报告”" });
-    fireEvent.change(within(moveDialog).getByLabelText("目标项目"), { target: { value: "其他项目" } });
+    fireEvent.change(within(moveDialog).getByRole("combobox", { name: "目标项目" }), { target: { value: "其他项目" } });
     fireEvent.click(within(moveDialog).getByRole("button", { name: "移动" }));
     await waitFor(() => expect(moveProjectOutput).toHaveBeenCalledWith({
       projectName: project.name,

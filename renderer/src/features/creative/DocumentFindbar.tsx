@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
@@ -22,14 +23,14 @@ export function DocumentFindbar({ search, readOnly, onQuery, onStep, onReplace, 
         if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); onStep(event.shiftKey ? -1 : 1); }
       }} />
       <span role="status">{search.matches.length ? search.index + 1 : 0} / {search.matches.length}</span>
-      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(-1)} className="" label={messages.editor.previousMatch}><ChevronUp size={16} /></IconButton>
-      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(1)} className="" label={messages.editor.nextMatch}><ChevronDown size={16} /></IconButton>
-      <IconButton type="button" data-motion="icon" onClick={onClose} className="" label={messages.editor.closeFind}><X size={16} /></IconButton>
+      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(-1)}  label={messages.editor.previousMatch}><ChevronUp size={16} /></IconButton>
+      <IconButton type="button" data-motion="icon" disabled={!search.matches.length} onClick={() => onStep(1)}  label={messages.editor.nextMatch}><ChevronDown size={16} /></IconButton>
+      <IconButton type="button" data-motion="icon" onClick={onClose}  label={messages.editor.closeFind}><X size={16} /></IconButton>
     </div>
     {!readOnly ? <div className="document-find-row">
       <Input size="sm" aria-label={messages.editor.replaceWith} placeholder={messages.editor.replaceWith} value={replacement} onChange={event => setReplacement(event.target.value)} />
-      <button type="button" data-motion="action" disabled={!search.matches.length} onClick={() => onReplace(replacement, false)}>{messages.editor.replace}</button>
-      <button type="button" data-motion="action" disabled={!search.matches.length} onClick={() => onReplace(replacement, true)}>{messages.editor.replaceAll}</button>
+      <Button variant="ghost" type="button" data-motion="action" disabled={!search.matches.length} onClick={() => onReplace(replacement, false)}>{messages.editor.replace}</Button>
+      <Button variant="ghost" type="button" data-motion="action" disabled={!search.matches.length} onClick={() => onReplace(replacement, true)}>{messages.editor.replaceAll}</Button>
     </div> : null}
   </section>;
 }

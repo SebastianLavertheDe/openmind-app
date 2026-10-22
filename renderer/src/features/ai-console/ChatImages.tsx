@@ -1,3 +1,4 @@
+import { ImageThumbnail } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -83,13 +84,13 @@ export function ChatImage({ source, title = uiMessages.interface.image }: { sour
   }, []);
   useEffect(() => gallery?.register({ id, source, title, element: button.current }), [gallery, id, source, title]);
   return <span className="chat-image-card">
-    <button ref={button} type="button" className="chat-image-thumbnail" data-motion="action"
-      aria-label={data.error ? uiMessages.interface.reloadImage(title) : uiMessages.interface.viewOriginal(title)}
+    <ImageThumbnail ref={button} type="button"  data-motion="action"
+      label={data.error ? uiMessages.interface.reloadImage(title) : uiMessages.interface.viewOriginal(title)}
       onClick={() => data.error ? setRevision(value => value + 1) : gallery?.open({ id, source, title, element: button.current })}>
       {data.data ? <img src={data.data.dataUrl} alt={title} loading="lazy" decoding="async" />
         : <span className="chat-image-placeholder" role="status">{data.error ? <><ImageOff size={22} /><span>{uiMessages.interface.imageRetry}</span></> : <LoaderCircle size={22} className="spin" />}</span>}
       {data.data ? <span className="chat-image-open"><Maximize2 size={13} />{uiMessages.interface.originalImage}</span> : null}
-    </button>
+    </ImageThumbnail>
     {data.error ? <span className="chat-image-error">{data.error}</span> : null}
   </span>;
 }

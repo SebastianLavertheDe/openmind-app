@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
@@ -90,7 +91,7 @@ export function ProjectListDetail({
           aria-hidden={detailPresence.leaving || undefined}
           inert={detailPresence.leaving || undefined}
         >
-          {single ? <button className="project-detail-back" data-motion="action" onClick={onBack}><ArrowLeft size={15} />{messages.projectUi.backToList(detailLabel)}</button> : null}
+          {single ? <Button className="project-detail-back" data-motion="action" onClick={onBack}><ArrowLeft size={15} />{messages.projectUi.backToList(detailLabel)}</Button> : null}
           {showDetail ? detail : stashedDetailRef.current}
         </section>
       ) : null}

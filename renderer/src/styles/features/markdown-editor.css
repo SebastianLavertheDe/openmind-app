@@ -25,7 +25,11 @@
   flex-shrink: 0;
   display: inline-grid;
   place-items: center;
+}
+.document-editor-toolbar button:not([data-ui-control]) {
   width: 32px;
+}
+.document-editor-toolbar button:not([data-ui-control]) {
   height: 32px;
   padding: 0;
   border: 0;
@@ -34,10 +38,10 @@
   color: var(--text-dim);
   transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
 }
-.document-editor-toolbar button:hover { background: var(--control-hover); color: var(--text); }
-.document-editor-toolbar button[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent-fg); }
-.document-editor-toolbar button:active { transform: scale(.96); }
-.document-editor-toolbar button:disabled { opacity: .45; cursor: default; }
+.document-editor-toolbar button:not([data-ui-control]):hover { background: var(--control-hover); color: var(--text); }
+.document-editor-toolbar button:not([data-ui-control])[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent-fg); }
+.document-editor-toolbar button:not([data-ui-control]):active { transform: scale(.96); }
+.document-editor-toolbar button:not([data-ui-control]):disabled { opacity: .45; cursor: default; }
 .document-toolbar-item { display: inline-flex; align-items: center; gap: 2px; }
 .document-toolbar-divider { flex-shrink: 0; height: 16px; width: 1px; margin-inline: 6px; background: var(--border); }
 .document-editor-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
@@ -125,12 +129,12 @@
 .markdown-editor-shell .milkdown .milkdown-block-handle { gap: 0; transition: opacity var(--dur-fast); }
 .markdown-editor-shell .milkdown .milkdown-block-handle .operation-item { width: 24px; height: 28px; padding: 2px; }
 .markdown-editor-shell .milkdown .milkdown-block-handle svg { width: 20px; height: 20px; }
-.document-editor-toolbar button:focus-visible,
-.markdown-editor-shell .milkdown :is(button,input,[tabindex]):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.document-editor-toolbar button:not([data-ui-control]):focus-visible,
+.markdown-editor-shell .milkdown :is(button,input,[tabindex]):not([data-ui-control]):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .document-editor-loading { position: absolute; inset: 32px auto auto 32px; color: var(--muted); font-size: 13px; }
 .document-editor-fallback { padding: 24px; }
 .document-editor-fallback p { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
-.document-editor-fallback textarea { width: 100%; min-height: 360px; padding: 20px; font: 14px/1.6 var(--font-mono); }
+.document-editor-fallback textarea { width: 100%; }
 @container (max-width: 520px) {
   .document-editor-toolbar { padding: 6px 10px; }
   .document-toolbar-divider { margin-inline: 3px; }
@@ -142,23 +146,18 @@
   .markdown-editor-shell .milkdown .milkdown-block-handle .operation-item:first-child { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .document-editor-toolbar button, .markdown-editor-shell .milkdown .milkdown-block-handle { transition: none; }
+  .document-editor-toolbar button:not([data-ui-control]), .markdown-editor-shell .milkdown .milkdown-block-handle { transition: none; }
 }
 
 /* A stable toolbar and canvas in both editing and reading modes. */
-.document-editor-toolbar .ui-dropdown-trigger { padding: 0; min-width: 32px; }
+.document-editor-toolbar .ui-dropdown-trigger { min-width: 32px; }
 .document-editor-toolbar .document-paragraph-trigger { flex-shrink: 0; }
 .document-editor-toolbar .document-paragraph-trigger .ui-dropdown-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100px;
-  padding-inline: 8px;
-  font: 400 13px/1.5 var(--font-sans);
 }
-.document-editor-toolbar .document-menu-trigger[data-open] .ui-dropdown-trigger { background: var(--control-hover); color: var(--text); }
-.document-paragraph-trigger .ui-dropdown-trigger svg { transition: transform var(--dur-fast) var(--ease-standard); }
-.document-paragraph-trigger[data-open] .ui-dropdown-trigger svg { transform: rotate(180deg); }
 .document-reading-label { color: var(--muted); font-size: 12px; }
 .document-editor-heading {
   width: min(100%, 880px);
@@ -189,18 +188,20 @@
   animation: document-tools-in var(--dur-fast) var(--ease-standard);
 }
 .document-editor-outline header { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; font-size: 13px; }
-.document-editor-outline button { border: 0; background: transparent; color: var(--text-dim); border-radius: 6px; }
-.document-editor-outline > button { flex-shrink: 0; padding: 8px 12px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.document-editor-outline button:hover { color: var(--text); background: var(--control-hover); }
+.document-editor-outline button:not([data-ui-control]) { border: 0; background: transparent; color: var(--text-dim); border-radius: 6px; }
+.document-editor-outline > button { flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; }
+.document-editor-outline > button:not([data-ui-control]) { padding: 8px 12px; text-align: left; white-space: nowrap; font-size: 13px; }
+.document-editor-outline button:not([data-ui-control]):hover { color: var(--text); background: var(--control-hover); }
 .document-editor-outline p { padding: 12px; color: var(--muted); font-size: 13px; }
 .document-editor-findbar { flex: 0 0 auto; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel); animation: document-tools-in var(--dur-fast) var(--ease-standard); }
 .document-find-row { display: flex; align-items: center; gap: 4px; }
 .document-find-row + .document-find-row { margin-top: 6px; }
-.document-find-row input { flex: 1; min-width: 0; max-width: 360px; height: 30px; padding: 4px 8px; font-size: 13px; }
+.document-find-row input { flex: 1; min-width: 0; max-width: 360px; }
 .document-find-row span { min-width: 44px; text-align: center; color: var(--muted); font-size: 12px; }
-.document-find-row button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 30px; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); font-size: 12px; }
-.document-find-row button:hover:not(:disabled) { background: var(--control-hover); }
-.document-find-row button:disabled { opacity: .4; }
+.document-find-row button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.document-find-row button:not([data-ui-control]) { min-height: 30px; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); font-size: 12px; }
+.document-find-row button:not([data-ui-control]):hover:not(:disabled) { background: var(--control-hover); }
+.document-find-row button:not([data-ui-control]):disabled { opacity: .4; }
 .document-search-match { background: color-mix(in srgb, var(--warning-400) 32%, transparent); }
 .document-search-match.is-current { background: color-mix(in srgb, var(--warning-400) 60%, transparent); outline: 1px solid var(--warning-500); }
 .document-editor-accessory { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: var(--z-overlay); pointer-events: none; }
@@ -231,5 +232,4 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .document-editor-outline, .document-editor-findbar { animation: none; }
-  .document-paragraph-trigger .ui-dropdown-trigger svg { transition: none; }
 }

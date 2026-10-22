@@ -1,3 +1,5 @@
+import { FormField } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { Select, Textarea } from "../../design-system/components";
@@ -179,20 +181,20 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
     <div className="feature-page runs-page">
       <header className="runs-page-header">
         <div><span className="eyebrow">{m.runs.eyebrow}</span><h1>{m.runs.title}</h1><p>{m.runs.description}</p></div>
-        <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void load()} disabled={loading}><RefreshCw size={14} />{m.runs.refresh}</button>
+        <Button variant="ghost" type="button"  data-motion="action" onClick={() => void load()} disabled={loading}><RefreshCw size={14} />{m.runs.refresh}</Button>
       </header>
       {error ? <p role="alert" className="runs-error">{error}</p> : null}
       <div className="runs-filterbar" aria-label={m.runs.filters.aria}>
-        <label>{m.runs.filters.type}<Select<typeof kindFilter> size="rect" ariaLabel={m.runs.filters.typeAria} value={kindFilter} onChange={setKindFilter} options={[
+        <FormField label={m.runs.filters.type}><Select<typeof kindFilter> size="rect" ariaLabel={m.runs.filters.typeAria} value={kindFilter} onChange={setKindFilter} options={[
           { value: "all", label: m.runs.filters.allTypes }, { value: "skill", label: "Skill" }, { value: "workflow", label: m.interface.workflow }
-        ]} /></label>
-        <label>{m.runs.filters.state}<Select size="rect" ariaLabel={m.runs.filters.stateAria} value={stateFilter} onChange={setStateFilter} options={[
+        ]} /></FormField>
+        <FormField label={m.runs.filters.state}><Select size="rect" ariaLabel={m.runs.filters.stateAria} value={stateFilter} onChange={setStateFilter} options={[
           { value: "all", label: m.runs.filters.allStates }, { value: "failed", label: m.runs.state.failed }, { value: "running", label: m.runs.state.running },
           { value: "succeeded", label: m.runs.state.succeeded }, { value: "timed_out", label: m.runs.state.timedOut }, { value: "cancelled", label: m.runs.state.cancelled }
-        ]} /></label>
-        <label>Skill<Select size="rect" ariaLabel={m.runs.filters.skillAria} value={skillFilter} onChange={setSkillFilter} options={[
+        ]} /></FormField>
+        <FormField label="Skill"><Select size="rect" ariaLabel={m.runs.filters.skillAria} value={skillFilter} onChange={setSkillFilter} options={[
           { value: "all", label: m.runs.filters.allSkills }, ...skillOptions.map(value => ({ value, label: value }))
-        ]} /></label>
+        ]} /></FormField>
         <span>{m.runs.filters.results(visibleEntries.length)}</span>
       </div>
       <section className="runs-layout">
@@ -201,7 +203,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
           {!loading && !visibleEntries.length ? <p className="runs-empty">{m.runs.list.empty}</p> : null}
           {visibleEntries.map((entry) => {
             const active = entryKey(entry) === selectedKey;
-            return <button key={entryKey(entry)} type="button" className={`run-list-item${active ? " active" : ""}`} data-motion="selection" onClick={() => setSelectedKey(entryKey(entry))}>
+            return <button aria-pressed={Boolean(active)} key={entryKey(entry)} type="button" className={`run-list-item${active ? " active" : ""}`} data-motion="selection" onClick={() => setSelectedKey(entryKey(entry))}>
               <span className={`run-state-dot ${stateTone(entry.record.state)}`} />
               <span className="run-list-copy"><strong>{entry.kind === "skill" ? entry.record.request.skillId : entry.record.workflowSkillId}</strong><small>{entry.kind === "skill" ? "Skill" : "Workflow"} · {stateLabel(entry.record.state)}</small></span>
               <time dateTime={entry.record.createdAt}>{formatTime(entry.record.createdAt)}</time>
@@ -214,10 +216,10 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
             <header className="run-detail-header">
               <div><span className="eyebrow">{selected.kind.toUpperCase()}</span><h2>{selected.kind === "skill" ? selected.record.request.skillId : selected.record.workflowSkillId}</h2><p>{selected.record.id}</p></div>
               <div className="run-actions">
-                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <button type="button" className="danger-button" aria-busy={selectedActionBusy === "cancel" || undefined} disabled={Boolean(actionBusy)} onClick={() => void cancel()}>{selectedActionBusy === "cancel" ? <LoaderCircle size={14} className="spin" /> : <X size={14} />}{selectedActionBusy === "cancel" ? m.runs.actions.cancelling : m.runs.actions.cancel}</button> : null}
-                {selected.kind === "skill" && canRetry(selected.record.state) ? <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={selectedActionBusy === "retry" || undefined} disabled={Boolean(actionBusy)} onClick={() => void retry()}>{selectedActionBusy === "retry" ? <LoaderCircle size={14} className="spin" /> : <RotateCcw size={14} />}{selectedActionBusy === "retry" ? m.runs.actions.retrying : m.runs.actions.retry}</button> : null}
-                {selected.kind === "workflow" && selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}><RotateCcw size={14} />{resumeBusy ? m.runs.actions.resuming : m.runs.actions.resumeWorkflow}</button> : null}
-                <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={selectedActionBusy === "delete" || undefined} disabled={Boolean(actionBusy) || resumeBusy} onClick={() => void deleteHistory()}>{selectedActionBusy === "delete" ? <LoaderCircle size={14} className="spin" /> : <Trash2 size={14} />}{selectedActionBusy === "delete" ? m.runs.actions.deleting : m.runs.actions.deleteHistory}</button>
+                {selected.kind === "skill" && !isTerminal(selected.record.state) ? <Button variant="primary" tone="danger" type="button"  aria-busy={selectedActionBusy === "cancel" || undefined} disabled={Boolean(actionBusy)} onClick={() => void cancel()}>{selectedActionBusy === "cancel" ? <LoaderCircle size={14} className="spin" /> : <X size={14} />}{selectedActionBusy === "cancel" ? m.runs.actions.cancelling : m.runs.actions.cancel}</Button> : null}
+                {selected.kind === "skill" && canRetry(selected.record.state) ? <Button variant="ghost" type="button"  data-motion="action" aria-busy={selectedActionBusy === "retry" || undefined} disabled={Boolean(actionBusy)} onClick={() => void retry()}>{selectedActionBusy === "retry" ? <LoaderCircle size={14} className="spin" /> : <RotateCcw size={14} />}{selectedActionBusy === "retry" ? m.runs.actions.retrying : m.runs.actions.retry}</Button> : null}
+                {selected.kind === "workflow" && selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <Button variant="ghost" type="button"  data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}><RotateCcw size={14} />{resumeBusy ? m.runs.actions.resuming : m.runs.actions.resumeWorkflow}</Button> : null}
+                <Button variant="ghost" type="button"  data-motion="action" aria-busy={selectedActionBusy === "delete" || undefined} disabled={Boolean(actionBusy) || resumeBusy} onClick={() => void deleteHistory()}>{selectedActionBusy === "delete" ? <LoaderCircle size={14} className="spin" /> : <Trash2 size={14} />}{selectedActionBusy === "delete" ? m.runs.actions.deleting : m.runs.actions.deleteHistory}</Button>
               </div>
             </header>
             <dl className="run-overview">
@@ -236,7 +238,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
               </section>
             ) : null}
             {selected.kind === "workflow" ? <>
-              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><Textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</button></section> : null}
+              {selected.record.error === WORKFLOW_INTERRUPTED_ERROR ? <section className="run-section run-resume-section"><h3>{m.runs.resume.title}</h3><p className="runs-muted">{m.runs.resume.body}</p><Textarea className="runs-resume-input" value={resumeInputs} onChange={(event) => setResumeInputs(event.target.value)} spellCheck={false} aria-label={m.runs.resume.aria} /><Button variant="ghost" type="button"  data-motion="action" onClick={() => void resumeWorkflow()} disabled={resumeBusy || Boolean(actionBusy)}>{resumeBusy ? m.runs.actions.resuming : m.runs.resume.action}</Button></section> : null}
               <WorkflowSteps record={selected.record} onRetry={retryStep} actionBusy={selectedActionBusy} />
             </> : <>
               <section className="run-section"><h3>{m.runs.artifacts.title}</h3><ArtifactList artifacts={selectedArtifacts} /></section>
@@ -257,7 +259,7 @@ function WorkflowSteps({ record, onRetry, actionBusy }: { record: WorkflowRunRec
   useLocale();
   return <section className="run-section"><h3>{m.interface.workflowSteps}</h3><div className="workflow-step-list">{record.stepRuns.map((step) => {
     const retrying = actionBusy === `step:${step.stepId}`;
-    return <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <button type="button" className="settings-subtle-action" data-motion="action" aria-busy={retrying || undefined} disabled={Boolean(actionBusy)} onClick={() => void onRetry(step.stepId)}>{retrying ? <LoaderCircle size={14} className="spin" /> : null}{retrying ? m.runs.retryingStep : m.runs.retryStep}</button> : null}</div>;
+    return <div key={step.stepId} className="workflow-step-row"><span className={`run-state-dot ${stateTone(step.state)}`} /><div><strong>{step.stepId}</strong><small>{step.skillId} · {stateLabel(step.state)}{step.artifacts.length ? ` · ${m.runs.artifacts.count(step.artifacts.length)}` : ""}{step.error ? ` · ${step.error}` : ""}</small></div>{step.state === "failed" ? <Button variant="ghost" type="button"  data-motion="action" aria-busy={retrying || undefined} disabled={Boolean(actionBusy)} onClick={() => void onRetry(step.stepId)}>{retrying ? <LoaderCircle size={14} className="spin" /> : null}{retrying ? m.runs.retryingStep : m.runs.retryStep}</Button> : null}</div>;
   })}</div></section>;
 }
 
@@ -272,8 +274,8 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
       <code title={location}>{location}</code>
       <small>{artifact.size == null ? "" : formatBytes(artifact.size)}{artifact.declared ? " · declared" : " · undeclared"}</small>
       {logicalPath ? <div className="artifact-actions">
-        <button type="button" data-motion="icon" aria-label={m.runs.artifacts.openAria(location)} onClick={() => void window.openmind.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />{m.runs.artifacts.open}</button>
-        <button type="button" data-motion="icon" aria-label={m.runs.artifacts.revealAria(location)} onClick={() => void window.openmind.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />{m.runs.artifacts.reveal}</button>
+        <Button variant="ghost" size="sm" type="button" data-motion="icon" aria-label={m.runs.artifacts.openAria(location)} onClick={() => void window.openmind.openPath(logicalPath)}><ExternalLink size={13} aria-hidden />{m.runs.artifacts.open}</Button>
+        <Button variant="ghost" size="sm" type="button" data-motion="icon" aria-label={m.runs.artifacts.revealAria(location)} onClick={() => void window.openmind.revealPath(logicalPath)}><FolderOpen size={13} aria-hidden />{m.runs.artifacts.reveal}</Button>
       </div> : <small className="runs-muted">{m.runs.artifacts.external}{artifact.externalPathRef || m.runs.artifacts.unavailable}</small>}
     </div>;
   })}</div>;

@@ -63,8 +63,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
 }
 
 .wechat-account-form-footer > div {
@@ -96,7 +94,6 @@
   color: var(--green);
 }
 
-.wechat-account-error,
-.wechat-account-remove {
+.wechat-account-error {
   color: var(--red);
 }

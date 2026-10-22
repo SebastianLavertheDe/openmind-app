@@ -88,7 +88,7 @@ export function ColumnSplitter({
         if (!(event.target as HTMLElement).closest("button")) startResize(event);
       }}
     >
-      <IconButton className="" label={collapsed ? m.designSystem.expandPanel : m.designSystem.collapsePanel} onClick={toggle}>{side === "left" ? (collapsed ? "›" : "‹") : (collapsed ? "‹" : "›")}</IconButton>
+      <IconButton  label={collapsed ? m.designSystem.expandPanel : m.designSystem.collapsePanel} onClick={toggle}>{side === "left" ? (collapsed ? "›" : "‹") : (collapsed ? "‹" : "›")}</IconButton>
     </div>
   );
 }

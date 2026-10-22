@@ -552,9 +552,9 @@ describe("SkillsPage", () => {
     expect(within(dialog).getByRole("button", { name: "检查 Git 来源" })).toBeTruthy();
 
     fireEvent.click(cancel);
-    await waitFor(() => expect(document.querySelector(".skills-source-dialog-scrim")?.getAttribute("data-leaving")).toBe("true"));
-    expect(document.querySelector(".skills-source-dialog-scrim")?.hasAttribute("inert")).toBe(true);
-    await waitFor(() => expect(document.querySelector(".skills-source-dialog-scrim")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-ui-dialog]")?.getAttribute("data-leaving")).toBe("true"));
+    expect(document.querySelector("[data-ui-dialog]")?.hasAttribute("inert")).toBe(true);
+    await waitFor(() => expect(document.querySelector("[data-ui-dialog]")).toBeNull());
   });
 
   it("inspects a local directory or ZIP before enabling install", async () => {

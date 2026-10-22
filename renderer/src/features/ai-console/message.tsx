@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { CopyButton } from "../../design-system/CopyButton";
 import { useLocale } from "../../i18n";
@@ -20,11 +21,7 @@ import { localFileReference, useFilePreview } from "./file-preview-context";
 import { DocumentReader, useDocumentCodeText, type ReaderComponents } from "../../components/document/DocumentReader";
 import { ArtifactMessageBlock } from "./ArtifactMessageBlock";
 import { ChatImage, ChatImageGallery } from "./ChatImages";
-import {
-  assistantBlocksVisibleText,
-  parseAssistantContent,
-  type AssistantContentBlock
-} from "./artifact-fence";
+import { assistantBlocksVisibleText, parseAssistantContent, type AssistantContentBlock } from "./artifact-fence";
 
 const MARKDOWN_CACHE_LIMIT = 96;
 const STREAMING_MARKDOWN_INTERVAL_MS = 96;
@@ -51,10 +48,10 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
         {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
             "你 + 时间"视觉隐藏，保留无障碍语义。 */}
         <MessageMeta label={m.ai.message.you} timestamp={event.timestamp} visuallyHidden>
-          <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))} className="" label={m.ai.message.quoteMessage} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton>
-          <IconButton data-motion="icon" onClick={() => actions.editRun(event.runId)} className="" label={m.ai.message.editResend}><Pencil size={13} /></IconButton>
-          <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)} className="" label={m.ai.message.branchFromMessage}><GitFork size={13} /></IconButton>
-          <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)} className="" label={m.ai.message.rerun}><Redo2 size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))}  label={m.ai.message.quoteMessage} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => actions.editRun(event.runId)}  label={m.ai.message.editResend}><Pencil size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)}  label={m.ai.message.branchFromMessage}><GitFork size={13} /></IconButton>
+          <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)}  label={m.ai.message.rerun}><Redo2 size={13} /></IconButton>
           <CopyButton text={text} />
         </MessageMeta>
       </div>
@@ -95,9 +92,9 @@ export const AssistantMessage = memo(function AssistantMessage({
         <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>
-              {event ? <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))} className="" label={m.ai.message.quoteReply} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton> : null}
-              {event ? <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)} className="" label={m.ai.message.branchFromReply}><GitFork size={13} /></IconButton> : null}
-              {event ? <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)} className="" label={m.ai.message.rerun}><Redo2 size={13} /></IconButton> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => actions.addContext(messageContext(event, text))}  label={m.ai.message.quoteReply} tooltip={m.ai.message.quote}><Quote size={13} /></IconButton> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => void actions.branchRun(event.runId)}  label={m.ai.message.branchFromReply}><GitFork size={13} /></IconButton> : null}
+              {event ? <IconButton data-motion="icon" onClick={() => void actions.rerun(event.runId)}  label={m.ai.message.rerun}><Redo2 size={13} /></IconButton> : null}
               <CopyButton text={visibleText} />
             </>
           )}
@@ -308,7 +305,7 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
   const localPath = !className && looksLikeInlinePath ? localFileReference(text) : null;
   if (!localPath) return <code {...props} className={className}>{children}</code>;
   return (
-    <button
+    <Button variant="ghost" size="sm"
       data-motion="icon"
       type="button"
       className="local-file-code"
@@ -319,7 +316,7 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
       }}
     >
       <code {...props}>{children}</code>
-    </button>
+    </Button>
   );
 }
 

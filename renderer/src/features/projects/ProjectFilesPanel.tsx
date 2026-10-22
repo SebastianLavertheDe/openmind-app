@@ -1,3 +1,5 @@
+import { FormField } from "../../design-system/components";
+import { MenuItem } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -286,7 +288,7 @@ export function ProjectFilesPanel({
               key={`${item.kind}:${item.relativePath}`}
               className={`project-file-row project-content-row${active ? " active" : ""}`}
             >
-              <button
+              <button aria-pressed={Boolean(active)}
                 type="button"
                 className={active ? "active" : ""}
                 data-motion="selection"
@@ -302,20 +304,20 @@ export function ProjectFilesPanel({
                 disabled={actionBusy === `${item.kind}:${item.relativePath}`}
                 label={<MoreHorizontal size={15} aria-hidden="true" />}
               >
-                <button type="button" role="menuitem" data-motion="action" onClick={() => { setRenameTitle(item.title); setActionError(null); setRenameTarget(item); }}>
+                <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => { setRenameTitle(item.title); setActionError(null); setRenameTarget(item); }}>
                   <PencilLine size={15} aria-hidden="true" /><span>{messages.projectUi.rename}</span>
-                </button>
-                <button type="button" role="menuitem" data-motion="action" onClick={() => void beginMove(item)}>
+                </MenuItem>
+                <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => void beginMove(item)}>
                   <FolderInput size={15} aria-hidden="true" /><span>{messages.projectUi.moveToAnotherProject}</span>
-                </button>
+                </MenuItem>
                 {item.materialKind !== "video" ? (
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => void downloadEntry(item)}>
+                  <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => void downloadEntry(item)}>
                     <Download size={15} aria-hidden="true" /><span>{messages.projectUi.download}</span>
-                  </button>
+                  </MenuItem>
                 ) : null}
-                <button type="button" role="menuitem" data-motion="action" onClick={() => void deleteEntry(item)}>
+                <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => void deleteEntry(item)}>
                   <Trash2 size={15} aria-hidden="true" /><span>{messages.projectUi.delete}</span>
-                </button>
+                </MenuItem>
               </DropdownMenu>
             </div>
           );
@@ -373,8 +375,8 @@ export function ProjectFilesPanel({
         title={messages.projectUi.rename}
         confirmLabel={messages.projectUi.confirm}
         busy={actionBusy === "rename"}
-        className="project-dialog-compact"
-        backdropClassName="project-dialog-backdrop-clear"
+        size="sm"
+
         onClose={() => setRenameTarget(null)}
         onConfirm={() => void submitRename()}
       >
@@ -387,22 +389,19 @@ export function ProjectFilesPanel({
         description={messages.projectUi.moveFileHint}
         confirmLabel={messages.projectUi.move}
         busy={actionBusy === "move"}
-        className="project-dialog-compact"
-        backdropClassName="project-dialog-backdrop-clear"
+        size="sm"
+
         onClose={() => setMoveTarget(null)}
         onConfirm={() => void submitMove()}
       >
-        <label className="project-field">
-          <span>{messages.projectUi.destinationProject}</span>
-          <Select
+        <FormField label={messages.projectUi.destinationProject}><Select
             size="rect"
             ariaLabel={messages.projectUi.destinationProject}
             value={moveDestination}
             disabled={moveOptionsLoading}
             onChange={setMoveDestination}
             options={moveOptions.map(item => ({ value: item.name, label: item.name }))}
-          />
-        </label>
+          /></FormField>
         {actionError ? <p className="project-dialog-error" role="alert">{actionError}</p> : null}
       </ProjectDialog>
     </>

@@ -21,10 +21,13 @@
 
 .automation-groups button {
   min-width: max-content;
-  height: 29px;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.automation-groups button:not([data-ui-control]) {
+  height: 29px;
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -33,7 +36,7 @@
   font-size: var(--fs-xs);
 }
 
-.automation-groups button.active {
+.automation-groups button:not([data-ui-control]).active {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   background: var(--accent-tint);
   color: var(--text);
@@ -55,6 +58,9 @@
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.automation-list > button:not([data-ui-control]) {
   padding: 11px 9px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -63,11 +69,11 @@
   text-align: left;
 }
 
-.automation-list > button:hover {
+.automation-list > button:not([data-ui-control]):hover {
   background: var(--panel-2);
 }
 
-.automation-list > button.active {
+.automation-list > button:not([data-ui-control]).active {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   background: var(--accent-tint);
 }
@@ -170,6 +176,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.automation-artifacts > div > button:not([data-ui-control]) {
   padding: 9px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -178,7 +187,7 @@
   text-align: left;
 }
 
-.automation-artifacts > div > button:hover {
+.automation-artifacts > div > button:not([data-ui-control]):hover {
   border-color: var(--border);
   background: var(--panel-2);
 }
@@ -186,6 +195,9 @@
 .automation-artifacts button span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.automation-artifacts button:not([data-ui-control]) span {
   white-space: nowrap;
 }
 
@@ -227,6 +239,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.automation-artifact-actions button:not([data-ui-control]) {
   padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -235,7 +250,7 @@
   font-size: var(--fs-xs);
 }
 
-.automation-artifact-actions button:hover {
+.automation-artifact-actions button:not([data-ui-control]):hover {
   border-color: var(--accent-fg);
   color: var(--accent-fg);
 }
@@ -267,12 +282,9 @@
 
 .automation-param-field input {
   width: 130px;
-  padding: 6px 8px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
-.automation-param-field button {
+.automation-param-field button:not([data-ui-control]) {
   padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -281,7 +293,7 @@
   font-size: var(--fs-xs);
 }
 
-.automation-param-field button:hover {
+.automation-param-field button:not([data-ui-control]):hover {
   border-color: var(--accent-fg);
   color: var(--accent-fg);
 }
@@ -347,7 +359,7 @@
   gap: 7px;
 }
 
-.automation-console > header button {
+.automation-console > header button:not([data-ui-control]) {
   min-height: 28px;
 }
 
@@ -472,8 +484,7 @@
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-.rule-copy strong,
-.rule-copy small {
+.rule-copy strong, .rule-copy small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -546,27 +557,20 @@
 .rule-detail > header button,
 .cron-row button,
 .console-box header button {
-  min-height: 31px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.rule-detail > header button:not([data-ui-control]),
+.cron-row button:not([data-ui-control]),
+.console-box header button:not([data-ui-control]) {
+  min-height: 31px;
   padding: 0 11px;
   border-radius: var(--radius-sm);
 }
 
-.rule-detail > header .primary-button {
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.rule-detail > header .danger-button {
-  border: 1px solid var(--red);
-  background: color-mix(in srgb, var(--red) 12%, var(--panel));
-  color: var(--red);
-}
-
-.rule-detail > header button:disabled {
+.rule-detail > header button:not([data-ui-control]):disabled {
   cursor: not-allowed;
   opacity: .55;
 }
@@ -647,22 +651,11 @@
 }
 
 .automation-save-rule {
-  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   flex: 0 0 auto;
-  padding: 0 13px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.automation-save-rule:disabled {
-  cursor: not-allowed;
-  opacity: .55;
 }
 
 .automation-editor-card {
@@ -716,18 +709,8 @@
   min-width: 0;
 }
 
-.automation-field input {
-  height: 34px;
-  min-height: 34px;
-  padding: 0 10px;
-  font: var(--fs-base)/1.4 var(--font-sans);
-}
-
 .automation-field textarea {
-  min-height: 62px;
   resize: vertical;
-  padding: 8px 10px;
-  font: var(--fs-base)/1.5 var(--font-sans);
 }
 
 /* Read-only target display: bound skill of the selected rule, not editable here. */
@@ -761,15 +744,12 @@
 
 .automation-field .ui-select.rect .ui-select-trigger {
   width: 100%;
-  height: 34px;
-  min-height: 34px;
 }
 
 .automation-field .ui-select-value {
   max-width: none;
   min-width: 0;
   flex: 1;
-  text-align: left;
 }
 
 .automation-schedule-panel,
@@ -835,11 +815,6 @@
   align-items: center;
 }
 
-.automation-input-suffix > span {
-  padding: 0 10px;
-  font-size: var(--fs-xs);
-}
-
 .automation-schedule-empty {
   grid-column: 1 / -1;
   max-width: 540px;
@@ -864,10 +839,7 @@
 }
 
 .automation-input-editor textarea {
-  min-height: 74px;
   resize: vertical;
-  padding: 9px 11px;
-  font: var(--fs-xs)/1.55 var(--font-mono);
 }
 
 .automation-editor-meta {
@@ -949,7 +921,7 @@
   }
 
   .automation-schedule-panel,
-  .automation-input-panel {
+.automation-input-panel {
     grid-template-columns: 1fr;
     gap: 13px;
   }
@@ -977,13 +949,11 @@
     width: 100%;
   }
 
-  .automation-editor-grid,
-  .automation-schedule-fields {
+  .automation-editor-grid, .automation-schedule-fields {
     grid-template-columns: 1fr;
   }
 
-  .automation-target-field,
-  .automation-field-wide {
+  .automation-target-field, .automation-field-wide {
     grid-column: auto;
   }
 
@@ -998,8 +968,7 @@
     grid-template-columns: 1fr;
   }
 
-  .automation-editor-meta > div,
-  .automation-editor-meta > div:nth-child(2) {
+  .automation-editor-meta > div, .automation-editor-meta > div:nth-child(2) {
     border-right: 0;
     border-bottom: 1px solid var(--hairline);
   }
@@ -1012,7 +981,7 @@
 @media (max-width: 760px) {
   .automation-history-row { grid-template-columns: auto 1fr auto; }
   .automation-history-row code,
-  .automation-history-row small { grid-column: 2 / -1; }
+.automation-history-row small { grid-column: 2 / -1; }
 }
 
 .step-list {
@@ -1051,8 +1020,7 @@
   font-weight: 400;
 }
 
-.step strong,
-.step small {
+.step strong, .step small {
   display: block;
   min-width: 0;
 }
@@ -1121,18 +1089,18 @@
   gap: 8px;
 }
 
-.console-box header button {
+.console-box header button:not([data-ui-control]) {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-dim);
 }
 
-.automation-rules-page .console-box header button {
+.automation-rules-page .console-box header button:not([data-ui-control]) {
   border-color: transparent;
   background: transparent;
 }
 
-.automation-rules-page .console-box header button:hover {
+.automation-rules-page .console-box header button:not([data-ui-control]):hover {
   border-color: transparent;
   background: var(--control-hover);
 }
@@ -1186,8 +1154,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .automation-page-transition,
-  .automation-detail-transition {
+  .automation-page-transition, .automation-detail-transition {
     animation: none;
   }
 }

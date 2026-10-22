@@ -1,3 +1,4 @@
+import { Button } from "../../../design-system/components";
 import { IconButton } from "../../../design-system/IconButton";
 import { useLocale } from "../../../i18n";
 import { messages as uiMessages } from "@shared/messages";
@@ -205,20 +206,20 @@ export const PdfMaterialViewer = memo(function PdfMaterialViewer({ data, title, 
         if (event.key === "Escape") { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }
       }} />
       <span>{matches.current} / {matches.total}</span>
-      <IconButton data-motion="icon" onClick={() => search(query, true, true)} className="" label={uiMessages.interface.previousMatch}><ChevronLeft size={14} /></IconButton>
-      <IconButton data-motion="icon" onClick={() => search(query, true)} className="" label={uiMessages.interface.nextMatch}><ChevronRight size={14} /></IconButton>
-      <IconButton data-motion="icon" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }} className="" label={uiMessages.interface.closeSearch}><X size={14} /></IconButton>
+      <IconButton data-motion="icon" onClick={() => search(query, true, true)}  label={uiMessages.interface.previousMatch}><ChevronLeft size={14} /></IconButton>
+      <IconButton data-motion="icon" onClick={() => search(query, true)}  label={uiMessages.interface.nextMatch}><ChevronRight size={14} /></IconButton>
+      <IconButton data-motion="icon" onClick={() => { setFindOpen(false); controller.current?.bus.dispatch("findbarclose", {}); }}  label={uiMessages.interface.closeSearch}><X size={14} /></IconButton>
     </div> : null}
     <div className="pdf-toolbar">
-      <IconButton data-motion="icon" onClick={() => setFindOpen(true)} className="" label={uiMessages.interface.searchPdf}><Search size={15}/></IconButton>
-      <IconButton data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)} className="" label={uiMessages.interface.previousPage}><ChevronLeft size={15}/></IconButton>
+      <IconButton data-motion="icon" onClick={() => setFindOpen(true)}  label={uiMessages.interface.searchPdf}><Search size={15}/></IconButton>
+      <IconButton data-motion="icon" disabled={page <= 1} onClick={() => go(page - 1)}  label={uiMessages.interface.previousPage}><ChevronLeft size={15}/></IconButton>
       <Input variant="inline" size="sm" className="pdf-page-input" aria-label={uiMessages.interface.currentPage} value={draft ?? page} onChange={event => setDraft(event.target.value.replace(/\D/g, "").slice(0, 5))} onBlur={() => { if (draft !== null) { go(Number(draft)); setDraft(null); } }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}/>
       <span className="pdf-page-total">/ {pages}</span>
-      <IconButton data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)} className="" label={uiMessages.interface.nextPage}><ChevronRight size={15}/></IconButton>
+      <IconButton data-motion="icon" disabled={page >= pages} onClick={() => go(page + 1)}  label={uiMessages.interface.nextPage}><ChevronRight size={15}/></IconButton>
       <span className="pdf-toolbar-divider"/>
-      <IconButton data-motion="icon" disabled={percent <= 25} onClick={() => zoom(-.1)} className="" label={uiMessages.interface.zoomOut}><Minus size={15}/></IconButton>
-      <button className="pdf-zoom-label" data-motion="action" title={uiMessages.interface.fitWidth} onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</button>
-      <IconButton data-motion="icon" disabled={percent >= 400} onClick={() => zoom(.1)} className="" label={uiMessages.interface.zoomIn}><Plus size={15}/></IconButton>
+      <IconButton data-motion="icon" disabled={percent <= 25} onClick={() => zoom(-.1)}  label={uiMessages.interface.zoomOut}><Minus size={15}/></IconButton>
+      <Button className="pdf-zoom-label" data-motion="action" title={uiMessages.interface.fitWidth} onClick={() => { fit.current = true; if (controller.current) controller.current.viewer.currentScaleValue = "page-width"; }}>{percent}%</Button>
+      <IconButton data-motion="icon" disabled={percent >= 400} onClick={() => zoom(.1)}  label={uiMessages.interface.zoomIn}><Plus size={15}/></IconButton>
     </div>
   </div>;
 });

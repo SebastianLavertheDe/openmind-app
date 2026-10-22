@@ -1,81 +1,13 @@
+import { Popover } from "../../design-system/components";
+
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { Input } from "../../design-system/components";
-import { createPortal } from "react-dom";
-import {
-  Archive,
-  AudioLines,
-  BatteryCharging,
-  Bell,
-  Bike,
-  Binoculars,
-  BookOpen,
-  Bot,
-  Bookmark,
-  BriefcaseBusiness,
-  CakeSlice,
-  Calculator,
-  CalendarDays,
-  Camera,
-  Car,
-  ChartNoAxesCombined,
-  ChevronRight,
-  CircleDollarSign,
-  Clapperboard,
-  Clock3,
-  Code2,
-  Coffee,
-  Compass,
-  Database,
-  Dumbbell,
-  Feather,
-  Film,
-  Flag,
-  Folder,
-  Gamepad2,
-  Gem,
-  Gift,
-  Glasses,
-  GlassWater,
-  GraduationCap,
-  Hammer,
-  Handbag,
-  Image,
-  KeyRound,
-  Landmark,
-  Laptop,
-  Layers,
-  Link,
-  ListMusic,
-  LockKeyhole,
-  Mail,
-  Map as MapIcon,
-  MapPin,
-  MapPinned,
-  MessageCircle,
-  MessageSquareText,
-  Monitor,
-  Music2,
-  PackageOpen,
-  Palette,
-  PersonStanding,
-  Plane,
-  Satellite,
-  Server,
-  Ship,
-  SquareTerminal,
-  Store,
-  TrafficCone,
-  UsersRound,
-  Utensils,
-  type LucideIcon
-} from "lucide-react";
+
+import { Archive, AudioLines, BatteryCharging, Bell, Bike, Binoculars, BookOpen, Bot, Bookmark, BriefcaseBusiness, CakeSlice, Calculator, CalendarDays, Camera, Car, ChartNoAxesCombined, ChevronRight, CircleDollarSign, Clapperboard, Clock3, Code2, Coffee, Compass, Database, Dumbbell, Feather, Film, Flag, Folder, Gamepad2, Gem, Gift, Glasses, GlassWater, GraduationCap, Hammer, Handbag, Image, KeyRound, Landmark, Laptop, Layers, Link, ListMusic, LockKeyhole, Mail, Map as MapIcon, MapPin, MapPinned, MessageCircle, MessageSquareText, Monitor, Music2, PackageOpen, Palette, PersonStanding, Plane, Satellite, Server, Ship, SquareTerminal, Store, TrafficCone, UsersRound, Utensils, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
-import { useExitPresence } from "../../design-system/use-exit-presence";
-import { useMotionTokens } from "../../design-system/motion-tokens";
-import { useModalFocusScope } from "../../design-system/use-modal-focus-scope";
+
 import { ProjectDialog } from "./ProjectDialog";
 import type { ProjectColor, ProjectSummary } from "./types";
 
@@ -193,21 +125,11 @@ export function ProjectEditDialog({
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const iconTriggerRef = useRef<HTMLButtonElement>(null);
-  const iconPickerRef = useRef<HTMLDivElement>(null);
-  const tokens = useMotionTokens();
+
   const pickerOpen = Boolean(project) && iconPickerOpen;
-  const pickerPresence = useExitPresence(pickerOpen, tokens.exitMs);
+
   const closePicker = useCallback(() => setIconPickerOpen(false), []);
-  useModalFocusScope({ open: pickerOpen, containerRef: iconPickerRef, triggerRef: iconTriggerRef, onDismiss: closePicker, dismissOnOutside: true, layer: "global" });
-  const popover = useAnchoredPopover({
-    open: pickerPresence.visible,
-    anchorRef: iconTriggerRef,
-    floatingRef: iconPickerRef,
-    preferredSide: "bottom",
-    align: "end",
-    gap: 8,
-    viewportPadding: 16
-  });
+
 
   useEffect(() => {
     if (!project) return;
@@ -228,8 +150,8 @@ export function ProjectEditDialog({
         confirmLabel={messages.projectUi.update}
         cancelLabel={null}
         busy={busy}
-        className="project-dialog-compact"
-        backdropClassName="project-dialog-backdrop-clear"
+        size="sm"
+
         onClose={onClose}
         onConfirm={() => onSave({ name: name.trim(), icon, color })}
       >
@@ -275,33 +197,33 @@ export function ProjectEditDialog({
           </div>
         </section>
       </ProjectDialog>
-      {pickerPresence.visible && typeof document !== "undefined" ? createPortal(
-        <div
-          ref={iconPickerRef}
-          className="project-icon-picker"
-          role="dialog"
-          aria-modal={pickerOpen || undefined}
-          aria-hidden={!pickerOpen || undefined}
-          inert={!pickerOpen}
-          data-leaving={pickerPresence.leaving || undefined}
-          aria-label={messages.projectUi.chooseProjectIcon}
-          data-side={popover.side}
-          style={popover.style}
-        >
-          {PROJECT_ICON_OPTIONS.map((option) => {
-            const Icon = option.icon;
-            return (
-              <IconButton key={option.id} type="button" className={icon === option.id ? "selected" : ""} data-motion="selection" aria-pressed={icon === option.id} onClick={() => {
-                  setIcon(option.id);
-                  setIconPickerOpen(false);
-                }} label={option.label}>
-                  <Icon size={17} strokeWidth={2.2} aria-hidden="true" />
-              </IconButton>
-            );
-          })}
-        </div>,
-        document.body
-      ) : null}
+      <Popover
+        open={pickerOpen}
+        anchorRef={iconTriggerRef}
+        onClose={closePicker}
+        modal
+        aria-label={messages.projectUi.chooseProjectIcon}
+        className="project-icon-picker"
+      >
+        {PROJECT_ICON_OPTIONS.map((option) => {
+          const Icon = option.icon;
+          return (
+            <IconButton
+              key={option.id}
+              className={icon === option.id ? "selected" : ""}
+              data-motion="selection"
+              aria-pressed={icon === option.id}
+              label={option.label}
+              onClick={() => {
+                setIcon(option.id);
+                setIconPickerOpen(false);
+              }}
+            >
+              <Icon size={17} strokeWidth={2.2} aria-hidden="true" />
+            </IconButton>
+          );
+        })}
+      </Popover>
     </>
   );
 }

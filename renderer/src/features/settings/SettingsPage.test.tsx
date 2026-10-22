@@ -452,7 +452,7 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "添加 Provider" }));
     const dialog = await screen.findByRole("dialog", { name: "添加 Provider" });
-    expect(within(dialog).getByLabelText("Provider 预设")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: /Provider 预设/ })).toBeTruthy();
     expect(within(dialog).getByLabelText("API Key")).toBeTruthy();
     expect(within(dialog).queryByText("代理策略")).toBeNull();
     expect(within(dialog).queryByText("TLS")).toBeNull();
@@ -539,12 +539,12 @@ describe("SettingsPage", () => {
     })));
     // Check the same exit frame before the presence timer removes the dialog.
     await waitFor(() => {
-      const backdrop = document.querySelector(".settings-cli-provider-dialog")?.parentElement;
+      const backdrop = document.querySelector('[aria-labelledby="cli-provider-dialog-title"]')?.parentElement;
       expect(backdrop?.getAttribute("data-leaving")).toBe("true");
       expect(backdrop?.hasAttribute("inert")).toBe(true);
     });
     expect(await screen.findByText("Provider · Codex A")).toBeTruthy();
-    await waitFor(() => expect(document.querySelector(".settings-cli-provider-dialog")).toBeNull());
+    await waitFor(() => expect(document.querySelector('[aria-labelledby="cli-provider-dialog-title"]')).toBeNull());
   });
 
   it("opens Provider configuration in a dialog, cancels local edits, and saves from the dialog", async () => {

@@ -1,3 +1,4 @@
+import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { Tabs } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
@@ -7,22 +8,7 @@ import { LayoutGroup, motion } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useExitingList } from "../../design-system/use-exiting-list";
 import { useExitPresence } from "../../design-system/use-exit-presence";
-import {
-  ArrowLeft,
-  Archive,
-  Files,
-  FileOutput,
-  FolderKanban,
-  Library,
-  ListTodo,
-  LoaderCircle,
-  MoreHorizontal,
-  PanelLeftOpen,
-  PencilLine,
-  Plus,
-  Search,
-  Star
-} from "lucide-react";
+import { ArrowLeft, Archive, Files, FileOutput, FolderKanban, Library, ListTodo, LoaderCircle, MoreHorizontal, PanelLeftOpen, PencilLine, Plus, Search, Star } from "lucide-react";
 import { useAiUi } from "../../ai-context";
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
@@ -416,9 +402,9 @@ export function ProjectsPage({
                   menuLabel={messages.projectUi.newProjectContent}
                   label={<Plus size={16} aria-hidden="true" />}
                 >
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>{messages.projectUi.newTask}</span></button>
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>{messages.projectUi.addMaterials}</span></button>
-                  <button type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>{messages.projectUi.newOutput}</span></button>
+                  <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("tasks")}><ListTodo size={14} aria-hidden="true" /><span>{messages.projectUi.newTask}</span></MenuItem>
+                  <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("materials")}><Library size={14} aria-hidden="true" /><span>{messages.projectUi.addMaterials}</span></MenuItem>
+                  <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>{messages.projectUi.newOutput}</span></MenuItem>
                 </DropdownMenu>
               </header>
               <Tabs value={view} className="project-pane-tabs" label={messages.projectUi.projectContentType}
@@ -504,7 +490,7 @@ export function ProjectsPage({
               icon={<FolderKanban size={30} />}
               title={query ? messages.projectUi.noMatchingProjects : messages.projectUi.selectProject}
               description={query ? messages.projectUi.tryAnotherProjectSearch : messages.projectUi.selectProjectHint}
-              action={!query ? <button className="primary-button" onClick={openCreateDialog}><Plus size={15} />{messages.projectUi.createProject}</button> : undefined}
+              action={!query ? <Button variant="primary"  onClick={openCreateDialog}><Plus size={15} />{messages.projectUi.createProject}</Button> : undefined}
             />
           )}
           {activeProject && openingProjectName ? <div className="project-opening-overlay" role="status"><LoaderCircle size={18} className="spin" />{messages.projectUi.openingProject(openingProjectName)}</div> : null}
@@ -597,9 +583,9 @@ function ProjectListGroup({
               disabled={Boolean(openingProjectName) || busyProjectName === project.name}
               label={<MoreHorizontal size={17} aria-hidden="true" />}
             >
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />{messages.projectUi.edit}</button>
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? messages.projectUi.removeFavorite : messages.projectUi.favorites}</button>
-              <button type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />{messages.projectUi.archive}</button>
+              <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => onEdit(project)}><PencilLine size={18} aria-hidden="true" />{messages.projectUi.edit}</MenuItem>
+              <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => onToggleFavorite(project)}><Star size={18} fill={project.favorite ? "currentColor" : "none"} aria-hidden="true" />{project.favorite ? messages.projectUi.removeFavorite : messages.projectUi.favorites}</MenuItem>
+              <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => onArchive(project)}><Archive size={18} aria-hidden="true" />{messages.projectUi.archive}</MenuItem>
             </DropdownMenu>
           </div>
           </motion.div>

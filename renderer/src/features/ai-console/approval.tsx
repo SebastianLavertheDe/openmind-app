@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LoaderCircle, ShieldAlert } from "lucide-react";
@@ -87,7 +88,7 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
         <code className="approval-bar-cmd" id={titleId} title={barText}><DangerousCommandText text={barText} /></code>
         <button
           type="button"
-          className="approval-detail-toggle"
+          className="approval-detail-toggle" data-motion="disclosure"
           aria-expanded={detailsOpen}
           aria-controls={`approval-detail-${approval.id}`}
           onClick={() => setDetailsOpen((value) => !value)}
@@ -96,24 +97,24 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
           <ChevronDown size={13} className={detailsOpen ? "approval-detail-chev-open" : undefined} />
         </button>
         <span className="approval-bar-actions">
-          <button
+          <Button variant="primary" tone="danger"
             type="button"
-            className="approval-btn approval-btn-danger"
+
             disabled={busy}
             onClick={() => void resolve("decline")}
           >
             {busyAction === "decline" ? <LoaderCircle className="spin" size={13} /> : null}
             {m.ai.approval.decline}
-          </button>
-          <button
+          </Button>
+          <Button variant="primary"
             type="button"
-            className="approval-btn approval-btn-primary"
+
             disabled={busy}
             onClick={() => void resolve("accept")}
           >
             {busyAction === "accept" ? <LoaderCircle className="spin" size={13} /> : null}
             {m.ai.approval.allow}
-          </button>
+          </Button>
         </span>
       </div>
 
@@ -155,15 +156,15 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
             </ul>
           ) : null}
           <div className="approval-detail-footer">
-            <button
+            <Button tone="warning"
               type="button"
-              className="approval-btn approval-btn-warning"
+
               disabled={busy}
               onClick={() => void resolve("accept-session")}
             >
               {busyAction === "accept-session" ? <LoaderCircle className="spin" size={13} /> : null}
               {m.ai.approval.acceptSession}
-            </button>
+            </Button>
             <span className="approval-hint">{m.ai.approval.sessionHint}</span>
           </div>
         </div>

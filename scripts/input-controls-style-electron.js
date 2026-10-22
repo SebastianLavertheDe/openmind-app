@@ -7,6 +7,10 @@ const { app, BrowserWindow } = require("electron");
 const output = path.resolve(__dirname, "..", ".build", "input-controls-style");
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-input-controls-"));
 app.setPath("userData", userData);
+app.setPath("sessionData", userData);
+const cleanupUserData = () => fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+app.once("will-quit", cleanupUserData);
+process.once("exit", cleanupUserData);
 app.commandLine.appendSwitch("disable-gpu");
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
 const report = [];
@@ -90,12 +94,19 @@ app.whenReady().then(async () => {
   console.log(`Input style checks passed: ${report.length} control/theme/viewport cases, native mouse and keyboard focus, error states, and six screenshots.`);
   win.destroy();
   app.quit();
-}).catch(error => { console.error(error); app.exit(1); }).finally(() => {
-  fs.rmSync(userData, { recursive: true, force: true });
-});
+}).catch(error => { console.error(error); cleanupUserData(); app.exit(1); });
 
 async function settle(win) {
-  await win.webContents.executeJavaScript(`new Promise(resolve => setTimeout(resolve, 170))`);
+  // Wait for the actual finite transitions after input delivery. A fixed delay
+  // can sample an interpolated color under load and misreport a focus regression.
+  await win.webContents.executeJavaScript(`(async () => {
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    await frame(); await frame();
+    await Promise.allSettled(document.getAnimations()
+      .filter(animation => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map(animation => animation.finished));
+    await frame();
+  })()`);
 }
 
 async function inspect(win, id) {

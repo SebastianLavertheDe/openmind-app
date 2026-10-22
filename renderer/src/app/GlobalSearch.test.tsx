@@ -67,7 +67,7 @@ describe("GlobalSearch", () => {
         <GlobalSearch open onClose={onClose} navigate={navigate} onOpenContent={openContent} />
       </AiProvider>
     );
-    const scrim = document.querySelector<HTMLElement>(".global-search-scrim");
+    const scrim = document.querySelector<HTMLElement>("[data-ui-dialog]");
     expect(scrim).toBeTruthy();
     expect(scrim?.parentElement).toBe(document.body);
     expect(view.container.contains(scrim)).toBe(false);
@@ -79,11 +79,11 @@ describe("GlobalSearch", () => {
         <GlobalSearch open={false} onClose={onClose} navigate={navigate} onOpenContent={openContent} />
       </AiProvider>
     );
-    expect(document.querySelector(".global-search-scrim")).toBeTruthy();
+    expect(document.querySelector("[data-ui-dialog]")).toBeTruthy();
     expect(view.container.inert).toBe(true);
 
     act(() => { vi.advanceTimersByTime(200); });
-    expect(document.querySelector(".global-search-scrim")).toBeNull();
+    expect(document.querySelector("[data-ui-dialog]")).toBeNull();
     expect(view.container.inert).toBe(false);
     expect(view.container.hasAttribute("aria-hidden")).toBe(false);
   });

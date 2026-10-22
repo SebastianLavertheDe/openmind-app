@@ -1,13 +1,14 @@
-import { type ComponentProps, type ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { Tooltip } from "./Tooltip";
+import { Button, type ButtonProps } from "./Button";
 
 /** Icon-only actions share accessible naming, motion and tooltip behavior. */
-export function IconButton({ label, children, tooltip = true, className, ...props }: Omit<ComponentProps<"button">, "aria-label" | "title"> & {
+export const IconButton = forwardRef<HTMLButtonElement, Omit<ButtonProps, "aria-label" | "title"> & {
   label: string;
   children: ReactNode;
   tooltip?: ReactNode;
-}) {
-  const button = <button type="button" data-motion="icon" {...props} aria-label={label}
-    className={className ?? "icon-button"}>{children}</button>;
+}>(function IconButton({ label, children, tooltip = true, className = "", variant = "ghost", size = "sm", loading = false, ...props }, ref) {
+  const button = <Button {...props} ref={ref} variant={variant} size={size} loading={loading} data-motion={props["data-motion"] || "icon"} aria-label={label}
+    className={`ui-icon-button ${className}`.trim()}>{loading ? null : children}</Button>;
   return tooltip ? <Tooltip content={tooltip === true ? label : tooltip}>{button}</Tooltip> : button;
-}
+});

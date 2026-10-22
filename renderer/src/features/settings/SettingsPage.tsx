@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { SearchInput } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,19 +13,7 @@ import { applyLocale, useLocale } from "../../i18n";
 import { SkillsPage } from "../skills";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
-import {
-  ArchivedSessionsSettingsSection,
-  AppearanceSettingsSection,
-  AiProvidersSettingsSection,
-  BrowserSettingsSection,
-  YoutubeImportSettingsSection,
-  PathSettingsSection,
-  PermissionSettingsSection,
-  ProviderSettingsSection,
-  SharedPythonRuntimeSection,
-  SkillSettingsSection,
-  WorkflowSettingsSection
-} from "./settings-sections";
+import { ArchivedSessionsSettingsSection, AppearanceSettingsSection, AiProvidersSettingsSection, BrowserSettingsSection, YoutubeImportSettingsSection, PathSettingsSection, PermissionSettingsSection, ProviderSettingsSection, SharedPythonRuntimeSection, SkillSettingsSection, WorkflowSettingsSection } from "./settings-sections";
 
 const m = messages;
 
@@ -328,10 +317,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       />
       <section className="settings-detail" id="settings-detail-panel" ref={detailRef} aria-labelledby="settings-detail-title">
         <div className="settings-detail-inner">
-          <button type="button" className="settings-detail-back" data-motion="action" onClick={showSettingsNavigation}>
+          <Button type="button" className="settings-detail-back" data-motion="action" onClick={showSettingsNavigation}>
             <ArrowLeft size={15} aria-hidden />
             <span>{m.settings.page.title}</span>
-          </button>
+          </Button>
           <header className="settings-detail-header">
             <div>
               <span>{m.settings.page.title}</span>
@@ -346,7 +335,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
           ) : loadError || !prefs ? (
             <section className="settings-load-state settings-card ui-error-state" role="alert">
               <strong>{loadError || m.settings.loadError}</strong>
-              <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void loadPrefs()}>{m.settings.retry}</button>
+              <Button variant="ghost" type="button"  data-motion="action" onClick={() => void loadPrefs()}>{m.settings.retry}</Button>
             </section>
           ) : (
             <div className="settings-stack entrance-stagger" aria-busy={saving || undefined}>
@@ -384,10 +373,10 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
 
   return (
     <aside className="settings-navigation" aria-label={m.settings.navigation.label}>
-      <button type="button" className="settings-back-button" data-motion="action" onClick={onBack}>
+      <Button type="button" responsiveTarget className="settings-back-button" data-motion="action" onClick={onBack}>
         <ArrowLeft size={15} aria-hidden />
         <span>{m.settings.navigation.back}</span>
-      </button>
+      </Button>
       <SearchInput className="settings-nav-search"
           type="search"
           value={query}

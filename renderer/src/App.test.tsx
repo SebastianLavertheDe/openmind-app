@@ -938,14 +938,14 @@ describe("App bootstrap", () => {
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     await waitFor(() => expect(document.querySelector(".global-search-dialog")).toBeTruthy());
 
-    const scrim = document.querySelector<HTMLElement>(".global-search-scrim");
+    const scrim = document.querySelector(".global-search-dialog")?.closest<HTMLElement>("[data-ui-dialog]");
     expect(scrim?.parentElement).toBe(document.body);
-    expect(view.container.contains(scrim)).toBe(false);
+    expect(view.container.contains(scrim || null)).toBe(false);
     expect(view.container.inert).toBe(true);
     expect(view.container.getAttribute("aria-hidden")).toBe("true");
 
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(document.querySelector(".global-search-scrim")).toBeNull());
+    await waitFor(() => expect(document.querySelector(".global-search-dialog")).toBeNull());
     expect(document.querySelector(".ai-sidebar")).toBeTruthy();
   });
 

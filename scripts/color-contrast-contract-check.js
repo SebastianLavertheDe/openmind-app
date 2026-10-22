@@ -20,14 +20,24 @@ for (const [theme, block] of [["light", light], ["dark", dark]]) {
     const ratio = contrast(foreground, background);
     if (ratio < 4.5) failures.push(`${theme}: --muted-2 ${foreground} on --${name} ${background} = ${ratio.toFixed(2)}:1`);
   }
+  for (const [text, fill] of [["on-danger", "danger-500"], ["on-warning", "warning-500"]]) {
+    const actionText = readHex(block, text);
+    const actionFill = readHex(block, fill);
+    if (!actionText || !actionFill) {
+      failures.push(`${theme}: missing semantic action colors --${text}/--${fill}`);
+      continue;
+    }
+    const ratio = contrast(actionText, actionFill);
+    if (ratio < 4.5) failures.push(`${theme}: --${text} on --${fill} = ${ratio.toFixed(2)}:1`);
+  }
 }
 
 if (failures.length) {
-  console.error("Color contrast contract failed for secondary text:");
+  console.error("Color contrast contract failed for secondary text or semantic actions:");
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log("Color contrast contract passed: --muted-2 is at least 4.5:1 on product surfaces in both themes.");
+  console.log("Color contrast contract passed: secondary text and semantic actions meet 4.5:1 in both themes.");
 }
 
 function readHex(block, name) {

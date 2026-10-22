@@ -49,7 +49,7 @@ describe("Provider text and image categories", () => {
     fireEvent.click(screen.getByRole("button", { name: "添加 Provider" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("switch", { name: "支持图片生成" }).getAttribute("aria-checked")).toBe("true");
-    expect((within(dialog).getByLabelText("Provider 预设") as HTMLSelectElement).value).toBe("doubao");
+    expect(within(dialog).getByRole("button", { name: /Provider 预设/ }).textContent).toContain("火山豆包");
     fireEvent.change(within(dialog).getByLabelText("API Key"), { target: { value: "new-fixture-key" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "添加到列表" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());

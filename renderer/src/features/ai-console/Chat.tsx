@@ -1,16 +1,8 @@
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import {
-  AlertTriangle,
-  ArrowDown,
-  Bot,
-  BrainCircuit,
-  ChevronRight,
-  FileText,
-  FolderCode,
-  ShieldAlert
-} from "lucide-react";
+import { AlertTriangle, ArrowDown, Bot, BrainCircuit, ChevronRight, FileText, FolderCode, ShieldAlert } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { GeneratedImageSchema, type GeneratedImage } from "@shared/image-generation";
 import { ChatImageGallery, GeneratedImages } from "./ChatImages";
@@ -26,25 +18,11 @@ import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
-import {
-  MARKDOWN_ARTIFACT_START_FENCE,
-  assistantBlocksVisibleText,
-  containsAssistantArtifact,
-  parseAssistantContent
-} from "./artifact-fence";
+import { MARKDOWN_ARTIFACT_START_FENCE, assistantBlocksVisibleText, containsAssistantArtifact, parseAssistantContent } from "./artifact-fence";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 import { CommandGroup, ToolCallCard, toolIcon } from "./tool";
-import {
-  assistantPhase,
-  changePaths,
-  compactEvents,
-  groupTimeline,
-  technicalEventText,
-  toolCategory,
-  toolEventFailed,
-  type TraceStep
-} from "./timeline";
+import { assistantPhase, changePaths, compactEvents, groupTimeline, technicalEventText, toolCategory, toolEventFailed, type TraceStep } from "./timeline";
 
 export {
   buildTraceSteps,
@@ -296,7 +274,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
             ? <EmptyChat />
             : null}
           {!sessionLoading && canLoadHistory ? (
-            <button
+            <Button
               className="load-history"
               disabled={historyLoading}
               onClick={() => {
@@ -312,7 +290,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
                 : hiddenEvents
                   ? m.ai.chat.loadMoreEvents(Math.min(300, hiddenEvents))
                   : m.ai.chat.loadOlderTurns}
-            </button>
+            </Button>
           ) : null}
           {!sessionLoading ? <TimelineItems
             key={sessionId}

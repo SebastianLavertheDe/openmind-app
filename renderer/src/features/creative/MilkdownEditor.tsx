@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
@@ -101,9 +102,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, {
     {findOpen ? <DocumentFindbar search={search} readOnly={props.readOnly} onQuery={query => runtimeRef.current?.search(query)}
       onStep={direction => runtimeRef.current?.stepSearch(direction)} onReplace={(value, all) => runtimeRef.current?.replaceSearch(value, all)} onClose={closeSearch} /> : null}
     {outlineOpen ? <nav className="document-editor-outline" aria-label={messages.editor.documentSections}>
-      <header><strong>{messages.editor.outline}</strong><IconButton type="button" data-motion="icon" onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }} className="" label={messages.editor.closeOutline}><X size={16} /></IconButton></header>
-      {headings.length ? headings.map(heading => <button type="button" data-motion="selection" key={heading.pos} style={{ paddingInlineStart: 12 + (heading.level - 1) * 12 }} title={heading.text}
-        onClick={() => { runtimeRef.current?.jumpToHeading(heading.pos); setOutlineOpen(false); }}>{heading.text}</button>) : <p>{messages.editor.emptyOutline}</p>}
+      <header><strong>{messages.editor.outline}</strong><IconButton type="button" data-motion="icon" onClick={() => { setOutlineOpen(false); shellRef.current?.querySelector<HTMLButtonElement>('[data-document-outline-trigger]')?.focus(); }}  label={messages.editor.closeOutline}><X size={16} /></IconButton></header>
+      {headings.length ? headings.map(heading => <Button variant="ghost" size="sm" type="button" data-motion="selection" key={heading.pos} style={{ marginInlineStart: 12 + (heading.level - 1) * 12 }} title={heading.text}
+        onClick={() => { runtimeRef.current?.jumpToHeading(heading.pos); setOutlineOpen(false); }}>{heading.text}</Button>) : <p>{messages.editor.emptyOutline}</p>}
     </nav> : null}
     <div className="document-editor-scroll">
       {props.documentHeader ? <div className="document-editor-heading">{props.documentHeader}</div> : null}

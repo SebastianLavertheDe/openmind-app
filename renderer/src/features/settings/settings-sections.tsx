@@ -1,11 +1,14 @@
-import { IconButton } from "../../design-system/IconButton";
+import { FormField } from "../../design-system/components";
+import { DialogHeader, DialogBody, DialogFooter } from "../../design-system/components";
+import { Button, MenuItem } from "../../design-system/components";
+
 import { CopyButton } from "../../design-system/CopyButton";
 import { Dialog } from "../../design-system/Dialog";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Wrench } from "lucide-react";
 import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
@@ -130,8 +133,6 @@ export function ProviderSettingsSection({
   const closeProviderDialog = () => {
     if (!bindingBusy) setConfiguringCli(null);
   };
-
-
 
   const compatibleProviders = useMemo(() => renderedCli && providerConfiguration
     ? providerConfiguration.providers.filter((entry) => entry.enabled && entry.tlsPolicy === "verify" && supportsCliProvider(renderedCli, entry.protocol))
@@ -276,13 +277,13 @@ export function ProviderSettingsSection({
                     {installing ? <div className="settings-provider-install-progress" role="status" aria-label={`${provider.label} ${m.settings.provider.installProgress}`}>
                       <progress max={100} value={installProgress?.totalBytes ? Math.min(100, Math.round(((installProgress.receivedBytes || 0) / installProgress.totalBytes) * 100)) : 0} aria-label={`${provider.label} ${m.settings.provider.installProgress}`} />
                       <small>{installProgress?.message || m.settings.provider.installing}</small>
-                      <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>{m.settings.provider.cancelInstall}</button>
-                    </div> : <button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
+                      <Button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void cancelInstall(provider.provider as "claude" | "codex")}>{m.settings.provider.cancelInstall}</Button>
+                    </div> : <Button type="button" className="settings-provider-install-button" data-motion="action" disabled={installingCli !== null || upgradingCli !== null} onClick={() => void installCli(provider.provider as "claude" | "codex")}>
                       {m.settings.provider.install}
-                    </button>}
+                    </Button>}
                     {installError?.cli === provider.provider ? <div className="settings-provider-install-failure" role="alert">
                       <span>{m.settings.provider.installFailed}{installError.message}</span>
-                      <button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</button>
+                      <Button type="button" className="settings-provider-recheck" data-motion="action" onClick={() => void installCli(provider.provider as "claude" | "codex")}>{m.settings.provider.retryInstall}</Button>
                     </div> : null}
                   </div> : null}
                   {!canInstall && provider.version !== null && cliKind ? <div className="settings-provider-menu settings-cli-provider-menu">
@@ -292,11 +293,11 @@ export function ProviderSettingsSection({
                       disabled={installingCli !== null || upgradingCli !== null || providerConfigurationBusy}
                       label={<span className="settings-provider-menu-trigger" data-motion="icon"><MoreHorizontal size={18} aria-hidden /></span>}
                     >
-                      <button type="button" role="menuitem" data-motion="selection" disabled={active || !provider.available} onClick={() => void save({ defaultProvider: provider.id })}>{m.settings.provider.setAsDefault}</button>
-                      <button type="button" role="menuitem" data-motion="selection" disabled={!providerConfiguration} onClick={() => openProviderDialog(cliKind)}>{m.settings.provider.setProvider}</button>
-                      <button type="button" role="menuitem" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(cliKind)}>{m.settings.provider.checkUpdate}</button>
-                      {versionCheck?.updateAvailable ? <button type="button" role="menuitem" data-motion="action" disabled={!versionCheck.canUpgrade || upgrading || versionCheckBusy !== null} title={!versionCheck.canUpgrade ? m.settings.provider.upgradeUnavailable : undefined} onClick={() => void upgradeCli(cliKind)}>{upgrading ? m.settings.provider.updating : m.settings.provider.upgradeTo(versionCheck.latestVersion)}</button> : null}
-                      {canLogin ? <button type="button" role="menuitem" data-motion="action" onClick={() => void window.openmind.openCliLogin(cliKind)}>{m.settings.provider.openLogin}</button> : null}
+                      <MenuItem type="button" role="menuitem" data-motion="selection" disabled={active || !provider.available} onClick={() => void save({ defaultProvider: provider.id })}>{m.settings.provider.setAsDefault}</MenuItem>
+                      <MenuItem type="button" role="menuitem" data-motion="selection" disabled={!providerConfiguration} onClick={() => openProviderDialog(cliKind)}>{m.settings.provider.setProvider}</MenuItem>
+                      <MenuItem type="button" role="menuitem" data-motion="action" disabled={versionCheckBusy !== null || upgradingCli !== null} onClick={() => void checkVersion(cliKind)}>{m.settings.provider.checkUpdate}</MenuItem>
+                      {versionCheck?.updateAvailable ? <MenuItem type="button" role="menuitem" data-motion="action" disabled={!versionCheck.canUpgrade || upgrading || versionCheckBusy !== null} title={!versionCheck.canUpgrade ? m.settings.provider.upgradeUnavailable : undefined} onClick={() => void upgradeCli(cliKind)}>{upgrading ? m.settings.provider.updating : m.settings.provider.upgradeTo(versionCheck.latestVersion)}</MenuItem> : null}
+                      {canLogin ? <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => void window.openmind.openCliLogin(cliKind)}>{m.settings.provider.openLogin}</MenuItem> : null}
                     </DropdownMenu>
                   </div> : !canInstall ? <StatusBadge tone={provider.available ? "success" : "warning"}>{provider.available ? m.settings.provider.available : m.settings.provider.unavailable}</StatusBadge> : null}
                 </div>
@@ -306,17 +307,10 @@ export function ProviderSettingsSection({
         </div>
       </SettingsPanel>
 
-      {providerDialogPresence.visible && renderedCli && typeof document !== "undefined" ? <Dialog as="section" open={Boolean(configuringCli)} presence={providerDialogPresence} onClose={closeProviderDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={providerDialogRef} className="settings-provider-dialog settings-cli-provider-dialog" aria-labelledby="cli-provider-dialog-title">
-            <header>
-              <div>
-                <span>{m.settings.provider.providerDialogEyebrow}</span>
-                <h2 id="cli-provider-dialog-title">{m.settings.provider.providerDialogTitle(renderedCli === "claude" ? "Claude Code" : "Codex CLI")}</h2>
-                <p>{m.settings.provider.providerDialogDescription(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")}</p>
-              </div>
-              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={closeProviderDialog} label={m.settings.provider.closeProviderDialog}><X size={16} /></IconButton>
-            </header>
-            <form onSubmit={(event) => void saveProviderBinding(event)}>
-              <div className="settings-provider-dialog-body settings-cli-provider-options" role="radiogroup" aria-label={m.settings.provider.providerOptionsAria}>
+      {providerDialogPresence.visible && renderedCli && typeof document !== "undefined" ? <Dialog size="lg" as="section" open={Boolean(configuringCli)} presence={providerDialogPresence} onClose={closeProviderDialog} containerRef={providerDialogRef} aria-labelledby="cli-provider-dialog-title">
+            <DialogHeader title={m.settings.provider.providerDialogTitle(renderedCli === "claude" ? "Claude Code" : "Codex CLI")} titleId="cli-provider-dialog-title" description={m.settings.provider.providerDialogDescription(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")} onClose={closeProviderDialog} closeLabel={m.settings.provider.closeProviderDialog} />
+            <form className="ui-dialog-form" onSubmit={(event) => void saveProviderBinding(event)}>
+              <DialogBody className="settings-provider-dialog-body settings-cli-provider-options" role="radiogroup" aria-label={m.settings.provider.providerOptionsAria}>
                 <label className="settings-cli-provider-option">
                   <input type="radio" name="cli-provider-binding" checked={selectedCliProvider === null} onChange={() => setSelectedCliProvider(null)} autoFocus />
                   <span><strong>{m.settings.provider.ownConfiguration(renderedCli === "claude" ? "Claude Code" : "Codex CLI")}</strong><small>{m.settings.provider.ownConfigurationDescription}</small></span>
@@ -326,11 +320,11 @@ export function ProviderSettingsSection({
                   <span><strong>{entry.name}</strong><small>{entry.protocol} · {entry.model}</small></span>
                 </label>)}
                 {!compatibleProviders.length ? <p className="settings-note settings-cli-provider-empty">{m.settings.provider.noCompatibleProviders(renderedCli === "claude" ? "anthropic-messages" : "openai-responses")}</p> : null}
-              </div>
-              <footer>
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={closeProviderDialog}>{m.settings.provider.cancel}</button>
-                <button type="submit" className="primary-button" disabled={providerConfigurationBusy || bindingBusy}>{bindingBusy ? m.settings.provider.savingProvider : m.settings.provider.saveProvider}</button>
-              </footer>
+              </DialogBody>
+              <DialogFooter>
+                <Button variant="ghost" type="button"  data-motion="action" onClick={closeProviderDialog}>{m.settings.provider.cancel}</Button>
+                <Button variant="primary" type="submit"  disabled={providerConfigurationBusy || bindingBusy}>{bindingBusy ? m.settings.provider.savingProvider : m.settings.provider.saveProvider}</Button>
+              </DialogFooter>
             </form>
           </Dialog> : null}
     </>
@@ -367,7 +361,7 @@ export function SharedPythonRuntimeSection({ status, busy, onToggle, onRefresh }
       </div>
       <footer className="settings-panel-footer">
         <p className="settings-note">{m.settings.pythonRuntime.disabledHint}</p>
-        <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />{m.settings.pythonRuntime.refresh}</button>
+        <Button variant="ghost" type="button"  data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={13} aria-hidden />{m.settings.pythonRuntime.refresh}</Button>
       </footer>
     </SettingsPanel>
   );
@@ -431,10 +425,10 @@ export function SkillSettingsSection({
       scope={m.settings.skills.scope(skills.length, mcpServers.length)}
       variant={mode === "mcp" ? "mcp" : "standard"}
       action={(
-        <button type="button" className="settings-subtle-action" data-motion="action" disabled={refreshing} aria-busy={refreshing || undefined} onClick={onRefresh}>
+        <Button variant="ghost" type="button"  data-motion="action" disabled={refreshing} aria-busy={refreshing || undefined} onClick={onRefresh}>
           <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden />
           {refreshing ? m.settings.skills.refreshing : m.settings.skills.refresh}
-        </button>
+        </Button>
       )}
     >
       {!mode ? <Tabs<"skills" | "mcp">
@@ -501,8 +495,8 @@ export function SkillSettingsSection({
                       <SkillDetail label={m.settings.skills.outputs} value={skill.outputArtifacts?.length ? skill.outputArtifacts.join("、") : m.settings.skills.notDeclared} />
                     </dl>
                     <div className="settings-skill-actions">
-                      <button type="button" data-motion="action" aria-label={m.settings.skills.copyNamed(skill.id)} onClick={() => onCopy(skill.id)}><Copy size={13} aria-hidden />{m.settings.skills.copyInvocation}</button>
-                      <button type="button" data-motion="action" aria-label={m.settings.skills.openNamed(title)} onClick={() => onOpenDirectory(skill.cwd)}><FolderOpen size={13} aria-hidden />{m.settings.skills.openDirectory}</button>
+                      <Button variant="ghost" type="button" data-motion="action" aria-label={m.settings.skills.copyNamed(skill.id)} onClick={() => onCopy(skill.id)}><Copy size={13} aria-hidden />{m.settings.skills.copyInvocation}</Button>
+                      <Button variant="ghost" type="button" data-motion="action" aria-label={m.settings.skills.openNamed(title)} onClick={() => onOpenDirectory(skill.cwd)}><FolderOpen size={13} aria-hidden />{m.settings.skills.openDirectory}</Button>
                     </div>
                   </div>
                 </AnimatedDisclosure>
@@ -579,7 +573,7 @@ export function SkillSettingsSection({
                   </div>
                   {server.settingsSection ? (
                     <div className="settings-skill-actions">
-                      <button type="button" data-motion="action" onClick={onOpenMcpSettings}><ExternalLink size={13} aria-hidden />{m.settings.skills.mcpOpenSettings}</button>
+                      <Button variant="ghost" type="button" data-motion="action" onClick={onOpenMcpSettings}><ExternalLink size={13} aria-hidden />{m.settings.skills.mcpOpenSettings}</Button>
                     </div>
                   ) : null}
                 </div>
@@ -676,9 +670,9 @@ export function YoutubeImportSettingsSection({ prefs, save }: { prefs: UserPrefe
   const available = (id: YoutubeToolId) => status?.tools.some(tool => tool.id === id && tool.state === "ready");
   const ready = available("yt-dlp") && available("ffmpeg") && (available("deno") || available("node"));
   return <SettingsPanel title={copy.title} scope={copy.scope} action={
-    <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={() => void refresh()}>
+    <Button variant="ghost" type="button"  data-motion="action" disabled={busy} onClick={() => void refresh()}>
       <RefreshCw size={14} aria-hidden />{detecting ? copy.detecting : copy.refresh}
-    </button>
+    </Button>
   }>
     <PreferenceRow title={copy.browser} description={copy.description}>
       <Select value={prefs.youtubeBrowser} ariaLabel={copy.browser} size="rect" disabled={detecting || saving || !status}
@@ -719,14 +713,14 @@ function YoutubeToolRow({ tool, busy, operation, error, onAction }: {
       <div className="settings-youtube-tool-actions">
         <StatusBadge tone={tool.state === "ready" ? "success" : "warning"}>{copy.toolStates[tool.state]}</StatusBadge>
         {tool.canInstall ? <>
-          <button type="button" className="settings-subtle-action" disabled={busy} aria-label={`${copy.checkUpdate} ${info.name}`} onClick={() => onAction("checking")}>
+          <Button variant="ghost" type="button"  disabled={busy} aria-label={`${copy.checkUpdate} ${info.name}`} onClick={() => onAction("checking")}>
             {operation === "checking" ? <LoaderCircle size={13} className="spin" aria-hidden /> : <RefreshCw size={13} aria-hidden />}
             {operation === "checking" ? copy.checking : copy.checkUpdate}
-          </button>
-          {installLabel || operation === "installing" ? <button type="button" className="settings-subtle-action" disabled={busy} aria-label={`${installLabel || copy.install} ${info.name}`} onClick={() => onAction("installing")}>
+          </Button>
+          {installLabel || operation === "installing" ? <Button variant="ghost" type="button"  disabled={busy} aria-label={`${installLabel || copy.install} ${info.name}`} onClick={() => onAction("installing")}>
             {operation === "installing" ? <LoaderCircle size={13} className="spin" aria-hidden /> : null}{operation === "installing" ? copy.installing : installLabel}
-          </button> : null}
-        </> : <button type="button" className="settings-subtle-action" onClick={() => void window.openmind.openExternal(YOUTUBE_TOOL_INSTALL_GUIDES[tool.id])}>{copy.manualInstall}<ExternalLink size={13} aria-hidden /></button>}
+          </Button> : null}
+        </> : <Button variant="ghost" type="button"  onClick={() => void window.openmind.openExternal(YOUTUBE_TOOL_INSTALL_GUIDES[tool.id])}>{copy.manualInstall}<ExternalLink size={13} aria-hidden /></Button>}
       </div>
     </PreferenceRow>
     {tool.version || tool.source ? <p className="settings-note">{[tool.version, tool.source === "app" ? copy.managed : tool.source === "system" ? copy.system : null].filter(Boolean).join(" · ")}</p> : null}
@@ -766,9 +760,9 @@ export function BrowserSettingsSection({ status, busy, onInstall, onRefresh, onO
         <StatusBadge tone={status?.browserConnected ? "success" : "warning"}>{status?.browserConnected ? m.settings.browser.connected : m.settings.browser.disconnected}</StatusBadge>
       </PreferenceRow>
       <div className="settings-skill-actions settings-browser-actions">
-        <button type="button" data-motion="action" disabled={busy} onClick={onInstall}><Package size={14} aria-hidden />{busy ? m.settings.browser.installing : status?.skillInstalled ? m.settings.browser.updateSkill : m.settings.browser.installSkill}</button>
-        <button type="button" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={14} aria-hidden />{m.settings.browser.refresh}</button>
-        <button type="button" data-motion="action" onClick={onOpenDocs}><ExternalLink size={14} aria-hidden />{m.settings.browser.setupGuide}</button>
+        <Button variant="ghost" type="button" data-motion="action" disabled={busy} onClick={onInstall}><Package size={14} aria-hidden />{busy ? m.settings.browser.installing : status?.skillInstalled ? m.settings.browser.updateSkill : m.settings.browser.installSkill}</Button>
+        <Button variant="ghost" type="button" data-motion="action" disabled={busy} onClick={onRefresh}><RefreshCw size={14} aria-hidden />{m.settings.browser.refresh}</Button>
+        <Button variant="ghost" type="button" data-motion="action" onClick={onOpenDocs}><ExternalLink size={14} aria-hidden />{m.settings.browser.setupGuide}</Button>
       </div>
       <p className="settings-note">{m.settings.browser.boundary}</p>
     </SettingsPanel>
@@ -813,12 +807,12 @@ export function ArchivedSessionsSettingsSection({
                 <span>{session.provider === "claude" ? "Claude Code" : "Codex"} · <time dateTime={session.createdAt}>{formatSessionDate(session.createdAt)}</time></span>
               </div>
               <div className="settings-archived-actions">
-                <button type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onOpen(session.id)} aria-label={m.settings.archivedSessions.openNamed(session.title || m.common.unnamedTopic)}>
+                <Button variant="ghost" type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onOpen(session.id)} aria-label={m.settings.archivedSessions.openNamed(session.title || m.common.unnamedTopic)}>
                   <MessageSquareText size={13} />{m.settings.archivedSessions.open}
-                </button>
-                <button type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onRestore(session.id)} aria-label={m.settings.archivedSessions.restoreNamed(session.title || m.common.unnamedTopic)}>
+                </Button>
+                <Button variant="ghost" type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onRestore(session.id)} aria-label={m.settings.archivedSessions.restoreNamed(session.title || m.common.unnamedTopic)}>
                   <RotateCcw size={13} />{busyId === session.id ? m.settings.archivedSessions.restoring : m.settings.archivedSessions.restore}
-                </button>
+                </Button>
               </div>
             </article>
           ))}
@@ -837,7 +831,7 @@ export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserP
   useLocale();
   return (
     <>
-    <SettingsPanel title={m.settings.workflow.panels.stages} scope={m.settings.scopes.contentFlow} action={<button type="button" className="settings-subtle-action" data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</button>}>
+    <SettingsPanel title={m.settings.workflow.panels.stages} scope={m.settings.scopes.contentFlow} action={<Button variant="ghost" type="button"  data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</Button>}>
       <div className="settings-workflow-stages">
         <strong className="settings-workflow-subtitle">{m.settings.workflow.stagesTitle}</strong>
         <p className="settings-workflow-hint">{m.settings.workflow.stagesDescription}</p>
@@ -969,9 +963,6 @@ export function AiProvidersSettingsSection({
     }
     dismissEditDialog();
   };
-
-
-
 
   useEffect(() => {
     if (!view) return;
@@ -1140,7 +1131,7 @@ export function AiProvidersSettingsSection({
   return (
     <>
       <SettingsPanel title={m.settings.providerConfig.title} scope={m.settings.providerConfig.count(draft.length)} variant="standard"
-        action={<button ref={addTriggerRef} type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</button>}>
+        action={<Button ref={addTriggerRef} type="button" className="settings-provider-add-button" data-motion="action" onClick={openAddDialog} disabled={busy} aria-label={m.settings.providerConfig.add}><Plus size={15} aria-hidden />{m.settings.providerConfig.add}</Button>}>
         <p className="settings-note settings-provider-list-note">{m.settings.providerConfig.note}</p>
         <Tabs<"text" | "image"> value={category} onChange={setCategory} label={uiMessages.interface.providerCategories} tabs={[
           { value: "text", label: uiMessages.interface.textProviderCount(draft.length) },
@@ -1157,7 +1148,7 @@ export function AiProvidersSettingsSection({
             return (
               <article key={entry.id} className="settings-provider-config-card" data-entrance-item>
                 <header className="settings-provider-config-header">
-                  <button type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
+                  <button aria-expanded={editingProviderId === entry.id} type="button" className="settings-provider-config-summary" data-motion="disclosure" aria-haspopup="dialog"
                     aria-label={m.settings.providerConfig.editAria(displayName)} onClick={(event) => void openEditDialog(entry, event.currentTarget)} disabled={busy}>
                     <span className="settings-provider-config-identity">
                       <span className="settings-provider-config-title"><strong>{displayName}</strong>{entry.id === defaultId ? <StatusBadge tone="info">{m.settings.providerConfig.default}</StatusBadge> : null}{entry.imageGeneration ? <StatusBadge tone="neutral">{uiMessages.interface.textAndImages}</StatusBadge> : null}</span>
@@ -1173,8 +1164,8 @@ export function AiProvidersSettingsSection({
                         disabled={busy}
                         label={<span className="settings-provider-menu-trigger" data-motion="icon"><MoreHorizontal size={17} aria-hidden /></span>}
                       >
-                        <button type="button" role="menuitem" data-motion="selection" aria-label={m.settings.providerConfig.setDefaultAria(entry.id)} onClick={() => setProviderAsDefault(entry.id)} disabled={busy || entry.id === defaultId || !entry.enabled}>{m.settings.providerConfig.setDefault}</button>
-                        <button type="button" role="menuitem" className="settings-provider-menu-danger" data-motion="action" aria-label={m.settings.providerConfig.deleteAria(entry.id)} onClick={() => remove(entry.id)} disabled={busy}>{m.settings.providerConfig.delete}</button>
+                        <MenuItem type="button" role="menuitem" data-motion="selection" aria-label={m.settings.providerConfig.setDefaultAria(entry.id)} onClick={() => setProviderAsDefault(entry.id)} disabled={busy || entry.id === defaultId || !entry.enabled}>{m.settings.providerConfig.setDefault}</MenuItem>
+                        <MenuItem tone="danger" type="button" role="menuitem"  data-motion="action" aria-label={m.settings.providerConfig.deleteAria(entry.id)} onClick={() => remove(entry.id)} disabled={busy}>{m.settings.providerConfig.delete}</MenuItem>
                       </DropdownMenu>
                     </div>
                   </div>
@@ -1185,54 +1176,41 @@ export function AiProvidersSettingsSection({
         </div>
       </SettingsPanel>
 
-      {addPresence.visible && newProvider && typeof document !== "undefined" ? <Dialog as="section" open={adding} presence={addPresence} triggerRef={addTriggerRef} onClose={closeAddDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={addDialogRef} className="settings-provider-dialog" aria-labelledby="add-provider-title">
-            <header>
-              <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="add-provider-title">{m.settings.providerConfig.addTitle}</h2><p>{m.settings.providerConfig.addDescription}</p></div>
-              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={closeAddDialog} label={m.settings.providerConfig.closeAdd}><X size={16} /></IconButton>
-            </header>
-            <form onSubmit={addProvider}>
-              <div className="settings-provider-dialog-body">
-                <label className="settings-field settings-field--wide"><span>{m.settings.providerConfig.preset}</span>
+      {addPresence.visible && newProvider && typeof document !== "undefined" ? <Dialog size="lg" as="section" open={adding} presence={addPresence} triggerRef={addTriggerRef} onClose={closeAddDialog}  containerRef={addDialogRef}  aria-labelledby="add-provider-title">
+            <DialogHeader title={m.settings.providerConfig.addTitle} titleId="add-provider-title" description={m.settings.providerConfig.addDescription} onClose={closeAddDialog} closeLabel={m.settings.providerConfig.closeAdd} />
+            <form className="ui-dialog-form" onSubmit={addProvider}>
+              <DialogBody className="settings-provider-dialog-body">
+                <FormField className="settings-field--wide" label={m.settings.providerConfig.preset} hint={m.settings.providerConfig.presetHint}>
                   <Select size="rect" className="settings-select" value={presetId} ariaLabel={m.settings.providerConfig.preset} onChange={changePreset} autoFocus options={[
                     ...PROVIDER_PRESETS.map(preset => ({ value: preset.id, label: preset.name })), { value: "custom", label: m.settings.providerConfig.custom }
                   ]} />
-                  <small>{m.settings.providerConfig.presetHint}</small>
-                </label>
+                </FormField>
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>ID</span><Input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><Input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></label>
-                  <label className="settings-field"><span>Base URL</span><Input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><Input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
-                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={newProvider.protocol} onChange={protocol => setNewProvider({ ...newProvider, protocol })} options={PROVIDER_PROTOCOL_OPTIONS} />
-                  </label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
-                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={newProvider.authMode} onChange={authMode => setNewProvider({ ...newProvider, authMode })} options={PROVIDER_AUTH_OPTIONS} />
-                  </label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.apiKey}</span><Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></label>
+                  <FormField label="ID"><Input className="settings-browser-path-input" value={newProvider.id} required onChange={(event) => setNewProvider({ ...newProvider, id: event.target.value })} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.name}><Input className="settings-browser-path-input" value={newProvider.name} required onChange={(event) => setNewProvider({ ...newProvider, name: event.target.value })} /></FormField>
+                  <FormField label="Base URL"><Input className="settings-browser-path-input" type="url" value={newProvider.baseUrl} required placeholder="https://api.example.com" onChange={(event) => setNewProvider({ ...newProvider, baseUrl: event.target.value })} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.model}><Input className="settings-browser-path-input" value={newProvider.model} required placeholder={m.settings.providerConfig.modelPlaceholder} onChange={(event) => setNewProvider({ ...newProvider, model: event.target.value })} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.protocol}><Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={newProvider.protocol} onChange={protocol => setNewProvider({ ...newProvider, protocol })} options={PROVIDER_PROTOCOL_OPTIONS} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.authMode}><Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={newProvider.authMode} onChange={authMode => setNewProvider({ ...newProvider, authMode })} options={PROVIDER_AUTH_OPTIONS} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.apiKey}><Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={newProvider.apiKey} required placeholder={m.settings.providerConfig.apiKeyPlaceholder} autoComplete="off" spellCheck={false} onChange={(event) => setNewProvider({ ...newProvider, apiKey: event.target.value })} /></FormField>
                 </div>
                 <ProviderImageCapability value={newProvider.imageGeneration} baseUrl={newProvider.baseUrl} onChange={imageGeneration => setNewProvider({ ...newProvider, imageGeneration })} />
-              </div>
-              <footer><button type="button" className="settings-subtle-action" data-motion="action" onClick={closeAddDialog}>{m.settings.providerConfig.cancel}</button><button type="submit" className="primary-button"><Plus size={14} />{m.settings.providerConfig.addToList}</button></footer>
+              </DialogBody>
+              <DialogFooter><Button variant="ghost" type="button"  data-motion="action" onClick={closeAddDialog}>{m.settings.providerConfig.cancel}</Button><Button variant="primary" type="submit" ><Plus size={14} />{m.settings.providerConfig.addToList}</Button></DialogFooter>
             </form>
           </Dialog> : null}
 
-      {editPresence.visible && editingProvider && typeof document !== "undefined" ? <Dialog as="section" open={Boolean(editingProviderId)} presence={editPresence} triggerRef={editTriggerRef} onClose={cancelEditDialog} backdropClassName="modal-scrim settings-provider-dialog-scrim ui-overlay" containerRef={editDialogRef} className="settings-provider-dialog" aria-labelledby="edit-provider-title">
-            <header>
-              <div><span>{m.settings.providerConfig.dialogEyebrow}</span><h2 id="edit-provider-title">{m.settings.providerConfig.editTitle(editingProvider.name || editingProvider.id)}</h2><p>{m.settings.providerConfig.editDescription}</p></div>
-              <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={cancelEditDialog} label={m.settings.providerConfig.cancelEdit(editingProvider.name || editingProvider.id)}><X size={16} /></IconButton>
-            </header>
-            <form onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
-              <div className="settings-provider-dialog-body">
+      {editPresence.visible && editingProvider && typeof document !== "undefined" ? <Dialog size="lg" as="section" open={Boolean(editingProviderId)} presence={editPresence} triggerRef={editTriggerRef} onClose={cancelEditDialog}  containerRef={editDialogRef}  aria-labelledby="edit-provider-title">
+            <DialogHeader title={m.settings.providerConfig.editTitle(editingProvider.name || editingProvider.id)} titleId="edit-provider-title" description={m.settings.providerConfig.editDescription} onClose={cancelEditDialog} closeLabel={m.settings.providerConfig.cancelEdit(editingProvider.name || editingProvider.id)} />
+            <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); saveEditingProvider(); }}>
+              <DialogBody className="settings-provider-dialog-body">
                 <div className="settings-grid-2">
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.name}</span><Input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.model}</span><Input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></label>
-                  <label className="settings-field settings-field--wide"><span>Base URL</span><Input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></label>
-                  <label className="settings-field settings-field--wide"><span>API Key</span>
-                    <Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={editingApiKey}
+                  <FormField label={m.settings.providerConfig.fields.name}><Input className="settings-browser-path-input" value={editingProvider.name} onChange={(event) => update(editingProvider.id, { name: event.target.value })} autoFocus /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.model}><Input className="settings-browser-path-input" value={editingProvider.model} onChange={(event) => update(editingProvider.id, { model: event.target.value })} /></FormField>
+                  <FormField label="Base URL" className="settings-field--wide"><Input className="settings-browser-path-input" type="url" value={editingProvider.baseUrl} onChange={(event) => update(editingProvider.id, { baseUrl: event.target.value })} placeholder="https://api.example.com" /></FormField>
+                  <FormField label="API Key" className="settings-field--wide"><Input className="settings-browser-path-input settings-provider-api-key-input" type="text" value={editingApiKey}
                       placeholder={m.settings.providerConfig.unset} autoComplete="off" spellCheck={false}
-                      onChange={(event) => updateKey(editingProvider.id, event.target.value)} />
-                  </label>
+                      onChange={(event) => updateKey(editingProvider.id, event.target.value)} /></FormField>
                 </div>
                 <ProviderImageCapability value={editingProvider.imageGeneration} baseUrl={editingProvider.baseUrl} disabled={busy} onChange={imageGeneration => update(editingProvider.id, { imageGeneration })} />
                 <AnimatedDisclosure
@@ -1245,20 +1223,16 @@ export function AiProvidersSettingsSection({
                   summary={<><span><strong>{m.settings.providerConfig.advanced}</strong><small>{m.settings.providerConfig.advancedDescription}</small></span><ChevronDown size={16} aria-hidden /></>}
                 >
                 <div className="settings-provider-advanced-grid">
-                  <label className="settings-field"><span>ID</span><Input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.protocol}</span>
-                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={editingProvider.protocol} onChange={protocol => update(editingProvider.id, { protocol })} options={PROVIDER_PROTOCOL_OPTIONS} />
-                  </label>
-                  <label className="settings-field"><span>{m.settings.providerConfig.fields.authMode}</span>
-                    <Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={editingProvider.authMode} onChange={authMode => update(editingProvider.id, { authMode })} options={PROVIDER_AUTH_OPTIONS} />
-                  </label>
+                  <FormField label="ID"><Input className="settings-browser-path-input" value={editingProvider.id} readOnly title={m.settings.providerConfig.idImmutable} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.protocol}><Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.protocol} value={editingProvider.protocol} onChange={protocol => update(editingProvider.id, { protocol })} options={PROVIDER_PROTOCOL_OPTIONS} /></FormField>
+                  <FormField label={m.settings.providerConfig.fields.authMode}><Select size="rect" className="settings-select" ariaLabel={m.settings.providerConfig.fields.authMode} value={editingProvider.authMode} onChange={authMode => update(editingProvider.id, { authMode })} options={PROVIDER_AUTH_OPTIONS} /></FormField>
                 </div>
                 </AnimatedDisclosure>
-              </div>
-              <footer>
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={cancelEditDialog}>{m.settings.providerConfig.cancel}</button>
-                <button type="submit" className="primary-button" disabled={busy}>{busy ? m.settings.providerConfig.saving : m.settings.providerConfig.save}</button>
-              </footer>
+              </DialogBody>
+              <DialogFooter>
+                <Button variant="ghost" type="button"  data-motion="action" onClick={cancelEditDialog}>{m.settings.providerConfig.cancel}</Button>
+                <Button variant="primary" type="submit"  disabled={busy}>{busy ? m.settings.providerConfig.saving : m.settings.providerConfig.save}</Button>
+              </DialogFooter>
             </form>
           </Dialog> : null}
     </>
@@ -1277,7 +1251,7 @@ function PreferenceRow({ title, description, children }: { title: string; descri
 
 function PathRow({ label, path, buttonLabel, onClick }: { label: string; path: string; buttonLabel: string; onClick(): void }) {
   useLocale();
-  return <div className="settings-path-card"><small>{label}</small><code>{path || m.settings.paths.unset}</code><button type="button" data-motion="icon" onClick={onClick}><FolderOpen size={13} />{buttonLabel}</button></div>;
+  return <div className="settings-path-card"><small>{label}</small><code>{path || m.settings.paths.unset}</code><Button variant="ghost" size="sm" type="button" data-motion="icon" onClick={onClick}><FolderOpen size={13} />{buttonLabel}</Button></div>;
 }
 
 function providerSubtitle(provider: ProviderCapabilities): string {

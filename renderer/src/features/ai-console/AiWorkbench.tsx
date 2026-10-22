@@ -1,7 +1,8 @@
+import { PopoverSurface } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { History } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
@@ -136,7 +137,7 @@ export function AiWorkbench({
                 tone={sessionStatusTone(activeSession.status)}
               />
             ) : null}
-            {!projectMode ? <IconButton ref={historyButtonRef} className="icon-button history-toggle" aria-haspopup="menu" aria-expanded={historyOpen} onClick={toggleHistory} label={m.ai.session.recent}>
+            {!projectMode ? <IconButton ref={historyButtonRef} className="history-toggle" aria-haspopup="menu" aria-expanded={historyOpen} onClick={toggleHistory} label={m.ai.session.recent}>
               <History size={16} />
             </IconButton> : null}
           </div>
@@ -144,7 +145,7 @@ export function AiWorkbench({
         <Chat onDraftSubmit={onDraftSubmit} />
       </AiFilePreviewPane>
       {!projectMode && historyPresence.visible ? createPortal(
-        <div
+        <PopoverSurface
           ref={historyFlyoutRef}
           className="history-flyout"
           data-leaving={historyPresence.leaving || undefined}
@@ -152,10 +153,10 @@ export function AiWorkbench({
           data-side={historyPopover.side}
           role="menu"
           aria-label={m.ai.session.recent}
-          style={historyPopover.style}
+          position={historyPopover.style}
         >
           <AiSessionNavigation />
-        </div>,
+        </PopoverSurface>,
         document.body
       ) : null}
     </>

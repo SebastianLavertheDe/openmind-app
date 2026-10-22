@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, RefreshCw, Sparkles, Wand2, X } from "lucide-react";
@@ -140,7 +141,7 @@ export function InlineAiBar({
           <Sparkles size={13} />
           <span className="inline-ai-sel-label">{m.creativeUi.inlineAi.selectedChars(sel.text.length)}</span>
           {ACTION_KEYS.map((key) => (
-            <button
+            <Button
               key={key}
               className="inline-ai-action"
               onClick={() => void start(m.creativeUi.inlineAi[`${key}Instruction`])}
@@ -148,7 +149,7 @@ export function InlineAiBar({
               title={m.creativeUi.inlineAi[`${key}Instruction`]}
             >
               {m.creativeUi.inlineAi[key]}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -158,10 +159,10 @@ export function InlineAiBar({
           <header>
             <span className="eyebrow">{busy ? <><LoaderCircle className="spin" size={12} /> {m.creativeUi.inlineAi.generating}</> : <><Wand2 size={12} /> {m.creativeUi.inlineAi.result}</>}</span>
             <div className="inline-ai-actions">
-              {busy ? <button data-motion="action" onClick={() => void cancel()} title={m.creativeUi.inlineAi.cancel}><X size={12} />{m.creativeUi.inlineAi.cancel}</button> : null}
-              {!busy && !error ? <button data-motion="action" onClick={() => void start(m.creativeUi.inlineAi.rewriteInstruction)} title={m.common.retry}><RefreshCw size={12} />{m.creativeUi.inlineAi.retry}</button> : null}
-              {!busy && !error ? <button className="primary-button" data-motion="action" disabled={disabled || !finalText.trim()} onClick={accept} title={m.creativeUi.inlineAi.replaceSelectionTitle}><Check size={12} />{m.creativeUi.inlineAi.replaceSelection}</button> : null}
-              {!busy ? <button data-motion="action" onClick={() => void cancel()} title={error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}>{error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}</button> : null}
+              {busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={m.creativeUi.inlineAi.cancel}><X size={12} />{m.creativeUi.inlineAi.cancel}</Button> : null}
+              {!busy && !error ? <Button variant="ghost" data-motion="action" onClick={() => void start(m.creativeUi.inlineAi.rewriteInstruction)} title={m.common.retry}><RefreshCw size={12} />{m.creativeUi.inlineAi.retry}</Button> : null}
+              {!busy && !error ? <Button variant="primary"  data-motion="action" disabled={disabled || !finalText.trim()} onClick={accept} title={m.creativeUi.inlineAi.replaceSelectionTitle}><Check size={12} />{m.creativeUi.inlineAi.replaceSelection}</Button> : null}
+              {!busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}>{error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}</Button> : null}
             </div>
           </header>
           {error ? <p className="inline-error">{error}</p> : null}

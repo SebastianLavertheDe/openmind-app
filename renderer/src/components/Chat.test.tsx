@@ -1260,7 +1260,7 @@ describe("chat timeline", () => {
 
     await user.click(within(assistant).getByRole("button", { name: "引用回复" }));
     expect(screen.getByText("1 项上下文")).toBeTruthy();
-    await user.click(within(assistant).getAllByRole("button", { name: "复制" })[0]);
+    await user.click(within(assistant.querySelector<HTMLElement>(".message-actions")!).getByRole("button", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(answer));
     await user.click(within(assistant).getByRole("button", { name: "按原上下文重新运行" }));
     await waitFor(() => expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session", prompt: "test" })));
@@ -1684,7 +1684,7 @@ describe("chat timeline", () => {
     expect(Boolean(process.compareDocumentPosition(finalAnswer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
-  it("keeps completed command groups collapsed by default and collapses open tool details with the group", async () => {
+  it("keeps completed tool details collapsed and resets them when the process closes", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:10.000Z" };
     window.openmind.aiGetEvents = async () => [
       makeEvent("user", "user-message", { text: "check project" }, 1),
@@ -1698,15 +1698,14 @@ describe("chat timeline", () => {
     ];
     render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
 
-    openDisclosure(disclosureFor(await screen.findByText("已处理")));
-    const group = disclosureFor(screen.getByText("命令执行失败 · 共 3 条"));
-    expectDisclosureOpen(group, false);
-    expect(within(group).getByText("1 条失败")).toBeTruthy();
-
-    fireEvent.click(disclosureTrigger(group));
-    expectDisclosureOpen(group, true);
-
+    const process = disclosureFor(await screen.findByText("已处理"));
+    expectDisclosureOpen(process, false);
+    openDisclosure(process);
+    const group = process.querySelector<HTMLElement>(".command-group.flat")!;
+    expect(group.classList.contains("failed")).toBe(true);
+    expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
     const [pwd, failed, git] = Array.from(group.querySelectorAll<HTMLElement>(".tool-event"));
+    expect(failed.classList.contains("failed")).toBe(true);
     expectDisclosureOpen(pwd, false);
     expectDisclosureOpen(failed, false);
     expectDisclosureOpen(git, false);
@@ -1721,16 +1720,12 @@ describe("chat timeline", () => {
       expectDisclosureOpen(git, true);
       expectDisclosureOpen(pwd, true);
     });
-    fireEvent.click(disclosureTrigger(group));
-    await waitFor(() => {
-      expectDisclosureOpen(group, false);
-      expectDisclosureOpen(git, false);
-      expectDisclosureOpen(pwd, false);
-    });
-    fireEvent.click(disclosureTrigger(group));
-    expectDisclosureOpen(group, true);
-    expectDisclosureOpen(git, false);
-    expectDisclosureOpen(pwd, false);
+    fireEvent.click(disclosureTrigger(process));
+    await waitFor(() => expect(process.querySelector(".tool-event")).toBeNull());
+    expectDisclosureOpen(process, false);
+    openDisclosure(process);
+    expect(process.querySelectorAll(".tool-event")).toHaveLength(3);
+    for (const call of process.querySelectorAll<HTMLElement>(".tool-event")) expectDisclosureOpen(call, false);
   });
 
   it("keeps a running command group open with command details collapsed", async () => {
@@ -1743,9 +1738,12 @@ describe("chat timeline", () => {
     ];
     render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
 
-    const group = disclosureFor(await screen.findByText("正在运行 2 条命令"));
-    expectDisclosureOpen(group, true);
-    const calls = group.querySelectorAll<HTMLElement>(".tool-event");
+    const process = disclosureFor(await screen.findByText(m.ai.chat.processing));
+    expectDisclosureOpen(process, true);
+    await within(process).findByRole("button", { name: /npm run package/ });
+    const calls = process.querySelectorAll<HTMLElement>(".command-group.flat .tool-event");
+    expect(calls).toHaveLength(2);
+    expect(calls[1].classList.contains("running")).toBe(true);
     expectDisclosureOpen(calls[0], false);
     expectDisclosureOpen(calls[1], false);
   });
@@ -1764,12 +1762,10 @@ describe("chat timeline", () => {
     ];
     render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
 
-    openDisclosure(disclosureFor(await screen.findByText(m.ai.chat.processed)));
-    const group = disclosureFor(screen.getByText(m.ai.tool.toolGroupRan(3)));
-    expectDisclosureOpen(group, false);
-    expect(group.classList.contains("tools")).toBe(true);
-    fireEvent.click(disclosureTrigger(group));
-    expectDisclosureOpen(group, true);
+    const process = disclosureFor(await screen.findByText(m.ai.chat.processed));
+    openDisclosure(process);
+    const group = process.querySelector<HTMLElement>(".command-group.flat")!;
+    expect(group.classList.contains("completed")).toBe(true);
     expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
     expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*openmind/ })).toBeTruthy();
     expect(within(group).getByRole("button", { name: /Read.*openmind\/today\.md/ })).toBeTruthy();
@@ -1792,9 +1788,11 @@ describe("chat timeline", () => {
     aiListener?.({ kind: "event", event: makeEvent("first-done", "tool-complete", { itemId: "first", output: "renderer/src/App.tsx" }, 3) });
     aiListener?.({ kind: "event", event: makeEvent("second-start", "tool-start", { itemId: "second", tool: "Read", input: { file_path: "renderer/src/App.tsx" } }, 4) });
 
-    const group = disclosureFor(await screen.findByText(m.ai.tool.toolGroupRunning(2)));
+    await within(process).findByRole("button", { name: /Read/ });
+    const group = process.querySelector<HTMLElement>(".command-group.flat")!;
     const groupedFirst = group.querySelector<HTMLElement>(".tool-event")!;
-    expectDisclosureOpen(group, true);
+    expect(group.querySelectorAll(".tool-event")).toHaveLength(2);
+    expect(groupedFirst).toBe(first);
     expectDisclosureOpen(groupedFirst, true);
 
     aiListener?.({
@@ -1802,9 +1800,9 @@ describe("chat timeline", () => {
       event: makeEvent("third-start", "tool-start", { itemId: "third", tool: "Grep", input: { pattern: "TODO", path: "renderer/src" } }, 5)
     });
 
-    const updatedGroup = disclosureFor(await screen.findByText(m.ai.tool.toolGroupRunning(3)));
+    await within(process).findByRole("button", { name: /Grep/ });
+    const updatedGroup = process.querySelector<HTMLElement>(".command-group.flat")!;
     expect(updatedGroup).toBe(group);
-    expectDisclosureOpen(updatedGroup, true);
     expectDisclosureOpen(groupedFirst, true);
     expect(updatedGroup.querySelectorAll(".tool-event")).toHaveLength(3);
   });
@@ -2007,9 +2005,9 @@ describe("chat timeline", () => {
     fireEvent.click(reasoningInline);
     expectDisclosureOpen(reasoningDisclosure, true);
     expect(within(process).getByText("inspect context")).toBeTruthy();
-    const tool = disclosureFor(within(process).getByText("Read"));
+    const tool = disclosureFor(within(process).getByRole("button", { name: /Read.*src\/app\.ts/ }));
     expectDisclosureOpen(tool, false);
-    expect(within(process).getAllByText("app.ts").length).toBeGreaterThan(0);
+    expect(tool.textContent).toContain("app.ts");
     fireEvent.click(disclosureTrigger(tool));
     expectDisclosureOpen(tool, true);
   });
@@ -2029,7 +2027,7 @@ describe("chat timeline", () => {
     expect(process.querySelector(".tool-event")).toBeNull();
 
     openDisclosure(process);
-    expect(await within(process).findByText("Read")).toBeTruthy();
+    expect(await within(process).findByRole("button", { name: /Read.*src\/lazy\.ts/ })).toBeTruthy();
     fireEvent.click(disclosureTrigger(process));
     await waitFor(() => expect(process.querySelector(".tool-event")).toBeNull());
   });

@@ -14,22 +14,8 @@ import { PreviewRenderer, useFilePreviewController } from "../file-preview";
 import { previewResourceTruncated, type FilePreviewSource, type PreviewDraft, type PreviewResource } from "../file-preview/model";
 import { FilePreviewProvider } from "./file-preview-context";
 import { usePreviewMotion } from "./use-preview-motion";
-import {
-  DEFAULT_PREVIEW_RATIO,
-  FILE_PREVIEW_PANE_MIN_INLINE_SIZE,
-  FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE,
-  FILE_PREVIEW_SPLITTER_INLINE_SIZE,
-  MAX_PREVIEW_RATIO,
-  MIN_PREVIEW_RATIO,
-  filePreviewLayoutMode,
-  loadPreviewRatio,
-  savePreviewRatio
-} from "./file-preview-layout";
-import {
-  isBinaryPreviewPath,
-  workspacePreviewSource,
-  type ConversationSurface
-} from "./workspace-preview-source";
+import { DEFAULT_PREVIEW_RATIO, FILE_PREVIEW_PANE_MIN_INLINE_SIZE, FILE_PREVIEW_SPLIT_MIN_INLINE_SIZE, FILE_PREVIEW_SPLITTER_INLINE_SIZE, MAX_PREVIEW_RATIO, MIN_PREVIEW_RATIO, filePreviewLayoutMode, loadPreviewRatio, savePreviewRatio } from "./file-preview-layout";
+import { isBinaryPreviewPath, workspacePreviewSource, type ConversationSurface } from "./workspace-preview-source";
 
 type DisplayedPreview = {
   source: FilePreviewSource;
@@ -419,7 +405,7 @@ export function AiFilePreviewPane({
                         preview.clearSaveError();
                         setSaveNotice(null);
                       }}
-                    /> : <Textarea variant="inline" className="ai-source-editor"
+                    /> : <Textarea variant="code" className="ai-source-editor"
                       aria-label={m.ai.workbench.editFileContent}
                       value={displayedPreview.draft.content}
                       spellCheck={false}

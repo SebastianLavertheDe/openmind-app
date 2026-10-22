@@ -1,14 +1,7 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import {
-  Archive,
-  Check,
-  Copy,
-  ExternalLink,
-  FileText,
-  LoaderCircle,
-  Save
-} from "lucide-react";
+import { Archive, Check, Copy, ExternalLink, FileText, LoaderCircle, Save } from "lucide-react";
 import type { ContentRecord, CreativeProjectDetail, CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { getLocale, messages as m } from "@shared/messages";
 import { EmptyState, StatusBadge, Tabs } from "../../design-system/components";
@@ -229,19 +222,19 @@ function CreativeDocumentEditor({
       <header className="creative-document-header">
         <div><div className="document-status"><StatusBadge tone={published ? "success" : "info"}>{stageLabel(stage)}</StatusBadge><span>{dirty ? m.creativeUi.editor.status.editing : autoSaveStatus === "saving" ? m.creativeUi.editor.status.autoSaving : autoSaveStatus === "failed" ? m.creativeUi.editor.status.autoSaveFailed : autoSaveStatus === "saved" ? m.creativeUi.editor.status.autoSaved : m.creativeUi.editor.status.saved}</span></div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
         <div>
-          <button data-motion="action" onClick={() => window.openmind.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</button>
-          <button data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? m.creativeUi.editor.savingVersion : m.creativeUi.editor.saveVersion}</button>
-          {published ? <button data-motion="action" onClick={() => void copyProject()}><Copy size={14} />{m.creativeUi.editor.copy}</button> : null}
-          {published || stage === "ready" ? <button data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />{m.creativeUi.editor.archive}</button> : null}
-          {!published ? <button className="primary-button" data-motion="action" onClick={() => void advance()}><Check size={14} />{m.creativeUi.editor.enterStage(stageLabel(nextStage(stage)))}</button> : null}
+          <Button variant="ghost" data-motion="action" onClick={() => window.openmind.openPath(detail.dir)}><ExternalLink size={14} />{m.creativeUi.editor.openDir}</Button>
+          <Button variant="ghost" data-motion="action" aria-busy={saving || undefined} disabled={!dirty || saving} onClick={() => void save()}><Save size={14} />{saving ? m.creativeUi.editor.savingVersion : m.creativeUi.editor.saveVersion}</Button>
+          {published ? <Button variant="ghost" data-motion="action" onClick={() => void copyProject()}><Copy size={14} />{m.creativeUi.editor.copy}</Button> : null}
+          {published || stage === "ready" ? <Button variant="ghost" data-motion="action" onClick={() => void archiveProject()}><Archive size={14} />{m.creativeUi.editor.archive}</Button> : null}
+          {!published ? <Button variant="primary"  data-motion="action" onClick={() => void advance()}><Check size={14} />{m.creativeUi.editor.enterStage(stageLabel(nextStage(stage)))}</Button> : null}
         </div>
       </header>
-      <nav className="document-tabs">{Object.keys(detail.files || {}).map((file) => <button data-motion="selection" key={file} className={activeFile === file ? "active" : ""} onClick={() => void chooseFile(file)}>{file}</button>)}</nav>
+      <nav className="document-tabs">{Object.keys(detail.files || {}).map((file) => <button aria-pressed={Boolean(activeFile === file)} data-motion="selection" key={file} className={activeFile === file ? "active" : ""} onClick={() => void chooseFile(file)}>{file}</button>)}</nav>
       {published ? (
         <section className="published-summary">
           <header><StatusBadge tone="success">{m.creativeUi.editor.publishedSummary}</StatusBadge>{publish?.publishedAt ? <span>{new Date(String(publish.publishedAt)).toLocaleString(getLocale())}</span> : null}{publish?.platform ? <em>{platformLabel(String(publish.platform))}</em> : null}</header>
-          <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <button data-motion="icon" onClick={() => void window.openmind.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</button> : null}</p>
-          <div className="publish-actions"><button data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</button><button data-motion="action" onClick={() => void window.openmind.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</button></div>
+          <p>{m.creativeUi.editor.exportFileLabel}：{exported || m.creativeUi.editor.exportNotRecorded}{exported ? <Button variant="ghost" size="sm" data-motion="icon" onClick={() => void window.openmind.openPath(exported)}>{m.creativeUi.editor.openExportedFile}</Button> : null}</p>
+          <div className="publish-actions"><Button variant="ghost" data-motion="action" onClick={() => void exportDraft()}>{m.creativeUi.editor.reexport}</Button><Button variant="ghost" data-motion="action" onClick={() => void window.openmind.openPath(detail.dir)}>{m.creativeUi.editor.openDir}</Button></div>
           <small>{m.creativeUi.editor.publishMetricsNote}</small>
         </section>
       ) : null}

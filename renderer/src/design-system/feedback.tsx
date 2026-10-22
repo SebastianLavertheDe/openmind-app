@@ -2,6 +2,7 @@ import { useLocale } from "../i18n";
 import type { ReactNode } from "react";
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { messages as m } from "@shared/messages";
+import { Button } from "./Button";
 
 export function StatusBadge({
   tone = "neutral",
@@ -47,7 +48,7 @@ export function ErrorState({ message, retry }: { message: string; retry?(): void
     <div className="ui-error-state" role="alert">
       <AlertTriangle size={20} aria-hidden="true" />
       <div><strong>{m.designSystem.loadFailed}</strong><p>{message}</p></div>
-      {retry ? <button data-motion="action" onClick={retry}>{m.common.retry}</button> : null}
+      {retry ? <Button onClick={retry}>{m.common.retry}</Button> : null}
     </div>
   );
 }

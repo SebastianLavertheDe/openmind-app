@@ -1,0 +1,24 @@
+/* Development-only layout. Loaded exclusively by renderer/dev/ui-catalog.tsx. */
+@font-face { font-family: "OpenMind UI Fixture"; src: url("../../../../node_modules/pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; font-display: block; }
+@font-face { font-family: "OpenMind UI Fixture"; src: url("../../../../node_modules/pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 500 900; font-display: block; }
+html, body, #root { min-height: 100%; }
+/* Keep focused controls visible while removing the operating system's caret blink. */
+:root { caret-color: transparent; }
+body { margin: 0; overflow: auto; background: var(--app-bg); }
+.ui-catalog { padding: var(--space-4); }
+.ui-catalog-header { margin-bottom: var(--space-4); }
+.ui-catalog-header h1 { margin: 0; font-size: var(--fs-page); }
+.ui-catalog-header p { margin: var(--space-2) 0; color: var(--muted); }
+.ui-catalog-header nav { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.ui-catalog-header a { color: var(--text-dim); font-size: var(--fs-xs); }
+.ui-catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); align-items: start; gap: var(--space-4); }
+.ui-catalog-card { min-width: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel-bg); }
+.ui-catalog-card h2 { margin: 0 0 var(--space-4); font-size: var(--fs-md); }
+.ui-catalog-group h3 { margin: var(--space-3) 0 var(--space-2); font-size: var(--fs-xs); color: var(--muted); }
+.ui-catalog-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.ui-catalog-stack { display: grid; gap: var(--space-4); }
+.ui-catalog-menu-example { width: min(460px, 100%); margin: 40px auto; }
+.ui-catalog-choice-anchor { margin-top: 140px; }
+.ui-catalog-composer-example { width: min(640px, 100%); margin: 40px auto; }
+.ui-catalog-composer-stage { position: relative; min-height: 420px; }
+.ui-catalog-benchmark-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-block: var(--space-4); }

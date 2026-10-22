@@ -10,9 +10,9 @@
 .runs-filterbar > span { margin-left: auto; color: var(--text-secondary); font-size: 12px; }
 .runs-layout { display: grid; grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr); gap: 16px; min-height: 520px; }
 .runs-list { padding: 8px; overflow: auto; }
-.run-list-item { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 0; border-radius: 10px; background: transparent; color: inherit; text-align: left; padding: 12px 10px; cursor: pointer; }
-.run-list-item:hover, .run-list-item.active { background: var(--surface-hover); }
-.run-list-item time { color: var(--text-tertiary); font-size: var(--fs-xs); white-space: nowrap; }
+.run-list-item:not([data-ui-control]) { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 0; border-radius: 10px; background: transparent; color: inherit; text-align: left; padding: 12px 10px; cursor: pointer; }
+.run-list-item:not([data-ui-control]):hover, .run-list-item:not([data-ui-control]).active { background: var(--surface-hover); }
+.run-list-item:not([data-ui-control]) time { color: var(--text-tertiary); font-size: var(--fs-xs); white-space: nowrap; }
 .run-list-copy { display: grid; gap: 3px; min-width: 0; }
 .run-list-copy strong, .run-list-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-list-copy small, .runs-muted, .runs-empty, .workflow-step-row small, .artifact-row small { color: var(--text-secondary); }
@@ -33,6 +33,6 @@
 .run-failure-summary small { color: var(--text-secondary); }
 .run-orphan-warning { border: 1px solid color-mix(in srgb, var(--warning-fg) 45%, var(--border-subtle)); border-radius: 10px; padding: 12px; background: color-mix(in srgb, var(--warning-fg) 8%, transparent); }.run-orphan-warning h3 { color: var(--warning-fg); }.run-orphan-warning p { margin: 0; color: var(--text-secondary); line-height: 1.55; }
 .artifact-row, .workflow-step-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border-subtle); border-radius: 9px; padding: 10px; }.artifact-row { flex-wrap: wrap; }.artifact-row code { flex: 1 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }.artifact-row > small { margin-left: auto; white-space: nowrap; }.artifact-actions { display: inline-flex; gap: 6px; margin-left: auto; }.artifact-actions button { display: inline-flex; align-items: center; gap: 4px; }.workflow-step-row > div { display: grid; gap: 3px; flex: 1; min-width: 0; }
-.run-resume-section { display: grid; gap: 10px; }.run-resume-section p { margin: 0; }.runs-resume-input { width: 100%; min-height: 120px; resize: vertical; box-sizing: border-box; padding: 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.run-resume-section { display: grid; gap: 10px; }.run-resume-section p { margin: 0; }.runs-resume-input { width: 100%; resize: vertical; box-sizing: border-box; }
 .run-event-row { display: grid; grid-template-columns: 155px 110px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-subtle); }.run-event-row time { color: var(--text-tertiary); }.run-event-row span { overflow-wrap: anywhere; color: var(--text-secondary); }
 @media (max-width: 820px) { .runs-layout { grid-template-columns: 1fr; }.runs-list { max-height: 280px; }.run-event-row { grid-template-columns: 1fr; gap: 3px; }.runs-filterbar > span { width: 100%; margin-left: 0; } }

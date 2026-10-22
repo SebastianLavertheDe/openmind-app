@@ -27,7 +27,6 @@
     white-space: normal;
   }
 
-  .creative-editor textarea,
   .creative-preview {
     padding-inline: clamp(18px, 5vw, 36px);
   }
@@ -64,19 +63,19 @@
   }
 
   .creative-list-pane > header,
-  .pane-head {
+.pane-head {
     padding-inline: 10px;
   }
 
   .creative-document-header,
-  .topic-workspace > header,
-  .rule-detail > header {
+.topic-workspace > header,
+.rule-detail > header {
     padding: 14px;
   }
 
   .step,
-  .cron-row,
-  .rule-status-strip {
+.cron-row,
+.rule-status-strip {
     align-items: flex-start;
   }
 

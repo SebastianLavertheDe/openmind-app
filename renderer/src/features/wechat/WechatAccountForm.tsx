@@ -1,3 +1,6 @@
+import { DialogBody, DialogFooter, FormActions } from "../../design-system/components";
+import { FormField } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { Input } from "../../design-system/components";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
@@ -15,10 +18,11 @@ export type WechatAccountFormProps = {
   onSaved(account: WechatAccountView): void;
   onCancel?(): void;
   onBusyChange?(busy: boolean): void;
+  layout?: "inline" | "dialog";
 };
 
 /** Shared by settings and the article export dialog; secrets are never loaded. */
-export function WechatAccountForm({ account, onSaved, onCancel, onBusyChange }: WechatAccountFormProps) {
+export function WechatAccountForm({ account, onSaved, onCancel, onBusyChange, layout = "inline" }: WechatAccountFormProps) {
   useLocale();
   const [loadedAccount, setLoadedAccount] = useState<WechatAccountView | null>(account ?? null);
   const [appId, setAppId] = useState(account?.appId ?? "");
@@ -80,44 +84,33 @@ export function WechatAccountForm({ account, onSaved, onCancel, onBusyChange }: 
     catch { setError(m.openConsoleFailed); }
   };
 
-  return (
-    <form className="wechat-account-form" onSubmit={(event) => void save(event)} aria-busy={loading || saving || undefined}>
-      <div className="wechat-account-form-body">
+  const fields = <>
         {loading ? <p role="status">{m.loading}</p> : null}
         {!loading && !loadedAccount ? (
           <div className="wechat-account-load-error">
             <p role="alert">{error || m.loadFailed}</p>
-            <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => setLoadAttempt((value) => value + 1)}>{m.retry}</button>
+            <Button variant="ghost" type="button"  data-motion="action" onClick={() => setLoadAttempt((value) => value + 1)}>{m.retry}</Button>
           </div>
         ) : null}
         {!loading && loadedAccount ? <>
           <div className="wechat-account-notice">
             <Info size={16} aria-hidden />
-            <div><p>{m.whitelistHint}</p><button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void openConsole()}>{m.openConsole}<ExternalLink size={13} aria-hidden /></button></div>
+            <div><p>{m.whitelistHint}</p><Button variant="ghost" type="button"  data-motion="action" onClick={() => void openConsole()}>{m.openConsole}<ExternalLink size={13} aria-hidden /></Button></div>
           </div>
-          <label className="settings-field" htmlFor={`${prefix}-appid`}>
-            <span>{m.appId}</span>
-            <Input id={`${prefix}-appid`} className="settings-browser-path-input" value={appId} placeholder={m.appIdPlaceholder} autoComplete="off" spellCheck={false} disabled={saving} onChange={(event) => setAppId(event.target.value)} />
-          </label>
-          <label className="settings-field" htmlFor={`${prefix}-secret`}>
-            <span>{m.appSecret}</span>
-            <Input id={`${prefix}-secret`} className="settings-browser-path-input" type="password" value={appSecret} placeholder={loadedAccount.configured ? m.secretKeepPlaceholder : m.secretPlaceholder} autoComplete="new-password" spellCheck={false} disabled={saving} onChange={(event) => setAppSecret(event.target.value)} />
-          </label>
-          <label className="settings-field" htmlFor={`${prefix}-author`}>
-            <span>{m.author}</span>
-            <Input id={`${prefix}-author`} className="settings-browser-path-input" value={author} placeholder={m.authorPlaceholder} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={saving} onChange={(event) => setAuthor(event.target.value)} />
-          </label>
+          <FormField label={m.appId}><Input id={`${prefix}-appid`} className="settings-browser-path-input" value={appId} placeholder={m.appIdPlaceholder} autoComplete="off" spellCheck={false} disabled={saving} onChange={(event) => setAppId(event.target.value)} /></FormField>
+          <FormField label={m.appSecret}><Input id={`${prefix}-secret`} className="settings-browser-path-input" type="password" value={appSecret} placeholder={loadedAccount.configured ? m.secretKeepPlaceholder : m.secretPlaceholder} autoComplete="new-password" spellCheck={false} disabled={saving} onChange={(event) => setAppSecret(event.target.value)} /></FormField>
+          <FormField label={m.author}><Input id={`${prefix}-author`} className="settings-browser-path-input" value={author} placeholder={m.authorPlaceholder} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={saving} onChange={(event) => setAuthor(event.target.value)} /></FormField>
           <p className="wechat-account-hint">{m.verificationHint}</p>
           {error ? <p className="wechat-account-error" role="alert">{error}</p> : null}
-        </> : null}
-      </div>
-      <footer className="wechat-account-form-footer">
+        </> : null}</>;
+  const actions = <>
         <span className="wechat-account-storage-hint"><ShieldCheck size={14} aria-hidden />{m.storageHint}</span>
         <div>
-          {onCancel ? <button type="button" className="settings-subtle-action" data-motion="action" disabled={saving} onClick={onCancel}>{m.cancel}</button> : null}
-          <button type="submit" className="primary-button" data-motion="action" disabled={loading || saving || !loadedAccount}>{saving ? m.saving : m.save}</button>
-        </div>
-      </footer>
-    </form>
-  );
+          {onCancel ? <Button type="button" data-motion="action" disabled={saving} onClick={onCancel}>{m.cancel}</Button> : null}
+          <Button variant="primary" type="submit"  data-motion="action" disabled={loading || saving || !loadedAccount}>{saving ? m.saving : m.save}</Button>
+        </div></>;
+  return <form className={layout === "dialog" ? "ui-dialog-form" : "wechat-account-form"} onSubmit={event => void save(event)} aria-busy={loading || saving || undefined}>
+    {layout === "dialog" ? <><DialogBody>{fields}</DialogBody><DialogFooter>{actions}</DialogFooter></>
+      : <><div className="wechat-account-form-body">{fields}</div><FormActions className="wechat-account-form-footer">{actions}</FormActions></>}
+  </form>;
 }

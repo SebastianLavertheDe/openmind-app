@@ -16,11 +16,15 @@
 .document-block table { table-layout: fixed; }
 .document-block pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .document-reader-tools { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; gap: 4px; height: 30px; background: var(--panel-bg); }
-.document-reader-tools > button { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.document-reader-tools > button { display: inline-flex; align-items: center; justify-content: center; }
+.document-reader-tools > button:not([data-ui-control]) { width: 28px; }
+.document-reader-tools > button:not([data-ui-control]) { height: 28px; padding: 0; }
 .document-findbar { position: absolute; top: 0; right: 0; z-index: 5; max-width: 100%; display: flex; align-items: center; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); box-shadow: var(--shadow-1); }
-.document-findbar input { width: 160px; min-width: 40px; flex: 1; height: 28px; }
+.document-findbar input { width: 160px; min-width: 40px; flex: 1; }
 .document-findbar span { flex: none; font: 12px var(--font-ui); white-space: nowrap; }
-.document-findbar button { flex: none; width: 26px; height: 26px; display: inline-flex; justify-content: center; align-items: center; padding: 0; }
+.document-findbar button { flex: none; display: inline-flex; justify-content: center; align-items: center; }
+.document-findbar button:not([data-ui-control]) { width: 26px; }
+.document-findbar button:not([data-ui-control]) { height: 26px; padding: 0; }
 .project-pdf-viewer > .pdf-scroll { position: absolute; inset: 0; height: auto; overflow: auto; }
 .project-pdf-viewer .pdfViewer { padding-block: 16px 60px; }
 .project-pdf-viewer .pdfViewer .page { box-sizing: content-box; }

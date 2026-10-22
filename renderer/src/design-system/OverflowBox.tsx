@@ -1,5 +1,7 @@
 import { useLocale } from "../i18n";
 import { SearchInput } from "./inputs";
+import { Button } from "./Button";
+import { IconButton } from "./IconButton";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
@@ -228,9 +230,9 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
             <span className="overflow-box-search-count" aria-live="polite">
               {matchCount ? ov.searchCount(activeMatch, matchCount) : ov.searchNoMatch}
             </span>
-            <button data-motion="icon" type="button" aria-label={ov.searchPrev} title={ov.searchPrev} disabled={!matchCount} onClick={prevMatch}><ChevronUp size={13} /></button>
-            <button data-motion="icon" type="button" aria-label={ov.searchNext} title={ov.searchNext} disabled={!matchCount} onClick={nextMatch}><ChevronDown size={13} /></button>
-            <button data-motion="icon" type="button" aria-label={ov.searchClose} title={ov.searchClose} onClick={closeSearch}><X size={13} /></button>
+            <IconButton label={ov.searchPrev} disabled={!matchCount} onClick={prevMatch}><ChevronUp /></IconButton>
+            <IconButton label={ov.searchNext} disabled={!matchCount} onClick={nextMatch}><ChevronDown /></IconButton>
+            <IconButton label={ov.searchClose} onClick={closeSearch}><X /></IconButton>
           </div>
         ) : null}
         <div
@@ -255,17 +257,17 @@ export const OverflowBox = forwardRef<OverflowBoxHandle, {
             <span className="overflow-box-progress">{progressLabel(progress.shown, progress.total)}</span>
           ) : null}
           {searchable && !searchOpen ? (
-            <button type="button" className="overflow-box-action" onClick={openSearch}>
+            <Button variant="ghost" size="sm" className="overflow-box-action" onClick={openSearch}>
               <Search size={12} />⌘F
-            </button>
+            </Button>
           ) : null}
           {onExpandAll ? (
-            <button type="button" className="overflow-box-action" onClick={onExpandAll}>{expandAllLabel || ov.expandAll}</button>
+            <Button variant="ghost" size="sm" className="overflow-box-action" onClick={onExpandAll}>{expandAllLabel || ov.expandAll}</Button>
           ) : null}
           {showExpandButton ? (
-            <button type="button" className="overflow-box-action primary" onClick={handleExpand}>
+            <Button variant="ghost" size="sm" className="overflow-box-action" onClick={handleExpand}>
               <ChevronDown size={12} />{expandLabel || ov.expandAll}
-            </button>
+            </Button>
           ) : null}
         </footer>
       ) : null}

@@ -1,13 +1,9 @@
+import { FormField } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useMemo, useState } from "react";
 import { FileClock, History } from "lucide-react";
-import type {
-  CreativeAnalytics,
-  CreativeProjectDetail,
-  CreativeProjectSummary,
-  CreativeReleaseEvent,
-  CreativeVersion
-} from "@shared/contracts";
+import type { CreativeAnalytics, CreativeProjectDetail, CreativeProjectSummary, CreativeReleaseEvent, CreativeVersion } from "@shared/contracts";
 import { getLocale, messages as m } from "@shared/messages";
 import { useAiUi } from "../../ai-context";
 import { EmptyState, LoadingState, Select, StatusBadge, SearchInput } from "../../design-system/components";
@@ -60,25 +56,25 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
     <div className="creative-history">
       <header className="creative-document-header">
         <div><h1>{selectedProject.topic}</h1><p>{detail.dir}</p></div>
-        <nav className="document-tabs">{files.map((file) => <button key={file} data-motion="selection" className={activeFile === file ? "active" : ""} onClick={() => chooseFile(file)}>{file}</button>)}</nav>
+        <nav className="document-tabs">{files.map((file) => <button aria-pressed={Boolean(activeFile === file)} key={file} data-motion="selection" className={activeFile === file ? "active" : ""} onClick={() => chooseFile(file)}>{file}</button>)}</nav>
       </header>
       {!activeFile ? <EmptyState title={m.creativeUi.history.noFile} description={m.creativeUi.history.pickMarkdown} /> : (
         <>
           <div className="history-compare">
-            <label>{m.creativeUi.history.versionA}<Select
+            <FormField label={m.creativeUi.history.versionA}><Select
               size="rect"
               value={leftId}
               onChange={(value) => { setLeftId(value); void loadVersion(value, setLeftContent); }}
               placeholder={m.creativeUi.history.currentContent}
               options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString(getLocale())}` }))}
-            /></label>
-            <label>{m.creativeUi.history.versionB}<Select
+            /></FormField>
+            <FormField label={m.creativeUi.history.versionB}><Select
               size="rect"
               value={rightId}
               onChange={(value) => { setRightId(value); void loadVersion(value, setRightContent); }}
               placeholder={m.creativeUi.history.currentContent}
               options={versions.map((version) => ({ value: version.id, label: `${version.note} · ${new Date(version.createdAt).toLocaleString(getLocale())}` }))}
-            /></label>
+            /></FormField>
           </div>
           <pre className="history-diff" aria-label={m.creativeUi.history.diffAria}>{visibleDiff.length ? visibleDiff.map((line, index) => <span key={index} className={`diff-${line.type}`}>{line.type === "add" ? "+ " : line.type === "del" ? "- " : "  "}{line.text}{"\n"}</span>) : m.creativeUi.history.pickTwoVersions}</pre>
           {diffTruncated ? <p className="diff-truncated">{m.creativeUi.history.diffTruncated}</p> : null}
@@ -88,8 +84,8 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
               <div key={version.id} className="version-row">
                 <FileClock size={14} />
                 <div><strong title={version.note}>{version.note}</strong><small>{new Date(version.createdAt).toLocaleString(getLocale())} · {Math.round(version.size / 1024)} KB</small></div>
-                <button data-motion="icon" onClick={() => window.openmind.openPath(version.path)}>{m.common.open}</button>
-                <button className="primary-button" onClick={() => void restore(version)}>{m.creativeUi.history.restoreAsNew}</button>
+                <Button variant="ghost" size="sm" data-motion="icon" onClick={() => window.openmind.openPath(version.path)}>{m.common.open}</Button>
+                <Button variant="primary"  onClick={() => void restore(version)}>{m.creativeUi.history.restoreAsNew}</Button>
               </div>
             )) : <p className="review-empty">{m.creativeUi.history.empty}</p>}
           </section>

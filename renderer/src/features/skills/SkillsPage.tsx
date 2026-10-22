@@ -1,3 +1,6 @@
+import { FormField } from "../../design-system/components";
+import { DialogHeader, DialogBody, DialogFooter } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { Tabs } from "../../design-system/controls";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
@@ -407,8 +410,6 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const dialogPresence = useExitPresence(open, 160);
 
-
-
   const inspectSource = useCallback(async (source: SkillPackageSourceInput) => {
     const requestId = `skill-source-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     inspectRequestId.current = requestId;
@@ -502,26 +503,21 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
   const installationReady = selectedPackages.length > 0 && selectedPackages.every((item) => item.valid);
 
   return <>
-    <button type="button" className="skills-source-picker-toggle" data-motion="action" aria-expanded={open} onClick={onToggle}>
+    <Button type="button" className="skills-source-picker-toggle" data-motion="action" aria-expanded={open} onClick={onToggle}>
       <Plus size={15} aria-hidden />
       <span>{open ? picker.close : picker.open}</span>
-    </button>
-    {dialogPresence.visible && typeof document !== "undefined" ? <Dialog as="section" open={open} presence={dialogPresence} onClose={onToggle} backdropClassName="modal-scrim settings-provider-dialog-scrim skills-source-dialog-scrim ui-overlay" containerRef={dialogRef} className="settings-provider-dialog skills-source-dialog" aria-labelledby="skills-source-dialog-title">
-          <header>
-            <div><span>SKILL CENTER</span><h2 id="skills-source-dialog-title">{picker.title}</h2><p>{picker.description}</p></div>
-            <IconButton type="button" className="settings-subtle-action" data-motion="icon" onClick={onToggle} label={picker.closeAria}><X size={16} aria-hidden /></IconButton>
-          </header>
-          <div className="settings-provider-dialog-body skills-source-picker-body">
+    </Button>
+    {dialogPresence.visible && typeof document !== "undefined" ? <Dialog size="lg" as="section" open={open} presence={dialogPresence} onClose={onToggle}  containerRef={dialogRef} className="skills-source-dialog" aria-labelledby="skills-source-dialog-title">
+          <DialogHeader title={picker.title} titleId="skills-source-dialog-title" description={picker.description} onClose={onToggle} closeLabel={picker.closeAria} />
+          <DialogBody className="settings-provider-dialog-body skills-source-picker-body">
             <div className="skills-source-picker-local-option">
               <div className="skills-source-picker-local-copy"><strong>{picker.localTitle}</strong><small>{picker.localDescription}</small></div>
-              <button type="button" className="settings-subtle-action skills-source-picker-local" data-motion="action" disabled={busy !== null} onClick={() => void selectLocal()}>
+              <Button variant="ghost" type="button" className="skills-source-picker-local" data-motion="action" disabled={busy !== null} onClick={() => void selectLocal()}>
                 <FolderOpen size={15} aria-hidden />{picker.local}
-              </button>
+              </Button>
             </div>
             <div className="settings-grid-2 skills-source-picker-git">
-              <label className="settings-field settings-field--wide">
-                <span>{picker.git}</span>
-                <Input
+              <FormField label={picker.git} className="settings-field--wide"><Input
                   className="settings-browser-path-input"
                   type="url"
                   inputMode="url"
@@ -529,18 +525,14 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
                   value={gitUrl}
                   onChange={(event) => { setGitUrl(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
                   onKeyDown={(event) => { if (event.key === "Enter") void inspectGit(); }}
-                />
-              </label>
-              <label className="settings-field">
-                <span>{picker.refLabel}</span>
-                <Input
+                /></FormField>
+              <FormField label={picker.refLabel}><Input
                   className="settings-browser-path-input"
                   type="text"
                   placeholder={picker.refPlaceholder}
                   value={gitRef}
                   onChange={(event) => { setGitRef(event.target.value); setCandidate(null); setInspection(null); setSelectedPackageRefs([]); setFailure(null); }}
-                />
-              </label>
+                /></FormField>
             </div>
             {candidate ? <div className="skills-source-picker-candidate">
               <code title={candidate.locator}>{candidate.locator}{candidate.type === "git" && candidate.ref ? ` @${candidate.ref}` : ""}</code>
@@ -575,15 +567,15 @@ function SkillSourcePicker({ open, onToggle, onInstalled }: { open: boolean; onT
               </ul> : null}
             </div> : null}
             {failure ? <p className="skills-error" role="alert">{failure}</p> : null}
-          </div>
-          <footer>
-            <button type="button" className="settings-subtle-action" data-motion="action" onClick={onToggle}>{m.common.cancel}</button>
-            {busy === "inspect" ? <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void cancelInspect()}>{picker.cancel}</button>
-              : candidate && inspection ? <button type="button" className="primary-button skills-source-picker-install" data-motion="action" disabled={busy !== null || !installationReady} onClick={() => void install()}>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" type="button"  data-motion="action" onClick={onToggle}>{m.common.cancel}</Button>
+            {busy === "inspect" ? <Button variant="ghost" type="button"  data-motion="action" onClick={() => void cancelInspect()}>{picker.cancel}</Button>
+              : candidate && inspection ? <Button variant="primary" type="button" className="skills-source-picker-install" data-motion="action" disabled={busy !== null || !installationReady} onClick={() => void install()}>
                 {busy === "install" ? picker.importing : selectedPackageRefs.length > 1 ? picker.importSelected(selectedPackageRefs.length) : picker.import}
-              </button>
-                : <button type="button" className="primary-button" data-motion="action" disabled={busy !== null} onClick={() => void inspectGit()}>{picker.inspect}</button>}
-          </footer>
+              </Button>
+                : <Button variant="primary" type="button"  data-motion="action" disabled={busy !== null} onClick={() => void inspectGit()}>{picker.inspect}</Button>}
+          </DialogFooter>
         </Dialog> : null}
   </>;
 }
@@ -751,14 +743,14 @@ function SkillCatalogGroupView({ group, open, onOpenChange, selectedId, total, i
       })}
     </AnimatedDisclosure>
     {remote && canUpdateSource ? <div className="skills-source-group-actions">
-      <button type="button" data-motion="action" disabled={updateBusy} onClick={onCheckSourceUpdate}>
+      <Button variant="ghost" type="button" data-motion="action" disabled={updateBusy} onClick={onCheckSourceUpdate}>
         <RefreshCw className={checking ? "spin" : undefined} size={12} aria-hidden />
         <span>{checking ? m.sourceUpdate.checking : m.sourceUpdate.check}</span>
-      </button>
-      <button type="button" className={updateAvailable ? "available" : undefined} data-motion="action" disabled={!updateAvailable || updateBusy} onClick={onUpdateSource}>
+      </Button>
+      <Button type="button" className={updateAvailable ? "available" : undefined} data-motion="action" disabled={!updateAvailable || updateBusy} onClick={onUpdateSource}>
         <RefreshCw className={updating ? "spin" : undefined} size={12} aria-hidden />
         <span>{updating ? m.sourceUpdate.updating : m.sourceUpdate.apply}</span>
-      </button>
+      </Button>
     </div> : null}
   </div>;
 }
@@ -892,8 +884,8 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
       <div><h3>{copy.title}</h3><p>{copy.description}</p></div>
       <div className="skills-owned-sources-toolbar">
         {canEditSources ? <div className="skills-owned-sources-actions">
-          <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />{isRss ? m.ownedSources.addRss : m.ownedSources.addReddit}</button>
-          {isRss ? <button type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />{m.ownedSources.importOpml}</button> : null}
+          <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />{isRss ? m.ownedSources.addRss : m.ownedSources.addReddit}</Button>
+          {isRss ? <Button variant="ghost" type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />{m.ownedSources.importOpml}</Button> : null}
         </div> : null}
         <SearchInput className="skills-source-search" variant="outlined" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} aria-label={copy.searchPlaceholder} />
       </div>
@@ -903,7 +895,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
 
     {!visibleSources.length ? <div className="skills-source-empty">
       <span>{query ? m.ownedSources.noMatch : copy.empty}</span>
-      {!query && canEditSources ? <button type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>{m.ownedSources.addFirst(isReddit)}</button> : null}
+      {!query && canEditSources ? <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>{m.ownedSources.addFirst(isReddit)}</Button> : null}
     </div> : <div className="skills-source-list" role="list">
       <div className="skills-source-list-head" aria-hidden><span /><span>{m.ownedSources.nameAndAddress(isReddit)}</span><span>{m.ownedSources.statusAndLastRun}</span><span>{m.ownedSources.operation}</span></div>
       {visibleSources.map((source) => <article key={source.id} className="skills-source-row" role="listitem">
@@ -989,7 +981,7 @@ function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
         <small>{m.xCurl.securitySummary}</small>
       </div>
       <div className="skills-x-curl-actions">
-        <button type="button" data-motion="action" disabled={curlState === "loading"} onClick={() => setEditorOpen(true)}><Pencil size={14} aria-hidden />{curlState === "configured" ? m.xCurl.edit : m.xCurl.fill}</button>
+        <Button variant="ghost" type="button" data-motion="action" disabled={curlState === "loading"} onClick={() => setEditorOpen(true)}><Pencil size={14} aria-hidden />{curlState === "configured" ? m.xCurl.edit : m.xCurl.fill}</Button>
         {source && onToggle ? <ToggleSwitch
           checked={source.enabled}
           disabled={busy}
@@ -1034,7 +1026,6 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
     textareaRefs.current[0]?.focus();
   }, [active]);
 
-
   const save = async () => {
     const normalized = drafts.map((draft) => draft.trim());
     const invalidIndex = normalized.findIndex((curl) => !/^curl(?:\s|')/i.test(curl));
@@ -1055,17 +1046,17 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
     }
   };
 
-  return <Dialog as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving} backdropClassName="skills-source-editor-scrim" containerRef={dialogRef} className="skills-source-editor skills-x-curl-editor" aria-labelledby="skills-x-curl-editor-title">
-      <header><div><h3 id="skills-x-curl-editor-title">{m.xCurl.editorTitle}</h3><p>{m.xCurl.editorDescription}</p></div><IconButton type="button" data-motion="icon" onClick={dismiss} disabled={saving} className="" label={m.common.close}><X size={16} /></IconButton></header>
-      <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
+  return <Dialog size="lg" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving}  containerRef={dialogRef} className="skills-x-curl-editor" aria-labelledby="skills-x-curl-editor-title">
+      <DialogHeader title={m.xCurl.editorTitle} titleId="skills-x-curl-editor-title" description={m.xCurl.editorDescription} onClose={dismiss} closeDisabled={saving} closeLabel={m.common.close} />
+      <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}><DialogBody>
         <div className="skills-x-curl-list">
           {drafts.map((draft, index) => <section className="skills-x-curl-item" key={index}>
             <header>
               <label htmlFor={`skills-x-curl-${index}`}>{m.xCurl.fullCurl(index + 1)}</label>
-              <button type="button" data-motion="action" disabled={drafts.length === 1} aria-label={m.xCurl.remove(index + 1)} onClick={() => {
+              <Button variant="ghost" type="button" data-motion="action" disabled={drafts.length === 1} aria-label={m.xCurl.remove(index + 1)} onClick={() => {
                 setDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index));
                 setFailure(null);
-              }}><X size={13} aria-hidden />{m.common.delete}</button>
+              }}><X size={13} aria-hidden />{m.common.delete}</Button>
             </header>
             <Textarea id={`skills-x-curl-${index}`} ref={(node) => { textareaRefs.current[index] = node; }} value={draft} onChange={(event) => {
               const value = event.target.value;
@@ -1074,13 +1065,13 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
             }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} />
           </section>)}
         </div>
-        <button type="button" className="skills-x-curl-add" data-motion="action" disabled={drafts.length >= 20} onClick={() => {
+        <Button type="button" className="skills-x-curl-add" data-motion="action" disabled={drafts.length >= 20} onClick={() => {
           setDrafts((current) => [...current, ""]);
           setFailure(null);
-        }}><Plus size={14} aria-hidden />{m.xCurl.add}</button>
+        }}><Plus size={14} aria-hidden />{m.xCurl.add}</Button>
         <p className="skills-x-curl-security">{m.xCurl.securityDetail}</p>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        <footer><button type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || drafts.some((draft) => !draft.trim())} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.saveAll}</button></footer>
+        </DialogBody><DialogFooter><Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || drafts.some((draft) => !draft.trim())} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.saveAll}</Button></DialogFooter>
       </form>
     </Dialog>;
 }
@@ -1103,7 +1094,6 @@ function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: {
     inputRef.current?.focus();
   }, [active]);
 
-
   const save = async () => {
     setSaving(true);
     setFailure(null);
@@ -1119,14 +1109,14 @@ function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: {
     }
   };
 
-  return <Dialog as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving} backdropClassName="skills-source-editor-scrim" containerRef={dialogRef} className="skills-source-editor" aria-labelledby="skill-source-editor-title">
-      <header><div><h3 id="skill-source-editor-title">{m.sourceEditor.title(Boolean(editing), isReddit)}</h3><p>{m.sourceEditor.description(isReddit)}</p></div><IconButton type="button" data-motion="icon" onClick={dismiss} disabled={saving} className="" label={m.common.close}><X size={16} /></IconButton></header>
-      <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <label>{m.sourceEditor.name(isReddit)}<Input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></label>
-        <label>{m.sourceEditor.url(isReddit)}<Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></label>
-        <label>{m.sourceEditor.tags}<Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></label>
+  return <Dialog size="md" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving}  containerRef={dialogRef}  aria-labelledby="skill-source-editor-title">
+      <DialogHeader title={m.sourceEditor.title(Boolean(editing), isReddit)} titleId="skill-source-editor-title" description={m.sourceEditor.description(isReddit)} onClose={dismiss} closeDisabled={saving} closeLabel={m.common.close} />
+      <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}><DialogBody>
+        <FormField label={m.sourceEditor.name(isReddit)}><Input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></FormField>
+        <FormField label={m.sourceEditor.url(isReddit)}><Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></FormField>
+        <FormField label={m.sourceEditor.tags}><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></FormField>
         {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        <footer><button type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</button><button type="submit" className="primary-button" data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</button></footer>
+        </DialogBody><DialogFooter><Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</Button></DialogFooter>
       </form>
     </Dialog>;
 }

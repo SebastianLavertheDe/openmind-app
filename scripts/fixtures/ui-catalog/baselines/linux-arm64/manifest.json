@@ -1,0 +1,218 @@
+{
+  "environment": {
+    "platform": "linux",
+    "arch": "arm64",
+    "electron": "42.8.1",
+    "chrome": "148.0.7778.280",
+    "scale": 1,
+    "reducedMotion": true,
+    "fonts": [
+      {
+        "file": "pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf",
+        "sha256": "f8ace1f892b2bd9dc1792ba7f097fa7588f84fed48321480e04de5390828221f"
+      },
+      {
+        "file": "pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf",
+        "sha256": "361c61b82d575c5c35fd9157fda8b0194bcfcd0d88ea8521a4fb5dd53d33dddc"
+      },
+      {
+        "file": "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2",
+        "sha256": "14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb"
+      }
+    ]
+  },
+  "snapshots": [
+    {
+      "name": "light-720-actions.png",
+      "sha256": "81870279ea1dada67dce7ccd01141214040d219b8b093ad0369d645ea9a1313a"
+    },
+    {
+      "name": "light-720-fields.png",
+      "sha256": "2f3bbbf933903b684d4c88e62e1bef4e2934ee40cd7200cffbc00e1a494e7e72"
+    },
+    {
+      "name": "light-720-form-dialog.png",
+      "sha256": "781d310b1d932628c2367a99c0f6f8ccce7109c129d60d6d122333dace40d107"
+    },
+    {
+      "name": "light-720-confirm-dialog.png",
+      "sha256": "2dfa8e01fc48f7252f8d1e8a21c1c8be0ba6ebef6b8a5c1205e9c593f5f3335f"
+    },
+    {
+      "name": "light-720-search-dialog.png",
+      "sha256": "d52fc0e6c496ecc6e8117789823f743997da5aa97e7af8084df199a9b2f36872"
+    },
+    {
+      "name": "light-720-select-menu.png",
+      "sha256": "b671f3e15f1bd6daebbf704c08ddb70fd5a0950d770f0525de8504fe4fd2b398"
+    },
+    {
+      "name": "light-720-select-rect-open.png",
+      "sha256": "27d981b88cd1fcfe8e9db9e21151154e03a74ecdbf937eabf34a355d0c5e5cda"
+    },
+    {
+      "name": "light-720-select-quiet-permission.png",
+      "sha256": "ceb5c7f090a05579cc8537d55db537051d8a78a7b11f38bb60dfba08f22e28d6"
+    },
+    {
+      "name": "light-720-composer-model-menu.png",
+      "sha256": "e392c0f4b3c780ca78cf788796f31d3191a99464bedd0f62de39fbf48c17d776"
+    },
+    {
+      "name": "light-720-composer-model-submenu.png",
+      "sha256": "36dcf2b1678ee55d0eaf25349bc38713f50f0627b5e99f5873238f5d7013c9d1"
+    },
+    {
+      "name": "light-720-action-menu.png",
+      "sha256": "2d6f2c8a9f210a27ab838a5482d0e5a91badddd39926da912b3696410ac37629"
+    },
+    {
+      "name": "light-720-popover.png",
+      "sha256": "55a1dd8a078b99b23e3f6dc2b618ca7c49927820d2ea36e12c04ea9e1dc43ee3"
+    },
+    {
+      "name": "light-1280-actions.png",
+      "sha256": "2e26565048054f4f5ab5a656bfea0e23cb9b146ec1e850509a9f059e19e95f58"
+    },
+    {
+      "name": "light-1280-fields.png",
+      "sha256": "d4872c5755bbc592b38f39fd2e047bbfb4b57b7fc8d554ed4e0c2f5e389a0756"
+    },
+    {
+      "name": "light-1280-form-dialog.png",
+      "sha256": "894351bdd176ad296134f635bbe9fc39f11ebedf385e9b9e4c5346c3f2a7ab29"
+    },
+    {
+      "name": "light-1280-confirm-dialog.png",
+      "sha256": "9f91a943426215c2791d1904a84753e2c2bd5d5cf3d92a5950335d24b8e44cab"
+    },
+    {
+      "name": "light-1280-search-dialog.png",
+      "sha256": "b6a63f71ace7d56d6d75009af63a5be347a860c0a6b695fef3fc1571f306260e"
+    },
+    {
+      "name": "light-1280-select-menu.png",
+      "sha256": "6d9e6686938d8265c4dce61f4a920ab486dd91c09cd3e981050ef514a62256fb"
+    },
+    {
+      "name": "light-1280-select-rect-open.png",
+      "sha256": "c5464c15c2bf1f1a69f55b82724a6a993d5c52d99c192b0c14486c1951e4e354"
+    },
+    {
+      "name": "light-1280-select-quiet-permission.png",
+      "sha256": "e10a4cf45c249e5112851c792cce89b659e6098aeb09140fd58d8d51ec93ef72"
+    },
+    {
+      "name": "light-1280-composer-model-menu.png",
+      "sha256": "1bda836a9630df429626c8007a8eba6f72bdba562fb8340aac384fbec78981e7"
+    },
+    {
+      "name": "light-1280-composer-model-submenu.png",
+      "sha256": "c68ed0741fb5f1e30d7257c567d1823e44babf4762c7f338ed1b050fe60d6bb1"
+    },
+    {
+      "name": "light-1280-action-menu.png",
+      "sha256": "cd7957df0cfac93ceec1a4d6a3386ff6ba12597cc31462a263f25c2192f839fc"
+    },
+    {
+      "name": "light-1280-popover.png",
+      "sha256": "a3f5cf7e2a5c2af05e5a900e88b37fa5d39d8af906c60f2c4fbf09595c2ee33d"
+    },
+    {
+      "name": "dark-720-actions.png",
+      "sha256": "a1e27bfdb65679b5f1c81b36cabceb3441158bc625c451b7e769829c8f70475f"
+    },
+    {
+      "name": "dark-720-fields.png",
+      "sha256": "155b14f384c5db68578f8a3184466f01645fc9066ef32628413d0a4c9f61380f"
+    },
+    {
+      "name": "dark-720-form-dialog.png",
+      "sha256": "161e292da0117668f0aee183bca17af6f4754403a63472a239a8fd421b26107d"
+    },
+    {
+      "name": "dark-720-confirm-dialog.png",
+      "sha256": "f31ffc67d0d8a9f9c0aa30a7980167b3fe67f030b00bf5ae49e9a5ae6389e94a"
+    },
+    {
+      "name": "dark-720-search-dialog.png",
+      "sha256": "5621b67ee438beaa07b8c89cc7e65d69244f25bca81ccaa57fbc7ef4907ea6b7"
+    },
+    {
+      "name": "dark-720-select-menu.png",
+      "sha256": "3fec316e50276a59777c5b525042ebdfae18cadfb9b3119c2f0d3fd86796ee02"
+    },
+    {
+      "name": "dark-720-select-rect-open.png",
+      "sha256": "132a128f69d129e53c37f286b9b8d0cdba4f8ad3fb915847f3475f4b031d63b1"
+    },
+    {
+      "name": "dark-720-select-quiet-permission.png",
+      "sha256": "6435c3c8382d6d1012ebd82c1713a91588a06701a18ecd3b2103a9ca52926228"
+    },
+    {
+      "name": "dark-720-composer-model-menu.png",
+      "sha256": "155b26d4f33e54b58aa5f4242885f9f07f5dfb715086c4be9cfb98748c5984de"
+    },
+    {
+      "name": "dark-720-composer-model-submenu.png",
+      "sha256": "baf79558f578c34e4df3cabf522a704e03dae76ad1173e69bcdadf092a152432"
+    },
+    {
+      "name": "dark-720-action-menu.png",
+      "sha256": "787da9fe5702fef7c43d80d308746a8f3c41ed6cd5734fa55abe611483f8fc70"
+    },
+    {
+      "name": "dark-720-popover.png",
+      "sha256": "fb4be59f74ae2d881441b07e4245f118ac26b2cece7361309bb0bab33f0f96ae"
+    },
+    {
+      "name": "dark-1280-actions.png",
+      "sha256": "3c961809405cdbd690fd2f893ed85fc1b52008d7af998090bb2570cf112d98cf"
+    },
+    {
+      "name": "dark-1280-fields.png",
+      "sha256": "b52af928260a76a4ef2258e8e69e8b9b94a8b2459a47f36e43f033fb22294667"
+    },
+    {
+      "name": "dark-1280-form-dialog.png",
+      "sha256": "ae2ddd8b7d598574e7491b5035acb829a18a63dd85757d3a0a0664acb00b87a0"
+    },
+    {
+      "name": "dark-1280-confirm-dialog.png",
+      "sha256": "2d7b7fd56d6023e0ba1bc90517f16930e7064e9a13051e245333aa3a5f231def"
+    },
+    {
+      "name": "dark-1280-search-dialog.png",
+      "sha256": "ffa692e2c4fef0f11a2917b8a5dec9c1cb9358fd0335410dafc41e3602e59ece"
+    },
+    {
+      "name": "dark-1280-select-menu.png",
+      "sha256": "ea3695ef54b81dfa023bde6a16d6baa1a1139c6d9d9d7438a25242497dc79872"
+    },
+    {
+      "name": "dark-1280-select-rect-open.png",
+      "sha256": "b887feb2889c4bd9fe1cfff83abce7d1aafdc27750867076ca08a094e06c0645"
+    },
+    {
+      "name": "dark-1280-select-quiet-permission.png",
+      "sha256": "e09822ef91008841bdb1860f50544cfa53d23a49f27d2e1f4eb7803d88235dba"
+    },
+    {
+      "name": "dark-1280-composer-model-menu.png",
+      "sha256": "56b5778e1c32f489540369984908ac257837d3cd2173ac96018f3a5bc8afbfae"
+    },
+    {
+      "name": "dark-1280-composer-model-submenu.png",
+      "sha256": "76f0d3b464c88e99fd9ef0b79aa642ea26f1dda44fe4873d94e211e12a355c6f"
+    },
+    {
+      "name": "dark-1280-action-menu.png",
+      "sha256": "2f96ba15853e1af4b1159cefd9fc2041158fd6500ea51e398aff4be21c3db420"
+    },
+    {
+      "name": "dark-1280-popover.png",
+      "sha256": "44bf6f2372ac4c8939d8410f7eee013236a435424078821198fa6e2ddaff293f"
+    }
+  ]
+}

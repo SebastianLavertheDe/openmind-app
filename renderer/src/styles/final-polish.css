@@ -2,16 +2,15 @@
  * 虚拟文档在此期间复用分栏拖拽的测量缓存，结束后统一校正。 */
 
 .app-nav,
-.app-nav nav button,
-.icon-button,
-.ui-segmented button,
-.ui-tabs button,
+.app-nav nav button:not([data-ui-control]),
+.ui-segmented button:not([data-ui-control]),
+.ui-tabs button:not([data-ui-control]),
 .workspace-card,
-.item-list button,
+.item-list button:not([data-ui-control]),
 .rule-item-shell,
 .rule-pill,
 .status-badge,
-button,
+button:not([data-ui-control]),
 .tag,
 .pill {
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, transform 140ms ease;
@@ -45,7 +44,7 @@ button,
   z-index: 1;
 }
 
-.ui-segmented button.active {
+.ui-segmented button:not([data-ui-control]).active {
   background: transparent;
   color: var(--text);
 }
@@ -84,7 +83,7 @@ details[open] > :not(summary) {
    Height animates 0 -> auto via interpolate-size, opacity crossfades.
    Closing content stays `inert` through the exit animation; heavy bodies may
    unmount after the transition. */
-.ui-disclosure-trigger { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.ui-disclosure-trigger:not([data-ui-control]) { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 /* D3/E1: 展开用 emphasized、收起用 exit;dur 240→200ms,与 timeline-presence 统一。 */
 .ui-disclosure-content { interpolate-size: allow-keywords; height: 0; opacity: 0; overflow: hidden; transition: height var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)), opacity var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)); }
 .ui-disclosure-content[data-open] { height: auto; opacity: 1; }
@@ -112,7 +111,7 @@ details[open] > :not(summary) {
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
 }
 
-body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger, .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
+body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger:not([data-ui-control]), .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
   color: var(--muted);
 }
 
@@ -172,10 +171,6 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
   padding: 0 0 8px;
 }
 
-.ai-sidebar .composer textarea {
-  min-height: 84px;
-}
-
 .ai-sidebar .composer-footer {
   gap: 8px;
 }
@@ -206,8 +201,8 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
 
 @media (prefers-reduced-motion: reduce) {
   *,
-  *::before,
-  *::after {
+*::before,
+*::after {
     animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
@@ -256,36 +251,30 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
  * action 类：主操作/危险操作/图标文本按钮。
  * icon 类：纯图标按钮、pane header、message meta 等小图标入口。
  * ============================================================ */
-.primary-button:active:not(:disabled),
-.danger-button:active:not(:disabled),
 .icon-text-button:active:not(:disabled),
-.settings-control button:active:not(:disabled),
-.reader-header button:active:not(:disabled),
-.document-detail-header button:active:not(:disabled),
+.settings-control button:not([data-ui-control]):active:not(:disabled),
+.reader-header button:not([data-ui-control]):active:not(:disabled),
+.document-detail-header button:not([data-ui-control]):active:not(:disabled),
 .source-delete:active:not(:disabled),
-.change-actions button:active:not(:disabled),
-.approval-card footer button:active:not(:disabled) {
+.change-actions button:not([data-ui-control]):active:not(:disabled),
+.approval-card footer button:not([data-ui-control]):active:not(:disabled) {
   transform: translateY(1px) scale(.98);
 }
 
-.icon-button:active:not(:disabled),
-.pane-header button:active:not(:disabled),
-.conversation-header button:active:not(:disabled),
-.message-meta button:active:not(:disabled),
-.markdown-code-block > button:active:not(:disabled),
-.nav-collapse-button:active:not(:disabled),
+.pane-header button:not([data-ui-control]):active:not(:disabled),
+.conversation-header button:not([data-ui-control]):active:not(:disabled),
+.message-meta button:not([data-ui-control]):active:not(:disabled),
+.markdown-code-block > button:not([data-ui-control]):active:not(:disabled),
 .nav-search-button:active:not(:disabled),
-.global-toolbar-action:active:not(:disabled),
-.image-chip-remove:active:not(:disabled),
-.image-chip-button:active:not(:disabled) {
+.global-toolbar-action:active:not(:disabled) {
   transform: scale(.92);
 }
 
 /* selection 类：tab/筛选/导航项 —— 无 transform，由颜色过渡提供反馈 */
-.filter-tabs button:active:not(:disabled),
-.document-tabs button:active:not(:disabled),
-.ui-tabs button:active:not(:disabled),
-.item-list button:active:not(:disabled) {
+.filter-tabs button:not([data-ui-control]):active:not(:disabled),
+.document-tabs button:not([data-ui-control]):active:not(:disabled),
+.ui-tabs button:not([data-ui-control]):active:not(:disabled),
+.item-list button:not([data-ui-control]):active:not(:disabled) {
   transform: none;
 }
 

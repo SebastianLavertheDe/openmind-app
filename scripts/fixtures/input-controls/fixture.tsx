@@ -11,7 +11,7 @@ const examples = [
   ["publish", <label className="publish-field"><Input data-probe="publish" aria-label="Publish field" defaultValue="Publish" /></label>],
   ["textarea", <label className="project-field"><Textarea data-probe="textarea" aria-label="Description" defaultValue="Multiline description" /></label>],
   ["inline", <Input data-probe="inline" variant="inline" className="project-edit-name" aria-label="Inline name" defaultValue="Inline name" />],
-  ["inline-editor", <div className="composer-editor"><Textarea data-probe="inline-editor" variant="inline" aria-label="Message" defaultValue="Editor text" /></div>],
+  ["inline-editor", <div className="composer-editor"><Textarea data-probe="inline-editor" variant="composer" aria-label="Message" defaultValue="Editor text" /></div>],
   ["search", <SearchInput data-probe="search" aria-label="Quiet search" defaultValue="Search" />],
   ["search-outlined", <SearchInput data-probe="search-outlined" variant="outlined" aria-label="Outlined search" defaultValue="Search" />],
   ["search-project", <SearchInput data-probe="search-project" variant="outlined" className="project-local-search" aria-label="Project search" defaultValue="Search" />],

@@ -1,3 +1,4 @@
+import { Button } from "../../../design-system/components";
 import { useLocale } from "../../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -117,31 +118,31 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
                 <Video size={28} />
                 <strong>{uiMessages.interface.videoCannotEmbed}</strong>
                 <p>{uiMessages.interface.videoExternalHint}</p>
-                {onOpenExternal ? <button data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button> : null}
+                {onOpenExternal ? <Button variant="ghost" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</Button> : null}
               </div>
             )}
           </section>
           {localUrl && playerError ? <div className="project-video-playback-help" role="status">
             <p>{uiMessages.interface.videoLocalPlaybackFailed}</p>
-            {onOpenExternal ? <button type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button> : null}
+            {onOpenExternal ? <Button variant="ghost" type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</Button> : null}
           </div> : null}
           {embedUrl && onOpenExternal ? <div className="project-video-playback-help" role={playerError ? "status" : undefined}>
             <p>{bilibili ? uiMessages.interface.bilibiliPlaybackHint
               : playerError ? uiMessages.interface.youtubePlaybackFailed : uiMessages.interface.youtubePlaybackHint}</p>
-            <button type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button>
-            {youtubeUrl && onRetryTranscript ? <button type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} />{retryingTranscript ? uiMessages.interface.downloadingVideo : uiMessages.interface.downloadVideo}</button> : null}
+            <Button variant="ghost" type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</Button>
+            {youtubeUrl && onRetryTranscript ? <Button variant="ghost" type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} />{retryingTranscript ? uiMessages.interface.downloadingVideo : uiMessages.interface.downloadVideo}</Button> : null}
           </div> : null}
         </div>
         <div className="project-video-inspector-column">
           <section className="project-transcript project-video-inspector">
             <div className="project-transcript-list">
               {!resource.transcript.length ? <EmptyState title={uiMessages.interface.transcriptNotFetched} description={resource.warnings?.join("\n") || uiMessages.interface.transcriptFetchHint}
-                action={onRetryTranscript ? <button type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} className={retryingTranscript ? "spin" : undefined} />{retryingTranscript ? uiMessages.interface.fetchingTranscript : uiMessages.interface.retryTranscript}</button> : undefined} /> : null}
+                action={onRetryTranscript ? <Button variant="ghost" type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} className={retryingTranscript ? "spin" : undefined} />{retryingTranscript ? uiMessages.interface.fetchingTranscript : uiMessages.interface.retryTranscript}</Button> : undefined} /> : null}
               {resource.transcript.map((item) => {
                 const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
                 return (
                   <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}>
-                    <button className="project-timecode" data-motion="selection" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button>
+                    <button aria-pressed={Boolean(active)} className="project-timecode" data-motion="selection" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button>
                     <span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span>
                   </div>
                 );

@@ -1,3 +1,4 @@
+import { IconButton, Button } from "../../design-system/components";
 import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -8,7 +9,7 @@ import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/re
 import { useAiUi } from "../../ai-context";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { useContentListLayout } from "../../components/useContentListLayout";
-import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, Tooltip, type ResponsiveAction, SearchInput, Textarea } from "../../design-system/components";
+import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, type ResponsiveAction, SearchInput, Textarea } from "../../design-system/components";
 import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "../file-preview";
 
 export function DailyBriefPage({
@@ -174,7 +175,7 @@ export function DailyBriefPage({
       <aside className="document-library-list" ref={listRef}>
         <header>
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
-          <Tooltip content={m.brief.library.refresh}><button className="icon-button" aria-label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></button></Tooltip>
+          <IconButton label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></IconButton>
         </header>
           <SearchInput className="document-library-search" variant="quiet" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} />
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
@@ -186,7 +187,7 @@ export function DailyBriefPage({
             const date = briefFileDate(name);
             const label = briefFileLabel(name);
             return (
-              <button key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={label} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
+              <button aria-pressed={Boolean(selectedPath === file.path)} key={file.path} className={`brief-file-item${selectedPath === file.path ? " active" : ""}${pendingPath === file.path ? " pending" : ""}`} title={label} data-brief-selected={selectedPath === file.path || undefined} aria-busy={pendingPath === file.path || undefined} data-entrance-item data-motion="selection" onClick={() => void selectFile(file.path)}>
                 <LoaderCircle size={15} className={`brief-file-pending-icon${pendingPath === file.path ? " is-visible spin" : ""}`} aria-hidden="true" />
                 <span><strong>{date || label}</strong>{date ? <small>{m.brief.library.eyebrow}</small> : null}</span>
               </button>
@@ -203,7 +204,7 @@ export function DailyBriefPage({
         ) : record && preview.resource ? (
           <div key={selectedPath} className="document-detail-body">
             <header className="document-detail-header">
-              <button type="button" className="brief-detail-back" data-motion="action" onClick={() => void showBriefList()}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></button>
+              <Button type="button" className="brief-detail-back" data-motion="action" onClick={() => void showBriefList()}><ArrowLeft size={15} aria-hidden="true" /><span>{m.brief.library.title}</span></Button>
               <div><span className="eyebrow">{preview.mode === "preview" ? m.brief.library.previewMode : preview.dirty ? m.brief.library.editingDirty : m.brief.library.editMode}</span><h2>{briefFileLabel(record.name || record.path)}</h2><p title={record.path}>{record.path}</p></div>
               <div className="document-detail-actions">
                 <SegmentedControl value={preview.mode} onChange={mode => preview.setMode(mode)} label={m.brief.library.viewMode} options={[

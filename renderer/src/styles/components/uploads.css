@@ -1,0 +1,26 @@
+.ui-file-dropzone {
+  box-sizing: border-box;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 160px;
+  padding: var(--space-6);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  outline: none;
+  background: var(--panel-muted);
+  color: var(--text-dim);
+  font: var(--fs-base)/1.5 var(--font-sans);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.ui-file-dropzone:not(:disabled):hover, .ui-file-dropzone[data-drag-over] { background: var(--control-hover); border-color: var(--accent); }
+.ui-file-dropzone:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ui-file-dropzone:disabled { opacity: .5; cursor: not-allowed; }
+.ui-file-dropzone strong { font-weight: 600; }
+.ui-file-dropzone small { color: var(--muted); font-size: var(--fs-xs); }
+.ui-file-dropzone > img { width: 100%; max-height: 160px; object-fit: contain; }
+.ui-file-dropzone[data-variant="compact"] { min-height: 104px; padding: var(--space-3); }

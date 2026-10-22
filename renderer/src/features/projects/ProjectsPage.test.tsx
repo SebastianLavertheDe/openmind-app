@@ -329,9 +329,9 @@ describe("ProjectsPage", () => {
     expect(await screen.findByText("项目名称")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭" }));
-    await waitFor(() => expect(container.querySelector(".project-dialog-backdrop")?.getAttribute("data-leaving")).toBe("true"));
-    expect(container.querySelector(".project-dialog-backdrop")?.hasAttribute("inert")).toBe(true);
-    await waitFor(() => expect(container.querySelector(".project-dialog-backdrop")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-ui-dialog]")?.getAttribute("data-leaving")).toBe("true"));
+    expect(document.querySelector("[data-ui-dialog]")?.hasAttribute("inert")).toBe(true);
+    await waitFor(() => expect(document.querySelector("[data-ui-dialog]")).toBeNull());
   });
 
   it("shows materials and editable documents in one flat file list", async () => {

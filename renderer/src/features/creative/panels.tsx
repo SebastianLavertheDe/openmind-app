@@ -1,3 +1,5 @@
+import { FormField } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useMemo, useState } from "react";
 import { Bot, Check, Clock3, Download, LoaderCircle, Sparkles } from "lucide-react";
@@ -5,10 +7,7 @@ import type { CreativeProjectDetail, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { Select, StatusBadge, Textarea, Input } from "../../design-system/components";
 import { MarkdownReader } from "../../components/MarkdownReader";
-import {
-  type PlatformOption,
-  PLATFORM_OPTIONS
-} from "./types";
+import { type PlatformOption, PLATFORM_OPTIONS } from "./types";
 
 export function TopicWorkspace({ topic, date, createProject, addContext, creatingKey = null }: { topic: CreativeTopic; date: string; createProject(platform?: PlatformOption): void; addContext(): void; creatingKey?: string | null }) {
   useLocale();
@@ -16,15 +15,15 @@ export function TopicWorkspace({ topic, date, createProject, addContext, creatin
   return (
     <div className="topic-workspace">
       <header><div><span className="eyebrow">{m.interface.recommendedTopic} · {date}</span><h1>{topic.title || m.creative.defaults.unnamedTopic}</h1><p>{topic.platform || m.creative.defaults.topicCreation}{topic.score ? ` · ${m.creativeUi.topic.score(topic.score)}` : ""}</p></div>
-        <div><button data-motion="icon" onClick={addContext}><Bot size={14} />{m.creativeUi.topic.askAi}</button><button data-motion="icon" disabled={Boolean(creatingKey)} onClick={() => setShowPlatform((value) => !value)}><Sparkles size={14} />{m.creativeUi.topic.createDraft}</button></div>
+        <div><Button variant="ghost" size="sm" data-motion="icon" onClick={addContext}><Bot size={14} />{m.creativeUi.topic.askAi}</Button><Button variant="ghost" size="sm" data-motion="icon" disabled={Boolean(creatingKey)} onClick={() => setShowPlatform((value) => !value)}><Sparkles size={14} />{m.creativeUi.topic.createDraft}</Button></div>
       </header>
       {topic.projectDir ? <div className="topic-existing"><Check size={14} />{m.creativeUi.topic.hasDraft}</div> : null}
       {showPlatform ? (
         <div className="topic-platform-picker">
           <strong>{m.creativeUi.topic.pickPlatform}</strong>
           <div className="topic-platform-grid">
-            <button data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === "generic" || undefined} onClick={() => createProject()}>{creatingKey === "generic" ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === "generic" ? m.creativeUi.topic.creatingDraft : m.creativeUi.topic.genericDraft}</button>
-            {PLATFORM_OPTIONS.map((option) => <button key={option.id} data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === option.id || undefined} onClick={() => createProject(option)}>{creatingKey === option.id ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === option.id ? m.creativeUi.topic.creatingDraft : option.label}</button>)}
+            <Button variant="ghost" size="sm" data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === "generic" || undefined} onClick={() => createProject()}>{creatingKey === "generic" ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === "generic" ? m.creativeUi.topic.creatingDraft : m.creativeUi.topic.genericDraft}</Button>
+            {PLATFORM_OPTIONS.map((option) => <Button variant="ghost" size="sm" key={option.id} data-motion="selection" disabled={Boolean(creatingKey)} aria-busy={creatingKey === option.id || undefined} onClick={() => createProject(option)}>{creatingKey === option.id ? <LoaderCircle size={14} className="spin" /> : null}{creatingKey === option.id ? m.creativeUi.topic.creatingDraft : option.label}</Button>)}
           </div>
         </div>
       ) : null}
@@ -53,19 +52,17 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
     <section className="publish-form">
       <header><div><span className="eyebrow">{m.interface.ready}</span><h2>{m.creativeUi.publish.title}</h2></div><StatusBadge tone={exported ? "success" : "neutral"}>{exported ? m.creativeUi.publish.exported : m.creativeUi.publish.pendingExport}</StatusBadge></header>
       <p className="publish-note">{m.creativeUi.publish.note}</p>
-      <label className="publish-field">{m.creativeUi.publish.platformLabel}
-        <Select
+      <FormField label={m.creativeUi.publish.platformLabel} className="publish-field"><Select
           size="rect"
           className="publish-field-select"
           value={platform}
           onChange={(value) => onPatch({ platform: value })}
           placeholder={m.creativeUi.publish.platformPlaceholder}
           options={PLATFORM_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
-        />
-      </label>
-      <label className="publish-field">{m.creativeUi.publish.summary}<Textarea rows={2} value={summary} placeholder={m.creativeUi.publish.summaryPlaceholder} onChange={(event) => onPatch({ summary: event.target.value })} /></label>
-      <label className="publish-field">{m.creativeUi.publish.tags}<Input value={tagsValue} placeholder={m.creativeUi.publish.tagsPlaceholder} onChange={(event) => onPatch({ tags: event.target.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })} /></label>
-      <label className="publish-field">{m.creativeUi.publish.cover}<Input value={coverPath} placeholder={m.creativeUi.publish.coverPlaceholder} onChange={(event) => onPatch({ coverPath: event.target.value || null })} /></label>
+        /></FormField>
+      <FormField label={m.creativeUi.publish.summary} className="publish-field"><Textarea rows={2} value={summary} placeholder={m.creativeUi.publish.summaryPlaceholder} onChange={(event) => onPatch({ summary: event.target.value })} /></FormField>
+      <FormField label={m.creativeUi.publish.tags} className="publish-field"><Input value={tagsValue} placeholder={m.creativeUi.publish.tagsPlaceholder} onChange={(event) => onPatch({ tags: event.target.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })} /></FormField>
+      <FormField label={m.creativeUi.publish.cover} className="publish-field"><Input value={coverPath} placeholder={m.creativeUi.publish.coverPlaceholder} onChange={(event) => onPatch({ coverPath: event.target.value || null })} /></FormField>
       <ul className="publish-checklist-inline">
         <li className={contentReady ? "passed" : ""}>{contentReady ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.content}</li>
         <li className={platform ? "passed" : ""}>{platform ? <Check size={13} /> : <Clock3 size={13} />}{m.creativeUi.publish.checks.platform}</li>
@@ -77,7 +74,7 @@ export function PublishForm({ detail, content, exporting, enforceChecklist = tru
         </> : null}
       </ul>
       <div className="publish-actions">
-        <button className="primary-button" disabled={!requiredMet || exporting} onClick={onExport}><Download size={14} />{exporting ? m.creativeUi.publish.exporting : exported ? m.creativeUi.publish.reexport : m.creativeUi.publish.exportNow}</button>
+        <Button variant="primary"  disabled={!requiredMet || exporting} onClick={onExport}><Download size={14} />{exporting ? m.creativeUi.publish.exporting : exported ? m.creativeUi.publish.reexport : m.creativeUi.publish.exportNow}</Button>
         {!requiredMet ? <small className="publish-block">{m.creativeUi.publish.blocked}</small> : null}
       </div>
     </section>

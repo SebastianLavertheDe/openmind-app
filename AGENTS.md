@@ -59,3 +59,20 @@ repository can opt in with `OPENMIND_SKILLS_REPO_ROOT=/absolute/path/to/cctools-
   unsaved-change guards and optimized geometry updates in the owning feature.
 - Keep fixed visual styles in CSS. Inline styles are for runtime values or CSS
   custom properties. Run `npm run audit:styles`; it is also part of the build.
+- UI contracts live in `docs/UI_COMPONENT_CONTRACT.md`. Use public `Button`,
+  `IconButton`, `FormField`, `FormDialog`, `ConfirmDialog`, `MenuItem` and the
+  existing text/choice controls from `design-system/components`. Standard
+  dialogs compose `DialogHeader`, `DialogBody` and `DialogFooter`; command search
+  uses `SearchDialogHeader`. Use `Popover` or `PopoverSurface` for anchored
+  overlays, and `Drawer` for modal app chrome. Features retain request state,
+  unsaved-change guards and optimized positioning.
+- Features own layout, not control paint, internal padding, fonts or heights.
+  Choose typed variants/sizes instead of overriding them. Declare layout classes
+  statically. Native buttons are for selection/navigation surfaces with explicit
+  ARIA state; standard actions and menu items use shared controls.
+- Add component variants in `design-system/control-contract.ts`, maintain their
+  single CSS owner, and extend the production-component catalog and behavioral
+  tests. Run `npm run check:ui` and `npm run visual:ui`. Visual baselines are
+  reviewed source fixtures: update them explicitly, inspect actual/expected/diff
+  images, and never regenerate them automatically to make CI pass. Preview the
+  catalog with `npm run ui:catalog`. All UI tests use temporary userData.

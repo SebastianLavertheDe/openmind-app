@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@shared/contracts";
@@ -96,12 +97,12 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
     <div className="approval-batch-bar">
       <span>{m.ai.approval.batchSummary(approvals.length)}</span>
       <div className="approval-batch-actions">
-        <button type="button" className="approval-btn approval-btn-danger" disabled={busy} onClick={() => void resolveAll("decline")}>
+        <Button variant="primary" tone="danger" type="button"  disabled={busy} onClick={() => void resolveAll("decline")}>
           {m.ai.approval.declineAll}
-        </button>
-        <button type="button" className="approval-btn approval-btn-primary" disabled={busy} onClick={() => void resolveAll("accept")}>
+        </Button>
+        <Button variant="primary" type="button"  disabled={busy} onClick={() => void resolveAll("accept")}>
           {m.ai.approval.allowAll}
-        </button>
+        </Button>
       </div>
     </div>
   );

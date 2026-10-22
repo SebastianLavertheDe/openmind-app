@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UserPreferencesSchema, type AiSnapshot, type CreativeAnalytics, type CreativeProjectDetail, type CreativeProjectSummary, type CreativeStage, type DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -453,7 +453,8 @@ describe("CreativeWorkspacePage", () => {
 
     const exportButton = await screen.findByRole("button", { name: /立即导出/ });
     expect((exportButton as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText(/目标平台/), { target: { value: "wechat" } });
+    fireEvent.click(screen.getByLabelText(/目标平台/));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: "公众号" }));
     fireEvent.change(screen.getByLabelText(/摘要/), { target: { value: "一段发布摘要" } });
     fireEvent.change(screen.getByLabelText(/标签/), { target: { value: "AI, 工程" } });
     fireEvent.change(screen.getByLabelText(/封面/), { target: { value: "assets/cover.png" } });

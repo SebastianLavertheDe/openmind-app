@@ -16,6 +16,11 @@ const contains = (layer: Layer, node: Node | null) => Boolean(node && layer.cont
 function belongsTo(layer: Layer, container: HTMLElement, visited = new Set<Layer>()): boolean {
   if (visited.has(layer)) return false;
   visited.add(layer);
+  const ownerPriority = layers.find(candidate => candidate.contentRefs.some(ref => ref.current === container))?.modalPriority;
+  // Responsive chrome can become modal while focus remains in a global dialog.
+  // Its captured return target is not evidence that the lower modal (or its
+  // menus) belongs to the higher dialog's interactive branch.
+  if (ownerPriority != null && layer.modalPriority != null && layer.modalPriority < ownerPriority) return false;
   const origin = layer.triggerRef?.current;
   if (origin && container.contains(origin)) return true;
   if (layer.contentRefs.some(ref => ref.current && container.contains(ref.current))) return true;

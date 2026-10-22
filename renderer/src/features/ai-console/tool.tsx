@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -8,16 +9,7 @@ import { messages as m } from "@shared/messages";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
-import {
-  asRecord,
-  firstLine,
-  scalar,
-  toolCategory,
-  toolCategoryLabel,
-  toolEventFailed,
-  toolOperationSummary,
-  toolValueText
-} from "./timeline";
+import { asRecord, firstLine, scalar, toolCategory, toolCategoryLabel, toolEventFailed, toolOperationSummary, toolValueText } from "./timeline";
 
 const OUTPUT_CHUNK_SIZE = 8_000;
 
@@ -396,9 +388,9 @@ function ChunkedText({ lines }: { lines: TerminalLine[] }) {
       </OverflowBox>
       {hasMore ? (
         <div className="tool-output-actions">
-          <button data-motion="action" className="tool-load-more" onClick={() => setLimit((value) => value + OUTPUT_CHUNK_SIZE)}>
+          <Button data-motion="action" className="tool-load-more" onClick={() => setLimit((value) => value + OUTPUT_CHUNK_SIZE)}>
             {t.loadMoreOutputProgress(visibleCount, total)}
-          </button>
+          </Button>
         </div>
       ) : null}
       {longOutput ? (
@@ -487,7 +479,7 @@ function ReadFileSummary({ path, failed, failureText }: { path: string; failed: 
   }
   return (
     <section className={`read-file-summary${failed ? " failed" : ""}`}>
-      <button
+      <Button variant="ghost" size="sm"
         data-motion="icon"
         type="button"
         className="read-file-link"
@@ -499,7 +491,7 @@ function ReadFileSummary({ path, failed, failureText }: { path: string; failed: 
       >
         <FileText size={14} />
         <span>{t.readFile(name)}</span>
-      </button>
+      </Button>
       {failed && failureText ? <small>{firstLine(failureText)}</small> : null}
     </section>
   );

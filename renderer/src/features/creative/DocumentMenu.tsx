@@ -1,3 +1,4 @@
+import { MenuItem } from "../../design-system/components";
 import { useEffect, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { DropdownMenu } from "../../design-system/controls";
@@ -31,13 +32,13 @@ export function DocumentMenu({ label, name, open, disabled, align = "start", tri
 export function DocumentMenuItem({ icon, label, active, radio, disabled, onClick }: {
   icon: string; label: string; active?: boolean; radio?: boolean; disabled?: boolean; onClick(): void;
 }) {
-  return <button type="button" data-motion="selection" className="document-menu-item"
+  return <MenuItem type="button" data-motion="selection" className="document-menu-item"
     role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? Boolean(active) : undefined}
     data-active={active || undefined} disabled={disabled} onClick={onClick}>
     <span className="document-menu-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: documentMenuIconHtml(icon) }} />
     <span className="document-menu-label">{label}</span>
     <span className="document-menu-hint" aria-hidden="true">{active ? <Check size={16} strokeWidth={1.5} /> : documentMenuHints[icon]}</span>
-  </button>;
+  </MenuItem>;
 }
 
 export function DocumentMenuHeading({ children }: { children: ReactNode }) {

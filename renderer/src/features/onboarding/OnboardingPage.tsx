@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Folder, FolderCog, LockKeyhole, Settings } from "lucide-react";
@@ -123,15 +124,15 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
         <div className="onboarding-topbar-start">
           <strong className="onboarding-brand">openmind</strong>
           {currentStep > 1 ? (
-            <button type="button" className="onboarding-step-navigation" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3)}>
+            <Button type="button" className="onboarding-step-navigation" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3)}>
               <ArrowLeft size={15} aria-hidden />{m.previousStep}
-            </button>
+            </Button>
           ) : null}
         </div>
         {currentStep < availableStep ? (
-          <button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3)}>
+          <Button type="button" className="onboarding-step-navigation onboarding-step-navigation-next" data-motion="action" disabled={busy !== null} onClick={() => setCurrentStep((currentStep + 1) as 2 | 3)}>
             {m.nextStep}<ArrowRight size={15} aria-hidden />
-          </button>
+          </Button>
         ) : null}
         <span className="onboarding-step-count" aria-label={m.progress(currentStep, 3)}>{currentStep} / 3</span>
       </header>
@@ -149,10 +150,10 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
                 <Folder size={20} aria-hidden />
               </output>
               <div className="onboarding-actions">
-                <button type="button" className="primary-button onboarding-primary-action" data-motion="action" disabled={busy !== null} onClick={() => void chooseRoot()}>
+                <Button variant="primary" type="button" className="onboarding-primary-action" data-motion="action" disabled={busy !== null} onClick={() => void chooseRoot()}>
                   <FolderCog size={16} aria-hidden />
                   {busy === "root" ? m.selecting : rootReady ? m.chooseAgain : m.chooseRoot}
-                </button>
+                </Button>
               </div>
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.rootSafety}</p>
             </OnboardingPanel>
@@ -164,10 +165,10 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
                 <Settings size={20} aria-hidden />
               </output>
               <div className="onboarding-actions">
-                <button type="button" className="primary-button onboarding-primary-action" data-motion="action" disabled={busy !== null} onClick={() => go("settings", { settingsSection: "providers" })}>
+                <Button variant="primary" type="button" className="onboarding-primary-action" data-motion="action" disabled={busy !== null} onClick={() => go("settings", { settingsSection: "providers" })}>
                   <Settings size={16} aria-hidden />{m.installProvider}<ArrowRight size={14} aria-hidden />
-                </button>
-                {providerStatus === "pending" ? <button type="button" className="onboarding-text-action" data-motion="action" disabled={busy !== null} onClick={() => void updateStep({ provider: "skipped" })}>{m.skipProvider}</button> : null}
+                </Button>
+                {providerStatus === "pending" ? <Button type="button" className="onboarding-text-action" data-motion="action" disabled={busy !== null} onClick={() => void updateStep({ provider: "skipped" })}>{m.skipProvider}</Button> : null}
               </div>
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.providerSafety}</p>
             </OnboardingPanel>
@@ -179,9 +180,9 @@ export function OnboardingPage({ bootstrap, go, onRefresh }: Props) {
                 <span className={providerStatus === "skipped" ? "optional" : undefined}>{providerStatus === "skipped" ? m.providerSkipped : m.providerReady}</span>
               </div>
               <div className="onboarding-actions">
-                <button type="button" className="primary-button onboarding-primary-action" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>
+                <Button variant="primary" type="button" className="onboarding-primary-action" data-motion="action" disabled={!canFinish || busy !== null} onClick={() => void finish()}>
                   {busy === "state" ? m.saving : m.finish}<ArrowRight size={15} aria-hidden />
-                </button>
+                </Button>
               </div>
               <p className="onboarding-safety"><LockKeyhole size={14} aria-hidden />{m.finishSafety}</p>
             </OnboardingPanel>

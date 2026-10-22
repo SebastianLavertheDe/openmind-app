@@ -64,7 +64,6 @@
 .brief-library-page .document-library-search {
   flex: 0 0 auto;
   width: auto;
-  min-height: clamp(34px, 4.1cqw, 38px);
   margin-bottom: clamp(8px, 1.3cqw, 12px);
 }
 
@@ -73,7 +72,7 @@
   contain-intrinsic-size: auto 58px;
 }
 
-.brief-library-page .document-file-list > .brief-file-item {
+.brief-library-page .document-file-list > .brief-file-item:not([data-ui-control]) {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -81,21 +80,24 @@
   text-align: center;
 }
 
-.brief-library-page .brief-file-item > .brief-file-pending-icon {
+.brief-library-page .brief-file-item:not([data-ui-control]) > .brief-file-pending-icon {
   position: absolute;
   inset-inline-start: 8px;
   inset-block-start: calc(50% - 7.5px);
   margin-top: 0;
 }
 
-.brief-library-page .brief-file-item.pending > span {
+.brief-library-page .brief-file-item:not([data-ui-control]).pending > span {
   padding-inline: 18px;
 }
 
-.brief-library-page .document-content .reader-markdown,
-.brief-library-page .document-content textarea {
+.brief-library-page .document-content .reader-markdown {
   /* Fluid padding avoids a 32px prose-width jump at the old 58rem switch. */
   padding-inline: clamp(18px, 5cqw, 58px);
+}
+
+.brief-library-page .document-content textarea:not([data-ui-control]) {
+  /* Fluid padding avoids a 32px prose-width jump at the old 58rem switch. */
 }
 
 .brief-library-page .document-content .reader-markdown.file-reader .document-block > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr) {
@@ -123,8 +125,7 @@
     justify-content: flex-start;
   }
 
-  .brief-library-page .document-detail-actions .ui-segmented button,
-  .brief-library-page .document-file-actions .ui-responsive-action {
+  .brief-library-page .document-detail-actions .ui-segmented button:not([data-ui-control]) {
     padding-inline: 8px;
   }
 }
@@ -137,26 +138,15 @@
   }
 
   .brief-library-page[data-detail-open] .document-library-list,
-  .brief-library-page:not([data-detail-open]) .document-library-detail {
+.brief-library-page:not([data-detail-open]) .document-library-detail {
     display: none;
   }
 
   .brief-library-page .brief-detail-back {
-    min-height: 40px;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     flex: 0 0 auto;
-    padding: 0 10px;
-    border: 0;
-    border-radius: var(--radius-control);
-    background: transparent;
-    color: var(--text-dim);
-  }
-
-  .brief-library-page .brief-detail-back:hover {
-    background: var(--control-hover);
-    color: var(--text);
   }
 
   .brief-library-page .document-detail-actions {
@@ -165,12 +155,12 @@
   }
 
   .brief-library-page .ui-segmented,
-  .brief-library-page .document-file-actions {
+.brief-library-page .document-file-actions {
     width: 100%;
   }
 
   .brief-library-page .ui-segmented button,
-  .brief-library-page .document-file-actions .ui-responsive-action {
+.brief-library-page .document-file-actions .ui-responsive-action {
     flex: 1 1 0;
   }
 

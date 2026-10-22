@@ -119,6 +119,7 @@ export function useModalFocusScope({
   containerRef,
   triggerRef,
   initialFocusRef,
+  initialFocusSelector,
   onDismiss,
   dismissOnOutside = false,
   layer = "modal"
@@ -127,6 +128,7 @@ export function useModalFocusScope({
   containerRef: RefObject<HTMLElement | null>;
   triggerRef?: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  initialFocusSelector?: string;
   onDismiss(): void;
   layer?: ModalLayer;
   dismissOnOutside?: boolean;
@@ -157,11 +159,13 @@ export function useModalFocusScope({
     const unsubscribe = subscribeDismissableLayers(syncBackgroundIsolation);
     syncBackgroundIsolation();
 
-    if (!hasLayerAbove(container)) initialFocusRef?.current?.focus();
+    const preferredFocus = () => initialFocusRef?.current
+      || (initialFocusSelector ? container.querySelector<HTMLElement>(initialFocusSelector) : null);
+    if (!hasLayerAbove(container)) preferredFocus()?.focus();
     const frame = window.requestAnimationFrame(() => {
       if (topModalScope()?.id !== scope.id || hasLayerAbove(container)) return;
       const targets = focusableElements(container);
-      (initialFocusRef?.current || targets[0] || container).focus();
+      (preferredFocus() || targets[0] || container).focus();
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -214,5 +218,5 @@ export function useModalFocusScope({
         target.focus();
       });
     };
-  }, [containerRef, dismissOnOutside, initialFocusRef, layer, open, triggerRef]);
+  }, [containerRef, dismissOnOutside, initialFocusRef, initialFocusSelector, layer, open, triggerRef]);
 }

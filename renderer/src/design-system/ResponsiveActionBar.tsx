@@ -6,6 +6,8 @@ import { DropdownMenu } from "./controls";
 import { Tooltip } from "./Tooltip";
 import { useExitPresence } from "./use-exit-presence";
 import { useExitingList } from "./use-exiting-list";
+import { Button } from "./Button";
+import { MenuItem } from "./MenuItem";
 
 export type ActionPresentation = "full" | "compact" | "minimal";
 export type ResponsiveActionPriority = "essential" | "primary" | "secondary";
@@ -66,7 +68,7 @@ function ActionButton({
   const labelPresence = useExitPresence(Boolean(text) && !leaving, RESPONSIVE_EXIT_MS);
   const renderedText = text || previousTextRef.current;
   const button = (
-    <button
+    <Button variant="ghost" size="sm" responsiveTarget
       type="button"
       className={`ui-responsive-action${action.className ? ` ${action.className}` : ""}`}
       aria-label={action.label}
@@ -94,7 +96,7 @@ function ActionButton({
         </span>
       ) : null}
       {action.badge != null ? <b>{action.badge}</b> : null}
-    </button>
+    </Button>
   );
   return labelPresence.visible && renderedText ? button : <Tooltip content={action.label}>{button}</Tooltip>;
 }
@@ -148,7 +150,7 @@ export function ResponsiveActionBar({
           data-leaving={overflowPresence.leaving || undefined}
           inert={overflowPresence.leaving || undefined}
         >
-          <DropdownMenu label={
+          <DropdownMenu responsiveTarget label={
             <span className="ui-responsive-overflow-trigger" aria-label={overflowLabel}>
               <MoreHorizontal size={17} aria-hidden="true" />
             </span>
@@ -156,7 +158,7 @@ export function ResponsiveActionBar({
             {renderedOverflow.map((action) => {
               const Icon = action.icon;
               return (
-                <button
+                <MenuItem
                   type="button"
                   role="menuitem"
                   key={action.id}
@@ -168,7 +170,7 @@ export function ResponsiveActionBar({
                   <Icon size={15} aria-hidden="true" />
                   <span>{action.label}</span>
                   {action.badge != null ? <b>{action.badge}</b> : null}
-                </button>
+                </MenuItem>
               );
             })}
           </DropdownMenu>

@@ -1,8 +1,12 @@
+import { FileDropzone } from "../../design-system/components";
+import { FormField } from "../../design-system/components";
+import { DialogHeader, DialogBody, DialogFooter } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { Dialog } from "../../design-system/Dialog";
 import { useLocale } from "../../i18n";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, Check, Copy, ImagePlus, LoaderCircle, Send, Settings2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, ImagePlus, LoaderCircle, Send, Settings2 } from "lucide-react";
 import { messages } from "@shared/messages";
 import { renderWechatArticle, WECHAT_THEMES } from "@shared/wechat-format";
 import type { WechatAccountView, WechatCover } from "@shared/wechat";
@@ -98,51 +102,48 @@ export function WechatExportDialog({ open, projectName, outputPath, title, markd
   if (!visible) return null;
   const disabled = Boolean(busy) || accountBusy;
   const empty = !markdown.trim() || !article.html || Boolean(article.error);
-  return <Dialog as="section" open={open} presence={{ visible, leaving }} onClose={dismiss} dismissDisabled={disabled} backdropClassName="project-dialog-backdrop wechat-export-backdrop" containerRef={dialogRef} className="project-dialog wechat-export-dialog" aria-labelledby={titleId}>
-        <header>
-          <div><h2 id={titleId}>{m.title}</h2><p className="wechat-export-document-title">{title || m.untitled}</p></div>
-          <IconButton data-motion="action" type="button" className="icon-button" disabled={disabled} onClick={dismiss} label={m.close}><X size={16} /></IconButton>
-        </header>
-        <div className="wechat-export-content">
+  return <Dialog size="wide" as="section" open={open} presence={{ visible, leaving }} onClose={dismiss} dismissDisabled={disabled}  containerRef={dialogRef} className="wechat-export-dialog" aria-labelledby={titleId}>
+        <DialogHeader title={m.title} titleId={titleId} description={title || m.untitled} onClose={dismiss} closeDisabled={disabled} closeLabel={m.close} />
+        <DialogBody className="wechat-export-content">
           <div className="wechat-export-options">
             {draftOpen ? <>
-              <button data-motion="action" type="button" className="settings-subtle-action wechat-export-back" disabled={disabled} onClick={() => { setDraftOpen(false); setAccountOpen(false); setError(""); }}><ArrowLeft size={14} />{m.backToStyle}</button>
+              <Button variant="ghost" data-motion="action" type="button" className="wechat-export-back" disabled={disabled} onClick={() => { setDraftOpen(false); setAccountOpen(false); setError(""); }}><ArrowLeft size={14} />{m.backToStyle}</Button>
               <h3>{m.draftSettings}</h3>
               {accountLoading ? <p className="wechat-export-help" role="status">{m.loadingAccount}</p> : null}
               {accountOpen || (!accountLoading && !account?.configured) ? <WechatAccountForm account={account || undefined} onBusyChange={setAccountBusy} onSaved={next => { setAccount(next); setAuthor(next.author); setAccountOpen(false); setAccountError(""); }} onCancel={account?.configured ? () => setAccountOpen(false) : () => setDraftOpen(false)} /> : <>
-                {accountError ? <p role="alert" className="wechat-export-error">{accountError}<button data-motion="action" type="button" className="settings-subtle-action" onClick={() => setAccountOpen(true)}>{m.configureAccount}</button></p> : null}
-                {account?.configured ? <div className="wechat-export-account"><span><Check size={14} />{m.configuredAccount} <small>{account.appId}</small></span><IconButton data-motion="action" type="button" className="icon-button" disabled={disabled} onClick={() => setAccountOpen(true)} label={m.editAccount}><Settings2 size={15} /></IconButton></div> : null}
-                <label className="project-field"><span>{m.articleTitle}</span><Input value={articleTitle} maxLength={WECHAT_TITLE_MAX_LENGTH} disabled={disabled} onChange={event => setArticleTitle(event.target.value)} />{articleTitle.length > WECHAT_TITLE_MAX_LENGTH ? <small className="wechat-export-error">{m.titleTooLongToSend(WECHAT_TITLE_MAX_LENGTH)}</small> : null}</label>
-                <div className="project-field"><span>{m.cover}</span><button data-motion="action" type="button" className={`wechat-cover-picker${cover ? " has-cover" : ""}`} onClick={() => void selectCover()} disabled={disabled}>{cover ? <img src={cover.previewUrl} alt={m.coverAlt} /> : <ImagePlus size={24} />}<span>{cover ? m.changeCover : m.chooseCover}</span></button></div>
-                <label className="project-field"><span>{m.author}</span><Input value={author} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={disabled} placeholder={m.maxCharacters(WECHAT_AUTHOR_MAX_LENGTH)} onChange={event => setAuthor(event.target.value)} /></label>
-                <label className="project-field"><span>{m.digest}</span><Textarea rows={3} value={digest} maxLength={WECHAT_DIGEST_MAX_LENGTH} disabled={disabled} placeholder={m.digestPlaceholder} onChange={event => setDigest(event.target.value)} /></label>
+                {accountError ? <p role="alert" className="wechat-export-error">{accountError}<Button variant="ghost" data-motion="action" type="button"  onClick={() => setAccountOpen(true)}>{m.configureAccount}</Button></p> : null}
+                {account?.configured ? <div className="wechat-export-account"><span><Check size={14} />{m.configuredAccount} <small>{account.appId}</small></span><IconButton data-motion="action" type="button"  disabled={disabled} onClick={() => setAccountOpen(true)} label={m.editAccount}><Settings2 size={15} /></IconButton></div> : null}
+                <FormField label={m.articleTitle} error={articleTitle.length > WECHAT_TITLE_MAX_LENGTH ? m.titleTooLongToSend(WECHAT_TITLE_MAX_LENGTH) : undefined}><Input value={articleTitle} maxLength={WECHAT_TITLE_MAX_LENGTH} disabled={disabled} onChange={event => setArticleTitle(event.target.value)} /></FormField>
+                <div className="project-field"><span>{m.cover}</span><FileDropzone variant="compact" label={cover ? m.changeCover : m.chooseCover} onClick={() => void selectCover()} disabled={disabled}>{cover ? <img src={cover.previewUrl} alt={m.coverAlt} /> : <ImagePlus size={24} />}<span>{cover ? m.changeCover : m.chooseCover}</span></FileDropzone></div>
+                <FormField label={m.author}><Input value={author} maxLength={WECHAT_AUTHOR_MAX_LENGTH} disabled={disabled} placeholder={m.maxCharacters(WECHAT_AUTHOR_MAX_LENGTH)} onChange={event => setAuthor(event.target.value)} /></FormField>
+                <FormField label={m.digest}><Textarea rows={3} value={digest} maxLength={WECHAT_DIGEST_MAX_LENGTH} disabled={disabled} placeholder={m.digestPlaceholder} onChange={event => setDigest(event.target.value)} /></FormField>
                 <p className="wechat-export-help">{m.draftHint}</p>
               </>}
             </> : <>
               <h3>{m.style}</h3>
               <div className="wechat-theme-grid" role="group" aria-label={m.style}>
-                {WECHAT_THEMES.map(theme => <button data-motion="action" key={theme.id} type="button" className={`wechat-theme-card${themeId === theme.id ? " active" : ""}`} data-theme={theme.id} aria-pressed={themeId === theme.id} disabled={disabled} style={{ "--wechat-swatch": theme.accentColor } as CSSProperties} onClick={() => { setThemeId(theme.id); setAccentColor(theme.accentColor); setNotice(""); }}>
+                {WECHAT_THEMES.map(theme => <button data-motion="selection" key={theme.id} type="button" className={`wechat-theme-card${themeId === theme.id ? " active" : ""}`} data-theme={theme.id} aria-pressed={themeId === theme.id} disabled={disabled} style={{ "--wechat-swatch": theme.accentColor } as CSSProperties} onClick={() => { setThemeId(theme.id); setAccentColor(theme.accentColor); setNotice(""); }}>
                   <span className="wechat-theme-sample" aria-hidden="true"><strong>{theme.name}</strong><i /><i /></span>
                   <span className="wechat-theme-caption">{theme.name}{themeId === theme.id ? <Check size={13} /> : null}</span><small>{theme.description}</small>
                 </button>)}
               </div>
               <div className="wechat-style-controls">
                 <div><h3>{m.accentColor}</h3><div className="wechat-colors" role="group" aria-label={m.accentColor}>{colors.map(color => <button data-motion="selection" key={color.value} type="button" className="wechat-color" style={{ "--wechat-swatch": color.value } as CSSProperties} aria-label={color.name} aria-pressed={accentColor === color.value} disabled={disabled} onClick={() => { setAccentColor(color.value); setNotice(""); }}>{accentColor === color.value ? <Check size={14} /> : null}</button>)}</div></div>
-                <label className="project-field wechat-font-size"><span>{m.fontSize}</span><Select size="rect" ariaLabel={m.fontSize} value={String(fontSize)} disabled={disabled} onChange={value => setFontSize(Number(value))} options={[14, 16, 18].map(value => ({ value: String(value), label: `${value} px` }))} /></label>
+                <FormField label={m.fontSize} className="wechat-font-size"><Select size="rect" ariaLabel={m.fontSize} value={String(fontSize)} disabled={disabled} onChange={value => setFontSize(Number(value))} options={[14, 16, 18].map(value => ({ value: String(value), label: `${value} px` }))} /></FormField>
               </div>
               <p className="wechat-export-help">{m.copyHint}</p>
             </>}
             {article.warnings.length ? <div className="wechat-export-warnings" role="note">{article.warnings.map(warning => <p key={warning}>{warning}</p>)}</div> : null}
           </div>
           <div className="wechat-export-preview"><div className="wechat-preview-label">{m.previewLabel(WECHAT_THEMES.find(theme => theme.id === themeId)?.name ?? "")}</div><iframe title={m.previewTitle} sandbox="" referrerPolicy="no-referrer" srcDoc={preview} /></div>
-        </div>
-        <footer className="wechat-export-footer">
-          <div className="wechat-export-feedback" aria-live="polite">{error || article.error ? <p className="wechat-export-error" role="alert">{error || article.error}</p> : notice ? <p className="wechat-export-notice" role="status">{notice}{sent ? <button data-motion="action" className="settings-subtle-action" onClick={() => void window.openmind.openExternal("https://mp.weixin.qq.com/").catch(cause => setError(errorText(cause)))}>{m.openConsole}</button> : null}</p> : <span className="wechat-export-help">{busy === "push" ? m.uploading : m.publishHint}</span>}</div>
+        </DialogBody>
+        <DialogFooter className="wechat-export-footer">
+          <div className="wechat-export-feedback" aria-live="polite">{error || article.error ? <p className="wechat-export-error" role="alert">{error || article.error}</p> : notice ? <p className="wechat-export-notice" role="status">{notice}{sent ? <Button variant="ghost" data-motion="action"  onClick={() => void window.openmind.openExternal("https://mp.weixin.qq.com/").catch(cause => setError(errorText(cause)))}>{m.openConsole}</Button> : null}</p> : <span className="wechat-export-help">{busy === "push" ? m.uploading : m.publishHint}</span>}</div>
           <div className="wechat-export-buttons">
-            <button data-motion="action" type="button" className="settings-subtle-action" disabled={disabled || empty || sent || (draftOpen && (accountLoading || accountOpen || !account?.configured))} onClick={() => { if (draftOpen) void push(); else { setDraftOpen(true); setNotice(""); } }}>{busy === "push" ? <LoaderCircle size={15} className="spin" /> : sent ? <Check size={15} /> : <Send size={15} />}{busy === "push" ? m.sending : sent ? m.sent : m.send}</button>
-            <button data-motion="action" type="button" className="primary-button" disabled={disabled || empty} onClick={() => void copy()}>{busy === "copy" ? <LoaderCircle size={15} className="spin" /> : <Copy size={15} />}{busy === "copy" ? m.copying : m.copy}</button>
+            <Button variant="ghost" data-motion="action" type="button"  disabled={disabled || empty || sent || (draftOpen && (accountLoading || accountOpen || !account?.configured))} onClick={() => { if (draftOpen) void push(); else { setDraftOpen(true); setNotice(""); } }}>{busy === "push" ? <LoaderCircle size={15} className="spin" /> : sent ? <Check size={15} /> : <Send size={15} />}{busy === "push" ? m.sending : sent ? m.sent : m.send}</Button>
+            <Button variant="primary" data-motion="action" type="button"  disabled={disabled || empty} onClick={() => void copy()}>{busy === "copy" ? <LoaderCircle size={15} className="spin" /> : <Copy size={15} />}{busy === "copy" ? m.copying : m.copy}</Button>
           </div>
-        </footer>
+        </DialogFooter>
       </Dialog>;
 }
 

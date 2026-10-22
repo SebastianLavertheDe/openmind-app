@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { messages } from "@shared/messages";
 import { ToggleSwitch } from "../../design-system/controls";
@@ -48,7 +49,7 @@ export function DefaultSkillsToggle({ onChange }: { onChange(): Promise<void> })
       </div>
       {busy ? <p role="status">{enabled ? m.disabling : m.installing}</p> : null}
       {error ? <p className="skills-error" role="alert">{error}</p> : null}
-      {enabled === null && error ? <button type="button" className="ghost-button" data-motion="action" onClick={() => void load()}>{m.retry}</button> : null}
+      {enabled === null && error ? <Button variant="ghost" type="button"  data-motion="action" onClick={() => void load()}>{m.retry}</Button> : null}
     </section>
   );
 }

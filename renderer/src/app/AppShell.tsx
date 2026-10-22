@@ -1,18 +1,13 @@
+import { Drawer } from "../design-system/components";
+import { IconButton } from "../design-system/components";
 import { useLocale } from "../i18n";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { messages as m } from "@shared/messages";
-import {
-  Bell,
-  Boxes,
-  CircleHelp,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search
-} from "lucide-react";
+import { Bell, Boxes, CircleHelp, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { isDefaultSkillsPage, type AppPage, type Navigate } from "./routes";
 import type { AppEnvironment } from "@shared/contracts";
 import { NAV_ITEMS, preloadRoute, type NavGroup, type NavItem } from "./route-registry";
-import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, useModalFocusScope, type ResponsiveAction } from "../design-system/components";
+import { ResponsiveActionBar, ResponsiveContextBadge, Tooltip, type ResponsiveAction } from "../design-system/components";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveCompositionReporter, useResponsiveLayout } from "./responsive-layout";
 import { useNavigationMotion } from "./use-navigation-motion";
 import { useExitPresence } from "../design-system/use-exit-presence";
@@ -92,7 +87,7 @@ export function AppShell({
       if (document.documentElement.dataset.windowChrome === "mica") delete document.documentElement.dataset.windowChrome;
     };
   }, [windowsMica]);
-  useModalFocusScope({ open: compactShell && mobileNavOpen, containerRef: navRef, triggerRef: navTriggerRef, onDismiss: closeMobileNav, layer: "drawer" });
+
   useLayoutEffect(() => {
     const companionVisible = showAiSidebar
       && hasAiSidebar
@@ -169,12 +164,12 @@ export function AppShell({
     >
       {windowsMica ? <div className="window-titlebar-drag-region" aria-hidden="true" /> : null}
       {!fullPageMode && compactShell && scrimPresence.visible ? <button className="app-nav-scrim" aria-hidden="true" tabIndex={-1} inert={!mobileNavOpen} data-leaving={scrimPresence.leaving || undefined} data-focus-scope-backdrop="" data-motion="action" onClick={closeMobileNav} /> : null}
-      {!fullPageMode ? <aside
+      {!fullPageMode ? <Drawer modal={compactShell} open={mobileNavOpen} onClose={closeMobileNav} containerRef={navRef} triggerRef={navTriggerRef} layer="drawer"
         id="primary-navigation"
-        ref={navRef}
+
         className={`app-nav${effectiveNavCollapsed ? " collapsed" : ""}${mobileNavOpen ? " mobile-open" : ""}`}
-        role={compactShell ? "dialog" : undefined}
-        aria-modal={compactShell && mobileNavOpen ? "true" : undefined}
+
+
         aria-label={m.shell.navMain}
         aria-hidden={compactShell && !mobileNavOpen ? true : undefined}
         inert={compactShell && !mobileNavOpen}
@@ -190,16 +185,17 @@ export function AppShell({
           <div className="brand-copy"><strong>OpenMind</strong></div>
           {!railShell ? (
             <Tooltip content={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse} side="bottom">
-              <button
-                className="icon-button nav-collapse-button"
+              <IconButton
+                tooltip={false}
+                className="nav-collapse-button"
                 data-motion="icon"
-                aria-label={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse}
+                label={compactShell ? m.shell.navCollapse : navCollapsed ? m.shell.navExpand : m.shell.navCollapse}
                 aria-expanded={compactShell ? mobileNavOpen : !effectiveNavCollapsed}
                 aria-controls="primary-navigation"
                 onClick={compactShell ? closeMobileNav : toggleNavigation}
               >
                 {compactShell || !navCollapsed ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-              </button>
+              </IconButton>
             </Tooltip>
           ) : null}
         </div>
@@ -228,21 +224,23 @@ export function AppShell({
             })()}
           </nav>
         </div>
-      </aside> : null}
+      </Drawer> : null}
       <section className={`app-stage${showGlobalToolbar ? "" : " app-stage-without-toolbar"}`}>
         {showGlobalToolbar ? <header className="global-toolbar">
           <Tooltip content={m.shell.navMenu} side="bottom">
-            <button
+            <IconButton
+              tooltip={false}
               ref={navTriggerRef}
-              className="icon-button responsive-nav-toggle"
-              aria-label={m.shell.navMenu}
+              className="responsive-nav-toggle"
+              responsiveTarget
+              label={m.shell.navMenu}
               aria-expanded={mobileNavOpen}
               aria-controls="primary-navigation"
               data-motion="icon"
               onClick={() => setMobileNavOpen(true)}
             >
               <PanelLeftOpen size={17} />
-            </button>
+            </IconButton>
           </Tooltip>
           <ResponsiveContextBadge
             presentation={responsiveLayout.actions}

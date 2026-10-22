@@ -1,12 +1,12 @@
 import { Dialog } from "../design-system/Dialog";
 import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles, X } from "lucide-react";
+import { Bot, Command, CornerDownLeft, FileText, FolderKanban, Sparkles } from "lucide-react";
 import type { GlobalSearchResult, PermissionProfile } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import type { Navigate } from "./routes";
 import { useAiActions, useAiSnapshot } from "../ai-context";
-import { IconButton, SearchInput } from "../design-system/components";
+import { SearchDialogHeader } from "../design-system/components";
 import { useExitPresence } from "../design-system/use-exit-presence";
 
 type PaletteAction = {
@@ -89,7 +89,6 @@ export function GlobalSearch({
   const scopeRef = useRef<HTMLDivElement>(null);
 
   const { visible, leaving } = useExitPresence(open, 160);
-
 
   useEffect(() => {
     if (!visible || query.trim().length < 2) {
@@ -187,19 +186,14 @@ export function GlobalSearch({
   let flatIndex = actionOffset - 1;
   const showHint = query.trim().length < 2;
   const showEmpty = !loading && query.trim().length >= 2 && !results.length && !action;
-  return <Dialog as="section" open={open} presence={{ visible, leaving }} retainFocusDuringExit onClose={onClose} containerRef={scopeRef} triggerRef={triggerRef} backdropClassName="global-search-scrim ui-overlay" className="global-search-dialog" aria-label={m.search.dialogLabel}>
-        <header>
-          <Sparkles size={18} className="global-search-symbol" />
-          <SearchInput leadingIcon={null}
+  return <Dialog size="lg" as="section" open={open} presence={{ visible, leaving }} retainFocusDuringExit onClose={onClose} containerRef={scopeRef} triggerRef={triggerRef} className="global-search-dialog" aria-label={m.search.dialogLabel}>
+          <SearchDialogHeader onClose={onClose} loadingLabel={loading ? m.search.loading : undefined}
             aria-label={m.search.inputAria}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
             placeholder={m.search.placeholder}
           />
-          {loading ? <span className="global-search-loading">{m.search.loading}</span> : null}
-          <IconButton className="" label={m.common.close} onClick={onClose}><X size={16} /></IconButton>
-        </header>
         <div className="global-search-results" role="listbox" aria-label={m.search.resultsAria}>
           {showHint ? <div className="global-search-hint">{m.search.hintShort}</div> : null}
           {action ? (

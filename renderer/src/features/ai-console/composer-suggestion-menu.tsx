@@ -1,12 +1,6 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
-import {
-  FileSearch,
-  FileText,
-  FolderOpen,
-  LoaderCircle,
-  Package,
-  Search
-} from "lucide-react";
+import { FileSearch, FileText, FolderOpen, LoaderCircle, Package, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -132,9 +126,9 @@ export function ComposerSuggestionMenu(props: SuggestionMenuProps) {
         <span><kbd>Enter</kbd>{m.ai.suggestions.kbdConfirm}</span>
         <span><kbd>Esc</kbd>{m.ai.suggestions.kbdClose}</span>
         {props.kind === "mention" ? (
-          <button data-motion="icon" type="button" onMouseDown={(event) => event.preventDefault()} onClick={props.onBrowse}>
+          <Button variant="ghost" size="sm" data-motion="icon" type="button" onMouseDown={(event) => event.preventDefault()} onClick={props.onBrowse}>
             <FolderOpen size={12} />{m.ai.suggestions.browseOpenmind}
-          </button>
+          </Button>
         ) : null}
         {props.kind === "mention" && props.indexedCount ? (
           <small title={props.truncated ? m.ai.suggestions.indexTruncatedTitle : undefined}>

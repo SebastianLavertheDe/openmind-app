@@ -1,0 +1,14 @@
+[
+  { "id": "actions", "title": "Actions", "height": 1040 },
+  { "id": "fields", "title": "Fields and search", "height": 1440 },
+  { "id": "form-dialog", "title": "Form dialog", "height": 800 },
+  { "id": "confirm-dialog", "title": "Confirmation", "height": 800 },
+  { "id": "search-dialog", "title": "Search dialog", "height": 800 },
+  { "id": "select-menu", "title": "Select menu", "height": 800 },
+  { "id": "select-rect-open", "title": "Form choice menu", "height": 800 },
+  { "id": "select-quiet-permission", "title": "Composer permission", "height": 800 },
+  { "id": "composer-model-menu", "title": "Grouped model menu", "height": 800 },
+  { "id": "composer-model-submenu", "title": "Image model submenu", "height": 800 },
+  { "id": "action-menu", "title": "Action menu", "height": 800 },
+  { "id": "popover", "title": "Nested popover", "height": 800 }
+]

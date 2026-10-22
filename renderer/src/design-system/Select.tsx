@@ -1,3 +1,6 @@
+import { SelectTrigger } from "./SelectTrigger";
+import { SelectItem } from "./SelectItem";
+import type { SelectTone, SelectVariant } from "./control-contract";
 import { useLocale } from "../i18n";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -28,6 +31,7 @@ export function Select<T extends string>({
   label,
   placeholder,
   size = "pill",
+  variant = "default",
   leadingIcon,
   disabled = false,
   ariaLabel,
@@ -35,15 +39,21 @@ export function Select<T extends string>({
   title,
   autoFocus,
   menuAlign = "start",
-  menuSide = "bottom"
+  menuSide = "bottom",
+  id,
+  "aria-label": explicitAriaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid
 }: {
   value: T | "";
-  options: Array<{ value: T; label: string; disabled?: boolean }>;
+  options: Array<{ value: T; label: string; disabled?: boolean; tone?: SelectTone }>;
   onChange(value: T): void;
   /** 可见 label,渲染在 trigger 内的弱化前缀;screen reader 通过 aria-label 读 */
   label?: string;
   placeholder?: string;
   size?: "pill" | "rect";
+  variant?: SelectVariant;
   leadingIcon?: React.ReactNode;
   disabled?: boolean;
   /** 优先级高于 label,用于无障碍名;省略时回退到 label/placeholder */
@@ -55,11 +65,17 @@ export function Select<T extends string>({
   /** 浮层相对触发器的横向对齐方式。 */
   menuAlign?: AnchoredPopoverAlign;
   menuSide?: AnchoredPopoverSide;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const listId = useId();
+  const valueId = `${listId}-value`;
   const [menuMounted, setMenuMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -83,7 +99,9 @@ export function Select<T extends string>({
   );
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
   const initialActiveIndex = selected && !selected.disabled ? selectedIndex : options.findIndex((option) => !option.disabled);
-  const accessibleName = ariaLabel || label || placeholder || m.designSystem.selectLabel;
+  const accessibleName = explicitAriaLabel || ariaLabel || label || placeholder || m.designSystem.selectLabel;
+  // A referenced field label overrides aria-label, so expose its current value separately.
+  const accessibleDescription = [ariaLabelledBy ? valueId : undefined, ariaDescribedBy].filter(Boolean).join(" ") || undefined;
 
   // open 与 menuMounted 解耦:open 控制数据/焦点,menuMounted 控制 DOM 存在;
   // 关闭时 menuMounted 置 false 但 visible 仍为 true 直到退场动画结束。
@@ -195,6 +213,7 @@ export function Select<T extends string>({
       <select
         className="ui-select-native-proxy"
         aria-label={accessibleName}
+        aria-labelledby={ariaLabelledBy}
         value={selected ? value : ""}
         disabled={disabled}
         tabIndex={-1}
@@ -203,11 +222,15 @@ export function Select<T extends string>({
         {!selected ? <option value="">{placeholder || ""}</option> : null}
         {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
-      <button
+      <SelectTrigger shape={size} variant={variant} tone={selected?.tone}
         ref={triggerRef}
+        data-ui-control="select-trigger"
+        id={id}
         type="button"
-        className="ui-select-trigger"
         aria-haspopup="listbox"
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={accessibleDescription}
+        aria-invalid={ariaInvalid}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={`${accessibleName}${selected ? `：${selected.label}` : ""} ${m.designSystem.selectButton}`}
@@ -230,9 +253,9 @@ export function Select<T extends string>({
       >
         {leadingIcon ? <span className="ui-select-leading">{leadingIcon}</span> : null}
         {label ? <span className="ui-select-label">{label}</span> : null}
-        <span className="ui-select-value">{selected?.label || placeholder || "\u00A0"}</span>
+        <span id={valueId} className="ui-select-value">{selected?.label || placeholder || "\u00A0"}</span>
         <ChevronDown size={14} className="ui-select-chevron" />
-      </button>
+      </SelectTrigger>
       {visible ? createPortal(
         <div
           ref={listRef}
@@ -240,6 +263,7 @@ export function Select<T extends string>({
           className={`ui-select-menu${className ? ` ${className.split(/\s+/).filter(Boolean).map((token) => `${token}-menu`).join(" ")}` : ""}`}
           role="listbox"
           aria-label={accessibleName}
+          aria-labelledby={ariaLabelledBy}
           data-leaving={leaving || undefined}
           aria-hidden={leaving || undefined}
           inert={leaving || undefined}
@@ -250,7 +274,8 @@ export function Select<T extends string>({
         >
           <SelectMenuSurface side={popover.side} leaving={leaving}>
           {options.map((option, index) => (
-            <button
+            <SelectItem tone={option.tone}
+              data-ui-control="select-option"
               key={option.value}
               type="button"
               role="option"
@@ -266,7 +291,7 @@ export function Select<T extends string>({
             >
               <span className="ui-select-option-label">{option.label}</span>
               {option.value === value ? <Check size={13} className="ui-select-check" /> : null}
-            </button>
+            </SelectItem>
           ))}
           </SelectMenuSurface>
         </div>,

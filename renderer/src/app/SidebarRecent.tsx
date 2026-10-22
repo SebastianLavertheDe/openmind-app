@@ -1,3 +1,4 @@
+import { Button } from "../design-system/components";
 import { useLocale } from "../i18n";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
@@ -111,6 +112,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
               <div className="nav-recent-row" key={session.id}>
                 <button
                   type="button"
+                  data-motion="selection"
                   className={`nav-recent-item${dot ? " has-status" : ""}${activeSessionId === session.id ? " active" : ""}`}
                   aria-current={activeSessionId === session.id ? "true" : undefined}
                   title={m.shell.recentOpen}
@@ -131,7 +133,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                 </button>
                 <div className="nav-recent-actions">
                   <Tooltip content={session.pinned ? m.ai.session.unpin : m.ai.session.pin} side="top">
-                    <button
+                    <Button variant="ghost" size="sm"
                       type="button"
                       className={`nav-recent-action${session.pinned ? " pinned" : ""}`}
                       data-motion="icon"
@@ -140,10 +142,10 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                       onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void togglePinned(session); }}
                     >
                       {session.pinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}
-                    </button>
+                    </Button>
                   </Tooltip>
                   <Tooltip content={m.ai.session.archiveTask} side="top">
-                    <button
+                    <Button variant="ghost" size="sm"
                       type="button"
                       className="nav-recent-action"
                       data-motion="icon"
@@ -152,7 +154,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                       onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void archiveSession(session); }}
                     >
                       <Archive size={13} aria-hidden />
-                    </button>
+                    </Button>
                   </Tooltip>
                 </div>
               </div>

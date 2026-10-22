@@ -41,8 +41,8 @@ export function DocumentToolbar({ ready, readOnly, format, outlineOpen, onOutlin
   };
   const disabled = (action: EditorAction) => !ready || action === "undo" && !format.canUndo || action === "redo" && !format.canRedo;
   return <div className="document-editor-toolbar" role="toolbar" aria-label={readOnly ? messages.editor.documentNavigation : messages.editor.documentFormatting}>
-    <IconButton type="button" aria-pressed={outlineOpen} data-document-outline-trigger data-motion="selection" onClick={onOutline} className="" label={messages.editor.outline}><ListTree size={16} /></IconButton>
-    <IconButton type="button" data-motion="selection" disabled={!ready} onClick={onSearch} className="" label={messages.editor.findAndReplace} tooltip={messages.editor.findShortcut}><Search size={16} /></IconButton>
+    <IconButton type="button" aria-pressed={outlineOpen} data-document-outline-trigger data-motion="selection" onClick={onOutline}  label={messages.editor.outline}><ListTree size={16} /></IconButton>
+    <IconButton type="button" data-motion="selection" disabled={!ready} onClick={onSearch}  label={messages.editor.findAndReplace} tooltip={messages.editor.findShortcut}><Search size={16} /></IconButton>
     <span className="document-toolbar-divider" aria-hidden="true" />
     {readOnly ? <span className="document-reading-label">{messages.editor.readingMode}</span> : <>
       <DocumentMenu label={<><span>{format.heading ? messages.editor.heading(format.heading) : messages.editor.paragraph}</span><ChevronDown size={14} /></>}

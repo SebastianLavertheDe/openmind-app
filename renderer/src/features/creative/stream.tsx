@@ -3,16 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { CreativeProjectSummary, CreativeTopic } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { EmptyState } from "../../design-system/components";
-import {
-  type Bucket,
-  type StreamFilter,
-  BUCKETS,
-  bucketForStage,
-  firstParagraph,
-  formatRelative,
-  platformLabel,
-  stageLabel
-} from "./types";
+import { type Bucket, type StreamFilter, BUCKETS, bucketForStage, firstParagraph, formatRelative, platformLabel, stageLabel } from "./types";
 
 type StreamItem =
   | { kind: "topic"; topic: CreativeTopic }
@@ -179,7 +170,7 @@ function TopicDateGroups({
         const [date, label] = key.split("|");
         const sourceFile = String((group[0]?.topic as TopicWithSource | undefined)?.sourceFile || "");
         return (
-          <button
+          <button aria-pressed={Boolean(sourceFile && selectedTopicFile === sourceFile)}
             type="button"
             data-motion="selection"
             className={`stream-date-file${sourceFile && selectedTopicFile === sourceFile ? " active" : ""}`}
@@ -210,7 +201,7 @@ function StreamCard({
     const { topic } = item;
     const status = `${platformLabel(topic.platform || "") || m.creative.bucket.topic}${topic.score ? m.creativeUi.stream.recommendScore(topic.score) : ""}${topic.projectDir ? m.creativeUi.stream.hasDraft : ""}`;
     return (
-      <button type="button" data-motion="selection" className={`creative-item-row creative-stream-card${active ? " active" : ""}`} onClick={onOpen}>
+      <button aria-pressed={Boolean(active)} type="button" data-motion="selection" className={`creative-item-row creative-stream-card${active ? " active" : ""}`} onClick={onOpen}>
         <span className="creative-item-main">
           <div>
             <strong>{topic.title || m.creative.defaults.unnamedTopic}</strong>
@@ -228,7 +219,7 @@ function StreamCard({
   const subtitle = platforms.length ? platforms.map(platformLabel).join("/") : m.creativeUi.stream.noPlatform;
   const status = `${m.creativeUi.stream.completion(project.completion)}${project.updatedAt ? ` · ${formatRelative(project.updatedAt)}` : ""}`;
   return (
-    <button type="button" data-motion="selection" className={`creative-item-row creative-stream-card${active ? " active" : ""}`} onClick={onOpen}>
+    <button aria-pressed={Boolean(active)} type="button" data-motion="selection" className={`creative-item-row creative-stream-card${active ? " active" : ""}`} onClick={onOpen}>
       <span className="creative-item-main">
         <div>
           <strong>{project.topic}</strong>

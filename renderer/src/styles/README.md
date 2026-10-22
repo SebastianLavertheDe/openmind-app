@@ -1,85 +1,94 @@
 # Application styles
 
-All application-owned CSS lives in this directory. `index.css` is the renderer
-entrypoint and defines the loading order. Optional feature styles also live here;
-vendor styles from PDF.js, Milkdown and KaTeX stay with their dependencies.
+All application-owned CSS lives here. `index.css` is the production renderer
+entrypoint and defines loading order. Vendor styles from PDF.js, Milkdown and
+KaTeX stay with their dependencies. The separate development catalog imports
+`dev/ui-catalog.css`; production does not import that file.
 
-| Location | Maintains |
+| Location | Owns |
 | --- | --- |
-| `tokens.css` | Light/dark defaults, colors, typography, spacing, control dimensions and motion tokens |
-| `base.css` | Global resets, existing shared styles and accessibility fallbacks |
-| `components/inputs.css` | Input, Textarea, SearchInput appearance and interaction states |
-| `components.css` | Other shared controls |
+| `tokens.css` | Light/dark colors, typography, spacing, control dimensions and motion defaults |
+| `base.css` | Global resets, structural surfaces and accessibility fallbacks |
+| `components/buttons.css` | Button, IconButton and CopyButton appearance and interaction states |
+| `components/inputs.css` | Input, Textarea, SearchInput and InputGroup |
+| `components/forms.css` | FormField labels, validation messages and FormActions |
+| `components/dialogs.css` | Dialog, FormDialog, ConfirmDialog and shared dialog parts |
+| `components/menus.css` | MenuItem, DropdownMenu and Popover surfaces |
+| `components.css` | Select, SelectTrigger, SelectMenuSurface and other existing shared controls |
+| `components/uploads.css`, `components/media.css` | FileDropzone and ImageThumbnail |
+| `components/image-viewer.css` | ImageViewer canvas and image navigation layout |
 | `shell.css`, `navigation-motion.css` | Application chrome and navigation |
-| `features/` | Feature layout and feature-specific surfaces |
-| `responsive.css` | Shared responsive adaptations |
-| `final-polish.css`, `workbuddy-refactor.css` | Existing product adjustments; do not add input overrides here |
+| `features/` | Feature layout, content and structural selection/navigation surfaces |
+| `responsive.css` | Shared responsive layout adaptations |
+| `final-polish.css`, `workbuddy-refactor.css` | Existing structural adjustments; do not add shared-control overrides |
 
-## Text controls
+## Public controls
 
-Import `Input`, `Textarea` and `SearchInput` from `design-system/components`.
+Import from `design-system/components`. Choose semantic variants and sizes from
+`design-system/control-contract.ts`; do not create page-specific button/input
+skins. The full API and extension workflow are in
+[`docs/UI_COMPONENT_CONTRACT.md`](../../../docs/UI_COMPONENT_CONTRACT.md).
 
 ```tsx
-<label>
-  Name
-  <Input value={name} onChange={event => setName(event.target.value)} />
-</label>
-<SearchInput aria-label="Search files" value={query} onChange={event => setQuery(event.target.value)} />
-<Textarea aria-label="Description" value={description} onChange={event => setDescription(event.target.value)} />
+<FormDialog open={open} title={copy.title} confirmLabel={copy.save}
+  busy={saving} onClose={closeWithUnsavedGuard} onConfirm={save}>
+  <FormField label={copy.name} hint={copy.hint} error={nameError}>
+    <Input value={name} onChange={event => setName(event.target.value)} required />
+  </FormField>
+</FormDialog>
+<SearchInput aria-label={copy.search} value={query}
+  onChange={event => setQuery(event.target.value)} />
+<Button variant="primary" loading={saving} onClick={save}>{copy.save}</Button>
 ```
 
-`Input` and `Textarea` default to a thin bordered form control. Use `variant="inline"`
-for text inside an existing editor surface. `SearchInput` owns the complete search
-surface, including optional leading/trailing icons; it defaults to a quiet search
-field and supports `variant="outlined"`. Input and SearchInput support `size="sm"`
-for compact toolbars. Native props, refs, labels, keyboard handlers, selection,
-disabled/read-only state and `aria-invalid` pass through to the actual control.
-Use `InputGroup` with an inline Input when a form field includes a unit suffix.
-SearchInput accepts `clearAction={{ label, onClear }}` to clear a controlled query
-and restore input focus. Supply a localized label and omit the action for an empty query.
+Input and Textarea use `default` for forms and `inline` for text embedded in an
+existing surface. Textarea additionally supports `composer` and `code`.
+SearchInput owns its complete search surface, supports `quiet` and `outlined`,
+and accepts `clearAction={{ label, onClear }}`. Use `InputGroup` for unit suffixes;
+FormField connects labels and validation to its native input. Native props,
+refs, keyboard handlers, selection and composition remain on the actual control.
+Native checkbox/radio/file/range/color controls may remain native.
 
-Maintain borders, backgrounds, focus feedback, disabled and invalid styles in
-`components/inputs.css`. Feature CSS may position/size a control and set editorial
-typography, but must not redefine its interaction appearance. Keep labels in the
-feature so field names and validation messages retain their business meaning.
-
-Native checkbox/radio/file/range/color controls are separate from text inputs.
-Fixed visual declarations belong in CSS. Runtime geometry, user-selected colors,
-progress values and CSS custom properties can be supplied by components.
-
-## Select controls
-
-Use `Select` from `design-system/components` for dropdown choices, including
-settings, filters, permissions and dialog fields. Supply `options`, `value`,
-`onChange` and a localized `ariaLabel`; use `size="rect"` for forms. `autoFocus`,
-`title` and `disabled` apply to the visible trigger. `menuSide` and `menuAlign`
-control its preferred placement while the shared popover keeps it in view.
-
-`SelectMenuSurface` supplies the same rounded panel, option spacing and
-fade/translate/scale transitions to simple selects and grouped model menus.
-Maintain this appearance in `components.css`; feature styles own control layout
-and semantic states. Native `<select>` is reserved for Select's internal proxy;
-`audit:styles` rejects native selects in feature code.
+Select supplies the choice trigger and keyboard navigation; use `size="rect"`
+for forms and `size="pill"` for compact choices. Grouped model menus reuse
+SelectTrigger and SelectMenuSurface. Native select is reserved for Select's
+internal proxy. Maintain Select UI and motion in `components.css`.
 
 ## Shared interactions
 
-`Dialog` owns the modal surface, backdrop dismissal, focus scope, portal and exit
-presence; features own its header, form, footer and layout. Owners that retain a
-data snapshot during exit may pass their existing `presence`. `dismissDisabled`
-is an explicit busy-state policy. `ImageViewer` shares this shell and owns image
-navigation, keyboard and swipe handling; each feature still loads its own image
-data. Maintain viewer styles in `components/image-viewer.css`.
+Dialog owns its backdrop, portal, focus scope, dismissal and exit presence.
+Compose DialogHeader, DialogBody and DialogFooter for specialized dialogs, or
+use FormDialog for a standard form and ConfirmDialog for confirmation.
+SearchDialogHeader provides command-search chrome. Features retain request state,
+validation, data loading and unsaved-change guards. Ordinary forms initially
+focus their first editable field; an explicit initialFocusRef takes precedence.
+Owners that already retain a data snapshot can share their presence with Dialog.
 
-Menus and popovers share `useDismissableLayer` so the foremost child handles Esc
-before its parent, including across portals. Keep anchoring in
-`useAnchoredPopover`. Use `Tabs` or `SegmentedControl` for related choices (their
-change callbacks may await a navigation guard), `AnimatedDisclosure` for animated
-expansion, and `IconButton` for accessible icon actions with shared tooltips.
-`usePointerResize` owns pointer batching and cancellation; consumers own geometry.
-`useClipboard` owns copy feedback and timer cleanup; rich clipboard formats keep
-their typed IPC implementation.
+Popover owns ordinary anchoring and dismissal. Specialized menus retain their
+optimized geometry/keyboard logic and reuse PopoverSurface, useAnchoredPopover
+and useDismissableLayer. Drawer provides modal focus handling for app chrome.
+ImageViewer shares Dialog's media shell and owns image gestures/navigation.
+Tabs, SegmentedControl and AnimatedDisclosure preserve choice/disclosure behavior.
+Use usePointerResize for batched resizing and useClipboard or CopyButton for
+plain-text copy feedback; rich clipboard formats keep typed IPC.
 
-Run `npm run audit:styles` to check these boundaries, including appearance overrides
-on shared controls and their feature classes. The build runs it automatically.
-Run `npm run visual:inputs` for Electron checks of focus, error states and layout
-in both themes at 720, 900 and 1280 pixels.
+## Ownership and verification
+
+Features may set widths, margins and flex/grid placement. Shared-control paint,
+fonts, internal padding, heights and interaction states belong to the CSS owner
+above. Runtime geometry and content colors may use inline values; fixed visual
+styles belong in CSS. Static feature class names let the AST/style gate trace
+controls through import aliases and re-exports. Legacy native-button rules must
+exclude `[data-ui-control]`; the marker is owned by the design system.
+
+Run `npm run check:ui` for ownership checks and negative regression fixtures. The
+normal build includes it. Run `npm run ui:catalog` to inspect actual components,
+`npm run visual:inputs` for input interaction/layout checks, and `npm run visual:ui`
+for reviewed pixel comparisons in both themes and two viewport widths.
+`npm run perf:ui` measures controlled search updates with 500 unrelated actions.
+All Electron UI fixtures use temporary userData and synthetic content.
+
+Intentional visual changes require `npm run visual:ui -- --update`, inspection of
+the screenshots and manifest, and a successful comparison without `--update`.
+CI never regenerates baselines. Keep variants, their CSS owner, catalog examples,
+behavioral checks and reviewed baselines together.

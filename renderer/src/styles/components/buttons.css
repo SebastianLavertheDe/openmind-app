@@ -1,0 +1,62 @@
+/* All standard actions, including icon actions, have this single visual owner. */
+.ui-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--control-icon-gap);
+  min-width: 0;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-inline);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--control-radius);
+  outline: none;
+  background: var(--panel-bg);
+  box-shadow: none;
+  color: var(--text);
+  font: 600 var(--fs-base)/1 var(--font-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-instant) var(--ease-standard);
+}
+.ui-button[data-size="sm"] { height: var(--control-height-sm); padding-inline: var(--space-2); font-size: var(--fs-sm); }
+.ui-button[data-size="lg"] { height: var(--control-height-lg); padding-inline: var(--space-4); }
+.ui-button[data-variant="primary"] { border-color: transparent; background: var(--accent); color: var(--accent-contrast); }
+.ui-button[data-variant="ghost"] { border-color: transparent; background: transparent; color: var(--muted-2); }
+.ui-button:not(:disabled):hover { background: var(--control-hover); }
+.ui-button[data-variant="primary"]:not(:disabled):hover { background: var(--accent-strong); }
+.ui-button[data-variant="ghost"]:not(:disabled):hover { color: var(--text); }
+.ui-button[data-tone="danger"] { color: var(--danger-500); border-color: color-mix(in srgb, var(--danger-500) 38%, var(--border)); background: var(--danger-tint); }
+.ui-button[data-tone="danger"][data-variant="primary"] { border-color: transparent; background: var(--danger-500); color: var(--on-danger); }
+.ui-button[data-tone="danger"][data-variant="ghost"] { background: transparent; border-color: transparent; }
+.ui-button[data-tone="danger"]:not(:disabled):hover { background: color-mix(in srgb, var(--danger-500) 16%, var(--panel-bg)); }
+.ui-button[data-tone="danger"][data-variant="primary"]:not(:disabled):hover { background: color-mix(in srgb, var(--danger-500) 90%, var(--text)); }
+.ui-button[data-tone="warning"] { color: var(--control-warning-text); background: var(--warning-tint); border-color: color-mix(in srgb, var(--warning-500) 38%, var(--border)); }
+.ui-button[data-tone="warning"][data-variant="primary"] { border-color: transparent; background: var(--warning-500); color: var(--on-warning); }
+.ui-button[data-tone="warning"][data-variant="ghost"] { background: transparent; border-color: transparent; }
+.ui-button[data-tone="warning"]:not(:disabled):hover { background: color-mix(in srgb, var(--warning-500) 18%, var(--panel-bg)); }
+.ui-button[data-tone="warning"][data-variant="primary"]:not(:disabled):hover { background: color-mix(in srgb, var(--warning-500) 90%, var(--text)); }
+.ui-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ui-button[aria-pressed="true"] { background: var(--control-hover); color: var(--text); border-color: var(--border-strong); }
+.ui-button:not(:disabled):active { transform: translateY(1px); }
+.ui-button:disabled { opacity: .5; cursor: not-allowed; }
+.ui-button[data-loading] { cursor: progress; }
+.ui-button > svg { width: var(--control-icon-size); height: var(--control-icon-size); flex: 0 0 auto; }
+.ui-button.ui-icon-button { width: var(--control-height); padding: 0; }
+.ui-button.ui-icon-button[data-size="sm"] { width: var(--control-height-sm); }
+.ui-button.ui-icon-button[data-size="lg"] { width: var(--control-height-lg); }
+.ui-button-spinner { animation: ui-control-spin .8s linear infinite; }
+@media (hover: none), (pointer: coarse) {
+  .ui-button { min-width: var(--control-touch-target); min-height: var(--control-touch-target); }
+}
+@media (max-width: 720px) {
+  .ui-button[data-responsive-target] { min-width: var(--control-touch-target); min-height: var(--control-touch-target); }
+}
+@keyframes ui-control-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ui-button { transition: none; }
+  .ui-button:not(:disabled):active { transform: none; }
+  .ui-button-spinner { animation: none; }
+}

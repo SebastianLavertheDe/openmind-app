@@ -1,3 +1,4 @@
+import { PopoverSurface, SelectItem, SelectTrigger } from "../../design-system/components";
 import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
@@ -161,48 +162,48 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   };
   return <>
     <div className="chip-select provider-select composer-model-picker" data-open={open || undefined}>
-      <button type="button" ref={trigger} className="chip-select-trigger" data-motion="selection" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
+      <SelectTrigger variant="quiet" shape="rect" type="button" ref={trigger} className="chip-select-trigger" data-motion="selection" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
         aria-label={uiMessages.interface.selectNamedModel(label)} title={selectedModel ? `${label}（${selectedProvider?.name}）` : label}
         onClick={() => { if (!open) refresh(); setProviderId(""); setError(""); setOpen(current => !current); }}>
         {selectedModel ? <ImagePlus size={15} /> : <Bot size={15} />}<span className="chip-select-value">{label}</span><ChevronDown size={12} className="chip-select-chevron" />
-      </button>
+      </SelectTrigger>
     </div>
     {presence.visible ? createPortal(<>
-      <div ref={menu} id={id} className="composer-model-menu" role="menu" aria-label={uiMessages.interface.selectModel} style={menuStyle} data-side={popover.side}
+      <PopoverSurface variant="anchor" ref={menu} id={id} className="composer-model-menu" role="menu" aria-label={uiMessages.interface.selectModel} position={menuStyle} data-side={popover.side}
         data-leaving={presence.leaving || undefined} inert={!open || undefined} aria-hidden={!open || undefined} onKeyDown={event => navigate(event)}>
-        <SelectMenuSurface className="composer-model-surface" side={popover.side} leaving={presence.leaving}>
+        <SelectMenuSurface variant="grouped" className="composer-model-surface" side={popover.side} leaving={presence.leaving}>
         <div role="group" aria-label={uiMessages.interface.aiSession} className="composer-model-group">
           <div className="composer-model-heading">{uiMessages.interface.aiSession}</div>
-          {agents.map(agent => <button type="button" role="menuitemradio" data-agent={agent.id} data-motion="selection" key={agent.id} aria-checked={agentId === agent.id}
+          {agents.map(agent => <SelectItem variant="group" type="button" role="menuitemradio" data-agent={agent.id} data-motion="selection" key={agent.id} aria-checked={agentId === agent.id}
             onMouseEnter={() => setProviderId("")} onFocus={() => setProviderId("")} onClick={() => { onProviderChange(agent.id); setOpen(false); trigger.current?.focus(); }}>
             <Bot size={18} /><span><strong>{agent.label}</strong><small>{agent.detectedModel || (agent.provider === "claude" ? uiMessages.interface.contentTasks : uiMessages.interface.projectTasks)}</small></span>{agentId === agent.id ? <Check size={15} /> : null}
-          </button>)}
+          </SelectItem>)}
           {!agents.length ? <p className="image-model-empty">{uiMessages.interface.providerUnavailable}</p> : null}
         </div>
         <div role="group" aria-label={uiMessages.interface.imageGeneration} className="composer-model-group">
           <div className="composer-model-heading">{uiMessages.interface.imageGeneration}</div>
-          {providers.map(item => <button type="button" role="menuitem" data-motion="selection" data-provider={item.id} key={item.id}
+          {providers.map(item => <SelectItem variant="group" type="button" role="menuitem" data-motion="selection" data-provider={item.id} key={item.id}
             ref={activeProvider?.id === item.id ? providerAnchor : undefined} aria-haspopup="menu" aria-expanded={activeProvider?.id === item.id} aria-controls={activeProvider?.id === item.id ? `${id}-images` : undefined}
             onMouseEnter={() => setProviderId(item.id)} onClick={() => setProviderId(item.id)} onFocus={() => setProviderId(item.id)}>
             <ProviderMark provider={item.provider} /><span><strong>{item.name}</strong><small>{uiMessages.interface.imageModelCount(item.models.length)}</small></span>{selected?.providerId === item.id ? <Check size={15} /> : null}<ChevronRight size={13} />
-          </button>)}
+          </SelectItem>)}
           {!providers.length ? <p className="image-model-empty">{configuration ? uiMessages.interface.noImageModels : configurationError ? uiMessages.interface.imageModelsFailed : uiMessages.interface.loadingImageModels}</p> : null}
         </div>
         {error || configurationError ? <p className="image-config-error" role="alert">{error || configurationError}</p> : null}
         </SelectMenuSurface>
-      </div>
-      {submenuPresence.visible && visibleProvider && definition ? <div ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={uiMessages.interface.providerImageModels(visibleProvider.name)} aria-busy={busy}
-        style={submenuPosition} data-side={submenuSide} data-leaving={!submenuOpen || undefined} inert={!submenuOpen || undefined} aria-hidden={!submenuOpen || undefined} onKeyDown={event => navigate(event, true)}>
-        <SelectMenuSurface className="composer-model-surface" key={visibleProvider.id} side={submenuSide} leaving={!submenuOpen}>
+      </PopoverSurface>
+      {submenuPresence.visible && visibleProvider && definition ? <PopoverSurface variant="anchor" ref={submenu} id={`${id}-images`} className="composer-image-submenu" role="menu" aria-label={uiMessages.interface.providerImageModels(visibleProvider.name)} aria-busy={busy}
+        position={submenuPosition} data-side={submenuSide} data-leaving={!submenuOpen || undefined} inert={!submenuOpen || undefined} aria-hidden={!submenuOpen || undefined} onKeyDown={event => navigate(event, true)}>
+        <SelectMenuSurface variant="grouped" className="composer-model-surface" key={visibleProvider.id} side={submenuSide} leaving={!submenuOpen}>
         <div className="composer-model-heading">{visibleProvider.name}</div>
         <div className="image-model-list">
-          {definition.models.filter(model => visibleProvider.models.includes(model.id)).map(model => <button type="button" role="menuitemradio" data-motion="selection" key={model.id} aria-checked={selected?.providerId === visibleProvider.id && selected?.model === model.id} disabled={busy || !submenuOpen}
+          {definition.models.filter(model => visibleProvider.models.includes(model.id)).map(model => <SelectItem variant="detail" type="button" role="menuitemradio" data-motion="selection" key={model.id} aria-checked={selected?.providerId === visibleProvider.id && selected?.model === model.id} disabled={busy || !submenuOpen}
             onClick={() => void choose({ providerId: visibleProvider.id, provider: visibleProvider.provider, model: model.id })}>
             <ImagePlus size={18} /><span><strong>{model.name}</strong><small>{model.description}</small></span>{selected?.providerId === visibleProvider.id && selected?.model === model.id ? <Check size={15} /> : null}
-          </button>)}
+          </SelectItem>)}
         </div>
         </SelectMenuSurface>
-      </div> : null}
+      </PopoverSurface> : null}
     </>, document.body) : null}
   </>;
 }

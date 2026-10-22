@@ -1,8 +1,10 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useModalFocusScope } from "./use-modal-focus-scope";
+
+afterEach(cleanup);
 
 function Scope({
   label,
@@ -49,18 +51,21 @@ function LayeredScopes({
 }
 
 describe("useModalFocusScope", () => {
-  it("keeps the global layer on top when an underlying modal registers later", () => {
+  it("keeps the focused global layer isolated when an underlying modal registers later", async () => {
     const dismissModal = vi.fn();
     const dismissGlobal = vi.fn();
     const view = render(
       <LayeredScopes showModal={false} showGlobal dismissModal={dismissModal} dismissGlobal={dismissGlobal} />
     );
+    const globalButton = within(view.getByTestId("global")).getByRole("button");
+    await waitFor(() => expect(document.activeElement).toBe(globalButton));
 
     view.rerender(
       <LayeredScopes showModal showGlobal dismissModal={dismissModal} dismissGlobal={dismissGlobal} />
     );
     expect(view.container.inert).toBe(true);
     expect(view.container.getAttribute("aria-hidden")).toBe("true");
+    expect(document.activeElement).toBe(globalButton);
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(dismissGlobal).toHaveBeenCalledTimes(1);
@@ -76,4 +81,3 @@ describe("useModalFocusScope", () => {
     expect(dismissModal).toHaveBeenCalledTimes(1);
   });
 });
-

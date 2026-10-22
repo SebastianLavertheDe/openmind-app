@@ -1,3 +1,4 @@
+import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, Files, FolderOpen } from "lucide-react";
@@ -64,7 +65,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
         {visibleFiles.length ? (
           <div className="change-review-files">
             {visibleFiles.map((file) => (
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 className="change-review-file"
                 data-motion="selection"
@@ -76,7 +77,7 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
                 }}
               >
                 <span>{file.path}</span>
-              </button>
+              </Button>
             ))}
             {files.length > 3 ? (
               <button
@@ -130,8 +131,8 @@ function ChangeCard({ events, run, variant }: { events: AiEvent[]; run: AiRun; v
               <span>{statusLabel(file.status)}{file.additions || file.deletions ? ` · +${file.additions} -${file.deletions}` : ""}</span>
             </header>
             <div>
-              <button data-motion="icon" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={13} />{m.ai.file.open}</button>
-              <button data-motion="icon" onClick={() => void window.openmind.revealPath(file.path)}><FolderOpen size={13} />{m.ai.file.revealFolder}</button>
+              <Button variant="ghost" size="sm" data-motion="icon" onClick={() => void window.openmind.openPath(file.path)}><ExternalLink size={13} />{m.ai.file.open}</Button>
+              <Button variant="ghost" size="sm" data-motion="icon" onClick={() => void window.openmind.revealPath(file.path)}><FolderOpen size={13} />{m.ai.file.revealFolder}</Button>
               {file.patch ? <CopyButton text={file.patch} /> : null}
             </div>
             {file.patch ? <PatchView patch={file.patch} /> : null}

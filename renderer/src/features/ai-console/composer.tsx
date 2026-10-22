@@ -1,3 +1,5 @@
+import { PopoverSurface } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { ImageViewer } from "../../design-system/ImageViewer";
 import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
@@ -20,14 +22,7 @@ import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { ComposerSuggestionMenu } from "./composer-suggestion-menu";
 import { useExitPresence } from "../../design-system/use-exit-presence";
-import {
-  findComposerTrigger,
-  parseSkillSlashInvocation,
-  removeMentionTrigger,
-  replaceComposerTrigger,
-  skillMatchScore,
-  type ComposerTrigger
-} from "./composer-suggestions";
+import { findComposerTrigger, parseSkillSlashInvocation, removeMentionTrigger, replaceComposerTrigger, skillMatchScore, type ComposerTrigger } from "./composer-suggestions";
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const COMPRESS_THRESHOLD = 512 * 1024;
@@ -76,8 +71,6 @@ function measureTextareaCaret(textarea: HTMLTextAreaElement): ComposerCaretAncho
     width: textareaBox.width
   };
 }
-
-
 
 function readAsDataURL(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -448,7 +441,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
         {errorVisible && stashedError ? (
           <div className="composer-error ui-overlay" data-leaving={errorLeaving || undefined} role="alert">
             <span>{stashedError}</span>
-            <IconButton data-motion="icon" onClick={() => { setLocalError(null); ui.clearError(); }} className="" label={m.ai.composer.closeError}><X size={13} /></IconButton>
+            <IconButton data-motion="icon" onClick={() => { setLocalError(null); ui.clearError(); }}  label={m.ai.composer.closeError}><X size={13} /></IconButton>
           </div>
         ) : null}
         {queuedRuns.length ? (
@@ -460,12 +453,12 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
           >
             {queuedRuns.map((run, index) => {
               const cancelling = ui.cancellingRunIds.has(run.id);
-              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><button data-motion="icon" aria-label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</button></div>;
+              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><Button variant="ghost" size="sm" data-motion="icon" aria-label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</Button></div>;
             })}
           </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
-          <Textarea variant="inline"
+          <Textarea variant="composer"
             onPaste={handlePaste}
             ref={textareaRef}
             aria-label={m.ai.composer.messageInput}
@@ -540,13 +533,14 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             </IconButton>
             <Select<PermissionProfile>
               className="permission-select"
+              variant="quiet"
               leadingIcon={<ShieldCheck size={16} />}
               label={m.ai.permission.label}
               value={permissionProfile}
               options={[
                 { value: "read-only", label: m.ai.permission.readOnly },
                 { value: "edit", label: m.ai.permission.edit },
-                { value: "auto", label: m.ai.permission.auto }
+                { value: "auto", label: m.ai.permission.auto, tone: "warning" }
               ]}
               menuSide="top"
               menuAlign="end"
@@ -562,7 +556,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 <strong>{ui.projectComposeTarget.projectName}</strong>
               </span>
             ) : (
-              <button
+              <Button variant="ghost" size="sm"
                 data-motion="icon"
                 type="button"
                 className="composer-workspace"
@@ -574,7 +568,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 <span>{m.ai.chat.currentProject}</span>
                 <strong>{projectName}</strong>
                 <ChevronDown size={13} aria-hidden />
-              </button>
+              </Button>
             )}
             <ComposerModelPicker
               providers={availableProviders}
@@ -585,7 +579,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             />
             {draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(draft.length)}</span> : null}
             <div className="composer-send-wrap">
-              <button
+              <Button
                 type="button"
                 className={`composer-send${visibleActiveRun ? " danger" : ""}`}
                 disabled={visibleActiveRun
@@ -601,7 +595,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 ) : (
                   <ComposerSendIcon loading={ui.isSending || customSending} />
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -703,7 +697,7 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
         {contexts.map((context, index) => <ContextMotionItem key={context.id} enabled={collectionMotion.enabled} dependency={layoutDependency}>
           {context.kind === "image" ? (
             <div className="context-chip image-chip" title={context.label}>
-              <button aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></button>
+              <Button variant="ghost" size="sm" aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></Button>
               <IconButton className="image-chip-remove" onClick={() => actions.removeContext(context.id)} label={m.ai.context.remove}><X size={11} /></IconButton>
             </div>
           ) : (
@@ -726,7 +720,7 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
         )}
         </AnimatePresence>
       </motion.div>
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         className="context-tray-clear"
         data-motion="icon"
@@ -735,7 +729,7 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
       >
         <Trash2 size={12} />
         {m.ai.context.clear}
-      </button>
+      </Button>
       <ImageViewer open={isOpen} images={images.map(image => ({ id: image.id, title: image.label }))}
         selectedId={enlargedId} onSelect={setEnlargedId} onClose={() => setEnlargedId(null)}
         src={images[safeIndex]?.content} label={m.ai.composer.imagePreview} closeLabel={m.ai.composer.closePreview}
@@ -809,6 +803,7 @@ function ContextReferenceChip({
           ref={triggerRef}
           type="button"
           className="ui-disclosure-trigger"
+          data-motion="disclosure"
           aria-label={context.path || context.label}
           aria-expanded={open}
           aria-controls={detailId}
@@ -818,7 +813,7 @@ function ContextReferenceChip({
           <span title={context.path || context.label}>{context.label}</span>
         </button>
         {present && presence.visible ? createPortal(
-          <div
+          <PopoverSurface
             ref={detailRef}
             id={detailId}
             className="context-chip-popover"
@@ -828,18 +823,18 @@ function ContextReferenceChip({
             aria-hidden={!open || undefined}
             data-leaving={presence.leaving || undefined}
             data-side={popover.side}
-            style={popover.style}
+            position={popover.style}
           >
             <div className="context-chip-detail">
               <strong>{context.kind === "selection" ? m.ai.context.selection : context.kind}</strong>
               <span>{context.path || m.ai.context.inline}{context.content ? m.ai.context.chars(context.content.length) : ""}</span>
               {context.kind === "selection" && context.content ? <blockquote className="context-selection-preview">{context.content}</blockquote> : null}
               <footer>
-                <button data-motion="icon" disabled={index === 0} onClick={() => actions.moveContext(context.id, -1)}>{m.ai.context.moveUp}</button>
-                <button data-motion="icon" disabled={index === total - 1} onClick={() => actions.moveContext(context.id, 1)}>{m.ai.context.moveDown}</button>
+                <Button variant="ghost" size="sm" data-motion="icon" disabled={index === 0} onClick={() => actions.moveContext(context.id, -1)}>{m.ai.context.moveUp}</Button>
+                <Button variant="ghost" size="sm" data-motion="icon" disabled={index === total - 1} onClick={() => actions.moveContext(context.id, 1)}>{m.ai.context.moveDown}</Button>
               </footer>
             </div>
-          </div>,
+          </PopoverSurface>,
           document.body
         ) : null}
       </div>

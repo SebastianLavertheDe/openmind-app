@@ -1,3 +1,5 @@
+import { FormField } from "../../design-system/components";
+import { Button } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
@@ -221,10 +223,10 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
             <header>
               <div><span className="eyebrow">{selected.target.type}:{selected.target.id}</span><h1>{selected.name}</h1><p>{selected.description || m.automation.noDescription}</p></div>
               <div className="settings-inline-controls">
-                <button type="button" className={isRunning ? "danger-button" : "primary-button"} data-motion="action" aria-busy={Boolean(selectedRunCommand) || undefined} disabled={Boolean(runCommand) || (isActive ? !latestRun?.childRunId : !selectedEnabled)} onClick={() => void run()}>
+                <Button variant="primary" tone={isRunning ? "danger" : "neutral"} type="button"  data-motion="action" aria-busy={Boolean(selectedRunCommand) || undefined} disabled={Boolean(runCommand) || (isActive ? !latestRun?.childRunId : !selectedEnabled)} onClick={() => void run()}>
                   {selectedRunCommand ? <><LoaderCircle size={14} className="spin" />{selectedRunCommand === "stopping" ? m.automation.actions.stopping : m.automation.actions.starting}</> : isRunning ? <><Square size={14} />{m.automation.actions.stop}</> : isActive ? <>{m.automation.running}</> : <><Play size={14} />{m.automation.actions.run}</>}
-                </button>
-                <button type="button" className="settings-subtle-action" data-motion="action" onClick={() => void deleteRule(selected, load, setError, confirmAction)}>{m.automation.delete}</button>
+                </Button>
+                <Button variant="ghost" type="button"  data-motion="action" onClick={() => void deleteRule(selected, load, setError, confirmAction)}>{m.automation.delete}</Button>
               </div>
             </header>
 
@@ -246,7 +248,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
           </section>
 
           <section className="workspace-card console-box automation-console-box">
-            <LogViewer text={consoleText} label={m.automation.console.title} status={<span className={`rule-pill ${runtimeTone(runState)}`}>{detailStatus(runState)}</span>} actions={<button type="button" data-motion="action" onClick={() => void copyLogs()} aria-label={m.common.copy}>{copied ? <Check size={13} /> : m.automation.console.copy}{copied ? m.automation.console.copied : m.common.copy}</button>} />
+            <LogViewer text={consoleText} label={m.automation.console.title} status={<span className={`rule-pill ${runtimeTone(runState)}`}>{detailStatus(runState)}</span>} actions={<Button variant="ghost" type="button" data-motion="action" onClick={() => void copyLogs()} aria-label={m.common.copy}>{copied ? <Check size={13} /> : m.automation.console.copy}{copied ? m.automation.console.copied : m.common.copy}</Button>} />
           </section>
         </section>
       </section>
@@ -304,9 +306,9 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
             <p>{m.automation.editor.description}</p>
           </div>
         </div>
-        <button type="button" className="primary-button automation-save-rule" disabled={saving} onClick={() => void save()}>
+        <Button variant="primary" type="button" className="automation-save-rule" disabled={saving} onClick={() => void save()}>
           <Save size={14} />{saving ? m.automation.editor.saving : m.automation.editor.save}
-        </button>
+        </Button>
       </div>
 
       <div className="automation-editor-card">
@@ -318,10 +320,7 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
               <span>{targetLabel}</span>
             </div>
           </div>
-          <label className="automation-field">
-            <span>{m.automation.editor.triggerMethod}</span>
-            <Select<TriggerType> value={triggerType} options={triggerOptions} onChange={setTriggerType} ariaLabel={m.automation.editor.triggerType} size="rect" className="automation-trigger-select" />
-          </label>
+          <FormField label={m.automation.editor.triggerMethod}><Select<TriggerType> value={triggerType} options={triggerOptions} onChange={setTriggerType} ariaLabel={m.automation.editor.triggerType} size="rect" className="automation-trigger-select" /></FormField>
         </div>
 
         <div className="automation-schedule-panel">
@@ -330,9 +329,9 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
             <div><strong>{m.automation.editor.schedule}</strong><span>{scheduleDescription(triggerType, rule.timezone)}</span></div>
           </div>
           <div className="automation-schedule-fields">
-            {triggerType === "daily" ? <label className="automation-field"><span>{m.automation.editor.executionTime}</span><Input aria-label={m.automation.editor.dailyTime} type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label> : null}
-            {triggerType === "weekly" ? <><label className="automation-field"><span>{m.automation.editor.executionTime}</span><Input aria-label={m.automation.editor.weeklyTime} type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></label><label className="automation-field"><span>{m.automation.editor.weekDay}</span><Input aria-label={m.automation.editor.weeklyDays} value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></label></> : null}
-            {triggerType === "interval" ? <label className="automation-field"><span>{m.automation.editor.intervalMinutes}</span><InputGroup className="automation-input-suffix"><Input variant="inline" aria-label={m.automation.editor.intervalMinutes} type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>{m.automation.editor.minutes}</span></InputGroup></label> : null}
+            {triggerType === "daily" ? <FormField label={m.automation.editor.executionTime}><Input aria-label={m.automation.editor.dailyTime} type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></FormField> : null}
+            {triggerType === "weekly" ? <><FormField label={m.automation.editor.executionTime}><Input aria-label={m.automation.editor.weeklyTime} type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></FormField><FormField label={m.automation.editor.weekDay}><Input aria-label={m.automation.editor.weeklyDays} value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></FormField></> : null}
+            {triggerType === "interval" ? <FormField label={m.automation.editor.intervalMinutes}><InputGroup className="automation-input-suffix"><Input variant="inline" aria-label={m.automation.editor.intervalMinutes} type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>{m.automation.editor.minutes}</span></InputGroup></FormField> : null}
             {triggerType === "hourly" ? <p className="automation-schedule-empty">{m.automation.editor.hourlyHint}</p> : null}
           </div>
         </div>

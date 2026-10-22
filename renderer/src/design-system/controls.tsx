@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "./use-anchored-popover";
 import { useExitPresence } from "./use-exit-presence";
 import { useDismissableLayer } from "./use-dismissable-layer";
+import { Button } from "./Button";
 
 type SelectionChange<T> = (value: T) => void | boolean | Promise<void | boolean>;
 type Choice<T> = { value: T; label: ReactNode; count?: number; icon?: ReactNode; disabled?: boolean };
@@ -112,6 +113,7 @@ export function DropdownMenu({
   label,
   children,
   disabled = false,
+  responsiveTarget = false,
   ariaLabel,
   menuLabel,
   className,
@@ -125,6 +127,7 @@ export function DropdownMenu({
   label: ReactNode;
   children: ReactNode;
   disabled?: boolean;
+  responsiveTarget?: boolean;
   ariaLabel?: string;
   menuLabel?: string;
   className?: string;
@@ -217,7 +220,7 @@ export function DropdownMenu({
       className={`ui-dropdown${className ? ` ${className}` : ""}`}
       data-open={open || undefined}
     >
-      <button
+      <Button variant="ghost" size="sm" responsiveTarget={responsiveTarget}
         ref={triggerRef}
         type="button"
         className="ui-dropdown-trigger"
@@ -234,7 +237,7 @@ export function DropdownMenu({
         }}
       >
         {label}
-      </button>
+      </Button>
       {visible && typeof document !== "undefined" ? createPortal(
         <div
           ref={menuRef}

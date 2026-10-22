@@ -1,3 +1,4 @@
+import { Drawer } from "../design-system/components";
 import { IconButton } from "../design-system/IconButton";
 import { usePointerResize } from "../design-system/use-pointer-resize";
 import { useLocale } from "../i18n";
@@ -7,27 +8,13 @@ import { MessageSquare, Minimize2, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
 import { storageJson, writeStorage } from "../ai-utils";
 import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../ai-context";
-import { useModalFocusScope } from "../design-system/components";
+
 import { useExitPresence } from "../design-system/use-exit-presence";
 import { RESPONSIVE_LAYOUT_BREAKPOINTS, useResponsiveLayout, type ResponsiveLayout } from "../app/responsive-layout";
 import type { ChatDraftSubmitInput } from "../features/ai-console/composer";
 import { FilePreviewProvider, useFilePreview } from "../features/ai-console/file-preview-context";
 import { projectsApi } from "../features/projects/projects-api";
-import {
-  AI_SIDEBAR_LAYOUT_KEY,
-  AI_SIDEBAR_LAYOUT_SCHEMA_VERSION,
-  DEFAULT_SIDEBAR_RATIOS,
-  LEGACY_AI_SIDEBAR_WIDTHS_KEY,
-  normalizeLegacySidebarWidths,
-  normalizeSidebarRatios,
-  sidebarBounds,
-  sidebarRatioForWidth,
-  sidebarWidthForRatio,
-  type LegacySidebarWidths,
-  type SidebarBounds,
-  type SidebarMode,
-  type SidebarRatios
-} from "./ai-sidebar-layout";
+import { AI_SIDEBAR_LAYOUT_KEY, AI_SIDEBAR_LAYOUT_SCHEMA_VERSION, DEFAULT_SIDEBAR_RATIOS, LEGACY_AI_SIDEBAR_WIDTHS_KEY, normalizeLegacySidebarWidths, normalizeSidebarRatios, sidebarBounds, sidebarRatioForWidth, sidebarWidthForRatio, type LegacySidebarWidths, type SidebarBounds, type SidebarMode, type SidebarRatios } from "./ai-sidebar-layout";
 
 const SIDEBAR_MIN_WIDTH = RESPONSIVE_LAYOUT_BREAKPOINTS.minimumCompanionWidth;
 const Chat = lazy(() => import("./Chat").then((module) => ({ default: module.Chat })));
@@ -165,12 +152,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
     else ui.setPanelMode("collapsed");
   }, [ui.setPanelMode]);
 
-  useModalFocusScope({
-    open: modal && ui.panelMode !== "collapsed",
-    containerRef: sidebarRef,
-    triggerRef: railTriggerRef,
-    onDismiss: dismissModal
-  });
+
 
   useLayoutEffect(() => {
     if (!floating || !sidebarRef.current) {
@@ -301,8 +283,8 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
   return (
     <>
       {exitingPanel ? rail : null}
-      <aside
-        ref={sidebarRef}
+      <Drawer modal={renderState.modal} open={modal && ui.panelMode !== "collapsed"} onClose={dismissModal} containerRef={sidebarRef} triggerRef={railTriggerRef}
+
         className={`ai-sidebar mode-${renderState.panelMode}${renderState.presentationClass}`}
         data-layout-width={Math.round(renderedWidth)}
         data-layout-ratio={preferredRatio}
@@ -310,14 +292,14 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
         data-leaving={exitingPanel || undefined}
         aria-hidden={exitingPanel || undefined}
         inert={exitingPanel || undefined}
-        role={renderState.modal ? "dialog" : undefined}
-        aria-modal={renderState.modal ? "true" : undefined}
+
+
         aria-label={renderState.modal ? m.ai.sidebar.dialogLabel : undefined}
         tabIndex={renderState.modal ? -1 : undefined}
       >
         <div className="ai-sidebar-actions">
           {renderState.full ? (
-            <IconButton type="button" data-motion="icon" onClick={dismissModal} className="" label={m.ai.sidebar.exitFullscreen}>
+            <IconButton type="button" data-motion="icon" onClick={dismissModal}  label={m.ai.sidebar.exitFullscreen}>
               <Minimize2 size={17} aria-hidden="true" />
             </IconButton>
           ) : null}
@@ -370,7 +352,7 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
             <Chat compact onDraftSubmit={projectComposeTarget && !activeSession ? handleProjectDraftSubmit : undefined} />
           )}
         </Suspense>
-      </aside>
+      </Drawer>
     </>
   );
 }

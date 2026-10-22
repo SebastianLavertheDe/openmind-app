@@ -1,3 +1,4 @@
+import { Button } from "../design-system/components";
 import { useDismissableLayer } from "../design-system/use-dismissable-layer";
 import { useLocale } from "../i18n";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -135,7 +136,7 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
             aria-hidden="true"
             style={{ left: action.anchor.left, top: action.anchor.top, width: action.anchor.width, height: action.anchor.height }}
           />
-          <button
+          <Button
             ref={actionRef}
             type="button"
             className="content-selection-quote"
@@ -149,7 +150,7 @@ export function ContentSelectionQuote({ content, children }: { content: ContentR
           >
             <Quote size={14} aria-hidden />
             {m.designSystem.selectionQuote.action}
-          </button>
+          </Button>
         </>,
         document.body
       ) : null}

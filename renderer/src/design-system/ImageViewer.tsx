@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import { messages } from "@shared/messages";
 import { useLocale } from "../i18n";
 import { Dialog } from "./Dialog";
+import { Button } from "./Button";
 import { IconButton } from "./IconButton";
 import { useMotionTokens } from "./motion-tokens";
 import { useMotionPreference } from "./use-motion-preference";
@@ -69,7 +70,7 @@ export function ImageViewer({ open, images, selectedId, onSelect, onClose, src, 
     if (active?.horizontal && Math.abs(active.delta) > 60) step(active.delta < 0 ? 1 : -1);
     cancel();
   };
-  return <Dialog open={open && Boolean(current)} onClose={onClose} exitMs={exitMs} initialFocusRef={closeButton}
+  return <Dialog surface="media" open={open && Boolean(current)} onClose={onClose} exitMs={exitMs} initialFocusRef={closeButton}
     backdropClassName="chat-image-lightbox ui-overlay" className="chat-image-dialog" aria-label={label}
     onKeyDown={event => {
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
@@ -77,9 +78,9 @@ export function ImageViewer({ open, images, selectedId, onSelect, onClose, src, 
     <header className="chat-image-toolbar">
       <div><strong>{m.imagePreview}</strong><span aria-live="polite">{index + 1} / {shown.images.length}{shown.width ? ` · ${shown.width} × ${shown.height}` : ""}</span></div>
       <div>
-        <button type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={() => setActualSize(value => !value)} aria-label={actualSize ? m.fitWindow : m.originalSize}>
+        <Button variant="ghost" size="sm" type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={() => setActualSize(value => !value)} aria-label={actualSize ? m.fitWindow : m.originalSize}>
           {actualSize ? <Minimize2 size={17} /> : <Maximize2 size={17} />}<span>{actualSize ? m.fitWindow : m.originalSize}</span>
-        </button>
+        </Button>
         <IconButton ref={closeButton} className="chat-image-toolbar-button" onClick={onClose} label={closeLabel}><X size={20} /></IconButton>
       </div>
     </header>
@@ -99,8 +100,8 @@ export function ImageViewer({ open, images, selectedId, onSelect, onClose, src, 
         : <div className="chat-image-loading" role="status">{shown.placeholder}</div>}
     </div>
     {shown.images.length > 1 ? <>
-      <IconButton className="chat-image-nav is-previous" label={previousLabel} onClick={() => step(-1)}><ChevronLeft size={24} /></IconButton>
-      <IconButton className="chat-image-nav is-next" label={nextLabel} onClick={() => step(1)}><ChevronRight size={24} /></IconButton>
+      <IconButton size="lg" className="chat-image-nav is-previous" label={previousLabel} onClick={() => step(-1)}><ChevronLeft size={24} /></IconButton>
+      <IconButton size="lg" className="chat-image-nav is-next" label={nextLabel} onClick={() => step(1)}><ChevronRight size={24} /></IconButton>
     </> : null}
     <footer className="chat-image-bottom"><span>{current?.title}</span>{shown.images.length > 1 ? <small>{m.imageKeys}</small> : null}</footer>
   </Dialog>;

@@ -1,3 +1,5 @@
+import { FormField } from "../../design-system/components";
+import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -320,7 +322,7 @@ export function ProjectTasksPanel({
   const attached = Boolean(listHost && detailHost);
   const list = (
     <>
-      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectTasks}</span><h2>{messages.projectUi.tasks}</h2></div><IconButton className="icon-button" onClick={newTask} label={messages.projectUi.newTask}><Plus size={16} /></IconButton></header> : null}
+      {!attached ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.projectTasks}</span><h2>{messages.projectUi.tasks}</h2></div><IconButton  onClick={newTask} label={messages.projectUi.newTask}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label={messages.projectUi.searchTasks} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.yourTasks} />
       <div className="project-item-list">
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
@@ -329,7 +331,7 @@ export function ProjectTasksPanel({
           const active = item.taskId === selectedId && !creating;
           return (
             <div key={item.taskId} className={`project-task-row${active ? " active" : ""}`} style={{ "--project-list-index": index } as CSSProperties}>
-              <button className="project-task-select" data-motion="selection" onClick={() => {
+              <button aria-pressed={Boolean(active)} className="project-task-select" data-motion="selection" onClick={() => {
                 setCreating(false);
                 if (selectedId === item.taskId) onSelectionChange?.(item.taskId);
                 else setSelectedId(item.taskId);
@@ -341,8 +343,8 @@ export function ProjectTasksPanel({
                 menuLabel={messages.projectUi.taskActionsMenu(item.title)}
                 label={<MoreHorizontal size={16} aria-hidden="true" />}
               >
-                <button type="button" role="menuitem" data-motion="action" onClick={() => beginRenameTask(item)}><Pencil size={15} aria-hidden="true" />{messages.projectUi.rename}</button>
-                <button type="button" role="menuitem" data-motion="action" className="danger" onClick={() => void removeTask(item)}><Trash2 size={15} aria-hidden="true" />{messages.projectUi.delete}</button>
+                <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => beginRenameTask(item)}><Pencil size={15} aria-hidden="true" />{messages.projectUi.rename}</MenuItem>
+                <MenuItem tone="danger" type="button" role="menuitem" data-motion="action"  onClick={() => void removeTask(item)}><Trash2 size={15} aria-hidden="true" />{messages.projectUi.delete}</MenuItem>
               </DropdownMenu>
             </div>
           );
@@ -415,11 +417,11 @@ function TaskStarter({ project, title, prompt, providerId, providerLocked, provi
     <div className="project-task-starter">
       <div className="project-task-starter-copy"><span className="project-starter-icon"><Sparkles size={22} /></span><h2>{messages.projectUi.taskStarterTitle(project.name)}</h2><p>{messages.projectUi.taskContextHint("materials/")}</p></div>
       <div className="project-task-compose-card">
-        <label><span>{messages.projectUi.optionalTaskTitle}</span><Input variant="inline" value={title} onChange={(event) => onTitle(event.target.value)} placeholder={messages.projectUi.autoTaskTitle} /></label>
-        <label><span className="ui-visually-hidden">{messages.projectUi.taskContent}</span><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder={messages.projectUi.taskPromptPlaceholder} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></label>
+        <FormField label={messages.projectUi.optionalTaskTitle}><Input variant="inline" value={title} onChange={(event) => onTitle(event.target.value)} placeholder={messages.projectUi.autoTaskTitle} /></FormField>
+        <FormField label={messages.projectUi.taskContent}><Textarea variant="inline" autoFocus value={prompt} onChange={(event) => onPrompt(event.target.value)} placeholder={messages.projectUi.taskPromptPlaceholder} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStart(); }} /></FormField>
         <div className="project-task-compose-footer">
           <span className="project-material-scope">{messages.projectUi.taskMaterialsHint}</span>
-          <div><Select size="rect" ariaLabel={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? messages.projectUi.taskProviderLocked : undefined} onChange={onProvider} options={providers.map(provider => ({ value: provider.id, label: provider.label }))} /><button className="primary-button" disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? messages.projectUi.creating : messages.projectUi.startTask}</button></div>
+          <div><Select size="rect" ariaLabel={m.ai.sidebar.providerSelect} value={providerId} disabled={providerLocked} title={providerLocked ? messages.projectUi.taskProviderLocked : undefined} onChange={onProvider} options={providers.map(provider => ({ value: provider.id, label: provider.label }))} /><Button variant="primary"  disabled={!prompt.trim() || !providerId || sending} onClick={onStart}>{sending ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{sending ? messages.projectUi.creating : messages.projectUi.startTask}</Button></div>
         </div>
         {error ? <p className="project-form-error">{error}</p> : null}
       </div>

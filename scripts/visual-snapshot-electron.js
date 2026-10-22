@@ -1,12 +1,27 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { app, BrowserWindow } = require("electron");
 
 const appRoot = path.resolve(__dirname, "..");
-const outputRoot = path.join(appRoot, ".build", "visual-snapshots");
+const tailOnly = process.env.OPENMIND_VISUAL_TAIL_ONLY === "1";
+const outputRoot = path.join(appRoot, ".build", tailOnly ? "visual-snapshots-tail" : "visual-snapshots");
+const reportPath = path.join(appRoot, ".build", tailOnly ? "visual-snapshot-tail-report.json" : "visual-snapshot-report.json");
+let activeReport;
 const rendererIndex = path.join(appRoot, ".build", "renderer", "index.html");
 const preload = path.join(__dirname, "visual-snapshot-preload.js");
+// Visual fixtures must never share Chromium storage with the developer's app.
+// Pin both paths before ready, regardless of OPENMIND_USER_DATA_DIR in the shell.
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-visual-snapshot-"));
+app.setPath("userData", userData);
+app.setPath("sessionData", userData);
+
+function cleanupUserData() {
+  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+}
+app.once("will-quit", cleanupUserData);
+process.once("exit", cleanupUserData);
 
 const viewports = [
   { id: "720x600", width: 720, height: 600, zoom: 1 },
@@ -37,6 +52,12 @@ app.commandLine.appendSwitch("no-sandbox");
 
 app.whenReady().then(run).catch((error) => {
   console.error(error);
+  if (activeReport) {
+    activeReport.failures.push({ id: "visual-runner", reason: error.stack || String(error) });
+    fs.writeFileSync(reportPath, `${JSON.stringify(activeReport, null, 2)}\n`, "utf8");
+  }
+  for (const window of BrowserWindow.getAllWindows()) window.destroy();
+  cleanupUserData();
   app.exit(1);
 });
 
@@ -53,6 +74,7 @@ async function run() {
     stateSnapshots: [],
     failures: []
   };
+  activeReport = report;
 
   const first = viewports[0];
   const win = new BrowserWindow({
@@ -81,12 +103,19 @@ async function run() {
   if (process.env.OPENMIND_VISUAL_RESPONSIVE_ONLY === "1") {
     await captureResponsiveGapContracts(win, report);
     win.destroy();
-    const reportPath = path.join(appRoot, ".build", "visual-snapshot-report.json");
     fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
     if (report.failures.length) {
       throw new Error(`Responsive visual audit failed:\n${report.failures.map((item) => `- ${item.id}: ${item.reason}`).join("\n")}`);
     }
     console.log(`Responsive visual snapshots passed: ${report.stateSnapshots.length} state screenshots.`);
+    app.quit();
+    return;
+  }
+
+  if (tailOnly) {
+    await captureFinalStates(win, report);
+    win.destroy();
+    finishReport(report);
     app.quit();
     return;
   }
@@ -149,21 +178,27 @@ async function run() {
   await captureCreativeReaderLayout(win, report);
   await captureResponsiveGapContracts(win, report);
 
+  await captureFinalStates(win, report);
+  win.destroy();
+  finishReport(report);
+  app.quit();
+}
+
+async function captureFinalStates(win, report) {
   win.setSize(1366, 768);
   win.webContents.setZoomFactor(1);
   await captureDarkDailyBrief(win, report);
   await captureCompletedAiResponse(win, report);
   await captureComposerSuggestions(win, report);
   await captureOnboardingMinimumGate(report);
-  win.destroy();
+}
 
-  const reportPath = path.join(appRoot, ".build", "visual-snapshot-report.json");
+function finishReport(report) {
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   if (report.failures.length) {
     throw new Error(`Visual snapshot audit failed:\n${report.failures.map((item) => `- ${item.viewport || "state"}/${item.page || item.id}: ${item.reason}`).join("\n")}`);
   }
-  console.log(`Visual snapshots passed: ${report.snapshots.length} screenshots, report .build/visual-snapshot-report.json.`);
-  app.quit();
+  console.log(`Visual snapshots passed: ${report.snapshots.length} page screenshots, ${report.stateSnapshots.length} state screenshots; report ${path.relative(appRoot, reportPath)}.`);
 }
 
 async function captureOnboardingMinimumGate(report) {
@@ -341,27 +376,12 @@ async function captureCompanionLayoutContracts(win, report) {
     }
   );
 
-  await clickCompanionAction(win, "全屏");
-  await settle();
-  await captureCompanionGeometryState(
-    win,
-    report,
-    "companion-fullscreen-1600",
-    "fullscreen",
-    "Fullscreen AI companion covers and isolates the complete application"
-  );
-  await clickCompanionAction(win, "退出全屏");
-  await settle();
-
-  // Regression coverage for the original fullscreen complaint: the wide
-  // companion must be able to exceed the former 960 CSS-pixel ceiling while
-  // the primary workspace remains in flow.
+  // Exercise the current pointer resize interaction at an ultrawide viewport.
   win.setSize(2560, 1440);
   await settle();
   await ensureDefaultCompanion(win);
   await resetCompanionWidth(win);
-  await clickCompanionAction(win, "切换宽屏");
-  await settle();
+  await dragCompanionResizer(win, -500);
   const ultraWideGeometry = await inspectCompanionGeometry(win);
   await captureCompanionGeometryState(
     win,
@@ -371,7 +391,7 @@ async function captureCompanionLayoutContracts(win, report) {
     "Wide AI companion grows past the former fullscreen pixel ceiling without shrinking the workspace below its contract",
     {
       expandedShell: ultraWideGeometry.shellClass.includes("layout-shell-expanded"),
-      widePreferencePreserved: ultraWideGeometry.layoutRatio !== null && Math.abs(ultraWideGeometry.layoutRatio - 1 / 2) < .001,
+      resizedPreferencePreserved: ultraWideGeometry.layoutRatio !== null && ultraWideGeometry.layoutRatio > 1 / 3,
       exceedsLegacyPixelCeiling: Boolean(ultraWideGeometry.separatorValue && ultraWideGeometry.separatorValue > 960),
       workspacePreserved: ultraWideGeometry.stageTrackWidth >= 759.5
     }
@@ -401,31 +421,13 @@ async function captureCompanionLayoutContracts(win, report) {
   );
   await resetCompanionWidth(win);
 
-  await clickCompanionAction(win, "\u5207\u6362\u5bbd\u5c4f");
-  await settle();
-  const wideGeometry = await inspectCompanionGeometry(win);
-  await captureCompanionGeometryState(
-    win,
-    report,
-    "companion-wide-clamped-1280",
-    "overlay",
-    "Wide AI preference remains a proportional overlay while preserving the workspace",
-    {
-      overlayPresentation: wideGeometry.sidebarClass.includes("layout-companion-overlay"),
-      widePreferencePreserved: wideGeometry.layoutRatio !== null && Math.abs(wideGeometry.layoutRatio - 1 / 2) < .001,
-      wideWidthWithinViewport: Boolean(wideGeometry.sidebar && wideGeometry.sidebar.right <= wideGeometry.viewport.width + 2),
-      workspacePreserved: wideGeometry.stageTrackWidth >= 759.5
-    }
-  );
-  await ensureDefaultCompanion(win);
-  await resetCompanionWidth(win);
-
   win.setSize(2048, 1100);
   win.webContents.setZoomFactor(1.5);
   await settle();
   await ensureDefaultCompanion(win);
   await resetCompanionWidth(win);
-  await clickCompanionAction(win, "\u5207\u6362\u5bbd\u5c4f");
+  const beforeHighDpiResize = await inspectCompanionGeometry(win);
+  await dragCompanionResizer(win, -80);
   await settle();
   const highDpiWideGeometry = await inspectCompanionGeometry(win);
   await captureCompanionGeometryState(
@@ -437,10 +439,13 @@ async function captureCompanionLayoutContracts(win, report) {
     {
       overlayPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
-      widePreferencePreserved: highDpiWideGeometry.layoutRatio !== null && Math.abs(highDpiWideGeometry.layoutRatio - 1 / 2) < .001,
+      widthExpanded: Boolean(highDpiWideGeometry.sidebar && beforeHighDpiResize.sidebar && highDpiWideGeometry.sidebar.width > beforeHighDpiResize.sidebar.width),
+      resizedPreferencePreserved: highDpiWideGeometry.layoutRatio !== null && highDpiWideGeometry.layoutRatio >= 1 / 3,
       wideWidthWithinViewport: Boolean(highDpiWideGeometry.sidebar && highDpiWideGeometry.sidebar.right <= highDpiWideGeometry.viewport.width + 2),
       workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
-      requestedZoom: win.webContents.getZoomFactor()
+      requestedZoom: win.webContents.getZoomFactor(),
+      beforeResize: beforeHighDpiResize,
+      afterResize: highDpiWideGeometry
     }
   );
   await ensureDefaultCompanion(win);
@@ -537,7 +542,7 @@ async function captureGlobalSearchLayerContract(win, report) {
       }));
     })()
   `);
-  await waitForSelectorToDisappear(win, ".global-search-scrim");
+  await waitForSelectorToDisappear(win, ".global-search-dialog");
   await settle();
   const afterClose = await win.webContents.executeJavaScript(`
     (() => {
@@ -546,7 +551,7 @@ async function captureGlobalSearchLayerContract(win, report) {
       const stage = document.querySelector('.app-stage');
       const nav = document.querySelector('.app-nav');
       return {
-        searchClosed: !document.querySelector('.global-search-scrim'),
+        searchClosed: !document.querySelector('.global-search-dialog'),
         aiStillOpen: Boolean(sidebar),
         canvasStillModal: Boolean(
           sidebar?.classList.contains('layout-companion-canvas')
@@ -566,12 +571,20 @@ async function captureGlobalSearchLayerContract(win, report) {
     compactOwnsAiPoint: compact.searchOwnsAiPoint,
     compactOwnsFocus: compact.focusInsideSearch,
     compactBackgroundIsolated: compact.rootInert && compact.rootAriaHidden === "true",
+    compactSearchFillsHeader: compact.headerGeometry?.checks.searchFillsRemainingWidth === true,
+    compactInputFillsSearch: compact.headerGeometry?.checks.inputFillsSearch === true,
+    compactCloseAtRight: compact.headerGeometry?.checks.closeAtRight === true,
+    compactHeaderNoOverflow: compact.headerGeometry?.checks.noOverflow === true,
     canvasMountedAfterSearch: canvas.sidebarClass.includes("layout-companion-canvas"),
     canvasPortalToBody: canvas.portalToBody,
     canvasFillsViewport: canvas.fillsViewport,
     canvasOwnsAiPoint: canvas.searchOwnsAiPoint,
     canvasOwnsFocus: canvas.focusInsideSearch,
     canvasBackgroundIsolated: canvas.rootInert && canvas.rootAriaHidden === "true",
+    canvasSearchFillsHeader: canvas.headerGeometry?.checks.searchFillsRemainingWidth === true,
+    canvasInputFillsSearch: canvas.headerGeometry?.checks.inputFillsSearch === true,
+    canvasCloseAtRight: canvas.headerGeometry?.checks.closeAtRight === true,
+    canvasHeaderNoOverflow: canvas.headerGeometry?.checks.noOverflow === true,
     oneEscapeClosedSearch: afterClose.searchClosed,
     oneEscapeKeptAiOpen: afterClose.aiStillOpen && afterClose.canvasStillModal,
     aiIsolationRetained: afterClose.aiBackgroundStillIsolated,
@@ -610,7 +623,7 @@ async function inspectGlobalSearchLayer(win) {
   return win.webContents.executeJavaScript(`
     (() => {
       const root = document.querySelector('#root');
-      const scrim = document.querySelector('.global-search-scrim');
+      const scrim = document.querySelector('.global-search-dialog')?.closest('[data-ui-dialog]');
       const dialog = document.querySelector('.global-search-dialog');
       const sidebar = document.querySelector('.ai-sidebar');
       if (!(root instanceof HTMLElement)
@@ -634,6 +647,52 @@ async function inspectGlobalSearchLayer(win) {
       const searchIndex = stack.findIndex((element) => element === scrim || scrim.contains(element));
       const aiIndex = stack.findIndex((element) => element === sidebar || sidebar.contains(element));
       const scrimRect = scrim.getBoundingClientRect();
+      // Measure the real feature composition: a shared header alone cannot
+      // expose higher-specificity feature selectors overriding its layout.
+      const header = dialog.querySelector(':scope > .ui-dialog-search-header');
+      const search = header?.querySelector(':scope > [data-ui-control="search"]');
+      const input = search?.querySelector('input');
+      const close = header?.querySelector(':scope > .ui-icon-button');
+      let headerGeometry = null;
+      if (header instanceof HTMLElement && search instanceof HTMLElement
+        && input instanceof HTMLInputElement && close instanceof HTMLButtonElement) {
+        const box = element => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
+        };
+        const content = element => {
+          const rect = box(element);
+          const style = getComputedStyle(element);
+          const left = rect.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0);
+          const right = rect.right - (parseFloat(style.borderRightWidth) || 0) - (parseFloat(style.paddingRight) || 0);
+          return { left, right, width: right - left, gap: parseFloat(style.columnGap) || 0 };
+        };
+        const remainingWidth = (container, target) => {
+          const children = [...container.children].filter(child => child instanceof HTMLElement && child.getBoundingClientRect().width > 0);
+          const bounds = content(container);
+          return bounds.width - children.filter(child => child !== target).reduce((total, child) => total + child.getBoundingClientRect().width, 0)
+            - bounds.gap * Math.max(0, children.length - 1);
+        };
+        const headerContent = content(header);
+        const searchBox = box(search);
+        const inputBox = box(input);
+        const closeBox = box(close);
+        const availableSearchWidth = remainingWidth(header, search);
+        const availableInputWidth = remainingWidth(search, input);
+        headerGeometry = {
+          checks: {
+            searchFillsRemainingWidth: Math.abs(searchBox.left - headerContent.left) <= 2
+              && Math.abs(searchBox.width - availableSearchWidth) <= 2,
+            inputFillsSearch: inputBox.width > 0 && Math.abs(inputBox.width - availableInputWidth) <= 2,
+            closeAtRight: Math.abs(closeBox.right - headerContent.right) <= 2,
+            noOverflow: [header, search].every(element => element.scrollWidth <= element.clientWidth + 1)
+              && searchBox.right <= closeBox.left + 1
+              && Math.abs((searchBox.top + searchBox.bottom) / 2 - (closeBox.top + closeBox.bottom) / 2) <= 2
+          },
+          header: box(header), search: searchBox, input: inputBox, close: closeBox,
+          availableSearchWidth, availableInputWidth
+        };
+      }
       return {
         portalToBody: scrim.parentElement === document.body,
         fillsViewport: Math.abs(scrimRect.left) <= 1
@@ -644,6 +703,7 @@ async function inspectGlobalSearchLayer(win) {
         focusInsideSearch: dialog.contains(document.activeElement),
         rootInert: Boolean(root.inert),
         rootAriaHidden: root.getAttribute('aria-hidden'),
+        headerGeometry,
         sidebarClass: sidebar.className,
         sidebarRole: sidebar.getAttribute('role'),
         point: { x, y },
@@ -718,16 +778,7 @@ async function resetCompanionWidth(win) {
   `);
   if (!await resetActiveMode()) throw new Error("Docked AI companion splitter was not available for reset.");
   await settle();
-
-  // The two presentation modes keep independent user preferences. Reset both
-  // before each visual audit so an earlier pointer test cannot make wide mode
-  // look like a layout regression in a later viewport.
-  await clickCompanionAction(win, "切换宽屏");
-  await settle();
-  if (!await resetActiveMode()) throw new Error("Wide AI companion splitter was not available for reset.");
-  await settle();
-  await clickCompanionAction(win, "切换宽屏");
-  await settle();
+  await waitForVisualStability(win);
 
   const widths = await win.webContents.executeJavaScript(`
     (() => {
@@ -765,17 +816,24 @@ async function dragCompanionResizer(win, deltaX) {
       const splitter = document.querySelector('.ai-sidebar-resizer');
       if (!(splitter instanceof Element)) return null;
       const rect = splitter.getBoundingClientRect();
-      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
   `);
   if (!point) throw new Error("Docked AI companion splitter was not available for pointer resize.");
-  win.webContents.sendInputEvent({ type: "mouseMove", x: point.x, y: point.y });
+  // DOM rectangles are CSS pixels; Electron input coordinates use the window's
+  // device-independent pixels. Page zoom scales both the target and drag delta.
+  const zoom = win.webContents.getZoomFactor();
+  const start = { x: Math.round(point.x * zoom), y: Math.round(point.y * zoom) };
+  const end = { x: Math.round((point.x + deltaX) * zoom), y: start.y };
+  win.webContents.sendInputEvent({ type: "mouseMove", ...start });
   await delay(30);
-  win.webContents.sendInputEvent({ type: "mouseDown", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  win.webContents.sendInputEvent({ type: "mouseDown", ...start, button: "left", clickCount: 1 });
   await delay(30);
-  win.webContents.sendInputEvent({ type: "mouseMove", x: point.x + deltaX, y: point.y, movementX: deltaX, movementY: 0 });
+  const resizing = await win.webContents.executeJavaScript("Boolean(document.querySelector('.app-shell.ai-sidebar-resizing'))");
+  if (!resizing) throw new Error(`Pointer resize did not start at zoom ${zoom}: ${JSON.stringify({ css: point, start })}`);
+  win.webContents.sendInputEvent({ type: "mouseMove", ...end, movementX: end.x - start.x, movementY: 0, modifiers: ["leftButtonDown"] });
   await delay(30);
-  win.webContents.sendInputEvent({ type: "mouseUp", x: point.x + deltaX, y: point.y, button: "left", clickCount: 1 });
+  win.webContents.sendInputEvent({ type: "mouseUp", ...end, button: "left", clickCount: 1 });
   await settle();
 }
 
@@ -837,6 +895,7 @@ async function inspectCompanionGeometry(win) {
         ariaModal: sidebar?.getAttribute('aria-modal') || null,
         stageInert: Boolean(stage?.inert),
         navInert: Boolean(nav?.inert),
+        closeControlVisible: visible(sidebar?.querySelector('.ai-sidebar-close')),
         wideControlVisible: visible(sidebar?.querySelector('button[aria-label="切换宽屏"]')),
         fullscreenControlVisible: visible(sidebar?.querySelector('button[aria-label="全屏"]')),
         exitFullscreenControlVisible: visible(sidebar?.querySelector('button[aria-label="退出全屏"]')),
@@ -872,7 +931,7 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
     ),
     backgroundInteractive: !geometry.stageInert && !geometry.navInert,
     notModal: geometry.role !== "dialog" && geometry.ariaModal !== "true",
-    widthControlsVisible: geometry.wideControlVisible && geometry.fullscreenControlVisible,
+    closeControlVisible: geometry.closeControlVisible,
     noHorizontalOverflow: geometry.horizontalOverflow <= 2,
     ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
   } : expected === "overlay" ? {
@@ -889,7 +948,7 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
     ),
     backgroundInteractive: !geometry.stageInert && !geometry.navInert,
     notModal: geometry.role !== "dialog" && geometry.ariaModal !== "true",
-    widthControlsVisible: geometry.wideControlVisible && geometry.fullscreenControlVisible,
+    closeControlVisible: geometry.closeControlVisible,
     noHorizontalOverflow: geometry.horizontalOverflow <= 2,
     ...Object.fromEntries(Object.entries(additionalChecks).filter(([, value]) => typeof value === "boolean"))
   } : expected === "canvas" ? {
@@ -1340,7 +1399,7 @@ async function captureResponsiveGapContracts(win, report) {
         const list = document.querySelector('.automation-rule-list');
         const firstRule = list?.querySelector('.rule-item');
         const detail = document.querySelector('.automation-detail-pane');
-        const runButton = detail?.querySelector('.primary-button, .danger-button');
+        const runButton = detail?.querySelector('[data-ui-control="button"][data-variant="primary"]');
         const consoleBox = document.querySelector('.automation-console-box');
         const intersects = (element) => {
           if (!(element instanceof Element)) return false;
@@ -1435,15 +1494,16 @@ async function captureResponsiveGapContracts(win, report) {
     })()
   `);
   if (!confirmOpened) throw new Error("Workflow confirmation fixture was not reachable.");
-  await waitForSelector(win, ".modal-card");
+  await waitForSelector(win, '[data-ui-control="dialog"][role="alertdialog"]');
   const confirmGeometry = await win.webContents.executeJavaScript(`
     (() => {
-      const card = document.querySelector('.modal-card');
-      const title = card?.querySelector('strong');
-      const body = card?.querySelector('p');
+      const card = document.querySelector('[data-ui-control="dialog"][role="alertdialog"]');
+      const title = card?.querySelector('.ui-dialog-heading h2');
+      const description = card?.querySelector('.ui-dialog-heading p');
+      const body = card?.querySelector('.ui-dialog-header');
       if (title) title.textContent = '长标题' + '标题内容'.repeat(100);
-      if (body) body.textContent = Array.from({ length: 100 }, (_, index) => '第 ' + (index + 1) + ' 行确认内容').join('\\n');
-      const actions = card?.querySelector('.modal-actions');
+      if (description) description.textContent = Array.from({ length: 100 }, (_, index) => '第 ' + (index + 1) + ' 行确认内容').join('\\n');
+      const actions = card?.querySelector('.ui-dialog-footer');
       const box = card?.getBoundingClientRect();
       const actionBox = actions?.getBoundingClientRect();
       return {
@@ -1461,8 +1521,8 @@ async function captureResponsiveGapContracts(win, report) {
     bodyScrollable: confirmGeometry.bodyScrollHeight > confirmGeometry.bodyClientHeight,
     actionsVisible: confirmGeometry.actionsVisible
   });
-  await win.webContents.executeJavaScript(`document.querySelector('.modal-actions button')?.click()`);
-  await waitForSelectorToDisappear(win, ".modal-card");
+  await win.webContents.executeJavaScript(`document.querySelector('[role="alertdialog"] .ui-dialog-footer button')?.click()`);
+  await waitForSelectorToDisappear(win, '[data-ui-control="dialog"][role="alertdialog"]');
 
   await clickSettingsSection(win, "AI 与模型");
   await waitForText(win, "Provider 列表");
@@ -2039,11 +2099,14 @@ async function inspectPage(win, label, options = {}) {
         [
           ['provider', '.conversation-header .provider-name'],
           ['permission', '.conversation-header .provider-perm'],
-          ['project', '.conversation-header small'],
-          ['session-status', '.conversation-header .ui-responsive-context']
+          ['project', '.conversation-header small']
         ].forEach(([name, selector]) => {
           if (!visible(document.querySelector(selector))) criticalContextMissing.push(name);
         });
+        const statusBadge = document.querySelector('.conversation-header .ui-responsive-context');
+        if (${options.expectIdleSession === true} ? Boolean(statusBadge) : !visible(statusBadge)) {
+          criticalContextMissing.push(${options.expectIdleSession === true} ? 'idle-session-status-should-be-absent' : 'session-status');
+        }
       }
       // Compact composer toolbars intentionally hide the text label while
       // keeping the project control visible and titled. Audit the control
@@ -2192,7 +2255,7 @@ async function captureComposerSuggestions(win, report) {
 
   const resolvedApproval = await win.webContents.executeJavaScript(`
     (() => {
-      const allow = document.querySelector('.approval-banner .approval-btn-primary');
+      const allow = document.querySelector('.approval-banner .approval-bar-actions [data-ui-control="button"][data-tone="neutral"]');
       if (!allow) return false;
       allow.click();
       return true;
@@ -2320,7 +2383,7 @@ async function assertComposerContextGeometry(win) {
       const tray = document.querySelector('.context-tray');
       const count = tray?.querySelector(':scope > .context-tray-count');
       const chips = tray?.querySelector(':scope > .context-chips');
-      const drag = chips?.querySelector(':scope > .context-chip-drag');
+      const drag = chips?.querySelector(':scope > [data-context-motion] > .context-chip-drag');
       const chip = drag?.querySelector(':scope > .context-chip');
       const trigger = chip?.querySelector(':scope > .ui-disclosure-trigger');
       const label = trigger?.querySelector(':scope > span');
@@ -2442,8 +2505,8 @@ async function assertPendingApprovalGeometry(win) {
     (() => {
       const banner = document.querySelector('.approval-banner');
       const card = banner?.querySelector('.approval-card');
-      const allow = banner?.querySelector('.approval-btn-primary');
-      const decline = banner?.querySelector('.approval-btn-danger');
+      const allow = banner?.querySelector('.approval-bar-actions [data-ui-control="button"][data-tone="neutral"]');
+      const decline = banner?.querySelector('.approval-bar-actions [data-ui-control="button"][data-tone="danger"]');
       const composer = document.querySelector('textarea[aria-label="AI 消息"]');
       const viewport = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
       const rect = (element) => {
@@ -2531,109 +2594,92 @@ async function captureCompletedAiResponse(win, report) {
   await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   await clickNav(win, "新建任务");
   await waitForReady(win, "新建任务");
-  await win.webContents.executeJavaScript("document.querySelector('button.history-toggle')?.click()");
-  await waitForSelector(win, ".history-flyout");
+  await ensureExpandedNavigation(win);
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const recent = document.querySelector('.app-nav .nav-recent-toggle');
+      if (recent?.getAttribute('aria-expanded') === 'false') recent.click();
+      const list = document.querySelector('.app-nav .nav-recent-list');
+      if (list) list.scrollTop = 0;
+    })()
+  `);
+  await waitForSelector(win, '.app-nav button.nav-recent-item');
   const clicked = await win.webContents.executeJavaScript(`
     (() => {
-      const session = [...document.querySelectorAll('article.nav-recent-item[role="option"]')]
-        .find((item) => item.textContent.includes("10000 events"));
-      if (!session) return false;
+      const session = [...document.querySelectorAll('.app-nav button.nav-recent-item')]
+        .find(item => item.textContent.includes('10000 events'));
+      if (!(session instanceof HTMLButtonElement)) return false;
+      session.scrollIntoView({ block: 'nearest' });
+      const rect = session.getBoundingClientRect();
+      const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      if (!target || !session.contains(target)) return false;
       session.click();
       return true;
     })()
   `);
-  if (!clicked) throw new Error("Completed AI response fixture was not found.");
-  await win.webContents.executeJavaScript("document.querySelector('button.history-toggle')?.click()");
-  await scrollDisclosureTriggerIntoView(win, ".completed-process");
-  await waitForDisclosureState(win, ".completed-process", false);
-  const completedSnapshot = await captureState(win, report, "ai-completed-response", "新建任务", "Completed response with process status above the first assistant message");
+  if (!clicked) throw new Error('Completed AI response fixture was not reachable in the visible recent-task list.');
+  await waitForSelectorExists(win, '.completed-process');
+  await waitForText(win, '规模验证通过：1000 sessions');
+  await waitForVisualStability(win);
+  await scrollDisclosureTriggerIntoView(win, '.completed-process');
+  await waitForDisclosureState(win, '.completed-process', false);
+  await waitForSelectorRemoved(win, '.completed-process-body');
+  const completedSnapshot = await captureState(win, report, 'ai-completed-response', '新建任务', 'Completed response with its process body unmounted', { expectIdleSession: true });
 
-  // AnimatedDisclosure uses a button trigger and keeps its closed content
-  // mounted. A bare querySelector therefore cannot prove that a click happened
-  // or that the content reached a visible, interactive open state.
-  await expandDisclosure(win, ".completed-process");
-  await waitForDisclosureState(win, ".completed-process .command-group", false);
-  const expandedToolCount = await win.webContents.executeJavaScript(
-    "document.querySelectorAll('.completed-process .tool-event[data-open]').length"
-  );
-  if (expandedToolCount !== 0) {
-    throw new Error(`Completed process opened with ${expandedToolCount} expanded tool rows.`);
-  }
-  const expandedGroupCount = await win.webContents.executeJavaScript(
-    "document.querySelectorAll('.completed-process .command-group[data-open]').length"
-  );
-  if (expandedGroupCount !== 0) {
-    throw new Error(`Completed process opened with ${expandedGroupCount} expanded tool groups.`);
-  }
-  await win.webContents.executeJavaScript(`
-    [...document.querySelectorAll('.completed-process .command-group > .ui-disclosure-trigger')]
-      .forEach((trigger) => trigger.click());
-  `);
-  await waitForDisclosureState(win, ".completed-process .command-group", true);
-  await settle();
+  // Completed traces expose flat tool summaries directly. Opening the process
+  // must not add another group disclosure or expand individual result bodies.
+  await expandDisclosure(win, '.completed-process');
   const compactToolGeometry = await win.webContents.executeJavaScript(`
     (() => {
-      const group = document.querySelector('.completed-process .command-group.tools');
-      const list = group?.querySelector('.command-group-list');
-      const rows = list ? [...list.querySelectorAll('.tool-event')] : [];
-      if (!group || !list) return { ok: false, checks: { groupFound: false } };
-      const rowHeights = rows.map((row) => row.querySelector(':scope > .ui-disclosure-trigger')?.getBoundingClientRect().height || 0);
+      const process = document.querySelector('.completed-process-body');
+      const groups = [...(process?.querySelectorAll('.command-group.flat') || [])];
+      const lists = groups.map(group => group.querySelector('.command-group-list'));
+      const rows = [...(process?.querySelectorAll('.tool-event') || [])];
+      const heights = rows.map(row => row.querySelector(':scope > .ui-disclosure-trigger')?.getBoundingClientRect().height || 0);
       const checks = {
-        groupFound: true,
-        groupedTools: rows.length === 10 && group.classList.contains('tools'),
-        compactRows: rowHeights.every((height) => height >= 30 && height <= 32),
-        boundedScroll: getComputedStyle(list).maxHeight === '304px' && list.scrollHeight > list.clientHeight,
-        scrollSemantics: list.getAttribute('role') === 'region' && list.tabIndex === 0,
-        rowIcons: rows.every((row) => {
-          const icon = row.querySelector('.tool-event-icon');
-          return icon && getComputedStyle(icon).display !== 'none';
-        }),
-        noHorizontalOverflow: list.scrollWidth <= list.clientWidth + 1
+        flatHistory: groups.length === 2 && groups.every(group => !group.querySelector(':scope > .ui-disclosure-trigger')),
+        completeHistory: rows.length === 12 && lists[0]?.querySelectorAll('.tool-event').length === 10,
+        collapsedResults: rows.every(row => !row.hasAttribute('data-open') && !row.querySelector('.tool-event-body')),
+        compactRows: heights.every(height => height >= 24 && height <= 40),
+        namedLongList: lists[0]?.getAttribute('role') === 'region' && lists[0]?.tabIndex === 0 && Boolean(lists[0]?.getAttribute('aria-label')),
+        rowIcons: rows.every(row => { const icon = row.querySelector('.tool-event-icon'); return icon && getComputedStyle(icon).display !== 'none'; }),
+        flowLayout: lists.every(list => list && getComputedStyle(list).maxHeight === 'none' && getComputedStyle(list).overflowY === 'visible'),
+        noHorizontalOverflow: Boolean(process) && [process, ...lists].every(element => element && element.scrollWidth <= element.clientWidth + 1)
       };
-      return {
-        ok: Object.values(checks).every(Boolean),
-        checks,
-        rowHeights,
-        clientHeight: list.clientHeight,
-        scrollHeight: list.scrollHeight,
-        maxHeight: getComputedStyle(list).maxHeight
-      };
+      return { ok: Object.values(checks).every(Boolean), checks, rowHeights: heights, rowCount: rows.length };
     })()
   `);
-  if (!compactToolGeometry.ok) {
-    throw new Error(`Compact tool group geometry failed: ${JSON.stringify(compactToolGeometry)}`);
-  }
-  const commandGroupSnapshot = await captureState(win, report, "ai-command-group", "新建任务", "Expanded process with compact grouped tool history");
+  if (!compactToolGeometry.ok) throw new Error('Flat process geometry failed: ' + JSON.stringify(compactToolGeometry));
+  const processSnapshot = await captureState(win, report, 'ai-process-expanded', '新建任务', 'Expanded process exposes compact flat tool summaries', { expectIdleSession: true });
+  processSnapshot.toolGeometry = compactToolGeometry;
 
-  await scrollDisclosureTriggerIntoView(win, ".completed-process .command-group .tool-event", 1);
-  await waitForDisclosureState(win, ".completed-process .command-group .tool-event", false, 1);
-  await expandDisclosure(win, ".completed-process .command-group .tool-event", 1);
-  const terminalSelector = ".completed-process .command-group .tool-event[data-open] .command-terminal";
+  const toolSelector = '.completed-process .command-group.flat .tool-event';
+  await expandDisclosure(win, toolSelector, 1);
+  const terminalSelector = '.completed-process .tool-event[data-open] .command-terminal';
   await scrollSelectorIntoView(win, terminalSelector);
   await waitForSelector(win, terminalSelector);
   const expandedToolGeometry = await win.webContents.executeJavaScript(`
     (() => {
-      const list = document.querySelector('.completed-process .command-group.tools .command-group-list');
-      const opened = list?.querySelector('.tool-event[data-open]');
-      if (!list || !opened) return { ok: false };
-      const style = getComputedStyle(list);
-      return {
-        ok: style.maxHeight === '304px'
-          && style.overflowY === 'auto'
-          && list.getBoundingClientRect().height <= 305
-          && list.scrollHeight > list.clientHeight,
-        maxHeight: style.maxHeight,
-        overflowY: style.overflowY,
-        height: list.getBoundingClientRect().height,
-        clientHeight: list.clientHeight,
-        scrollHeight: list.scrollHeight
+      const process = document.querySelector('.completed-process-body');
+      const rows = [...(process?.querySelectorAll('.tool-event') || [])];
+      const opened = rows.filter(row => row.hasAttribute('data-open'));
+      const terminal = opened[0]?.querySelector('.command-terminal');
+      const rowBox = opened[0]?.getBoundingClientRect();
+      const terminalBox = terminal?.getBoundingClientRect();
+      const checks = {
+        oneResultOpen: opened.length === 1 && rows.length === 12,
+        otherResultsUnmounted: rows.filter(row => !row.hasAttribute('data-open')).every(row => !row.querySelector('.tool-event-body')),
+        terminalInRow: Boolean(rowBox && terminalBox && terminalBox.width > 0 && terminalBox.height > 0 && terminalBox.left >= rowBox.left - 1 && terminalBox.right <= rowBox.right + 1),
+        noHorizontalOverflow: Boolean(process && terminal) && process.scrollWidth <= process.clientWidth + 1 && terminal.scrollWidth <= terminal.clientWidth + 1,
+        pageNoHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 2
       };
+      return { ok: Object.values(checks).every(Boolean), checks, rowCount: rows.length, openedCount: opened.length, terminalHeight: terminalBox?.height };
     })()
   `);
-  if (!expandedToolGeometry.ok) throw new Error(`Expanded tool group escaped its scroll viewport: ${JSON.stringify(expandedToolGeometry)}`);
-  const expandedCommandSnapshot = await captureState(win, report, "ai-command-group-expanded", "新建任务", "A single tool expanded in place while preserving group context");
-
-  assertDistinctPixelSnapshots([completedSnapshot, commandGroupSnapshot, expandedCommandSnapshot]);
+  if (!expandedToolGeometry.ok) throw new Error('Expanded tool result geometry failed: ' + JSON.stringify(expandedToolGeometry));
+  const expandedToolSnapshot = await captureState(win, report, 'ai-tool-result-expanded', '新建任务', 'A single tool result expands in place while sibling results remain unmounted', { expectIdleSession: true });
+  expandedToolSnapshot.toolGeometry = expandedToolGeometry;
+  assertDistinctPixelSnapshots([completedSnapshot, processSnapshot, expandedToolSnapshot]);
 }
 
 async function setComposerValue(win, value) {
@@ -2706,10 +2752,24 @@ async function waitForSelector(win, selector) {
         return [...document.querySelectorAll(${JSON.stringify(selector)})].some(visible);
       })()
     `);
-    if (found) return;
+    if (found) {
+      await waitForVisualStability(win);
+      return;
+    }
     await delay(80);
   }
   throw new Error(`Timed out waiting for visible selector: ${selector}`);
+}
+
+async function waitForVisualStability(win) {
+  await win.webContents.executeJavaScript(`(async () => {
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    await frame(); await frame();
+    await Promise.allSettled(document.getAnimations()
+      .filter(animation => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map(animation => animation.finished));
+    await frame(); await frame();
+  })()`);
 }
 
 async function waitForSelectorExists(win, selector) {

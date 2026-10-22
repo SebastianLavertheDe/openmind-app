@@ -1,0 +1,45 @@
+name: UI contract
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ui-contract-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ui-contract:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Electron display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth libgtk-3-0t64 libnss3 libgbm1 libasound2t64 fonts-dejavu-core fonts-wqy-zenhei
+      - run: npm ci
+      - run: npm run build
+      - name: Run unit tests with bounded worker concurrency
+        run: npm run test:unit -- --maxWorkers=2 --testTimeout=20000 --hookTimeout=20000
+      - run: npm run test:integration
+      - run: npm run test:e2e
+      - run: npm run visual:snapshot
+      - run: npm run visual:inputs
+      - run: npm run visual:ui
+      - name: Upload UI comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-comparisons
+          path: |
+            .tmp/ui-regression
+            .build/input-controls-style
+            .build/visual-snapshots
+            .build/visual-snapshot-report.json
+          if-no-files-found: ignore
+          retention-days: 14

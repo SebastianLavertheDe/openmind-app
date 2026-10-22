@@ -92,8 +92,8 @@ describe("FeedbackHost confirmation dialog", () => {
     render(<AiProvider initial={snapshot}><Nested /></AiProvider>);
     const background = screen.getByTestId("background");
     const project = screen.getByRole("dialog", { name: "项目设置" });
-    expect(background.inert).toBe(true);
-    expect(background.getAttribute("aria-hidden")).toBe("true");
+    expect(background.closest<HTMLElement>('[aria-hidden="true"]')?.inert).toBe(true);
+    expect(background.closest('[aria-hidden="true"]')).toBeTruthy();
     const trigger = within(project).getByRole("button", { name: "请求确认" });
     trigger.focus();
     fireEvent.click(trigger);
@@ -107,14 +107,13 @@ describe("FeedbackHost confirmation dialog", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(confirmation.closest("[inert]")).toBeTruthy();
     expect(screen.getByRole("dialog", { name: "项目设置" })).toBe(project);
-    expect(background.inert).toBe(true);
+    expect(background.closest<HTMLElement>('[aria-hidden="true"]')?.inert).toBe(true);
     act(() => vi.advanceTimersToNextFrame());
     expect(document.activeElement).toBe(trigger);
 
     fireEvent.keyDown(trigger, { key: "Escape" });
     expect(closeProject).toHaveBeenCalledTimes(1);
-    expect(background.inert).toBe(false);
-    expect(background.hasAttribute("aria-hidden")).toBe(false);
+    expect(background.closest('[aria-hidden="true"]')).toBeNull();
   });
 
   it("defaults dangerous actions to cancel and restores focus", async () => {
@@ -125,7 +124,7 @@ describe("FeedbackHost confirmation dialog", () => {
     await user.click(trigger);
 
     const dialog = screen.getByRole("alertdialog", { name: "删除记录" });
-    expect(dialog.closest(".modal-scrim")?.parentElement).toBe(document.body);
+    expect(dialog.closest("[data-ui-dialog]")?.parentElement).toBe(document.body);
     const cancel = screen.getByRole("button", { name: "取消" });
     await waitFor(() => expect(document.activeElement).toBe(cancel));
     await user.keyboard("{Enter}");
