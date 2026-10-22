@@ -1544,6 +1544,32 @@
   gap: 12px;
 }
 
+.settings-youtube-tool {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.settings-youtube-tool .settings-preference-row {
+  padding: 0;
+}
+
+.settings-youtube-tool-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-youtube-tool .settings-note {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-youtube-tool .settings-youtube-tool-error {
+  color: var(--red);
+}
+
 .settings-panel-footer {
   min-height: 48px;
   display: flex;

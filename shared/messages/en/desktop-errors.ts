@@ -3,6 +3,27 @@ import type { desktopErrorMessages as zhCN } from "../zh-CN/desktop-errors";
 
 export const desktopErrorMessages = {
   desktopErrors: {
+    bilibili: {
+      invalidUrl: "Use a Bilibili BV or AV video link, or a b23.tv short link.",
+      shortUrlFailed: "Could not resolve the Bilibili short link. Retry or use the full BV or AV video link.",
+      toolsMissing: "Embedded playback is available. Captions require yt-dlp; install it in Settings → Browser → Video import.",
+      loginRequired: "Bilibili requires sign-in for these captions. Only anonymous fetching is supported. The embedded player has been kept.",
+      timeout: "Fetching Bilibili captions timed out. Try again later. Embedded playback remains available.",
+      captionsFailed: "Could not fetch Bilibili captions. Try again. Embedded playback remains available.",
+      noCaptions: "No Bilibili captions were available anonymously. The video may have no captions, or anonymous access may be restricted."
+    },
+    youtube: {
+      selectBrowser: "Select a browser for YouTube imports in Settings → Browser first.",
+      browserMissing: "The selected browser is unavailable. Scan and select a browser again in Settings → Browser.",
+      toolsMissing: "YouTube download tools are missing. Check yt-dlp, FFmpeg, and the JavaScript runtime in Settings → Browser.",
+      downloadFailed: "YouTube download failed. Check your connection, update yt-dlp, and try again.",
+      cookiesFailed: "Could not read browser sign-in. Sign in to YouTube in the selected browser, close it, and retry. If the system cannot decrypt cookies, try Firefox.",
+      loginRequired: "YouTube requires sign-in or verification. Open this video in the selected browser, complete verification, and retry.",
+      timeout: "The YouTube download timed out. Try again later.",
+      invalidOutput: "The download did not produce a playable video or valid metadata. Update the download tools and retry.",
+      noCaptions: "The video was downloaded, but YouTube did not provide captions.",
+      captionsFailed: "The video was downloaded, but captions could not be extracted. You can retry later."
+    },
     cli: { invalidId: "CLI must be claude or codex.", installUnsupported: "One-click CLI installation is not supported in this environment.", upgradeUnsupported: "CLI upgrades are not supported in this environment.", versionUnsupported: "CLI version checks are not supported in this environment." },
     services: { pythonNotReady: "The bundled Python runtime service is not initialized.", wechatNotReady: "The WeChat Official Account service is not initialized." },
     root: {

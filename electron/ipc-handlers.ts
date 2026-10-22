@@ -2,6 +2,7 @@ import { dialog, shell, type BrowserWindow, type IpcMainInvokeEvent } from "elec
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { YoutubeImportStatusSchema, YoutubeToolIdSchema, YoutubeToolStatusSchema } from "../shared/youtube-import";
 import {
   ApprovalDecisionSchema,
   AddRssSourceInputSchema,
@@ -150,6 +151,7 @@ export type IpcMainContext = {
   ensureAiWorker: () => AiWorkerCaller;
   ensureOpenmindFileSearch: () => OpenmindFileSearch;
   ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
+  ensureYoutubeToolsService?: () => import("./install/youtube-tools-service").YoutubeToolsService;
   ensureSkillPackageService: () => SkillPackageService;
   ensureSkillSourceService?: () => SkillSourceService;
   ensureSharedPythonRuntimeService?: () => SharedPythonRuntimeService;
@@ -179,6 +181,10 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   const projects = () => ctx.ensureProjectService();
   const ai = () => ctx.ensureAiWorker();
   const skillPackages = () => ctx.ensureSkillPackageService();
+  const youtubeTools = () => {
+    if (!ctx.ensureYoutubeToolsService) throw new Error(messages.desktopErrors.youtube.toolsMissing);
+    return ctx.ensureYoutubeToolsService();
+  };
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
   const sharedPython = () => {
     if (!ctx.ensureSharedPythonRuntimeService) throw new Error(messages.desktopErrors.services.pythonNotReady);
@@ -432,6 +438,9 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     { channel: C.getPreferences, handler: () => UserPreferencesSchema.parse(settings.getPreferences()) },
+    { channel: C.getYoutubeImportStatus, handler: async () => YoutubeImportStatusSchema.parse(await youtubeTools().status()) },
+    { channel: C.checkYoutubeToolUpdate, handler: async (tool) => YoutubeToolStatusSchema.parse(await youtubeTools().checkUpdate(YoutubeToolIdSchema.parse(tool))) },
+    { channel: C.installYoutubeTool, handler: async (tool) => YoutubeToolStatusSchema.parse(await youtubeTools().install(YoutubeToolIdSchema.parse(tool))) },
     { channel: C.getOnboardingState, handler: () => OnboardingStateSchema.parse(settings.getOnboardingState()) },
     {
       channel: C.updateOnboardingState,

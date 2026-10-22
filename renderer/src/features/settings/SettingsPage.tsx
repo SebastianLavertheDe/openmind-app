@@ -17,6 +17,7 @@ import {
   AppearanceSettingsSection,
   AiProvidersSettingsSection,
   BrowserSettingsSection,
+  YoutubeImportSettingsSection,
   PathSettingsSection,
   PermissionSettingsSection,
   ProviderSettingsSection,
@@ -359,7 +360,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
-              {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
+              {activeSection === "browser" ? <><YoutubeImportSettingsSection prefs={prefs} save={save} /><BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /></> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}

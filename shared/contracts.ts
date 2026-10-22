@@ -1,6 +1,7 @@
 import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
+import { YoutubeBrowserPreferenceSchema, type YoutubeImportStatus, type YoutubeToolId, type YoutubeToolStatus } from "./youtube-import";
 
 export {
   PROVIDERS_YAML_SCHEMA_VERSION,
@@ -1024,6 +1025,7 @@ export const UserPreferencesSchema = z.object({
   contentPreviewMode: z.enum(["inline", "sidebar"]).default("sidebar"),
   markReadOnOpen: z.boolean().default(true),
   defaultProvider: z.string().default(""),
+  youtubeBrowser: YoutubeBrowserPreferenceSchema.default(""),
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("auto"),
   notesDir: z.string().default("openmind"),
   destructiveOpsRequireApproval: z.boolean().default(true),
@@ -1241,6 +1243,9 @@ export interface DesktopApi {
   /** ADR-001: optional AI/code workspace, independent of openmind. */
   selectWorkspaceRoot(): Promise<string | null>;
   getPreferences(): Promise<UserPreferences>;
+  getYoutubeImportStatus(): Promise<YoutubeImportStatus>;
+  checkYoutubeToolUpdate(tool: YoutubeToolId): Promise<YoutubeToolStatus>;
+  installYoutubeTool(tool: YoutubeToolId): Promise<YoutubeToolStatus>;
   getOnboardingState(): Promise<OnboardingState>;
   updateOnboardingState(patch: Partial<OnboardingState>): Promise<OnboardingState>;
   updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences>;

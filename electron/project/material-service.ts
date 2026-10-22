@@ -13,7 +13,8 @@ import {
 } from "../../shared/project-contracts";
 import { writeJsonAtomic, writeTextAtomic } from "../lib/fs-utils";
 import { ProjectPathResolver } from "./project-path-resolver";
-import { parseVideoMarkdown } from "./converters/video-converter";
+import { extractYoutubeVideoId, parseVideoMarkdown } from "./converters/video-converter";
+import { projectVideoMediaUrl } from "../../shared/youtube-import";
 
 const MATERIAL_INDEX_FILE = "materials/.openmind-materials.json";
 const MAX_SOURCE_BYTES = 100 * 1024 * 1024;
@@ -59,6 +60,9 @@ export type ProjectMaterialConversionResult = {
   content: string;
   mimeType?: string | null;
   title?: string;
+  /** Temporary, app-owned download, adopted into the material's preserved original. */
+  downloadedVideoPath?: string;
+  cleanup?(): void;
 };
 
 /**
@@ -176,9 +180,13 @@ export class ProjectMaterialService {
     const index = records.findIndex((item) => item.relativePath === relativePath);
     if (index < 0) throw new Error("项目资料不存在。");
     const current = records[index];
+    const currentVideo = current.status === "ready" && current.kind === "video" ? this.read(projectName, relativePath).video : undefined;
     const refreshingVideo = current.status === "ready" && current.kind === "video"
-      && !this.read(projectName, relativePath).video?.transcript.length;
+      && (currentVideo?.provider === "youtube" && !current.originalRelativePath || !currentVideo?.transcript.length);
     if (current.status !== "failed" && !refreshingVideo) return current;
+    const previousContent = refreshingVideo ? fs.readFileSync(this.paths.resolveInsideProject(projectName, relativePath, {
+      allowedTopLevels: MATERIALS_TOP_LEVEL
+    }), "utf8") : null;
     const converter = this.converters.find((candidate) => candidate.id === current.converterId);
     if (!converter) throw new Error(`资料转换器不可用：${current.converterId || "unknown"}`);
 
@@ -219,32 +227,49 @@ export class ProjectMaterialService {
       expectedIndex,
       () => this.replaceRecord(projectName, current.relativePath, converting)
     );
+    let result: ProjectMaterialConversionResult | undefined;
+    let downloadedOriginal: string | undefined;
+    let completed = false;
+    let writtenTarget: string | undefined;
     try {
-      const result = await converter.convert({ projectName, source, target, originalAbsolutePath, retry: true });
+      result = await converter.convert({ projectName, source, target, originalAbsolutePath, retry: true });
+      if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
       const targetPath = this.paths.resolveInsideProject(projectName, current.relativePath, {
         allowedTopLevels: MATERIALS_TOP_LEVEL,
         allowMissingLeaf: true
       });
-      writeTextAtomic(targetPath, result.content);
       const ready = ProjectMaterialSchema.parse({
         ...current,
         title: result.title || current.title,
         status: "ready",
         mimeType: result.mimeType ?? current.mimeType,
+        originalRelativePath: downloadedOriginal ?? current.originalRelativePath,
         errorCode: null,
         errorMessage: null,
         updatedAt: now()
       });
+      writeTextAtomic(targetPath, result.content);
+      writtenTarget = targetPath;
       this.replaceRecord(projectName, relativePath, ready);
+      completed = true;
+      if (downloadedOriginal && current.originalRelativePath) {
+        // The new indexed original is committed; an obsolete file cleanup must not roll it back.
+        try { this.removeDownloadedOriginal(projectName, current.originalRelativePath); } catch { /* Retain an orphan rather than lose the current material. */ }
+      }
       return ready;
     } catch (error) {
       if (refreshingVideo) {
+        if (writtenTarget && previousContent !== null) writeTextAtomic(writtenTarget, previousContent);
         this.replaceRecord(projectName, relativePath, current);
         throw error;
       }
       return this.markFailed(projectName, relativePath, error);
     } finally {
-      this.endActiveConversion(lease);
+      try {
+        if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+      } finally {
+        try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+      }
     }
   }
 
@@ -430,6 +455,7 @@ export class ProjectMaterialService {
         video: ProjectVideoReadMetadataSchema.parse({
           ...parsedVideo,
           embedUrl: parsedVideo.embedUrl ?? null,
+          localMediaUrl: material.originalRelativePath ? projectVideoMediaUrl(projectName, relativePath) : null,
           videoId: parsedVideo.videoId ?? null,
           durationMs: parsedVideo.durationMs ?? null,
           thumbnailUrl: parsedVideo.thumbnailUrl ?? null,
@@ -438,6 +464,37 @@ export class ProjectMaterialService {
         })
       } : {})
     };
+  }
+
+  /** Only a video material's indexed original is playable; a renderer never supplies a file path. */
+  resolveVideoFile(projectName: string, relativePath: string): string {
+    const material = this.readIndex(projectName).find(item => item.relativePath === relativePath);
+    if (!material || material.kind !== "video" || material.status !== "ready" || !material.originalRelativePath) throw new Error("Video unavailable");
+    if (!/\.(mp4|webm)$/i.test(material.originalRelativePath)) throw new Error("Invalid video type");
+    const absolute = this.paths.resolveInsideProject(projectName, material.originalRelativePath, { allowedTopLevels: MATERIALS_TOP_LEVEL });
+    const stat = fs.lstatSync(absolute);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Invalid video file");
+    return absolute;
+  }
+
+  private async preserveDownloadedVideo(projectName: string, source: string): Promise<string> {
+    const extension = path.extname(source).toLowerCase();
+    const stat = fs.lstatSync(source);
+    if (![".mp4", ".webm"].includes(extension) || !stat.isFile() || stat.isSymbolicLink() || !stat.size) throw new Error("Invalid downloaded video");
+    const relativePath = `materials/originals/${crypto.randomUUID()}${extension}`;
+    const absolute = this.paths.resolveInsideProject(projectName, relativePath, { allowedTopLevels: MATERIALS_TOP_LEVEL, allowMissingLeaf: true });
+    try {
+      await fs.promises.copyFile(source, absolute, fs.constants.COPYFILE_EXCL);
+      return relativePath;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") fs.rmSync(absolute, { force: true });
+      throw error;
+    }
+  }
+
+  private removeDownloadedOriginal(projectName: string, relativePath: string): void {
+    const absolute = this.paths.resolveInsideProject(projectName, relativePath, { allowedTopLevels: MATERIALS_TOP_LEVEL, allowMissingLeaf: true });
+    fs.rmSync(absolute, { force: true });
   }
 
   /**
@@ -576,17 +633,21 @@ export class ProjectMaterialService {
         }
       }
     );
+    let result: ProjectMaterialConversionResult | undefined;
+    let downloadedOriginal: string | undefined;
+    let completed = false;
     try {
       const conversionSource = source.type === "file" && originalAbsolutePath
         ? { ...source, absolutePath: originalAbsolutePath }
         : source;
-      const result = await converter.convert({
+      result = await converter.convert({
         projectName,
         source: conversionSource,
         target: { ...target, fileName },
         originalAbsolutePath,
         retry: false
       });
+      if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
       const absoluteTarget = this.paths.resolveInsideProject(projectName, relativePath, {
         allowedTopLevels: MATERIALS_TOP_LEVEL,
         allowMissingLeaf: true
@@ -597,9 +658,11 @@ export class ProjectMaterialService {
         title: result.title || pending.title,
         status: "ready",
         mimeType: result.mimeType ?? null,
+        originalRelativePath: downloadedOriginal ?? pending.originalRelativePath,
         updatedAt: now()
       });
       this.replaceRecord(projectName, relativePath, ready);
+      completed = true;
       return ready;
     } catch (error) {
       const failed = this.markFailed(projectName, relativePath, error);
@@ -608,7 +671,11 @@ export class ProjectMaterialService {
         material: failed
       });
     } finally {
-      this.endActiveConversion(lease);
+      try {
+        if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+      } finally {
+        try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+      }
     }
   }
 
@@ -729,7 +796,9 @@ export class ProjectMaterialService {
       if (record.status === "ready") assertOrdinaryFile(absolute, `项目资料文件不存在或无效：${record.relativePath}`);
 
       if (!record.originalRelativePath) continue;
-      if (record.source.type !== "file") throw new Error(`URL 资料不能声明原始文件：${record.relativePath}`);
+      const downloadedYoutube = record.source.type === "url" && record.kind === "video"
+        && Boolean(extractYoutubeVideoId(record.source.url)) && /\.(mp4|webm)$/i.test(record.originalRelativePath);
+      if (record.source.type !== "file" && !downloadedYoutube) throw new Error(`URL 资料不能声明原始文件：${record.relativePath}`);
       assertDirectProjectFile(record.originalRelativePath, "materials/originals", "项目资料原件路径");
       const originalKey = portableIdentityKey(record.originalRelativePath);
       if (originalPaths.has(originalKey)) throw new Error(`项目资料索引包含重复原件路径：${record.originalRelativePath}`);

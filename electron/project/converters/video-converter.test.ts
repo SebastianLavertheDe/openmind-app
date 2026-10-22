@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { bilibiliDescriptor } from "./bilibili-subtitles";
 import {
   convertVideoUrlToMarkdown,
   extractYoutubeVideoId,
@@ -8,39 +9,48 @@ import {
 } from "./video-converter";
 
 describe("Project video materials", () => {
-  it("uses the supplied browser transport for metadata, player information and captions", async () => {
-    const youtubeFetch = vi.fn<typeof fetch>(async (input) => {
-      const url = new URL(String(input));
-      if (url.pathname === "/oembed") return Response.json({ title: "Fixture video" });
-      if (url.pathname === "/youtubei/v1/player") return Response.json({ captions: { playerCaptionsTracklistRenderer: { captionTracks: [
-        { baseUrl: "https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ", languageCode: "en" }
-      ] } } });
-      if (url.pathname === "/api/timedtext") return new Response('<timedtext><body><p t="7000" d="11000"><s>Fixture caption</s></p></body></timedtext>');
-      throw new Error("Unexpected URL");
-    });
-    const result = await convertVideoUrlToMarkdown("https://youtu.be/dQw4w9WgXcQ", { youtubeFetch });
-    expect(result.video).toMatchObject({ title: "Fixture video", transcriptSource: "platform", transcript: [{ startMs: 7000, endMs: 18000, text: "Fixture caption" }], warnings: [] });
-    expect(youtubeFetch).toHaveBeenCalledTimes(3);
+  it("round-trips the selected Bilibili part and subtitles without creating a media download", async () => {
+    const video = { ...bilibiliDescriptor({ videoId: "BV1xx411c7mD", page: 3 }),
+      title: "Bilibili fixture", transcript: [{ startMs: 1250, endMs: 5000, text: "完整的一句话。" }], transcriptSource: "platform" as const };
+    const read = vi.fn().mockResolvedValue(video);
+    const download = vi.fn();
+    const result = await convertVideoUrlToMarkdown(video.sourceUrl, { bilibiliSubtitles: { read }, youtubeDownloader: { download }, preferredLanguage: "zh-CN" });
+    expect(read).toHaveBeenCalledWith(video.sourceUrl, "zh-CN");
+    expect(download).not.toHaveBeenCalled();
+    expect(result.download).toBeUndefined();
+    expect(parseVideoMarkdown(result.markdown)).toMatchObject(video);
+    expect(parseVideoMarkdown(result.markdown.replace("- Video ID：BV1xx411c7mD", "- Video ID：BV1xx411c7mE"))?.embedUrl).toBeUndefined();
+    expect(parseVideoMarkdown(result.markdown.replace("www.bilibili.com", "evil.test"))?.embedUrl).toBeUndefined();
   });
 
-  it("preserves sign-in failures through saved Markdown instead of reporting that captions do not exist", async () => {
-    const youtubeFetch = vi.fn<typeof fetch>(async (input) => {
-      const url = new URL(String(input));
-      if (url.pathname === "/oembed") return Response.json({ title: "Fixture video" });
-      if (url.pathname === "/watch") return new Response('var ytInitialPlayerResponse = {"playabilityStatus":{"status":"LOGIN_REQUIRED"}};');
-      return Response.json({ playabilityStatus: { status: "LOGIN_REQUIRED" } });
-    });
-    const result = await convertVideoUrlToMarkdown("https://youtu.be/dQw4w9WgXcQ", { youtubeFetch });
-    expect(result.video.transcript).toEqual([]);
-    expect(result.video.warnings[0]).toContain("登录或人机验证");
-    expect(parseVideoMarkdown(result.markdown)?.warnings).toEqual(result.video.warnings);
+  it("retains the Bilibili player when a subtitle reader is unavailable", async () => {
+    const result = await convertVideoUrlToMarkdown("https://www.bilibili.com/video/av170001?p=2");
+    expect(result.video).toMatchObject({ provider: "bilibili", videoId: "av170001", transcript: [], transcriptSource: "none" });
+    expect(result.video.embedUrl).toContain("aid=170001&p=2");
+    expect(parseVideoMarkdown(result.markdown)?.warnings).toHaveLength(1);
+    expect(result.download).toBeUndefined();
   });
 
-  it("does not follow a provider redirect to an untrusted host", async () => {
-    const youtubeFetch = vi.fn<typeof fetch>(async () => new Response(null, { status: 302, headers: { Location: "https://internal.example/private" } }));
-    const result = await convertVideoUrlToMarkdown("https://youtu.be/dQw4w9WgXcQ", { youtubeFetch });
-    expect(result.video.transcript).toEqual([]);
-    expect(youtubeFetch.mock.calls.every(([input]) => new URL(String(input)).hostname === "www.youtube.com")).toBe(true);
+  it("requires the configured downloader and never falls back to anonymous YouTube fetching", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network forbidden"));
+    try {
+      await expect(convertVideoUrlToMarkdown("https://youtu.be/dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-browser-required" });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally { fetchSpy.mockRestore(); }
+  });
+
+  it("normalizes the URL before downloading and returns the temporary video for adoption", async () => {
+    const cleanup = vi.fn();
+    const download = vi.fn().mockResolvedValue({
+      video: { provider: "youtube", videoId: "dQw4w9WgXcQ", sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Fixture", mediaType: "mp4", durationMs: 90_000, transcript: [], transcriptSource: "none", warnings: [] },
+      mediaPath: "/fixture/video.mp4", cleanup
+    });
+    const result = await convertVideoUrlToMarkdown("https://youtu.be/dQw4w9WgXcQ?list=ignored&t=5", { youtubeDownloader: { download }, preferredLanguage: "en" });
+    expect(download).toHaveBeenCalledWith("dQw4w9WgXcQ", "en");
+    expect(result.download?.mediaPath).toBe("/fixture/video.mp4");
+    expect(result.video.embedUrl).toBeUndefined();
+    expect(parseVideoMarkdown(result.markdown)?.durationMs).toBe(90_000);
+    expect(cleanup).not.toHaveBeenCalled();
   });
 
   it.each([

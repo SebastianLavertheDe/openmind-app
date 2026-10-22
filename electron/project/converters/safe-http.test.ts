@@ -11,6 +11,34 @@ afterEach(() => {
 });
 
 describe("safeHttpGet total deadline", () => {
+  it("preserves HEAD across redirects without treating the declared GET body size as downloaded bytes", async () => {
+    const methods: unknown[] = [];
+    vi.spyOn(http, "get").mockImplementation(((_url: unknown, options: http.RequestOptions, onResponse: (response: IncomingMessage) => void) => {
+      methods.push(options.method);
+      const response = fakeResponse(methods.length === 1 ? 302 : 200, { "content-length": "9999999", ...(methods.length === 1 ? { location: "/video" } : {}) });
+      queueMicrotask(() => { onResponse(response); response.end(); });
+      return new EventEmitter() as ClientRequest;
+    }) as typeof http.get);
+    const response = await safeHttpGet("http://example.com/share", { method: "HEAD", maxBytes: 1024, resolver: publicResolver });
+    expect(methods).toEqual(["HEAD", "HEAD"]);
+    expect(response.finalUrl).toBe("http://example.com/video");
+    expect(response.body.length).toBe(0);
+  });
+
+  it("validates redirect destinations before DNS resolution or issuing a request", async () => {
+    const resolver = vi.fn(publicResolver);
+    const get = vi.spyOn(http, "get").mockImplementation(((_url: unknown, _options: unknown, onResponse: (response: IncomingMessage) => void) => {
+      const response = fakeResponse(302, { location: "http://untrusted.example/video" });
+      queueMicrotask(() => { onResponse(response); response.end(); });
+      return new EventEmitter() as ClientRequest;
+    }) as typeof http.get);
+    await expect(safeHttpGet("http://example.com/share", { resolver, validateUrl: url => {
+      if (url.hostname !== "example.com") throw new Error("Untrusted redirect");
+    } })).rejects.toThrow("Untrusted redirect");
+    expect(resolver).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledOnce();
+  });
+
   it("times out a response that keeps dripping bytes without ever ending", async () => {
     vi.spyOn(http, "get").mockImplementation(((_url: unknown, _options: unknown, onResponse: (response: IncomingMessage) => void) => {
       const request = new EventEmitter() as ClientRequest;

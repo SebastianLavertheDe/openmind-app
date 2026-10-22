@@ -20,6 +20,7 @@ const electronMock = vi.hoisted(() => ({
   showItemInFolder: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined)
 }));
+const youtubeTools = vi.hoisted(() => ({ status: vi.fn(), checkUpdate: vi.fn(), install: vi.fn() }));
 vi.mock(import("electron"), async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -47,9 +48,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(133);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(133);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(133);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(136);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(136);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(136);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -95,6 +96,7 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
     ensureProjectService: () => project as never,
     ensureAiWorker: () => makeAiSpy() as never,
     ensureOpenmindFileSearch: () => ({ search: async () => [] }) as never,
+    ensureYoutubeToolsService: () => youtubeTools as never,
     ensureSkillPackageService: () => ({
       listInstalled: () => [],
       listInstalledViews: () => [],
@@ -116,6 +118,24 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
 }
 
 describe("ipc handlers", () => {
+  it("returns browser detection through typed IPC without exposing extra host data", async () => {
+    youtubeTools.status.mockResolvedValue({ browsers: [{ id: "firefox", name: "Firefox", profile: "/private/profile" }], downloaderAvailable: true, ffmpegAvailable: false, javascriptRuntimeAvailable: true, tools: [], cookie: "must-not-cross-ipc" });
+    expect(await invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.getYoutubeImportStatus)).toEqual({ browsers: [{ id: "firefox", name: "Firefox" }], downloaderAvailable: true, ffmpegAvailable: false, javascriptRuntimeAvailable: true, tools: [] });
+    youtubeTools.status.mockResolvedValue({ browsers: [{ id: "invalid", name: "Unknown" }], downloaderAvailable: true, ffmpegAvailable: true, javascriptRuntimeAvailable: true, tools: [] });
+    await expect(invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.getYoutubeImportStatus)).rejects.toThrow();
+  });
+  it("validates component IDs for install and update IPC, and strips executable paths", async () => {
+    const status = { id: "node", state: "ready", version: "24.8.0", source: "app", canInstall: true, operation: "idle", update: "current", latestVersion: "24.8.0" };
+    youtubeTools.install.mockResolvedValue({ ...status, executablePath: "/private/tools/node" });
+    youtubeTools.checkUpdate.mockResolvedValue({ ...status, executablePath: "/private/tools/node" });
+    for (const method of ["installYoutubeTool", "checkYoutubeToolUpdate"] as const) {
+      await expect(invokeHandler(makeCtx(), IPC_METHOD_CHANNELS[method], "node; unsafe")).rejects.toThrow();
+      await expect(invokeHandler(makeCtx(), IPC_METHOD_CHANNELS[method], { url: "https://evil.example/binary" })).rejects.toThrow();
+      expect(await invokeHandler(makeCtx(), IPC_METHOD_CHANNELS[method], "node")).toEqual(status);
+    }
+    expect(youtubeTools.install).toHaveBeenCalledExactlyOnceWith("node");
+    expect(youtubeTools.checkUpdate).toHaveBeenCalledExactlyOnceWith("node");
+  });
   it("validates WeChat credentials and drafts before forwarding to the main service", async () => {
     const service = { saveAccount: vi.fn(), pushDraft: vi.fn(), copyArticle: vi.fn() };
     const ctx = makeCtx({ ensureWechatService: () => service as never });

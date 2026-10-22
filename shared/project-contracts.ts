@@ -1,6 +1,7 @@
 import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
+import { parseProjectVideoMediaUrl } from "./youtube-import";
 import {
   AiRunSchema,
   AiSessionSchema,
@@ -171,6 +172,7 @@ export const ProjectVideoTranscriptSegmentSchema = z.object({
 export type ProjectVideoTranscriptSegment = z.infer<typeof ProjectVideoTranscriptSegmentSchema>;
 
 export const ProjectVideoReadMetadataSchema = z.object({
+  localMediaUrl: z.string().refine(value => Boolean(parseProjectVideoMediaUrl(value))).nullable().default(null),
   provider: z.string().min(1).max(80),
   sourceUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }),
   embedUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), { error: () => messages.validation.project.httpUrl }).nullable().default(null),

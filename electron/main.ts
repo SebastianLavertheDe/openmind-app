@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, net, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
+import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, protocol, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -10,6 +10,10 @@ import {
 import { ProductService } from "./product/product-service";
 import { ProjectService } from "./project/project-service";
 import { createDefaultProjectMaterialConverters } from "./project/converters/project-material-converters";
+import { BrowserYoutubeDownloader } from "./project/converters/youtube-downloader";
+import { BilibiliSubtitleImporter } from "./project/converters/bilibili-subtitles";
+import { createVideoMediaHandler } from "./project/video-media-protocol";
+import { PROJECT_MEDIA_SCHEME } from "../shared/youtube-import";
 import { registerYoutubeEmbedRequestPolicy } from "./project/youtube-embed-request";
 import { globalSearch } from "./product/global-search";
 import { OpenmindFileSearch } from "./openmind-file-search";
@@ -30,6 +34,7 @@ import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
 import { AppStateBackupService } from "./backup/app-state-backup";
 import { CliInstallerService } from "./install/cli-installer-service";
+import { YoutubeToolsService } from "./install/youtube-tools-service";
 import { SharedPythonRuntimeService } from "./runtime/shared-python-runtime";
 import { listInstalledPythonProjects } from "./runtime/installed-python-projects";
 import { IPC } from "../shared/ipc-channels";
@@ -38,6 +43,7 @@ import { WechatAccountStore } from "./wechat/wechat-account-store";
 import { WechatService } from "./wechat/wechat-service";
 
 const APP_ROOT = path.resolve(__dirname, "../../..");
+protocol.registerSchemesAsPrivileged([{ scheme: PROJECT_MEDIA_SCHEME, privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
 const PACKAGED_SMOKE_TEST = process.argv.includes("--packaged-smoke-test");
 const DESKTOP_E2E_TEST = process.argv.includes("--e2e-test");
 const e2eUserData = DESKTOP_E2E_TEST
@@ -76,6 +82,12 @@ let claudeAgentLinkEnsuredRoot: string | null = null;
 let sharedPythonRuntimeService: SharedPythonRuntimeService | null = null;
 
 let cliInstallerService: CliInstallerService | null = null;
+let youtubeToolsService: YoutubeToolsService | null = null;
+
+function ensureYoutubeToolsService(): YoutubeToolsService {
+  youtubeToolsService ||= new YoutubeToolsService(getAppPaths());
+  return youtubeToolsService;
+}
 
 function ensureCliInstallerService(): CliInstallerService {
   ensureAppPaths(getAppPaths());
@@ -248,7 +260,17 @@ function ensureProjectService(): ProjectService {
   if (!projectService || projectServiceRoot !== openmindRoot) {
     projectService = new ProjectService(openmindRoot, {
       stateRoot: resolveAiStateRoot(),
-      materialConverters: createDefaultProjectMaterialConverters({ video: { youtubeFetch: (input, init) => net.fetch(input instanceof URL ? input.toString() : input, init) } })
+      materialConverters: createDefaultProjectMaterialConverters({ video: {
+        youtubeDownloader: new BrowserYoutubeDownloader({
+          tempRoot: path.join(app.getPath("userData"), "tmp", "youtube-imports"),
+          getBrowser: () => settings.getPreferences().youtubeBrowser,
+          resolveTools: () => ensureYoutubeToolsService().resolveTools()
+        }),
+        bilibiliSubtitles: new BilibiliSubtitleImporter({
+          tempRoot: path.join(app.getPath("userData"), "tmp", "bilibili-subtitles"),
+          getYtDlp: () => ensureYoutubeToolsService().resolveTool("yt-dlp")
+        })
+      } })
     });
     projectServiceRoot = openmindRoot;
   }
@@ -422,6 +444,7 @@ function registerIpc(): void {
       ensureAiWorker,
       ensureOpenmindFileSearch,
       ensureCliInstallerService,
+      ensureYoutubeToolsService,
       ensureSkillPackageService,
       ensureSkillSourceService,
       ensureSharedPythonRuntimeService,
@@ -643,6 +666,7 @@ app.whenReady().then(() => {
   // any service reads or writes them. Idempotent.
   ensureAppPaths(getAppPaths());
   setLocale(settings.getPreferences().uiLanguage);
+  protocol.handle(PROJECT_MEDIA_SCHEME, createVideoMediaHandler((projectName, relativePath) => ensureProjectService().materials.resolveVideoFile(projectName, relativePath)));
   // The backup UI/IPC surface is retired, but a restore transaction created
   // by an older release may still need one final startup rollback.
   new AppStateBackupService(getAppPaths());

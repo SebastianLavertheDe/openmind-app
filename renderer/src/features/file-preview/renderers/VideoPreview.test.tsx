@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { VideoPreviewResource } from "../model";
 import { trustedYoutubeEmbedUrl, VideoPreview } from "./VideoPreview";
+import { projectVideoMediaUrl } from "@shared/youtube-import";
+import { bilibiliEmbedUrl } from "@shared/bilibili-video";
 
 function resource(embedUrl: string, videoId = "dQw4w9WgXcQ"): VideoPreviewResource {
   return {
@@ -35,6 +37,87 @@ describe("trustedYoutubeEmbedUrl", () => {
 });
 
 describe("VideoPreview", () => {
+  it("plays Bilibili in its trusted frame and seeks the selected part using timestamp URLs, including repeat clicks", () => {
+    const videoId = "BV1xx411c7mD";
+    const embedUrl = bilibiliEmbedUrl({ videoId, page: 2 });
+    const video: VideoPreviewResource = { ...resource(embedUrl), playback: { kind: "trusted-bilibili", embedUrl, videoId },
+      transcript: [{ id: "cue", startMs: 7250, endMs: 12000, text: "拼接字幕。" }] };
+    const { container, rerender } = render(<VideoPreview resource={video} onOpenExternal={vi.fn()} onRetryTranscript={vi.fn()} />);
+    const frame = screen.getByTitle("Video") as HTMLIFrameElement;
+    const postMessage = vi.spyOn(frame.contentWindow!, "postMessage");
+    expect(frame.src).toBe(embedUrl);
+    expect(container.querySelector("video")).toBeNull();
+    expect(screen.queryByRole("button", { name: "下载到本地播放" })).toBeNull();
+    fireEvent.load(frame);
+    expect(postMessage).not.toHaveBeenCalled();
+    // Bilibili does not use YouTube's message protocol.
+    act(() => window.dispatchEvent(new MessageEvent("message", { origin: "https://player.bilibili.com", source: frame.contentWindow,
+      data: JSON.stringify({ event: "infoDelivery", info: { currentTime: 8 } }) })));
+    expect(screen.getByText("拼接字幕。").closest(".project-transcript-row")?.classList.contains("active")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    const seekFrame = screen.getByTitle("Video") as HTMLIFrameElement;
+    expect(seekFrame).not.toBe(frame);
+    expect(seekFrame.src).toBe(bilibiliEmbedUrl({ videoId, page: 2 }, 7250));
+    expect(screen.getByText("拼接字幕。").closest(".project-transcript-row")?.classList.contains("active")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    expect(screen.getByTitle("Video")).not.toBe(seekFrame);
+    rerender(<VideoPreview resource={{ ...video, id: "another-material" }} />);
+    expect((screen.getByTitle("Video") as HTMLIFrameElement).src).toBe(embedUrl);
+    rerender(<VideoPreview resource={video} />);
+    expect((screen.getByTitle("Video") as HTMLIFrameElement).src).toBe(embedUrl);
+  });
+
+  it("allows retrying missing Bilibili subtitles and opening the original without offering a video download", () => {
+    const videoId = "BV1xx411c7mD";
+    const embedUrl = bilibiliEmbedUrl({ videoId, page: 1 });
+    const video: VideoPreviewResource = { ...resource(embedUrl), playback: { kind: "trusted-bilibili", embedUrl, videoId }, warnings: ["字幕需要登录"] };
+    const retry = vi.fn(); const external = vi.fn();
+    render(<VideoPreview resource={video} onRetryTranscript={retry} onOpenExternal={external} />);
+    expect(screen.getByText("字幕需要登录")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重新获取字幕" }));
+    fireEvent.click(screen.getByRole("button", { name: "浏览器打开" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(external).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "下载到本地播放" })).toBeNull();
+    expect(screen.getByText(/Bilibili 视频通过内嵌播放器在线播放/).textContent).toContain("若无法播放，请在浏览器打开原视频");
+  });
+
+  it.each(["https://evil.test/player.html", "https://player.bilibili.com/player.html?bvid=BV1xx411c7mD&p=1&autoplay=0&danmaku=0&cid=123"])("does not render an untrusted Bilibili frame: %s", embedUrl => {
+    const { container } = render(<VideoPreview resource={{ ...resource(embedUrl), playback: { kind: "trusted-bilibili", embedUrl, videoId: "BV1xx411c7mD" } }} />);
+    expect(container.querySelector("iframe")).toBeNull();
+  });
+
+  it("plays a local video and seeks/highlights its stitched transcript without a YouTube frame", () => {
+    const localUrl = projectVideoMediaUrl("Fixture", "materials/videos/test.video.md");
+    const video: VideoPreviewResource = {
+      ...resource("https://unused.invalid"), playback: { kind: "local-video", mediaUrl: localUrl },
+      transcript: [{ id: "cue", startMs: 7000, endMs: 12000, text: "Stitched sentence." }]
+    };
+    const { container } = render(<VideoPreview resource={video} />);
+    const player = screen.getByTitle("Video") as HTMLVideoElement;
+    expect(player.tagName).toBe("VIDEO");
+    expect(player.getAttribute("src")).toBe(localUrl);
+    expect(player.controls).toBe(true);
+    expect(container.querySelector("iframe")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    fireEvent.loadedMetadata(player);
+    expect(player.currentTime).toBe(7);
+    player.currentTime = 8;
+    fireEvent.timeUpdate(player);
+    expect(screen.getByText("Stitched sentence.").closest(".project-transcript-row")?.classList.contains("active")).toBe(true);
+    player.currentTime = 15;
+    fireEvent.timeUpdate(player);
+    expect(screen.getByText("Stitched sentence.").closest(".project-transcript-row")?.classList.contains("active")).toBe(false);
+    fireEvent.error(player);
+    expect(screen.getByRole("status").textContent).toContain("本地视频无法播放");
+  });
+
+  it("does not accept arbitrary file or remote URLs as local playback", () => {
+    const video: VideoPreviewResource = { ...resource("https://unused.invalid"), playback: { kind: "local-video", mediaUrl: "file:///private/video.mp4" } };
+    const { container } = render(<VideoPreview resource={video} />);
+    expect(container.querySelector("video")).toBeNull();
+  });
+
   it("offers browser playback for a YouTube embed and allows retrying missing captions", () => {
     const onOpenExternal = vi.fn();
     const onRetryTranscript = vi.fn();

@@ -1,4 +1,6 @@
 import { messages } from "@shared/messages";
+import { parseProjectVideoMediaUrl } from "@shared/youtube-import";
+import { bilibiliEmbedUrl, parseBilibiliVideoUrl } from "@shared/bilibili-video";
 import type { ContextReference, PermissionProfile } from "@shared/contracts";
 import type {
   ProjectDetail,
@@ -151,6 +153,7 @@ function video(value: unknown): ProjectVideo | undefined {
     durationMs: number(item.durationMs) || undefined,
     mediaType,
     embedUrl: optionalString(item.embedUrl),
+    localMediaUrl: typeof item.localMediaUrl === "string" && parseProjectVideoMediaUrl(item.localMediaUrl) ? item.localMediaUrl : undefined,
     mediaUrl: directMediaUrl(optionalString(item.mediaUrl || item.playbackUrl || item.sourceUrl), mediaType),
     posterUrl: optionalString(item.posterUrl || item.thumbnailUrl),
     transcript: rawTranscript.map(segment).filter((item): item is ProjectTranscriptSegment => Boolean(item)),
@@ -197,9 +200,11 @@ function material(value: unknown): ProjectMaterial {
 
 function videoFromMarkdown(content?: string, sourceUrl?: string): ProjectVideo | undefined {
   if (!content && !sourceUrl) return undefined;
+  const storedUrl = content?.match(/^-\s*URL[：:]\s*(.+)$/im)?.[1]?.trim() || sourceUrl;
+  const bilibili = storedUrl ? parseBilibiliVideoUrl(storedUrl) : null;
   const provider = content?.match(/^-\s*Provider[：:]\s*(.+)$/im)?.[1]?.trim()
-    || (sourceUrl && /(?:youtube\.com|youtu\.be)/i.test(sourceUrl) ? "youtube" : undefined);
-  const videoId = content?.match(/^-\s*Video ID[：:]\s*(.+)$/im)?.[1]?.trim() || youtubeVideoId(sourceUrl);
+    || (bilibili ? "bilibili" : sourceUrl && /(?:youtube\.com|youtu\.be)/i.test(sourceUrl) ? "youtube" : undefined);
+  const videoId = content?.match(/^-\s*Video ID[：:]\s*(.+)$/im)?.[1]?.trim() || bilibili?.videoId || youtubeVideoId(sourceUrl);
   const duration = content?.match(/^-\s*时长[：:]\s*([0-9:.]+)$/im)?.[1];
   const durationMs = duration ? colonTimeToMs(duration) : undefined;
   const mediaUrl = sourceUrl && /\.(?:mp4|webm|m3u8)(?:$|\?)/i.test(sourceUrl) ? sourceUrl : undefined;
@@ -210,7 +215,8 @@ function videoFromMarkdown(content?: string, sourceUrl?: string): ProjectVideo |
       : mediaUrl
         ? "mp4"
         : undefined;
-  return { provider, videoId, durationMs, mediaType, mediaUrl };
+  return { provider, videoId, durationMs, mediaType, mediaUrl,
+    embedUrl: provider === "bilibili" && bilibili && bilibili.videoId === videoId ? bilibiliEmbedUrl(bilibili) : undefined };
 }
 
 function youtubeVideoId(value?: string): string | undefined {

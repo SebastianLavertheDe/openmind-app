@@ -1,11 +1,55 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { projectsApi } from "./projects-api";
+import { projectVideoMediaUrl } from "@shared/youtube-import";
+import { projectMaterialVideoResource } from "./project-material-preview-source";
+import { bilibiliEmbedUrl } from "@shared/bilibili-video";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe("projectsApi", () => {
+  it("carries Bilibili captions and the selected part through IPC to iframe playback", async () => {
+    const videoId = "BV1xx411c7mD";
+    const sourceUrl = `https://www.bilibili.com/video/${videoId}?p=2`;
+    const embedUrl = bilibiliEmbedUrl({ videoId, page: 2 });
+    const value = {
+      material: { projectName: "Fixture", relativePath: "materials/videos/bilibili.video.md", kind: "video", status: "ready", title: "Fixture", source: { type: "url", url: sourceUrl } },
+      video: { provider: "bilibili", videoId, sourceUrl, embedUrl, localMediaUrl: projectVideoMediaUrl("Fixture", "materials/videos/bilibili.video.md"),
+        transcript: [{ startMs: 1000, endMs: 3000, text: "拼接字幕。" }] }
+    };
+    window.openmind = { readProjectMaterial: vi.fn().mockResolvedValue(value) } as never;
+    const preview = projectMaterialVideoResource(await projectsApi.readMaterial("Fixture", value.material.relativePath));
+    expect(preview.playback).toEqual({ kind: "trusted-bilibili", videoId, embedUrl });
+    expect(preview.transcript[0]).toMatchObject({ startMs: 1000, endMs: 3000, text: "拼接字幕。" });
+    value.video.embedUrl = "https://evil.test/player.html";
+    expect(projectMaterialVideoResource(await projectsApi.readMaterial("Fixture", value.material.relativePath)).playback.kind).toBe("external-only");
+  });
+
+  it("rebuilds Bilibili playback and captions from persisted Markdown when parsed IPC metadata is absent", async () => {
+    window.openmind = { readProjectMaterial: vi.fn().mockResolvedValue({
+      material: { projectName: "Fixture", relativePath: "materials/videos/bilibili.video.md", title: "Fixture", kind: "video", status: "ready", source: { type: "url", url: "https://b23.tv/Ab12CD" } },
+      content: "# Fixture\n\n- Provider：bilibili\n- URL：https://www.bilibili.com/video/BV1xx411c7mD?p=3\n- Video ID：BV1xx411c7mD\n\n## 字幕\n\n[00:01.250–00:05.000] 拼接字幕。"
+    }) } as never;
+    const preview = projectMaterialVideoResource(await projectsApi.readMaterial("Fixture", "materials/videos/bilibili.video.md"));
+    expect(preview.playback).toEqual({ kind: "trusted-bilibili", videoId: "BV1xx411c7mD", embedUrl: bilibiliEmbedUrl({ videoId: "BV1xx411c7mD", page: 3 }) });
+    expect(preview.transcript[0]).toMatchObject({ startMs: 1250, endMs: 5000, text: "拼接字幕。" });
+  });
+
+  it("carries the validated local video URL through IPC normalization and gives it playback priority", async () => {
+    const localMediaUrl = projectVideoMediaUrl("Fixture", "materials/videos/talk.video.md");
+    const value = {
+      material: { projectName: "Fixture", relativePath: "materials/videos/talk.video.md", kind: "video", status: "ready", title: "Fixture", source: { type: "url", url: "https://youtu.be/dQw4w9WgXcQ" } },
+      video: { provider: "youtube", videoId: "dQw4w9WgXcQ", embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1", localMediaUrl, transcript: [] }
+    };
+    const read = vi.fn().mockResolvedValue(value);
+    window.openmind = { readProjectMaterial: read } as never;
+    const material = await projectsApi.readMaterial("Fixture", value.material.relativePath);
+    expect(projectMaterialVideoResource(material).playback).toEqual({ kind: "local-video", mediaUrl: localMediaUrl });
+    value.video.localMediaUrl = "file:///private/video.mp4";
+    expect((await projectsApi.readMaterial("Fixture", value.material.relativePath)).video?.localMediaUrl).toBeUndefined();
+  });
+
   it("normalizes Project detail, material read and output read envelopes", async () => {
     window.openmind = {
       getProject: vi.fn(async () => ({ project: { schemaVersion: 1, name: "AI 安全", description: "研究", status: "active", materialCount: 1, taskCount: 2, outputCount: 3, createdAt: "2026-08-30T00:00:00.000Z", updatedAt: "2026-08-31T00:00:00.000Z" } })),

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isBilibiliVideoUrl } from "../../../shared/bilibili-video";
 import type {
   ProjectMaterialConversionSource,
   ProjectMaterialConverter,
@@ -58,7 +59,7 @@ export class VideoProjectMaterialConverter implements ProjectMaterialConverter {
   constructor(private readonly options: VideoConversionOptions = {}) {}
 
   supports(source: ProjectMaterialConversionSource): boolean {
-    return source.type === "url" && Boolean(extractYoutubeVideoId(source.url) || isDirectVideoUrl(source.url));
+    return source.type === "url" && Boolean(extractYoutubeVideoId(source.url) || isBilibiliVideoUrl(source.url) || isDirectVideoUrl(source.url));
   }
 
   target(source: ProjectMaterialConversionSource): ProjectMaterialConversionTarget {
@@ -74,7 +75,8 @@ export class VideoProjectMaterialConverter implements ProjectMaterialConverter {
   async convert(request: Parameters<ProjectMaterialConverter["convert"]>[0]) {
     if (request.source.type !== "url") throw new Error("视频转换器缺少 URL");
     const result = await convertVideoUrlToMarkdown(request.source.url, this.options);
-    return { content: result.markdown, mimeType: "text/markdown", title: result.video.title };
+    return { content: result.markdown, mimeType: "text/markdown", title: result.video.title,
+      downloadedVideoPath: result.download?.mediaPath, cleanup: result.download?.cleanup };
   }
 }
 
@@ -82,7 +84,7 @@ export class WebProjectMaterialConverter implements ProjectMaterialConverter {
   readonly id = "project-web-markdown-v1";
 
   supports(source: ProjectMaterialConversionSource): boolean {
-    return source.type === "url" && !extractYoutubeVideoId(source.url) && !isDirectVideoUrl(source.url);
+    return source.type === "url" && !extractYoutubeVideoId(source.url) && !isBilibiliVideoUrl(source.url) && !isDirectVideoUrl(source.url);
   }
 
   target(source: ProjectMaterialConversionSource): ProjectMaterialConversionTarget {

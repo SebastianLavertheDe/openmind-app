@@ -42,7 +42,7 @@ const defaultPrefs: UserPreferences = {
   uiLanguage: "zh-CN",
   density: "default", fontSize: "default", autoSaveIntervalMs: 30000, maxVersions: 50,
   archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
-  markReadOnOpen: true, defaultProvider: "",
+  markReadOnOpen: true, defaultProvider: "", youtubeBrowser: "",
   defaultPermissionProfile: "edit",
   notesDir: "openmind", destructiveOpsRequireApproval: true,
   riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
@@ -78,6 +78,7 @@ const archivedSnapshot: AiSnapshot = { ...snapshot, sessions: [archivedSession] 
 function makeApi(overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
     getPreferences: async () => defaultPrefs,
+    getYoutubeImportStatus: async () => ({ browsers: [], downloaderAvailable: false, ffmpegAvailable: false, javascriptRuntimeAvailable: false, tools: [] }),
     updatePreferences: async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }),
     resetPreferences: async () => defaultPrefs,
     getBrowserSkillStatus: async () => ({ skillInstalled: false, skillEnabled: false, cliAvailable: false, cliVersion: null, browserConnected: false, ready: false, diagnostic: "请安装 BrowserSkill。" }),

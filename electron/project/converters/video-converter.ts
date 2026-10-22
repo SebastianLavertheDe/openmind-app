@@ -1,8 +1,11 @@
 import path from "node:path";
-import { YoutubeTranscript, YoutubeTranscriptDisabledError, type TranscriptResponse } from "youtube-transcript";
+import { messages } from "../../../shared/messages";
+import { bilibiliEmbedUrl, isBilibiliVideoUrl, parseBilibiliVideoUrl } from "../../../shared/bilibili-video";
+import { bilibiliDescriptor, type BilibiliSubtitleReader } from "./bilibili-subtitles";
+import type { YoutubeDownload, YoutubeDownloader } from "./youtube-downloader";
 import { parsePublicHttpUrl, resolvePublicUrl, type AddressResolver } from "./public-url";
 
-export type VideoProvider = "youtube" | "direct";
+export type VideoProvider = "youtube" | "bilibili" | "direct";
 export type DirectVideoType = "mp4" | "webm" | "hls";
 
 export type VideoTranscriptCue = {
@@ -33,36 +36,11 @@ export type VideoConversionOptions = {
   resolver?: AddressResolver;
   preferredLanguage?: string;
   localTranscriber?: LocalVideoTranscriber;
-  youtubeFetch?: typeof globalThis.fetch;
+  youtubeDownloader?: YoutubeDownloader;
+  bilibiliSubtitles?: BilibiliSubtitleReader;
 };
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-const YOUTUBE_FETCH_HOSTS = ["youtube.com", "youtube-nocookie.com", "googlevideo.com", "youtu.be"];
-
-function isAllowedYoutubeFetchHost(hostname: string): boolean {
-  const value = hostname.toLowerCase();
-  return YOUTUBE_FETCH_HOSTS.some((host) => value === host || value.endsWith(`.${host}`));
-}
-
-async function youtubeProviderFetch(input: string | URL | Request, init?: RequestInit, request: typeof globalThis.fetch = fetch): Promise<Response> {
-  let current = typeof input === "string" || input instanceof URL ? new URL(input.toString()) : new URL(input.url);
-  for (let redirects = 0; redirects <= 3; redirects += 1) {
-    if (current.protocol !== "https:" || current.port || current.username || current.password || !isAllowedYoutubeFetchHost(current.hostname)) {
-      throw new Error("字幕服务返回了不受信任的地址");
-    }
-    const response = await request(current, {
-      ...init,
-      redirect: "manual",
-      signal: init?.signal ?? AbortSignal.timeout(20_000)
-    });
-    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
-    const location = response.headers.get("location");
-    if (!location || redirects === 3) throw new Error("字幕服务重定向次数过多");
-    current = new URL(location, current);
-  }
-  throw new Error("字幕服务重定向次数过多");
-}
-
 export function extractYoutubeVideoId(input: string): string | null {
   const trimmed = input.trim();
   if (YOUTUBE_ID.test(trimmed)) return trimmed;
@@ -99,95 +77,12 @@ function cleanLine(input: string): string {
   return input.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function transcriptResponseToCues(transcript: TranscriptResponse[]): VideoTranscriptCue[] {
-  return transcript
-    .map((cue) => ({
-      startMs: Math.max(0, Math.round(cue.offset)),
-      endMs: Math.max(0, Math.round(cue.offset + cue.duration)),
-      text: cleanLine(cue.text)
-    }))
-    .filter((cue) => cue.text && cue.endMs >= cue.startMs);
-}
-
 function directVideoType(url: URL): DirectVideoType | null {
   const extension = path.extname(url.pathname).toLowerCase();
   if (extension === ".mp4") return "mp4";
   if (extension === ".webm") return "webm";
   if (extension === ".m3u8") return "hls";
   return null;
-}
-
-async function getYoutubeMetadata(videoId: string, request?: typeof globalThis.fetch): Promise<Pick<ProjectVideoDescriptor, "title" | "thumbnailUrl">> {
-  const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  try {
-    const response = await youtubeProviderFetch(
-      `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(canonicalUrl)}`,
-      { signal: AbortSignal.timeout(10_000) }, request
-    );
-    if (!response.ok) throw new Error(`YouTube HTTP ${response.status}`);
-    const body = await response.text();
-    if (body.length > 256 * 1024) throw new Error("视频信息过大");
-    const value = JSON.parse(body) as { title?: unknown; thumbnail_url?: unknown };
-    return {
-      title: cleanLine(typeof value.title === "string" ? value.title : "") || `YouTube ${videoId}`,
-      thumbnailUrl: typeof value.thumbnail_url === "string" ? value.thumbnail_url : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-    };
-  } catch {
-    return { title: `YouTube ${videoId}`, thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` };
-  }
-}
-
-async function createYoutubeDescriptor(videoId: string, options: VideoConversionOptions): Promise<ProjectVideoDescriptor> {
-  const sourceUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const metadata = await getYoutubeMetadata(videoId, options.youtubeFetch);
-  const warnings: string[] = [];
-  let transcript: VideoTranscriptCue[] = [];
-  let transcriptIssue = "";
-  try {
-    transcript = transcriptResponseToCues(await YoutubeTranscript.fetchTranscript(videoId, {
-      ...(options.preferredLanguage ? { lang: options.preferredLanguage } : {}),
-      fetch: async (input, init) => {
-        const response = await youtubeProviderFetch(input, init, options.youtubeFetch);
-        if ([403, 429].includes(response.status)) {
-          transcriptIssue = "YouTube 限制了当前字幕请求，请稍后重试；原视频可在已登录的浏览器中打开。";
-        } else if (!response.ok) {
-          transcriptIssue = `字幕请求失败（HTTP ${response.status}），请检查网络或稍后重试。`;
-        }
-        const url = typeof input === "string" || input instanceof URL ? new URL(input.toString()) : new URL(input.url);
-        if (url.pathname === "/watch" && response.ok) {
-          transcriptIssue = "";
-          const page = await response.clone().text();
-          if (/LOGIN_REQUIRED|sign in to confirm|class="g-recaptcha"/i.test(page)) {
-            transcriptIssue = "YouTube 要求登录或人机验证，当前未能获取字幕；原视频可在已登录的浏览器中打开。";
-          }
-        }
-        return response;
-      }
-    }));
-    if (!transcript.length) warnings.push(transcriptIssue || "YouTube 返回了空字幕，请稍后重新获取。");
-  } catch (error) {
-    warnings.push(transcriptIssue || (error instanceof YoutubeTranscriptDisabledError
-      ? "YouTube 未向当前请求提供字幕，可能与登录验证或视频未公开字幕有关。可以稍后重试。"
-      : error instanceof Error ? `字幕获取失败：${error.message}` : "字幕获取失败，请检查网络后重试。"));
-  }
-  let transcriptSource: ProjectVideoDescriptor["transcriptSource"] = transcript.length > 0 ? "platform" : "none";
-  if (transcript.length === 0 && options.localTranscriber) {
-    transcript = await options.localTranscriber.transcribe({ sourceUrl, provider: "youtube", videoId });
-    transcriptSource = transcript.length > 0 ? "local" : "none";
-  }
-  const durationMs = transcript.reduce((maximum, cue) => Math.max(maximum, cue.endMs), 0) || undefined;
-  return {
-    provider: "youtube",
-    sourceUrl,
-    embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1`,
-    videoId,
-    title: metadata.title,
-    thumbnailUrl: metadata.thumbnailUrl,
-    durationMs,
-    transcript,
-    transcriptSource,
-    warnings
-  };
 }
 
 async function createDirectDescriptor(input: string, options: VideoConversionOptions): Promise<ProjectVideoDescriptor> {
@@ -246,7 +141,7 @@ export function parseVideoMarkdown(markdown: string): ProjectVideoDescriptor | n
   const title = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const provider = markdown.match(/^- Provider：(.+)$/m)?.[1]?.trim();
   const sourceUrl = markdown.match(/^- URL：(.+)$/m)?.[1]?.trim();
-  if (!title || !sourceUrl || (provider !== "youtube" && provider !== "direct")) return null;
+  if (!title || !sourceUrl || !["youtube", "bilibili", "direct"].includes(provider ?? "")) return null;
   const videoId = markdown.match(/^- Video ID：(.+)$/m)?.[1]?.trim();
   const mediaTypeValue = markdown.match(/^- Media Type：(.+)$/m)?.[1]?.trim();
   const mediaType = mediaTypeValue && ["mp4", "webm", "hls"].includes(mediaTypeValue)
@@ -264,11 +159,14 @@ export function parseVideoMarkdown(markdown: string): ProjectVideoDescriptor | n
     const endMs = parseTimestamp(match[2]);
     if (startMs !== null && endMs !== null) transcript.push({ startMs, endMs, text: match[3].trim() });
   }
-  const durationMs = transcript.reduce((maximum, cue) => Math.max(maximum, cue.endMs), 0) || undefined;
+  const storedDuration = markdown.match(/^- 时长：(.+)$/m)?.[1];
+  const durationMs = (storedDuration ? parseTimestamp(storedDuration) : null) ?? (transcript.reduce((maximum, cue) => Math.max(maximum, cue.endMs), 0) || undefined);
+  const bilibili = provider === "bilibili" ? parseBilibiliVideoUrl(sourceUrl) : null;
   return {
-    provider,
+    provider: provider as VideoProvider,
     sourceUrl,
-    embedUrl: provider === "youtube" && videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1` : undefined,
+    embedUrl: provider === "youtube" && videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1`
+      : bilibili && bilibili.videoId === videoId ? bilibiliEmbedUrl(bilibili) : undefined,
     videoId,
     mediaType,
     title,
@@ -284,10 +182,21 @@ export function parseVideoMarkdown(markdown: string): ProjectVideoDescriptor | n
 export async function convertVideoUrlToMarkdown(
   input: string,
   options: VideoConversionOptions = {}
-): Promise<{ video: ProjectVideoDescriptor; markdown: string }> {
+): Promise<{ video: ProjectVideoDescriptor; markdown: string; download?: YoutubeDownload }> {
+  if (isBilibiliVideoUrl(input)) {
+    const reference = parseBilibiliVideoUrl(input);
+    if (!options.bilibiliSubtitles && !reference) throw new Error(messages.desktopErrors.bilibili.shortUrlFailed);
+    const video = options.bilibiliSubtitles ? await options.bilibiliSubtitles.read(input, options.preferredLanguage)
+      : bilibiliDescriptor(reference!, messages.desktopErrors.bilibili.toolsMissing);
+    return { video, markdown: videoDescriptorToMarkdown(video) };
+  }
   const youtubeId = extractYoutubeVideoId(input);
-  const video = youtubeId
-    ? await createYoutubeDescriptor(youtubeId, options)
-    : await createDirectDescriptor(input, options);
+  if (youtubeId) {
+    if (!options.youtubeDownloader) throw Object.assign(new Error(messages.desktopErrors.youtube.selectBrowser), { code: "youtube-browser-required" });
+    const download = await options.youtubeDownloader.download(youtubeId, options.preferredLanguage);
+    try { return { video: download.video, markdown: videoDescriptorToMarkdown(download.video), download }; }
+    catch (error) { download.cleanup(); throw error; }
+  }
+  const video = await createDirectDescriptor(input, options);
   return { video, markdown: videoDescriptorToMarkdown(video) };
 }

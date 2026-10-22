@@ -15,12 +15,14 @@ import type {
   UserPreferences
 } from "@shared/contracts";
 import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
+import { YOUTUBE_TOOLS, type YoutubeToolId, type YoutubeToolStatus } from "@shared/youtube-import";
 import type { AutomationRule } from "@shared/contracts";
 import type { ProjectDetail, ProjectMaterial, ProjectOutput, ProjectOutputRead, ProjectSummary, ProjectTask, ProjectTaskMessage, ProjectVideoReadMetadata } from "@shared/project-contracts";
 
 export function installBrowserPreviewApi(): boolean {
   if (window.openmind) return true;
   if (isElectronRenderer()) return false;
+  const youtubeToolPreview = (id: YoutubeToolId): YoutubeToolStatus => ({ id, state: "missing", version: null, source: null, canInstall: false, operation: "idle", update: "unchecked", latestVersion: null });
   const previewProjectRoot = "/fixtures/openmind-data";
   // The selected private repository is the content root itself. Keep the
   // preview contract identical to desktop: there is no nested `openmind/`.
@@ -147,6 +149,7 @@ export function installBrowserPreviewApi(): boolean {
     contentPreviewMode: "sidebar" as const,
     markReadOnOpen: true,
     defaultProvider: "",
+    youtubeBrowser: "",
     defaultPermissionProfile: "auto" as const,
     notesDir: "openmind",
     destructiveOpsRequireApproval: true,
@@ -299,6 +302,7 @@ export function installBrowserPreviewApi(): boolean {
     ["materials/videos/Steve-Jobs-keynote.video.md", "# Steve Jobs MacWorld keynote\n\n## 元数据\n\n- 类型：video\n- Provider：youtube\n- URL：https://www.youtube.com/watch?v=MnrJzXM7a6o\n- Video ID：MnrJzXM7a6o\n- 时长：01:20:15\n\n## 字幕\n\n[00:07.000–00:18.000] this is a day I've been looking forward to for two and a half years\n\n[00:19.000–00:25.000] every once in a while a revolutionary product comes along\n\n[00:26.000–00:34.000] today Apple is going to reinvent the phone"]
   ]);
   const previewProjectVideo: ProjectVideoReadMetadata = {
+    localMediaUrl: null,
     provider: "youtube",
     sourceUrl: "https://www.youtube.com/watch?v=MnrJzXM7a6o",
     embedUrl: "https://www.youtube-nocookie.com/embed/MnrJzXM7a6o?enablejsapi=1",
@@ -704,6 +708,9 @@ export function installBrowserPreviewApi(): boolean {
     }),
     selectWorkspaceRoot: async () => snapshot.projectRoot,
     getPreferences: async () => preferences,
+    getYoutubeImportStatus: async () => ({ browsers: [], downloaderAvailable: false, ffmpegAvailable: false, javascriptRuntimeAvailable: false, tools: YOUTUBE_TOOLS.map(youtubeToolPreview) }),
+    checkYoutubeToolUpdate: async (id) => youtubeToolPreview(id),
+    installYoutubeTool: async (id) => youtubeToolPreview(id),
     updatePreferences: async (patch) => { preferences = { ...preferences, ...patch }; return preferences; },
     getOnboardingState: async () => onboardingState,
     updateOnboardingState: async (patch) => { onboardingState = { ...onboardingState, ...patch }; return onboardingState; },

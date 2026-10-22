@@ -5,6 +5,8 @@ import { ExternalLink, RefreshCw, Video } from "lucide-react";
 import { EmptyState } from "../../../design-system/components";
 import { useContainerLayoutMode } from "../../../design-system/use-container-layout-mode";
 import type { VideoPreviewResource } from "../model";
+import { parseProjectVideoMediaUrl } from "@shared/youtube-import";
+import { bilibiliEmbedUrl, parseTrustedBilibiliEmbed } from "@shared/bilibili-video";
 
 export const VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE = 720;
 
@@ -16,14 +18,24 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
 }) {
   const locale = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pendingSeek = useRef<number | null>(null);
   const layout = useContainerLayoutMode<HTMLDivElement>({ splitMinInlineSize: VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE });
   const [currentMs, setCurrentMs] = useState(0);
   const [playerError, setPlayerError] = useState(false);
-  const embedUrl = trustedYoutubeEmbedUrl(resource);
+  const youtubeUrl = trustedYoutubeEmbedUrl(resource);
+  const bilibili = resource.playback.kind === "trusted-bilibili" ? parseTrustedBilibiliEmbed(resource.playback.embedUrl, resource.playback.videoId) : null;
+  const embedUrl = youtubeUrl || (bilibili ? bilibiliEmbedUrl(bilibili) : undefined);
+  const [bilibiliSeek, setBilibiliSeek] = useState<{ resourceId: string; embedUrl: string; milliseconds: number; revision: number } | null>(null);
+  const selectedSeek = bilibiliSeek?.resourceId === resource.id && bilibiliSeek.embedUrl === embedUrl ? bilibiliSeek : null;
+  const frameUrl = bilibili && selectedSeek ? bilibiliEmbedUrl(bilibili, selectedSeek.milliseconds) : embedUrl;
+  const localUrl = resource.playback.kind === "local-video" && parseProjectVideoMediaUrl(resource.playback.mediaUrl) ? resource.playback.mediaUrl : undefined;
   const embedOrigin = useMemo(() => {
-    if (!embedUrl) return null;
-    try { return new URL(embedUrl).origin; } catch { return null; }
-  }, [embedUrl, locale]);
+    if (!youtubeUrl) return null;
+    try { return new URL(youtubeUrl).origin; } catch { return null; }
+  }, [youtubeUrl, locale]);
+
+  useEffect(() => { setCurrentMs(0); setPlayerError(false); setBilibiliSeek(null); pendingSeek.current = null; }, [resource.id, localUrl, embedUrl]);
 
   useEffect(() => {
     if (!embedOrigin) return;
@@ -55,6 +67,18 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
 
   const seek = (milliseconds: number) => {
     setCurrentMs(milliseconds);
+    if (bilibili && embedUrl) {
+      // Bilibili documents an initial-time URL parameter, not YouTube's
+      // postMessage protocol. Reload the owned frame, including repeat seeks.
+      setBilibiliSeek(previous => ({ resourceId: resource.id, embedUrl, milliseconds, revision: (previous?.revision ?? 0) + 1 }));
+    }
+    if (videoRef.current) {
+      pendingSeek.current = milliseconds / 1000;
+      if (videoRef.current.readyState >= 1) {
+        videoRef.current.currentTime = pendingSeek.current;
+        pendingSeek.current = null;
+      }
+    }
     if (frameRef.current?.contentWindow && embedOrigin) {
       frameRef.current.contentWindow.postMessage(JSON.stringify({
         event: "command",
@@ -69,11 +93,19 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
       <div className="project-video-detail">
         <div className="project-video-media-column">
           <section className="project-video-player">
-            {embedUrl ? (
+            {localUrl ? (
+              <video key={localUrl} ref={videoRef} src={localUrl} title={resource.title} controls preload="metadata"
+                onTimeUpdate={event => setCurrentMs(event.currentTarget.currentTime * 1000)}
+                onLoadedMetadata={event => {
+                  if (pendingSeek.current !== null) { event.currentTarget.currentTime = pendingSeek.current; pendingSeek.current = null; }
+                }}
+                onError={() => setPlayerError(true)} />
+            ) : embedUrl ? (
               <iframe
+                key={bilibili ? `${resource.id}:${embedUrl}:${selectedSeek?.revision ?? 0}` : undefined}
                 ref={frameRef}
                 title={resource.title}
-                src={embedUrl}
+                src={frameUrl}
                 onLoad={connectEmbeddedPlayer}
                 referrerPolicy="strict-origin-when-cross-origin"
                 sandbox="allow-scripts allow-same-origin allow-presentation"
@@ -89,9 +121,15 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
               </div>
             )}
           </section>
+          {localUrl && playerError ? <div className="project-video-playback-help" role="status">
+            <p>{uiMessages.interface.videoLocalPlaybackFailed}</p>
+            {onOpenExternal ? <button type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button> : null}
+          </div> : null}
           {embedUrl && onOpenExternal ? <div className="project-video-playback-help" role={playerError ? "status" : undefined}>
-            <p>{playerError ? uiMessages.interface.youtubePlaybackFailed : uiMessages.interface.youtubePlaybackHint}</p>
+            <p>{bilibili ? uiMessages.interface.bilibiliPlaybackHint
+              : playerError ? uiMessages.interface.youtubePlaybackFailed : uiMessages.interface.youtubePlaybackHint}</p>
             <button type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</button>
+            {youtubeUrl && onRetryTranscript ? <button type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} />{retryingTranscript ? uiMessages.interface.downloadingVideo : uiMessages.interface.downloadVideo}</button> : null}
           </div> : null}
         </div>
         <div className="project-video-inspector-column">

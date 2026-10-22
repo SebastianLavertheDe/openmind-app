@@ -37,6 +37,7 @@ export type ProjectVideo = {
   mediaType?: "mp4" | "webm" | "hls";
   embedUrl?: string;
   mediaUrl?: string;
+  localMediaUrl?: string;
   posterUrl?: string;
   transcript?: ProjectTranscriptSegment[];
   warnings?: string[];

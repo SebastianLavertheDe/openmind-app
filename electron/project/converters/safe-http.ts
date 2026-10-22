@@ -21,6 +21,8 @@ export type SafeHttpOptions = {
   maxBytes?: number;
   timeoutMs?: number;
   accept?: string;
+  method?: "GET" | "HEAD";
+  validateUrl?: (url: URL) => void;
 };
 
 function createPinnedLookup(addresses: ResolvedAddress[]): LookupFunction {
@@ -61,6 +63,7 @@ async function beforeDeadline<T>(operation: Promise<T>, deadline: number): Promi
 }
 
 async function requestOnce(urlInput: string, options: SafeHttpOptions, deadline: number): Promise<SafeHttpResponse> {
+  options.validateUrl?.(new URL(urlInput));
   const { url, addresses } = await beforeDeadline(resolvePublicUrl(urlInput, options.resolver), deadline);
   const maxBytes = options.maxBytes ?? MAX_RESPONSE_BYTES;
   const transport = url.protocol === "https:" ? https : http;
@@ -87,6 +90,7 @@ async function requestOnce(urlInput: string, options: SafeHttpOptions, deadline:
 
     try {
       request = transport.get(url, {
+        method: options.method ?? "GET",
         lookup: createPinnedLookup(addresses),
         headers: {
           accept: options.accept ?? "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
@@ -96,7 +100,8 @@ async function requestOnce(urlInput: string, options: SafeHttpOptions, deadline:
       }, (incoming) => {
         response = incoming;
         const declaredLength = Number(incoming.headers["content-length"] ?? 0);
-        if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        // A HEAD response describes the GET body size but does not transfer it.
+        if (options.method !== "HEAD" && Number.isFinite(declaredLength) && declaredLength > maxBytes) {
           const error = new Error(`下载内容超过 ${Math.floor(maxBytes / 1024 / 1024)} MB 限制`);
           finish(error);
           incoming.destroy(error);

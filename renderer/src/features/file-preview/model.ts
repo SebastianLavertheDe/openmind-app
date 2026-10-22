@@ -9,6 +9,8 @@ export type PreviewTranscriptSegment = {
 };
 
 export type VideoPlayback =
+  | { kind: "local-video"; mediaUrl: string }
+  | { kind: "trusted-bilibili"; embedUrl: string; videoId: string }
   | {
       kind: "trusted-youtube";
       embedUrl: string;

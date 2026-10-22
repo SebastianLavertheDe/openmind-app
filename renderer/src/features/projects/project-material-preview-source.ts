@@ -1,4 +1,6 @@
 import { messages } from "@shared/messages";
+import { parseProjectVideoMediaUrl } from "@shared/youtube-import";
+import { bilibiliEmbedUrl, parseTrustedBilibiliEmbed } from "@shared/bilibili-video";
 import type { ContentRecord } from "@shared/contracts";
 import {
   documentPreviewResource,
@@ -79,7 +81,10 @@ export function projectMaterialPreviewResource(material: ProjectMaterial, logica
 export function projectMaterialVideoResource(material: ProjectMaterial, logicalPath = material.relativePath): VideoPreviewResource {
   const video = material.video;
   const trustedYoutube = trustedYoutubeDescriptor(video?.provider, video?.embedUrl, video?.videoId);
-  const playback: VideoPlayback = trustedYoutube
+  const bilibili = video?.provider === "bilibili" && video.embedUrl && video.videoId ? parseTrustedBilibiliEmbed(video.embedUrl, video.videoId) : null;
+  const localMediaUrl = video?.localMediaUrl && parseProjectVideoMediaUrl(video.localMediaUrl) ? video.localMediaUrl : undefined;
+  const playback: VideoPlayback = bilibili ? { kind: "trusted-bilibili", embedUrl: bilibiliEmbedUrl(bilibili), videoId: bilibili.videoId }
+    : localMediaUrl && video?.provider !== "bilibili" ? { kind: "local-video", mediaUrl: localMediaUrl } : trustedYoutube
     ? { kind: "trusted-youtube", ...trustedYoutube }
     : { kind: "external-only", sourceUrl: projectMaterialExternalUrl(material) };
   const transcript = video?.transcript?.length

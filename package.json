@@ -170,7 +170,6 @@
     "remark-rehype": "^11.1.2",
     "turndown": "^7.2.4",
     "unified": "^11.0.5",
-    "youtube-transcript": "^1.3.1",
     "zod": "^4.4.3"
   }
 }

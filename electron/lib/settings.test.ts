@@ -135,6 +135,29 @@ describe("settings path handling", () => {
     expect(getPreferences().uiLanguage).toBe("zh-CN");
   });
 
+  it("keeps YouTube browser selection opt-in, persists it, and rejects arbitrary profile or shell values", () => {
+    saveSettings({ defaultLanguage: "zh-CN" });
+    expect(getPreferences().youtubeBrowser).toBe("");
+    updatePreferences({ youtubeBrowser: "firefox" });
+    expect(getPreferences().youtubeBrowser).toBe("firefox");
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).youtubeBrowser).toBe("firefox");
+    expect(() => updatePreferences({ youtubeBrowser: "chrome:/private/profile" as "chrome" })).toThrow();
+    expect(getPreferences().youtubeBrowser).toBe("firefox");
+    updatePreferences({ youtubeBrowser: "" });
+    expect(getPreferences().youtubeBrowser).toBe("");
+    saveSettings({ youtubeBrowser: "unrecognized-legacy-browser" });
+    expect(getPreferences().youtubeBrowser).toBe("");
+  });
+
+  it("ignores retired Bilibili browser preferences without changing the YouTube selection", () => {
+    saveSettings({ youtubeBrowser: "chrome", bilibiliBrowser: "firefox" });
+    expect(getPreferences().youtubeBrowser).toBe("chrome");
+    expect(getPreferences()).not.toHaveProperty("bilibiliBrowser");
+    updatePreferences({ youtubeBrowser: "firefox" });
+    expect(getPreferences().youtubeBrowser).toBe("firefox");
+    expect(getPreferences()).not.toHaveProperty("bilibiliBrowser");
+  });
+
   it("preferences API surfaces are callable and return valid defaults", () => {
     const prefs = getPreferences();
     expect(prefs.themeMode).toBe("light");

@@ -16,6 +16,7 @@ import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { IMAGE_PROVIDERS } from "@shared/image-generation";
 import { ProviderImageCapability, defaultImageCapability } from "./ProviderImageCapability";
+import { YOUTUBE_TOOL_INSTALL_GUIDES, YoutubeBrowserPreferenceSchema, type YoutubeImportStatus, type YoutubeToolId, type YoutubeToolStatus } from "@shared/youtube-import";
 
 const m = messages;
 
@@ -621,6 +622,119 @@ export function PermissionSettingsSection({ prefs, save }: { prefs: UserPreferen
       </PreferenceRow>
     </SettingsPanel>
   );
+}
+
+export function YoutubeImportSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
+  useLocale();
+  const [status, setStatus] = useState<YoutubeImportStatus | null>(null);
+  const [detecting, setDetecting] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [action, setAction] = useState<{ id: YoutubeToolId; kind: "checking" | "installing" } | null>(null);
+  const [toolError, setToolError] = useState<{ id: YoutubeToolId; kind: "checkFailed" | "installFailed" | "downgradeRefused" } | null>(null);
+  const mounted = useRef(false);
+  const actionPending = useRef(false);
+  const request = useRef(0);
+  const copy = m.settings.youtubeImport;
+  const refresh = async () => {
+    const current = ++request.current;
+    setDetecting(true);
+    setFailed(false);
+    try {
+      const next = await window.openmind.getYoutubeImportStatus();
+      if (current === request.current) setStatus(next);
+    } catch { if (current === request.current) { setStatus(null); setFailed(true); } }
+    finally { if (current === request.current) setDetecting(false); }
+  };
+  useEffect(() => { mounted.current = true; void refresh(); return () => { mounted.current = false; request.current++; }; }, []);
+  const backgroundBusy = status?.tools.some(tool => tool.operation !== "idle") ?? false;
+  useEffect(() => {
+    if (!backgroundBusy || action) return;
+    const timer = window.setTimeout(() => { void refresh(); }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [backgroundBusy, action, status]);
+  const runToolAction = async (id: YoutubeToolId, kind: "checking" | "installing") => {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    setAction({ id, kind });
+    setToolError(null);
+    try {
+      const result = await (kind === "checking" ? window.openmind.checkYoutubeToolUpdate(id) : window.openmind.installYoutubeTool(id));
+      if (!mounted.current) return;
+      setStatus(current => current && { ...current, tools: current.tools.map(tool => tool.id === id ? result : tool) });
+    } catch (error) {
+      if (!mounted.current) return;
+      setToolError({ id, kind: kind === "checking" ? "checkFailed" : error instanceof Error && error.message.includes("youtube-tool-downgrade-refused") ? "downgradeRefused" : "installFailed" });
+      setStatus(current => current && { ...current, tools: current.tools.map(tool => tool.id === id ? { ...tool, update: "unchecked", latestVersion: null } : tool) });
+    } finally {
+      actionPending.current = false;
+      if (mounted.current) { setAction(null); if (kind === "installing") await refresh(); }
+    }
+  };
+  const busy = detecting || Boolean(action) || backgroundBusy;
+  const selectedMissing = Boolean(status && prefs.youtubeBrowser && !status.browsers.some(browser => browser.id === prefs.youtubeBrowser));
+  const available = (id: YoutubeToolId) => status?.tools.some(tool => tool.id === id && tool.state === "ready");
+  const ready = available("yt-dlp") && available("ffmpeg") && (available("deno") || available("node"));
+  return <SettingsPanel title={copy.title} scope={copy.scope} action={
+    <button type="button" className="settings-subtle-action" data-motion="action" disabled={busy} onClick={() => void refresh()}>
+      <RefreshCw size={14} aria-hidden />{detecting ? copy.detecting : copy.refresh}
+    </button>
+  }>
+    <PreferenceRow title={copy.browser} description={copy.description}>
+      <Select value={prefs.youtubeBrowser} ariaLabel={copy.browser} size="rect" disabled={detecting || saving || !status}
+        options={[{ value: "", label: copy.none }, ...(status?.browsers || []).map(browser => ({ value: browser.id, label: browser.name })),
+          ...(selectedMissing ? [{ value: prefs.youtubeBrowser, label: copy.missingBrowser, disabled: true }] : [])]}
+        onChange={value => {
+          setSaving(true);
+          void save({ youtubeBrowser: YoutubeBrowserPreferenceSchema.parse(value) }).finally(() => setSaving(false));
+        }} />
+    </PreferenceRow>
+    {failed || selectedMissing || (status && !status.browsers.length) ? <p className="settings-note" role="status">{failed ? copy.failed : selectedMissing ? copy.missingBrowser : copy.noBrowsers}</p> : null}
+    <p className="settings-note">{copy.bilibiliAnonymousHint}</p>
+    <PreferenceRow title={copy.dependencies} description={copy.dependenciesHint}>
+      <StatusBadge tone={detecting ? "neutral" : ready ? "success" : "warning"}>{detecting ? copy.detecting : ready ? copy.ready : copy.missingTools}</StatusBadge>
+    </PreferenceRow>
+    {status?.tools.map(tool => <YoutubeToolRow key={tool.id} tool={tool} busy={busy}
+      operation={action?.id === tool.id ? action.kind : tool.operation}
+      error={toolError?.id === tool.id ? copy[toolError.kind] : null}
+      onAction={kind => void runToolAction(tool.id, kind)} />)}
+    <p className="settings-note">{copy.installHint}</p>
+    <p className="settings-note">{copy.privacy}</p>
+  </SettingsPanel>;
+}
+
+function YoutubeToolRow({ tool, busy, operation, error, onAction }: {
+  tool: YoutubeToolStatus;
+  busy: boolean;
+  operation: YoutubeToolStatus["operation"];
+  error: string | null;
+  onAction(kind: "checking" | "installing"): void;
+}) {
+  const copy = m.settings.youtubeImport;
+  const info = copy.tools[tool.id];
+  const installLabel = tool.state === "missing" ? copy.install : tool.state === "broken" ? copy.repair
+    : tool.state === "too-old" || tool.update === "available" ? copy.upgrade : tool.update === "unknown" ? copy.installManaged : null;
+  return <div className="settings-youtube-tool" role="group" aria-label={info.name} aria-busy={operation !== "idle"}>
+    <PreferenceRow title={info.name} description={info.description}>
+      <div className="settings-youtube-tool-actions">
+        <StatusBadge tone={tool.state === "ready" ? "success" : "warning"}>{copy.toolStates[tool.state]}</StatusBadge>
+        {tool.canInstall ? <>
+          <button type="button" className="settings-subtle-action" disabled={busy} aria-label={`${copy.checkUpdate} ${info.name}`} onClick={() => onAction("checking")}>
+            {operation === "checking" ? <LoaderCircle size={13} className="spin" aria-hidden /> : <RefreshCw size={13} aria-hidden />}
+            {operation === "checking" ? copy.checking : copy.checkUpdate}
+          </button>
+          {installLabel || operation === "installing" ? <button type="button" className="settings-subtle-action" disabled={busy} aria-label={`${installLabel || copy.install} ${info.name}`} onClick={() => onAction("installing")}>
+            {operation === "installing" ? <LoaderCircle size={13} className="spin" aria-hidden /> : null}{operation === "installing" ? copy.installing : installLabel}
+          </button> : null}
+        </> : <button type="button" className="settings-subtle-action" onClick={() => void window.openmind.openExternal(YOUTUBE_TOOL_INSTALL_GUIDES[tool.id])}>{copy.manualInstall}<ExternalLink size={13} aria-hidden /></button>}
+      </div>
+    </PreferenceRow>
+    {tool.version || tool.source ? <p className="settings-note">{[tool.version, tool.source === "app" ? copy.managed : tool.source === "system" ? copy.system : null].filter(Boolean).join(" · ")}</p> : null}
+    {tool.latestVersion ? <p className="settings-note">{tool.id === "ffmpeg" ? copy.latestBuild(tool.latestVersion) : copy.latest(tool.latestVersion)}{tool.update === "current" ? ` · ${copy.upToDate}` : ""}</p> : null}
+    {tool.update === "unknown" ? <p className="settings-note">{copy.compareUnknown}</p> : null}
+    {!tool.canInstall ? <p className="settings-note">{copy.unsupported}</p> : null}
+    {error ? <p className="settings-note settings-youtube-tool-error" role="alert">{error}</p> : null}
+  </div>;
 }
 
 export function BrowserSettingsSection({ status, busy, onInstall, onRefresh, onOpenDocs }: {
