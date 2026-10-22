@@ -1,5 +1,4 @@
-import { Button } from "../../design-system/components";
-import { SegmentedControl } from "../../design-system/controls";
+import { Button, SegmentedControl } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { ExternalLink, Eye, Pencil, Save } from "lucide-react";
 import type { ContentRecord } from "@shared/contracts";

@@ -41,7 +41,7 @@ export const aiMessages = {
   },
   context: {
     count: (n: number) => count(n, "context item"), clear: "Clear", inline: "Inline context", chars: (n: number) => ` · ${count(n, "character")}`, moveUp: "Move up", moveDown: "Move down", remove: "Remove",
-    detail: (label: string) => `${label} details`, selection: "Quoted content", removeNamed: (label: string) => `Remove reference: ${label}`, removeThis: "Remove this reference"
+    detail: (label: string) => `${label} details`, selection: "Quoted content", removeNamed: (label: string) => `Remove reference: ${label}`, removeImage: (label: string) => `Remove image: ${label}`, removeThis: "Remove this reference"
   },
   suggestions: {
     mentionAria: "Reference a file", mentionTitle: "Reference an openmind file", searchQuery: (q: string) => `Search “${q}”`, enterFilename: "Enter a filename or path", filterSkill: (q: string) => `Filter “/${q}”`,
@@ -52,6 +52,7 @@ export const aiMessages = {
     indexedCount: (n: number, truncated: boolean) => `${count(n, "file")} indexed${truncated ? " · Limit reached" : ""}`
   },
   message: {
+    showMore: "Show more", showLess: "Show less",
     you: "You", quote: "Quote", quoteMessage: "Quote message", editResend: "Edit and resend", branchFromMessage: "Start a new conversation from this message", rerun: "Rerun with the original context", quoteReply: "Quote reply",
     branchFromReply: "Start a new conversation from this reply", copied: "Copied", copy: "Copy", artifactLabel: "Artifact · Markdown", artifactDocument: "Document", artifactStreaming: "Generating", artifactComplete: "Complete",
     artifactIncomplete: "Incomplete", artifactIncompleteDetail: "The artifact format was not completed. The current text has been preserved.", copyArtifact: "Copy text", contextsUsed: (n: number) => `${count(n, "context item")} used`,
@@ -67,7 +68,7 @@ export const aiMessages = {
     commandRunning: (elapsed: string) => `Running command · ${elapsed} elapsed`, commandRan: (elapsed: string) => `Command ran · ${elapsed} elapsed`, commandFailed: "Command failed", commandCancelled: "Command cancelled", commandIncomplete: "Incomplete command result", incomplete: "Incomplete result",
     detail: "Call details", outputCount: (n: number) => count(n, "output item"), noOutput: "No output yet", searchIO: "Search tool inputs and outputs", searchPlaceholder: "Search inputs and outputs", saveOutput: "Save output", request: "Request", errorResult: "Error result", result: "Result", output: "Output",
     query: "Query", scope: "Scope", currentProject: "Current project", matches: "Matches", matchCount: (n: number) => count(n, "match"), path: "Path", fullRange: "Full text or default range", encoding: "Encoding", auto: "Auto", preview: "Preview", command: "Command", viewRequestDetail: "View request details",
-    cwd: "Directory", exitCode: "Exit code", file: "File", readFile: (name: string) => `Read file ${name}`, operation: "Operation", writeEdit: "Write/Edit", outcome: "Outcome", recorded: "Recorded", context: "Context", eventCount: (n: number) => count(n, "event"), input: "Input", structuredParams: "Structured parameters", rawParams: "Raw parameters",
+    cwd: "Directory", exitCode: "Exit code", file: "File", readFile: (name: string) => `Read file ${name}`, viewedImages: (n: number) => `Viewed ${count(n, "image")}`, operation: "Operation", writeEdit: "Write/Edit", outcome: "Outcome", recorded: "Recorded", context: "Context", eventCount: (n: number) => count(n, "event"), input: "Input", structuredParams: "Structured parameters", rawParams: "Raw parameters",
     loadMoreOutput: "Load more output", loadMoreOutputProgress: (shown: number, total: number) => `Load more (${shown} of ${total} characters shown)`, expandAllOutput: "Expand all", viewCommandDetail: "View command details", viewSearchDetail: "View search details", viewFileDetail: "View file details", viewNetworkDetail: "View network request details", viewCallDetail: "View call details",
     category: { command: "Command", search: "Search", read: "Read", write: "Write", network: "Network", skill: "Skill", tool: "Tool" }
   },

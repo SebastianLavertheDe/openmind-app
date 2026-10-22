@@ -83,6 +83,7 @@
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--nav-gap);
 }
 
@@ -116,12 +117,6 @@
   height: var(--nav-icon-size);
 }
 
-.settings-back-button svg {
-  width: var(--nav-icon-size);
-  flex: 0 0 auto;
-  stroke-width: 1.8;
-}
-
 :root[data-theme="dark"] .settings-nav-button:not([data-ui-control]) {
   color: var(--muted);
 }
@@ -129,11 +124,6 @@
 .settings-nav-button:not([data-ui-control]):hover {
   background: var(--control-hover);
   color: var(--text);
-}
-
-.settings-back-button {
-  width: auto;
-  justify-self: start;
 }
 
 .settings-nav-search {
@@ -1381,10 +1371,6 @@
   .settings-nav-group > span {
     display: block;
     padding-inline: 9px;
-  }
-
-  .settings-back-button {
-    width: 100%;
   }
 
   .settings-nav-button {

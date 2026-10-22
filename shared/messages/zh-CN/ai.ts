@@ -127,6 +127,7 @@ export const aiMessages = {
     detail: (label: string) => `${label} 详情`,
     selection: "引用内容",
     removeNamed: (label: string) => `删除引用：${label}`,
+    removeImage: (label: string) => `移除图片：${label}`,
     removeThis: "删除此引用"
   },
 
@@ -153,6 +154,8 @@ export const aiMessages = {
   },
 
   message: {
+    showMore: "显示更多",
+    showLess: "收起",
     you: "你",
     quote: "引用",
     quoteMessage: "引用消息",
@@ -234,6 +237,7 @@ export const aiMessages = {
     exitCode: "退出码",
     file: "文件",
     readFile: (name: string) => `已读文件 ${name}`,
+    viewedImages: (n: number) => `已查看 ${n} 张图像`,
     operation: "操作",
     writeEdit: "写入/编辑",
     outcome: "结果",

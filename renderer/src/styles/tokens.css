@@ -166,9 +166,9 @@
   --input-bg: var(--panel-bg);
   --input-border: var(--border-subtle);
   --input-focus-border: var(--focus-ring);
-  --input-composer-min-height: 146px;
+  --input-composer-min-height: 94px;
   --input-composer-max-height: 260px;
-  --input-composer-bottom-inset: 66px;
+  --input-composer-bottom-inset: 20px;
   --input-code-min-height: 300px;
   --control-height-sm: 28px;
   --control-height: 34px;

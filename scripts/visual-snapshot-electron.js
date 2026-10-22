@@ -1781,6 +1781,10 @@ async function captureCoarsePointerRecentActions(win, report) {
         const actions = row?.querySelector('.nav-recent-actions');
         const buttons = actions ? [...actions.querySelectorAll('button')] : [];
         const actionStyle = actions instanceof Element ? getComputedStyle(actions) : null;
+        const title = row?.querySelector('.nav-recent-item-title');
+        const metadata = row?.querySelector('.nav-recent-item-meta');
+        const titleBox = title?.getBoundingClientRect();
+        const actionBox = actions?.getBoundingClientRect();
         const buttonRects = buttons.map((button) => {
           const box = button.getBoundingClientRect();
           return { width: box.width, height: box.height, label: button.getAttribute('aria-label') };
@@ -1792,6 +1796,8 @@ async function captureCoarsePointerRecentActions(win, report) {
           rowVisible: row instanceof Element && row.getBoundingClientRect().height > 0,
           opacity: actionStyle?.opacity,
           pointerEvents: actionStyle?.pointerEvents,
+          metadataHidden: metadata instanceof Element && getComputedStyle(metadata).visibility === 'hidden',
+          titleBeforeActions: Boolean(titleBox && actionBox && titleBox.right <= actionBox.left),
           buttonRects
         };
       })()
@@ -1801,6 +1807,8 @@ async function captureCoarsePointerRecentActions(win, report) {
       recentRowVisible: geometry.rowVisible,
       actionsVisible: geometry.opacity === "1" && geometry.pointerEvents === "auto",
       actionsPresent: geometry.buttonRects.length > 0,
+      metadataHidden: geometry.metadataHidden,
+      titleBeforeActions: geometry.titleBeforeActions,
       namedTargets: geometry.buttonRects.every((button) => Boolean(button.label)),
       targetSize: geometry.buttonRects.every((button) => button.width >= 44 && button.height >= 44)
     });
@@ -2273,6 +2281,33 @@ async function captureComposerSuggestions(win, report) {
     })()
   `);
   await waitForSelectorToDisappear(win, ".toast-stack .toast");
+
+  await setComposerValue(win, Array.from({ length: 30 }, (_, index) => `${index + 1}\n00:00:21,500 --> 00:00:23,500\n这是一段用于验证滚动边界的字幕文本。`).join("\n\n"));
+  await settle();
+  const draftGeometry = await win.webContents.executeJavaScript(`(() => {
+    const textarea = document.querySelector('.composer-editor textarea');
+    const actions = document.querySelector('.composer-editor-actions');
+    const send = actions?.querySelector('.composer-send');
+    textarea.scrollTop = textarea.scrollHeight;
+    const textBox = textarea.getBoundingClientRect();
+    const actionBox = actions.getBoundingClientRect();
+    const sendBox = send.getBoundingClientRect();
+    const hit = document.elementFromPoint(sendBox.left + sendBox.width / 2, sendBox.top + sendBox.height / 2);
+    return {
+      scrollable: textarea.scrollHeight > textarea.clientHeight,
+      textBottom: textBox.bottom,
+      toolbarTop: actionBox.top,
+      toolbarVisible: actionBox.top >= 0 && actionBox.bottom <= innerHeight,
+      sendHitTestable: hit === send || send.contains(hit)
+    };
+  })()`);
+  await recordContractState(win, report, "ai-long-draft-toolbar", "新建任务", "Long drafts scroll above the toolbar without covering its controls", draftGeometry, {
+    draftScrollable: draftGeometry.scrollable,
+    textBeforeToolbar: draftGeometry.textBottom <= draftGeometry.toolbarTop + 1,
+    toolbarVisible: draftGeometry.toolbarVisible,
+    sendHitTestable: draftGeometry.sendHitTestable
+  });
+  await setComposerValue(win, "");
 
   const selectedContext = await win.webContents.executeJavaScript(`
     (() => {

@@ -3,16 +3,16 @@ export const desktopErrorMessages = {
     bilibili: {
       invalidUrl: "请使用 Bilibili 的 BV、AV 视频链接或 b23.tv 短链接。",
       shortUrlFailed: "无法解析 Bilibili 短链接，请重试或使用完整的 BV、AV 视频链接。",
-      toolsMissing: "视频可内嵌播放；获取字幕需要 yt-dlp，请在设置 → 浏览器 → 视频导入中安装。",
+      toolsMissing: "视频可内嵌播放；获取字幕需要 yt-dlp，请在设置 → 内置运行时 → 视频导入中安装。",
       loginRequired: "Bilibili 要求登录后才能获取此字幕，当前仅支持匿名获取。已保留内嵌播放器。",
       timeout: "Bilibili 字幕获取超时，请稍后重试。视频仍可内嵌播放。",
       captionsFailed: "Bilibili 字幕获取失败，请重试。视频仍可内嵌播放。",
       noCaptions: "未找到可匿名获取的 Bilibili 字幕。视频可能没有字幕，或字幕不允许匿名访问。"
     },
     youtube: {
-      selectBrowser: "请先在设置 → 浏览器中选择用于导入 YouTube 的浏览器。",
-      browserMissing: "所选浏览器已不可用，请在设置 → 浏览器中重新检测并选择。",
-      toolsMissing: "缺少 YouTube 下载工具，请在设置 → 浏览器中检查 yt-dlp、FFmpeg 和 JavaScript 运行时。",
+      selectBrowser: "请先在设置 → 内置运行时 → 视频导入中选择用于导入 YouTube 的浏览器。",
+      browserMissing: "所选浏览器已不可用，请在设置 → 内置运行时 → 视频导入中重新检测并选择。",
+      toolsMissing: "缺少 YouTube 下载工具，请在设置 → 内置运行时 → 视频导入中检查 yt-dlp、FFmpeg 和 JavaScript 运行时。",
       downloadFailed: "YouTube 视频下载失败，请检查网络、更新 yt-dlp 后重试。",
       cookiesFailed: "无法读取浏览器登录状态，请在所选浏览器中登录 YouTube，关闭浏览器后重试；如系统不允许解密 cookies，可改选 Firefox。",
       loginRequired: "YouTube 要求登录或验证。请在所选浏览器中打开该视频并完成验证后重试。",

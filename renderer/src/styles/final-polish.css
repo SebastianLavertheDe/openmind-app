@@ -132,7 +132,6 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
 
 .ai-sidebar .chat-thread > .message,
 .ai-sidebar .chat-thread > .completed-process,
-.ai-sidebar .chat-thread > .load-history,
 .ai-sidebar .chat-thread > .trace-step {
   width: 100%;
   max-width: none;

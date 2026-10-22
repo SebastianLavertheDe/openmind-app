@@ -2,6 +2,7 @@ import { messages as uiMessages } from "@shared/messages";
 import type { ContentRecord } from "@shared/contracts";
 import { ImagePreviewRecordSchema, imagePreviewMimeType } from "@shared/image-preview";
 import { documentPreviewResource, type FilePreviewSource } from "./model";
+import { localMediaSource, mediaKind } from "./local-media-source";
 
 const BINARY_PREVIEW_EXTENSIONS = /\.(pdf|png|jpe?g|gif|webp|svg|ico|bmp|zip|gz|7z|tar|rar|mp4|mov|webm|mp3|wav|ogg|woff2?|ttf|otf|eot|exe|dll)$/i;
 
@@ -14,6 +15,7 @@ export function workspaceFileSource(path: string, {
   binary?: "document" | "unsupported";
   unsupportedBinaryReason?: string;
 } = {}): FilePreviewSource {
+  if (["audio", "video"].includes(mediaKind(path) || "")) return localMediaSource(path);
   const image = Boolean(imagePreviewMimeType(path));
   const unsupportedBinary = binary === "unsupported" && isBinaryPreviewPath(path) && !image;
   const source: FilePreviewSource = {

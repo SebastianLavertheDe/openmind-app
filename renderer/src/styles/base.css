@@ -365,7 +365,6 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 .ai-sidebar .tool-event > .ui-disclosure-trigger:not([data-ui-control]) { grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding-inline: 8px; }
 .ai-sidebar .tool-event-controls { grid-template-columns: 1fr; }
 .jump-bottom { position: sticky; bottom: 8px; display: block; margin: 0 auto; }
-.load-history { display: block; margin: 0 auto 18px; }
 .system-event { max-width: 920px; display: flex; align-items: center; gap: 7px; margin: 6px 0 12px; padding: 7px 9px; border-left: 2px solid var(--border-strong); color: var(--muted); font-size: var(--fs-xs); }
 .system-event.danger { border-color: var(--red); color: color-mix(in srgb, var(--danger-500) 75%, var(--text)); }
 .approval-card { max-width: 920px; margin: 12px 0; border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--orange) 8%, var(--panel)); }
@@ -901,9 +900,6 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 .queue-tray > .ui-disclosure-trigger:not([data-ui-control]) { padding: 6px 8px; cursor: pointer; }
 .queue-tray .ui-disclosure-content-inner > div { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 5px 8px; border-top: 1px solid var(--border); }
 .queue-tray p { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
-.queue-tray button { display: grid; place-items: center; }
-.queue-tray button:not([data-ui-control]) { width: 24px; }
-.queue-tray button:not([data-ui-control]) { height: 24px; border: 0; background: transparent; color: var(--muted); }
 .new-session-controls { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 6px; margin-bottom: 7px; }
 .new-session-controls label { display: grid; gap: 3px; color: var(--muted); font-size: var(--fs-xs); }
 .new-session-controls select { min-width: 0; }

@@ -98,6 +98,7 @@ export function fileReferenceInstructions(): string {
     "回复中引用文件时，一律使用 Markdown 链接格式：[文件名](<文件相对路径>)。",
     "路径以当前工作目录为基准（项目任务中即项目根目录），必须写完整目录，不要只写裸文件名；即使路径含空格也直接放进尖括号，不要做任何转义或 URL 编码。",
     "链接文字保持简短文件名；不要为不存在的文件编造路径。",
+    "交付视频、音频或图片时，在最终回复中列出实际生成文件的上述链接，应用支持直接预览。",
     "示例：[Agentic Design Patterns.md](<materials/documents/Agentic Design Patterns.md>)",
     "</openmind_file_references>"
   ].join("\n");

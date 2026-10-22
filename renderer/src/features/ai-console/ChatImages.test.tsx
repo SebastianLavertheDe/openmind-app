@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DesktopApi } from "@shared/contracts";
+import type { AiEvent, ContextReference, DesktopApi } from "@shared/contracts";
 import { IMAGE_PROVIDERS, type ImageSelection, type ImageConfiguration } from "@shared/image-generation";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
-import { ChatMarkdown } from "./message";
+import { ChatMarkdown, UserMessage } from "./message";
+import { AiProvider } from "../../ai-context";
 import { ChatImageGallery, GeneratedImages } from "./ChatImages";
 import { ComposerModelPicker } from "./ComposerModelPicker";
 
@@ -17,7 +18,67 @@ function api(overrides: Partial<DesktopApi> = {}) {
   return read;
 }
 
+function sentMessage(contexts: ContextReference[], text = "根据这些图片生成内容") {
+  const event = { id: "sent-images", seq: 1, timestamp: "2026-10-22T08:00:00Z", projectId: "fixture", sessionId: "fixture", runId: "fixture", provider: "codex", kind: "user-message", payload: { text, contexts }, risks: [], schemaVersion: 1 } as AiEvent;
+  return render(<AiProvider initial={{ projectRoot: "/fixture", providers: [], sessions: [], runs: [], pendingApprovals: [] }}><UserMessage event={event} /></AiProvider>);
+}
+
+describe("sent image attachments", () => {
+  it("places thumbnails outside and before the text bubble, with original-image navigation", async () => {
+    const read = api({ onAiEvent: () => () => {} });
+    const { container } = sentMessage([0, 1, 2].map(index => ({ id: `sent-${index}`, kind: "image", label: `参考图 ${index + 1}`, path: `/private/attachments/${index}.png` })));
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
+    const strip = container.querySelector(".user-message-images")!;
+    expect(strip.nextElementSibling?.className).toBe("user-message-bubble");
+    expect(strip.querySelectorAll('[data-ui-control="image-thumbnail"][data-variant="attachment"]')).toHaveLength(3);
+    expect(container.querySelector(".sent-contexts")).toBeNull();
+    expect(container.querySelector(".chat-image-open")).toBeNull();
+    expect(read.mock.calls.every(([request]) => request.variant === "thumbnail")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "查看原图：参考图 2" }));
+    const dialog = screen.getByRole("dialog", { name: "图片查看器" });
+    await waitFor(() => expect(within(dialog).getByAltText("参考图 2").getAttribute("src")).toBe(original));
+    expect(read).toHaveBeenLastCalledWith({ source: "/private/attachments/1.png", variant: "original" });
+    fireEvent.keyDown(dialog, { key: "ArrowRight" });
+    await waitFor(() => expect(within(dialog).getByAltText("参考图 3")).toBeTruthy());
+  });
+
+  it("retains non-image references without double-counting images", async () => {
+    api({ onAiEvent: () => () => {} });
+    sentMessage([{ id: "picture", kind: "image", label: "粘贴图片", content: thumbnail }, { id: "note", kind: "file", label: "说明文件", path: "note.md" }]);
+    await screen.findByAltText("粘贴图片");
+    fireEvent.click(screen.getByRole("button", { name: /本次使用了 1 项上下文/ }));
+    expect(screen.getByText("说明文件")).toBeTruthy();
+    expect(document.querySelector(".sent-contexts")?.textContent).not.toContain("粘贴图片");
+  });
+
+  it("shows image-only messages without an empty text bubble and handles missing legacy attachments", async () => {
+    api({ onAiEvent: () => () => {} });
+    const { container } = sentMessage([{ id: "legacy-missing", kind: "image", label: "旧图片" }], "");
+    expect(container.querySelector(".user-message-bubble")).toBeNull();
+    expect(await screen.findByRole("button", { name: "重新加载图片：旧图片" })).toBeTruthy();
+    expect(container.querySelector(".chat-image-error")?.textContent).toBeTruthy();
+  });
+});
+
 describe("conversation image gallery", () => {
+  it("waits for visibility before reading offscreen attachments without showing an error", async () => {
+    let intersect: IntersectionObserverCallback | undefined;
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) { intersect = callback; }
+      observe() {}
+      disconnect() {}
+    });
+    try {
+      const read = api();
+      render(<ChatImageGallery><ChatMarkdown text="![屏幕外图片](openmind/assets/offscreen.png)" /></ChatImageGallery>);
+      expect(read).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: /重新加载图片/ })).toBeNull();
+      await act(async () => { intersect?.([{ isIntersecting: true }] as IntersectionObserverEntry[], {} as IntersectionObserver); });
+      await screen.findByAltText("屏幕外图片");
+      expect(read).toHaveBeenCalledTimes(1);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("renders Markdown thumbnails, loads originals only on click, and navigates across messages", async () => {
     const read = api();
     render(<ChatImageGallery projectName="fixture"><ChatMarkdown text="![第一张](openmind/assets/a.png)" /><ChatMarkdown text="![第二张](openmind/assets/b.png)" /></ChatImageGallery>);

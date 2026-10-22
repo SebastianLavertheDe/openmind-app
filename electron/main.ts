@@ -17,7 +17,8 @@ import { PROJECT_MEDIA_SCHEME } from "../shared/youtube-import";
 import { registerYoutubeEmbedRequestPolicy } from "./project/youtube-embed-request";
 import { globalSearch } from "./product/global-search";
 import { OpenmindFileSearch } from "./openmind-file-search";
-import { registerIpcHandlers } from "./ipc-handlers";
+import { registerIpcHandlers, resolveMediaPreviewFile } from "./ipc-handlers";
+import { createLocalMediaHandler } from "./lib/media-preview";
 import * as settings from "./lib/settings";
 import * as content from "./lib/content";
 import * as creative from "./lib/creative";
@@ -442,6 +443,7 @@ function registerIpc(): void {
       ensureProductService,
       ensureProjectService,
       ensureAiWorker,
+      resolveAiStateRoot,
       ensureOpenmindFileSearch,
       ensureCliInstallerService,
       ensureYoutubeToolsService,
@@ -666,7 +668,9 @@ app.whenReady().then(() => {
   // any service reads or writes them. Idempotent.
   ensureAppPaths(getAppPaths());
   setLocale(settings.getPreferences().uiLanguage);
-  protocol.handle(PROJECT_MEDIA_SCHEME, createVideoMediaHandler((projectName, relativePath) => ensureProjectService().materials.resolveVideoFile(projectName, relativePath)));
+  const projectMedia = createVideoMediaHandler((projectName, relativePath) => ensureProjectService().materials.resolveVideoFile(projectName, relativePath));
+  const localMedia = createLocalMediaHandler(input => resolveMediaPreviewFile(input, ensureProjectService));
+  protocol.handle(PROJECT_MEDIA_SCHEME, request => new URL(request.url).hostname === "local" ? localMedia(request) : projectMedia(request));
   // The backup UI/IPC surface is retired, but a restore transaction created
   // by an older release may still need one final startup rollback.
   new AppStateBackupService(getAppPaths());

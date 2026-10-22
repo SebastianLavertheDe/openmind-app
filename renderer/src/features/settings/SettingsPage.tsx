@@ -317,7 +317,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       />
       <section className="settings-detail" id="settings-detail-panel" ref={detailRef} aria-labelledby="settings-detail-title">
         <div className="settings-detail-inner">
-          <Button type="button" className="settings-detail-back" data-motion="action" onClick={showSettingsNavigation}>
+          <Button variant="ghost" type="button" className="settings-detail-back" data-motion="action" onClick={showSettingsNavigation}>
             <ArrowLeft size={15} aria-hidden />
             <span>{m.settings.page.title}</span>
           </Button>
@@ -346,10 +346,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                 </>
               ) : null}
               {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ui.notify} initialCategory={initialProviderCategory} /></> : null}
-              {activeSection === "runtime" ? <SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /> : null}
+              {activeSection === "runtime" ? <><SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /><YoutubeImportSettingsSection prefs={prefs} save={save} /></> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
-              {activeSection === "browser" ? <><YoutubeImportSettingsSection prefs={prefs} save={save} /><BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /></> : null}
+              {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}
@@ -373,7 +373,7 @@ function SettingsNavigation({ activeSection, onBack, onSelect }: {
 
   return (
     <aside className="settings-navigation" aria-label={m.settings.navigation.label}>
-      <Button type="button" responsiveTarget className="settings-back-button" data-motion="action" onClick={onBack}>
+      <Button variant="ghost" type="button" responsiveTarget className="settings-back-button" data-motion="action" onClick={onBack}>
         <ArrowLeft size={15} aria-hidden />
         <span>{m.settings.navigation.back}</span>
       </Button>

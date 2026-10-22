@@ -15,10 +15,11 @@ KaTeX stay with their dependencies. The separate development catalog imports
 | `components/dialogs.css` | Dialog, FormDialog, ConfirmDialog and shared dialog parts |
 | `components/menus.css` | MenuItem, DropdownMenu and Popover surfaces |
 | `components.css` | Select, SelectTrigger, SelectMenuSurface and other existing shared controls |
-| `components/uploads.css`, `components/media.css` | FileDropzone and ImageThumbnail |
+| `components/uploads.css`, `components/media.css` | FileDropzone, ImageThumbnail and ImageAttachment |
 | `components/image-viewer.css` | ImageViewer canvas and image navigation layout |
 | `shell.css`, `navigation-motion.css` | Application chrome and navigation |
 | `features/` | Feature layout, content and structural selection/navigation surfaces |
+| `features/file-preview.css` | Audio preview layout and final-reply media cards; shared actions retain their control owners |
 | `responsive.css` | Shared responsive layout adaptations |
 | `final-polish.css`, `workbuddy-refactor.css` | Existing structural adjustments; do not add shared-control overrides |
 

@@ -87,6 +87,7 @@
   align-items: stretch;
   padding-inline: var(--chat-side-gutter);
 }
+.chat-scroll[data-history-prepend] { overflow-anchor: none; }
 
 .chat-thread {
   width: min(100%, var(--ai-flow-width));
@@ -97,6 +98,7 @@
 }
 
 .chat-thread.session-ready { animation: chat-session-ready var(--dur-exit, 160ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)) both; }
+.chat-history-status { display: flex; align-items: center; justify-content: center; gap: 8px; padding-block: 8px; color: var(--muted); font-size: var(--fs-sm); }
 @keyframes chat-session-ready { from { opacity: 0; } to { opacity: 1; } }
 .chat-session-loading { min-height: 180px; display: grid; align-content: center; gap: 10px; opacity: 0; }
 .chat-session-loading[data-visible] { opacity: 1; transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
@@ -115,7 +117,6 @@
 
 .chat-thread > .message,
 .chat-thread > .completed-process,
-.chat-thread > .load-history,
 .chat-thread > .trace-step {
   width: 100%;
 }
@@ -150,6 +151,26 @@
 .message.user-message .message-body {
   background: transparent !important;
 }
+
+.user-message-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.user-message-text { min-width: 0; }
+.user-message-text[data-expanded="false"] .user-message-text-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 20;
+  line-clamp: 20;
+  max-height: 20lh;
+  overflow: hidden;
+}
+.user-message-text-toggle { margin-top: 8px; }
+.assistant-message .change-review-card { margin-block: 12px 8px; }
 
 .message.user-message .user-message-bubble > p {
   margin: 0;
@@ -798,6 +819,46 @@
   margin-inline: auto;
   display: grid;
   gap: 7px;
+}
+
+.queue-tray {
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 23px 23px 0 0;
+  background: var(--panel-muted);
+}
+
+.queue-tray > .ui-disclosure-trigger:not([data-ui-control]) {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.queue-tray-summary {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.queue-tray .ui-disclosure-content-inner {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.queued-process {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 4px 12px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 
 .composer-flow > :is(.new-session-controls, .context-tray-presence, .queue-tray, .composer-error, .composer-approvals, textarea, .composer-footer) {
@@ -1937,7 +1998,6 @@
   z-index: 2;
 }
 .composer-send {
-  width: 40px;
   display: grid;
   place-items: center;
 }
@@ -1977,22 +2037,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* P2-CMP-3: textarea 到底渐变遮罩 —— 当内容超出 max-height 滚动时显示底部渐变 */
-.composer-editor::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 56px;
-  bottom: 0;
-  height: 28px;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  background: linear-gradient(to top, var(--panel-bg), transparent);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-.composer-editor[data-scroll]::after { opacity: 1; }
-
 /* ====================================================================
    P0-CMP-3: 自定义 ChipSelect
    ==================================================================== */
@@ -2007,35 +2051,6 @@
 .chip-select-chevron { color: var(--muted-2); transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); }
 .chip-select[data-open] .chip-select-chevron { transform: rotate(180deg); }
 
-
-/* P2-CTX-2: 图片 chip hover 放大 + tooltip */
-.context-chip.image-chip {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  overflow: visible;
-  transition: transform var(--dur-fast, 140ms) var(--ease-spring, cubic-bezier(.34, 1.56, .64, 1));
-}
-.context-chip.image-chip:hover { transform: scale(1.08); z-index: 2; }
-.context-chip.image-chip img {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  cursor: zoom-in;
-  display: block;
-  box-shadow: var(--shadow-card);
-}
-.image-chip-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  display: grid;
-  place-items: center;
-}
 
 /* P0-OFL-7: context-tray 横向遮罩 + 总数 */
 .context-chips {
@@ -2086,6 +2101,22 @@
   -webkit-mask-image: none;
   mask-image: none;
   scrollbar-width: none;
+}
+
+.context-tray[data-has-images] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 14px 0;
+}
+
+.context-tray[data-images-only] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.context-tray[data-has-images] .context-chips {
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px;
 }
 
 .context-tray [data-context-motion] { min-width: 0; flex: 0 0 auto; }

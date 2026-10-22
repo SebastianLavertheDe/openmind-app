@@ -193,7 +193,7 @@ export function activeRunForSession(runs: AiRun[], sessionId: string | null): Ai
   if (!sessionId) return null;
   return runs
     .filter((run) => run.sessionId === sessionId && isRunActive(run))
-    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] || null;
+    .sort((a, b) => Number(a.status === "queued") - Number(b.status === "queued") || b.startedAt.localeCompare(a.startedAt))[0] || null;
 }
 
 export function runStatusLabel(status: RunStatus | string): string {

@@ -151,6 +151,15 @@ describe("AI renderer state helpers", () => {
     expect(activeRunForSession(runs, "session")?.id).toBe("current");
   });
 
+  it.each(["running", "waiting-approval", "applying"] as const)("keeps the %s run selected when a newer follow-up is queued", status => {
+    const runs = [
+      run("executing", "session", status, "2026-01-01T00:00:01.000Z"),
+      run("follow-up", "session", "queued", "2026-01-01T00:00:02.000Z")
+    ];
+    expect(activeRunForSession(runs, "session")?.id).toBe("executing");
+    expect(latestRunForSession(runs, "session")?.id).toBe("follow-up");
+  });
+
   it("matches date filters using the user's local calendar date", () => {
     expect(formatDateInput("2026-06-13T12:34:56")).toBe("2026-06-13");
   });

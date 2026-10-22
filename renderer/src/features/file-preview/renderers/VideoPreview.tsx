@@ -7,6 +7,7 @@ import { EmptyState } from "../../../design-system/components";
 import { useContainerLayoutMode } from "../../../design-system/use-container-layout-mode";
 import type { VideoPreviewResource } from "../model";
 import { parseProjectVideoMediaUrl } from "@shared/youtube-import";
+import { mediaKind, parseLocalMediaUrl } from "@shared/media-preview";
 import { bilibiliEmbedUrl, parseTrustedBilibiliEmbed } from "@shared/bilibili-video";
 
 export const VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE = 720;
@@ -30,7 +31,8 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
   const [bilibiliSeek, setBilibiliSeek] = useState<{ resourceId: string; embedUrl: string; milliseconds: number; revision: number } | null>(null);
   const selectedSeek = bilibiliSeek?.resourceId === resource.id && bilibiliSeek.embedUrl === embedUrl ? bilibiliSeek : null;
   const frameUrl = bilibili && selectedSeek ? bilibiliEmbedUrl(bilibili, selectedSeek.milliseconds) : embedUrl;
-  const localUrl = resource.playback.kind === "local-video" && parseProjectVideoMediaUrl(resource.playback.mediaUrl) ? resource.playback.mediaUrl : undefined;
+  const localSource = resource.playback.kind === "local-video" ? parseLocalMediaUrl(resource.playback.mediaUrl) : null;
+  const localUrl = resource.playback.kind === "local-video" && (parseProjectVideoMediaUrl(resource.playback.mediaUrl) || (localSource && mediaKind(localSource.path) === "video")) ? resource.playback.mediaUrl : undefined;
   const embedOrigin = useMemo(() => {
     if (!youtubeUrl) return null;
     try { return new URL(youtubeUrl).origin; } catch { return null; }
@@ -124,7 +126,7 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
           </section>
           {localUrl && playerError ? <div className="project-video-playback-help" role="status">
             <p>{uiMessages.interface.videoLocalPlaybackFailed}</p>
-            {onOpenExternal ? <Button variant="ghost" type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openBrowser}</Button> : null}
+            {onOpenExternal ? <Button variant="ghost" type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openExternalMedia}</Button> : null}
           </div> : null}
           {embedUrl && onOpenExternal ? <div className="project-video-playback-help" role={playerError ? "status" : undefined}>
             <p>{bilibili ? uiMessages.interface.bilibiliPlaybackHint
@@ -133,7 +135,7 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
             {youtubeUrl && onRetryTranscript ? <Button variant="ghost" type="button" data-motion="action" disabled={retryingTranscript} onClick={onRetryTranscript}><RefreshCw size={14} />{retryingTranscript ? uiMessages.interface.downloadingVideo : uiMessages.interface.downloadVideo}</Button> : null}
           </div> : null}
         </div>
-        <div className="project-video-inspector-column">
+        {localSource && !resource.transcript.length ? null : <div className="project-video-inspector-column">
           <section className="project-transcript project-video-inspector">
             <div className="project-transcript-list">
               {!resource.transcript.length ? <EmptyState title={uiMessages.interface.transcriptNotFetched} description={resource.warnings?.join("\n") || uiMessages.interface.transcriptFetchHint}
@@ -149,7 +151,7 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
               })}
             </div>
           </section>
-        </div>
+        </div>}
       </div>
     </div>
   );

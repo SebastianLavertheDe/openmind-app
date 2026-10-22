@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { workspacePreviewSource } from "./workspace-preview-source";
+import { localMediaUrl } from "@shared/media-preview";
 import {
   clearProjectPreviewSourceCacheForTests,
   projectConversationPreviewSource,
@@ -12,21 +13,34 @@ beforeEach(() => {
 });
 
 describe("workspacePreviewSource", () => {
-  it("keeps raw binary video explicit and never sends it through text IPC", async () => {
+  it("previews local video without sending binary data through text IPC", async () => {
     const readContent = vi.fn();
-    window.openmind = { readContent } as unknown as DesktopApi;
+    const readMediaPreview = vi.fn(async ({ path }) => ({ id: "movie", path, name: "demo.mp4", kind: "video", mimeType: "video/mp4", byteSize: 100, mediaUrl: localMediaUrl({ path }) }));
+    window.openmind = { readContent, readMediaPreview } as unknown as DesktopApi;
     const source = workspacePreviewSource("clips/demo.mp4");
 
     await expect(source.load()).resolves.toMatchObject({
-      kind: "unsupported",
-      reason: "本地二进制视频暂不支持应用内预览。"
+      kind: "video",
+      playback: { kind: "local-video", mediaUrl: localMediaUrl({ path: "clips/demo.mp4" }) }
     });
     expect(source.save).toBeUndefined();
     expect(readContent).not.toHaveBeenCalled();
+    expect(readMediaPreview).toHaveBeenCalledWith({ path: "clips/demo.mp4" });
   });
 });
 
 describe("resolveProjectPreviewSource", () => {
+  it.each([["outputs/final.mp4", "video", "video/mp4"], ["materials/voice.wav", "audio", "audio/wav"], ["outputs/frame.png", "image", "image/png"]])("opens project-owned %s without a text read", async (path, kind, mimeType) => {
+    const readMediaPreview = vi.fn(async input => ({ id: path, path, name: path.split("/").at(-1), kind, mimeType, byteSize: 100, mediaUrl: localMediaUrl(input) }));
+    const readChatImage = vi.fn(async () => ({ dataUrl: "data:image/png;base64,iVBORw0KGgo=" }));
+    const readContent = vi.fn();
+    window.openmind = { readMediaPreview, readChatImage, readContent } as unknown as DesktopApi;
+    const resolved = await resolveProjectPreviewSource(`openmind/projects/媒体/${path}`, "媒体");
+    await expect(resolved?.source.load()).resolves.toMatchObject({ kind });
+    expect(readMediaPreview).toHaveBeenCalledWith({ path, projectName: "媒体" });
+    expect(readContent).not.toHaveBeenCalled();
+    expect(resolved?.source.save).toBeUndefined();
+  });
   it("uses Project Material semantics for a .video.md reference", async () => {
     const material = videoMaterial();
     const readContent = vi.fn();

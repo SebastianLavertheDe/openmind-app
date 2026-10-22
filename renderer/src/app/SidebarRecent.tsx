@@ -1,4 +1,4 @@
-import { Button } from "../design-system/components";
+import { IconButton } from "../design-system/components";
 import { useLocale } from "../i18n";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
@@ -8,7 +8,6 @@ import { isProjectTaskScope } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
 import { useAiActions, useAiSnapshot, useAiUi } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
-import { Tooltip } from "../design-system/components";
 import { AnimatedDisclosure } from "../design-system/animated-disclosure";
 import { useMotionTokens } from "../design-system/motion-tokens";
 
@@ -132,30 +131,28 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
                   </span>
                 </button>
                 <div className="nav-recent-actions">
-                  <Tooltip content={session.pinned ? m.ai.session.unpin : m.ai.session.pin} side="top">
-                    <Button variant="ghost" size="sm"
+                    <IconButton variant="ghost" size="sm"
                       type="button"
                       className={`nav-recent-action${session.pinned ? " pinned" : ""}`}
                       data-motion="icon"
-                      aria-label={`${session.pinned ? m.ai.session.unpin : m.ai.session.pin}：${session.title || m.common.unnamedTopic}`}
+                      label={`${session.pinned ? m.ai.session.unpin : m.ai.session.pin}：${session.title || m.common.unnamedTopic}`}
+                      tooltip={session.pinned ? m.ai.session.unpin : m.ai.session.pin}
                       disabled={busyId === session.id}
                       onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void togglePinned(session); }}
                     >
                       {session.pinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}
-                    </Button>
-                  </Tooltip>
-                  <Tooltip content={m.ai.session.archiveTask} side="top">
-                    <Button variant="ghost" size="sm"
+                    </IconButton>
+                    <IconButton variant="ghost" size="sm"
                       type="button"
                       className="nav-recent-action"
                       data-motion="icon"
-                      aria-label={m.ai.session.archiveNamed(session.title || m.common.unnamedTopic)}
+                      label={m.ai.session.archiveNamed(session.title || m.common.unnamedTopic)}
+                      tooltip={m.ai.session.archiveTask}
                       disabled={busyId === session.id}
                       onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); void archiveSession(session); }}
                     >
                       <Archive size={13} aria-hidden />
-                    </Button>
-                  </Tooltip>
+                    </IconButton>
                 </div>
               </div>
             );

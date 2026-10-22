@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { VideoPreviewResource } from "../model";
 import { trustedYoutubeEmbedUrl, VideoPreview } from "./VideoPreview";
 import { projectVideoMediaUrl } from "@shared/youtube-import";
+import { localMediaUrl } from "@shared/media-preview";
 import { bilibiliEmbedUrl } from "@shared/bilibili-video";
 
 function resource(embedUrl: string, videoId = "dQw4w9WgXcQ"): VideoPreviewResource {
@@ -37,6 +38,13 @@ describe("trustedYoutubeEmbedUrl", () => {
 });
 
 describe("VideoPreview", () => {
+  it("plays scoped workspace MP4 without an empty transcript panel", () => {
+    const url = localMediaUrl({ path: "assets/final.mp4" });
+    const view = render(<VideoPreview resource={{ ...resource(""), playback: { kind: "local-video", mediaUrl: url } }} />);
+    const video = view.container.querySelector("video")!;
+    expect(video.getAttribute("src")).toBe(url); expect(video.controls).toBe(true);
+    expect(view.container.querySelector(".project-video-inspector-column")).toBeNull();
+  });
   it("plays Bilibili in its trusted frame and seeks the selected part using timestamp URLs, including repeat clicks", () => {
     const videoId = "BV1xx411c7mD";
     const embedUrl = bilibiliEmbedUrl({ videoId, page: 2 });

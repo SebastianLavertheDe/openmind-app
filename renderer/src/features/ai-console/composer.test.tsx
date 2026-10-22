@@ -188,6 +188,35 @@ describe("ContextTray selection references", () => {
 });
 
 describe("ContextTray image lightbox", () => {
+  it("places image attachments above the draft inside the editor without the context toolbar", async () => {
+    const first = imageContext("a", "pasted-1");
+    const second = imageContext("b", "pasted-2");
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({ "__new-session__": [first, second] }));
+    const { container } = render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
+    const editor = container.querySelector(".composer-editor")!;
+    const image = screen.getByAltText(first.label);
+    expect(editor.contains(image)).toBe(true);
+    expect(container.querySelector(".context-tray-count")).toBeNull();
+    expect(container.querySelector(".context-tray-clear")).toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "AI 消息" }), { target: { value: "根据这张图片创作" } });
+    fireEvent.click(screen.getByRole("button", { name: `移除图片：${first.label}` }));
+    await waitFor(() => expect(screen.queryByAltText(first.label)).toBeNull());
+    expect(screen.getByAltText(second.label)).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "AI 消息" })).toHaveProperty("value", "根据这张图片创作");
+    fireEvent.click(screen.getByRole("button", { name: `移除图片：${second.label}` }));
+    await waitFor(() => expect(container.querySelector(".context-tray")).toBeNull());
+  });
+
+  it("clears text references without removing attached images from the editor", async () => {
+    const image = imageContext("a", "pasted-1");
+    const reference = selectionContext("text", "引用正文");
+    window.localStorage.setItem("openmind.ai.contexts.v1", JSON.stringify({ "__new-session__": [image, reference] }));
+    render(<AiProvider initial={composerSnapshot}><ChatComposer /></AiProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /清空/ }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: reference.path })).toBeNull());
+    expect(screen.getByAltText(image.label)).toBeTruthy();
+  });
+
   it("renders no dialog when there are no images", () => {
     render(<AiProvider initial={snapshot}><ContextTray contexts={[]} /></AiProvider>);
     expect(screen.queryByRole("dialog")).toBeNull();

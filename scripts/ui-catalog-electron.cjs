@@ -1,5 +1,4 @@
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const assert = require("node:assert/strict");
@@ -16,7 +15,8 @@ const preview = process.argv.includes("--preview");
 const update = process.argv.includes("--update");
 const performanceOnly = process.argv.includes("--performance-only");
 const reportPath = path.join(output, performanceOnly ? "performance.json" : "report.json");
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ui-catalog-"));
+const userData = process.env.OPENMIND_UI_CATALOG_USER_DATA_DIR;
+if (!userData || !path.isAbsolute(userData)) throw new Error("Run the UI catalog through node scripts/ui-catalog.js to provide an isolated profile.");
 app.setPath("userData", userData);
 app.setPath("sessionData", userData);
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
@@ -40,13 +40,8 @@ app.whenReady().then(async () => {
   if (!preview && !performanceOnly) fs.rmSync(output, { recursive: true, force: true });
   fs.mkdirSync(output, { recursive: true });
   report.environment = environment();
-  win = new BrowserWindow({ width: 1280, height: 1040, show: true, backgroundColor: "#ffffff",
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
-  win.webContents.on("console-message", event => { if (event.level >= 3) errors.push(event.message); });
-  win.webContents.on("render-process-gone", (_event, details) => errors.push(`Renderer exited: ${JSON.stringify(details)}`));
-  if (preview) { await load("actions", "light"); win.on("closed", () => app.quit()); return; }
   const manifestPath = path.join(baselines, "manifest.json");
-  if (!update && !performanceOnly) {
+  if (!preview && !update && !performanceOnly) {
     if (!fs.existsSync(manifestPath)) throw new Error(`No reviewed UI baseline for ${process.platform}-${process.arch}. Create and inspect it with npm run visual:ui -- --update.`);
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     assert.deepEqual(report.environment, manifest.environment, "UI rendering environment changed; review fresh baselines with the pinned runtime/fonts.");
@@ -59,6 +54,11 @@ app.whenReady().then(async () => {
       assert.equal(sha(baselinePath), item.sha256, `${item.name}: baseline PNG does not match the reviewed manifest; update and review them together.`);
     }
   } else if (update) fs.mkdirSync(baselines, { recursive: true });
+  win = new BrowserWindow({ width: 1280, height: 1040, show: true, backgroundColor: "#ffffff",
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  win.webContents.on("console-message", event => { if (event.level >= 3) errors.push(event.message); });
+  win.webContents.on("render-process-gone", (_event, details) => errors.push(`Renderer exited: ${JSON.stringify(details)}`));
+  if (preview) { await load("actions", "light"); win.on("closed", () => app.quit()); return; }
   for (const theme of performanceOnly ? [] : ["light", "dark"]) for (const width of [720, 1280]) for (const scenario of scenarios) {
     const name = `${theme}-${width}-${scenario.id}.png`;
     win.setSize(width, scenario.height);
@@ -170,15 +170,8 @@ app.whenReady().then(async () => {
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.error(error);
   for (const window of BrowserWindow.getAllWindows()) window.destroy();
-  cleanupUserData();
   app.exit(1);
 });
-
-function cleanupUserData() {
-  fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
-}
-app.once("will-quit", cleanupUserData);
-process.once("exit", cleanupUserData);
 
 async function load(id, theme) {
   await win.loadFile(path.join(root, ".tmp/ui-catalog/index.html"), { query: { case: id, theme } });

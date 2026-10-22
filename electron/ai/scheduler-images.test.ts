@@ -8,6 +8,7 @@ import {
   cleanupStaleImages,
   extractImageContexts,
   materializeImages,
+  resolveChatAttachment,
   stripImageContent
 } from "./scheduler-images";
 
@@ -34,13 +35,19 @@ function imageContext(overrides: Partial<ContextReference> = {}): ContextReferen
   };
 }
 
+function legacyTemporaryImage(root: string, runId: string, id: string): void {
+  const directory = path.join(root, ".openmind", "ai", "tmp-images");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, `${runId}-${id}.png`), Buffer.from("legacy fixture"));
+}
+
 describe("materializeImages", () => {
-  it("stateRoot 存在时把临时图片写入 app-private root并返回绝对路径", () => {
+  it("stores conversation attachments under app-private state and returns absolute paths", () => {
     const root = createRoot();
     const stateRoot = createRoot();
     const result = materializeImages(root, "run-private", [imageContext()], stateRoot);
 
-    expect(result[0].path).toBe(path.join(stateRoot, ".openmind", "ai", "tmp-images", "run-private-img1.png"));
+    expect(result[0].path).toBe(path.join(stateRoot, ".openmind", "ai", "attachments", "run-private-img1.png"));
     expect(fs.existsSync(result[0].path!)).toBe(true);
     expect(fs.existsSync(path.join(root, ".openmind"))).toBe(false);
   });
@@ -51,7 +58,7 @@ describe("materializeImages", () => {
 
     const ctx = result[0];
     expect(ctx.content).toBeUndefined();
-    expect(ctx.path).toBe(path.join(".openmind", "ai", "tmp-images", "run-1-img1.png"));
+    expect(ctx.path).toBe(path.join(".openmind", "ai", "attachments", "run-1-img1.png"));
     expect(ctx.mediaType).toBe("image/png");
     expect(typeof ctx.byteSize).toBe("number");
     expect(ctx.byteSize).toBeGreaterThan(0);
@@ -113,8 +120,8 @@ describe("materializeImages", () => {
 describe("cleanupImages", () => {
   it("删除指定 runId 前缀的文件,保留其他 run", () => {
     const root = createRoot();
-    materializeImages(root, "run-A", [imageContext({ id: "a1" })]);
-    materializeImages(root, "run-B", [imageContext({ id: "b1" })]);
+    legacyTemporaryImage(root, "run-A", "a1");
+    legacyTemporaryImage(root, "run-B", "b1");
     const dir = path.join(root, ".openmind", "ai", "tmp-images");
     expect(fs.readdirSync(dir)).toHaveLength(2);
 
@@ -131,7 +138,7 @@ describe("cleanupImages", () => {
 
   it("unlink 单文件失败时静默跳过", () => {
     const root = createRoot();
-    materializeImages(root, "run-A", [imageContext({ id: "a1" })]);
+    legacyTemporaryImage(root, "run-A", "a1");
     // 让 unlinkSync 抛错,但整体不应抛
     vi.spyOn(fs, "unlinkSync").mockImplementation(() => {
       throw new Error("perm denied");
@@ -143,8 +150,8 @@ describe("cleanupImages", () => {
 describe("cleanupStaleImages", () => {
   it("删除 mtime 超过 7 天的文件,保留新文件", () => {
     const root = createRoot();
-    materializeImages(root, "run-old", [imageContext({ id: "old" })]);
-    materializeImages(root, "run-new", [imageContext({ id: "new" })]);
+    legacyTemporaryImage(root, "run-old", "old");
+    legacyTemporaryImage(root, "run-new", "new");
     const dir = path.join(root, ".openmind", "ai", "tmp-images");
 
     // 把 old 文件的 mtime 改成 8 天前
@@ -165,6 +172,34 @@ describe("cleanupStaleImages", () => {
 });
 
 describe("stripImageContent", () => {
+  it("keeps sent attachments readable after run cleanup and age-based startup cleanup", () => {
+    const workspace = createRoot();
+    const state = createRoot();
+    const [image] = materializeImages(workspace, "finished-run", [imageContext()], state);
+    const file = image.path!;
+    const old = Date.now() / 1000 - 30 * 24 * 3600;
+    fs.utimesSync(file, old, old);
+    cleanupImages(workspace, "finished-run", state);
+    cleanupStaleImages(workspace, state);
+    const [stored] = JSON.parse(JSON.stringify(stripImageContent([image]))) as ContextReference[];
+    expect(stored.content).toBeUndefined();
+    expect(resolveChatAttachment(stored.path!, state)).toBe(fs.realpathSync.native(file));
+    expect(fs.readFileSync(file)).toEqual(Buffer.from("iVBORw0KGgoAAAANSUhEUg==", "base64"));
+    expect(resolveChatAttachment(file, createRoot())).toBeNull();
+    expect(resolveChatAttachment(path.join(state, "credentials", "key.png"), state)).toBeNull();
+    expect(resolveChatAttachment(path.join(state, ".openmind", "ai", "attachments", "..", "run.json"), state)).toBeNull();
+  });
+
+  it("rejects attachment symlinks that escape their storage directory", () => {
+    const root = createRoot();
+    const outside = createRoot();
+    const directory = path.join(root, ".openmind", "ai", "attachments");
+    fs.mkdirSync(directory, { recursive: true });
+    const link = path.join(directory, "escape");
+    fs.symlinkSync(outside, link, process.platform === "win32" ? "junction" : "dir");
+    expect(() => resolveChatAttachment(path.join(link, "image.png"), root)).toThrow(/超出会话存储范围/);
+  });
+
   it("剥离 image 的 content,保留元数据", () => {
     const ctx = imageContext({ path: "x.png", mediaType: "image/png", byteSize: 100 });
     const result = stripImageContent([ctx]);

@@ -7,6 +7,7 @@ const definitions = {
   Popover: ["Popover.tsx", "menus", []],
   FileDropzone: ["FileDropzone.tsx", "uploads", ["ui-file-dropzone"]],
   ImageThumbnail: ["ImageThumbnail.tsx", "media", ["ui-image-thumbnail"]],
+  ImageAttachment: ["ImageThumbnail.tsx", "media", ["ui-image-attachment"]],
   Button: ["Button.tsx", "buttons", ["ui-button", "ui-button-spinner"]],
   IconButton: ["IconButton.tsx", "buttons", ["ui-icon-button"]],
   CopyButton: ["CopyButton.tsx", "buttons", []],

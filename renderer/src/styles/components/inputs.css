@@ -47,6 +47,7 @@
   resize: none;
 }
 .ui-textarea[data-variant="composer"] {
+  /* The toolbar has its own layout row; text padding scrolls with the draft. */
   min-height: var(--input-composer-min-height);
   max-height: var(--input-composer-max-height);
   padding: var(--space-5) var(--space-5) var(--input-composer-bottom-inset);

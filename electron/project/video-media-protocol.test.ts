@@ -58,8 +58,14 @@ describe("project video streaming", () => {
 
   it("does not serve non-video files or symlinks", async () => {
     const link = path.join(directory, "link.mp4");
-    fs.symlinkSync(file, link);
-    expect((await createVideoMediaHandler(() => link)(new Request(url))).status).toBe(404);
+    // Windows file-symlink creation may require elevation. Inject the lstat
+    // result so this guard is exercised on every platform without privileges.
+    const stat = fs.lstatSync(file);
+    const lstat = vi.spyOn(fs, "lstatSync").mockReturnValue({ ...stat, isFile: () => true, isSymbolicLink: () => true } as fs.Stats);
+    try {
+      expect((await createVideoMediaHandler(() => link)(new Request(url))).status).toBe(404);
+      expect(lstat).toHaveBeenCalledWith(link);
+    } finally { lstat.mockRestore(); }
     const text = path.join(directory, "text.txt");
     fs.writeFileSync(text, "private");
     expect((await createVideoMediaHandler(() => text)(new Request(url))).status).toBe(404);

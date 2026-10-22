@@ -1,13 +1,14 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiEvent, AiRun, AiSnapshot, AiTurn, ApprovalRequest, ChangeSet, DesktopApi, SkillDefinition } from "@shared/contracts";
+import type { AiEvent, AiRun, AiSnapshot, AiTurn, AiTurnPage, ApprovalRequest, ChangeSet, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { AiProvider, useAi, useAiStreaming } from "../ai-context";
 import { buildTraceSteps, Chat, compactEvents, groupTimeline, selectRenderableTimelineEvents, ToolCallCard, toolOperationSummary } from "./Chat";
 import { ChatComposer } from "../features/ai-console/composer";
 import { FilePreviewProvider } from "../features/ai-console/file-preview-context";
 import { CommandGroup } from "../features/ai-console/tool";
+import { localMediaUrl } from "@shared/media-preview";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -414,6 +415,20 @@ describe("Chat composer", () => {
 });
 
 describe("chat timeline", () => {
+  it("shows a viewed-image preview in the live process without a duplicate terminal marker", async () => {
+    const run = makeRun();
+    window.openmind.readChatImage = vi.fn(async () => ({ dataUrl: "data:image/png;base64,AAA=", width: 640, height: 480 }));
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "看一下这张图" }, 1),
+      makeEvent("read-start", "tool-start", { itemId: "picture", tool: "Read", input: { file_path: "assets/参考图.png" } }, 2),
+      makeEvent("read-complete", "tool-complete", { itemId: "picture", tool: "Read", output: {} }, 3)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    const header = await screen.findByRole("button", { name: "已查看 1 张图像" });
+    expect(await screen.findByAltText("参考图.png")).toBeTruthy();
+    expect(header.closest(".trace-step")?.querySelector(".trace-step-marker")).toBeNull();
+    expect(container.querySelector(".read-file-summary")).toBeNull();
+  });
   it("shows only the final assistant message for a completed run", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:00:08.000Z" };
     window.openmind.aiGetEvents = async () => [
@@ -1219,8 +1234,8 @@ describe("chat timeline", () => {
     render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
 
     openDisclosure(disclosureFor(await screen.findByText("已处理")));
-    expect(screen.getByText("已运行")).toBeTruthy();
-    expect(screen.getByText("已运行了 npm test")).toBeTruthy();
+    expect(await screen.findByText("已运行")).toBeTruthy();
+    expect(await screen.findByText("已运行了 npm test")).toBeTruthy();
   });
 
   it("renders final answer markdown and answer actions", async () => {
@@ -1307,7 +1322,11 @@ describe("chat timeline", () => {
       });
       const review = await screen.findByRole("region", { name: "已编辑 1 个文件" });
       const answer = screen.getByText("Saved.").closest(".assistant-message")!;
-      expect(Boolean(answer.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(answer.contains(review)).toBe(true);
+      const content = answer.querySelector(".assistant-content")!;
+      const actions = answer.querySelector(".message-meta")!;
+      expect(Boolean(content.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(Boolean(review.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
       expect(within(review).getByRole("button", { name: "src/app.ts" })).toBeTruthy();
       expect(review.textContent).not.toMatch(/[+-]\d+/);
     }
@@ -1330,7 +1349,8 @@ describe("chat timeline", () => {
     });
     const review = await screen.findByRole("region", { name: "已编辑 1 个文件" });
     const answer = screen.getByText("Saved.").closest(".assistant-message")!;
-    expect(Boolean(answer.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(answer.contains(review)).toBe(true);
+    expect(Boolean(review.compareDocumentPosition(answer.querySelector(".message-meta")!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it("renders a compact edited-files context that opens files in the preview", async () => {
@@ -1365,6 +1385,58 @@ describe("chat timeline", () => {
     expect(openPreview).toHaveBeenCalledWith("src/app.ts");
   });
 
+  it("attaches existing media to the completed reply before files and actions", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z", changeSet: makeChangeSet() };
+    const read = vi.fn(async ({ path }: { path: string }) => ({ id: path, path, name: "final.mp4", kind: "video" as const, mimeType: "video/mp4", byteSize: 100, mediaUrl: localMediaUrl({ path }) }));
+    window.openmind.readMediaPreview = read;
+    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "生成视频" }, 1), makeEvent("a", "assistant-message", { text: "视频已完成： [final.mp4](<outputs/final.mp4>)", phase: "final" }, 2)];
+    const open = vi.fn();
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><FilePreviewProvider open={open}><Chat /></FilePreviewProvider></AiProvider>);
+    const preview = await screen.findByRole("button", { name: "预览 final.mp4" });
+    const reply = preview.closest(".assistant-message")!;
+    const media = reply.querySelector(".reply-media-results")!;
+    const changes = reply.querySelector(".change-review-card")!;
+    expect(Boolean(media.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(changes.compareDocumentPosition(reply.querySelector(".message-meta")!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    fireEvent.click(preview); expect(open).toHaveBeenCalledWith("outputs/final.mp4", undefined);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps each edited-files footer with its own reply and copies only the reply text", async () => {
+    const writeText = vi.fn(async () => {});
+    const previousClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      const changes = makeChangeSet();
+      const earlier = { ...makeRun(), id: "earlier", status: "completed" as const, completedAt: "2026-01-01T00:00:10Z", changeSet: { ...changes, id: "earlier-changes", runId: "earlier", files: [{ ...changes.files[0], path: "earlier.ts" }] } };
+      const latest = { ...makeRun(), status: "completed" as const, startedAt: "2026-01-01T01:00:00Z", completedAt: "2026-01-01T01:00:10Z", changeSet: { ...changes, files: [{ ...changes.files[0], path: "latest.ts" }] } };
+      window.openmind.aiGetEvents = async () => [
+        { ...makeEvent("earlier-user", "user-message", { text: "first edit" }, 1), runId: earlier.id, timestamp: earlier.startedAt },
+        { ...makeEvent("earlier-answer", "assistant-message", { text: "Earlier reply", phase: "final" }, 2), runId: earlier.id, timestamp: earlier.completedAt },
+        { ...makeEvent("latest-user", "user-message", { text: "second edit" }, 1), timestamp: latest.startedAt },
+        { ...makeEvent("latest-answer", "assistant-message", { text: "Latest reply", phase: "final" }, 2), timestamp: latest.completedAt }
+      ];
+      render(<AiProvider initial={{ ...snapshotForRun(latest, "idle"), runs: [earlier, latest] }}><Chat /></AiProvider>);
+      const latestReply = (await screen.findByText("Latest reply")).closest<HTMLElement>(".assistant-message")!;
+      const earlierReply = screen.getByText("Earlier reply").closest<HTMLElement>(".assistant-message")!;
+      for (const [reply, path, other] of [[earlierReply, "earlier.ts", "latest.ts"], [latestReply, "latest.ts", "earlier.ts"]] as const) {
+        const review = reply.querySelector<HTMLElement>(".change-review-card")!;
+        expect(within(review).getByRole("button", { name: path })).toBeTruthy();
+        expect(review.textContent).not.toContain(other);
+        expect(Boolean(review.compareDocumentPosition(reply.querySelector(".message-meta")!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      }
+      const nextPrompt = screen.getByText("second edit").closest(".user-message")!;
+      expect(Boolean(earlierReply.compareDocumentPosition(nextPrompt) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      await act(async () => { fireEvent.click(within(earlierReply).getByRole("button", { name: "复制" })); });
+      expect(writeText).toHaveBeenLastCalledWith("Earlier reply");
+      await act(async () => { fireEvent.click(within(latestReply).getByRole("button", { name: "复制" })); });
+      expect(writeText).toHaveBeenLastCalledWith("Latest reply");
+    } finally {
+      if (previousClipboard) Object.defineProperty(navigator, "clipboard", previousClipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
   it("builds the post-final change artifact from a successful Claude write tool", async () => {
     const run = {
       ...makeRun(),
@@ -1386,7 +1458,8 @@ describe("chat timeline", () => {
     expect(review).toBeTruthy();
     expect(review.textContent).toContain("1");
     expect(review.textContent).toContain("src/app.ts");
-    expect(Boolean(answer.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(answer.contains(review)).toBe(true);
+    expect(Boolean(review.compareDocumentPosition(answer.querySelector(".message-meta")!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it("places thought and tool calls directly between the prompt and final answer", () => {
@@ -1424,7 +1497,6 @@ describe("chat timeline", () => {
   });
 
   it("loads conversation history through complete-turn cursor pages", async () => {
-    const user = userEvent.setup();
     const oldRun = {
       ...makeRun(),
       id: "old-run",
@@ -1458,19 +1530,21 @@ describe("chat timeline", () => {
     window.openmind.aiListTurns = listTurns;
     window.openmind.aiGetEvents = async () => { throw new Error("legacy event loading should not run"); };
 
-    render(
+    const { container } = render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [newRun, oldRun] }}>
         <Chat />
       </AiProvider>
     );
 
     expect(await screen.findByText("newest prompt")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "加载更早的回合" }));
+    expect(listTurns).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "加载更早的回合" })).toBeNull();
+    fireEvent.wheel(container.querySelector(".chat-scroll")!, { deltaY: -100 });
     expect(await screen.findByText("older prompt")).toBeTruthy();
     expect(listTurns).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps paged history inside the render budget until the user reveals it", async () => {
+  it("keeps paged history inside the render budget until the user scrolls upward", async () => {
     const oldRun = {
       ...makeRun(),
       id: "paged-old-run",
@@ -1506,7 +1580,7 @@ describe("chat timeline", () => {
       parseErrors: 0
     });
 
-    render(
+    const { container } = render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [oldRun, newRun] }}>
         <Chat />
       </AiProvider>
@@ -1514,8 +1588,87 @@ describe("chat timeline", () => {
 
     expect(await screen.findByText("paged newest answer")).toBeTruthy();
     expect(screen.queryByText("paged older prompt")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /300/ }));
+    fireEvent.wheel(container.querySelector(".chat-scroll")!, { deltaY: -100 });
     expect(await screen.findByText("paged older prompt")).toBeTruthy();
+  });
+
+  it("loads only near the top, locks duplicate requests, and reveals an oversized older turn", async () => {
+    const fixture = historyFixture(1100);
+    let finish!: (page: AiTurnPage) => void;
+    const list = vi.fn(async (_id: string, input?: { cursor?: string | null }) => input?.cursor
+      ? new Promise<AiTurnPage>(resolve => { finish = resolve; }) : fixture.recent);
+    window.openmind.aiListTurns = list;
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    await screen.findByText("recent history prompt");
+    const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
+    const geometry = mockChatScroller(scroller);
+    fireEvent.wheel(scroller, { deltaY: 100 });
+    fireEvent.wheel(scroller, { deltaY: -100, ctrlKey: true });
+    geometry.setTop(500);
+    geometry.setTop(250);
+    expect(list).toHaveBeenCalledTimes(1);
+    geometry.setTop(140);
+    fireEvent.wheel(scroller, { deltaY: -100 });
+    fireEvent.wheel(scroller, { deltaY: -100 });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(list).toHaveBeenLastCalledWith("session", { cursor: "older-history", limit: 20, sortDirection: "desc" });
+    expect(screen.getByRole("status").textContent).toContain("正在加载");
+    await act(async () => { finish(fixture.older); });
+    expect(await screen.findByText("old history prompt")).toBeTruthy();
+    expect(screen.getByText("recent history prompt")).toBeTruthy();
+    fireEvent.wheel(scroller, { deltaY: -100 });
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the visible message anchored when older rows are prepended", async () => {
+    const fixture = historyFixture();
+    let finish!: (page: AiTurnPage) => void;
+    window.openmind.aiListTurns = async (_id, input) => input?.cursor
+      ? new Promise<AiTurnPage>(resolve => { finish = resolve; }) : fixture.recent;
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    await screen.findByText("recent history prompt");
+    const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
+    const geometry = mockChatScroller(scroller);
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
+      if (this === scroller) return { top: 0, bottom: 200, left: 0, right: 600, width: 600, height: 200 } as DOMRect;
+      if (this.classList.contains("timeline-presence-item")) {
+        const index = [...scroller.querySelectorAll(".timeline-presence-item")].indexOf(this);
+        const top = index * 80 - scroller.scrollTop;
+        return { top, bottom: top + 80, left: 0, right: 600, width: 600, height: 80 } as DOMRect;
+      }
+      return originalRect.call(this);
+    });
+    geometry.setTop(40);
+    const anchor = scroller.querySelector<HTMLElement>(".timeline-presence-item")!;
+    const before = anchor.getBoundingClientRect().top;
+    fireEvent.wheel(scroller, { deltaY: -100 });
+    await act(async () => { geometry.setHeight(2000); finish(fixture.older); });
+    await screen.findByText("old history prompt");
+    expect(anchor.isConnected).toBe(true);
+    expect(anchor.getBoundingClientRect().top).toBe(before);
+    vi.restoreAllMocks();
+  });
+
+  it("retries a failed page on a later upward scroll without an automatic retry loop", async () => {
+    const fixture = historyFixture();
+    let olderRequests = 0;
+    const list = vi.fn(async (_id: string, input?: { cursor?: string | null }) => {
+      if (!input?.cursor) return fixture.recent;
+      if (++olderRequests === 1) throw new Error("temporary history error");
+      return fixture.older;
+    });
+    window.openmind.aiListTurns = list;
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    await screen.findByText("recent history prompt");
+    const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
+    await act(async () => { fireEvent.wheel(scroller, { deltaY: -100 }); });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("old history prompt")).toBeNull();
+    await waitFor(() => expect(scroller.hasAttribute("data-history-prepend")).toBe(false));
+    await act(async () => { fireEvent.wheel(scroller, { deltaY: -100 }); });
+    expect(await screen.findByText("old history prompt")).toBeTruthy();
+    expect(list).toHaveBeenCalledTimes(3);
   });
 
   it("renders the latest prompt when an older run is larger than the history budget", async () => {
@@ -1560,7 +1713,7 @@ describe("chat timeline", () => {
     expect(await screen.findByText("总结下今天的内容")).toBeTruthy();
     expect(screen.getByText("这是今天的总结")).toBeTruthy();
     expect(screen.queryByText("打印当前目录")).toBeNull();
-    expect(screen.getByRole("button", { name: /300/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /300/ })).toBeNull();
   });
 
   it("renders one completed process before only the final assistant message in the run", async () => {
@@ -1701,7 +1854,11 @@ describe("chat timeline", () => {
     const process = disclosureFor(await screen.findByText("已处理"));
     expectDisclosureOpen(process, false);
     openDisclosure(process);
-    const group = process.querySelector<HTMLElement>(".command-group.flat")!;
+    const group = await waitFor(() => {
+      const element = process.querySelector<HTMLElement>(".command-group.flat");
+      expect(element).not.toBeNull();
+      return element!;
+    });
     expect(group.classList.contains("failed")).toBe(true);
     expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
     const [pwd, failed, git] = Array.from(group.querySelectorAll<HTMLElement>(".tool-event"));
@@ -1764,7 +1921,11 @@ describe("chat timeline", () => {
 
     const process = disclosureFor(await screen.findByText(m.ai.chat.processed));
     openDisclosure(process);
-    const group = process.querySelector<HTMLElement>(".command-group.flat")!;
+    const group = await waitFor(() => {
+      const group = process.querySelector<HTMLElement>(".command-group.flat");
+      expect(group).toBeTruthy();
+      return group!;
+    });
     expect(group.classList.contains("completed")).toBe(true);
     expect(group.querySelectorAll(".tool-event")).toHaveLength(3);
     expect(within(group).getByRole("button", { name: /Glob.*\*\*\/\*\.md.*openmind/ })).toBeTruthy();
@@ -2106,6 +2267,35 @@ describe("chat timeline", () => {
 });
 
 describe("run waiting and queue", () => {
+  it("keeps follow-ups queued without a processing timer and stops the executing run", async () => {
+    const active = { ...makeRun(), id: "executing", prompt: "当前任务", startedAt: "2026-01-01T00:00:00.000Z" };
+    const queued = { ...makeRun(), id: "follow-up", prompt: "追加问题", status: "queued" as const, startedAt: "2026-01-02T00:00:00.000Z" };
+    const state = { ...snapshotForRun(active, "running"), runs: [active, queued] };
+    window.openmind.aiGetEvents = async () => [
+      { ...makeEvent("first-prompt", "user-message", { text: active.prompt }, 1), runId: active.id },
+      { ...makeEvent("follow-up-prompt", "user-message", { text: queued.prompt }, 2), runId: queued.id }
+    ];
+    window.openmind.aiRefresh = async () => state;
+    const cancel = vi.fn(async () => true);
+    window.openmind.aiCancelRun = cancel;
+    const { container } = render(<AiProvider initial={state}><Chat /></AiProvider>);
+
+    await screen.findByText("排队中");
+    expect(container.querySelectorAll(".completed-process.processing")).toHaveLength(1);
+    expect(container.querySelector(".queued-process small")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "1 条消息正在排队" }));
+    expect(screen.getByRole("button", { name: "1 条消息正在排队" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: m.ai.composer.cancelQueued }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith(queued.id));
+    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith(active.id));
+
+    aiListener?.({ kind: "snapshot", snapshot: { ...state, runs: [{ ...active, status: "completed", completedAt: "2026-01-02T00:00:01.000Z" }, { ...queued, status: "running" }] } });
+    await waitFor(() => expect(screen.queryByText("排队中")).toBeNull());
+    expect(screen.queryByRole("button", { name: "1 条消息正在排队" })).toBeNull();
+    expect(container.querySelectorAll(".completed-process.processing")).toHaveLength(1);
+  });
+
   it("reports the scheduler worker exiting and clears in-flight streaming (AI-T05)", async () => {
     window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "hello" }, 1)];
     render(<AiProvider initial={snapshotForRun(makeRun(), "running")}><Chat /></AiProvider>);
@@ -2216,6 +2406,21 @@ describe("run waiting and queue", () => {
     await waitFor(() => expect(scroller.scrollTop).toBe(geometry.bottom()));
   });
 });
+
+function historyFixture(oldEventCount = 2) {
+  const recent = { ...makeRun(), id: "history-new", status: "completed" as const, startedAt: "2026-01-02T00:00:00Z", completedAt: "2026-01-02T00:01:00Z" };
+  const older = { ...recent, id: "history-old", startedAt: "2026-01-01T00:00:00Z", completedAt: "2026-01-01T00:01:00Z" };
+  const events = (run: AiRun, label: string, count: number) => Array.from({ length: count }, (_, index) => ({
+    ...makeEvent(`${run.id}-${index}`, index === 0 ? "user-message" : index === count - 1 ? "assistant-message" : "status",
+      index === 0 ? { text: `${label} history prompt` } : index === count - 1 ? { text: `${label} history answer`, phase: "final" } : { state: "running" }, index + 1),
+    runId: run.id, timestamp: run.startedAt
+  }));
+  return {
+    snapshot: { ...snapshotForRun(recent, "idle"), runs: [older, recent] },
+    recent: { data: [makeTurn(recent, events(recent, "recent", 2))], nextCursor: "older-history", total: 2, parseErrors: 0 } satisfies AiTurnPage,
+    older: { data: [makeTurn(older, events(older, "old", oldEventCount))], nextCursor: null, total: 2, parseErrors: 0 } satisfies AiTurnPage
+  };
+}
 
 function makeRun(): AiRun {
   return {

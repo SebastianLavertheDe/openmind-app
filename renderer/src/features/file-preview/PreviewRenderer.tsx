@@ -6,6 +6,7 @@ import type { PreviewResource } from "./model";
 import { DocumentPreview } from "./renderers/DocumentPreview";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import { ImagePreview } from "./renderers/ImagePreview";
+import { AudioPreview } from "./renderers/AudioPreview";
 
 const PdfPreview = lazy(() => import("./renderers/PdfPreview"));
 const VideoPreview = lazy(() => import("./renderers/VideoPreview"));
@@ -21,6 +22,8 @@ export function PreviewRenderer({ resource, content, layout = "file", onError, o
 }) {
   useLocale();
   switch (resource.kind) {
+    case "audio":
+      return <AudioPreview key={resource.id} resource={resource} onOpenExternal={onOpenExternal} />;
     case "image":
       return <ImagePreview key={resource.id} resource={resource} />;
     case "document":

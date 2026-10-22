@@ -4,6 +4,7 @@ import { isBinaryPreviewPath, workspaceFileSource } from "../file-preview/worksp
 import { projectMaterialPreviewSource } from "../projects/project-material-preview-source";
 import { projectOutputPreviewSource } from "../projects/project-output-preview-source";
 import { projectsApi } from "../projects/projects-api";
+import { localMediaSource, mediaKind } from "../file-preview/local-media-source";
 
 export type ResolvedPreviewSource = {
   source: FilePreviewSource;
@@ -45,6 +46,7 @@ export async function resolveProjectPreviewSource(targetPath: string, projectNam
   const relativeTarget = ownedProjectRelativePath(targetPath, projectName);
   if (relativeTarget === null) return null;
   const logicalTarget = `openmind/projects/${projectName}/${relativeTarget}`;
+  if (/^(materials|outputs)\//.test(relativeTarget) && mediaKind(relativeTarget)) return { source: localMediaSource(relativeTarget, projectName), logicalPath: logicalTarget };
   const listings = await loadProjectFileListings(projectName);
   const material = bestPathMatch(relativeTarget, listings.materials.flatMap((item) => [
     { value: item.relativePath, item, original: false },
@@ -52,6 +54,7 @@ export async function resolveProjectPreviewSource(targetPath: string, projectNam
   ]));
   if (material) {
     const logicalPath = `openmind/projects/${projectName}/${material.value}`;
+    if (mediaKind(material.value)) return { source: localMediaSource(material.value, projectName), logicalPath };
     if (material.original && !/\.pdf$/i.test(material.value)) {
       return { source: unsupportedPreviewSource(logicalPath, uiMessages.interface.binaryMaterial), logicalPath };
     }
@@ -84,7 +87,7 @@ export async function resolveProjectPreviewSource(targetPath: string, projectNam
  * paths is intentional: readContent may accept them inside the workspace, but
  * a Project Task must not acquire that broader workspace read capability.
  */
-function ownedProjectRelativePath(targetPath: string, projectName: string): string | null {
+export function ownedProjectRelativePath(targetPath: string, projectName: string): string | null {
   let decoded = targetPath;
   try { decoded = decodeURIComponent(targetPath); } catch { /* Reject malformed escapes below as ordinary text. */ }
   const normalized = decoded.trim().replaceAll("\\", "/").replace(/^\.\//, "");

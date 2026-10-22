@@ -3,14 +3,14 @@ import { IconButton } from "../../design-system/IconButton";
 import { CopyButton } from "../../design-system/CopyButton";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
-import { isValidElement, memo, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
+import { isValidElement, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import { GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
+import { ChevronDown, ChevronUp, GitFork, Image as ImageIcon, LoaderCircle, Pencil, Quote, Redo2 } from "lucide-react";
 import type { AiEvent, ContextReference } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { formatDateTime } from "../../ai-utils";
@@ -37,14 +37,19 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
   const actions = useAiActions();
   const text = String(event.payload.text || "");
   const contexts = Array.isArray(event.payload.contexts) ? event.payload.contexts as ContextReference[] : [];
+  const images = contexts.filter(context => context.kind === "image");
+  const references = contexts.filter(context => context.kind !== "image");
   return (
     <article className="message user-message">
       {/* P0-AI-1: 用户头像 */}
       <div className="message-body">
-        <div className="user-message-bubble">
-          {text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT ? <DocumentReader content={text} plain/> : <p>{text}</p>}
-          {contexts.length ? <SentContexts contexts={contexts} /> : null}
-        </div>
+        {images.length ? <ChatImageGallery><div className="user-message-images">
+          {images.map(context => <ChatImage key={context.id} source={context.content || context.path || ""} title={context.label} variant="attachment" />)}
+        </div></ChatImageGallery> : null}
+        {text || references.length ? <div className="user-message-bubble">
+          {text ? <UserMessageText key={event.id} text={text} /> : null}
+          {references.length ? <SentContexts contexts={references} /> : null}
+        </div> : null}
         {/* 操作按钮在气泡外右下角（对齐主流聊天 UI）；身份由左右布局区分，
             "你 + 时间"视觉隐藏，保留无障碍语义。 */}
         <MessageMeta label={m.ai.message.you} timestamp={event.timestamp} visuallyHidden>
@@ -59,18 +64,60 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
   );
 });
 
+/** Measure rendered lines so wrapping, window width and text size all count. */
+function UserMessageText({ text }: { text: string }) {
+  const locale = useLocale();
+  const id = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const preview = useRef<HTMLParagraphElement>(null);
+  const restorePosition = useRef(false);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const largeDocument = text.length > STREAMING_MARKDOWN_RICH_TEXT_LIMIT;
+
+  useLayoutEffect(() => {
+    if (restorePosition.current) {
+      restorePosition.current = false;
+      root.current?.scrollIntoView?.({ block: "nearest" });
+    }
+    if (expanded) return;
+    const element = preview.current;
+    if (!element) return;
+    const measure = () => setOverflows(largeDocument || element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [expanded, text, largeDocument, locale]);
+
+  return <div ref={root} className="user-message-text" data-expanded={expanded}>
+    <div id={id} className="user-message-text-content">
+      {expanded && largeDocument ? <DocumentReader content={text} plain />
+        : <p ref={preview} className="user-message-text-preview">{largeDocument ? text.slice(0, STREAMING_MARKDOWN_RICH_TEXT_LIMIT) : text}</p>}
+    </div>
+    {overflows || expanded ? <Button variant="text" responsiveTarget className="user-message-text-toggle"
+      aria-expanded={expanded} aria-controls={id} trailingIcon={expanded ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+      onClick={() => { restorePosition.current = expanded; setExpanded(value => !value); }}>
+      {expanded ? m.ai.message.showLess : m.ai.message.showMore}
+    </Button> : null}
+  </div>;
+}
+
 export const AssistantMessage = memo(function AssistantMessage({
   text,
   streaming = false,
   event,
   blocks: suppliedBlocks,
-  keyPrefix
+  keyPrefix,
+  footer
 }: {
   text: string;
   streaming?: boolean;
   event?: AiEvent;
   blocks?: readonly AssistantContentBlock[];
   keyPrefix?: string;
+  footer?: ReactNode;
 }) {
   const locale = useLocale();
   const actions = useAiActions();
@@ -89,6 +136,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         {parsedBlocks
           ? <AssistantContent blocks={parsedBlocks} streaming={streaming} />
           : <ChatMarkdown text={text} streaming={streaming} />}
+        {footer}
         <MessageMeta label="AI" timestamp={event?.timestamp} visuallyHidden>
           {streaming ? <LoaderCircle className="spin" size={13} /> : (
             <>

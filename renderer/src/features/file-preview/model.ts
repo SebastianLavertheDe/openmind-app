@@ -61,7 +61,12 @@ export type PreviewResource =
   | ImagePreviewResource
   | PdfPreviewResource
   | VideoPreviewResource
+  | AudioPreviewResource
   | UnsupportedPreviewResource;
+
+export type AudioPreviewResource = {
+  kind: "audio"; id: string; path: string; title: string; mediaUrl: string;
+};
 
 export type ImagePreviewResource = {
   kind: "image";

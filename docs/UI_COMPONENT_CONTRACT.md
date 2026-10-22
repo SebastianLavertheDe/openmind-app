@@ -37,6 +37,35 @@ Choose a variant for its meaning, rather than introducing a page-specific skin.
 Toolbar and navigation actions use `responsiveTarget` to keep a 44px minimum
 target in windows up to 720px wide. Coarse pointers use that minimum for every
 shared action. The shared button stylesheet owns both adaptations.
+IconButton supports `shape="rect"` (default) and `shape="circle"`; combine the
+circle shape with `variant="primary"` for prominent actions such as Send.
+Icon actions use the shared Tooltip rather than a native `title`.
+Draft images use ImageAttachment, which composes the 120px square
+`ImageThumbnail variant="attachment"` with a removable overlay. Removal is
+revealed on hover or keyboard focus and remains visible for touch input.
+Sent image attachments reuse that square ImageThumbnail variant in a wrapping,
+right-aligned strip above the text bubble, without draft removal controls or
+duplicate context rows. Clicking a thumbnail opens the shared ImageViewer gallery.
+User-message text previews clamp to 20 rendered lines, with an overflow-only
+Show more / Show less action. Wrapping is remeasured after resizing; message
+actions always retain the complete original text. Very large messages defer
+DocumentReader until expansion and keep the collapsed preview bounded.
+The final reply owns its output footer: content first, existing media previews,
+edited files, then quote/branch/rerun/copy actions. Copying a reply uses only its
+text. Media cards use shared Button actions to open the file preview pane.
+Local video and audio use native playback controls, read-only resources and
+scoped Main-process streaming with byte ranges; media bytes never enter chat
+events. Missing files do not produce cards, and project media retain project
+ownership on every read.
+Inline disclosure actions use `Button variant="text"`, which inherits the
+surrounding typography and keeps keyboard focus and touch targets shared.
+Successful tool image reads use a default-open `AnimatedDisclosure
+variant="inline"` with a viewed-image count and `ImageThumbnail variant="tool"`
+(64px square). Adjacent successful image reads share a gallery strip; failed,
+running and ordinary file reads retain their existing activity/error details.
+The composer toolbar occupies a separate row below Textarea; its controls must
+never overlay the textarea's scrolling viewport. The text area starts at 94px,
+with the toolbar bringing the ordinary editor surface to 146px.
 
 Select UI and motion belong exclusively to `components.css`, including standalone
 `SelectTrigger`, `SelectItem` and grouped `SelectMenuSurface`. Choice items do not

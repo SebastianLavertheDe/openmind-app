@@ -1201,6 +1201,7 @@ export interface DesktopApi {
   listContent(kind: string, date: string): Promise<ContentEntry[]>;
   readContent(path: string): Promise<ContentRecord>;
   readImagePreview(path: string): Promise<import("./image-preview").ImagePreviewRecord>;
+  readMediaPreview(input: import("./media-preview").MediaPreviewRequest): Promise<import("./media-preview").MediaPreviewRecord>;
   readChatImage(input: import("./image-generation").ChatImageRequest): Promise<import("./image-generation").ChatImageData>;
   getImageConfiguration(): Promise<import("./image-generation").ImageConfiguration>;
   selectImageModel(selection: import("./image-generation").ImageSelection | null): Promise<import("./image-generation").ImageConfiguration>;

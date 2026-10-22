@@ -6,6 +6,7 @@ import { AiProvider } from "../../ai-context";
 import { AiFilePreviewPane } from "./AiFilePreviewPane";
 import { useFilePreview } from "./file-preview-context";
 import { clearProjectPreviewSourceCacheForTests } from "./project-preview-source";
+import { localMediaUrl } from "@shared/media-preview";
 
 vi.mock("../creative/MarkdownEditor", () => ({
   MarkdownEditor: ({ value, onChange, ariaLabel }: { value: string; onChange(value: string): void; ariaLabel: string }) => (
@@ -27,6 +28,20 @@ beforeEach(() => {
 });
 
 describe("AiFilePreviewPane", () => {
+  it.each([["video", "final.mp4", "video/mp4"], ["audio", "voice.wav", "audio/wav"]])("opens a local %s in the file pane and keeps it read-only", async (kind, name, mimeType) => {
+    const path = `assets/${name}`;
+    const readContent = vi.fn();
+    window.openmind = {
+      aiGetEvents: async () => [], onAiEvent: () => () => {}, readContent,
+      readMediaPreview: async () => ({ id: name, path, name, kind, mimeType, byteSize: 100, mediaUrl: localMediaUrl({ path }) })
+    } as unknown as DesktopApi;
+    const view = render(<AiProvider initial={snapshot}><AiFilePreviewPane surface={{ kind: "workspace" }}><PreviewTrigger path={path} /></AiFilePreviewPane></AiProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "打开引用" }));
+    await waitFor(() => expect(view.container.querySelector(kind)).toBeTruthy());
+    expect(view.container.querySelector(kind)?.getAttribute("src")).toBe(localMediaUrl({ path }));
+    expect(screen.getByRole("button", { name: "编辑文件" }).hasAttribute("disabled")).toBe(true);
+    expect(readContent).not.toHaveBeenCalled();
+  });
   it("opens a screenshot link as a read-only image instead of an unsupported binary", async () => {
     const path = "D:\\workspace\\x_home.png";
     const dataUrl = "data:image/png;base64,iVBORw0KGgo=";

@@ -447,7 +447,7 @@ export const featureMessages = {
         sources: { title: "Sources", description: "Manage RSS feeds, folders, APIs, and other inputs that Skills can reuse." },
         storage: { title: "Data and storage", description: "Set local retention policies for caches, logs, and notification history." },
         sessions: { title: "Archived sessions", description: "View, open, or restore archived AI sessions." },
-        runtime: { title: "Built-in runtime", description: "Manage the shared Python environment used by Skills and automation tasks." }
+        runtime: { title: "Built-in runtime", description: "Manage the shared Python environment, video import settings, and download tools." }
       }
     },
     saveStatus: { saving: "Saving…", saved: "Changes are saved locally as you make them" },

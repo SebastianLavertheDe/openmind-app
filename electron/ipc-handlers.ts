@@ -39,7 +39,10 @@ import type { SharedPythonRuntimeService } from "./runtime/shared-python-runtime
 import { normalizeOpenmindSelection } from "./openmind-file-search";
 import * as settings from "./lib/settings";
 import { readImagePreview } from "./lib/image-preview";
+import { readMediaPreview } from "./lib/media-preview";
+import type { MediaPreviewRequest } from "../shared/media-preview";
 import { readChatImage } from "./images/chat-image";
+import { resolveChatAttachment } from "./ai/scheduler-images";
 import { ImageConfigurationStore } from "./images/image-configuration";
 import { ChatImageRequestSchema, ImageSelectionSchema } from "../shared/image-generation";
 import { messages, setLocale } from "../shared/messages";
@@ -149,6 +152,7 @@ export type IpcMainContext = {
   ensureProductService: () => ProductService;
   ensureProjectService: () => ProjectService;
   ensureAiWorker: () => AiWorkerCaller;
+  resolveAiStateRoot?: () => string;
   ensureOpenmindFileSearch: () => OpenmindFileSearch;
   ensureCliInstallerService?: () => import("./install/cli-installer-service").CliInstallerService;
   ensureYoutubeToolsService?: () => import("./install/youtube-tools-service").YoutubeToolsService;
@@ -168,6 +172,11 @@ export type IpcMainContext = {
 };
 
 export type IpcHandler = (...args: unknown[]) => unknown | Promise<unknown>;
+
+export function resolveMediaPreviewFile(input: MediaPreviewRequest, projectService: () => ProjectService): string {
+  if (input.projectName) return projectService().paths.resolveInsideProject(input.projectName, input.path, { allowedTopLevels: ["materials", "outputs"] });
+  return settings.ensureInsideRepoReadable(input.path);
+}
 
 export type IpcHandlerEntry = {
   channel: string;
@@ -254,7 +263,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.listContent, handler: (kind, date) => product().listContent(parseString(kind), parseOptionalDate(date)) },
     { channel: C.readContent, handler: (filePath) => product().readContent(parseString(filePath)) },
     { channel: C.readImagePreview, handler: (filePath) => readImagePreview(parseString(filePath)) },
+    { channel: C.readMediaPreview, handler: (input) => readMediaPreview(input as MediaPreviewRequest, value => resolveMediaPreviewFile(value, projects)) },
     { channel: C.readChatImage, handler: (input) => readChatImage(ChatImageRequestSchema.parse(input), (source, projectName) => {
+      const stateRoot = ctx.resolveAiStateRoot?.();
+      const attachment = stateRoot ? resolveChatAttachment(source, stateRoot) : null;
+      if (attachment) return attachment;
       if (source.startsWith("openmind/")) return settings.ensureInsideRepoReadable(source);
       if (projectName) return projects().paths.resolveInsideProject(projectName, source, { allowedTopLevels: ["materials", "outputs"] });
       return settings.ensureInsideRepoReadable(source);

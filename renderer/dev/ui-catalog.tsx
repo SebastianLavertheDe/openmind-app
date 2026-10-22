@@ -1,11 +1,11 @@
 import { memo, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { BookOpen, Copy, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowUp, BookOpen, Copy, Plus, ShieldCheck, Square, Trash2 } from "lucide-react";
 import {
-  Button, IconButton, BUTTON_VARIANTS, CONTROL_SIZES, CONTROL_TONES, INPUT_VARIANTS, TEXTAREA_VARIANTS, SEARCH_VARIANTS,
+  Button, IconButton, ImageAttachment, ImageThumbnail, BUTTON_VARIANTS, ICON_BUTTON_SHAPES, IMAGE_THUMBNAIL_VARIANTS, CONTROL_SIZES, CONTROL_TONES, INPUT_VARIANTS, TEXTAREA_VARIANTS, SEARCH_VARIANTS,
   Input, Textarea, SearchInput, FormField, InputGroup, FormDialog, ConfirmDialog, Dialog, DialogBody, SearchDialogHeader,
-  Select, DropdownMenu, MenuItem, FileDropzone
+  Select, DropdownMenu, MenuItem, FileDropzone, AnimatedDisclosure
 } from "../src/design-system/components";
 import { ProjectEditDialog } from "../src/features/projects/ProjectAppearance";
 import { ComposerModelPicker } from "../src/features/ai-console/ComposerModelPicker";
@@ -52,6 +52,7 @@ if (current === "composer-model-menu" || current === "composer-model-submenu") {
 }
 
 function Actions() {
+  const [imagesOpen, setImagesOpen] = useState(true);
   return <div className="ui-catalog-grid">
     {CONTROL_SIZES.map(size => <section className="ui-catalog-card" key={size}><h2>Actions · {size}</h2>
       {CONTROL_TONES.map(tone => <div className="ui-catalog-group" key={tone}><h3>{tone}</h3><div className="ui-catalog-row">
@@ -61,11 +62,23 @@ function Actions() {
     <section className="ui-catalog-card"><h2>Disabled and loading</h2><div className="ui-catalog-stack">
       {BUTTON_VARIANTS.map(variant => <div className="ui-catalog-row" key={variant}><Button variant={variant} disabled>Unavailable</Button><Button variant={variant} loading>Saving</Button></div>)}
     </div></section>
+    <section className="ui-catalog-card"><h2>Inline disclosure</h2><AnimatedDisclosure variant="inline" open={imagesOpen} onOpenChange={setImagesOpen} summary="Viewed 1 image">
+      <ImageThumbnail variant="tool" label="Viewed image"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23e4eee9'/%3E%3Ccircle cx='60' cy='60' r='24' fill='%238aa89b'/%3E%3C/svg%3E" alt="Sample illustration" /></ImageThumbnail>
+    </AnimatedDisclosure></section>
     <section className="ui-catalog-card"><h2>Icon actions</h2><div className="ui-catalog-row">
       {CONTROL_SIZES.map(size => <IconButton key={size} size={size} label={`Add · ${size}`} tooltip={false}><Plus /></IconButton>)}
       <IconButton label="Remove" tone="danger" responsiveTarget tooltip={false}><Trash2 /></IconButton><IconButton label="Copy unavailable" responsiveTarget disabled tooltip={false}><Copy /></IconButton>
     </div></section>
+    <section className="ui-catalog-card"><h2>Round and rectangular actions</h2><div className="ui-catalog-row">
+      {ICON_BUTTON_SHAPES.map(shape => <IconButton key={shape} shape={shape} size="lg" variant="primary" label={`Send · ${shape}`}><ArrowUp /></IconButton>)}
+      <IconButton shape="circle" size="lg" variant="primary" label="Send unavailable" disabled><ArrowUp /></IconButton>
+      <IconButton shape="circle" size="lg" variant="primary" label="Stop"><Square size={14} fill="currentColor" strokeWidth={0} /></IconButton>
+    </div></section>
     <section className="ui-catalog-card"><h2>File import</h2><FileDropzone label="Import files"><Plus /><strong>Add files</strong><small>Documents and Markdown</small></FileDropzone></section>
+    <section className="ui-catalog-card"><h2>Image attachments</h2><div className="ui-catalog-row">
+      {IMAGE_THUMBNAIL_VARIANTS.map(variant => <ImageThumbnail key={variant} variant={variant} label={`Image · ${variant}`}><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23e4eee9'/%3E%3Ccircle cx='60' cy='60' r='24' fill='%238aa89b'/%3E%3C/svg%3E" alt="Sample illustration" /></ImageThumbnail>)}
+      <ImageAttachment src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23f4ead6'/%3E%3Ccircle cx='60' cy='60' r='24' fill='%23d9b66b'/%3E%3C/svg%3E" label="Attached image" removeLabel="Remove attached image" onOpen={() => {}} onRemove={() => {}} />
+    </div></section>
   </div>;
 }
 

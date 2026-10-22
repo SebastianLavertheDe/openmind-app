@@ -20,5 +20,5 @@ body { margin: 0; overflow: auto; background: var(--app-bg); }
 .ui-catalog-menu-example { width: min(460px, 100%); margin: 40px auto; }
 .ui-catalog-choice-anchor { margin-top: 140px; }
 .ui-catalog-composer-example { width: min(640px, 100%); margin: 40px auto; }
-.ui-catalog-composer-stage { position: relative; min-height: 420px; }
+.ui-catalog-composer-stage { position: relative; min-height: 420px; display: flex; align-items: flex-end; }
 .ui-catalog-benchmark-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-block: var(--space-4); }

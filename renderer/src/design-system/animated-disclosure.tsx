@@ -1,5 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { useExitPresence } from "./use-exit-presence";
+import { Button } from "./Button";
+import type { DisclosureVariant } from "./control-contract";
 
 /**
  * Accessible animated disclosure (replaces native `<details>` where height
@@ -22,6 +24,7 @@ export function AnimatedDisclosure({
   triggerClassName,
   contentClassName,
   triggerAriaLabel,
+  variant = "default",
   animate = true,
   unmountOnExit = false,
   exitMs = 200
@@ -34,6 +37,7 @@ export function AnimatedDisclosure({
   triggerClassName?: string;
   contentClassName?: string;
   triggerAriaLabel?: string;
+  variant?: DisclosureVariant;
   /** Search-driven bulk expansion can settle immediately. */
   animate?: boolean;
   unmountOnExit?: boolean;
@@ -44,7 +48,10 @@ export function AnimatedDisclosure({
   const renderBody = !unmountOnExit || open || bodyPresence.visible;
   return (
     <div className={`ui-disclosure${className ? ` ${className}` : ""}`} data-open={open || undefined} data-instant={!animate || undefined}>
-      <button
+      {variant === "inline" ? <Button variant="text" responsiveTarget
+        className={`ui-disclosure-inline-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+        aria-expanded={open} aria-controls={contentId} aria-label={triggerAriaLabel}
+        onClick={() => onOpenChange(!open)}>{summary}</Button> : <button
         data-motion="selection"
         type="button"
         className={`ui-disclosure-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
@@ -54,7 +61,7 @@ export function AnimatedDisclosure({
         onClick={() => onOpenChange(!open)}
       >
         {summary}
-      </button>
+      </button>}
       <div
         id={contentId}
         className={`ui-disclosure-content${contentClassName ? ` ${contentClassName}` : ""}`}

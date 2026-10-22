@@ -48,9 +48,9 @@ app.whenReady().then(async () => {
         assert.ok(Math.abs(before.height - focused.height) < .5, `${context}: focus changes height`);
         if (id === "inline-editor") {
           assert.equal(focused.shadow, "none", `${context}: composer must not draw an inner focus line`);
-          assert.ok(focused.height >= 146, `${context}: composer minimum height`);
-          assert.ok(focused.paddingTop >= 20 && focused.paddingLeft >= 20 && focused.paddingBottom >= 66,
-            `${context}: composer needs text insets and space for its toolbar`);
+          assert.ok(focused.height >= 94, `${context}: composer text area minimum height`);
+          assert.ok(focused.paddingTop >= 20 && focused.paddingLeft >= 20 && focused.paddingBottom >= 20,
+            `${context}: composer needs text insets; the toolbar occupies a separate row`);
         }
         if (focused.surface) {
           assert.ok(focused.surface.height <= 60, `${context}: search surface stretches vertically`);

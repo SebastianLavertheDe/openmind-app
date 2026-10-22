@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
+import userEvent from "@testing-library/user-event";
 import { AnimatedDisclosure } from "./animated-disclosure";
 
 afterEach(() => {
@@ -27,6 +28,24 @@ function UnmountingHarness() {
 }
 
 describe("AnimatedDisclosure", () => {
+  it("uses a shared text button for inline disclosure and preserves keyboard semantics", async () => {
+    const user = userEvent.setup();
+    function Inline() {
+      const [open, setOpen] = useState(true);
+      return <AnimatedDisclosure variant="inline" open={open} onOpenChange={setOpen} summary="Viewed images"><span>Image previews</span></AnimatedDisclosure>;
+    }
+    render(<Inline />);
+    const trigger = screen.getByRole("button", { name: "Viewed images" });
+    expect(trigger.dataset.uiControl).toBe("button");
+    expect(trigger.dataset.variant).toBe("text");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.getElementById(trigger.getAttribute("aria-controls")!)?.getAttribute("aria-hidden")).toBe("true");
+    await user.keyboard(" ");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  });
   it("exposes aria-expanded/aria-controls and keeps content inert while closed", () => {
     render(<Harness />);
     const trigger = screen.getByRole("button", { name: "更多" });

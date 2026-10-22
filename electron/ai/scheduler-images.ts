@@ -4,10 +4,26 @@ import type { ContextReference } from "../../shared/contracts";
 import { resolvePathInsideRoot } from "./scheduler-paths";
 
 const TMP_DIR_NAME = "tmp-images";
+const ATTACHMENTS_DIR_NAME = "attachments";
 const STALE_MAX_MS = 7 * 24 * 3600 * 1000;
 
 function tmpImagesDir(projectRoot: string, stateRoot?: string): string {
   return path.join(stateRoot ?? projectRoot, ".openmind", "ai", TMP_DIR_NAME);
+}
+
+function attachmentsDir(projectRoot: string, stateRoot?: string): string {
+  return path.join(stateRoot ?? projectRoot, ".openmind", "ai", ATTACHMENTS_DIR_NAME);
+}
+
+/** Only image attachment directories in the active app-private root are admitted. */
+export function resolveChatAttachment(source: string, stateRoot: string): string | null {
+  if (!path.isAbsolute(source)) return null;
+  for (const directory of [attachmentsDir(stateRoot), tmpImagesDir(stateRoot)]) {
+    const relative = path.relative(directory, source);
+    if (!relative || relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative)) continue;
+    return resolvePathInsideRoot(directory, source, "图片附件超出会话存储范围。");
+  }
+  return null;
 }
 
 function extFromMediaType(mediaType: string): string {
@@ -24,12 +40,13 @@ function parseDataURL(content: string): { base64: string; mediaType: string } | 
 
 /**
  * 把 image context 的 dataURL content 解码写到 root-scoped app-private
- * state/.openmind/ai/tmp-images/（兼容调用未传 stateRoot 时仍使用
+ * state/.openmind/ai/attachments/（兼容调用未传 stateRoot 时仍使用
  * projectRoot），回填 path、清空 content、补 mediaType/byteSize。其余 context 不动。
  * 失败的图（bad dataURL / 写盘失败）跳过并 console.warn，不阻断 run。
  */
 export function materializeImages(projectRoot: string, runId: string, contexts: ContextReference[], stateRoot?: string): ContextReference[] {
-  const dir = tmpImagesDir(projectRoot, stateRoot);
+  // Sent images belong to conversation history, not the run's temporary files.
+  const dir = attachmentsDir(projectRoot, stateRoot);
   return contexts.map((context) => {
     if (context.kind !== "image") return context;
     if (!context.content) return context; // 已 materialize（rerun 等）或无内容：保留原样
@@ -57,7 +74,7 @@ export function materializeImages(projectRoot: string, runId: string, contexts: 
   });
 }
 
-/** 删除某 run 的所有临时图片（finalizeRun / cancelRun / deleteSession / rollbackTurns 调用）。 */
+/** Clean legacy temporary run files; persisted conversation attachments are retained. */
 export function cleanupImages(projectRoot: string, runId: string, stateRoot?: string): void {
   const dir = tmpImagesDir(projectRoot, stateRoot);
   try {
@@ -127,7 +144,8 @@ function assertImagePath(projectRoot: string, candidate: string, stateRoot?: str
   } catch (projectError) {
     if (stateRoot) {
       try {
-        resolvePathInsideRoot(tmpImagesDir(projectRoot, stateRoot), candidate, "图片附件超出会话执行根。");
+        const resolved = resolveChatAttachment(candidate, stateRoot);
+        if (!resolved) throw projectError;
         return;
       } catch { /* report the stable project-boundary error below */ }
     }

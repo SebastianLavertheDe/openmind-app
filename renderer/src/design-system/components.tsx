@@ -21,6 +21,8 @@ export * from "./control-contract";
 export * from "./MenuItem";
 export * from "./FileDropzone";
 export * from "./ImageThumbnail";
+export * from "./ImageViewer";
+export * from "./animated-disclosure";
 export * from "./Popover";
 export * from "./Drawer";
 export * from "./SelectTrigger";

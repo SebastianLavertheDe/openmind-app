@@ -1,8 +1,7 @@
-import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import { AlertTriangle, ArrowDown, Bot, BrainCircuit, ChevronRight, FileText, FolderCode, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowDown, Bot, BrainCircuit, ChevronRight, Clock3, FileText, FolderCode, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { GeneratedImageSchema, type GeneratedImage } from "@shared/image-generation";
 import { ChatImageGallery, GeneratedImages } from "./ChatImages";
@@ -16,12 +15,14 @@ import { ApprovalDecisionEvent } from "./approval";
 import { ApprovalBanner } from "./approval-banner";
 import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
+import { MediaResults } from "./MediaResults";
+import { replyMediaCandidates } from "./reply-media";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
 import { MARKDOWN_ARTIFACT_START_FENCE, assistantBlocksVisibleText, containsAssistantArtifact, parseAssistantContent } from "./artifact-fence";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
-import { CommandGroup, ToolCallCard, toolIcon } from "./tool";
+import { CommandGroup, ToolCallCard, hasViewedImageResult, toolIcon } from "./tool";
 import { assistantPhase, changePaths, compactEvents, groupTimeline, technicalEventText, toolCategory, toolEventFailed, type TraceStep } from "./timeline";
 
 export {
@@ -37,7 +38,7 @@ type TimelineViewItem = ReturnType<typeof groupTimeline>[number];
 type ChatViewItem = TimelineViewItem
   | { type: "image-artifacts"; key: string; run: AiRun; images: GeneratedImage[] }
   | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null; missingFinal: boolean }
-  | { type: "changes-artifact"; key: string; run: AiRun; events: AiEvent[] };
+  | { type: "reply"; key: string; event: AiEvent; run: AiRun; mediaPaths: string[]; changes: { run: AiRun; events: AiEvent[] } | null };
 type ToolStep = Extract<TraceStep, { type: "tool" }>;
 type ToolGroupItem = { type: "tool-group"; key: string; run: AiRun; steps: ToolStep[] };
 type ChatRenderItem = ChatViewItem | ToolGroupItem;
@@ -53,6 +54,32 @@ type ChatScrollRestore = {
 
 const CHAT_BOTTOM_THRESHOLD = 90;
 const CHAT_SCROLL_UP_EPSILON = 1;
+const CHAT_HISTORY_THRESHOLD = 180;
+const CHAT_HISTORY_BATCH = 300;
+type HistoryPosition = { element: HTMLElement | null; offset: number; top: number; height: number };
+type HistoryRequest = { sessionId: string; position: HistoryPosition; firstEventId: string | undefined; ready: boolean; settling?: boolean };
+
+function captureHistoryPosition(target: HTMLElement): HistoryPosition {
+  const viewport = target.getBoundingClientRect();
+  const element = [...target.querySelectorAll<HTMLElement>(".timeline-presence-item:not([data-leaving])")]
+    .find(item => item.getBoundingClientRect().bottom > viewport.top && item.getBoundingClientRect().top < viewport.bottom) || null;
+  return { element, offset: element ? element.getBoundingClientRect().top - viewport.top : 0, top: target.scrollTop, height: target.scrollHeight };
+}
+
+function nextHistoryLimit(events: AiEvent[], visibleCount: number, currentLimit: number): number {
+  let start = events.length - visibleCount;
+  if (start > 0) {
+    const previousRun = events[start - 1].runId;
+    while (start > 0 && events[start - 1].runId === previousRun) start--;
+  }
+  return Math.max(currentLimit + CHAT_HISTORY_BATCH, events.length - start);
+}
+
+function restoreHistoryPosition(target: HTMLElement, position: HistoryPosition): void {
+  const { element, offset, top, height } = position;
+  if (element?.isConnected) target.scrollTop += element.getBoundingClientRect().top - target.getBoundingClientRect().top - offset;
+  else target.scrollTop = top + target.scrollHeight - height;
+}
 
 export type { ChatDraftSubmitHandler } from "./composer";
 
@@ -68,6 +95,8 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const restorePending = useRef(false);
   const restoreTarget = useRef<ChatScrollRestore | null>(null);
   const followLatest = useRef(true);
+  const historyRequest = useRef<HistoryRequest | null>(null);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const lastScrollTop = useRef(0);
   const sessionId = activeSession?.id || "__draft";
   const sessionLoading = Boolean(activeSession && loadingSessionId === activeSession.id);
@@ -80,6 +109,24 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   }, [events, sessionActiveRun?.id, compact, historyLimit, locale]);
   const hiddenEvents = compact ? 0 : Math.max(0, events.length - timelineEvents.length);
   const canLoadHistory = !compact && (hiddenEvents > 0 || hasOlderTurns);
+  const loadEarlierHistory = useCallback(() => {
+    const target = scroller.current;
+    if (!target || !canLoadHistory || sessionLoading || historyLoading || restorePending.current
+      || currentScrollSession.current !== sessionId || historyRequest.current) return;
+    const request: HistoryRequest = { sessionId, position: captureHistoryPosition(target), firstEventId: timelineEvents[0]?.id, ready: hiddenEvents > 0 };
+    historyRequest.current = request;
+    target.setAttribute("data-history-prepend", "");
+    followLatest.current = false;
+    setNearBottom(false);
+    setHistoryLimit(value => nextHistoryLimit(events, timelineEvents.length, value));
+    if (hiddenEvents > 0) return;
+    const finish = () => {
+      if (historyRequest.current !== request) return;
+      request.ready = true;
+      setHistoryRevision(value => value + 1);
+    };
+    void loadOlderTurns().then(finish, finish);
+  }, [canLoadHistory, events, hiddenEvents, historyLoading, loadOlderTurns, sessionId, sessionLoading, timelineEvents]);
   const visible = useMemo(
     () => groupTimeline(timelineEvents, snapshot.runs),
     [snapshot.runs, timelineEvents, locale]
@@ -128,13 +175,16 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     const near = target.scrollHeight - top - target.clientHeight < CHAT_BOTTOM_THRESHOLD;
     const movedUp = top < lastScrollTop.current - CHAT_SCROLL_UP_EPSILON;
     if (restorePending.current) return;
+    const pending = historyRequest.current;
+    if (pending?.sessionId === sessionId) pending.position = captureHistoryPosition(target);
     if (movedUp) followLatest.current = false;
     else if (near) followLatest.current = true;
     if (movedUp || top >= lastScrollTop.current || !followLatest.current) lastScrollTop.current = top;
     scrollMemory.current.set(sessionId, { top, near, follow: followLatest.current });
     const viewAtLatest = followLatest.current || near;
     setNearBottom((current) => current === viewAtLatest ? current : viewAtLatest);
-  }, [sessionId]);
+    if (movedUp && top <= CHAT_HISTORY_THRESHOLD) loadEarlierHistory();
+  }, [loadEarlierHistory, sessionId]);
 
   const pinToLatest = useCallback(() => {
     const target = scroller.current;
@@ -142,6 +192,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       currentScrollSession.current !== sessionId
       || !target
       || restorePending.current
+      || historyRequest.current
       || !followLatest.current
     ) return;
     target.scrollTop = target.scrollHeight;
@@ -152,6 +203,8 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   }, [sessionId]);
 
   useLayoutEffect(() => {
+    historyRequest.current = null;
+    scroller.current?.removeAttribute("data-history-prepend");
     currentScrollSession.current = sessionId;
     const saved = scrollMemory.current.get(sessionId);
     followLatest.current = saved ? saved.follow : true;
@@ -162,6 +215,43 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       ? { sessionId, memory: { ...saved } }
       : null;
   }, [sessionId]);
+
+  useLayoutEffect(() => {
+    const request = historyRequest.current;
+    const target = scroller.current;
+    if (!request || request.sessionId !== sessionId || !target) return;
+    // A fetched turn can exceed the budget. Reveal at least one whole older
+    // turn before releasing the request lock, even when it contains >300 events.
+    if (request.ready && hiddenEvents > 0 && timelineEvents[0]?.id === request.firstEventId) {
+      setHistoryLimit(value => nextHistoryLimit(events, timelineEvents.length, value));
+      return;
+    }
+    restoreHistoryPosition(target, request.position);
+    lastScrollTop.current = target.scrollTop;
+    const near = target.scrollHeight - target.scrollTop - target.clientHeight < CHAT_BOTTOM_THRESHOLD;
+    scrollMemory.current.set(sessionId, { top: target.scrollTop, near, follow: false });
+    setNearBottom(near);
+    if (request.ready && !request.settling) {
+      request.settling = true;
+      // Child effects can settle disclosure heights on the following frame.
+      // Keep the same anchor until those commits finish, without competing
+      // with the browser's own scroll anchoring.
+      window.requestAnimationFrame(() => {
+        if (historyRequest.current !== request) return;
+        restoreHistoryPosition(target, request.position);
+        lastScrollTop.current = target.scrollTop;
+        window.requestAnimationFrame(() => {
+          if (historyRequest.current !== request) return;
+          restoreHistoryPosition(target, request.position);
+          lastScrollTop.current = target.scrollTop;
+          scrollMemory.current.set(sessionId, { top: target.scrollTop, near: false, follow: false });
+          historyRequest.current = null;
+          target.removeAttribute("data-history-prepend");
+        });
+      });
+    }
+  }, [events, hiddenEvents, historyLoading, historyRevision, renderItems, sessionId, timelineEvents]);
+  useEffect(() => () => { historyRequest.current = null; }, []);
 
   useLayoutEffect(() => {
     pinToLatest();
@@ -177,7 +267,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         if (currentScrollSession.current !== sessionId) return;
-        if (restorePending.current) return;
+        if (restorePending.current || historyRequest.current) return;
         if (followLatest.current && !restorePending.current) {
           pinToLatest();
           return;
@@ -261,6 +351,16 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         className="chat-scroll"
         ref={scroller}
         onScroll={handleScroll}
+        onWheel={event => {
+          if (event.ctrlKey || event.deltaY >= 0 || event.currentTarget.scrollTop > CHAT_HISTORY_THRESHOLD) return;
+          // Let nested tool/code output consume its own upward scrolling first.
+          let element = event.target instanceof HTMLElement ? event.target : null;
+          while (element && element !== event.currentTarget) {
+            if (element.scrollTop > 0 && element.scrollHeight > element.clientHeight) return;
+            element = element.parentElement;
+          }
+          loadEarlierHistory();
+        }}
       >
         <div
           className={`chat-thread${sessionLoading ? " session-loading" : " session-ready"}`}
@@ -273,25 +373,9 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
           {!sessionLoading && !visible.length && !sessionActiveRun
             ? <EmptyChat />
             : null}
-          {!sessionLoading && canLoadHistory ? (
-            <Button
-              className="load-history"
-              disabled={historyLoading}
-              onClick={() => {
-                if (hiddenEvents) setHistoryLimit((value) => value + 300);
-                else {
-                  setHistoryLimit((value) => value + 300);
-                  void loadOlderTurns();
-                }
-              }}
-            >
-              {historyLoading
-                ? m.ai.chat.loadingHistory
-                : hiddenEvents
-                  ? m.ai.chat.loadMoreEvents(Math.min(300, hiddenEvents))
-                  : m.ai.chat.loadOlderTurns}
-            </Button>
-          ) : null}
+          {!sessionLoading && historyLoading ? <div className="chat-history-status" role="status">
+            <LoaderCircle size={14} className="spin" aria-hidden />{m.ai.chat.loadingHistory}
+          </div> : null}
           {!sessionLoading ? <TimelineItems
             key={sessionId}
             items={renderItems}
@@ -309,6 +393,8 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
           <IconButton type="button" className="jump-bottom" data-leaving={jumpBottomPresence.leaving || undefined} onClick={() => {
               const target = scroller.current;
               if (!target) return;
+              historyRequest.current = null;
+              target.removeAttribute("data-history-prepend");
               followLatest.current = true;
               scrollMemory.current.set(sessionId, {
                 top: target.scrollTop,
@@ -390,8 +476,10 @@ const TimelineItems = memo(function TimelineItems({
               />
             : item.type === "image-artifacts"
               ? <GeneratedImages images={item.images} />
-            : item.type === "changes-artifact"
-              ? <ChangeReviewCard events={item.events} run={item.run} />
+            : item.type === "reply"
+              ? <AssistantMessage text={String(item.event.payload.text || "")} event={item.event}
+                  footer={<><MediaResults paths={item.mediaPaths} projectName={item.run.scope?.type === "project-task" ? item.run.scope.projectName : undefined} />
+                    {item.changes ? <ChangeReviewCard events={item.changes.events} run={item.changes.run} /> : null}</>} />
             : item.type === "tool-group"
               ? <ToolGroupView item={item} />
               : item.type === "event"
@@ -540,13 +628,15 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
       missingFinal
     });
     if (images.length) result.push({ type: "image-artifacts", key: `image-artifacts:${run.id}`, run, images });
-    if (finalResponse) result.push(finalResponse);
-    if (finalResponse && (artifactEvents.length || run.changeSet?.files.length)) {
+    if (finalResponse) {
       result.push({
-        type: "changes-artifact",
-        key: `changes-artifact:${run.id}`,
+        type: "reply",
+        key: `event:${finalResponse.event.id}`,
+        event: finalResponse.event,
         run,
-        events: artifactEvents
+        mediaPaths: replyMediaCandidates(String(finalResponse.event.payload.text || ""), changePaths(run, artifactEvents))
+          .filter(path => !images.some(image => image.source.replaceAll("\\", "/") === path.replaceAll("\\", "/"))),
+        changes: artifactEvents.length || run.changeSet?.files.length ? { run, events: artifactEvents } : null
       });
     }
     runItems = [];
@@ -643,7 +733,7 @@ function CompletedProcess({
   pending?: boolean;
 }) {
   useLocale();
-  const processing = ["queued", "running", "waiting-approval", "applying"].includes(run.status);
+  const processing = ["running", "waiting-approval", "applying"].includes(run.status);
   const forceOpen = processing || missingFinal || run.status === "failed" || run.status === "conflicted";
   const [open, setOpen] = useState(forceOpen);
   const bodyPresence = useExitPresence(open, 220);
@@ -662,6 +752,7 @@ function CompletedProcess({
     const timer = window.setInterval(() => setLiveNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [processing]);
+  if (run.status === "queued") return <div className="queued-process" role="status"><Clock3 size={14} aria-hidden /><span>{m.ai.status.run.queued}</span></div>;
   const duration = processDuration(
     run.startedAt,
     run.completedAt || completedAt || (processing ? new Date(liveNow).toISOString() : null)
@@ -813,7 +904,7 @@ function ToolGroupView({ item }: { item: ToolGroupItem }) {
   const single = item.steps.length === 1;
   return (
     <div className={`trace-step tool tool-group-step${single ? ` ${toolCategory(tool)}` : ""}`}>
-      {single ? <span className="trace-step-marker">{toolIcon(tool, false, false)}</span> : null}
+      {single && !hasViewedImageResult(firstStep.events, item.run.status) ? <span className="trace-step-marker">{toolIcon(tool, false, false)}</span> : null}
       <CommandGroup calls={item.steps.map((step) => ({ key: step.key, events: step.events }))} runStatus={item.run.status} flat />
     </div>
   );
@@ -892,7 +983,7 @@ function TraceStepView({ step, run, folded = false }: { step: TraceStep; run: Ai
     const tool = String(step.events[0]?.payload.tool || step.events[0]?.payload.command || step.events[0]?.payload.skillId || m.ai.tool.fallbackName);
     return (
       <div className={`trace-step tool ${toolCategory(tool)}`}>
-        <span className="trace-step-marker">{toolIcon(tool, false, false)}</span>
+        {!hasViewedImageResult(step.events, run.status) ? <span className="trace-step-marker">{toolIcon(tool, false, false)}</span> : null}
         <ToolCallCard events={step.events} runStatus={run.status} />
       </div>
     );

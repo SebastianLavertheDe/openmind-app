@@ -490,24 +490,6 @@
   flex: 0 0 auto;
 }
 
-.creative-document-header button,
-.topic-workspace header button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.creative-document-header button:not([data-ui-control]),
-.topic-workspace header button:not([data-ui-control]) {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-2);
-  color: var(--text-dim);
-}
-
 .document-status {
   display: flex;
   align-items: center;

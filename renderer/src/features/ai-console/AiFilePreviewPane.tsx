@@ -316,9 +316,7 @@ export function AiFilePreviewPane({
     }
   ] : [];
 
-  const openExternal = displayedPreview?.resource?.kind === "video"
-    && displayedPreview.resource.playback.kind === "external-only"
-    && displayedPreview.resource.playback.sourceUrl
+  const openExternal = displayedPreview?.source.capabilities.openExternal
     && displayedPreview.source.openExternal
     ? () => void displayedPreview.source.openExternal?.()
     : undefined;

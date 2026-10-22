@@ -6,16 +6,16 @@ export const desktopErrorMessages = {
     bilibili: {
       invalidUrl: "Use a Bilibili BV or AV video link, or a b23.tv short link.",
       shortUrlFailed: "Could not resolve the Bilibili short link. Retry or use the full BV or AV video link.",
-      toolsMissing: "Embedded playback is available. Captions require yt-dlp; install it in Settings → Browser → Video import.",
+      toolsMissing: "Embedded playback is available. Captions require yt-dlp; install it in Settings → Built-in runtime → Video import.",
       loginRequired: "Bilibili requires sign-in for these captions. Only anonymous fetching is supported. The embedded player has been kept.",
       timeout: "Fetching Bilibili captions timed out. Try again later. Embedded playback remains available.",
       captionsFailed: "Could not fetch Bilibili captions. Try again. Embedded playback remains available.",
       noCaptions: "No Bilibili captions were available anonymously. The video may have no captions, or anonymous access may be restricted."
     },
     youtube: {
-      selectBrowser: "Select a browser for YouTube imports in Settings → Browser first.",
-      browserMissing: "The selected browser is unavailable. Scan and select a browser again in Settings → Browser.",
-      toolsMissing: "YouTube download tools are missing. Check yt-dlp, FFmpeg, and the JavaScript runtime in Settings → Browser.",
+      selectBrowser: "Select a browser for YouTube imports in Settings → Built-in runtime → Video import first.",
+      browserMissing: "The selected browser is unavailable. Scan and select a browser again in Settings → Built-in runtime → Video import.",
+      toolsMissing: "YouTube download tools are missing. Check yt-dlp, FFmpeg, and the JavaScript runtime in Settings → Built-in runtime → Video import.",
       downloadFailed: "YouTube download failed. Check your connection, update yt-dlp, and try again.",
       cookiesFailed: "Could not read browser sign-in. Sign in to YouTube in the selected browser, close it, and retry. If the system cannot decrypt cookies, try Firefox.",
       loginRequired: "YouTube requires sign-in or verification. Open this video in the selected browser, complete verification, and retry.",

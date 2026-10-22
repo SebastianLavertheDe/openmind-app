@@ -35,8 +35,8 @@ export function ChangeTraceCard({ event, run }: { event: AiEvent; run: AiRun }) 
 }
 
 /**
- * The durable, user-facing change artifact shown after the final assistant
- * reply. A run can report several incremental `changes` events; the artifact
+ * The durable change artifact shown below final reply content, before its
+ * actions. A run can report several incremental `changes` events; the artifact
  * deliberately folds all of them into one review surface instead of leaking
  * provider event granularity into the conversation.
  */

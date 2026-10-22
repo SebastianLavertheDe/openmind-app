@@ -284,6 +284,7 @@ select:not([data-ui-control]):focus-visible,
 }
 
 .nav-recent-row {
+  --recent-action-space: 60px;
   position: relative;
   min-width: 0;
 }
@@ -316,7 +317,6 @@ select:not([data-ui-control]):focus-visible,
 
 .nav-recent-row > .nav-recent-item:not([data-ui-control]) {
   width: 100%;
-  padding-right: 60px;
 }
 
 .app-nav nav .nav-recent-actions {
@@ -338,22 +338,18 @@ select:not([data-ui-control]):focus-visible,
   pointer-events: auto;
 }
 
-.app-nav nav .nav-recent-action {
-  width: 24px;
-  display: grid;
-  place-items: center;
-  gap: 0;
-}
-
-.app-nav nav .nav-recent-action svg {
-  width: 13px;
-  stroke-width: 1.8;
+.nav-recent-row:hover .nav-recent-item-meta,
+.nav-recent-row:has(.nav-recent-action:focus-visible) .nav-recent-item-meta {
+  visibility: hidden;
 }
 
 @media (hover: none), (pointer: coarse) {
+  .nav-recent-row {
+    --recent-action-space: 88px;
+  }
+
   .nav-recent-row > .nav-recent-item:not([data-ui-control]) {
     min-height: 48px;
-    padding-right: 92px;
   }
 
   .app-nav nav .nav-recent-actions {
@@ -363,8 +359,8 @@ select:not([data-ui-control]):focus-visible,
     pointer-events: auto;
   }
 
-  .app-nav nav .nav-recent-action {
-    width: 44px;
+  .nav-recent-item-meta {
+    visibility: hidden;
   }
 }
 
@@ -403,7 +399,7 @@ select:not([data-ui-control]):focus-visible,
 .nav-recent-item-main {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(var(--recent-action-space), auto);
   align-items: center;
   gap: 7px;
 }
@@ -1391,7 +1387,7 @@ select:not([data-ui-control]):focus-visible,
 }
 .stream-date-group > summary em { margin-left: auto; color: var(--muted-2); font-size: var(--fs-xs); font-style: normal; font-weight: 500; }
 .stream-date-group > summary b { margin-left: 8px; }
-.topic-file-header .topic-file-actions { gap: 2px; }
+.topic-file-header .topic-file-actions { gap: 8px; }
 .topic-file-header .topic-file-action {
   min-width: 0;
   display: inline-flex;
@@ -1901,8 +1897,7 @@ select:not([data-ui-control]):focus-visible,
 .composer-footer { border-top: 0; }
 
 .composer-placeholder-chip,
-.context-chip,
-.image-chip {
+.context-chip {
   border-color: var(--border);
   border-radius: 6px;
   background: var(--panel-muted);
@@ -2179,11 +2174,8 @@ select:not([data-ui-control]):focus-visible,
 }
 
 .composer-editor-actions {
-  position: absolute;
+  position: relative;
   z-index: 3;
-  right: 12px;
-  bottom: 10px;
-  left: 14px;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -2248,10 +2240,6 @@ select:not([data-ui-control]):focus-visible,
   position: static;
   display: flex;
   gap: 6px;
-}
-
-.composer-editor-actions .composer-send {
-  width: 42px;
 }
 
 .composer-toolbar {
@@ -2330,9 +2318,7 @@ select:not([data-ui-control]):focus-visible,
 .composer-editor { min-height: 146px; }
 
 .composer-editor-actions {
-  right: 14px;
-  bottom: 12px;
-  left: 14px;
+  padding: 0 14px 12px;
   gap: 7px;
 }
 

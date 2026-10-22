@@ -392,6 +392,7 @@ export function installBrowserPreviewApi(): boolean {
       { path: "openmind/article/second.md", name: "本地优先内容工作流.md", kind: "articles" }
     ],
     readImagePreview: async () => { throw new Error(messages.browserPreview.localImageUnavailable); },
+    readMediaPreview: async () => { throw new Error(messages.browserPreview.localImageUnavailable); },
     readChatImage: async () => { throw new Error(messages.browserPreview.chatImageUnavailable); },
     getImageConfiguration: async () => ({ defaultSelection: null, providers: [] }),
     selectImageModel: async () => { throw new Error(messages.browserPreview.imageModelUnavailable); },

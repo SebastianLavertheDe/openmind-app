@@ -4,14 +4,14 @@ import { IconButton } from "../../design-system/IconButton";
 import { ImageViewer } from "../../design-system/ImageViewer";
 import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
 import { useLocale } from "../../i18n";
-import { Select, Textarea } from "../../design-system/components";
+import { ImageAttachment, Select, Textarea } from "../../design-system/components";
 import { forwardRef, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useIsPresent, usePresence } from "motion/react";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { useMotionPreference } from "../../design-system/use-motion-preference";
 import { createPortal } from "react-dom";
-import { ArrowUp, ChevronDown, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Clock3, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
@@ -149,6 +149,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   // Slices instead of the full controller: the composer must not re-render on
   // every streamed event flush, only on the snapshot/UI/actions values it renders.
   const { snapshot, activeSession, sessionActiveRun, queuedRuns, pendingContexts, skills } = useAiSnapshot();
+  const imageContexts = useMemo(() => pendingContexts.filter(context => context.kind === "image"), [pendingContexts]);
+  const referenceContexts = useMemo(() => pendingContexts.filter(context => context.kind !== "image"), [pendingContexts]);
   const ui = useAiUi();
   const actions = useAiActions();
   const { draft, setDraft } = useAiDraft();
@@ -437,7 +439,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   return (
     <footer className="composer" ref={composerRef}>
       <div className="composer-flow">
-        <ContextTrayPresence contexts={pendingContexts} />
+        <ContextTrayPresence contexts={referenceContexts} />
         {errorVisible && stashedError ? (
           <div className="composer-error ui-overlay" data-leaving={errorLeaving || undefined} role="alert">
             <span>{stashedError}</span>
@@ -449,15 +451,16 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             className="queue-tray"
             open={queueOpen}
             onOpenChange={setQueueOpen}
-            summary={m.ai.composer.queuedSummary(queuedRuns.length)}
+            summary={<><span className="queue-tray-summary"><Clock3 size={14} aria-hidden />{m.ai.composer.queuedSummary(queuedRuns.length)}</span><ChevronDown size={14} aria-hidden /></>}
           >
             {queuedRuns.map((run, index) => {
               const cancelling = ui.cancellingRunIds.has(run.id);
-              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><Button variant="ghost" size="sm" data-motion="icon" aria-label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</Button></div>;
+              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><IconButton variant="ghost" size="sm" data-motion="icon" label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</IconButton></div>;
             })}
           </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
+          <ContextTrayPresence contexts={imageContexts} />
           <Textarea variant="composer"
             onPaste={handlePaste}
             ref={textareaRef}
@@ -579,23 +582,26 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             />
             {draft.length ? <span className="composer-counter" aria-live="polite">{m.ai.composer.charCount(draft.length)}</span> : null}
             <div className="composer-send-wrap">
-              <Button
+              <IconButton
                 type="button"
-                className={`composer-send${visibleActiveRun ? " danger" : ""}`}
+                variant="primary"
+                shape="circle"
+                size="lg"
+                responsiveTarget
+                className="composer-send"
                 disabled={visibleActiveRun
                   ? visibleActiveRun.status === "applying" || stoppingVisibleRun
                   : ui.isSending || customSending || !draft.trim() || (!draftSkillInvocation && !activeSession && !providerId)}
-                aria-label={visibleActiveRun ? stoppingVisibleRun ? m.ai.composer.stopping : m.ai.composer.stop : m.ai.composer.send}
+                label={visibleActiveRun ? stoppingVisibleRun ? m.ai.composer.stopping : m.ai.composer.stop : m.ai.composer.send}
                 aria-busy={stoppingVisibleRun || undefined}
-                title={visibleActiveRun ? stoppingVisibleRun ? m.ai.composer.stopping : m.ai.composer.stop : m.ai.composer.sendShortcut}
                 onClick={() => visibleActiveRun ? void actions.cancel(visibleActiveRun.id) : void submit()}
               >
                 {visibleActiveRun ? (
-                  <span key={stoppingVisibleRun ? "stopping" : "stop"} className="composer-send-icon" aria-hidden="true">{stoppingVisibleRun ? <LoaderCircle className="spin" size={16} /> : <Square size={16} />}</span>
+                  <span key={stoppingVisibleRun ? "stopping" : "stop"} className="composer-send-icon" aria-hidden="true">{stoppingVisibleRun ? <LoaderCircle className="spin" size={16} /> : <Square size={14} fill="currentColor" strokeWidth={0} />}</span>
                 ) : (
                   <ComposerSendIcon loading={ui.isSending || customSending} />
                 )}
-              </Button>
+              </IconButton>
             </div>
           </div>
         </div>
@@ -675,13 +681,14 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
   }, [contexts, updateChipOverflow]);
 
   const images = contexts.filter((c) => c.kind === "image" && Boolean(c.content));
+  const imagesOnly = contexts.length > 0 && contexts.every(context => context.kind === "image");
   const safeIndex = enlargedId ? images.findIndex(image => image.id === enlargedId) : -1;
   const isOpen = active && safeIndex >= 0;
   const openAt = useCallback((id: string) => setEnlargedId(id), []);
 
   return (
-    <div className="context-tray" role="group" aria-label={m.ai.context.count(contexts.length)}>
-      <span className="context-tray-count" aria-live="polite">{m.ai.context.count(contexts.length)}</span>
+    <div className="context-tray" data-has-images={images.length > 0 || undefined} data-images-only={imagesOnly || undefined} role="group" aria-label={m.ai.context.count(contexts.length)}>
+      <span className={imagesOnly ? "ui-visually-hidden" : "context-tray-count"} aria-live="polite">{m.ai.context.count(contexts.length)}</span>
       <motion.div
         layoutScroll
         ref={chipsRef}
@@ -696,10 +703,7 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
             an order-only dependency preserves the pre-drop box without measuring each drag frame. */}
         {contexts.map((context, index) => <ContextMotionItem key={context.id} enabled={collectionMotion.enabled} dependency={layoutDependency}>
           {context.kind === "image" ? (
-            <div className="context-chip image-chip" title={context.label}>
-              <Button variant="ghost" size="sm" aria-label={context.label} data-motion="icon" className="image-chip-button" onClick={() => openAt(context.id)}><img src={context.content} alt={context.label} /></Button>
-              <IconButton className="image-chip-remove" onClick={() => actions.removeContext(context.id)} label={m.ai.context.remove}><X size={11} /></IconButton>
-            </div>
+            <ImageAttachment src={context.content || ""} label={context.label} removeLabel={m.ai.context.removeImage(context.label)} onOpen={() => openAt(context.id)} onRemove={() => actions.removeContext(context.id)} />
           ) : (
             <ContextReferenceChip
               active={active}
@@ -720,16 +724,16 @@ export function ContextTray({ contexts, active = true }: { contexts: ContextRefe
         )}
         </AnimatePresence>
       </motion.div>
-      <Button variant="ghost" size="sm"
+      {!imagesOnly ? <Button variant="ghost" size="sm"
         type="button"
         className="context-tray-clear"
         data-motion="icon"
         aria-label={`${m.ai.context.clear} ${m.ai.context.count(contexts.length)}`}
-        onClick={actions.clearContexts}
+        onClick={() => contexts.forEach(context => actions.removeContext(context.id))}
       >
         <Trash2 size={12} />
         {m.ai.context.clear}
-      </Button>
+      </Button> : null}
       <ImageViewer open={isOpen} images={images.map(image => ({ id: image.id, title: image.label }))}
         selectedId={enlargedId} onSelect={setEnlargedId} onClose={() => setEnlargedId(null)}
         src={images[safeIndex]?.content} label={m.ai.composer.imagePreview} closeLabel={m.ai.composer.closePreview}

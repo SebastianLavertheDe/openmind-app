@@ -5,7 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { ImageOff, LoaderCircle, Maximize2 } from "lucide-react";
 import type { ChatImageData, GeneratedImage } from "@shared/image-generation";
 import { IMAGE_PROVIDERS } from "@shared/image-generation";
-import { ImageViewer } from "../../design-system/ImageViewer";
+import { ImageViewer } from "../../design-system/components";
+import type { ImageThumbnailVariant } from "../../design-system/control-contract";
 
 type GalleryImage = { id: string; source: string; title: string; element?: HTMLElement | null };
 type GalleryContextValue = {
@@ -46,12 +47,13 @@ function OwnedGallery({ children, projectName }: { children: ReactNode; projectN
   </GalleryContext.Provider>;
 }
 
-function useImageData(source: string, variant: "thumbnail" | "original", projectName?: string, revision = 0) {
+function useImageData(source: string, variant: "thumbnail" | "original", projectName?: string, revision = 0, enabled = true) {
   const [state, setState] = useState<{ source: string; data?: ChatImageData; error?: string }>({ source });
   useEffect(() => {
     let current = true;
     setState({ source });
-    if (!source) return;
+    if (!enabled) return;
+    if (!source) { setState({ source, error: uiMessages.interface.imageUnavailable }); return; }
     if (/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(source) && source.length <= 28_000_000) {
       setState({ source, data: { dataUrl: source, width: 0, height: 0 } });
       return;
@@ -62,18 +64,18 @@ function useImageData(source: string, variant: "thumbnail" | "original", project
       if (current) setState({ source, error: cause instanceof Error ? cause.message : uiMessages.interface.imageLoadFailed });
     });
     return () => { current = false; };
-  }, [source, variant, projectName, revision]);
+  }, [source, variant, projectName, revision, enabled]);
   return state.source === source ? state : { source };
 }
 
-export function ChatImage({ source, title = uiMessages.interface.image }: { source: string; title?: string }) {
+export function ChatImage({ source, title = uiMessages.interface.image, variant = "default" }: { source: string; title?: string; variant?: ImageThumbnailVariant }) {
   useLocale();
   const gallery = useContext(GalleryContext);
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const [visible, setVisible] = useState(false);
   const [revision, setRevision] = useState(0);
-  const data = useImageData(visible ? source : "", "thumbnail", gallery?.projectName, revision);
+  const data = useImageData(source, "thumbnail", gallery?.projectName, revision, visible);
   useEffect(() => {
     if (!button.current || typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const observer = new IntersectionObserver(entries => {
@@ -83,15 +85,15 @@ export function ChatImage({ source, title = uiMessages.interface.image }: { sour
     return () => observer.disconnect();
   }, []);
   useEffect(() => gallery?.register({ id, source, title, element: button.current }), [gallery, id, source, title]);
-  return <span className="chat-image-card">
-    <ImageThumbnail ref={button} type="button"  data-motion="action"
+  return <span className="chat-image-card" data-variant={variant}>
+    <ImageThumbnail ref={button} variant={variant} type="button" data-motion="action"
       label={data.error ? uiMessages.interface.reloadImage(title) : uiMessages.interface.viewOriginal(title)}
       onClick={() => data.error ? setRevision(value => value + 1) : gallery?.open({ id, source, title, element: button.current })}>
       {data.data ? <img src={data.data.dataUrl} alt={title} loading="lazy" decoding="async" />
         : <span className="chat-image-placeholder" role="status">{data.error ? <><ImageOff size={22} /><span>{uiMessages.interface.imageRetry}</span></> : <LoaderCircle size={22} className="spin" />}</span>}
-      {data.data ? <span className="chat-image-open"><Maximize2 size={13} />{uiMessages.interface.originalImage}</span> : null}
+      {data.data && variant === "default" ? <span className="chat-image-open"><Maximize2 size={13} />{uiMessages.interface.originalImage}</span> : null}
     </ImageThumbnail>
-    {data.error ? <span className="chat-image-error">{data.error}</span> : null}
+    {data.error && variant !== "tool" ? <span className="chat-image-error">{data.error}</span> : null}
   </span>;
 }
 

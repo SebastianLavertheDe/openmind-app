@@ -2,12 +2,52 @@ import { createRef, useRef, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button, ConfirmDialog, FormDialog, FormField, IconButton, Input, InputGroup, Popover } from "./components";
+import { Button, ConfirmDialog, FormDialog, FormField, IconButton, ImageAttachment, Input, InputGroup, Popover } from "./components";
 import { useMotionPreference } from "./use-motion-preference";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("public UI contracts", () => {
+  it("supports keyboard disclosure actions with the text-button variant", async () => {
+    const user = userEvent.setup();
+    function Disclosure() {
+      const [open, setOpen] = useState(false);
+      return <Button variant="text" aria-expanded={open} aria-controls="text-preview" onClick={() => setOpen(value => !value)}>{open ? "Show less" : "Show more"}</Button>;
+    }
+    render(<Disclosure />);
+    await user.tab();
+    expect(document.activeElement?.getAttribute("data-variant")).toBe("text");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
+    await user.keyboard(" ");
+    expect(screen.getByRole("button", { name: "Show more" }).getAttribute("aria-expanded")).toBe("false");
+  });
+  it("keeps image preview and removal as independently named keyboard actions", async () => {
+    const user = userEvent.setup();
+    const open = vi.fn();
+    const remove = vi.fn();
+    render(<ImageAttachment src="data:image/png;base64,fixture" label="图片一" removeLabel="移除图片一" onOpen={open} onRemove={remove} />);
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "图片一" }));
+    await user.keyboard("{Enter}");
+    expect(open).toHaveBeenCalledOnce();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "移除图片一" }));
+    await user.keyboard("{Enter}");
+    expect(remove).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledOnce();
+  });
+  it("keeps round icon actions accessible and replaces the native title with a dismissible tooltip", async () => {
+    const user = userEvent.setup();
+    render(<IconButton shape="circle" size="lg" variant="primary" label="发送"><svg aria-hidden="true" /></IconButton>);
+    const button = screen.getByRole("button", { name: "发送" });
+    expect(button.dataset.shape).toBe("circle");
+    expect(button.hasAttribute("title")).toBe(false);
+    await user.hover(button);
+    expect(await screen.findByRole("tooltip")).toHaveProperty("textContent", "发送");
+    await user.unhover(button);
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+  });
   it("replaces an icon with one loading indicator and preserves its accessible name", () => {
     const click = vi.fn();
     render(<IconButton label="Upload" loading tooltip={false} onClick={click}><svg data-testid="upload-icon" /></IconButton>);

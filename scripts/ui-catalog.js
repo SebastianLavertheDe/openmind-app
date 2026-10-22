@@ -1,6 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+const { runWithTemporaryProfile } = require("./ui-contract/temporary-profile.cjs");
 const esbuild = require("esbuild");
 const electron = require("electron");
 
@@ -19,6 +19,6 @@ delete environment.ELECTRON_RUN_AS_NODE;
 const virtualDisplay = process.platform === "linux" && !environment.DISPLAY;
 const command = virtualDisplay ? "xvfb-run" : electron;
 const args = [...(virtualDisplay ? ["-a", electron] : []), "--no-sandbox", path.join(__dirname, "ui-catalog-electron.cjs"), ...process.argv.slice(2)];
-const result = spawnSync(command, args, { cwd: root, stdio: "inherit", env: environment });
+const result = runWithTemporaryProfile(command, args, { cwd: root, stdio: "inherit", env: environment });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

@@ -1,12 +1,82 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AssistantContent, ChatMarkdown } from "./message";
+import { AssistantContent, ChatMarkdown, UserMessage } from "./message";
+import type { AiEvent, DesktopApi } from "@shared/contracts";
+import { AiProvider } from "../../ai-context";
 import { localFileReference } from "./file-preview-context";
 import { parseAssistantContent } from "./artifact-fence";
 
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+});
+
+describe("long user messages", () => {
+  const previousApi = window.openmind;
+  afterEach(() => { window.openmind = previousApi; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  function message(text: string, id = "user-text") {
+    window.openmind = { onAiEvent: () => () => {} } as unknown as DesktopApi;
+    const event = { id, seq: 1, timestamp: "2026-10-22T08:00:00Z", projectId: "fixture", sessionId: "fixture", runId: id, provider: "codex", kind: "user-message", payload: { text, contexts: [] }, risks: [], schemaVersion: 1 } as AiEvent;
+    return render(<AiProvider initial={{ projectRoot: "/fixture", providers: [], sessions: [], runs: [], pendingApprovals: [] }}><UserMessage event={event} /></AiProvider>);
+  }
+  function geometry(content: () => number, viewport: () => number) {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function(this: HTMLElement) { return this.matches(".user-message-text-preview") ? content() : 0; });
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function(this: HTMLElement) { return this.matches(".user-message-text-preview") ? viewport() : 0; });
+  }
+
+  it("collapses overflowing text and exposes an accessible expand/collapse control", () => {
+    geometry(() => 1000, () => 420);
+    const { container } = message("字幕内容\n".repeat(60));
+    const more = screen.getByRole("button", { name: "显示更多" });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(document.getElementById(more.getAttribute("aria-controls")!)).toBe(container.querySelector(".user-message-text-content"));
+    fireEvent.click(more);
+    const less = screen.getByRole("button", { name: "收起" });
+    expect(less.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(less);
+    expect(screen.getByRole("button", { name: "显示更多" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("leaves short messages alone and remeasures when wrapping changes", () => {
+    let natural = 100;
+    let notify: ResizeObserverCallback | undefined;
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { notify = callback; }
+      observe() {}
+      disconnect = disconnect;
+    });
+    geometry(() => natural, () => 420);
+    const view = message("一段会在窄窗口折行的文字");
+    expect(screen.queryByRole("button", { name: "显示更多" })).toBeNull();
+    act(() => { natural = 900; notify?.([], {} as ResizeObserver); });
+    expect(screen.getByRole("button", { name: "显示更多" })).toBeTruthy();
+    act(() => { natural = 100; notify?.([], {} as ResizeObserver); });
+    expect(screen.queryByRole("button", { name: "显示更多" })).toBeNull();
+    view.unmount();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it("bounds very large previews but copies the entire original message", async () => {
+    const text = `${"完整原文\n".repeat(2500)}末尾不能丢失`;
+    const writeText = vi.fn(async () => {});
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      const { container } = message(text);
+      expect(container.querySelector(".user-message-text-preview")?.textContent?.length).toBe(8192);
+      expect(container.querySelector(".document-reader")).toBeNull();
+      expect(screen.getByRole("button", { name: "显示更多" })).toBeTruthy();
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "复制" })); });
+      expect(writeText).toHaveBeenCalledWith(text);
+      fireEvent.click(screen.getByRole("button", { name: "显示更多" }));
+      expect(screen.getByRole("button", { name: "收起" })).toBeTruthy();
+      expect(container.querySelector(".user-message-text-preview")).toBeNull();
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
 });
 
 describe("ChatMarkdown streaming", () => {

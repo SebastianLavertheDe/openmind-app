@@ -444,7 +444,7 @@ export const featureMessages = {
         sources: { title: "资料来源", description: "管理可供 Skills 复用的 RSS、文件夹、API 和其他输入来源。" },
         storage: { title: "数据与存储", description: "记录缓存、日志和通知历史的本地保留策略。" },
         sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" },
-        runtime: { title: "内置运行时", description: "统一管理供 Skill 与自动化任务使用的共享 Python 环境。" }
+        runtime: { title: "内置运行时", description: "管理共享 Python 环境、视频导入设置与下载工具。" }
       }
     },
     saveStatus: { saving: "正在保存…", saved: "改动会即时保存在本地" },

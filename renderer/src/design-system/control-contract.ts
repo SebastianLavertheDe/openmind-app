@@ -1,8 +1,14 @@
 /** Public UI variants. Fixtures and static checks consume this same contract. */
 export const CONTROL_SIZES = ["sm", "md", "lg"] as const;
 export type ControlSize = typeof CONTROL_SIZES[number];
-export const BUTTON_VARIANTS = ["primary", "secondary", "ghost"] as const;
+export const BUTTON_VARIANTS = ["primary", "secondary", "ghost", "text"] as const;
 export type ButtonVariant = typeof BUTTON_VARIANTS[number];
+export const ICON_BUTTON_SHAPES = ["rect", "circle"] as const;
+export type IconButtonShape = typeof ICON_BUTTON_SHAPES[number];
+export const IMAGE_THUMBNAIL_VARIANTS = ["default", "attachment", "tool"] as const;
+export type ImageThumbnailVariant = typeof IMAGE_THUMBNAIL_VARIANTS[number];
+export const DISCLOSURE_VARIANTS = ["default", "inline"] as const;
+export type DisclosureVariant = typeof DISCLOSURE_VARIANTS[number];
 export const CONTROL_TONES = ["neutral", "danger", "warning"] as const;
 export type ControlTone = typeof CONTROL_TONES[number];
 export const DIALOG_SIZES = ["sm", "md", "lg", "wide"] as const;

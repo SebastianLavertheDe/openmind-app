@@ -3,6 +3,11 @@ import type { interfaceMessages as ChineseMessages } from "../zh-CN/interface";
 
 export const interfaceMessages = {
   interface: {
+    mediaPlaybackFailed: "This file could not be played. Its codec may be unsupported. Try opening it in your desktop player.",
+    openExternalMedia: "Open in desktop player",
+    mediaDeliverables: "Output previews",
+    previewMedia: "Preview",
+    mediaKind: { video: "Video", audio: "Audio", image: "Image" },
     recommendedTopic: "Recommended topic",
     ready: "Ready",
     artifacts: "Artifacts",

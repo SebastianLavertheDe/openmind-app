@@ -1,15 +1,15 @@
-import { Button } from "../../design-system/components";
+import { AnimatedDisclosure, Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronRight, CircleStop, FileText, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleStop, FileText, Images, LoaderCircle, ShieldAlert, SquareTerminal, Terminal } from "lucide-react";
 import type { AiEvent, RunStatus } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
 import { OverflowBox } from "../../design-system/OverflowBox";
 import { localFileReference, useFilePreview } from "./file-preview-context";
 import { asRecord, firstLine, scalar, toolCategory, toolCategoryLabel, toolEventFailed, toolOperationSummary, toolValueText } from "./timeline";
+import { ChatImage, ChatImageGallery } from "./ChatImages";
 
 const OUTPUT_CHUNK_SIZE = 8_000;
 
@@ -107,16 +107,17 @@ export const CommandGroup = memo(function CommandGroup({
     aria-label={calls.length > 8 ? accessibleLabel : undefined}
     tabIndex={calls.length > 8 ? 0 : undefined}
   >
-    {calls.map((call) => (
-      <ToolCallCard
-        key={call.key}
-        events={call.events}
+    {groupViewedImageCalls(calls, runStatus).map((row) => row.type === "images"
+      ? <ViewedImages key={row.key} sources={row.sources} />
+      : <ToolCallCard
+        key={row.call.key}
+        events={row.call.events}
         runStatus={runStatus}
         grouped
-        open={expandedKeys.has(call.key)}
-        onOpenChange={(nextOpen) => setCallOpen(call.key, nextOpen)}
+        open={expandedKeys.has(row.call.key)}
+        onOpenChange={(nextOpen) => setCallOpen(row.call.key, nextOpen)}
       />
-    ))}
+    )}
   </div>;
   if (flat) return <div className={`command-group flat ${groupClass}`}>{list}</div>;
   return (
@@ -314,6 +315,9 @@ export function ToolCallCard({
     if (controlled) onOpenChange?.(nextOpen);
     else setInternalOpen(nextOpen);
   };
+
+  const viewedImages = viewedImageSources(stableEvents, runStatus);
+  if (viewedImages.length) return <ViewedImages sources={viewedImages} />;
 
   return (
     <AnimatedDisclosure
@@ -527,6 +531,67 @@ function readFilePath(input: unknown, outputRecords: Record<string, unknown>[]):
 
 function fileName(value: string): string {
   return value.replaceAll("\\", "/").split("/").filter(Boolean).at(-1) || value;
+}
+
+/** Only successful read/view calls with explicit image paths become previews. */
+function viewedImageSources(events: AiEvent[], runStatus?: RunStatus): string[] {
+  if (!events.length || toolCallState(events, runStatus) !== "completed") return [];
+  const first = events[0].payload;
+  const tool = String(first.tool || first.command || "");
+  if (toolCategory(tool) !== "read") return [];
+  const records: unknown[] = [first.input];
+  for (const event of events) {
+    records.push(event.payload.input);
+    if (event.kind === "tool-complete") records.push(event.payload.output, asRecord(event.payload.output).item);
+  }
+  const sources: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value !== "string" || value.length > 8192 || /[\r\n]/.test(value)) return;
+    const source = value.trim();
+    if (!/\.(?:png|jpe?g|webp|gif|bmp|avif|ico|tiff?|svg)$/i.test(source)) return;
+    if (!sources.includes(source)) sources.push(source);
+  };
+  for (const value of records) {
+    const record = asRecord(value);
+    if (typeof value === "string" && (value === first.input || /image.?view|view.?image/i.test(tool))) add(value);
+    for (const key of ["file_path", "filePath", "path"]) add(record[key]);
+    for (const key of ["paths", "file_paths", "images"]) {
+      if (!Array.isArray(record[key])) continue;
+      for (const item of record[key]) {
+        add(item);
+        const image = asRecord(item);
+        add(image.path || image.file_path || image.filePath);
+      }
+    }
+  }
+  return sources;
+}
+
+export function hasViewedImageResult(events: AiEvent[], runStatus?: RunStatus): boolean {
+  return viewedImageSources(events, runStatus).length > 0;
+}
+
+type ToolListRow = { type: "call"; call: CommandCall } | { type: "images"; key: string; sources: string[] };
+function groupViewedImageCalls(calls: CommandCall[], runStatus?: RunStatus): ToolListRow[] {
+  const rows: ToolListRow[] = [];
+  for (const call of calls) {
+    const sources = viewedImageSources(call.events, runStatus);
+    if (!sources.length) { rows.push({ type: "call", call }); continue; }
+    const previous = rows.at(-1);
+    if (previous?.type === "images") previous.sources = [...new Set([...previous.sources, ...sources])];
+    else rows.push({ type: "images", key: call.key, sources });
+  }
+  return rows;
+}
+
+function ViewedImages({ sources }: { sources: string[] }) {
+  useLocale();
+  const [open, setOpen] = useState(true);
+  return <ChatImageGallery><AnimatedDisclosure variant="inline" className="viewed-images"
+    open={open} onOpenChange={setOpen} triggerAriaLabel={t.viewedImages(sources.length)} unmountOnExit
+    summary={<><Images size={14} aria-hidden /><span>{t.viewedImages(sources.length)}</span>{open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}</>}>
+    <div className="viewed-images-strip">{sources.map(source => <ChatImage key={source} source={source} title={fileName(source)} variant="tool" />)}</div>
+  </AnimatedDisclosure></ChatImageGallery>;
 }
 
 function commandText(tool: string, input: unknown): string {

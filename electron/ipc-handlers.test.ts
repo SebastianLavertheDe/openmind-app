@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
+import fs from "node:fs";
+import { ProjectPathResolver } from "./project/project-path-resolver";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import { createDesktopInvokeBridge } from "../shared/ipc-bridge";
 import {
@@ -48,9 +50,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(136);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(136);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(136);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(137);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(137);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(137);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -118,6 +120,24 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
 }
 
 describe("ipc handlers", () => {
+  it("keeps media metadata inside project materials/outputs and rejects traversal or extra root arguments", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-media-ipc-"));
+    try {
+      const paths = new ProjectPathResolver(directory);
+      const project = paths.createProjectRoot("Media");
+      fs.mkdirSync(path.join(project.rootPath, "outputs"));
+      fs.writeFileSync(path.join(project.rootPath, "outputs", "final.mp4"), "fixture");
+      const ctx = makeCtx({ ensureProjectService: () => ({ paths }) as never });
+      expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.readMediaPreview, { projectName: "Media", path: "outputs/final.mp4" }))
+        .toMatchObject({ path: "outputs/final.mp4", name: "final.mp4", kind: "video", byteSize: 7 });
+      for (const input of [
+        { projectName: "Media", path: "../Other/outputs/final.mp4" },
+        { projectName: "Media", path: "tasks/final.mp4" },
+        { projectName: "Media", path: "outputs/final.mp4", root: directory },
+        { projectName: "Media", path: path.join(project.rootPath, "outputs", "final.mp4") }
+      ]) expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.readMediaPreview, input)).toThrow();
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
   it("returns browser detection through typed IPC without exposing extra host data", async () => {
     youtubeTools.status.mockResolvedValue({ browsers: [{ id: "firefox", name: "Firefox", profile: "/private/profile" }], downloaderAvailable: true, ffmpegAvailable: false, javascriptRuntimeAvailable: true, tools: [], cookie: "must-not-cross-ipc" });
     expect(await invokeHandler(makeCtx(), IPC_METHOD_CHANNELS.getYoutubeImportStatus)).toEqual({ browsers: [{ id: "firefox", name: "Firefox" }], downloaderAvailable: true, ffmpegAvailable: false, javascriptRuntimeAvailable: true, tools: [] });

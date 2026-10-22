@@ -12,8 +12,6 @@ export function workspacePreviewSource(path: string): FilePreviewSource {
   return workspaceFileSource(path, {
     editable: true,
     binary: "unsupported",
-    unsupportedBinaryReason: /\.(?:mp4|mov|webm)$/i.test(path)
-      ? uiMessages.interface.binaryVideo
-      : uiMessages.interface.binaryAiFile
+    unsupportedBinaryReason: uiMessages.interface.binaryAiFile
   });
 }

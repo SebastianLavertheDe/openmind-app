@@ -1,5 +1,10 @@
 export const interfaceMessages = {
   interface: {
+    mediaPlaybackFailed: "无法播放此文件，可能是编码格式不受支持。可以使用本机播放器打开。",
+    openExternalMedia: "使用本机播放器打开",
+    mediaDeliverables: "成品预览",
+    previewMedia: "预览",
+    mediaKind: { video: "视频", audio: "音频", image: "图片" },
     recommendedTopic: "推荐选题",
     ready: "待发布",
     artifacts: "产物",
