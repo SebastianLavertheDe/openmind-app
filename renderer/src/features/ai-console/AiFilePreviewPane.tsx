@@ -1,9 +1,9 @@
+import { useFeedback } from "../../feedback-context";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Eye, FileText, Pencil, Save, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { useAiUi } from "../../ai-context";
 import { ColumnSplitter } from "../../components/ColumnSplitter";
 import { ResponsiveActionBar, type ResponsiveAction, Textarea } from "../../design-system/components";
 import { useResponsiveLayout } from "../../app/responsive-layout";
@@ -42,7 +42,7 @@ export function AiFilePreviewPane({
   children: ReactNode;
 }) {
   const locale = useLocale();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const responsiveLayout = useResponsiveLayout();
   const surfaceKind = surface.kind;
   const projectName = surface.kind === "project-task" ? surface.projectName : null;
@@ -122,12 +122,12 @@ export function AiFilePreviewPane({
     return () => window.cancelAnimationFrame(frame);
   }, [preview.source?.id, previewOpen, previewVisible]);
 
-  const confirmLeavePreview = useCallback(() => ui.confirm({
+  const confirmLeavePreview = useCallback(() => feedback.confirm({
     title: m.ai.workbench.unsavedTitle,
     body: m.ai.workbench.unsavedConfirm,
     confirmText: m.ai.workbench.unsavedConfirmText,
     danger: true
-  }), [ui]);
+  }), [feedback]);
 
   const openSource = useCallback(async (source: FilePreviewSource, logicalPath: string) => {
     if (openingSourceRef.current === source.id) return;
@@ -166,13 +166,13 @@ export function AiFilePreviewPane({
         await openSource(resolved.source, resolved.logicalPath);
         return;
       }
-      ui.notify(isBinaryPreviewPath(targetPath)
+      feedback.notify(isBinaryPreviewPath(targetPath)
         ? uiMessages.interface.binaryProjectFile
         : uiMessages.interface.projectFileMissing, "error");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     }
-  }, [openSource, projectName, surfaceKind, ui]);
+  }, [openSource, projectName, surfaceKind, feedback]);
 
   useEffect(() => {
     if (surfaceKind !== "workspace" || !restoredPreviewPath || previewOpen || restoredPathRef.current === restoredPreviewPath) return;
@@ -207,13 +207,13 @@ export function AiFilePreviewPane({
   }, [captureConversation, confirmLeavePreview, onPreviewPathChange, preview.close]);
 
   const switchToPreview = useCallback(async () => {
-    await preview.setMode("preview", preview.dirty ? () => ui.confirm({
+    await preview.setMode("preview", preview.dirty ? () => feedback.confirm({
       title: m.ai.workbench.discardDirtyTitle,
       body: m.ai.workbench.discardDirtyConfirm,
       confirmText: m.ai.workbench.discardDirtyConfirmText,
       danger: true
     }) : undefined);
-  }, [preview.dirty, preview.setMode, ui]);
+  }, [preview.dirty, preview.setMode, feedback]);
 
   const savePreview = useCallback(async () => {
     setSaveNotice(null);

@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const { app, BrowserWindow } = require("electron");
 const { comparePng } = require("./ui-contract/visual-compare.cjs");
 const scenarios = require("./fixtures/ui-catalog/scenarios.json");
+const pixelScenarios = scenarios.filter(scenario => !scenario.pixelPlatforms || scenario.pixelPlatforms.includes(`${process.platform}-${process.arch}`));
 const selectScenarios = new Set(["select-menu", "select-rect-open", "select-quiet-permission"]);
 const modelScenarios = new Set(["composer-model-menu", "composer-model-submenu"]);
 
@@ -12,8 +13,10 @@ const root = path.resolve(__dirname, "..");
 const output = path.join(root, ".tmp/ui-regression");
 const baselines = path.join(root, "scripts/fixtures/ui-catalog/baselines", `${process.platform}-${process.arch}`);
 const preview = process.argv.includes("--preview");
+const captureOnly = process.argv.includes("--capture-only");
 const update = process.argv.includes("--update");
 const performanceOnly = process.argv.includes("--performance-only");
+const offscreen = !preview && process.platform === "win32";
 const reportPath = path.join(output, performanceOnly ? "performance.json" : "report.json");
 const userData = process.env.OPENMIND_UI_CATALOG_USER_DATA_DIR;
 if (!userData || !path.isAbsolute(userData)) throw new Error("Run the UI catalog through node scripts/ui-catalog.js to provide an isolated profile.");
@@ -21,10 +24,13 @@ app.setPath("userData", userData);
 app.setPath("sessionData", userData);
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+app.commandLine.appendSwitch("disable-background-timer-throttling");
 app.commandLine.appendSwitch("lang", "en-US");
 app.commandLine.appendSwitch("force-prefers-reduced-motion", "reduce");
 let win;
-const report = { environment: null, snapshots: [], geometry: [], failures: [], performance: null };
+const report = { mode: update ? "update" : captureOnly ? "capture" : "compare", environment: null, snapshots: [], geometry: [], failures: [], performance: null };
 const errors = [];
 
 function sha(file) { return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); }
@@ -41,11 +47,11 @@ app.whenReady().then(async () => {
   fs.mkdirSync(output, { recursive: true });
   report.environment = environment();
   const manifestPath = path.join(baselines, "manifest.json");
-  if (!preview && !update && !performanceOnly) {
+  if (!preview && !update && !captureOnly && !performanceOnly) {
     if (!fs.existsSync(manifestPath)) throw new Error(`No reviewed UI baseline for ${process.platform}-${process.arch}. Create and inspect it with npm run visual:ui -- --update.`);
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     assert.deepEqual(report.environment, manifest.environment, "UI rendering environment changed; review fresh baselines with the pinned runtime/fonts.");
-    const expectedNames = ["light", "dark"].flatMap(theme => [720, 1280].flatMap(width => scenarios.map(scenario => `${theme}-${width}-${scenario.id}.png`)));
+    const expectedNames = ["light", "dark"].flatMap(theme => [720, 1280].flatMap(width => pixelScenarios.map(scenario => `${theme}-${width}-${scenario.id}.png`)));
     assert.ok(Array.isArray(manifest.snapshots), "Reviewed baseline manifest is missing its snapshot list.");
     assert.deepEqual(manifest.snapshots.map(item => item.name), expectedNames, "UI catalog scenarios changed; review the complete baseline set.");
     for (const item of manifest.snapshots) {
@@ -54,8 +60,8 @@ app.whenReady().then(async () => {
       assert.equal(sha(baselinePath), item.sha256, `${item.name}: baseline PNG does not match the reviewed manifest; update and review them together.`);
     }
   } else if (update) fs.mkdirSync(baselines, { recursive: true });
-  win = new BrowserWindow({ width: 1280, height: 1040, show: true, backgroundColor: "#ffffff",
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  win = new BrowserWindow({ width: 1280, height: 1040, show: !offscreen, backgroundColor: "#ffffff",
+    webPreferences: { offscreen, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
   win.webContents.on("console-message", event => { if (event.level >= 3) errors.push(event.message); });
   win.webContents.on("render-process-gone", (_event, details) => errors.push(`Renderer exited: ${JSON.stringify(details)}`));
   if (preview) { await load("actions", "light"); win.on("closed", () => app.quit()); return; }
@@ -120,7 +126,11 @@ app.whenReady().then(async () => {
     const actualPath = path.join(output, name), baselinePath = path.join(baselines, name);
     fs.writeFileSync(actualPath, image.toPNG());
     const item = { name, ...contract, differentPixels: 0, allowedPixels: 0 };
-    if (update) fs.copyFileSync(actualPath, baselinePath);
+    item.pixelBaseline = pixelScenarios.includes(scenario);
+    item.pixelCompared = item.pixelBaseline && !update && !captureOnly;
+    if (!item.pixelBaseline) { /* Still capture and validate geometry on every platform. */ }
+    else if (update) fs.copyFileSync(actualPath, baselinePath);
+    else if (captureOnly) { /* Migration evidence, no baseline comparison. */ }
     else if (!fs.existsSync(baselinePath)) report.failures.push(`${name}: missing reviewed baseline`);
     else {
       const comparison = await comparePng(fs.readFileSync(actualPath), fs.readFileSync(baselinePath));
@@ -133,7 +143,7 @@ app.whenReady().then(async () => {
       }
     }
     report.snapshots.push(item);
-    process.stdout.write(`UI ${update ? "baseline" : "comparison"}: ${name}\n`);
+    process.stdout.write(`UI ${update ? "baseline" : captureOnly ? "capture" : "comparison"}: ${name}\n`);
   }
   for (const theme of performanceOnly ? [] : ["light", "dark"]) for (const width of [360, 720]) {
     win.setSize(width, 600);
@@ -159,10 +169,10 @@ app.whenReady().then(async () => {
   assert.equal(report.performance.actions, 500, "Action-list fixture did not render");
   assert.ok(report.performance.p95Ms < 16.7, `Controlled update P95 ${report.performance.p95Ms.toFixed(2)}ms exceeds the 16.7ms budget`);
   assert.deepEqual(errors, [], "UI catalog renderer errors");
-  if (update) fs.writeFileSync(manifestPath, `${JSON.stringify({ environment: report.environment, snapshots: report.snapshots.map(item => ({ name: item.name, sha256: sha(path.join(baselines, item.name)) })) }, null, 2)}\n`);
+  if (update) fs.writeFileSync(manifestPath, `${JSON.stringify({ environment: report.environment, snapshots: report.snapshots.filter(item => item.pixelBaseline).map(item => ({ name: item.name, sha256: sha(path.join(baselines, item.name)) })) }, null, 2)}\n`);
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   assert.deepEqual(report.failures, [], "Visual regressions; inspect actual/expected/diff images in .tmp/ui-regression");
-  console.log(`UI regression passed: ${report.snapshots.length} screenshots; controlled update P95 ${report.performance.p95Ms.toFixed(2)}ms with 500 actions.`);
+  console.log(`UI ${update ? "baseline created (not a comparison)" : captureOnly ? "capture completed (not a comparison)" : "regression passed"}: ${report.snapshots.filter(item => item.pixelCompared).length} pixel comparisons, ${report.snapshots.length} captures; controlled update P95 ${report.performance.p95Ms.toFixed(2)}ms with 500 actions.`);
   win.destroy(); app.quit();
 }).catch(error => {
   report.failures.push(error.stack || String(error));
@@ -201,7 +211,7 @@ async function click(selector) {
 }
 async function inspect(id) {
   return win.webContents.executeJavaScript(`(() => {
-    const controls = Array.from(document.querySelectorAll('[data-ui-control]'));
+    const controls = Array.from(document.querySelectorAll('[data-ui-control], .ui-tabs, .ui-segmented, .ui-toggle-switch'));
     const visible = controls.filter(node => node.getBoundingClientRect().height > 0 && !node.closest('[inert]'));
     const trigger = document.querySelector('.ui-select-trigger');
     const surfaces = Array.from(document.querySelectorAll('.ui-select-surface')).filter(node => !node.closest('[inert]'));
@@ -228,10 +238,11 @@ async function inspect(id) {
       const css = getComputedStyle(node);
       if (node.matches('.ui-button')) {
         const size = node.dataset.size, token = size === 'sm' ? '--control-height-sm' : size === 'lg' ? '--control-height-lg' : '--control-height';
-        const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token));
-        const expected = node.hasAttribute('data-responsive-target') && innerWidth <= 720
+        const fluid = node.dataset.geometry === 'content';
+        const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(fluid ? '--control-height-sm' : token));
+        const expected = matchMedia('(pointer: coarse)').matches || node.hasAttribute('data-responsive-target') && innerWidth <= 720
           ? Math.max(base, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-touch-target'))) : base;
-        if (Math.abs(parseFloat(css.height) - expected) > .5) throw new Error('Button size escaped its contract: ' + css.height + ' vs ' + expected);
+        if (fluid ? parseFloat(css.height) < expected - .5 : Math.abs(parseFloat(css.height) - expected) > .5) throw new Error('Button size escaped its contract: ' + css.height + ' vs ' + expected);
       }
       if (node.matches('.ui-input:not([data-variant="inline"])')) {
         const token = node.dataset.size === 'sm' ? '--input-height-sm' : '--input-height';

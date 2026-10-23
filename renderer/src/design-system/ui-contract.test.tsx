@@ -17,6 +17,7 @@ describe("public UI contracts", () => {
     render(<Disclosure />);
     await user.tab();
     expect(document.activeElement?.getAttribute("data-variant")).toBe("text");
+    expect(document.activeElement?.getAttribute("data-geometry")).toBe("content");
     await user.keyboard("{Enter}");
     expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
     await user.keyboard(" ");

@@ -581,30 +581,6 @@
   font-size: var(--fs-xs);
 }
 
-.editor-mode-bar {
-  display: flex;
-  gap: 4px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-}
-
-.editor-mode-bar button:not([data-ui-control]) {
-  min-height: 26px;
-  padding: 0 11px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-
-.editor-mode-bar button:not([data-ui-control]).active {
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text);
-}
-
 .creative-preview {
   padding: 28px clamp(26px, 5vw, 72px);
 }
@@ -951,27 +927,6 @@
 
 .creative-main-pane .document-tabs {
   display: none;
-}
-
-.editor-mode-bar {
-  min-height: 42px;
-  align-items: center;
-  padding: 7px 16px;
-}
-
-.editor-mode-bar button {
-  min-width: 68px;
-}
-
-.editor-mode-bar button:not([data-ui-control]) {
-  min-height: 30px;
-  transition: background-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.editor-mode-bar button:not([data-ui-control]).active {
-  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
-  background: var(--accent-tint);
-  color: var(--accent-fg);
 }
 
 .creative-editor {

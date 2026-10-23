@@ -49,91 +49,12 @@
   background: var(--panel);
 }
 
-.ui-segmented,
-.ui-tabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-}
-
-.ui-segmented button:not([data-ui-control]),
-.ui-tabs button:not([data-ui-control]) {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-}
-
-.ui-segmented button:not([data-ui-control]).active,
-.ui-tabs button:not([data-ui-control]).active {
-  background: var(--panel-2);
-  color: var(--text);
-}
-
-.ui-segmented button:not([data-ui-control]) span,
-.ui-tabs button:not([data-ui-control]) span {
-  color: var(--muted-2);
-  font-size: var(--fs-xs);
-}
-
 .ui-date-picker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   color: var(--muted);
   font-size: var(--fs-xs);
-}
-
-.ui-toggle-switch {
-  position: relative;
-  width: 40px;
-  height: 24px;
-  flex: 0 0 auto;
-  padding: 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--panel-muted);
-  cursor: pointer;
-  transition: border-color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              box-shadow var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.ui-toggle-switch span {
-  width: 18px;
-  height: 18px;
-  display: block;
-  border-radius: 999px;
-  background: var(--panel);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, .18);
-  transform: translateX(0);
-  transition: transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)),
-              background var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.ui-toggle-switch.active {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: var(--accent-tint);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.ui-toggle-switch.active span {
-  transform: translateX(16px);
-  background: var(--accent);
-}
-
-.ui-toggle-switch:disabled {
-  cursor: not-allowed;
-  opacity: .45;
 }
 
 .ui-master-detail {

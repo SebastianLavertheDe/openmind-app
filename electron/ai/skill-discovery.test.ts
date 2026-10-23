@@ -10,6 +10,10 @@ import { SkillToolRegistry } from "./skill-tool-registry";
 import { skillDiscoveryInstructions } from "./skill-discovery";
 import { buildProviderSkillContext } from "./providers/skill-bridge";
 
+function discoveryEntries(instructions: string): Array<{ skill_path: string; package_root: string }> {
+  return instructions.split("\n").filter(line => line.startsWith("{")).map(line => JSON.parse(line));
+}
+
 describe("Installed Skill automatic discovery", () => {
   let root: string;
   beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-discovery-")); });
@@ -36,7 +40,10 @@ describe("Installed Skill automatic discovery", () => {
     expect(catalog).toHaveLength(1);
     const instructions = skillDiscoveryInstructions(catalog);
     expect(instructions).toContain("Read logged-in pages and capture screenshots");
-    expect(instructions).toContain(installed.packagePath);
+    expect(discoveryEntries(instructions)).toEqual([expect.objectContaining({
+      skill_path: catalog[0].skillPath,
+      package_root: installed.packagePath
+    })]);
     expect(instructions).toContain("无需用户输入斜杠命令");
     expect(instructions).toContain("必须先用文件读取工具读取对应 SKILL.md");
     expect(instructions).not.toContain("PRIVATE_FULL_INSTRUCTIONS");
@@ -66,7 +73,15 @@ describe("Installed Skill automatic discovery", () => {
   it("maps physical package paths into the provider runtime", () => {
     const { registry } = fixture();
     const catalog = registry.providerSkillCatalog(registry.captureSessionSnapshot());
-    const instructions = skillDiscoveryInstructions(catalog, (value) => `/mapped${value}`);
-    expect(instructions).toContain(`/mapped${catalog[0].skillPath}`);
+    // Exercise escaped Windows paths even when this test runs on a POSIX host.
+    const mapPath = (value: string) => path.win32.join("C:\\Provider runtime\\技能", path.basename(value));
+    const instructions = skillDiscoveryInstructions(catalog, mapPath);
+    expect(discoveryEntries(instructions)).toEqual([{
+      name: catalog[0].id,
+      description: catalog[0].description,
+      version: catalog[0].version,
+      skill_path: mapPath(catalog[0].skillPath),
+      package_root: mapPath(catalog[0].packageRoot)
+    }]);
   });
 });

@@ -1,16 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { hasLayerAbove, isDismissableBranch, registerDismissableLayer, subscribeDismissableLayers } from "./use-dismissable-layer";
 
-const FOCUSABLE = [
-  "a[href]",
-  "area[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  "details > summary:first-of-type",
-  "[tabindex]:not([tabindex='-1'])"
-].join(",");
+import { tabStops } from "./tab-navigation";
 
 type ModalLayer = "drawer" | "modal" | "global";
 
@@ -101,11 +92,7 @@ function syncBackgroundIsolation(): void {
   }
 }
 
-function focusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
-    .filter((element) => !element.closest("[inert]") && element.getAttribute("aria-hidden") !== "true"
-      && !element.classList.contains("ui-select-native-proxy"));
-}
+const focusableElements = tabStops;
 
 /**
  * Modal focus scope shared by drawers and dialogs.

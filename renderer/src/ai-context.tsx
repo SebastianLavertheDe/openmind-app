@@ -1,3 +1,4 @@
+import { FeedbackBoundary, useFeedback, useFeedbackState, type FeedbackActions, type FeedbackState } from "./feedback-context";
 import {
   createContext,
   useCallback,
@@ -39,13 +40,8 @@ import {
 } from "./features/ai-console/artifact-fence";
 
 type PanelMode = "collapsed" | "default" | "wide" | "full";
-type ToastTone = "info" | "success" | "error";
-type ToastAction = { label: string; onClick: () => void };
-type Toast = { id: number; text: string; tone: ToastTone; recovery: string | null; action?: ToastAction };
-type FeedbackLogEntry = { timestamp: string; text: string; tone: ToastTone; recovery: string | null; sessionId: string | null };
-type NotifyOptions = { action?: ToastAction; durationMs?: number };
-export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean };
-export type ConfirmAction = (options: ConfirmOptions) => Promise<boolean>;
+export type { ConfirmAction, ConfirmOptions } from "./feedback-context";
+
 type SendOptions = {
   imageGeneration?: import("@shared/image-generation").ImageSelection | null;
   providerId?: string;
@@ -65,7 +61,7 @@ type SendOptions = {
  *
  * - AiSnapshotValue: worker-pushed session/run/provider data (per snapshot push).
  * - AiEventsValue: live transcript events (per rAF flush while streaming).
- * - AiUiValue: local interaction state (toasts, confirm dialog, panel mode…).
+ * - AiUiValue: AI interaction state (sending, panel mode…).
  * - AiActionsValue: stable callbacks (never change identity).
  */
 export interface AiSnapshotValue {
@@ -87,12 +83,6 @@ export interface AiEventsValue {
 }
 
 export interface AiUiValue {
-  toasts: Toast[];
-  notify(text: string, tone?: ToastTone, options?: NotifyOptions): void;
-  dismissToast(id: number): void;
-  confirmState: ConfirmOptions | null;
-  confirm: ConfirmAction;
-  resolveConfirm(value: boolean): void;
   error: string | null;
   clearError(): void;
   isSending: boolean;
@@ -125,7 +115,7 @@ export interface AiActionsValue {
   refreshSkills(): Promise<SkillDefinition[] | null>;
 }
 
-export type AiController = AiSnapshotValue & AiEventsValue & AiUiValue & AiActionsValue;
+export type AiController = AiSnapshotValue & AiEventsValue & AiUiValue & AiActionsValue & FeedbackActions & FeedbackState;
 
 export interface AiStreamingState {
   streaming: string;
@@ -171,7 +161,6 @@ const EMPTY_CONTEXTS: ContextReference[] = [];
 const DRAFTS_KEY = "openmind.ai.drafts.v1";
 const CONTEXTS_KEY = "openmind.ai.contexts.v1";
 const PANEL_KEY = "openmind.ai.panel-mode.v1";
-const FEEDBACK_LOG_KEY = "openmind.feedback.log.v1";
 const DRAFT_PERSIST_DELAY_MS = 120;
 
 function scopedStorageKey(base: string, scope: string): string {
@@ -417,7 +406,7 @@ function createAiEventPump(deps: EventPumpDeps): () => void {
   };
 }
 
-export function AiProvider({ initial, skills: initialSkills = [], storageScope = "", children }: { initial: AiSnapshot; skills?: SkillDefinition[]; storageScope?: string; children: ReactNode }) {
+function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "", children }: { initial: AiSnapshot; skills?: SkillDefinition[]; storageScope?: string; children: ReactNode }) {
   // Project conversations are opened explicitly by their Project task page;
   // the global workbench must never adopt one merely because it was the most
   // recently persisted session.
@@ -441,11 +430,7 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   const [contextsByDraft, setContextsByDraft] = useState<Record<string, ContextReference[]>>(() => scopedStorageJson(CONTEXTS_KEY, storageScope, {}));
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => storageJson(PANEL_KEY, "collapsed"));
   const [projectComposeTarget, setProjectComposeTarget] = useState<{ projectId: string; projectName: string } | null>(null);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const toastSeq = useRef(0);
-  const toastTimers = useRef(new Map<number, number>());
-  const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
-  const confirmResolver = useRef<((value: boolean) => void) | null>(null);
+  const { confirm } = useFeedback();
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
@@ -646,13 +631,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     void window.openmind.aiPrewarm?.(activeSessionId || undefined)?.catch(() => undefined);
   }, [activeSessionId, providerSignature]);
 
-  // Cancel pending toast dismiss timers on unmount so a late timer can never
-  // call setToasts after the environment is gone.
-  useEffect(() => () => {
-    for (const timer of toastTimers.current.values()) window.clearTimeout(timer);
-    toastTimers.current.clear();
-  }, []);
-
   useEffect(() => {
     if (activeSessionId && !snapshot.sessions.some((session) => session.id === activeSessionId)) {
       void setActiveSession(null);
@@ -675,22 +653,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   }, [draftStore]);
   useEffect(() => writeStorage(contextsStorageKey, contextsByDraft), [contextsByDraft, contextsStorageKey]);
   useEffect(() => writeStorage(PANEL_KEY, panelMode), [panelMode]);
-
-  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
-    // A newer prompt supersedes the old one; its caller must still settle.
-    confirmResolver.current?.(false);
-    confirmResolver.current = resolve;
-    setConfirmState(options);
-  }), []);
-  useEffect(() => () => {
-    confirmResolver.current?.(false);
-    confirmResolver.current = null;
-  }, []);
-  const resolveConfirm = useCallback((value: boolean) => {
-    confirmResolver.current?.(value);
-    confirmResolver.current = null;
-    setConfirmState(null);
-  }, []);
 
   const send = useCallback(async (prompt: string, options: SendOptions = {}) => {
     if (sendingRef.current) throw new Error(m.ai.error.sendingInProgress);
@@ -822,25 +784,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     await setActiveSession(null);
   }, [draftStore, setActiveSession]);
 
-  const notify = useCallback((text: string, tone: ToastTone = "info", options: NotifyOptions = {}) => {
-    const id = ++toastSeq.current;
-    const recovery = tone === "error" ? recoveryHint(text) : null;
-    recordFeedback({ timestamp: new Date().toISOString(), text, tone, recovery, sessionId: activeSessionRef.current });
-    setToasts((current) => [...current, { id, text, tone, recovery, action: options.action }]);
-    // Capture the timer handle so dismiss/unmount can cancel it; after jsdom
-    // teardown `window` is gone and a late setToasts would crash the runner.
-    const timer = window.setTimeout(() => {
-      toastTimers.current.delete(id);
-      setToasts((current) => current.filter((item) => item.id !== id));
-    }, options.durationMs ?? 2800);
-    toastTimers.current.set(id, timer);
-  }, []);
-  const dismissToast = useCallback((id: number) => {
-    const timer = toastTimers.current.get(id);
-    if (timer !== undefined) { window.clearTimeout(timer); toastTimers.current.delete(id); }
-    setToasts((current) => current.filter((item) => item.id !== id));
-  }, []);
-
   const clearError = useCallback(() => setError(null), []);
   const addContext = useCallback((context: ContextReference) => {
     const key = activeSessionRef.current || NEW_SESSION_DRAFT;
@@ -943,12 +886,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
   }), [events, loadingSessionId, hasOlderTurns, historyLoading, loadOlderTurns]);
 
   const uiValue = useMemo<AiUiValue>(() => ({
-    toasts,
-    notify,
-    dismissToast,
-    confirmState,
-    confirm,
-    resolveConfirm,
     error,
     clearError,
     isSending,
@@ -960,12 +897,6 @@ export function AiProvider({ initial, skills: initialSkills = [], storageScope =
     projectComposeTarget,
     setProjectComposeTarget
   }), [
-    toasts,
-    notify,
-    dismissToast,
-    confirmState,
-    confirm,
-    resolveConfirm,
     error,
     clearError,
     isSending,
@@ -1061,6 +992,8 @@ export function useAiActions(): AiActionsValue {
  * timeline, the composer, or the workspace shell.
  */
 export function useAi(): AiController {
+  const feedback = useFeedback();
+  const feedbackState = useFeedbackState();
   const snapshotValue = useContext(SnapshotContext);
   const eventsValue = useContext(EventsContext);
   const uiValue = useContext(UiContext);
@@ -1068,7 +1001,7 @@ export function useAi(): AiController {
   if (!snapshotValue || !eventsValue || !uiValue || !actionsValue) {
     throw new Error("useAi must be used within AiProvider");
   }
-  return { ...snapshotValue, ...eventsValue, ...uiValue, ...actionsValue };
+  return { ...snapshotValue, ...eventsValue, ...uiValue, ...actionsValue, ...feedback, ...feedbackState };
 }
 
 function useDraftStoreAndKey(): [AiDraftStore, string] {
@@ -1185,16 +1118,7 @@ function createAiStreamingStore(): AiStreamingStore {
   };
 }
 
-function recordFeedback(entry: FeedbackLogEntry): void {
-  const current = storageJson<FeedbackLogEntry[]>(FEEDBACK_LOG_KEY, []);
-  writeStorage(FEEDBACK_LOG_KEY, [...current, entry].slice(-120));
-}
 
-function recoveryHint(text: string): string {
-  const value = text.toLocaleLowerCase();
-  if (/skill|自动化|流水线|采集|数据源|source/.test(value)) return m.ai.recovery.skill;
-  if (/provider|claude|codex|ai|审批|权限|会话/.test(value)) return m.ai.recovery.provider;
-  if (/索引|资料|内容|inbox|读取/.test(value)) return m.ai.recovery.index;
-  if (/文件|路径|目录|导入|导出|权限|保存/.test(value)) return m.ai.recovery.file;
-  return m.ai.recovery.default;
+export function AiProvider(props: Parameters<typeof AiStateProvider>[0]) {
+  return <FeedbackBoundary><AiStateProvider {...props} /></FeedbackBoundary>;
 }

@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
@@ -5,14 +6,14 @@ import { ChevronDown, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, ApprovalRequest, RiskFinding } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { errorText, formatDateTime } from "../../ai-utils";
-import { useAiActions, useAiUi } from "../../ai-context";
+import { useAiActions, } from "../../ai-context";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { asRecord, scalar } from "./timeline";
 
 export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalRequest; risks?: RiskFinding[] }) {
   useLocale();
   const actions = useAiActions();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const [busyAction, setBusyAction] = useState<"accept" | "accept-session" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -45,13 +46,13 @@ export function ApprovalCard({ approval, risks = [] }: { approval: ApprovalReque
           if (mountedRef.current) setBusyAction(null);
         });
       }, 5_000);
-      ui.notify(m.ai.approval.declinedToast(subject), "info", {
+      feedback.notify(m.ai.approval.declinedToast(subject), "info", {
         durationMs: 5_000,
         action: {
           label: m.ai.approval.undo,
           onClick: () => {
             if (!declineTimerRef.current) {
-              ui.notify(m.ai.approval.undoExpired, "info");
+              feedback.notify(m.ai.approval.undoExpired, "info");
               return;
             }
             window.clearTimeout(declineTimerRef.current);

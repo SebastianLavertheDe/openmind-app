@@ -386,51 +386,7 @@
   white-space: nowrap;
 }
 
-.skills-detail-tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 22px;
-  margin-top: 22px;
-  border-bottom: 1px solid var(--border);
-}
-
-.skills-detail-tabs button {
-  position: relative;
-}
-
-.skills-detail-tabs button:not([data-ui-control]) {
-  min-height: 38px;
-  padding: 0 1px 11px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: color var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1));
-}
-
-.skills-detail-tabs button::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  content: "";
-}
-
-.skills-detail-tabs button:not([data-ui-control])::after {
-  height: 2px;
-  border-radius: 999px;
-  background: var(--text);
-  opacity: 0;
-  transform: scaleX(.6);
-  transition: opacity var(--dur-fast, 140ms) ease, transform var(--dur-fast, 140ms) ease;
-}
-
-.skills-detail-tabs button:not([data-ui-control]):hover { color: var(--text-dim); }
-.skills-detail-tabs button:not([data-ui-control]).active { color: var(--text); font-weight: 600; }
-.skills-detail-tabs button:not([data-ui-control]).active::after { opacity: 1; transform: scaleX(1); }
-.skills-detail-tabs button:not([data-ui-control]):active { transform: translateY(1px); }
+.skills-detail-tabs { margin-top: 22px; }
 
 .skills-detail-tab-panel {
   animation: skills-tab-panel-enter var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both;
@@ -679,8 +635,6 @@
 .skills-availability-copy small { display: block; margin-top: 6px; color: var(--muted-2); font-size: var(--fs-xs); line-height: 1.5; }
 .skills-availability-control { display: flex; align-items: center; gap: 10px; }
 .skills-availability-control > span { min-width: 56px; color: var(--text-dim); font-size: var(--fs-xs); text-align: right; white-space: nowrap; }
-.skills-availability-toggle:not(.active):active span { transform: scale(.88); }
-.skills-availability-toggle.active:active span { transform: translateX(16px) scale(.88); }
 .skills-availability-feedback {
   grid-column: 1 / -1;
   margin: -3px 0 0;
@@ -781,8 +735,6 @@
   .skills-overview-grid { grid-template-columns: 1fr; gap: 14px; }
   .skills-overview-grid > div, .skills-overview-grid > div:nth-child(-n + 2) { margin: 0; padding: 0; border-right: 0; border-bottom: 0; }
   .skills-source-path { grid-template-columns: 1fr; gap: 4px; }
-  .skills-detail-tabs { gap: 15px; overflow-x: auto; }
-  .skills-detail-tabs button { flex: 0 0 auto; }
   .skills-owned-sources-actions { width: 100%; }
   .skills-owned-sources-actions button { flex: 1; }
   .skills-owned-sources-toolbar { align-items: stretch; flex-direction: column; }

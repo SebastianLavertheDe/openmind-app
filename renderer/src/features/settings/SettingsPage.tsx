@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { SearchInput } from "../../design-system/components";
@@ -6,7 +7,7 @@ import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Server, Sett
 import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
-import { useAiActions, useAiSnapshot, useAiUi } from "../../ai-context";
+import { useAiActions, useAiSnapshot, } from "../../ai-context";
 import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmind-root-selection";
 import { applyTheme } from "../../theme";
 import { applyLocale, useLocale } from "../../i18n";
@@ -46,7 +47,7 @@ const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation
 export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image" }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const actions = useAiActions();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +116,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try { setProvidersYaml(await window.openmind.getProviders()); }
     catch (error) {
       setProvidersYaml({ schemaVersion: 1, default: "", cli: { claude: null, codex: null }, providers: [] });
-      ui.notify(error instanceof Error ? error.message : m.settings.notify.providersLoadFailed, "error");
+      feedback.notify(error instanceof Error ? error.message : m.settings.notify.providersLoadFailed, "error");
     }
   }, [ai]);
 
@@ -129,9 +130,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try {
       setProvidersYaml(await window.openmind.saveProviders(input));
       announceProviderConfiguration();
-      ui.notify(m.settings.notify.providersSaved, "success");
+      feedback.notify(m.settings.notify.providersSaved, "success");
     } catch (error) {
-      ui.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
+      feedback.notify(error instanceof Error ? error.message : m.settings.notify.providersSaveFailed, "error");
       await loadProvidersYaml();
     } finally {
       setProvidersYamlBusy(false);
@@ -147,10 +148,10 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setRuntimeBusy(enabled ? "shared-python-enable" : "shared-python-disable");
     try {
       setSharedPythonRuntime(await window.openmind.setSharedPythonRuntimeEnabled(enabled));
-      ui.notify(enabled ? m.settings.notify.pythonEnabled : m.settings.notify.pythonDisabled, "success");
+      feedback.notify(enabled ? m.settings.notify.pythonEnabled : m.settings.notify.pythonDisabled, "success");
     } catch {
       await loadSharedPythonRuntime();
-      ui.notify(enabled ? m.settings.notify.pythonEnableFailed : m.settings.notify.pythonDisableFailed, "error");
+      feedback.notify(enabled ? m.settings.notify.pythonEnableFailed : m.settings.notify.pythonDisableFailed, "error");
     } finally {
       setRuntimeBusy(null);
     }
@@ -167,7 +168,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     });
     saveQueue.current = operation.catch(() => undefined);
     return operation.catch(() => {
-      ui.notify(m.settings.notify.saveFailed, "error");
+      feedback.notify(m.settings.notify.saveFailed, "error");
       return loadPrefs();
     }).finally(() => {
       pendingSaves.current -= 1;
@@ -205,18 +206,18 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       if (!root) return;
       const preview = await window.openmind.previewOpenmindRoot(root);
       if (!preview.canBind) throw new Error(openmindRootPreviewError(preview));
-      if (!await ui.confirm({ title: m.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: m.openmindRoot.confirm })) return;
+      if (!await feedback.confirm({ title: m.openmindRoot.confirmTitle, body: openmindRootPreviewBody(preview), confirmText: m.openmindRoot.confirm })) return;
       await window.openmind.setOpenmindRoot(root);
       await onRepo(root);
       await loadPrefs();
-      ui.notify(m.settings.notify.openmindRootUpdated, "success");
+      feedback.notify(m.settings.notify.openmindRootUpdated, "success");
     } catch {
-      ui.notify(m.settings.notify.openmindRootSelectFailed, "error");
+      feedback.notify(m.settings.notify.openmindRootSelectFailed, "error");
     }
   };
 
   const resetWorkflow = async () => {
-    const ok = await ui.confirm({ title: m.settings.workflow.resetToDefaults, body: m.settings.workflow.resetConfirm, confirmText: m.settings.workflow.resetToDefaults, danger: true });
+    const ok = await feedback.confirm({ title: m.settings.workflow.resetToDefaults, body: m.settings.workflow.resetConfirm, confirmText: m.settings.workflow.resetToDefaults, danger: true });
     if (!ok) return;
     setSaving(true);
     try {
@@ -224,9 +225,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       const next = await window.openmind.resetPreferences("workflow");
       setPrefs(next);
       applyTheme(next);
-      ui.notify(m.settings.notify.workflowReset, "success");
+      feedback.notify(m.settings.notify.workflowReset, "success");
     } catch {
-      ui.notify(m.settings.notify.saveFailed, "error");
+      feedback.notify(m.settings.notify.saveFailed, "error");
     } finally {
       setSaving(false);
     }
@@ -234,7 +235,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const openNotesDir = async () => {
     try { await window.openmind.openPath(prefs?.notesDir || "openmind"); }
-    catch { ui.notify(m.settings.notify.notesOpenFailed, "error"); }
+    catch { feedback.notify(m.settings.notify.notesOpenFailed, "error"); }
   };
 
   const refreshSkills = async () => {
@@ -242,8 +243,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setRefreshingSkills(true);
     try {
       const [next, servers] = await Promise.all([actions.refreshSkills(), loadMcpServers()]);
-      if (next) ui.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
-      else ui.notify(m.settings.skills.scanFailed, "error");
+      if (next) feedback.notify(m.settings.skills.scanComplete(next.length, servers.length), "success");
+      else feedback.notify(m.settings.skills.scanFailed, "error");
     } finally {
       setRefreshingSkills(false);
     }
@@ -251,18 +252,18 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const { copy: copyText } = useClipboard();
   const copySkillInvocation = async (skillId: string) => {
-    if (await copyText(`/${skillId}`)) ui.notify(m.settings.skills.copySuccess(skillId), "success");
-    else ui.notify(m.settings.skills.copyFailed, "error");
+    if (await copyText(`/${skillId}`)) feedback.notify(m.settings.skills.copySuccess(skillId), "success");
+    else feedback.notify(m.settings.skills.copyFailed, "error");
   };
 
   const openSkillDirectory = async (path: string) => {
     try { await window.openmind.openPath(path); }
-    catch { ui.notify(m.settings.skills.openFailed, "error"); }
+    catch { feedback.notify(m.settings.skills.openFailed, "error"); }
   };
 
   const refreshBrowserSkill = async () => {
     try { setBrowserStatus(await window.openmind.getBrowserSkillStatus()); }
-    catch { ui.notify(m.settings.browser.loadFailed, "error"); }
+    catch { feedback.notify(m.settings.browser.loadFailed, "error"); }
   };
 
   const installBrowserSkill = async () => {
@@ -271,15 +272,15 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     try {
       setBrowserStatus(await window.openmind.installBrowserSkill());
       await actions.refreshSkills();
-      ui.notify(m.settings.browser.installSucceeded, "success");
+      feedback.notify(m.settings.browser.installSucceeded, "success");
     } catch (error) {
-      ui.notify(error instanceof Error ? error.message : m.settings.browser.installFailed, "error");
+      feedback.notify(error instanceof Error ? error.message : m.settings.browser.installFailed, "error");
     } finally { setBrowserBusy(false); }
   };
 
   const openBrowserExtensionDocs = async () => {
     try { await window.openmind.openExternal("https://github.com/Tencent/BrowserSkill#quick-start"); }
-    catch { ui.notify(m.settings.browser.loadFailed, "error"); }
+    catch { feedback.notify(m.settings.browser.loadFailed, "error"); }
   };
 
   const restoreArchivedSession = async (sessionId: string) => {
@@ -287,9 +288,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     setSessionBusyId(sessionId);
     try {
       await actions.updateSession(sessionId, { archived: false });
-      ui.notify(m.ai.session.unarchived, "success");
+      feedback.notify(m.ai.session.unarchived, "success");
     } catch {
-      ui.notify(m.settings.notify.sessionRestoreFailed, "error");
+      feedback.notify(m.settings.notify.sessionRestoreFailed, "error");
     } finally {
       setSessionBusyId(null);
     }
@@ -302,7 +303,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
       await actions.setActiveSession(sessionId);
       onOpenSession?.();
     } catch {
-      ui.notify(m.settings.notify.sessionOpenFailed, "error");
+      feedback.notify(m.settings.notify.sessionOpenFailed, "error");
     } finally {
       setSessionBusyId(null);
     }
@@ -345,7 +346,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={ui.notify} initialCategory={initialProviderCategory} /></> : null}
+              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={feedback.notify} initialCategory={initialProviderCategory} /></> : null}
               {activeSection === "runtime" ? <><SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /><YoutubeImportSettingsSection prefs={prefs} save={save} /></> : null}
               {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}

@@ -1,9 +1,10 @@
+import { useFeedback, useFeedbackState } from "./feedback-context";
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { memo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiSnapshot, DesktopApi, SkillDefinition } from "@shared/contracts";
 import { messages as m, setLocale } from "@shared/messages";
-import { AiProvider, useAi, useAiDraft, useAiStreaming, useAiUi, type AiController } from "./ai-context";
+import { AiProvider, useAi, useAiDraft, useAiStreaming, type AiController } from "./ai-context";
 import { useTopicFileEditor } from "./features/creative/use-topic-file-editor";
 
 const snapshot: AiSnapshot = {
@@ -169,7 +170,7 @@ describe("AiProvider confirmation lifecycle", () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => <AiProvider initial={snapshot}>{children}</AiProvider>;
 
   it("cancels the replaced confirmation and settles the current one independently", async () => {
-    const { result } = renderHook(() => useAiUi(), { wrapper });
+    const { result } = renderHook(() => ({ ...useFeedback(), ...useFeedbackState() }), { wrapper });
     const first = vi.fn();
     const second = vi.fn();
     await act(async () => {
@@ -185,7 +186,7 @@ describe("AiProvider confirmation lifecycle", () => {
   });
 
   it("cancels a pending confirmation when the provider unmounts", async () => {
-    const { result, unmount } = renderHook(() => useAiUi(), { wrapper });
+    const { result, unmount } = renderHook(() => ({ ...useFeedback(), ...useFeedbackState() }), { wrapper });
     const settled = vi.fn();
     act(() => { void result.current.confirm({ title: "pending" }).then(settled); });
     await act(async () => unmount());

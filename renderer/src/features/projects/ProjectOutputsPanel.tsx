@@ -1,330 +1,89 @@
-import { MenuItem, Button } from "../../design-system/components";
-import { IconButton } from "../../design-system/IconButton";
-import { useLocale } from "../../i18n";
-import { getLocale, messages } from "@shared/messages";
+import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, LoaderCircle, MoreHorizontal, Pencil, Plus, Send } from "lucide-react";
-import { useAiUi } from "../../ai-context";
-import { DropdownMenu, EmptyState, ErrorState, StatusBadge, SearchInput } from "../../design-system/components";
-import { useCollectionMotion } from "../../design-system/use-collection-motion";
-import { ProjectOutputEditor } from "./ProjectOutputEditor";
-import { useFilePreviewController } from "../file-preview";
-import type { FilePreviewSource, PreviewResource } from "../file-preview/model";
-import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
+import { FileOutput, Plus } from "lucide-react";
+import { messages, getLocale } from "@shared/messages";
+import { useLocale } from "../../i18n";
+import { useFeedback } from "../../feedback-context";
+import { EmptyState, ErrorState, IconButton, SearchInput } from "../../design-system/components";
 import { ProjectListDetail } from "./ProjectListDetail";
-import { projectOutputPreviewSource } from "./project-output-preview-source";
 import { projectsApi } from "./projects-api";
 import type { ProjectDetail, ProjectOutput } from "./types";
-import { WechatExportDialog } from "../wechat/WechatExportDialog";
-
-type SaveState = "idle" | "saving" | "saved" | "failed";
-
-export type ProjectOutputNavigationGuard = {
-  isDirty(): boolean;
-  flush(): Promise<boolean>;
-  discard(): void;
-};
-
-export function ProjectOutputsPanel({
-  project,
-  initialOutputPath,
-  createRequested,
-  onCreateHandled,
-  onChanged,
-  onNavigationGuardChange,
-  onSelectionChange,
-  autoSelectFirst = true,
-  listHost,
-  detailHost
-}: {
-  project: ProjectDetail;
-  initialOutputPath?: string;
-  createRequested: boolean;
-  onCreateHandled(): void;
-  onChanged(): void;
+import { ProjectOutputDetail, type ProjectOutputNavigationGuard } from "./ProjectOutputDetail";
+export type { ProjectOutputNavigationGuard } from "./ProjectOutputDetail";
+export function ProjectOutputsPanel({ project, initialOutputPath, createRequested, onCreateHandled, onChanged, onSelectionChange, onNavigationGuardChange, autoSelectFirst = true, listHost, detailHost }: {
+  project: ProjectDetail; initialOutputPath?: string; createRequested: boolean; onCreateHandled(): void;
   onNavigationGuardChange?(guard: ProjectOutputNavigationGuard | null): void;
-  onSelectionChange?(relativePath?: string): void;
-  autoSelectFirst?: boolean;
-  /** Hosted mode: the page may provide either or both visible column hosts. */
-  listHost?: HTMLElement | null;
-  detailHost?: HTMLElement | null;
+  onChanged(): void; onSelectionChange?(relativePath?: string): void; autoSelectFirst?: boolean;
+  listHost?: HTMLElement | null; detailHost?: HTMLElement | null;
 }) {
   const locale = useLocale();
-  const ui = useAiUi();
-  const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
-  const [selectedPath, setSelectedPath] = useState(initialOutputPath || "");
-  const [focusPath, setFocusPath] = useState("");
-  const [selected, setSelected] = useState<ProjectOutput | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const feedback = useFeedback();
+  const [items, setItems] = useState<ProjectOutput[]>([]);
+  const [selectedPath, setSelectedPath] = useState("");
+  const selectedRef = useRef(selectedPath);
   const [query, setQuery] = useState("");
+
   const [loading, setLoading] = useState(true);
-  const [listError, setListError] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [wechatExport, setWechatExport] = useState<{ open: boolean; path: string; title: string; content: string } | null>(null);
-  const outputActionsRef = useRef<HTMLDivElement>(null);
-  const selectedPathRef = useRef(initialOutputPath || "");
-  const previewSourceRef = useRef<FilePreviewSource | null>(null);
-  const previewResourceRef = useRef<PreviewResource | null>(null);
-  const dirtyRef = useRef(false);
-  const mountedRef = useRef(true);
-  const savedTimerRef = useRef<number | null>(null);
-  const saveRef = useRef<() => Promise<boolean>>(async () => true);
-  const notifyRef = useRef(ui.notify);
-  const confirmRef = useRef(ui.confirm);
-  notifyRef.current = ui.notify;
-  confirmRef.current = ui.confirm;
-
-  const preview = useFilePreviewController({
-    flushOnUnmount: true,
-    onSaveError(message) {
-      if (mountedRef.current) setSaveState("failed");
-      notifyRef.current(message, "error");
-    }
-  });
-  previewSourceRef.current = preview.source;
-  previewResourceRef.current = preview.resource;
-  dirtyRef.current = preview.dirty;
-  const resource = preview.resource?.kind === "document" ? preview.resource : null;
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return outputs.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
-  }, [outputs, query, locale]);
-  const listMotion = useCollectionMotion(filtered.length, 40);
-
-  const acceptOutput = useCallback((next: ProjectOutput) => {
-    if (!mountedRef.current) return;
-    setOutputs((items) => items.some((item) => item.relativePath === next.relativePath)
-      ? items.map((item) => item.relativePath === next.relativePath ? next : item)
-      : [next, ...items]);
-    if (selectedPathRef.current === next.relativePath) setSelected(next);
+  const [error, setError] = useState<string | null>(null);
+  const [localCreate, setLocalCreate] = useState(false);
+  const callbacks = useRef({ onSelectionChange, onChanged });
+  callbacks.current = { onSelectionChange, onChanged };
+  const select = useCallback((path?: string) => {
+    selectedRef.current = path || "";
+    setSelectedPath(path || "");
+    callbacks.current.onSelectionChange?.(path);
   }, []);
-
-  const discardChanges = useCallback(() => {
-    dirtyRef.current = false;
-    preview.discard();
-    if (mountedRef.current) setSaveState("idle");
-  }, [preview.discard]);
-
-  const markSaved = useCallback(() => {
-    if (!mountedRef.current) return;
-    setSaveState("saved");
-    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = window.setTimeout(() => {
-      if (mountedRef.current) setSaveState((value) => value === "saved" ? "idle" : value);
-    }, 1800);
-  }, []);
-
-  const save = useCallback(async (): Promise<boolean> => {
-    if (!dirtyRef.current) return true;
-    if (mountedRef.current) setSaveState("saving");
-    const saved = await preview.save();
-    if (saved) markSaved();
-    return saved;
-  }, [markSaved, preview.save]);
-  saveRef.current = save;
-
-  const confirmTransition = useCallback(async () => {
-    if (!dirtyRef.current) return true;
-    if (await save()) return true;
-    const discard = await confirmRef.current({
-      title: messages.projectUi.documentSaveFailed,
-      body: messages.projectUi.discardUnsavedPrompt,
-      confirmText: messages.projectUi.discardChanges,
-      danger: true
-    });
-    if (discard) discardChanges();
-    return discard;
-  }, [discardChanges, save]);
-
-  const readOutput = useCallback(async (
-    relativePath: string,
-    confirmDirty = true,
-    initialOutput?: ProjectOutput
-  ): Promise<boolean> => {
-    if (relativePath === selectedPathRef.current && previewResourceRef.current) return true;
-    if (confirmDirty && !await confirmTransition()) return false;
-    selectedPathRef.current = relativePath;
-    setSelectedPath(relativePath);
-    setSelected(initialOutput || null);
-    setSaveState("idle");
-    setListError(null);
-    onSelectionChange?.(relativePath);
-    return preview.openSource(projectOutputPreviewSource(project.name, relativePath, {
-      initialOutput,
-      onOutput: acceptOutput
-    }), { initialMode: "edit", force: true });
-  }, [acceptOutput, confirmTransition, onSelectionChange, preview.openSource, project.name]);
-
+  const request = useRef(0);
   const load = useCallback(async () => {
+    const id = ++request.current;
     setLoading(true);
     try {
       const next = await projectsApi.listOutputs(project.name);
-      setOutputs(next);
-      setListError(null);
-      const preferred = next.find((item) => item.relativePath === selectedPathRef.current)
-        || next.find((item) => item.relativePath === initialOutputPath)
-        || (autoSelectFirst ? next[0] : undefined);
-      if (preferred && !previewSourceRef.current) await readOutput(preferred.relativePath, false);
-    } catch (cause) {
-      setListError(errorText(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [autoSelectFirst, initialOutputPath, project.name, readOutput]);
-
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (!createRequested) return;
-    setCreateTitle("");
-    setCreateOpen(true);
-    onCreateHandled();
-  }, [createRequested, onCreateHandled]);
-
-  useEffect(() => {
-    if (!preview.dirty || !resource) return;
-    const timer = window.setTimeout(() => { void save(); }, 900);
-    return () => window.clearTimeout(timer);
-  }, [preview.dirty, preview.draft.content, preview.draft.title, resource?.path, save]);
-
-  const navigationGuard = useMemo<ProjectOutputNavigationGuard>(() => ({
-    isDirty: () => dirtyRef.current,
-    flush: save,
-    discard: discardChanges
-  }), [discardChanges, save, locale]);
-  useEffect(() => {
-    onNavigationGuardChange?.(navigationGuard);
-    return () => onNavigationGuardChange?.(null);
-  }, [navigationGuard, onNavigationGuardChange]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
-    };
-  }, []);
-  useEffect(() => {
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!dirtyRef.current) return;
-      void saveRef.current();
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", beforeUnload);
-    return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, []);
-
-  const create = async () => {
-    if (!createTitle.trim() || creating) return;
-    if (!await confirmTransition()) return;
-    setCreating(true);
-    try {
-      const next = await projectsApi.createOutput(project.name, createTitle.trim());
-      setFocusPath(next.relativePath);
-      setOutputs((current) => [next, ...current]);
-      await readOutput(next.relativePath, false, next);
-      setCreateOpen(false);
-      onChanged();
-    } catch (cause) {
-      ui.notify(errorText(cause), "error");
-    } finally {
-      setCreating(false);
-    }
+      if (id !== request.current) return;
+      setItems(next); setError(null);
+      if (!selectedRef.current) {
+        const preferred = next.find(item => item.relativePath === initialOutputPath) || (autoSelectFirst ? next[0] : undefined);
+        if (preferred) select(preferred.relativePath);
+      }
+    } catch (cause) { if (id === request.current) setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { if (id === request.current) setLoading(false); }
+  }, [project.name, initialOutputPath, autoSelectFirst, select]);
+  useEffect(() => { void load(); return () => { request.current++; }; }, [load]);
+  const changed = useCallback(async () => { await load(); callbacks.current.onChanged(); }, [load]);
+  const guard = useRef<ProjectOutputNavigationGuard | null>(null);
+  const setGuard = useCallback((value: ProjectOutputNavigationGuard | null) => { guard.current = value; onNavigationGuardChange?.(value); }, [onNavigationGuardChange]);
+  const acceptOutput = useCallback((next: ProjectOutput) => setItems(current => current.some(item => item.relativePath === next.relativePath) ? current.map(item => item.relativePath === next.relativePath ? next : item) : [next, ...current]), []);
+  const canNavigate = async () => {
+    if (!guard.current?.isDirty() || await guard.current.flush()) return true;
+    const discard = await feedback.confirm({ title: messages.projectUi.documentSaveFailed, body: messages.projectUi.discardUnsavedPrompt, confirmText: messages.projectUi.discardChanges, danger: true });
+    if (discard) guard.current?.discard();
+    return discard;
   };
-
-  const closeDetail = async () => {
-    if (!await confirmTransition()) return;
-    await preview.close();
-    selectedPathRef.current = "";
-    dirtyRef.current = false;
-    setSelected(null);
-    setSelectedPath("");
-    setSaveState("idle");
-    onSelectionChange?.();
-  };
-
+  const outputs = items;
+  const listMotion = useCollectionMotion(items.length, 40);
+  const filtered = useMemo(() => items.filter(item => (!query.trim() || item.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))), [items, query, locale]);
   const hosted = Boolean(listHost || detailHost);
-  const error = listError || preview.error;
-  const saving = preview.saving || saveState === "saving";
   const list = (
     <>
-      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton  onClick={() => { setCreateTitle(""); setCreateOpen(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
+      {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton  onClick={() => { setLocalCreate(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
       <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
       <div className="project-local-count">{messages.projectUi.allOutputs}<span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={outputs.length ? messages.projectUi.noMatchingOutputs : messages.projectUi.noOutputs} description={outputs.length ? messages.projectUi.tryAnotherTitle : messages.projectUi.outputsHint} /> : null}
         {filtered.map((item) => <button aria-pressed={Boolean(item.relativePath === selectedPath)} key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
-          if (item.relativePath === selectedPathRef.current && previewResourceRef.current) onSelectionChange?.(item.relativePath);
-          else void readOutput(item.relativePath);
+          void canNavigate().then(allowed => { if (allowed) select(item.relativePath); });
         }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? messages.projectUi.fromProjectTask(formatTime(item.updatedAt)) : formatTime(item.updatedAt)}</small></span></button>)}
       </div>
     </>
   );
-
-  const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />{messages.projectUi.readingDocument}</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void readOutput(selectedPath, false) : void load()} /> : selected && resource ? (
-    <div className="project-output-document" onKeyDownCapture={(event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }}>
-      <header className="project-output-header">
-        <div ref={outputActionsRef} className="project-output-actions">
-          <StatusBadge tone={saveState === "failed" ? "danger" : saving ? "info" : "neutral"}>{saveLabel(saving ? "saving" : saveState, preview.dirty)}</StatusBadge>
-          <div className="project-preview-mode" role="group" aria-label={messages.projectUi.documentViewMode}><button className={preview.mode === "edit" ? "active" : ""} aria-pressed={preview.mode === "edit"} data-motion="selection" onClick={() => void preview.setMode("edit")}><Pencil size={14} />{messages.projectUi.edit}</button></div>
-          <DropdownMenu className="project-output-menu" label={<MoreHorizontal size={16} />} ariaLabel={messages.projectUi.moreOutputActions} menuLabel={messages.projectUi.outputActions} restoreFocusOnSelect={false}>
-            <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => setWechatExport({ open: true, path: selectedPath, title: preview.draft.title, content: preview.draft.content })}><Send size={15} />{messages.projectUi.exportToWeChat}</MenuItem>
-          </DropdownMenu>
-        </div>
-      </header>
-      <div className={`project-output-editor ${preview.mode}`}>
-        <ProjectOutputEditor key={`${project.name}:${selectedPath}`} autoFocus={selectedPath === focusPath} content={preview.draft.content} title={preview.draft.title} readOnly={preview.mode === "preview"}
-          onContent={value => { preview.setContent(value); setSaveState("idle"); }} onTitle={value => { preview.setTitle(value); setSaveState("idle"); }} />
-      </div>
-    </div>
-  ) : (
-    <EmptyState icon={<FileOutput size={30} />} title={messages.projectUi.selectOrCreateDocument} description={messages.projectUi.documentsStorageHint} action={<Button variant="primary"  onClick={() => setCreateOpen(true)}><Plus size={15} />{messages.projectUi.newDocument}</Button>} />
-  );
-
-  const dialogs = (
-    <>
-    <ProjectDialog open={createOpen} title={messages.projectUi.newDocument} description={messages.projectUi.createDocumentHint} confirmLabel={messages.projectUi.createAndEdit} busy={creating} onClose={() => setCreateOpen(false)} onConfirm={create}>
-      <ProjectTextField label={messages.projectUi.documentTitle} value={createTitle} placeholder={messages.projectUi.documentTitlePlaceholder} autoFocus onChange={setCreateTitle} />
-    </ProjectDialog>
-    {wechatExport ? <WechatExportDialog open={wechatExport.open} projectName={project.name} outputPath={wechatExport.path} title={wechatExport.title} markdown={wechatExport.content}
-      onClose={() => setWechatExport(current => current ? { ...current, open: false } : null)}
-      onExited={() => { setWechatExport(null); outputActionsRef.current?.querySelector<HTMLButtonElement>(".project-output-menu > button")?.focus(); }} /> : null}
-    </>
-  );
-  if (hosted) {
-    return (
-      <>
-        {listHost ? createPortal(list, listHost) : null}
-        {detailHost ? createPortal(detail, detailHost) : null}
-        {dialogs}
-      </>
-    );
-  }
-  return (
-    <>
-      <ProjectListDetail storageKey={`openmind:projects:outputs-layout:${project.name}`} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel={messages.projectUi.document} onBack={() => void closeDetail()} />
-      {dialogs}
-    </>
-  );
-}
-
-function saveLabel(state: SaveState, dirty: boolean): string {
-  if (state === "saving") return messages.projectUi.saving;
-  if (state === "saved") return messages.projectUi.saved;
-  if (state === "failed") return messages.projectUi.saveFailed;
-  return dirty ? messages.projectUi.pendingSave : messages.projectUi.saved;
+  const detail = <ProjectOutputDetail renderDetail={!hosted || Boolean(detailHost)} project={project} outputPath={selectedPath} onOutputChange={acceptOutput} onNavigationGuardChange={setGuard} createRequested={createRequested || localCreate} onCreateHandled={() => { setLocalCreate(false); onCreateHandled(); }} onSelectionChange={select} onChanged={changed} />;
+  if (hosted) return <>{listHost ? createPortal(list, listHost) : null}{detailHost ? createPortal(detail, detailHost) : detail}</>;
+  return <ProjectListDetail storageKey={"openmind:projects:outputs-layout:" + project.name} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel={messages.projectUi.document} onBack={() => { void canNavigate().then(allowed => { if (allowed) select(); }); }} />;
 }
 
 function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat(getLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
-}
-
-function errorText(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
 }

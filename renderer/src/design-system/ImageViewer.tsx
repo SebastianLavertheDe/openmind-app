@@ -81,7 +81,7 @@ export function ImageViewer({ open, images, selectedId, onSelect, onClose, src, 
         <Button variant="ghost" size="sm" type="button" data-motion="icon" className="chat-image-toolbar-button" onClick={() => setActualSize(value => !value)} aria-label={actualSize ? m.fitWindow : m.originalSize}>
           {actualSize ? <Minimize2 size={17} /> : <Maximize2 size={17} />}<span>{actualSize ? m.fitWindow : m.originalSize}</span>
         </Button>
-        <IconButton ref={closeButton} className="chat-image-toolbar-button" onClick={onClose} label={closeLabel}><X size={20} /></IconButton>
+        <IconButton ref={closeButton} className="chat-image-toolbar-button" onClick={onClose} label={closeLabel} tooltip={false}><X size={20} /></IconButton>
       </div>
     </header>
     <div ref={stage} className={`chat-image-stage${actualSize ? " is-original" : ""}`} data-dragging={Boolean(dragX) || undefined}

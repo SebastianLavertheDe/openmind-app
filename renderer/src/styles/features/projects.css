@@ -145,37 +145,8 @@
   place-items: center;
 }
 .project-pane-title { min-width: 0; flex: 1; margin-right: 2px; }
+.project-pane-tabs { margin: 0 10px 4px; }
 .project-pane-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
-
-.project-pane-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  margin: 0 10px 4px;
-}
-.project-pane-tabs > button {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.project-pane-tabs > button:not([data-ui-control]) {
-  min-height: 30px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
-}
-.project-pane-tabs > button:not([data-ui-control]) svg { width: 14px; }
-.project-pane-tabs > button:not([data-ui-control]) svg { height: 14px; }
-.project-pane-tabs > button:not([data-ui-control]) b { color: var(--muted-2); font-size: var(--fs-xs); font-weight: 500; }
-.project-pane-tabs > button:not([data-ui-control]):hover { background: var(--control-hover); color: var(--text); }
-.project-pane-tabs > button:not([data-ui-control]).active { background: var(--panel-muted); color: var(--text); }
-.project-pane-tabs > button:not([data-ui-control]).active b { color: var(--muted-2); }
 
 .project-pane-filter {
   width: auto;

@@ -618,56 +618,7 @@
   padding-top: var(--space-2);
 }
 
-.settings-capability-tabs {
-  width: fit-content;
-  display: flex;
-  gap: 3px;
-  margin-top: var(--space-2);
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-muted);
-}
-
-.settings-capability-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.settings-capability-tabs button:not([data-ui-control]) {
-  min-height: 30px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-}
-
-.settings-capability-tabs button:not([data-ui-control]):hover {
-  color: var(--text-dim);
-}
-
-.settings-capability-tabs button:not([data-ui-control])[aria-selected="true"] {
-  background: var(--surface);
-  color: var(--accent-fg);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.settings-capability-tabs button span {
-  min-width: 18px;
-}
-
-.settings-capability-tabs button:not([data-ui-control]) span {
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--muted);
-  font: var(--fs-xs)/1.4 var(--font-mono);
-  text-align: center;
-}
+.settings-capability-tabs { margin-top: var(--space-2); }
 
 .settings-skill-search {
   min-width: 0;

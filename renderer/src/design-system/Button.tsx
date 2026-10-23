@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
 import type { ButtonVariant, ControlSize, ControlTone } from "./control-contract";
+import { BUTTON_GEOMETRY } from "./control-contract";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   "data-motion"?: string;
@@ -23,7 +24,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   return <button {...props} ref={ref} type={type} disabled={disabled || loading}
     aria-busy={loading || props["aria-busy"] || undefined}
     className={`ui-button ${className}`.trim()} data-ui-control="button" data-variant={variant} data-size={size} data-tone={tone}
-    data-responsive-target={responsiveTarget || undefined} data-loading={loading || undefined} data-motion={props["data-motion"] || "action"}>
+    data-geometry={BUTTON_GEOMETRY[variant]} data-responsive-target={responsiveTarget || undefined} data-loading={loading || undefined} data-motion={props["data-motion"] || "action"}>
     {loading ? <LoaderCircle className="ui-button-spinner" aria-hidden="true" /> : leadingIcon}
     {children}
     {trailingIcon}

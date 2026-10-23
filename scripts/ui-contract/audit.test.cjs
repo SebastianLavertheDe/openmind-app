@@ -10,8 +10,8 @@ function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-ui-contract-"));
   const renderer = path.join(root, "renderer/src");
   function write(name, value) { const file = path.join(renderer, name); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); }
-  for (const [file, names] of [["Button", ["Button"]], ["inputs", ["Input", "Textarea", "SearchInput", "InputGroup"]], ["Select", ["Select"]], ["MenuItem", ["MenuItem"]], ["FormField", ["FormField"]]]) write(`design-system/${file}.tsx`, names.map(name => `export const ${name} = (props: any) => null;`).join("\n"));
-  write("design-system/components.ts", ['Button', 'inputs', 'Select', 'MenuItem', 'FormField'].map(file => `export * from './${file}';`).join("\n"));
+  for (const [file, names] of [["Button", ["Button"]], ["inputs", ["Input", "Textarea", "SearchInput", "InputGroup"]], ["Select", ["Select"]], ["MenuItem", ["MenuItem"]], ["FormField", ["FormField"]], ["controls", ["Tabs", "SegmentedControl", "ToggleSwitch"]]]) write(`design-system/${file}.tsx`, names.map(name => `export const ${name} = (props: any) => null;`).join("\n"));
+  write("design-system/components.ts", ['Button', 'inputs', 'Select', 'MenuItem', 'FormField', 'controls'].map(file => `export * from './${file}';`).join("\n"));
   write("styles/components/inputs.css", ".ui-input { border: 1px solid gray; padding: 6px; height: 34px; }");
   write("styles/components/buttons.css", ".ui-button { border-radius: 6px; }");
   return { renderer, write, clean: () => fs.rmSync(root, { recursive: true, force: true }) };
@@ -33,6 +33,21 @@ test("accepts real shared aliases, re-exports, semantic surfaces and layout-only
     `);
     f.write("styles/features.css", ".search-layout { width: 100%; margin-block: 4px; } button:not([data-ui-control]) { padding: 8px; }");
     assert.deepEqual(audit(f.renderer).failures, []);
+  } finally { f.clean(); }
+});
+
+test("selection controls retain one CSS owner through feature aliases and descendants", () => {
+  const f = fixture();
+  try {
+    f.write("features/choices.tsx", `import { Tabs, SegmentedControl, ToggleSwitch } from '../design-system/components';
+      export const page = <><Tabs className="page-tabs" /><SegmentedControl className="page-choices" /><ToggleSwitch className="page-switch" /></>;`);
+    f.write("styles/components/selection.css", ".ui-tab { color: black; } .ui-segmented-option { padding: 4px; } .ui-toggle-switch { height: 24px; }");
+    f.write("styles/features.css", ".page-tabs { margin-top: 8px; } .page-choices { width: 100%; }");
+    assert.deepEqual(audit(f.renderer).failures, []);
+    f.write("styles/features.css", ".page-tabs { padding: 4px; } .page-choices button { color: red; } .page-switch span { transform: scale(.8); }");
+    const failures = audit(f.renderer).failures;
+    assert.equal(failures.length, 3);
+    assert.ok(failures.every(item => item.message.includes('selection.css')));
   } finally { f.clean(); }
 });
 

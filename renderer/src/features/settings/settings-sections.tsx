@@ -432,7 +432,7 @@ export function SkillSettingsSection({
       )}
     >
       {!mode ? <Tabs<"skills" | "mcp">
-        className="settings-capability-tabs"
+        variant="bordered" className="settings-capability-tabs"
         value={catalog}
         label={m.settings.skills.catalogAria}
         tabs={[

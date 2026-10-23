@@ -77,7 +77,7 @@ export async function requestImage(selection: ImageSelection, credentials: Image
     } else {
       url = `${baseUrl}/images/generations`;
       headers["Content-Type"] = "application/json";
-      body = JSON.stringify({ model: selection.model, prompt, output_format: "png", ...(selection.provider === "volcengine" ? { response_format: "b64_json", size: "2K", ...(references.length ? { image: references.map(image => `data:${image.mediaType};base64,${image.bytes.toString("base64")}`) } : {}) } : { n: 1 }) });
+      body = JSON.stringify({ model: selection.model, prompt, output_format: "png", ...(selection.provider === "volcengine" ? { response_format: "b64_json", size: "2K", watermark: false, ...(references.length ? { image: references.map(image => `data:${image.mediaType};base64,${image.bytes.toString("base64")}`) } : {}) } : { n: 1 }) });
     }
   }
   const response = await request(url, { method: "POST", headers, body, signal, redirect: "error" });

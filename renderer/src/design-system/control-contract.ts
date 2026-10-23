@@ -3,6 +3,7 @@ export const CONTROL_SIZES = ["sm", "md", "lg"] as const;
 export type ControlSize = typeof CONTROL_SIZES[number];
 export const BUTTON_VARIANTS = ["primary", "secondary", "ghost", "text"] as const;
 export type ButtonVariant = typeof BUTTON_VARIANTS[number];
+export const BUTTON_GEOMETRY = { primary: "fixed", secondary: "fixed", ghost: "fixed", text: "content" } as const satisfies Record<ButtonVariant, "fixed" | "content">;
 export const ICON_BUTTON_SHAPES = ["rect", "circle"] as const;
 export type IconButtonShape = typeof ICON_BUTTON_SHAPES[number];
 export const IMAGE_THUMBNAIL_VARIANTS = ["default", "attachment", "tool"] as const;
@@ -26,3 +27,8 @@ export type SelectVariant = typeof SELECT_VARIANTS[number];
 export const SELECT_ITEM_VARIANTS = ["option", "group", "detail"] as const;
 export type SelectItemVariant = typeof SELECT_ITEM_VARIANTS[number];
 export type SelectTone = "neutral" | "warning";
+
+export const TAB_VARIANTS = ["default", "pill", "underline", "bordered", "editor"] as const;
+export type TabVariant = typeof TAB_VARIANTS[number];
+export const SEGMENTED_VARIANTS = ["default", "compact"] as const;
+export type SegmentedVariant = typeof SEGMENTED_VARIANTS[number];

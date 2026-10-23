@@ -1,3 +1,4 @@
+import { useFeedback } from "../feedback-context";
 import { IconButton } from "../design-system/components";
 import { useLocale } from "../i18n";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -6,7 +7,7 @@ import { Archive, ChevronDown, Pin, PinOff } from "lucide-react";
 import type { AiSession } from "@shared/contracts";
 import { isProjectTaskScope } from "@shared/ai-session-scope";
 import { messages as m } from "@shared/messages";
-import { useAiActions, useAiSnapshot, useAiUi } from "../ai-context";
+import { useAiActions, useAiSnapshot, } from "../ai-context";
 import { storageJson, writeStorage } from "../ai-utils";
 import { AnimatedDisclosure } from "../design-system/animated-disclosure";
 import { useMotionTokens } from "../design-system/motion-tokens";
@@ -38,7 +39,7 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
   const locale = useLocale();
   const { snapshot } = useAiSnapshot();
   const actions = useAiActions();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const tokens = useMotionTokens();
   const [collapsed, setCollapsed] = useState(() => storageJson(COLLAPSED_KEY, false));
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -68,10 +69,10 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
       const operation = actions.updateSession(session.id, { archived: true });
       if (activeSessionId === session.id) await actions.setActiveSession(null);
       await operation;
-      ui.notify(m.ai.session.archived, "success");
+      feedback.notify(m.ai.session.archived, "success");
     } catch {
       if (activeSessionId === session.id) await actions.setActiveSession(session.id);
-      ui.notify(m.ai.session.archiveFailed, "error");
+      feedback.notify(m.ai.session.archiveFailed, "error");
     } finally {
       setBusyId(null);
     }
@@ -82,9 +83,9 @@ export function SidebarRecent({ activeSessionId, onOpen }: { activeSessionId: st
     setBusyId(session.id);
     try {
       await actions.updateSession(session.id, { pinned: !session.pinned });
-      ui.notify(session.pinned ? m.ai.session.unpinned : m.ai.session.pinned, "success");
+      feedback.notify(session.pinned ? m.ai.session.unpinned : m.ai.session.pinned, "success");
     } catch {
-      ui.notify(m.ai.session.updateFailed, "error");
+      feedback.notify(m.ai.session.updateFailed, "error");
     } finally {
       setBusyId(null);
     }

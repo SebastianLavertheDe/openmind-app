@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { Tabs } from "../../design-system/controls";
@@ -42,6 +43,7 @@ export function ProjectsPage({
 }) {
   const locale = useLocale();
   const ui = useAiUi();
+  const feedback = useFeedback();
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -76,8 +78,8 @@ export function ProjectsPage({
   const restoreCompactFocusRef = useRef(false);
   const restoreListFocusRef = useRef(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const confirmRef = useRef(ui.confirm);
-  confirmRef.current = ui.confirm;
+  const confirmRef = useRef(feedback.confirm);
+  confirmRef.current = feedback.confirm;
   const listVisible = compactWorkspace ? compactListOpen : !layout.layout.listCollapsed;
   const hasActiveProject = Boolean(activeProject);
   const showCompactPane = useCallback((showList: boolean) => {
@@ -241,9 +243,9 @@ export function ProjectsPage({
       presentProjectView("tasks");
       setCreateProjectOpen(false);
       setName("");
-      ui.notify(messages.projectUi.projectCreated(next.name), "success");
+      feedback.notify(messages.projectUi.projectCreated(next.name), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setBusy(false);
     }
@@ -264,9 +266,9 @@ export function ProjectsPage({
       next = await projectsApi.updateProject(next.name, { icon: input.icon, color: input.color });
       replaceProject(current.name, next);
       setEditProject(null);
-      ui.notify(messages.projectUi.projectUpdated(next.name), "success");
+      feedback.notify(messages.projectUi.projectUpdated(next.name), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
       void loadProjects();
     } finally {
       setBusy(false);
@@ -285,9 +287,9 @@ export function ProjectsPage({
       );
       setProjectMotion(current => ({ revision: current.revision + 1, relocatedId: project.id }));
       replaceProject(project.name, next);
-      ui.notify(next.favorite ? messages.projectUi.projectFavorited(next.name) : messages.projectUi.projectUnfavorited(next.name), "success");
+      feedback.notify(next.favorite ? messages.projectUi.projectFavorited(next.name) : messages.projectUi.projectUnfavorited(next.name), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setProjectActionBusy(null);
     }
@@ -313,9 +315,9 @@ export function ProjectsPage({
           || workspaceRef.current?.querySelector<HTMLElement>('[data-project-search]'))?.focus({ preventScroll: true });
       }
       replaceProject(project.name, next);
-      ui.notify(messages.projectUi.projectArchived(project.name), "success");
+      feedback.notify(messages.projectUi.projectArchived(project.name), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setProjectActionBusy(null);
     }
@@ -407,7 +409,7 @@ export function ProjectsPage({
                   <MenuItem type="button" role="menuitem" data-motion="action" onClick={() => requestCreate("outputs")}><FileOutput size={14} aria-hidden="true" /><span>{messages.projectUi.newOutput}</span></MenuItem>
                 </DropdownMenu>
               </header>
-              <Tabs value={view} className="project-pane-tabs" label={messages.projectUi.projectContentType}
+              <Tabs value={view} variant="pill" className="project-pane-tabs" label={messages.projectUi.projectContentType}
                 onChange={next => navigateProject(() => selectView(next))}
                 tabs={PROJECT_VIEWS.map(value => {
                   const meta = VIEW_META[value];

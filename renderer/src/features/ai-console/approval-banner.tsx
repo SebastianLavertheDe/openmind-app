@@ -1,9 +1,10 @@
+import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { useAiActions, useAiEvents, useAiSnapshot, useAiUi } from "../../ai-context";
+import { useAiActions, useAiEvents, useAiSnapshot, } from "../../ai-context";
 import { useExitingList } from "../../design-system/use-exiting-list";
 import { ApprovalCard } from "./approval";
 
@@ -51,7 +52,7 @@ export function ApprovalBanner() {
 function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
   useLocale();
   const actions = useAiActions();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const [busy, setBusy] = useState(false);
   const declineTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -67,13 +68,13 @@ function ApprovalBatchBar({ approvals }: { approvals: ApprovalRequest[] }) {
           .catch(() => undefined)
           .finally(() => { if (mountedRef.current) setBusy(false); });
       }, 5_000);
-      ui.notify(m.ai.approval.declinedToast(m.ai.approval.batchSummary(approvals.length)), "info", {
+      feedback.notify(m.ai.approval.declinedToast(m.ai.approval.batchSummary(approvals.length)), "info", {
         durationMs: 5_000,
         action: {
           label: m.ai.approval.undo,
           onClick: () => {
             if (!declineTimerRef.current) {
-              ui.notify(m.ai.approval.undoExpired, "info");
+              feedback.notify(m.ai.approval.undoExpired, "info");
               return;
             }
             window.clearTimeout(declineTimerRef.current);

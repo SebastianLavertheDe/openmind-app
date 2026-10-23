@@ -21,6 +21,7 @@ makeProjects(8);
 let materials = Array.from({ length: 20 }, (_, i) => ({ relativePath: `materials/${i}.md`, title: `资料 ${i}`, kind: "document", status: "ready", createdAt: now, updatedAt: now }));
 const output = { relativePath: "outputs/draft.md", title: "文档草稿", createdAt: now, updatedAt: now };
 const briefFiles = Array.from({ length: 20 }, (_, i) => ({ path: `daily-summary/brief-${i}.md`, name: `简报 ${i}.md`, size: 1024, modifiedAt: now }));
+const briefContent = new Map<string, string>();
 const probe = { commits: [] as Array<{ scene: string; time: number; duration: number }>, slow: false, materialReads: 0, outputReads: 0 };
 const latency = () => probe.slow ? new Promise(resolve => setTimeout(resolve, 250)) : Promise.resolve();
 window.openmind = {
@@ -49,7 +50,11 @@ window.openmind = {
   readProjectOutput: async () => { probe.outputReads++; return { output, content: "# 保留编辑草稿\n\n合成内容。" }; },
   saveProjectOutput: async ({ title, content }: { title: string; content: string }) => ({ output: { ...output, title }, content }),
   listContent: async () => { await latency(); return briefFiles; },
-  readContent: async (path: string) => ({ path, name: "合成简报", content: "# 合成简报\n\n" + "用于验证刷新。\n".repeat(30), truncated: false })
+  readContent: async (path: string) => ({ path, name: "合成简报", content: briefContent.get(path) ?? "# 合成简报\n\n" + "用于验证刷新。\n".repeat(80), truncated: false }),
+  writeContent: async (path: string, content: string) => {
+    briefContent.set(path, content);
+    return { path, name: "合成简报", content, truncated: false };
+  }
 } as unknown as DesktopApi;
 
 function Fixture() {

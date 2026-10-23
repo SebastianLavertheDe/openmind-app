@@ -1,10 +1,10 @@
+import { useFeedback } from "../../feedback-context";
 import { useCallback } from "react";
 import { messages as m } from "@shared/messages";
-import { useAiUi } from "../../ai-context";
 import { useFilePreviewController, workspaceFileSource } from "../file-preview";
 
 export function useTopicFileEditor() {
-  const { notify, confirm } = useAiUi();
+  const { notify, confirm } = useFeedback();
   const preview = useFilePreviewController({
     onLoadError(message) {
       notify(message, "error");

@@ -1,5 +1,7 @@
 # 前端组件化成熟度评审
 
+整改状态：**五项任务已完成**（2026-10-23），实现与验收记录见第 6 节。第 1–5 节保留原始审查结论及当时的验证边界。
+
 审查日期：2026-10-23；项目：OpenMind Desktop；审查基准：`f64dbc8`。
 
 方式：只读源码审查、UI 静态检查、设计系统单元测试、Electron 视觉回归，以及隔离组件场景复现。评审没有修改应用源码或视觉基线。
@@ -34,8 +36,8 @@ Button size escaped its contract: 28px vs 34
 
 文字按钮的样式明确使用 `height: auto` 和小尺寸最小高度，而视觉检查对所有 `.ui-button` 都根据 `data-size` 要求固定高度，未区分 `text` 变体。
 
-- [文字按钮样式：buttons.css:31](/home/say/work/github/openmind-app/renderer/src/styles/components/buttons.css:31)
-- [按钮高度断言：ui-catalog-electron.cjs:229](/home/say/work/github/openmind-app/scripts/ui-catalog-electron.cjs:229)
+- [文字按钮样式：buttons.css:31](../renderer/src/styles/components/buttons.css#L31)
+- [按钮高度断言：ui-catalog-electron.cjs:229](../scripts/ui-catalog-electron.cjs#L229)
 
 **影响**
 
@@ -53,10 +55,10 @@ Button size escaped its contract: 28px vs 34
 
 `Tabs`、`SegmentedControl`、`ToggleSwitch` 没有进入样式所有权检查名单，默认外观仍分散在 `components.css`、`final-polish.css`、`workbuddy-refactor.css` 等文件中。因此，当前 `check:ui` 通过不代表全部共享控件都已完成样式收敛。
 
-- [Tabs 的 className 行为：controls.tsx:54](/home/say/work/github/openmind-app/renderer/src/design-system/controls.tsx:54)
-- [项目页面控件外观：projects.css:163](/home/say/work/github/openmind-app/renderer/src/styles/features/projects.css:163)
-- [旧共享控件样式覆盖：workbuddy-refactor.css:763](/home/say/work/github/openmind-app/renderer/src/styles/workbuddy-refactor.css:763)
-- [所有权检查名单：model.cjs:5](/home/say/work/github/openmind-app/scripts/ui-contract/model.cjs:5)
+- [Tabs 的 className 行为：controls.tsx:54](../renderer/src/design-system/controls.tsx#L54)
+- [项目页面控件外观：projects.css:163](../renderer/src/styles/features/projects.css#L163)
+- [旧共享控件样式覆盖：workbuddy-refactor.css:763](../renderer/src/styles/workbuddy-refactor.css#L763)
+- [所有权检查名单：model.cjs:5](../scripts/ui-contract/model.cjs#L5)
 
 **影响**
 
@@ -74,10 +76,10 @@ Button size escaped its contract: 28px vs 34
 
 切换文件会重挂载子面板，而子面板仍会读取该类别的完整列表、维护自己的选中项。
 
-- [父组件加载列表：ProjectFilesPanel.tsx:85](/home/say/work/github/openmind-app/renderer/src/features/projects/ProjectFilesPanel.tsx:85)
-- [按文件路径重挂载子面板：ProjectFilesPanel.tsx:338](/home/say/work/github/openmind-app/renderer/src/features/projects/ProjectFilesPanel.tsx:338)
-- [资料子面板再次加载列表：ProjectMaterialsPanel.tsx:98](/home/say/work/github/openmind-app/renderer/src/features/projects/ProjectMaterialsPanel.tsx:98)
-- [产物子面板再次加载列表：ProjectOutputsPanel.tsx:162](/home/say/work/github/openmind-app/renderer/src/features/projects/ProjectOutputsPanel.tsx:162)
+- [父组件加载列表：ProjectFilesPanel.tsx:85](../renderer/src/features/projects/ProjectFilesPanel.tsx#L85)
+- [按文件路径重挂载子面板：ProjectFilesPanel.tsx:338](../renderer/src/features/projects/ProjectFilesPanel.tsx#L338)
+- [资料子面板再次加载列表：ProjectMaterialsPanel.tsx:98](../renderer/src/features/projects/ProjectMaterialsPanel.tsx#L98)
+- [产物子面板再次加载列表：ProjectOutputsPanel.tsx:162](../renderer/src/features/projects/ProjectOutputsPanel.tsx#L162)
 
 **影响**
 
@@ -95,9 +97,9 @@ Button size escaped its contract: 28px vs 34
 
 菜单自行查询下一按钮时，选择器中的 `button:not([disabled])` 仍会包含 `tabIndex=-1` 的按钮，也没有统一过滤隐藏或 inert 元素。Select 内还存在同类实现。
 
-- [DropdownMenu 焦点逻辑：controls.tsx:280](/home/say/work/github/openmind-app/renderer/src/design-system/controls.tsx:280)
-- [Select 的同类实现：Select.tsx:304](/home/say/work/github/openmind-app/renderer/src/design-system/Select.tsx:304)
-- [真实菜单与 Tabs 组合：ProjectsPage.tsx:399](/home/say/work/github/openmind-app/renderer/src/features/projects/ProjectsPage.tsx:399)
+- [DropdownMenu 焦点逻辑：controls.tsx:280](../renderer/src/design-system/controls.tsx#L280)
+- [Select 的同类实现：Select.tsx:304](../renderer/src/design-system/Select.tsx#L304)
+- [真实菜单与 Tabs 组合：ProjectsPage.tsx:399](../renderer/src/features/projects/ProjectsPage.tsx#L399)
 
 **影响**
 
@@ -113,9 +115,9 @@ Button size escaped its contract: 28px vs 34
 
 `AiUiValue` 同时包含 `notify/confirm`、发送状态、AI 面板模式与项目对话目标。微信设置等非 AI 功能也通过 `useAiUi` 获取通用反馈能力；反馈宿主本身同样依赖 AI 上下文。
 
-- [混合的状态接口：ai-context.tsx:89](/home/say/work/github/openmind-app/renderer/src/ai-context.tsx:89)
-- [反馈宿主依赖：FeedbackHost.tsx:16](/home/say/work/github/openmind-app/renderer/src/components/FeedbackHost.tsx:16)
-- [非 AI 功能的依赖：WechatSettingsSection.tsx:19](/home/say/work/github/openmind-app/renderer/src/features/wechat/WechatSettingsSection.tsx:19)
+- [混合的状态接口：ai-context.tsx:89](../renderer/src/ai-context.tsx#L89)
+- [反馈宿主依赖：FeedbackHost.tsx:16](../renderer/src/components/FeedbackHost.tsx#L16)
+- [非 AI 功能的依赖：WechatSettingsSection.tsx:19](../renderer/src/features/wechat/WechatSettingsSection.tsx#L19)
 
 **影响**
 
@@ -127,10 +129,10 @@ Button size escaped its contract: 28px vs 34
 
 ## 3. 已经成熟的能力
 
-- **公共控件契约已经建立。** Button、Input、Select、Dialog 等具备公共入口、类型化变体和明确样式归属。相关检查真正接入构建，另有负例验证约束能阻止违规实现。见 [UI_COMPONENT_CONTRACT.md](/home/say/work/github/openmind-app/docs/UI_COMPONENT_CONTRACT.md)。
+- **公共控件契约已经建立。** Button、Input、Select、Dialog 等具备公共入口、类型化变体和明确样式归属。相关检查真正接入构建，另有负例验证约束能阻止违规实现。见 [UI_COMPONENT_CONTRACT.md](../docs/UI_COMPONENT_CONTRACT.md)。
 - **复用覆盖公共交互。** 弹层关闭、焦点恢复、退出动画等已有共享机制；表单测试覆盖 busy 状态、原生校验、输入 DOM 身份和嵌套 Escape 等行为。
-- **文件预览有清晰的业务分层。** source、capabilities、controller、renderer 分离，不同调用场景提供适配器。该模式适合推广到其他跨场景业务组件。见 [model.ts:92](/home/say/work/github/openmind-app/renderer/src/features/file-preview/model.ts:92)、[PreviewRenderer.tsx:24](/home/say/work/github/openmind-app/renderer/src/features/file-preview/PreviewRenderer.tsx:24)。
-- **状态订阅已考虑更新频率。** AI snapshot、events、UI、actions 已分片，草稿使用按 key 订阅的 external store，避免每次输入广播全应用。见 [ai-context.tsx:60](/home/say/work/github/openmind-app/renderer/src/ai-context.tsx:60)、[ai-context.tsx:1086](/home/say/work/github/openmind-app/renderer/src/ai-context.tsx:1086)。
+- **文件预览有清晰的业务分层。** source、capabilities、controller、renderer 分离，不同调用场景提供适配器。该模式适合推广到其他跨场景业务组件。见 [model.ts:92](../renderer/src/features/file-preview/model.ts#L92)、[PreviewRenderer.tsx:24](../renderer/src/features/file-preview/PreviewRenderer.tsx#L24)。
+- **状态订阅已考虑更新频率。** AI snapshot、events、UI、actions 已分片，草稿使用按 key 订阅的 external store，避免每次输入广播全应用。见 [ai-context.tsx:60](../renderer/src/ai-context.tsx#L60)、[ai-context.tsx:1086](../renderer/src/ai-context.tsx#L1086)。
 - **视觉验证具备工程基础。** 目录使用生产组件与应用 CSS，运行时和字体有校验，CI 禁止自动更新基线，测试使用临时 userData 和合成内容。当前执行失败需要修复，但这些机制本身值得保留。
 
 ## 4. 本次验证结果与边界
@@ -159,3 +161,60 @@ Button size escaped its contract: 28px vs 34
 | 5 | 独立应用反馈能力 | 非 AI 功能可在独立反馈 Provider 下挂载和测试；不再为提示与确认订阅 AI 发送或面板状态 |
 
 后续验收应关注：新增页面能否直接组合既有组件，修改公共组件能否一致生效，业务数据是否有明确归属，以及自动化能否发现组合后的回归。
+
+
+## 6. 整改实现与验收记录（2026-10-23）
+
+### 6.1 完成清单
+
+| 原问题 | 状态 | 实现与验收证据 |
+| --- | --- | --- |
+| 2.1 恢复视觉门禁 | 已完成 | 公共 BUTTON_GEOMETRY 区分固定高度动作和内容高度文字动作，Button 输出 data-geometry；文字动作验证小尺寸最小高度，保留响应式和触摸目标；正式完成 52 次 Windows 像素比较 |
+| 2.2 收敛共享控件样式 | 已完成 | Tabs 保留基础类；五种类型化变体覆盖原有设计；Tabs、SegmentedControl、ToggleSwitch 的外观集中至 selection.css，页面保留布局；加入所有权检查、负例和生产组件目录 |
+| 2.3 明确文件页状态归属 | 已完成 | ProjectFilesPanel 持有唯一列表与选择；ProjectMaterialDetail、ProjectOutputDetail 只管理当前资源与导入/编辑生命周期；独立页面组合相同详情；移除按文件路径重挂载完整容器 |
+| 2.4 补齐组合交互 | 已完成 | DropdownMenu、Select、模态焦点范围共享 tabStops；跳过负 tabindex、disabled、hidden、不可见、关闭的 details 和 inert 区域；模态内正确回绕，反向 Tab 返回触发器 |
+| 2.5 独立应用反馈 | 已完成 | FeedbackProvider 独立于 AI 状态；稳定命令 useFeedback 与状态 useFeedbackState 分开订阅；FeedbackHost、微信设置及其他通用反馈调用已迁移；兼容独立 AiProvider 与旧完整 controller |
+
+关键实现：
+
+- [公共几何与选择变体](../renderer/src/design-system/control-contract.ts)、[选择控件样式 owner](../renderer/src/styles/components/selection.css)、[样式所有权检查](../scripts/ui-contract/model.cjs)。
+- [资料详情及资源 controller](../renderer/src/features/projects/ProjectMaterialDetail.tsx)、[产物详情及编辑 controller](../renderer/src/features/projects/ProjectOutputDetail.tsx)、[文件列表与选择的管理者](../renderer/src/features/projects/ProjectFilesPanel.tsx)。
+- [统一 Tab 导航](../renderer/src/design-system/tab-navigation.ts)、[应用级反馈](../renderer/src/feedback-context.tsx)、[反馈宿主](../renderer/src/components/FeedbackHost.tsx)。
+
+文件页回归验证覆盖：多次跨文件/跨类型切换后两类列表均只请求一次；保存后的标题反映到父级列表；保存失败并取消放弃修改时保留同一个编辑器及草稿；初始路径失效时由列表选择有效文件；仅提供列表宿主时导入对话框仍能使用。原有自动保存、卸载保存、创建、导入、重试和未保存导航保护继续通过既有项目测试。
+
+反馈回归验证在不挂载 AiProvider 的情况下运行真实微信设置、确认框和通知；验证通知变化不会重新渲染仅订阅命令的消费者，并在卸载时取消定时器、结束未完成确认。
+
+### 6.2 视觉证据与平台边界
+
+使用合成目录与临时 userData 完成迁移前后截图。首次迁移比较时，原有 12 类目录场景没有像素差异；新增选择场景的实际图、迁移前图及差异图已检查，随后检查两种主题、两种宽度的完整截图集合，显式建立 Windows x64 基线，再以非更新模式比较通过。没有改写原有 Linux arm64 PNG。
+
+Windows x64 现在比较 13 场景 × 2 主题 × 2 宽度，共 52 张；原有 Linux arm64 仍保留 48 张。新增选择场景在 Linux 执行几何检查，其像素基线目前只覆盖 Windows。CI 新增 Windows 像素比较任务，原有 Linux 任务保留。本轮没有在 Linux arm64 本机执行，因此不声明 Linux 本机验证通过。
+
+Windows 目录比较使用离屏渲染，避免 Windows 窗口被遮挡时动画帧停顿；交互预览仍使用可见窗口。新增 --capture-only 用于迁移取证，明确区分截图、更新基线、正式比较三种模式；CI 仍禁止更新基线，缺少受支持平台基线或运行时不匹配仍然失败。
+
+### 6.3 验证结果
+
+| 检查 | 结果 | 说明 |
+| --- | --- | --- |
+| npm run build | 通过 | 包含样式所有权、静态契约、类型检查、renderer 与 Electron 构建 |
+| npm run typecheck | 通过 | 独立复核两进程类型 |
+| npm run check:ui | 通过 | 13 项检查器回归；新增选择控件别名/后代覆盖的负例 |
+| 前端单元测试 | 通过 | 最终完整复核 99 个测试文件、1017 项通过；新增 11 项详情/焦点/独立反馈回归 |
+| npm run test:integration | 通过 | 隔离内容夹具的桌面集成 smoke |
+| npm run test:e2e | 通过 | 真实 Electron、临时 userData、合成内容 |
+| npm run visual:ui | 通过 | Windows x64 52 次像素比较、4 个长确认框几何场景；500 个无关动作下输入更新 P95 0.30ms |
+| 全量单元测试 | 有既有失败 | 本轮全量运行 2584 通过、13 跳过、19 失败；之后补充的两个详情边界用例独立通过 |
+
+全量单测失败集中在 8 个未修改的 Electron 后端测试文件，涉及 Windows 符号链接权限、大小写文件系统、路径格式和 POSIX 权限位。使用提交 dcaefa6 的干净源码副本，在相同机器复测这 8 个文件，得到相同的 19 个失败用例（另 81 项通过）；已逐项比较失败名称一致，没有用跳过用例或调整后端断言来掩盖这些问题。
+
+验证日志与图像保存在忽略目录 .tmp/，包括 review-build.log、review-ui-check.log、review-renderer-final.log、review-all-unit.log、review-baseline-unit.log、review-integration.log、review-e2e.log、review-visual.log 及 ui-regression/report.json。上述结果不等于 npm run verify 全链路通过；本轮没有运行整个发布、安全与性能验收链路，也没有执行真实屏幕阅读器验证。
+
+### 6.4 后续测试适配修正（2026-10-23）
+
+上述 19 项为组件整改完成时的失败快照。随后按用户要求修复其中两类共 4 项测试：
+
+- 大小写用例根据临时夹具所在文件系统的实际行为选择验证方式：允许同时存在等价名称时仍验证扫描及解析拒绝冲突；名称被视为同一路径时验证应用拒绝重复创建、保留原显示名。NFKC 等价名称的真实冲突验证继续保留。改名通过目录枚举检查实际名称，并验证文件内容保留。
+- Skill 发现用例解析输出中的 JSON 记录后比较 skill_path 与 package_root；Provider 路径映射使用含空格、中文和反斜杠的 Windows 路径，确保 POSIX 主机也能覆盖路径转义。
+
+4 项定向复跑全部通过；这两个测试文件完整运行得到 9 项通过、1 项因符号链接 EPERM 失败。类型检查通过。本次没有跳过或删除源文件中的测试，没有修改生产实现或系统权限设置，也没有重跑全量测试；其余符号链接权限与 POSIX 权限位两类仍待处理。日志见 .tmp/review-portable-targeted.log、.tmp/review-portable-tests.log、.tmp/review-portable-types.log。

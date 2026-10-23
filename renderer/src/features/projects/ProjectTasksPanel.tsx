@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { FormField } from "../../design-system/components";
 import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
@@ -6,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { getLocale, messages } from "@shared/messages";
-import { useAiActions, useAiSnapshot, useAiUi, useSetAiDraft } from "../../ai-context";
+import { useAiActions, useAiSnapshot, useSetAiDraft } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea, Select } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
@@ -43,7 +44,7 @@ export function ProjectTasksPanel({
 }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const actions = useAiActions();
   const setDraft = useSetAiDraft();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
@@ -169,18 +170,18 @@ export function ProjectTasksPanel({
       onChanged();
       if (updated.sessionId && ai.snapshot.sessions.some((session) => session.id === updated.sessionId)) {
         try { await actions.updateSession(updated.sessionId, { title: updated.title }); }
-        catch { ui.notify(messages.projectUi.taskSessionRenameFailed, "error"); }
+        catch { feedback.notify(messages.projectUi.taskSessionRenameFailed, "error"); }
       }
-      ui.notify(messages.projectUi.taskRenamed(updated.title), "success");
+      feedback.notify(messages.projectUi.taskRenamed(updated.title), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setTaskActionBusy(false);
     }
   };
 
   const removeTask = async (task: ProjectTask) => {
-    const confirmed = await ui.confirm({
+    const confirmed = await feedback.confirm({
       title: messages.projectUi.deleteTask,
       body: messages.projectUi.deleteTaskPrompt(task.title),
       confirmText: messages.projectUi.delete,
@@ -195,9 +196,9 @@ export function ProjectTasksPanel({
         setSelectedId("");
       }
       onChanged();
-      ui.notify(messages.projectUi.taskDeleted, "success");
+      feedback.notify(messages.projectUi.taskDeleted, "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     }
   };
 

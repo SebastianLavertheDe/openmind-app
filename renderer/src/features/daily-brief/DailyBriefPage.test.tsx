@@ -124,6 +124,28 @@ describe("DailyBriefPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /预览/ }).className).toContain("active"));
   });
 
+  it("keeps the complete multiline source and unsaved edits across preview/edit switches", async () => {
+    const content = "# 每日简报\n\n" + Array.from({ length: 60 }, (_, index) => `第 ${index + 1} 条简报内容。`).join("\n\n");
+    const api = makeApi();
+    const readContent = vi.fn(async () => ({ path, name: "20260630_daily_summary.md", content, truncated: false }));
+    window.openmind = { ...api, readContent };
+    render(<AiProvider initial={snapshot}><DailyBriefPage /></AiProvider>);
+
+    await screen.findByRole("heading", { name: "2026-06-30 每日简报" });
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "编辑每日简报" });
+    expect(editor.value).toBe(content);
+    const draft = `${content}\n\n补充的最后一段。`;
+    fireEvent.change(editor, { target: { value: draft } });
+    fireEvent.click(screen.getByRole("button", { name: /预览/ }));
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "编辑每日简报" }).value).toBe(draft);
+    expect(readContent).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "编辑每日简报" }), { key: "s", ctrlKey: true });
+    await waitFor(() => expect(api.writeContent).toHaveBeenCalledWith(path, draft));
+  });
+
   it("shows the target file as pending without flashing the unselected empty state", async () => {
     const nextPath = "openmind/daily-summary/20260701_daily_summary.md";
     type ReadResult = Awaited<ReturnType<DesktopApi["readContent"]>>;

@@ -6,7 +6,7 @@ import { ProjectFilesPanel } from "./ProjectFilesPanel";
 import type { ProjectDetail, ProjectMaterial } from "./types";
 
 // Exercise the real parent refresh path independently of document loading.
-vi.mock("./ProjectMaterialsPanel", () => ({ ProjectMaterialsPanel: ({ onChanged }: { onChanged(): void }) => <button onClick={onChanged}>资料已更新</button> }));
+vi.mock("./ProjectMaterialDetail", () => ({ ProjectMaterialDetail: ({ onChanged }: { onChanged(): void }) => <button onClick={onChanged}>资料已更新</button> }));
 const project: ProjectDetail = { id: "fixture", name: "项目", description: "", status: "active", materialCount: 2, taskCount: 0, outputCount: 0, createdAt: "2026-09-17", updatedAt: "2026-09-17" };
 const material = (name: string): ProjectMaterial => ({ relativePath: `materials/${name}.md`, title: name, kind: "document", status: "ready", updatedAt: "2026-09-17" });
 const items = [material("甲"), material("乙")];

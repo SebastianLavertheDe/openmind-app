@@ -4,7 +4,7 @@ import { useLocale } from "../i18n";
 import { motion } from "motion/react";
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { messages as m } from "@shared/messages";
-import { useAiUi } from "../ai-context";
+import { useFeedback, useFeedbackState } from "../feedback-context";
 import { useExitingList } from "../design-system/use-exiting-list";
 import { useCollectionMotion } from "../design-system/use-collection-motion";
 
@@ -13,7 +13,7 @@ const TOAST_LAYOUT_LIMIT = 8;
 
 export function FeedbackHost() {
   useLocale();
-  const ui = useAiUi();
+  const ui = { ...useFeedback(), ...useFeedbackState() };
   const confirmOpen = Boolean(ui.confirmState);
   const confirmation = ui.confirmState;
 

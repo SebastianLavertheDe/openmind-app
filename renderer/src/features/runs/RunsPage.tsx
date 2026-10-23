@@ -8,7 +8,7 @@ import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw, RotateCcw, Trash2, X
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord } from "@shared/contracts";
 import { WORKFLOW_INTERRUPTED_ERROR } from "@shared/execution-contracts";
 import { messages as m } from "@shared/messages";
-import type { ConfirmAction } from "../../ai-context";
+import type { ConfirmAction } from "../../feedback-context";
 
 type RunEntry =
   | { kind: "skill"; record: BrokerRunRecord }

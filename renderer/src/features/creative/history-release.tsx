@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { FormField } from "../../design-system/components";
 import { Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
@@ -5,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import { FileClock, History } from "lucide-react";
 import type { CreativeAnalytics, CreativeProjectDetail, CreativeProjectSummary, CreativeReleaseEvent, CreativeVersion } from "@shared/contracts";
 import { getLocale, messages as m } from "@shared/messages";
-import { useAiUi } from "../../ai-context";
 import { EmptyState, LoadingState, Select, StatusBadge, SearchInput } from "../../design-system/components";
 import { actionLabel, platformLabel, stageLabel } from "./types";
 
@@ -20,7 +20,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   onRestored(detail: CreativeProjectDetail): void;
 }) {
   const locale = useLocale();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
   const [leftContent, setLeftContent] = useState("");
@@ -34,7 +34,7 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
     const version = versions.find((item) => item.id === id);
     if (!version) return;
     try { setter((await window.openmind.readCreativeVersion(version.path)).content); }
-    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    catch (cause) { feedback.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const diff = useMemo(() => {
     if (!leftContent && !rightContent) return [];
@@ -43,13 +43,13 @@ export function HistoryView({ detail, selectedProject, activeFile, versions, fil
   const diffTruncated = diff.length > 600;
   const visibleDiff = diffTruncated ? diff.slice(0, 600) : diff;
   const restore = async (version: CreativeVersion) => {
-    if (!detail || !await ui.confirm({ title: m.creativeUi.history.restoreTitle, body: m.creativeUi.history.restoreBody(version.note), confirmText: m.creativeUi.history.restoreConfirm, danger: true })) return;
+    if (!detail || !await feedback.confirm({ title: m.creativeUi.history.restoreTitle, body: m.creativeUi.history.restoreBody(version.note), confirmText: m.creativeUi.history.restoreConfirm, danger: true })) return;
     try {
       const next = await window.openmind.restoreCreativeVersion(detail.dir, activeFile, version.path);
       onRestored(next);
       onVersionsChange(await window.openmind.listCreativeVersions(detail.dir, activeFile));
-      ui.notify(m.creativeUi.history.restored, "success");
-    } catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+      feedback.notify(m.creativeUi.history.restored, "success");
+    } catch (cause) { feedback.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   if (!detail || !selectedProject) return <EmptyState title={m.creativeUi.history.pickProject} description={m.creativeUi.history.pickProjectDesc} icon={<History size={28} />} />;
   return (

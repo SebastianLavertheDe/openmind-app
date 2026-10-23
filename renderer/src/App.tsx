@@ -1,3 +1,4 @@
+import { FeedbackProvider, useFeedback } from "./feedback-context";
 import { OPEN_IMAGE_PROVIDER_SETTINGS } from "./provider-configuration-events";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { messages as m } from "@shared/messages";
@@ -68,7 +69,7 @@ function WorkspaceHost({ bootstrap, setBootstrap, aiStorageScope }: { bootstrap:
   const aiProviderKey = route.page === "onboarding"
     ? "onboarding-setup"
     : `${aiStorageScope}\u0000${aiReady ? "ready" : "setup"}`;
-  return <AiProvider key={aiProviderKey} storageScope={aiStorageScope} initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} route={route} setRoute={setRoute} /></AiProvider>;
+  return <FeedbackProvider key={aiProviderKey}><AiProvider key={aiProviderKey} storageScope={aiStorageScope} initial={bootstrap.ai} skills={bootstrap.skills}><Workspace bootstrap={bootstrap} setBootstrap={setBootstrap} route={route} setRoute={setRoute} /></AiProvider></FeedbackProvider>;
 }
 
 function Workspace({
@@ -100,6 +101,7 @@ function Workspace({
   // flush (events slice) must not re-render the entire route content tree.
   const { snapshot, activeSession } = useAiSnapshot();
   const ui = useAiUi();
+  const feedback = useFeedback();
   const actions = useAiActions();
   const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
@@ -246,10 +248,10 @@ function Workspace({
     onAiFilePreviewPathChange: setAiFilePreviewPath,
     embeddedFilePreviewPath,
     onCloseEmbeddedFilePreview: closeWorkspaceFile,
-    confirmAction: ui.confirm,
+    confirmAction: feedback.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, ui.confirm, refreshBootstrap, exitSettings, locale]);
+  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, feedback.confirm, refreshBootstrap, exitSettings, locale]);
   const aiSidebarElement = useMemo(
     () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
     [showAiCompanion, navCollapsed, locale]

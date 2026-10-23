@@ -25,6 +25,8 @@ describe("image provider requests", () => {
     const [url, options] = request.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(String(options.body));
     expect(options.redirect).toBe("error");
+    if (selection.provider === "volcengine") expect(body.watermark).toBe(false);
+    else expect(body).not.toHaveProperty("watermark");
     if (selection.provider === "google") {
       expect(url).toContain(`/models/${selection.model}:generateContent`);
       expect(options.headers).toHaveProperty("x-goog-api-key", "fixture-secret");
@@ -38,6 +40,15 @@ describe("image provider requests", () => {
         expect(body.sequential_image_generation).toBeUndefined();
       }
     }
+  });
+
+  it.each(IMAGE_PROVIDERS[0].models)("disables the visible watermark for $id reference images", async model => {
+    const ctx = context("volcengine");
+    const request = vi.fn(async () => success());
+    await requestImage({ ...ctx.selection, model: model.id }, ctx.credentials, "make it green", [{ bytes: png, mediaType: "image/png" }], ctx.signal, request);
+    const [url, options] = request.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/images/generations");
+    expect(JSON.parse(String(options.body))).toMatchObject({ model: model.id, watermark: false, image: [`data:image/png;base64,${png.toString("base64")}`] });
   });
 
   it("uses multipart editing for OpenAI references", async () => {

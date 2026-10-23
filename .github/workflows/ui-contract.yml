@@ -43,3 +43,22 @@ jobs:
             .build/visual-snapshot-report.json
           if-no-files-found: ignore
           retention-days: 14
+  ui-contract-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run visual:ui
+      - name: Upload Windows UI comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-comparisons-windows
+          path: .tmp/ui-regression
+          if-no-files-found: ignore
+          retention-days: 14

@@ -4,7 +4,7 @@ import type { DesktopApi } from "@shared/contracts";
 import { WechatSettingsSection } from "./WechatSettingsSection";
 
 const ui = vi.hoisted(() => ({ confirm: vi.fn(), notify: vi.fn() }));
-vi.mock("../../ai-context", () => ({ useAiUi: () => ui }));
+vi.mock("../../feedback-context", () => ({ useFeedback: () => ui }));
 const account = { appId: "wx1234567890abcdef", author: "作者", configured: true };
 
 beforeEach(() => {

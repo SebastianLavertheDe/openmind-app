@@ -124,10 +124,6 @@
     gap: 2px;
     justify-content: flex-start;
   }
-
-  .brief-library-page .document-detail-actions .ui-segmented button:not([data-ui-control]) {
-    padding-inline: 8px;
-  }
 }
 
 /* The brief responds to its allocated workspace rather than the application

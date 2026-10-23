@@ -244,7 +244,7 @@ function CreativeDocumentEditor({
         {published ? <MarkdownReader content={draft} layout="file" /> : (
           <>
             <Tabs
-              className="editor-mode-bar"
+              variant="editor" className="editor-mode-bar"
               value={editorMode}
               label={m.creativeUi.editor.modeBar}
               tabs={[

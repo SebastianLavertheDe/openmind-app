@@ -26,6 +26,7 @@ function selectorOwner(selector, classes) {
         }
       });
       if (closest) { result = closest; return; }
+      if (ancestorOwner === "selection" && !compoundExcluded) { result = ancestorOwner; return; }
       if (ancestorOwner && !["dialogs", "forms"].includes(ancestorOwner) && !compoundExcluded && !native) { result = ancestorOwner; return; }
       if (native && !compoundExcluded) {
         const text = selection.toString();
@@ -56,7 +57,7 @@ function selectorOwners(selector, classes) {
       if (node.type === "class" && classes.has(node.value)) positives.add(classes.get(node.value));
       if (node.type === "tag") native = node.value;
       if (node.type === "attribute" && node.attribute === "data-ui-control") {
-        const marker = { button: "buttons", input: "inputs", textarea: "inputs", search: "inputs", "input-group": "inputs", "select-trigger": "select", "select-option": "select", "menu-item": "menus", dialog: "dialogs", popover: "menus", dropzone: "uploads", "image-thumbnail": "media" };
+        const marker = { tabs: "selection", segmented: "selection", switch: "selection", selection: "selection", button: "buttons", input: "inputs", textarea: "inputs", search: "inputs", "input-group": "inputs", "select-trigger": "select", "select-option": "select", "menu-item": "menus", dialog: "dialogs", popover: "menus", dropzone: "uploads", "image-thumbnail": "media" };
         if (marker[node.value]) positives.add(marker[node.value]);
         else for (const owner of Object.values(marker)) positives.add(owner);
       }
@@ -64,7 +65,7 @@ function selectorOwners(selector, classes) {
     }
     for (const node of compound) inspect(node);
     for (const owner of positives) owners.add(owner);
-    if (native === "button" && !excluded && !positives.size) for (const owner of ["buttons", "menus", "select", "uploads", "media"]) owners.add(owner);
+    if (native === "button" && !excluded && !positives.size && primary !== "selection") for (const owner of ["buttons", "menus", "select", "uploads", "media"]) owners.add(owner);
   })).processSync(selector);
   return owners;
 }

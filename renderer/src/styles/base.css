@@ -1206,9 +1206,6 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 .document-tabs button:not([data-ui-control]) { padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; }
 .document-tabs button:not([data-ui-control]).active { color: var(--text); border-bottom-color: var(--accent); }
 .creative-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.editor-mode-bar { display: flex; gap: 2px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); }
-.editor-mode-bar button:not([data-ui-control]) { padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: var(--fs-caption); }
-.editor-mode-bar button:not([data-ui-control]).active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 .creative-editor textarea { flex: 1; resize: none; }
 .creative-preview, .creative-history .reader-markdown, .topic-workspace .reader-markdown { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4) var(--space-5); background: var(--bg); }
 .writing-stats { display: flex; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-top: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: var(--fs-caption); }

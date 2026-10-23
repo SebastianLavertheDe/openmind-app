@@ -85,12 +85,75 @@ async function renameSetup() {
   // Retain its path, so this is a background list refresh with surviving keys.
   await js("workspaceMotion.probe.slow=true");
 }
+async function checkBriefEditor() {
+  report.briefEditor = [];
+  for (const theme of ["light", "dark"]) for (const width of [720, 1440]) {
+    win.setSize(width, 900);
+    await js(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
+    await scene("brief");
+    const original = await js("window.openmind.readContent('daily-summary/brief-0.md').then(record=>record.content)");
+    await js(clickText("编辑"));
+    await until("document.querySelector('[aria-label=编辑每日简报]')");
+    await js(`(async () => {
+      const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+      await frame(); await frame();
+      await Promise.allSettled(document.getAnimations()
+        .filter(animation=>animation.playState==='running'&&animation.effect?.getComputedTiming().iterations!==Infinity)
+        .map(animation=>animation.finished));
+      await frame();
+    })()`);
+    const geometry = await js(`(() => {
+      const editor=document.querySelector('[aria-label=编辑每日简报]');
+      const box=editor.getBoundingClientRect(), pane=editor.parentElement.getBoundingClientRect();
+      const css=getComputedStyle(editor);
+      return { height:box.height, paneHeight:pane.height, top:box.top, bottom:box.bottom,
+        paneTop:pane.top, paneBottom:pane.bottom, lines:editor.clientHeight/parseFloat(css.lineHeight),
+        padding:parseFloat(css.paddingTop), content:editor.value, scrollable:editor.scrollHeight>editor.clientHeight };
+    })()`);
+    assert.equal(geometry.content, original, "edit mode must receive every line of the brief");
+    assert(geometry.height >= geometry.paneHeight - 1, "brief editor must fill its pane, not a two-row textarea");
+    assert(geometry.lines >= 10, "brief editor must expose multiple paragraphs without scrolling");
+    assert(geometry.padding > 0, "source text needs the shared code editor insets");
+    assert(geometry.top >= geometry.paneTop - 1 && geometry.bottom <= geometry.paneBottom + 1, "editor must stay inside its pane");
+    assert(geometry.scrollable, "long brief must scroll inside the full-height editor");
+    report.briefEditor.push({ theme, width, ...geometry, content: undefined });
+    await js("document.querySelector('[aria-label=编辑每日简报]').scrollTop=10000");
+    assert(await js("document.querySelector('[aria-label=编辑每日简报]').scrollTop>0"), "end of brief must be reachable");
+    await js("document.querySelector('[aria-label=编辑每日简报]').scrollTop=0");
+    fs.writeFileSync(path.join(directory,`brief-editor-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG());
+    const draft = original + "\n\n编辑后保留的末尾段落。";
+    await js(`(() => { const editor=document.querySelector('[aria-label=编辑每日简报]');
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(editor,${JSON.stringify(draft)});
+      editor.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await js(clickText("预览"));
+    await until("!document.querySelector('[aria-label=编辑每日简报]')");
+    await js(clickText("编辑"));
+    await until("document.querySelector('[aria-label=编辑每日简报]')");
+    assert.equal(await js("document.querySelector('[aria-label=编辑每日简报]').value"), draft, "mode switches must preserve unsaved text");
+    await js("document.querySelector('[aria-label=编辑每日简报]').focus()");
+    win.webContents.sendInputEvent({ type: "keyDown", keyCode: "S", modifiers: [process.platform === "darwin" ? "meta" : "control"] });
+    win.webContents.sendInputEvent({ type: "keyUp", keyCode: "S", modifiers: [process.platform === "darwin" ? "meta" : "control"] });
+    await until("!document.querySelector('[aria-label=编辑每日简报]')");
+    assert.equal(await js("window.openmind.readContent('daily-summary/brief-0.md').then(record=>record.content)"), draft, "keyboard save must persist the full draft");
+  }
+  report.assertions.push("brief editor fills pane in both themes and viewport widths", "brief source scroll, mode switches and keyboard save");
+  await js("document.documentElement.dataset.theme='light'");
+  win.setSize(1440,1000);
+}
 app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1440, height: 1000, show: true, webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
   win.webContents.on("console-message", e => { if(e.level>=3) console.error(e.message); });
   await win.loadFile(path.join(directory,"index.html"));
   win.webContents.debugger.attach("1.3"); await cdp("Performance.enable");
   await until("Boolean(window.workspaceMotion)");
+  // Run functional editor geometry separately from the motion measurements.
+  // node scripts/motion-performance.js --brief-editor
+  if (process.env.OPENMIND_BRIEF_EDITOR_ONLY === "1") {
+    await checkBriefEditor();
+    fs.writeFileSync(path.join(directory,"brief-editor-report.json"),JSON.stringify(report,null,2));
+    console.log("Brief editor passed: both themes, 720/1440px, full-height multiline source, scrolling, mode switches and keyboard save.");
+    clearTimeout(watchdog); win.destroy(); app.quit(); return;
+  }
   for(const rate of [1,4]) {
     await cdp("Emulation.setCPUThrottlingRate",{rate});
     await resetProjects(8);

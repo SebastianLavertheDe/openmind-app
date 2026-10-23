@@ -10,6 +10,7 @@
 @import "./components/media.css";
 @import "./components/inputs.css";
 @import "./components/image-viewer.css";
+@import "./components/selection.css";
 @import "./features/settings.css";
 @import "./features/daily-brief.css";
 @import "./features/creative.css";

@@ -1,3 +1,4 @@
+import { focusAfterTrigger } from "./tab-navigation";
 import { SelectTrigger } from "./SelectTrigger";
 import { SelectItem } from "./SelectItem";
 import type { SelectTone, SelectVariant } from "./control-contract";
@@ -301,14 +302,6 @@ export function Select<T extends string>({
   );
 }
 
-function focusAfterTrigger(trigger: HTMLButtonElement | null): void {
-  if (!trigger) return;
-  const tabbable = Array.from(document.querySelectorAll<HTMLElement>(
-    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest(".ui-select-menu") && !element.classList.contains("ui-select-native-proxy"));
-  const triggerIndex = tabbable.indexOf(trigger);
-  tabbable[triggerIndex + 1]?.focus();
-}
 
 /** 在 enabled 选项中按 direction 步进,跳过 disabled。 */
 function nextEnabled<T>(

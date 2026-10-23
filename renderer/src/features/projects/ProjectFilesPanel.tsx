@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { FormField } from "../../design-system/components";
 import { MenuItem } from "../../design-system/components";
 import { useLocale } from "../../i18n";
@@ -5,12 +6,11 @@ import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
-import { useAiUi } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Select } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
-import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
-import { ProjectOutputsPanel, type ProjectOutputNavigationGuard } from "./ProjectOutputsPanel";
+import { ProjectMaterialDetail } from "./ProjectMaterialDetail";
+import { ProjectOutputDetail, type ProjectOutputNavigationGuard } from "./ProjectOutputDetail";
 import type { ProjectTaskSeed } from "./ProjectTasksPanel";
 import { projectsApi } from "./projects-api";
 import type { ProjectCreateAction, ProjectDetail, ProjectMaterial, ProjectOutput, ProjectSection, ProjectSummary } from "./types";
@@ -49,7 +49,7 @@ export function ProjectFilesPanel({
   detailHost: HTMLElement;
 }) {
   const locale = useLocale();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selection, setSelection] = useState<ProjectFileSelection | null>(() => initialItem ? {
@@ -71,8 +71,8 @@ export function ProjectFilesPanel({
   const [moveOptionsLoading, setMoveOptionsLoading] = useState(false);
   const selectionRef = useRef(selection);
   const guardRef = useRef<ProjectOutputNavigationGuard | null>(null);
-  const confirmRef = useRef(ui.confirm);
-  confirmRef.current = ui.confirm;
+  const confirmRef = useRef(feedback.confirm);
+  confirmRef.current = feedback.confirm;
 
   const updateSelection = useCallback((next: ProjectFileSelection | null) => {
     const current = selectionRef.current;
@@ -160,14 +160,20 @@ export function ProjectFilesPanel({
     updateSelection(next);
   }, [canChangeFile, updateSelection, onSelectionChange]);
 
-  const handleChanged = useCallback(() => {
-    void load();
+  const handleChanged = useCallback(async () => {
+    await load();
     onChanged();
   }, [load, onChanged]);
 
   const handleMaterialSelection = useCallback((relativePath?: string) => {
     updateSelection(relativePath ? { kind: "material", relativePath } : null);
   }, [updateSelection]);
+
+  const acceptOutput = useCallback((next: ProjectOutput) => {
+    setOutputs(current => current.some(item => item.relativePath === next.relativePath)
+      ? current.map(item => item.relativePath === next.relativePath ? next : item)
+      : [next, ...current]);
+  }, []);
 
   const handleOutputSelection = useCallback((relativePath?: string) => {
     updateSelection(relativePath ? { kind: "output", relativePath } : null);
@@ -189,10 +195,10 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection({ kind: target.kind, relativePath: next.relativePath });
       await load();
       onChanged();
-      ui.notify(messages.projectUi.renamedFile(next.title), "success");
+      feedback.notify(messages.projectUi.renamedFile(next.title), "success");
     } catch (cause) {
       setActionError(errorText(cause));
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -208,7 +214,7 @@ export function ProjectFilesPanel({
       setMoveOptions(options);
       setMoveDestination(options[0]?.name || "");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
       setMoveTarget(null);
     } finally {
       setMoveOptionsLoading(false);
@@ -227,10 +233,10 @@ export function ProjectFilesPanel({
       if (isSelected(target)) updateSelection(null);
       await load();
       onChanged();
-      ui.notify(messages.projectUi.movedToProject(moveDestination), "success");
+      feedback.notify(messages.projectUi.movedToProject(moveDestination), "success");
     } catch (cause) {
       setActionError(errorText(cause));
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -241,9 +247,9 @@ export function ProjectFilesPanel({
     setActionBusy(`${entry.kind}:${entry.relativePath}`);
     try {
       const result = await projectsApi.downloadFile(project.name, entry.kind, entry.relativePath);
-      if (!result.canceled && result.savedPath) ui.notify(messages.projectUi.fileSavedTo(result.savedPath), "success");
+      if (!result.canceled && result.savedPath) feedback.notify(messages.projectUi.fileSavedTo(result.savedPath), "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -265,9 +271,9 @@ export function ProjectFilesPanel({
       if (isSelected(entry)) updateSelection(null);
       await load();
       onChanged();
-      ui.notify(messages.projectUi.fileDeleted, "success");
+      feedback.notify(messages.projectUi.fileDeleted, "success");
     } catch (cause) {
-      ui.notify(errorText(cause), "error");
+      feedback.notify(errorText(cause), "error");
     } finally {
       setActionBusy(null);
     }
@@ -335,36 +341,31 @@ export function ProjectFilesPanel({
   const activePath = createRequested
     ? ""
     : selection?.kind === activeKind ? selection.relativePath : "";
-  const detail = activeKind === "material" ? (
-    <ProjectMaterialsPanel
-      key={`material:${activePath || "create"}`}
+  const detailContent = activeKind === "material" ? (
+    <ProjectMaterialDetail
       project={project}
-      initialMaterialPath={activePath || undefined}
+      materialPath={activePath || undefined}
+      material={materials.find(item => item.relativePath === activePath)}
       createRequested={createRequested === "materials"}
       onCreateHandled={() => completeCreateRequest("material")}
-      onCreateTask={onCreateTask}
       onChanged={handleChanged}
-      autoSelectFirst={Boolean(activePath)}
       onSelectionChange={handleMaterialSelection}
-      detailHost={detailHost}
     />
   ) : activeKind === "output" ? (
-    <ProjectOutputsPanel
-      key={`output:${activePath || "create"}`}
+    <ProjectOutputDetail
       project={project}
-      initialOutputPath={activePath || undefined}
+      outputPath={activePath || undefined}
+      onOutputChange={acceptOutput}
       createRequested={createRequested === "outputs"}
       onCreateHandled={() => completeCreateRequest("output")}
       onChanged={handleChanged}
       onNavigationGuardChange={handleNavigationGuard}
-      autoSelectFirst={Boolean(activePath)}
       onSelectionChange={handleOutputSelection}
-      detailHost={detailHost}
     />
-  ) : createPortal(
-    <EmptyState icon={<Files size={30} />} title={messages.projectUi.selectOrCreateFile} description={messages.projectUi.selectOrCreateFileHint} />,
-    detailHost
+  ) : (
+    <EmptyState icon={<Files size={30} />} title={messages.projectUi.selectOrCreateFile} description={messages.projectUi.selectOrCreateFileHint} />
   );
+  const detail = createPortal(detailContent, detailHost);
 
   return (
     <>

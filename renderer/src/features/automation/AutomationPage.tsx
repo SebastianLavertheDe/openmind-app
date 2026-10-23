@@ -11,7 +11,7 @@ import { matchesSemverRange } from "@shared/skill-manifest-schema";
 import { messages } from "@shared/messages";
 import { ErrorState, LogViewer, Select, ToggleSwitch, Input, InputGroup } from "../../design-system/components";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
-import type { ConfirmAction } from "../../ai-context";
+import type { ConfirmAction } from "../../feedback-context";
 
 const m = messages;
 

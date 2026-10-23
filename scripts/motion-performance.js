@@ -8,7 +8,8 @@ const path = require("node:path");
   const { build } = await import("vite");
   const incremental = process.argv.includes("--incremental");
   const feedback = process.argv.includes("--feedback");
-  const workspace = process.argv.includes("--workspace");
+  const briefEditor = process.argv.includes("--brief-editor");
+  const workspace = process.argv.includes("--workspace") || briefEditor;
   const followup = process.argv.includes("--followup");
   // Reuse a saved, pre-change production fixture for an identical runner A/B.
   const reuse = process.env.OPENMIND_MOTION_PERF_REUSE_DIR;
@@ -24,6 +25,7 @@ const path = require("node:path");
     build: { outDir: directory, emptyOutDir: false, chunkSizeWarningLimit: 5000 }
   });
   const env = { ...process.env, OPENMIND_MOTION_PERF_DIR: directory, OPENMIND_MOTION_PERF: "1",
+    OPENMIND_BRIEF_EDITOR_ONLY: briefEditor ? "1" : "0",
     OPENMIND_NAVIGATION_PERF: process.argv.includes("--navigation-only") ? "1" : "0",
     OPENMIND_STREAM_PERF: "1", OPENMIND_RESIZE_PERF_EVENTS: "1000", ELECTRON_DISABLE_SECURITY_WARNINGS: "1" };
   delete env.ELECTRON_RUN_AS_NODE;

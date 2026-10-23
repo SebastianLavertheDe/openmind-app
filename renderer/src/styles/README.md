@@ -14,6 +14,7 @@ KaTeX stay with their dependencies. The separate development catalog imports
 | `components/forms.css` | FormField labels, validation messages and FormActions |
 | `components/dialogs.css` | Dialog, FormDialog, ConfirmDialog and shared dialog parts |
 | `components/menus.css` | MenuItem, DropdownMenu and Popover surfaces |
+| `components/selection.css` | Tabs variants, SegmentedControl, ToggleSwitch and their shared interaction states |
 | `components.css` | Select, SelectTrigger, SelectMenuSurface and other existing shared controls |
 | `components/uploads.css`, `components/media.css` | FileDropzone, ImageThumbnail and ImageAttachment |
 | `components/image-viewer.css` | ImageViewer canvas and image navigation layout |
@@ -70,6 +71,10 @@ optimized geometry/keyboard logic and reuse PopoverSurface, useAnchoredPopover
 and useDismissableLayer. Drawer provides modal focus handling for app chrome.
 ImageViewer shares Dialog's media shell and owns image gestures/navigation.
 Tabs, SegmentedControl and AnimatedDisclosure preserve choice/disclosure behavior.
+Tabs always keep their base class and select `default`, `pill`, `underline`,
+`bordered` or `editor` through a typed variant. SegmentedControl supports `default`
+and `compact`. Their appearance is owned by `components/selection.css`, including
+responsive adaptations; feature styles must not repaint their descendants.
 Use usePointerResize for batched resizing and useClipboard or CopyButton for
 plain-text copy feedback; rich clipboard formats keep typed IPC.
 

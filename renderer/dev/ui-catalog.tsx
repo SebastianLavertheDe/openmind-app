@@ -5,7 +5,7 @@ import { ArrowUp, BookOpen, Copy, Plus, ShieldCheck, Square, Trash2 } from "luci
 import {
   Button, IconButton, ImageAttachment, ImageThumbnail, BUTTON_VARIANTS, ICON_BUTTON_SHAPES, IMAGE_THUMBNAIL_VARIANTS, CONTROL_SIZES, CONTROL_TONES, INPUT_VARIANTS, TEXTAREA_VARIANTS, SEARCH_VARIANTS,
   Input, Textarea, SearchInput, FormField, InputGroup, FormDialog, ConfirmDialog, Dialog, DialogBody, SearchDialogHeader,
-  Select, DropdownMenu, MenuItem, FileDropzone, AnimatedDisclosure
+  TAB_VARIANTS, SEGMENTED_VARIANTS, Select, Tabs, SegmentedControl, ToggleSwitch, DropdownMenu, MenuItem, FileDropzone, AnimatedDisclosure
 } from "../src/design-system/components";
 import { ProjectEditDialog } from "../src/features/projects/ProjectAppearance";
 import { ComposerModelPicker } from "../src/features/ai-console/ComposerModelPicker";
@@ -79,6 +79,20 @@ function Actions() {
       {IMAGE_THUMBNAIL_VARIANTS.map(variant => <ImageThumbnail key={variant} variant={variant} label={`Image · ${variant}`}><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23e4eee9'/%3E%3Ccircle cx='60' cy='60' r='24' fill='%238aa89b'/%3E%3C/svg%3E" alt="Sample illustration" /></ImageThumbnail>)}
       <ImageAttachment src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='%23f4ead6'/%3E%3Ccircle cx='60' cy='60' r='24' fill='%23d9b66b'/%3E%3C/svg%3E" label="Attached image" removeLabel="Remove attached image" onOpen={() => {}} onRemove={() => {}} />
     </div></section>
+  </div>;
+}
+
+function NavigationControls() {
+  const [value, setValue] = useState("materials");
+  const [checked, setChecked] = useState(true);
+  const tabs = [{ value: "tasks", label: "Tasks" }, { value: "materials", label: "Materials", count: 4 }, { value: "outputs", label: "Outputs", disabled: true }];
+  return <div className="ui-catalog-stack">
+    {TAB_VARIANTS.map(variant => <section className="ui-catalog-card" key={variant}>
+      <h2>Tabs · {variant}</h2><Tabs variant={variant} label={variant} value={value} tabs={tabs} onChange={setValue}
+        className={variant === "pill" ? "project-pane-tabs" : variant === "underline" ? "skills-detail-tabs" : variant === "bordered" ? "settings-capability-tabs" : ""} />
+    </section>)}
+    <section className="ui-catalog-card"><h2>Segmented choices</h2>{SEGMENTED_VARIANTS.map(variant => <SegmentedControl key={variant} variant={variant} value={value} label={variant} options={tabs} onChange={setValue} />)}</section>
+    <section className="ui-catalog-card"><h2>Switches</h2><ToggleSwitch checked={checked} onChange={setChecked} label="Enabled" /><ToggleSwitch checked={false} disabled onChange={() => {}} label="Unavailable" /></section>
   </div>;
 }
 
@@ -194,7 +208,7 @@ function Catalog() {
   useLayoutEffect(() => { window.__uiCatalog.ready = true; }, []);
   return <main className="ui-catalog" data-catalog-case={current}>
     <header className="ui-catalog-header"><h1>OpenMind UI</h1><p>Production components · supported variants and interaction states</p>
-      <nav aria-label="Component examples">{scenarios.map(item => <a key={item.id} href={`?case=${item.id}&theme=${document.documentElement.dataset.theme}`}>{item.title}</a>)}</nav>
+      <nav aria-label="Component examples">{scenarios.filter(item => !("navigation" in item) || item.navigation !== false).map(item => <a key={item.id} href={`?case=${item.id}&theme=${document.documentElement.dataset.theme}`}>{item.title}</a>)}</nav>
     </header>
     {current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
       : current === "confirm-dialog" ? <ConfirmDialog open title="Remove this project?" description="The project will be moved to the archive." tone="danger" confirmLabel="Remove project" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
@@ -203,7 +217,7 @@ function Catalog() {
       : current === "select-rect-open" ? <RectSelectExample /> : current === "select-quiet-permission" ? <QuietPermissionExample />
       : current === "composer-model-menu" || current === "composer-model-submenu" ? <ComposerModelExample />
       : current === "popover" ? <ProjectEditDialog project={{ id: "fixture", name: "Example project", description: "", status: "active", createdAt: "", updatedAt: "", materialCount: 0, taskCount: 0, outputCount: 0 }} busy={false} onClose={() => {}} onSave={() => {}} />
-      : current === "performance" ? <PerformanceExample /> : null}
+      : current === "navigation-controls" ? <NavigationControls /> : current === "performance" ? <PerformanceExample /> : null}
   </main>;
 }
 

@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { IconButton, Button } from "../../design-system/components";
 import { SegmentedControl } from "../../design-system/controls";
 import { useLocale } from "../../i18n";
@@ -6,7 +7,6 @@ import { ArrowLeft, Eye, FileText, FolderOpen, LoaderCircle, Pencil, RefreshCw, 
 import type { ContentEntry } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { useResponsiveLayout, useResponsiveWorkspaceMinimum } from "../../app/responsive-layout";
-import { useAiUi } from "../../ai-context";
 import { WorkspaceFilePreview } from "../../components/WorkspaceFilePreview";
 import { useContentListLayout } from "../../components/useContentListLayout";
 import { EmptyState, ErrorState, ResponsiveActionBar, Skeleton, type ResponsiveAction, SearchInput, Textarea } from "../../design-system/components";
@@ -29,7 +29,7 @@ export function DailyBriefPage({
   // container queries stack the file list and document at this component-owned
   // boundary instead of forcing a global navigation change.
   useResponsiveWorkspaceMinimum("--daily-brief-workspace-min", layoutRef);
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
@@ -48,18 +48,18 @@ export function DailyBriefPage({
         : file));
     },
     onSaveError(message) {
-      ui.notify(message, "error");
+      feedback.notify(message, "error");
     }
   });
   const record = preview.resource?.kind === "document" ? preview.resource.record : null;
   const closeEmbeddedFilePreview = useCallback(() => onCloseEmbeddedFilePreview?.(), [onCloseEmbeddedFilePreview]);
 
-  const confirmBriefSwitch = useCallback(() => ui.confirm({
+  const confirmBriefSwitch = useCallback(() => feedback.confirm({
     title: m.brief.library.switchTitle,
     body: m.brief.library.switchBody,
     confirmText: m.brief.library.switchConfirm,
     danger: true
-  }), [ui]);
+  }), [feedback]);
 
   const showBriefList = useCallback(async () => {
     const returnTarget = listRef.current?.querySelector<HTMLButtonElement>('[data-brief-selected="true"]');
@@ -143,7 +143,7 @@ export function DailyBriefPage({
     if (!record || !preview.dirty || preview.saving) return;
     if (await preview.save()) {
       await preview.setMode("preview");
-      ui.notify(m.brief.library.saved, "success");
+      feedback.notify(m.brief.library.saved, "success");
     }
   };
 
@@ -222,7 +222,7 @@ export function DailyBriefPage({
             <section className={`document-content ${preview.mode}`} aria-busy={preview.loading || undefined}>
               {record.truncated ? <div className="document-warning">{m.brief.library.truncated}</div> : null}
               <div key={preview.mode} className="document-content-view">
-                {preview.mode === "preview" ? <PreviewRenderer resource={preview.resource} content={preview.draft.content} layout="file" /> : <Textarea variant="inline" aria-label={m.brief.library.editAria} value={preview.draft.content} spellCheck={false} onChange={(event) => preview.setContent(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
+                {preview.mode === "preview" ? <PreviewRenderer resource={preview.resource} content={preview.draft.content} layout="file" /> : <Textarea variant="code" aria-label={m.brief.library.editAria} value={preview.draft.content} spellCheck={false} onChange={(event) => preview.setContent(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") { event.preventDefault(); void save(); } }} />}
               </div>
             </section>
           </div>

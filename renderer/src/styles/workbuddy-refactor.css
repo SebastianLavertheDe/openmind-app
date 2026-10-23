@@ -760,59 +760,10 @@ select:not([data-ui-control]):focus-visible,
   background: var(--panel);
 }
 
-.ui-segmented,
-.ui-tabs {
-  gap: 1px;
-  padding: 3px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--panel-muted);
-}
-
-.ui-segmented::before {
-  top: 2px;
-  bottom: 2px;
-  border-radius: 6px;
-  background: var(--text);
-  box-shadow: none;
-}
-
-.ui-segmented button:not([data-ui-control]),
-.ui-tabs button:not([data-ui-control]) {
-  min-height: 29px;
-  padding: 0 10px;
-  border-radius: 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 550;
-}
-
-.ui-segmented button:not([data-ui-control]).active { color: var(--page-bg); }
-
-.ui-tabs button:not([data-ui-control]).active {
-  background: var(--panel);
-  box-shadow: inset 0 0 0 1px var(--border);
-  color: var(--text);
-}
-
 .project-transcript header label:focus-within {
   border-color: var(--border-strong);
   box-shadow: none;
 }
-
-.ui-toggle-switch {
-  border-color: var(--border-strong);
-  background: var(--panel-muted);
-  box-shadow: none;
-}
-
-.ui-toggle-switch.active {
-  border-color: var(--text);
-  background: var(--text);
-  box-shadow: none;
-}
-
-.ui-toggle-switch.active span { background: var(--page-bg); }
 
 /* Reading */
 
@@ -1082,7 +1033,6 @@ select:not([data-ui-control]):focus-visible,
 
 .creative-page-header,
 .creative-document-header,
-.editor-mode-bar,
 .editor-toolbar,
 .tab-row {
   border-color: var(--border);
@@ -2859,14 +2809,12 @@ select:not([data-ui-control]):focus-visible,
 /* Selection is communicated by color and surface, never by a heavier text weight. */
 button:not([data-ui-control]).active,
 [role="option"][aria-selected="true"],
-[role="tab"][aria-selected="true"],
 [aria-current]:not([aria-current="false"]) {
   font-weight: 400 !important;
 }
 
 button:not([data-ui-control]).active :where(strong, b),
 [role="option"][aria-selected="true"] :where(strong, b),
-[role="tab"][aria-selected="true"] :where(strong, b),
 [aria-current]:not([aria-current="false"]) :where(strong, b) {
   font-weight: 400 !important;
 }

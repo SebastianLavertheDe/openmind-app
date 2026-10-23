@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { DialogHeader } from "../../design-system/components";
 import { Button } from "../../design-system/components";
 
@@ -6,7 +7,6 @@ import { useLocale } from "../../i18n";
 import { useEffect, useId, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { messages } from "@shared/messages";
-import { useAiUi } from "../../ai-context";
 import { StatusBadge } from "../../design-system/components";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
@@ -16,7 +16,7 @@ const m = messages.wechat.account;
 
 export function WechatSettingsSection() {
   useLocale();
-  const ui = useAiUi();
+  const feedback = useFeedback();
   const [account, setAccount] = useState<WechatAccountView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +48,13 @@ export function WechatSettingsSection() {
     removingRef.current = true;
     const recovering = !account;
     try {
-      if (!await ui.confirm({ title: m.disconnectTitle, body: m.disconnectBody, confirmText: m.disconnect, danger: true })) return;
+      if (!await feedback.confirm({ title: m.disconnectTitle, body: m.disconnectBody, confirmText: m.disconnect, danger: true })) return;
       setRemoving(true);
       setError(null);
       await window.openmind.disconnectWechatAccount();
       setAccount({ appId: "", author: "", configured: false });
       if (recovering) { setFormInstance((value) => value + 1); setEditing(true); }
-      ui.notify(m.disconnected, "success");
+      feedback.notify(m.disconnected, "success");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : m.disconnectFailed);
     } finally {
@@ -87,7 +87,7 @@ export function WechatSettingsSection() {
     </section>
     {presence.visible && account ? <Dialog size="lg" as="section" open={editing} presence={presence} triggerRef={triggerRef} onClose={close} dismissDisabled={saving}  containerRef={dialogRef} className="wechat-account-dialog" aria-labelledby={titleId}>
           <DialogHeader title={m.dialogTitle} titleId={titleId} description={m.dialogDescription} onClose={close} closeDisabled={saving} closeLabel={messages.common.close} />
-          <WechatAccountForm layout="dialog" key={formInstance} account={account} onBusyChange={setSaving} onCancel={close} onSaved={(next) => { setAccount(next); setEditing(false); ui.notify(m.saved, "success"); }} />
+          <WechatAccountForm layout="dialog" key={formInstance} account={account} onBusyChange={setSaving} onCancel={close} onSaved={(next) => { setAccount(next); setEditing(false); feedback.notify(m.saved, "success"); }} />
         </Dialog> : null}
   </>;
 }

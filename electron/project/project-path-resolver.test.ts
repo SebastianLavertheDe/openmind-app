@@ -29,13 +29,24 @@ describe("ProjectPathResolver", () => {
     const { resolver } = fixture();
     resolver.initialize();
     fs.mkdirSync(path.join(resolver.projectsRoot, "Alpha"));
-    fs.mkdirSync(path.join(resolver.projectsRoot, "alpha"));
-    expect(() => resolver.listProjectNames()).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
-    expect(() => resolver.resolveProject("Alpha")).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
+    const lowerCasePath = path.join(resolver.projectsRoot, "alpha");
+    if (fs.existsSync(lowerCasePath)) {
+      // Case-insensitive volumes cannot contain both directory entries. The app
+      // must reject a duplicate request and retain the existing display name.
+      expect(() => resolver.createProjectRoot("alpha")).toThrow(expect.objectContaining({ code: "project-already-exists" }));
+      expect(resolver.listProjectNames()).toEqual(["Alpha"]);
+      expect(resolver.resolveProject("alpha").name).toBe("Alpha");
+      expect(fs.readdirSync(resolver.projectsRoot)).toEqual(["Alpha"]);
+    } else {
+      fs.mkdirSync(lowerCasePath);
+      expect(() => resolver.listProjectNames()).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
+      expect(() => resolver.resolveProject("Alpha")).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
+      fs.rmdirSync(lowerCasePath);
+    }
 
-    fs.rmSync(path.join(resolver.projectsRoot, "alpha"), { recursive: true });
     fs.mkdirSync(path.join(resolver.projectsRoot, "Ａlpha"));
     expect(() => resolver.listProjectNames()).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
+    expect(() => resolver.resolveProject("Alpha")).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
   });
 
   it("honors a mutation lock owned by another process", async () => {
@@ -84,10 +95,13 @@ describe("ProjectPathResolver", () => {
 
   it("renames case-only identities through a portable intermediate directory", () => {
     const { resolver } = fixture();
-    resolver.createProjectRoot("Alpha");
+    const original = resolver.createProjectRoot("Alpha");
+    fs.writeFileSync(path.join(original.rootPath, "retained.txt"), "retained content");
     const renamed = resolver.renameProjectRoot("Alpha", "ALPHA");
     expect(renamed.name).toBe("ALPHA");
-    expect(fs.existsSync(path.join(resolver.projectsRoot, "Alpha"))).toBe(false);
+    expect(fs.readdirSync(resolver.projectsRoot)).toEqual(["ALPHA"]);
+    expect(resolver.resolveProject("alpha").name).toBe("ALPHA");
+    expect(fs.readFileSync(path.join(renamed.rootPath, "retained.txt"), "utf8")).toBe("retained content");
   });
 
   it("rejects traversal, absolute paths, missing reads and symlinks", () => {

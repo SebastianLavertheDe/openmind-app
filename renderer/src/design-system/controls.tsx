@@ -1,19 +1,22 @@
+import type { TabVariant, SegmentedVariant } from "./control-contract";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "./use-anchored-popover";
 import { useExitPresence } from "./use-exit-presence";
 import { useDismissableLayer } from "./use-dismissable-layer";
+import { focusAfterTrigger } from "./tab-navigation";
 import { Button } from "./Button";
 
 type SelectionChange<T> = (value: T) => void | boolean | Promise<void | boolean>;
 type Choice<T> = { value: T; label: ReactNode; count?: number; icon?: ReactNode; disabled?: boolean };
 
-export function SegmentedControl<T extends string>({ value, options, onChange, label, className = "" }: {
+export function SegmentedControl<T extends string>({ value, options, onChange, label, className = "", variant = "default" }: {
   value: T;
   options: Choice<T>[];
   onChange: SelectionChange<T>;
   label: string;
   className?: string;
+  variant?: SegmentedVariant;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, options.filter(option => !option.disabled).map(option => option.value), value, onChange);
@@ -34,27 +37,28 @@ export function SegmentedControl<T extends string>({ value, options, onChange, l
     window.addEventListener("resize", sync);
     return () => { if (frame) window.cancelAnimationFrame(frame); observer?.disconnect(); window.removeEventListener("resize", sync); };
   }, [options, value]);
-  return <div ref={rootRef} className={`ui-segmented${className ? ` ${className}` : ""}`} role="group" aria-label={label} onKeyDown={onKeyDown}>
-    {options.map(option => <button type="button" data-motion="selection" key={option.value} data-value={option.value}
+  return <div ref={rootRef} data-ui-control="segmented" data-variant={variant} className={`ui-segmented${className ? ` ${className}` : ""}`} role="group" aria-label={label} onKeyDown={onKeyDown}>
+    {options.map(option => <button type="button" data-ui-control="selection" data-motion="selection" key={option.value} data-value={option.value}
       tabIndex={value === option.value ? 0 : -1} aria-pressed={value === option.value} disabled={option.disabled}
-      className={value === option.value ? "active" : ""} onClick={() => void onChange(option.value)}>
+      className={value === option.value ? "ui-segmented-option active" : "ui-segmented-option"} onClick={() => void onChange(option.value)}>
       {option.icon}{option.label}{option.count == null ? null : <span>{option.count}</span>}
     </button>)}
   </div>;
 }
 
-export function Tabs<T extends string>({ value, tabs, onChange, label, className = "" }: {
+export function Tabs<T extends string>({ value, tabs, onChange, label, className = "", variant = "default" }: {
   value: T;
   tabs: Array<Choice<T> & { id?: string; controls?: string; attributes?: Record<`data-${string}`, string> }>;
   onChange: SelectionChange<T>;
   label: string;
   className?: string;
+  variant?: TabVariant;
 }) {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, tabs.filter(tab => !tab.disabled).map(tab => tab.value), value, onChange);
-  return <div className={className || "ui-tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
-    {tabs.map(tab => <button {...tab.attributes} type="button" data-motion="selection" key={tab.value} id={tab.id} aria-controls={tab.controls}
+  return <div data-ui-control="tabs" data-variant={variant} className={`ui-tabs${className ? ` ${className}` : ""}`} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+    {tabs.map(tab => <button {...tab.attributes} type="button" data-ui-control="selection" data-motion="selection" key={tab.value} id={tab.id} aria-controls={tab.controls}
       data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} disabled={tab.disabled}
-      className={value === tab.value ? "active" : ""} onClick={() => void onChange(tab.value)}>
+      className={value === tab.value ? "ui-tab active" : "ui-tab"} onClick={() => void onChange(tab.value)}>
       {tab.icon}{tab.label}{tab.count == null ? null : <span>{tab.count}</span>}
     </button>)}
   </div>;
@@ -76,6 +80,7 @@ export function ToggleSwitch({
   return (
     <button
       type="button"
+      data-ui-control="switch"
       className={`ui-toggle-switch ${checked ? "active" : ""}${className ? ` ${className}` : ""}`}
       role="switch"
       aria-checked={checked}
@@ -197,7 +202,7 @@ export function DropdownMenu({
       event.preventDefault();
       closeMenu(false);
       if (event.shiftKey) triggerRef.current?.focus();
-      else focusAfterDropdownTrigger(triggerRef.current);
+      else focusAfterTrigger(triggerRef.current);
       return;
     }
     const items = getEnabledMenuItems(menuRef.current);
@@ -275,13 +280,4 @@ const MENU_ITEM_SELECTOR = '[role="menuitem"], [role="menuitemradio"], [role="me
 
 function isMenuItemDisabled(item: HTMLElement): boolean {
   return item.getAttribute("aria-disabled") === "true" || (item instanceof HTMLButtonElement && item.disabled);
-}
-
-function focusAfterDropdownTrigger(trigger: HTMLButtonElement | null): void {
-  if (!trigger) return;
-  const tabbable = Array.from(document.querySelectorAll<HTMLElement>(
-    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => !element.closest(".ui-dropdown-menu"));
-  const triggerIndex = tabbable.indexOf(trigger);
-  tabbable[triggerIndex + 1]?.focus();
 }

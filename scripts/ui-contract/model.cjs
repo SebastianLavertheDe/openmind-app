@@ -3,6 +3,9 @@ const path = require("node:path");
 const ts = require("typescript");
 
 const definitions = {
+  Tabs: ["controls.tsx", "selection", ["ui-tabs", "ui-tab"]],
+  SegmentedControl: ["controls.tsx", "selection", ["ui-segmented", "ui-segmented-option"]],
+  ToggleSwitch: ["controls.tsx", "selection", ["ui-toggle-switch"]],
   PopoverSurface: ["Popover.tsx", "menus", ["ui-popover-surface"]],
   Popover: ["Popover.tsx", "menus", []],
   FileDropzone: ["FileDropzone.tsx", "uploads", ["ui-file-dropzone"]],

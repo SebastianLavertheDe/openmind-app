@@ -812,7 +812,7 @@ function SkillDetailTabs({ active, sourceLabel, runCount, onChange }: {
     { id: "sources", label: sourceLabel },
     { id: "runs", label: m.detailTabs.runs(runCount) }
   ];
-  return <Tabs value={active} className="skills-detail-tabs" label={m.detailTabs.aria} onChange={onChange}
+  return <Tabs value={active} variant="underline" className="skills-detail-tabs" label={m.detailTabs.aria} onChange={onChange}
     tabs={tabs.map(tab => ({ value: tab.id, label: tab.label, id: `skill-tab-${tab.id}`, controls: `skill-panel-${tab.id}` }))} />;
 }
 

@@ -13,7 +13,7 @@ import {
 import type { AiSnapshot, AppBootstrap } from "@shared/contracts";
 import { navLabel } from "@shared/display-labels";
 import type { AppPage, AppRoute, Navigate } from "./routes";
-import type { ConfirmAction } from "../ai-context";
+import type { ConfirmAction } from "../feedback-context";
 
 const OnboardingPage = lazy(() => import("../features/onboarding").then((module) => ({ default: module.OnboardingPage })));
 const DailyBriefPage = lazy(() => import("../features/daily-brief").then((module) => ({ default: module.DailyBriefPage })));

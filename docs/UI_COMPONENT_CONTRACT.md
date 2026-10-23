@@ -20,6 +20,7 @@ Import controls from `renderer/src/design-system/components.tsx`.
 | Command search header | `SearchDialogHeader` | `components/dialogs.css` |
 | Choice trigger / select | `Select`, `SelectTrigger`, `SelectItem`, `SelectMenuSurface` | `components.css` |
 | Menus and anchored panels | `DropdownMenu`, `MenuItem`, `Popover`, `PopoverSurface` | `components/menus.css` |
+| Tabs, segmented choices and switches | `Tabs`, `SegmentedControl`, `ToggleSwitch` | `components/selection.css` |
 | File import / image action | `FileDropzone`, `ImageThumbnail` | `components/uploads.css`, `components/media.css` |
 
 App navigation and AI drawers use `Drawer` for modal focus/ARIA behavior and keep
@@ -78,6 +79,11 @@ events. Missing files do not produce cards, and project media retain project
 ownership on every read.
 Inline disclosure actions use `Button variant="text"`, which inherits the
 surrounding typography and keeps keyboard focus and touch targets shared.
+`BUTTON_GEOMETRY` declares fixed-height actions and content-height text actions;
+the rendered `data-geometry` marker drives visual geometry validation. Text
+actions retain the small control minimum height even when `size` is md or lg;
+larger surrounding text may increase their height. Responsive and coarse-pointer
+minimum targets apply to both geometry modes.
 Successful tool image reads use a default-open `AnimatedDisclosure
 variant="inline"` with a viewed-image count and `ImageThumbnail variant="tool"`
 (64px square). Adjacent successful image reads share a gallery strip; failed,
@@ -98,6 +104,25 @@ feature-owned groups can supply their layout. `Select` and `SelectTrigger` use
 pill, while the model trigger uses `shape="rect"` and its established 7px radius.
 An option's `tone="warning"` also colors its selected trigger. Shared ownership
 preserves these distinct designs instead of forcing every control to one height.
+
+Tabs always retain `ui-tabs`; `className` adds layout classes. Use typed variants
+`default` (segmented surface), `pill` (compact navigation), `underline` (detail
+sections), `bordered` (counted choices), and `editor` (document modes).
+SegmentedControl supports `default` and `compact`. ToggleSwitch has one shared
+appearance. Their paint, typography, dimensions, focus and selected/disabled
+states all belong to `components/selection.css`; page classes only manage layout.
+Popup Tab navigation and modal focus scopes share `tabStops`: negative tabindex,
+disabled controls, hidden/undisplayed ancestors, closed details and inert regions
+are excluded. Within a modal, forward popup Tab wraps inside that scope.
+
+Application feedback belongs to `FeedbackProvider`, outside the AI state tree.
+`useFeedback` subscribes only to stable notify/confirm/dismiss commands;
+`useFeedbackState` subscribes to toast and confirmation state. FeedbackHost and
+non-AI features use these APIs directly. AI UI state contains only AI interaction
+state. Standalone AiProvider roots retain a compatibility feedback boundary, and
+the legacy full `useAi` hook combines the slices for existing controller clients.
+The app resets the feedback scope with the workspace/setup lifecycle so pending
+confirmations settle when the owning workspace is replaced.
 
 ## Standard form
 
@@ -192,8 +217,11 @@ stable input identity. Motion preference uses one OS subscription for all
 controls, released after the final consumer unmounts. Simple actions add no
 timers, subscriptions or wrapper DOM.
 
-The Electron visual runner compares 48 reviewed screenshots: two themes, two
-viewport widths and twelve component/composition scenarios. It checks geometry
+The Electron visual runner captures thirteen scenarios in two themes and two
+viewport widths. Linux arm64 retains its 48 reviewed pixel baselines; Windows x64
+has 52, including the added Tabs/SegmentedControl/ToggleSwitch scene. That scene
+still runs geometry checks on Linux; its additional pixel baselines currently
+target Windows only. Both platform jobs run in CI. It checks geometry
 and actual open overlays before comparing pixels, and records an input-update
 budget with 500 memoized unrelated actions. This measures controlled React
 updates and synchronous layout, not end-to-end typing or paint latency. Fonts, runtime, device scale and motion
@@ -212,6 +240,10 @@ baseline. A missing baseline or changed rendering runtime fails explicitly.
 Actual, expected, difference images and reports are written under
 `.tmp/ui-regression/`. Catalog/tests use synthetic content and temporary
 Electron userData; they never load a real OpenMind data repository or Provider.
+Comparison runs use offscreen rendering to avoid Windows occlusion pausing
+animation frames; the interactive preview still opens a visible window.
+`npm run visual:ui -- --capture-only` collects migration evidence without reading
+or updating baselines and explicitly reports that no pixel comparison occurred.
 
 For an intentional design or runtime change:
 

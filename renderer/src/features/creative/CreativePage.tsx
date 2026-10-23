@@ -1,3 +1,4 @@
+import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useLocale } from "../../i18n";
@@ -35,6 +36,7 @@ export function CreativeWorkspacePage({
 }) {
   const locale = useLocale();
   const ui = useAiUi();
+  const feedback = useFeedback();
   const actions = useAiActions();
   const responsiveLayout = useResponsiveLayout();
   const compactWorkspace = responsiveLayout.workspace === "single";
@@ -215,13 +217,13 @@ export function CreativeWorkspacePage({
         if (!isCurrentRevision()) return false;
         setDirty(false);
         setAutoSaveStatus(createVersion ? "idle" : "saved");
-        if (createVersion) ui.notify(m.creativeUi.workspace.savedWithVersion, "success");
+        if (createVersion) feedback.notify(m.creativeUi.workspace.savedWithVersion, "success");
         return true;
       } catch (cause) {
         if (isCurrentRevision()) {
           setAutoSaveStatus("failed");
           const message = cause instanceof Error ? cause.message : String(cause);
-          ui.notify(createVersion ? message : m.creativeUi.workspace.autoSaveFailed(message), "error");
+          feedback.notify(createVersion ? message : m.creativeUi.workspace.autoSaveFailed(message), "error");
         }
         return false;
       } finally {
@@ -237,7 +239,7 @@ export function CreativeWorkspacePage({
       if (pendingSavesRef.current.get(projectDir) === operation) pendingSavesRef.current.delete(projectDir);
     });
     return operation;
-  }, [ui.notify]);
+  }, [feedback.notify]);
 
   useEffect(() => {
     if (!workflowPolicy.autoSaveDraft || !detail || !activeFile || !dirty || stage === "published" || detail.truncatedFiles?.includes(activeFile)) return;
@@ -248,7 +250,7 @@ export function CreativeWorkspacePage({
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;
-    if (dirty && !await ui.confirm({ title: m.creativeUi.workspace.switchFile.title, body: m.creativeUi.workspace.switchFile.body, confirmText: m.creativeUi.workspace.switchFile.confirm, danger: true })) return;
+    if (dirty && !await feedback.confirm({ title: m.creativeUi.workspace.switchFile.title, body: m.creativeUi.workspace.switchFile.body, confirmText: m.creativeUi.workspace.switchFile.confirm, danger: true })) return;
     setActiveFile(file);
     setDraft(detail?.files?.[file] || "");
     setDirty(false);
@@ -285,9 +287,9 @@ export function CreativeWorkspacePage({
           await window.openmind.updateCreativeManifest(created.dir, { platforms: { [platform.id]: "draft" } });
         } catch { /* platform seed optional */ }
       }
-      ui.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
+      feedback.notify(reused ? m.creativeUi.workspace.reusedDraft : platform ? m.creativeUi.workspace.createdDraft(platform.label) : m.creativeUi.workspace.createdProject, reused ? "info" : "success");
     } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      feedback.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
       creatingProjectRef.current = false;
       setCreatingProjectKey(null);
@@ -301,20 +303,20 @@ export function CreativeWorkspacePage({
     if (dirty && !await persistDraft(true)) return;
     try {
       const moved = await window.openmind.advanceCreativeProject(detail.dir, nextStage);
-      ui.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");
+      feedback.notify(m.creativeUi.workspace.stageEntered(stageLabel(nextStage)), "success");
       await load();
       setStage(nextStage);
       setSelectedProject({ ...selectedProject, dir: moved.dir, stage: nextStage });
       setDetail(moved);
     } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      feedback.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
   };
 
   const exportDraft = async () => {
     if (!detail || !selectedProject) return;
     const publish = ((detail.manifest as Record<string, unknown> | undefined)?.publish as Record<string, unknown> | undefined) || {};
-    if (!publish.platform) { ui.notify(m.creativeUi.workspace.platformRequired, "error"); return; }
+    if (!publish.platform) { feedback.notify(m.creativeUi.workspace.platformRequired, "error"); return; }
     setExporting(true);
     try {
       const safeTopic = selectedProject.topic.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "draft";
@@ -322,10 +324,10 @@ export function CreativeWorkspacePage({
       const file = await window.openmind.exportText(`${normalizeDate(selectedProject.date || date)}-${safeTopic.slice(0, 80)}${platform ? `.${platform}` : ""}.md`, draft);
       const updated = await window.openmind.updateCreativeManifest(detail.dir, { publish: { status: "exported", exportedPath: file || null } });
       setDetail(updated);
-      ui.notify(file ? m.creativeUi.workspace.exportedTo(file) : m.creativeUi.workspace.exportCancelled, file ? "success" : "info");
+      feedback.notify(file ? m.creativeUi.workspace.exportedTo(file) : m.creativeUi.workspace.exportCancelled, file ? "success" : "info");
       await load();
     } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      feedback.notify(cause instanceof Error ? cause.message : String(cause), "error");
     } finally {
       setExporting(false);
     }
@@ -333,14 +335,14 @@ export function CreativeWorkspacePage({
 
   const copyProject = async () => {
     if (!detail) return;
-    try { await window.openmind.copyCreativeProject(detail.dir); ui.notify(m.creativeUi.workspace.copied, "success"); await load(); }
-    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    try { await window.openmind.copyCreativeProject(detail.dir); feedback.notify(m.creativeUi.workspace.copied, "success"); await load(); }
+    catch (cause) { feedback.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const archiveProject = async () => {
     if (!detail) return;
-    if (!await ui.confirm({ title: m.creativeUi.workspace.archive.title, body: m.creativeUi.workspace.archive.body, confirmText: m.creativeUi.workspace.archive.confirm, danger: true })) return;
-    try { await window.openmind.archiveCreativeProject(detail.dir); ui.notify(m.creativeUi.workspace.archive.success, "success"); setSelectedProject(null); setDetail(null); await load(); }
-    catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+    if (!await feedback.confirm({ title: m.creativeUi.workspace.archive.title, body: m.creativeUi.workspace.archive.body, confirmText: m.creativeUi.workspace.archive.confirm, danger: true })) return;
+    try { await window.openmind.archiveCreativeProject(detail.dir); feedback.notify(m.creativeUi.workspace.archive.success, "success"); setSelectedProject(null); setDetail(null); await load(); }
+    catch (cause) { feedback.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
 
   const addContext = () => {
@@ -355,7 +357,7 @@ export function CreativeWorkspacePage({
     if (!context) return;
     actions.addContext(context);
     ui.setPanelMode("wide");
-    ui.notify(m.creativeUi.editor.addedContextNotify, "success");
+    feedback.notify(m.creativeUi.editor.addedContextNotify, "success");
   };
 
   const insertAtCursor = (before: string, after = "", placeholder = "") => {
@@ -380,15 +382,15 @@ export function CreativeWorkspacePage({
       if (!files.length) return;
       const file = files[0];
       insertAtCursor("[", `](${file})`, file.split(/[\\/]/).at(-1) || file);
-      ui.notify(m.creativeUi.editor.localFileNotify, "success");
-    } catch (cause) { ui.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
+      feedback.notify(m.creativeUi.editor.localFileNotify, "success");
+    } catch (cause) { feedback.notify(cause instanceof Error ? cause.message : String(cause), "error"); }
   };
   const updateManifest = async (patch: Record<string, unknown>) => {
     if (!detail) return;
     try {
       setDetail(await window.openmind.updateCreativeManifest(detail.dir, { publish: patch }));
     } catch (cause) {
-      ui.notify(cause instanceof Error ? cause.message : String(cause), "error");
+      feedback.notify(cause instanceof Error ? cause.message : String(cause), "error");
     }
   };
   const creativeDetailMotionKey = selectedTopicFilePath
