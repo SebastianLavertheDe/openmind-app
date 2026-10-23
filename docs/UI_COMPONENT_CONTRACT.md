@@ -50,9 +50,28 @@ User-message text previews clamp to 20 rendered lines, with an overflow-only
 Show more / Show less action. Wrapping is remeasured after resizing; message
 actions always retain the complete original text. Very large messages defer
 DocumentReader until expansion and keep the collapsed preview bounded.
-The final reply owns its output footer: content first, existing media previews,
+Standalone articles, reports and other requested text deliverables default to
+`~~~~openmind-artifact` in the assistant text stream, even when the user does not
+name Markdown. The opening marker creates the live document; body deltas remain
+visible before the closing marker or run completion. Writing the whole article
+through a file tool and then returning a path is not the default text workflow.
+Explicit file edits, save paths and Word/PDF or file-only requests retain their
+file workflow. Only writable Project conversations automatically save complete
+final Markdown artifacts after successful completion; ordinary and read-only
+conversations retain the text in chat. File declarations never replace or buffer
+the article body, and intermediate text is not automatically saved as an output.
+The final reply owns its output footer: content first, explicitly declared files,
 edited files, then quote/branch/rerun/copy actions. Copying a reply uses only its
-text. Media cards use shared Button actions to open the file preview pane.
+text with readable deliverable links, without protocol markers. The final
+assistant reply selects files with a `~~~~openmind-deliverables` fence containing
+a JSON array of `{ "path": "outputs/result.pptx", "title": "Presentation" }`.
+Ordinary references, file changes and image-generation events never select final
+deliverables. Generated images remain in the process history unless the final
+reply explicitly selects them; a presentation/video does not automatically
+deliver its intermediate images or narration. Incomplete, failed and cancelled
+turns do not publish file declarations. Image deliverables reuse ChatImage and
+ImageViewer; media cards use shared Button actions to open the preview pane,
+and other files open through scoped file metadata and the existing desktop API.
 Local video and audio use native playback controls, read-only resources and
 scoped Main-process streaming with byte ranges; media bytes never enter chat
 events. Missing files do not produce cards, and project media retain project

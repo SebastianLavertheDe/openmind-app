@@ -1,4 +1,5 @@
 import { messages } from "./messages";
+import { FILE_DELIVERABLES_START_FENCE, fileDeliverableKey, fileDeliverablesText, parseFileDeliverables, type FileDeliverable } from "./file-deliverables";
 export const MARKDOWN_ARTIFACT_START_FENCE = "~~~~openmind-artifact";
 export const MARKDOWN_ARTIFACT_END_FENCE = "~~~~";
 
@@ -17,9 +18,17 @@ export type AssistantArtifactBlock = {
   status: "streaming" | "complete" | "incomplete";
 };
 
-export type AssistantContentBlock = AssistantTextBlock | AssistantArtifactBlock;
+export type AssistantFileDeliverablesBlock = {
+  type: "files";
+  key: string;
+  files: FileDeliverable[];
+  content: string;
+  status: AssistantArtifactBlock["status"];
+};
 
-export type ArtifactFenceParserState = "normal" | "normal-fenced-code" | "artifact";
+export type AssistantContentBlock = AssistantTextBlock | AssistantArtifactBlock | AssistantFileDeliverablesBlock;
+
+export type ArtifactFenceParserState = "normal" | "normal-fenced-code" | "artifact" | "files";
 
 type InternalTextBlock = { type: "text"; text: string };
 type InternalArtifactBlock = {
@@ -28,7 +37,8 @@ type InternalArtifactBlock = {
   title: string;
   status: AssistantArtifactBlock["status"];
 };
-type InternalBlock = InternalTextBlock | InternalArtifactBlock;
+type InternalFileBlock = { type: "files"; content: string; status: AssistantArtifactBlock["status"] };
+type InternalBlock = InternalTextBlock | InternalArtifactBlock | InternalFileBlock;
 type MarkdownFence = { character: "`" | "~"; length: number };
 
 /**
@@ -99,6 +109,12 @@ export class ArtifactFenceParser {
         return;
       }
 
+      if (block.type === "files") {
+        const files = block.status === "complete" ? parseFileDeliverables(block.content) : [];
+        result.push({ type: "files", key: `files:${this.keyPrefix}:${result.length}`, files, content: fileDeliverablesText(files), status: block.status });
+        return;
+      }
+
       const content = trimBoundaryLineBreaks(block.content);
       const extractedTitle = block.title;
       if (!extractedTitle) unnamedIndex += 1;
@@ -129,7 +145,7 @@ export class ArtifactFenceParser {
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     const eol = rawLine.endsWith("\r") ? `\r${newline}` : newline;
 
-    if (this.state === "artifact") {
+    if (this.state === "artifact" || this.state === "files") {
       if (line === MARKDOWN_ARTIFACT_END_FENCE) {
         const artifact = this.currentArtifact();
         if (artifact) artifact.status = "complete";
@@ -137,6 +153,12 @@ export class ArtifactFenceParser {
         return;
       }
       this.appendArtifact(`${rawLine}${newline}`, line);
+      return;
+    }
+
+    if (this.state === "normal" && line === FILE_DELIVERABLES_START_FENCE) {
+      this.internalBlocks.push({ type: "files", content: "", status: "streaming" });
+      this.state = "files";
       return;
     }
 
@@ -167,7 +189,7 @@ export class ArtifactFenceParser {
     this.pendingLine = "";
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
 
-    if (this.state === "artifact") {
+    if (this.state === "artifact" || this.state === "files") {
       if (line === MARKDOWN_ARTIFACT_END_FENCE) {
         const artifact = this.currentArtifact();
         if (artifact) artifact.status = "complete";
@@ -180,6 +202,11 @@ export class ArtifactFenceParser {
       return;
     }
 
+    if (this.state === "normal" && line === FILE_DELIVERABLES_START_FENCE) {
+      this.internalBlocks.push({ type: "files", content: "", status: "incomplete" });
+      this.state = "files";
+      return;
+    }
     if (this.state === "normal" && line === MARKDOWN_ARTIFACT_START_FENCE) {
       this.internalBlocks.push({ type: "artifact", content: "", title: "", status: "incomplete" });
       this.state = "artifact";
@@ -192,6 +219,9 @@ export class ArtifactFenceParser {
     const preview = this.internalBlocks.map((block) => ({ ...block }));
     if (!this.pendingLine || this.ended) return preview;
 
+    // File declarations stay hidden while streaming; only the completed final
+    // reply may publish them. Incomplete JSON never flashes into the message.
+    if (this.state === "files") return preview;
     if (this.state === "artifact") {
       if (!MARKDOWN_ARTIFACT_END_FENCE.startsWith(stripTrailingCarriageReturn(this.pendingLine))) {
         appendPreview(preview, "artifact", this.pendingLine);
@@ -201,7 +231,7 @@ export class ArtifactFenceParser {
       return preview;
     }
 
-    if (this.state === "normal" && MARKDOWN_ARTIFACT_START_FENCE.startsWith(stripTrailingCarriageReturn(this.pendingLine))) {
+    if (this.state === "normal" && [MARKDOWN_ARTIFACT_START_FENCE, FILE_DELIVERABLES_START_FENCE].some(fence => fence.startsWith(stripTrailingCarriageReturn(this.pendingLine)))) {
       return preview;
     }
     appendPreview(preview, "text", this.pendingLine);
@@ -219,12 +249,12 @@ export class ArtifactFenceParser {
     const artifact = this.currentArtifact();
     if (!artifact) return;
     artifact.content += content;
-    if (!artifact.title) artifact.title = artifactTitleFromLine(line);
+    if (artifact.type === "artifact" && !artifact.title) artifact.title = artifactTitleFromLine(line);
   }
 
-  private currentArtifact(): InternalArtifactBlock | undefined {
+  private currentArtifact(): InternalArtifactBlock | InternalFileBlock | undefined {
     const last = this.internalBlocks.at(-1);
-    return last?.type === "artifact" ? last : undefined;
+    return last?.type === "artifact" || last?.type === "files" ? last : undefined;
   }
 }
 
@@ -239,6 +269,11 @@ export function assistantBlocksVisibleText(blocks: readonly AssistantContentBloc
     .map((block) => block.type === "text" ? block.text : block.content)
     .filter(Boolean)
     .join("\n\n");
+}
+
+export function assistantFileDeliverables(blocks: readonly AssistantContentBlock[]): FileDeliverable[] {
+  const files = blocks.flatMap(block => block.type === "files" && block.status === "complete" ? block.files : []);
+  return [...new Map(files.map(file => [fileDeliverableKey(file.path), file])).values()].slice(0, 32);
 }
 
 export function containsAssistantArtifact(blocks: readonly AssistantContentBlock[]): boolean {

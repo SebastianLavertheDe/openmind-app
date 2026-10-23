@@ -23,6 +23,7 @@ describe("Codex-aligned rollout reconstruction", () => {
     const event = makeEvent(run, "image", "image-artifact", { image, itemId: "call" }, 1);
     const items = rolloutItemsForEvent(event);
     expect(items[0]).toMatchObject({ type: "response_item", payload: { name: "openmind_generate_image", content: expect.stringContaining(image.source) } });
+    expect(items[0]).toMatchObject({ payload: { content: expect.stringContaining('"finalDeliverable":false') } });
     expect(items[1]).toMatchObject({ type: "event_msg", payload: { event: { kind: "image-artifact", payload: { image } } } });
   });
   it("persists the managed provider id and revision without persisting its API key", () => {

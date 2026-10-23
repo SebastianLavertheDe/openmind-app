@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { ImageOff, LoaderCircle, Maximize2 } from "lucide-react";
 import type { ChatImageData, GeneratedImage } from "@shared/image-generation";
 import { IMAGE_PROVIDERS } from "@shared/image-generation";
-import { ImageViewer } from "../../design-system/components";
+import { AnimatedDisclosure, ImageViewer } from "../../design-system/components";
 import type { ImageThumbnailVariant } from "../../design-system/control-contract";
 
 type GalleryImage = { id: string; source: string; title: string; element?: HTMLElement | null };
@@ -97,14 +97,23 @@ export function ChatImage({ source, title = uiMessages.interface.image, variant 
   </span>;
 }
 
-export function GeneratedImages({ images }: { images: readonly GeneratedImage[] }) {
+export function GeneratedImages({ images, variant = "default" }: { images: readonly GeneratedImage[]; variant?: "default" | "tool" }) {
   useLocale();
-  return <div className="generated-images" aria-label={uiMessages.interface.generatedImage}>
+  return <div className={variant === "tool" ? "viewed-images-strip" : "generated-images"} aria-label={uiMessages.interface.generatedImage}>
     {images.map(image => <div className="generated-image" key={image.id}>
-      <ChatImage source={image.source} title={image.title} />
-      <span className="generated-image-caption">{IMAGE_PROVIDERS.find(provider => provider.id === image.provider)?.models.find(model => model.id === image.model)?.name || image.model}</span>
+      <ChatImage source={image.source} title={image.title} variant={variant} />
+      {variant === "default" ? <span className="generated-image-caption">{IMAGE_PROVIDERS.find(provider => provider.id === image.provider)?.models.find(model => model.id === image.model)?.name || image.model}</span> : null}
     </div>)}
   </div>;
+}
+
+export function GeneratedImageResources({ images }: { images: readonly GeneratedImage[] }) {
+  useLocale();
+  const [open, setOpen] = useState(false);
+  if (!images.length) return null;
+  return <AnimatedDisclosure variant="inline" open={open} onOpenChange={setOpen} summary={uiMessages.interface.generatedImageCount(images.length)}>
+    {open ? <GeneratedImages images={images} variant="tool" /> : null}
+  </AnimatedDisclosure>;
 }
 
 function ImageLightbox({ images, initialIndex, open, projectName, onClose }: {

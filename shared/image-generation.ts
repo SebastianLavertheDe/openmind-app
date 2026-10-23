@@ -96,4 +96,4 @@ export type ChatImageRequest = z.input<typeof ChatImageRequestSchema>;
 export type ChatImageData = { dataUrl: string; width: number; height: number };
 export const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 export const IMAGE_TOOL_NAME = "openmind_generate_image";
-export const IMAGE_TOOL_DESCRIPTION = "Generate or edit images using the image provider and model selected by the user in OpenMind. Use for requests to create pictures, illustrations, covers or edit an existing image. Images are saved and displayed directly in the conversation. Return a short description; do not repeat the generated images as Markdown. Never use shell commands or another image provider to bypass the user's selection.";
+export const IMAGE_TOOL_DESCRIPTION = "Generate or edit images using the image provider and model selected by the user in OpenMind. Use for pictures, illustrations, covers or image editing. Returns saved working resources, which may be intermediate assets for a presentation or video. Declare only the user's final deliverables using openmind-deliverables in the final reply. Never use shell commands or another image provider to bypass the user's selection.";

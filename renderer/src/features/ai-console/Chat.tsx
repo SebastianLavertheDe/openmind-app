@@ -4,7 +4,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { AlertTriangle, ArrowDown, Bot, BrainCircuit, ChevronRight, Clock3, FileText, FolderCode, LoaderCircle, ShieldAlert } from "lucide-react";
 import type { AiEvent, AiRun } from "@shared/contracts";
 import { GeneratedImageSchema, type GeneratedImage } from "@shared/image-generation";
-import { ChatImageGallery, GeneratedImages } from "./ChatImages";
+import { FILE_DELIVERABLES_START_FENCE, type FileDeliverable } from "@shared/file-deliverables";
+import { ChatImageGallery, GeneratedImageResources } from "./ChatImages";
 import { messages as m } from "@shared/messages";
 import { useAiEvents, useAiSnapshot, useAiStreaming } from "../../ai-context";
 import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
@@ -15,11 +16,10 @@ import { ApprovalDecisionEvent } from "./approval";
 import { ApprovalBanner } from "./approval-banner";
 import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
-import { MediaResults } from "./MediaResults";
-import { replyMediaCandidates } from "./reply-media";
+import { FileDeliverables } from "./FileDeliverables";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
 import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
-import { MARKDOWN_ARTIFACT_START_FENCE, assistantBlocksVisibleText, containsAssistantArtifact, parseAssistantContent } from "./artifact-fence";
+import { MARKDOWN_ARTIFACT_START_FENCE, assistantBlocksVisibleText, assistantFileDeliverables, containsAssistantArtifact, parseAssistantContent } from "./artifact-fence";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
 import { CommandGroup, ToolCallCard, hasViewedImageResult, toolIcon } from "./tool";
@@ -36,9 +36,8 @@ export { ToolCallCard } from "./tool";
 
 type TimelineViewItem = ReturnType<typeof groupTimeline>[number];
 type ChatViewItem = TimelineViewItem
-  | { type: "image-artifacts"; key: string; run: AiRun; images: GeneratedImage[] }
   | { type: "process"; key: string; run: AiRun; steps: TraceStep[]; completedAt: string | null; missingFinal: boolean }
-  | { type: "reply"; key: string; event: AiEvent; run: AiRun; mediaPaths: string[]; changes: { run: AiRun; events: AiEvent[] } | null };
+  | { type: "reply"; key: string; event: AiEvent; run: AiRun; files: FileDeliverable[]; images: GeneratedImage[]; changes: { run: AiRun; events: AiEvent[] } | null };
 type ToolStep = Extract<TraceStep, { type: "tool" }>;
 type ToolGroupItem = { type: "tool-group"; key: string; run: AiRun; steps: ToolStep[] };
 type ChatRenderItem = ChatViewItem | ToolGroupItem;
@@ -474,11 +473,9 @@ const TimelineItems = memo(function TimelineItems({
                 live={!leaving && item.run.id === activeRunId}
                 activeRunHasTool={activeRunHasTool}
               />
-            : item.type === "image-artifacts"
-              ? <GeneratedImages images={item.images} />
             : item.type === "reply"
               ? <AssistantMessage text={String(item.event.payload.text || "")} event={item.event}
-                  footer={<><MediaResults paths={item.mediaPaths} projectName={item.run.scope?.type === "project-task" ? item.run.scope.projectName : undefined} />
+                  footer={<><FileDeliverables declarations={item.files} images={item.images} projectName={item.run.scope?.type === "project-task" ? item.run.scope.projectName : undefined} />
                     {item.changes ? <ChangeReviewCard events={item.changes.events} run={item.changes.run} /> : null}</>} />
             : item.type === "tool-group"
               ? <ToolGroupView item={item} />
@@ -588,15 +585,11 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
     const prompts = conversation.filter((item) => item.event.kind === "user-message");
     const responses = conversation.filter((item) => item.event.kind === "assistant-message" && assistantPhase(item.event) === "final");
     const finalResponse = run.status === "completed" ? responses.at(-1) : undefined;
-    const images = conversation.flatMap(item => {
-      if (item.event.kind !== "image-artifact") return [];
-      const parsed = GeneratedImageSchema.safeParse(item.event.payload.image);
-      return parsed.success ? [parsed.data] : [];
-    });
     const missingFinal = run.status === "completed" && !finalResponse;
     const steps = runItems
       .filter((item): item is Extract<TimelineViewItem, { type: "step" }> => item.type === "step")
       .map((item) => item.step);
+    const images = steps.flatMap(step => step.type === "generated-images" ? generatedImages(step.events) : []);
     const changeEvents = steps
       .filter((step): step is Extract<TraceStep, { type: "changes" }> => step.type === "changes")
       .map((step) => step.event);
@@ -627,15 +620,14 @@ function foldProcessSteps(items: TimelineViewItem[], processRuns: Map<string, Ai
       completedAt,
       missingFinal
     });
-    if (images.length) result.push({ type: "image-artifacts", key: `image-artifacts:${run.id}`, run, images });
     if (finalResponse) {
       result.push({
         type: "reply",
         key: `event:${finalResponse.event.id}`,
         event: finalResponse.event,
         run,
-        mediaPaths: replyMediaCandidates(String(finalResponse.event.payload.text || ""), changePaths(run, artifactEvents))
-          .filter(path => !images.some(image => image.source.replaceAll("\\", "/") === path.replaceAll("\\", "/"))),
+        files: assistantFileDeliverables(parseAssistantContent(String(finalResponse.event.payload.text || ""))),
+        images,
         changes: artifactEvents.length || run.changeSet?.files.length ? { run, events: artifactEvents } : null
       });
     }
@@ -928,10 +920,9 @@ function processDuration(startedAt: string, completedAt?: string | null): string
 function ProcessNarrative({ text, streaming = false }: { text: string; streaming?: boolean }) {
   const locale = useLocale();
   const visibleText = useMemo(() => {
-    if (streaming || !text.includes(MARKDOWN_ARTIFACT_START_FENCE)) return text;
+    if (!text.includes(MARKDOWN_ARTIFACT_START_FENCE) && !text.includes(FILE_DELIVERABLES_START_FENCE)) return text;
     try {
       const blocks = parseAssistantContent(text, "process");
-      if (!containsAssistantArtifact(blocks)) return text;
       return assistantBlocksVisibleText(blocks.filter((block) => block.type === "text"));
     } catch {
       return text;
@@ -958,6 +949,7 @@ function commentaryText(events: AiEvent[]): string {
 
 function TraceStepView({ step, run, folded = false }: { step: TraceStep; run: AiRun; folded?: boolean }) {
   useLocale();
+  if (step.type === "generated-images") return <GeneratedImageResources images={generatedImages(step.events)} />;
   if (step.type === "commentary") {
     return <ProcessNarrative text={commentaryText(step.events)} />;
   }
@@ -1046,12 +1038,13 @@ function EventRow({ event }: { event: AiEvent }) {
   useLocale();
   if (event.kind === "image-artifact") {
     const image = GeneratedImageSchema.safeParse(event.payload.image);
-    return image.success ? <GeneratedImages images={[image.data]} /> : null;
+    return image.success ? <GeneratedImageResources images={[image.data]} /> : null;
   }
   if (event.kind === "user-message") return <UserMessage event={event} />;
   if (event.kind === "assistant-message") {
     if (assistantPhase(event) !== "final") return <ProcessNarrative text={String(event.payload.text || "")} />;
-    return <AssistantMessage text={String(event.payload.text || "")} event={event} />;
+    const text = String(event.payload.text || "");
+    return <AssistantMessage text={text} event={event} footer={<FileDeliverables declarations={assistantFileDeliverables(parseAssistantContent(text))} />} />;
   }
   if (event.kind === "assistant-delta") return <ProcessNarrative text={String(event.payload.text || event.payload.delta || "")} />;
   if (event.kind === "approval-request") return <ProcessSystemEvent event={event} />;
@@ -1067,4 +1060,11 @@ function EventRow({ event }: { event: AiEvent }) {
   if (event.kind === "tool-start" || event.kind === "tool-complete") return <ToolCallCard events={[event]} />;
   if (event.kind === "changes") return <SystemEvent icon={<FileText size={14} />} text={technicalEventText(event)} />;
   return null;
+}
+
+function generatedImages(events: AiEvent[]): GeneratedImage[] {
+  return events.flatMap(event => {
+    const image = GeneratedImageSchema.safeParse(event.payload.image);
+    return image.success ? [image.data] : [];
+  });
 }

@@ -14,6 +14,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "readContent", channel: IPC.APP_READ_CONTENT },
   { method: "readImagePreview", channel: IPC.APP_READ_IMAGE_PREVIEW },
   { method: "readMediaPreview", channel: IPC.APP_READ_MEDIA_PREVIEW },
+  { method: "readFileDeliverable", channel: IPC.APP_READ_FILE_DELIVERABLE },
   { method: "readChatImage", channel: IPC.APP_READ_CHAT_IMAGE },
   { method: "getImageConfiguration", channel: IPC.APP_IMAGE_CONFIGURATION },
   { method: "selectImageModel", channel: IPC.APP_IMAGE_MODEL_SELECT },

@@ -15,7 +15,7 @@ import { skillDiscoveryInstructions } from "../skill-discovery";
 import { buildProviderSkillContext } from "./skill-bridge";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
 import { resolveCliProvider } from "../../config/providers-yaml";
-import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileDeliverableInstructions, fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 import { executeImageTool, imageToolDefinition, imageToolInstructions } from "../image-tool";
 import { IMAGE_TOOL_NAME } from "../../../shared/image-generation";
@@ -83,6 +83,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         projectInstructions,
         fileReferenceInstructions(),
         markdownArtifactInstructions(),
+        fileDeliverableInstructions(),
         imageToolInstructions,
         discoveryInstructions
       ].filter(Boolean).join("\n\n");

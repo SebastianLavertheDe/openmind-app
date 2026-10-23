@@ -54,7 +54,12 @@ describe("provider contracts", () => {
 
     const parse = (chunks: string[]) => {
       const parser = new ArtifactFenceParser("provider");
-      for (const chunk of chunks) parser.push(chunk);
+      for (const [index, chunk] of chunks.entries()) {
+        parser.push(chunk);
+        if (index === 2) expect(parser.blocks()).toContainEqual(expect.objectContaining({
+          type: "artifact", content: "# Provider artifact\nbody", status: "streaming"
+        }));
+      }
       return parser.finish().map(({ key: _key, ...block }: AssistantContentBlock) => block);
     };
     expect(parse(codexText)).toEqual(parse(claudeText));

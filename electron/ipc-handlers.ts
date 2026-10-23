@@ -40,6 +40,8 @@ import { normalizeOpenmindSelection } from "./openmind-file-search";
 import * as settings from "./lib/settings";
 import { readImagePreview } from "./lib/image-preview";
 import { readMediaPreview } from "./lib/media-preview";
+import { readFileDeliverable } from "./lib/file-deliverables";
+import type { FileDeliverableRequest } from "../shared/file-deliverables";
 import type { MediaPreviewRequest } from "../shared/media-preview";
 import { readChatImage } from "./images/chat-image";
 import { resolveChatAttachment } from "./ai/scheduler-images";
@@ -264,6 +266,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.readContent, handler: (filePath) => product().readContent(parseString(filePath)) },
     { channel: C.readImagePreview, handler: (filePath) => readImagePreview(parseString(filePath)) },
     { channel: C.readMediaPreview, handler: (input) => readMediaPreview(input as MediaPreviewRequest, value => resolveMediaPreviewFile(value, projects)) },
+    { channel: C.readFileDeliverable, handler: (input) => readFileDeliverable(input as FileDeliverableRequest, value => resolveMediaPreviewFile(value, projects)) },
     { channel: C.readChatImage, handler: (input) => readChatImage(ChatImageRequestSchema.parse(input), (source, projectName) => {
       const stateRoot = ctx.resolveAiStateRoot?.();
       const attachment = stateRoot ? resolveChatAttachment(source, stateRoot) : null;

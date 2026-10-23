@@ -488,6 +488,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(requests.find((r) => r.method === "initialize")).toBeDefined();
     expect(requests.find((r) => r.method === "thread/start")).toBeDefined();
     expect(requests.find((r) => r.method === "thread/start").params.dynamicTools).toEqual([expect.objectContaining({ type: "function", name: "openmind_generate_image", inputSchema: expect.objectContaining({ type: "object" }) })]);
+    expect(requests.find((r) => r.method === "thread/start").params.developerInstructions).toContain("~~~~openmind-deliverables");
     expect(requests.find((r) => r.method === "turn/start")).toBeDefined();
   });
 
@@ -1000,6 +1001,8 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(threadReq.params.developerInstructions).toContain("项目“AI安全”");
     expect(threadReq.params.developerInstructions).toContain("不可信参考数据");
     expect(threadReq.params.developerInstructions).toContain("~~~~openmind-artifact");
+    expect(threadReq.params.developerInstructions).toContain("正文随助手文本流持续输出");
+    expect(threadReq.params.developerInstructions).toContain("不要先写完整文件再读取、复述或分段回放");
     expect(threadReq.params.developerInstructions).toContain("普通问答、解释、分析、建议列表");
     expect(turnReq.params.cwd).toBe("/openmind/projects/AI安全");
     expect(turnReq.params.sandboxPolicy).toEqual({ type: "readOnly" });

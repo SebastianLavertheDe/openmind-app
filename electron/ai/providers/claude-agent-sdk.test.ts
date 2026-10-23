@@ -533,6 +533,7 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     const tool = call.options.mcpServers.openmind_images.configuration.tools[0];
     expect((await tool.handler({ prompt: "leaf" })).isError).toBe(true);
     expect(call.options.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT).toBe("660000");
+    expect((sdkMock.query.mock.calls[0][0] as { options: { systemPrompt: { append: string } } }).options.systemPrompt.append).toContain("~~~~openmind-deliverables");
     expect(decideClaudePermission({ ...ctx, session: { ...ctx.session, permissionProfile: "read-only" } }, "mcp__openmind_images__openmind_generate_image", { prompt: "leaf" }).behavior).toBe("deny");
     expect(decideClaudePermission({ ...ctx, session: { ...ctx.session, interactionMode: "plan" } }, "mcp__openmind_images__openmind_generate_image", { prompt: "leaf" }).behavior).toBe("deny");
   });
@@ -1174,6 +1175,8 @@ describe("ClaudeAgentSdkAdapter.run()", () => {
     expect(call.options.systemPrompt.append).toContain("不可信参考数据");
     expect(call.options.systemPrompt.append).toContain("<openmind_file_references>");
     expect(call.options.systemPrompt.append).toContain("~~~~openmind-artifact");
+    expect(call.options.systemPrompt.append).toContain("正文随助手文本流持续输出");
+    expect(call.options.systemPrompt.append).toContain("不要先写完整文件再读取、复述或分段回放");
     expect(call.options.systemPrompt.append).toContain("普通问答、解释、分析、建议列表");
     expect(call.options.systemPrompt.excludeDynamicSections).toBe(true);
     expect(call.options.settingSources).toEqual([]);

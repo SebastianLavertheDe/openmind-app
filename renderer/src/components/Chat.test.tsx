@@ -8,7 +8,15 @@ import { buildTraceSteps, Chat, compactEvents, groupTimeline, selectRenderableTi
 import { ChatComposer } from "../features/ai-console/composer";
 import { FilePreviewProvider } from "../features/ai-console/file-preview-context";
 import { CommandGroup } from "../features/ai-console/tool";
-import { localMediaUrl } from "@shared/media-preview";
+import { FILE_DELIVERABLES_START_FENCE } from "@shared/file-deliverables";
+import type { GeneratedImage } from "@shared/image-generation";
+
+const declareFiles = (...paths: string[]) => `${FILE_DELIVERABLES_START_FENCE}\n${JSON.stringify(paths.map(path => ({ path })))}\n~~~~`;
+const generatedImage = (index: number): GeneratedImage => ({
+  id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+  source: `openmind/assets/generated-images/session/asset-${index}.png`, title: `素材 ${index}`,
+  provider: "openai", model: "fixture", mediaType: "image/png", createdAt: "2026-01-01T00:00:00Z", batchId: "generate", index
+});
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -803,18 +811,25 @@ describe("chat timeline", () => {
       "开场\n~~",
       "~~openmind-art",
       "ifact\n# 流式标题",
-      "\n\n正在生成正文",
-      "\n~~~~\n结束语"
+      "\n\n正在生成正文"
     ].entries()) {
       aiListener?.({ kind: "transient", event: makeEvent(`artifact-${index}`, "assistant-delta", { text }, index + 2) });
     }
 
     const liveCard = await screen.findByLabelText("产物 · Markdown：流式标题");
     expect(within(liveCard).getByText("正在生成正文")).toBeTruthy();
+    expect(within(liveCard).queryByText("已完成")).toBeNull();
+    aiListener?.({ kind: "transient", event: makeEvent("article-next", "assistant-delta", { text: "\n\n第二段正文" }, 6) });
+    expect(await within(liveCard).findByText("第二段正文")).toBeTruthy();
+    expect(screen.getByLabelText("产物 · Markdown：流式标题")).toBe(liveCard);
+    expect(within(liveCard).queryByText("已完成")).toBeNull();
     expect(container.textContent).not.toContain("~~~~openmind-artifact");
     expect(container.querySelectorAll(".assistant-message")).toHaveLength(1);
     const process = screen.getByText("正在处理").closest(".completed-process")!;
     expect(process.textContent).not.toContain("流式标题");
+
+    aiListener?.({ kind: "transient", event: makeEvent("article-end", "assistant-delta", { text: "\n~~~~\n结束语" }, 7) });
+    expect(await within(liveCard).findByText("已完成")).toBeTruthy();
 
     const finalText = "最终开场\n~~~~openmind-artifact\n# 最终标题\n\n最终正文\n~~~~\n最终结束";
     aiListener?.({ kind: "event", event: makeEvent("answer", "assistant-message", { text: finalText, phase: "final" }, 9) });
@@ -828,6 +843,35 @@ describe("chat timeline", () => {
     expect(container.textContent).not.toContain("~~~~openmind-artifact");
     fireEvent.click(within(container.querySelector<HTMLElement>(".assistant-message")!).getByRole("button", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("最终开场\n\n# 最终标题\n\n最终正文\n\n最终结束"));
+  });
+
+  it("streams article paragraphs while declared files wait for the final reply", async () => {
+    const run = makeRun();
+    window.openmind.aiGetEvents = async () => [makeEvent("user", "user-message", { text: "写一篇文章并附上 PDF" })];
+    const readFile = vi.fn(async () => ({ id: "article-pdf", path: "outputs/article.pdf", name: "article.pdf", kind: "file" as const, byteSize: 1024 }));
+    window.openmind.readFileDeliverable = readFile;
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "running")}><Chat /></AiProvider>);
+    await screen.findByText("写一篇文章并附上 PDF");
+
+    const first = `${declareFiles("outputs/article.pdf")}\n~~~~openmind-artifact\n# 文章标题\n\n第一段正文`;
+    aiListener?.({ kind: "transient", event: makeEvent("article-first", "assistant-delta", { text: first }, 2) });
+    const article = await screen.findByLabelText("产物 · Markdown：文章标题");
+    expect(within(article).getByText("第一段正文")).toBeTruthy();
+    expect(container.querySelector(".reply-media-results")).toBeNull();
+    expect(readFile).not.toHaveBeenCalled();
+
+    aiListener?.({ kind: "transient", event: makeEvent("article-next", "assistant-delta", { text: "\n\n第二段正文" }, 3) });
+    expect(await within(article).findByText("第二段正文")).toBeTruthy();
+    expect(within(article).queryByText("已完成")).toBeNull();
+    expect(container.textContent).not.toContain("openmind-deliverables");
+
+    const ending = "\n~~~~";
+    aiListener?.({ kind: "transient", event: makeEvent("article-end", "assistant-delta", { text: ending }, 4) });
+    aiListener?.({ kind: "event", event: makeEvent("article-final", "assistant-message", { text: first + "\n\n第二段正文" + ending, phase: "final" }, 5) });
+    aiListener?.({ kind: "snapshot", snapshot: snapshotForRun({ ...run, status: "completed", completedAt: "2026-01-01T00:00:10.000Z" }, "idle") });
+    await waitFor(() => expect(container.querySelector(".reply-media-results")?.textContent).toContain("article.pdf"));
+    expect(container.querySelectorAll(".assistant-artifact")).toHaveLength(1);
+    expect(within(screen.getByLabelText("产物 · Markdown：文章标题")).getByText("第二段正文")).toBeTruthy();
   });
 
   it("keeps an interrupted live artifact visible as incomplete after failure", async () => {
@@ -1387,9 +1431,9 @@ describe("chat timeline", () => {
 
   it("attaches existing media to the completed reply before files and actions", async () => {
     const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z", changeSet: makeChangeSet() };
-    const read = vi.fn(async ({ path }: { path: string }) => ({ id: path, path, name: "final.mp4", kind: "video" as const, mimeType: "video/mp4", byteSize: 100, mediaUrl: localMediaUrl({ path }) }));
-    window.openmind.readMediaPreview = read;
-    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "生成视频" }, 1), makeEvent("a", "assistant-message", { text: "视频已完成： [final.mp4](<outputs/final.mp4>)", phase: "final" }, 2)];
+    const read = vi.fn(async ({ path }: { path: string }) => ({ id: path, path, name: "final.mp4", kind: "video" as const, byteSize: 100 }));
+    window.openmind.readFileDeliverable = read;
+    window.openmind.aiGetEvents = async () => [makeEvent("u", "user-message", { text: "生成视频" }, 1), makeEvent("a", "assistant-message", { text: `视频已完成。\n${declareFiles("outputs/final.mp4")}`, phase: "final" }, 2)];
     const open = vi.fn();
     render(<AiProvider initial={snapshotForRun(run, "idle")}><FilePreviewProvider open={open}><Chat /></FilePreviewProvider></AiProvider>);
     const preview = await screen.findByRole("button", { name: "预览 final.mp4" });
@@ -1400,6 +1444,80 @@ describe("chat timeline", () => {
     expect(Boolean(changes.compareDocumentPosition(reply.querySelector(".message-meta")!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     fireEvent.click(preview); expect(open).toHaveBeenCalledWith("outputs/final.mp4", undefined);
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["deck.pptx", "file"], ["movie.mp4", "video"]] as const)("keeps intermediate images and narration in the process when the deliverable is %s", async (name, kind) => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z" };
+    const images = Array.from({ length: 10 }, (_, index) => generatedImage(index));
+    const read = vi.fn(async ({ path }: { path: string }) => ({ id: path, path, name, kind, byteSize: 100 }));
+    window.openmind.readFileDeliverable = read;
+    window.openmind.readChatImage = vi.fn(async () => ({ dataUrl: "data:image/png;base64,cGl4ZWw=", width: 1, height: 1 }));
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("u", "user-message", { text: "制作最终交付文件" }, 1),
+      ...images.map((image, index) => makeEvent(`image-${index}`, "image-artifact", { image }, index + 2)),
+      makeEvent("changes", "changes", { files: [...images.map(image => image.source), "assets/narration.wav", `outputs/${name}`] }, 20),
+      makeEvent("a", "assistant-message", { text: `采用了 [参考图](<assets/input.png>)。\n${declareFiles(`outputs/${name}`)}`, phase: "final" }, 21)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+    await screen.findByText(name);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledWith({ path: `outputs/${name}` });
+    expect(container.querySelectorAll(".reply-media-results article")).toHaveLength(1);
+    expect(container.querySelector(".generated-images")).toBeNull();
+    openDisclosure(container.querySelector<HTMLElement>(".completed-process")!);
+    fireEvent.click(screen.getByRole("button", { name: "生成的图片（10）" }));
+    await screen.findByAltText("素材 0");
+    expect(container.querySelectorAll(".completed-process .generated-image")).toHaveLength(10);
+    expect(container.querySelectorAll(".assistant-message .generated-image")).toHaveLength(0);
+  });
+
+  it("delivers the explicitly selected image and video together without promoting other generated resources", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z" };
+    const image = generatedImage(0);
+    window.openmind.readChatImage = vi.fn(async () => ({ dataUrl: "data:image/png;base64,cGl4ZWw=", width: 1, height: 1 }));
+    window.openmind.readFileDeliverable = vi.fn(async ({ path }) => ({ id: path, path, name: "movie.mp4", kind: "video" as const, byteSize: 100 }));
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("u", "user-message", { text: "生成1张图和1个视频" }, 1),
+      makeEvent("image-0", "image-artifact", { image }, 2),
+      makeEvent("image-1", "image-artifact", { image: generatedImage(1) }, 3),
+      makeEvent("a", "assistant-message", { text: `完成。\n${declareFiles(image.source, "outputs/movie.mp4")}`, phase: "final" }, 4)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+    await screen.findByAltText("素材 0");
+    expect(screen.queryByAltText("素材 1")).toBeNull();
+    expect(container.querySelectorAll(".reply-media-results article")).toHaveLength(2);
+    expect(window.openmind.readFileDeliverable).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".assistant-message")?.textContent).not.toContain("openmind-deliverables");
+  });
+
+  it.each(["running", "failed", "cancelled"] as const)("does not publish a file declaration from a %s run", async status => {
+    const run = { ...makeRun(), status };
+    const read = vi.fn();
+    window.openmind.readFileDeliverable = read;
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("u", "user-message", { text: "生成视频" }, 1),
+      makeEvent("a", "assistant-message", { text: `尚在处理。\n${declareFiles("outputs/movie.mp4")}`, phase: "final" }, 2)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, status === "running" ? "running" : "idle")}><Chat /></AiProvider>);
+    await screen.findByText("生成视频");
+    expect(container.querySelector(".reply-media-results")).toBeNull();
+    expect(container.textContent).not.toContain('"path"');
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("does not turn ordinary final links or a tool's quoted declaration into deliverables", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z" };
+    const read = vi.fn();
+    window.openmind.readFileDeliverable = read;
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("u", "user-message", { text: "解释素材用途" }, 1),
+      makeEvent("t", "tool-output", { tool: "read", text: declareFiles("assets/input.png") }, 2),
+      makeEvent("a", "assistant-message", { text: "[素材](<assets/input.png>) 是输入图。", phase: "final" }, 3)
+    ];
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+    await screen.findByRole("link", { name: "素材" });
+    expect(container.querySelector(".reply-media-results")).toBeNull();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("keeps each edited-files footer with its own reply and copies only the reply text", async () => {

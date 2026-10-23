@@ -50,9 +50,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(137);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(137);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(137);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(138);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(138);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(138);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -127,15 +127,21 @@ describe("ipc handlers", () => {
       const project = paths.createProjectRoot("Media");
       fs.mkdirSync(path.join(project.rootPath, "outputs"));
       fs.writeFileSync(path.join(project.rootPath, "outputs", "final.mp4"), "fixture");
+      fs.writeFileSync(path.join(project.rootPath, "outputs", "deck.pptx"), "fixture");
       const ctx = makeCtx({ ensureProjectService: () => ({ paths }) as never });
       expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.readMediaPreview, { projectName: "Media", path: "outputs/final.mp4" }))
         .toMatchObject({ path: "outputs/final.mp4", name: "final.mp4", kind: "video", byteSize: 7 });
+      expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.readFileDeliverable, { projectName: "Media", path: "outputs/deck.pptx" }))
+        .toMatchObject({ path: "outputs/deck.pptx", name: "deck.pptx", kind: "file", byteSize: 7 });
       for (const input of [
         { projectName: "Media", path: "../Other/outputs/final.mp4" },
         { projectName: "Media", path: "tasks/final.mp4" },
         { projectName: "Media", path: "outputs/final.mp4", root: directory },
         { projectName: "Media", path: path.join(project.rootPath, "outputs", "final.mp4") }
-      ]) expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.readMediaPreview, input)).toThrow();
+      ]) {
+        expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.readMediaPreview, input)).toThrow();
+        expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.readFileDeliverable, input)).toThrow();
+      }
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
   });
   it("returns browser detection through typed IPC without exposing extra host data", async () => {

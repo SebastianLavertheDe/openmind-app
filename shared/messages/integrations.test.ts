@@ -181,7 +181,7 @@ describe("shared UI localization integrations", () => {
     setLocale("zh-CN");
     const chinese = parser.blocks();
     expect(chinese.map(block => block.type === "artifact" ? block.title : "")).toEqual(["未命名产物 1", "未命名产物 2"]);
-    expect(chinese.map(block => block.type === "artifact" ? block.content : block.text)).toEqual(["First body", "Second body"]);
+    expect(chinese.map(block => block.type === "text" ? block.text : block.content)).toEqual(["First body", "Second body"]);
   });
 
   it("uses the selected language when creating default rules and keeps parsed snapshots stable", () => {

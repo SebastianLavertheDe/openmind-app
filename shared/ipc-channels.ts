@@ -11,6 +11,7 @@ export const IPC = {
   APP_READ_CONTENT: "app:read-content",
   APP_READ_IMAGE_PREVIEW: "app:read-image-preview",
   APP_READ_MEDIA_PREVIEW: "app:read-media-preview",
+  APP_READ_FILE_DELIVERABLE: "app:read-file-deliverable",
   APP_READ_CHAT_IMAGE: "app:read-chat-image",
   APP_IMAGE_CONFIGURATION: "app:image-configuration",
   APP_IMAGE_MODEL_SELECT: "app:image-model-select",

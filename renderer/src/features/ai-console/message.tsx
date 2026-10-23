@@ -165,6 +165,7 @@ export function AssistantContent({
     <div className="assistant-content">
       {blocks.map((block) => block.type === "text"
         ? <ChatMarkdown key={block.key} text={block.text} streaming={streaming && block === lastBlock} />
+        : block.type === "files" ? null
         : (
           <ArtifactMessageBlock key={block.key} block={block}>
             <ChatMarkdown text={block.content} streaming={block.status === "streaming"} />

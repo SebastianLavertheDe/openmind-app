@@ -236,10 +236,15 @@ describe("RunScheduler Project Task scope", () => {
     internals.registry.detect = () => [claudeProvider];
     internals.adapters.claude = {
       run: async (context) => {
+        const projects = new ProjectService(fixture.contentRoot, { stateRoot: fixture.stateRoot });
+        await context.emit("assistant-delta", { text: "~~~~openmind-artifact\n# 同名文章\n\n第一篇正文" });
+        expect(projects.listProjectOutputs(fixture.project.name)).toEqual([]);
         await context.emit("assistant-message", { text: "~~~~openmind-artifact\n# 过程说明\n不要保存\n~~~~", phase: "commentary" });
+        expect(projects.listProjectOutputs(fixture.project.name)).toEqual([]);
         await context.emit("assistant-message", {
           text: "开场说明\n~~~~openmind-artifact\n# 同名文章\n\n第一篇正文\n~~~~\n~~~~openmind-artifact\n# 同名文章\n\n第二篇正文\n~~~~\n~~~~openmind-artifact\n# 未完成\n未完整正文", phase: "final"
         });
+        expect(projects.listProjectOutputs(fixture.project.name)).toEqual([]);
       }
     };
     const { run, session } = fixture.scheduler.startProjectRun({

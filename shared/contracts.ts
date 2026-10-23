@@ -1202,6 +1202,7 @@ export interface DesktopApi {
   readContent(path: string): Promise<ContentRecord>;
   readImagePreview(path: string): Promise<import("./image-preview").ImagePreviewRecord>;
   readMediaPreview(input: import("./media-preview").MediaPreviewRequest): Promise<import("./media-preview").MediaPreviewRecord>;
+  readFileDeliverable(input: import("./file-deliverables").FileDeliverableRequest): Promise<import("./file-deliverables").FileDeliverableRecord>;
   readChatImage(input: import("./image-generation").ChatImageRequest): Promise<import("./image-generation").ChatImageData>;
   getImageConfiguration(): Promise<import("./image-generation").ImageConfiguration>;
   selectImageModel(selection: import("./image-generation").ImageSelection | null): Promise<import("./image-generation").ImageConfiguration>;

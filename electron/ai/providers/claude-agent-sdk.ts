@@ -14,7 +14,7 @@ import { executeImageTool, imageToolInstructions } from "../image-tool";
 import { skillDiscoveryInstructions } from "../skill-discovery";
 import { providerConfigurationRevision, resolveCliProvider } from "../../config/providers-yaml";
 import { resolveAppToolExecutable } from "../../install/cli-installer-service";
-import { fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
+import { fileDeliverableInstructions, fileReferenceInstructions, markdownArtifactInstructions, openmindFilesystemInstructions, projectSessionInstructions } from "../scheduler-prompts";
 import { resolvePathInsideRoot } from "../scheduler-paths";
 import { buildProviderSkillContext } from "./skill-bridge";
 
@@ -573,6 +573,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
       context.projectInstructions,
       fileReferenceInstructions(),
       markdownArtifactInstructions(),
+      fileDeliverableInstructions(),
       imageToolInstructions,
       discoveryInstructions,
       skillInstructions

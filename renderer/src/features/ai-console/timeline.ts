@@ -9,6 +9,7 @@ const statusMsg = m.ai.status;
 const toolMsg = m.ai.tool;
 
 export type TraceStep =
+  | { type: "generated-images"; key: string; events: AiEvent[] }
   | { type: "commentary"; key: string; events: AiEvent[] }
   | { type: "reasoning"; key: string; events: AiEvent[] }
   | { type: "work"; key: string; planEvents: AiEvent[]; todoEvents: AiEvent[] }
@@ -219,6 +220,13 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
       previousWasReasoning = false;
       continue;
     }
+    if (event.kind === "image-artifact") {
+      const previous = steps.at(-1);
+      if (previous?.type === "generated-images") previous.events.push(event);
+      else steps.push({ type: "generated-images", key: `generated-images:${event.id}`, events: [event] });
+      previousWasReasoning = false;
+      continue;
+    }
     if (event.kind === "reasoning-summary") {
       const previous = steps.at(-1);
       if (previousWasReasoning && previous?.type === "reasoning") {
@@ -298,7 +306,7 @@ export function buildTraceSteps(events: AiEvent[]): { steps: TraceStep[]; techni
 }
 
 function isConversationEvent(event: AiEvent): boolean {
-  return event.kind === "image-artifact" || event.kind === "user-message" || (event.kind === "assistant-message" && assistantPhase(event) === "final");
+  return event.kind === "user-message" || (event.kind === "assistant-message" && assistantPhase(event) === "final");
 }
 
 function isProcessCommentaryEvent(event: AiEvent): boolean {
