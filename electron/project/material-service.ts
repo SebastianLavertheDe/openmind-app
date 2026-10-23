@@ -169,8 +169,6 @@ export class ProjectMaterialService {
 
   async addUrl(projectName: string, url: string): Promise<ProjectMaterial> {
     const source: ProjectMaterialConversionSource = { type: "url", url };
-    const existing = this.readIndex(projectName).find((item) => item.source.type === "url" && item.source.url === url);
-    if (existing) return existing;
     return this.convertNew(projectName, source);
   }
 

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -560,7 +561,7 @@ describe("Project file selection", () => {
     expect(screen.queryByRole("heading", { name: "First material" })).toBeNull();
   });
 
-  it("does not repeatedly read an already selected YouTube material", async () => {
+  it.each([false, true])("does not repeatedly read an already selected YouTube material (StrictMode: %s)", async strict => {
     const videoMaterial = {
       projectName: project.name,
       relativePath: "materials/videos/Uny6Lpmjral.video.md",
@@ -586,7 +587,7 @@ describe("Project file selection", () => {
     const detailHost = document.createElement("div");
     document.body.append(listHost, detailHost);
 
-    const view = renderWithAi(
+    const files = (
       <ProjectFilesPanel
         project={project}
         initialSection="materials"
@@ -599,9 +600,12 @@ describe("Project file selection", () => {
         detailHost={detailHost}
       />
     );
+    const view = strict
+      ? render(<StrictMode><AiProvider initial={snapshot}>{files}<FeedbackHost /></AiProvider></StrictMode>)
+      : renderWithAi(files);
 
     expect(await within(detailHost).findByText("当前链接无法安全内嵌播放")).toBeTruthy();
-    await waitFor(() => expect(readProjectMaterial).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readProjectMaterial).toHaveBeenCalledTimes(strict ? 2 : 1));
 
     view.unmount();
     listHost.remove();
@@ -856,7 +860,7 @@ describe("Project material creation", () => {
     await waitFor(() => expect(addProjectUrl).toHaveBeenCalledWith({ projectName: project.name, url: "https://example.com" }));
   });
 
-  it("adds every pasted link separated by spaces or new lines", async () => {
+  it.each([false, true])("adds every pasted link separated by spaces or new lines (duplicates: %s)", async repeated => {
     const linkedMaterial = {
       projectName: project.name,
       relativePath: "materials/example.md",
@@ -874,11 +878,14 @@ describe("Project material creation", () => {
 
     fireEvent.change(
       await screen.findByRole("textbox", { name: "资料 URL" }),
-      { target: { value: "https://example.com/a https://youtu.be/xyz\nhttps://example.com/b 不是链接" } }
+      { target: { value: repeated
+        ? "https://example.com/a https://youtu.be/xyz\nhttps://youtu.be/xyz 不是链接"
+        : "https://example.com/a https://youtu.be/xyz\nhttps://example.com/b 不是链接" } }
     );
     expect(screen.getByText("3/50")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "添加链接" }));
     await waitFor(() => expect(addProjectUrl).toHaveBeenCalledTimes(3));
     expect(addProjectUrl).toHaveBeenCalledWith({ projectName: project.name, url: "https://youtu.be/xyz" });
+    expect(addProjectUrl).toHaveBeenNthCalledWith(3, { projectName: project.name, url: repeated ? "https://youtu.be/xyz" : "https://example.com/b" });
   });
 });

@@ -36,6 +36,36 @@ function fixture() {
 const url = "https://youtu.be/dQw4w9WgXcQ";
 
 describe("YouTube material lifecycle with synthetic downloads", () => {
+  it.each(["sequential", "concurrent"])("imports a repeated URL as independent videos (%s)", async mode => {
+    const { service, download } = fixture();
+    const [first, second] = mode === "concurrent"
+      ? await Promise.all([service.addProjectUrl("Videos", url), service.addProjectUrl("Videos", url)])
+      : [await service.addProjectUrl("Videos", url), await service.addProjectUrl("Videos", url)];
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(service.getProject("Videos").project.materialCount).toBe(2);
+    expect(second.relativePath).not.toBe(first.relativePath);
+    expect(second.originalRelativePath).not.toBe(first.originalRelativePath);
+    const firstOriginal = service.materials.resolveVideoFile("Videos", first.relativePath);
+    const secondOriginal = service.materials.resolveVideoFile("Videos", second.relativePath);
+    service.removeProjectMaterial("Videos", second.relativePath);
+    expect(fs.existsSync(secondOriginal)).toBe(false);
+    expect(fs.readFileSync(firstOriginal, "utf8")).toBe("synthetic-dQw4w9WgXcQ");
+    expect(service.readProjectMaterial("Videos", first.relativePath).content).toContain("A complete sentence.");
+  });
+
+  it("imports a repeated URL again after a failed download, retaining the old failure", async () => {
+    const { service, download } = fixture();
+    download.mockRejectedValueOnce(new Error("Fixture offline"));
+    await expect(service.addProjectUrl("Videos", url)).rejects.toThrow("Fixture offline");
+    const [failed] = service.listProjectMaterials("Videos");
+    const added = await service.addProjectUrl("Videos", url);
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(added.status).toBe("ready");
+    expect(added.relativePath).not.toBe(failed.relativePath);
+    expect(service.listProjectMaterials("Videos")).toEqual(expect.arrayContaining([failed, added]));
+    expect(service.getProject("Videos").project.materialCount).toBe(2);
+  });
+
   it("adopts the video, persists stitched captions and streams the indexed original after restart, rename and move", async () => {
     const { service, cleanup, temporary, contentRoot, options } = fixture();
     const material = await service.addProjectUrl("Videos", url);

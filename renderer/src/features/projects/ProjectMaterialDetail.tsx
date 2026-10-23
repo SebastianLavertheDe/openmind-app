@@ -50,6 +50,12 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
   const preview = useFilePreviewController();
   previewResourceRef.current = preview.resource;
 
+  useEffect(() => () => {
+    // The preview controller cancels pending loads during StrictMode cleanup.
+    // Allow the replayed mount to start a fresh load for the same selection.
+    selectedPathRef.current = "";
+  }, []);
+
   const openMaterial = useCallback(async (relativePath: string) => {
     if (relativePath === selectedPathRef.current && selectedRef.current?.status === "ready" && previewResourceRef.current) return;
     selectedPathRef.current = relativePath;
@@ -313,18 +319,14 @@ function materialStatusLabel(status: ProjectMaterial["status"]): string {
 
 const MAX_MATERIAL_LINKS = 50;
 
-/** 按空格/换行拆分粘贴内容，只保留 HTTP(S) 链接；按规范化结果去重，上限 50 个。 */
+/** 按空格/换行拆分粘贴内容，只保留 HTTP(S) 链接；每项独立导入，上限 50 个。 */
 function parseMaterialLinks(value: string): string[] {
-  const seen = new Set<string>();
   const links: string[] = [];
   for (const token of value.split(/\s+/)) {
     if (!token) continue;
     try {
       const parsed = new URL(token);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
-      const normalized = parsed.toString();
-      if (seen.has(normalized)) continue;
-      seen.add(normalized);
       links.push(token);
     } catch { /* 非 URL 片段直接忽略。 */ }
     if (links.length >= MAX_MATERIAL_LINKS) break;
