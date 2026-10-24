@@ -3,7 +3,12 @@ import { z } from "zod";
 export const YOUTUBE_COOKIE_BROWSERS = ["chrome", "chromium", "edge", "brave", "firefox", "opera", "vivaldi", "safari"] as const;
 export const YoutubeBrowserSchema = z.enum(YOUTUBE_COOKIE_BROWSERS);
 export type YoutubeBrowser = z.infer<typeof YoutubeBrowserSchema>;
-export const YoutubeBrowserPreferenceSchema = z.union([z.literal(""), YoutubeBrowserSchema]);
+// Accept the old single-browser setting, but always expose an ordered list.
+export const YoutubeBrowserPreferenceSchema = z.union([
+  z.array(YoutubeBrowserSchema).max(YOUTUBE_COOKIE_BROWSERS.length),
+  z.literal(""),
+  YoutubeBrowserSchema
+]).transform(value => [...new Set(Array.isArray(value) ? value : value ? [value] : [])]);
 
 export const YOUTUBE_TOOLS = ["yt-dlp", "ffmpeg", "deno", "node"] as const;
 export const YoutubeToolIdSchema = z.enum(YOUTUBE_TOOLS);

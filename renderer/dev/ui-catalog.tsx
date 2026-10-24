@@ -9,6 +9,7 @@ import {
 } from "../src/design-system/components";
 import { ProjectEditDialog } from "../src/features/projects/ProjectAppearance";
 import { ComposerModelPicker } from "../src/features/ai-console/ComposerModelPicker";
+import { QueuedMessages } from "../src/features/ai-console/QueuedMessages";
 import type { AiSnapshot, DesktopApi, PermissionProfile } from "../../shared/contracts";
 import { IMAGE_PROVIDERS, type ImageConfiguration, type ImageSelection } from "../../shared/image-generation";
 import { setLocale } from "../../shared/messages";
@@ -162,6 +163,16 @@ function QuietPermissionExample() {
   </section>;
 }
 
+function MultipleSelectExample() {
+  const [value, setValue] = useState(["chrome"]);
+  return <section className="ui-catalog-card ui-catalog-menu-example"><h2>Video import browsers</h2>
+    <FormField label="YouTube sign-in browsers" hint="Select multiple browsers. Imports try them in selection order.">
+      <Select multiple size="rect" value={value} onChange={setValue} placeholder="Select browsers"
+        options={[{ value: "chrome", label: "Google Chrome" }, { value: "edge", label: "Microsoft Edge" }, { value: "firefox", label: "Firefox" }]} />
+    </FormField>
+  </section>;
+}
+
 function ComposerModelExample() {
   const [providerId, setProviderId] = useState(modelFixtureAgents[0].id);
   const [selection, setSelection] = useState<ImageSelection | null>(modelFixtureSelection);
@@ -169,6 +180,25 @@ function ComposerModelExample() {
     <div className="ui-catalog-composer-stage"><div className="composer-editor-actions">
       <ComposerModelPicker providers={modelFixtureAgents} providerId={providerId} onProviderChange={setProviderId} value={selection} onChange={setSelection} />
     </div></div>
+  </section>;
+}
+
+function QueuedMessagesExample() {
+  const [runs, setRuns] = useState([
+    { id: "queue-first", prompt: "Continue organizing today's articles", contexts: [] },
+    { id: "queue-second", prompt: "Check the source links, preserve the full article titles, and summarize the findings.\n".repeat(8), contexts: [] }
+  ]);
+  return <section className="ui-catalog-card ui-catalog-queue-example"><h2>Queued messages</h2>
+    <footer className="composer">
+      <QueuedMessages runs={current === "composer-queue-single" ? runs.slice(0, 1) : runs} cancellingRunIds={new Set()}
+        onCancel={id => setRuns(value => value.filter(run => run.id !== id))} />
+      <div className="composer-flow"><div className="composer-editor">
+        <Textarea variant="composer" aria-label="AI message" placeholder="Add another message…" />
+      </div><div className="composer-editor-actions">
+        <IconButton label="Add attachment"><Plus size={14} /></IconButton>
+        <IconButton label="Stop" variant="primary" shape="circle"><Square size={14} /></IconButton>
+      </div></div>
+    </footer>
   </section>;
 }
 
@@ -215,7 +245,9 @@ function Catalog() {
       : current === "long-confirmation" ? <ConfirmDialog open title={"Long confirmation title ".repeat(60)} description={Array.from({ length: 100 }, (_, index) => `Confirmation detail ${index + 1}`).join("\n")} tone="danger" confirmLabel="Confirm" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "search-dialog" ? <SearchExample /> : current === "select-menu" || current === "action-menu" ? <MenuExample select={current === "select-menu"} />
       : current === "select-rect-open" ? <RectSelectExample /> : current === "select-quiet-permission" ? <QuietPermissionExample />
+      : current === "select-multiple-open" ? <MultipleSelectExample />
       : current === "composer-model-menu" || current === "composer-model-submenu" ? <ComposerModelExample />
+      : current.startsWith("composer-queue-") ? <QueuedMessagesExample />
       : current === "popover" ? <ProjectEditDialog project={{ id: "fixture", name: "Example project", description: "", status: "active", createdAt: "", updatedAt: "", materialCount: 0, taskCount: 0, outputCount: 0 }} busy={false} onClose={() => {}} onSave={() => {}} />
       : current === "navigation-controls" ? <NavigationControls /> : current === "performance" ? <PerformanceExample /> : null}
   </main>;

@@ -822,35 +822,60 @@
 }
 
 .queue-tray {
+  box-sizing: border-box;
+  width: min(100%, var(--ai-flow-width));
+  margin: 0 auto 6px;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow-y: auto;
   min-width: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 23px 23px 0 0;
-  background: var(--panel-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: var(--fs-sm);
 }
 
-.queue-tray > .ui-disclosure-trigger:not([data-ui-control]) {
-  width: 100%;
+.queue-tray-item {
+  box-sizing: border-box;
   min-height: 36px;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 3px 8px 3px 12px;
 }
 
-.queue-tray-summary {
+.queue-tray-item + .queue-tray-item { border-top: 1px solid var(--border-subtle); }
+.queue-tray-icon { color: var(--muted); }
+
+.queue-tray-preview {
   min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.queue-tray .ui-disclosure-content-inner {
-  max-height: 160px;
-  overflow-y: auto;
+.queue-tray-actions { display: flex; align-items: center; gap: 2px; }
+
+.queue-message-detail {
+  width: min(400px, calc(100vw - 24px));
+  display: grid;
+  gap: 10px;
 }
+
+.queue-message-prompt {
+  max-height: min(320px, 50vh);
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.queue-message-contexts { color: var(--muted); font-size: var(--fs-xs); }
 
 .queued-process {
   display: flex;

@@ -25,7 +25,6 @@ export function DocumentMenu({ label, name, open, disabled, align = "start", tri
     menuClassName={`document-menu${entered ? "" : " document-menu-entering"}`} menuAlign={align}
     open={open} onOpenChange={onOpenChange} restoreFocusOnSelect={false}>
     <div className="document-menu-scroll">{children}</div>
-    <div className="document-menu-footer" aria-hidden="true" />
   </DropdownMenu>;
 }
 

@@ -102,12 +102,19 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
   const [showSessionSkeleton, setShowSessionSkeleton] = useState(false);
   const currentScrollSession = useRef(sessionId);
   const streamingRunId = sessionActiveRun?.id || activeRun?.id || null;
-  const timelineEvents = useMemo(() => {
-    if (compact) return compactEvents(events, sessionActiveRun?.id);
-    return selectRecentTurnEvents(events, historyLimit);
-  }, [events, sessionActiveRun?.id, compact, historyLimit, locale]);
-  const hiddenEvents = compact ? 0 : Math.max(0, events.length - timelineEvents.length);
-  const canLoadHistory = !compact && (hiddenEvents > 0 || hasOlderTurns);
+  // Compact sidebars filter noisy events, but share the same expandable history.
+  // Count and reveal history from that filtered list so omitted output chunks
+  // never look like older turns that still need to be loaded.
+  const historyEvents = useMemo(
+    () => compact ? compactEvents(events, sessionActiveRun?.id, events.length) : events,
+    [events, sessionActiveRun?.id, compact]
+  );
+  const timelineEvents = useMemo(
+    () => selectRecentTurnEvents(historyEvents, historyLimit),
+    [historyEvents, historyLimit]
+  );
+  const hiddenEvents = Math.max(0, historyEvents.length - timelineEvents.length);
+  const canLoadHistory = hiddenEvents > 0 || hasOlderTurns;
   const loadEarlierHistory = useCallback(() => {
     const target = scroller.current;
     if (!target || !canLoadHistory || sessionLoading || historyLoading || restorePending.current
@@ -117,7 +124,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     target.setAttribute("data-history-prepend", "");
     followLatest.current = false;
     setNearBottom(false);
-    setHistoryLimit(value => nextHistoryLimit(events, timelineEvents.length, value));
+    setHistoryLimit(value => nextHistoryLimit(historyEvents, timelineEvents.length, value));
     if (hiddenEvents > 0) return;
     const finish = () => {
       if (historyRequest.current !== request) return;
@@ -125,7 +132,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
       setHistoryRevision(value => value + 1);
     };
     void loadOlderTurns().then(finish, finish);
-  }, [canLoadHistory, events, hiddenEvents, historyLoading, loadOlderTurns, sessionId, sessionLoading, timelineEvents]);
+  }, [canLoadHistory, hiddenEvents, historyEvents, historyLoading, loadOlderTurns, sessionId, sessionLoading, timelineEvents]);
   const visible = useMemo(
     () => groupTimeline(timelineEvents, snapshot.runs),
     [snapshot.runs, timelineEvents, locale]
@@ -222,7 +229,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     // A fetched turn can exceed the budget. Reveal at least one whole older
     // turn before releasing the request lock, even when it contains >300 events.
     if (request.ready && hiddenEvents > 0 && timelineEvents[0]?.id === request.firstEventId) {
-      setHistoryLimit(value => nextHistoryLimit(events, timelineEvents.length, value));
+      setHistoryLimit(value => nextHistoryLimit(historyEvents, timelineEvents.length, value));
       return;
     }
     restoreHistoryPosition(target, request.position);
@@ -249,7 +256,7 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
         });
       });
     }
-  }, [events, hiddenEvents, historyLoading, historyRevision, renderItems, sessionId, timelineEvents]);
+  }, [hiddenEvents, historyEvents, historyLoading, historyRevision, renderItems, sessionId, timelineEvents]);
   useEffect(() => () => { historyRequest.current = null; }, []);
 
   useLayoutEffect(() => {

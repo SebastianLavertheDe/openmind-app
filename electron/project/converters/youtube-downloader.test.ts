@@ -13,10 +13,13 @@ function setup() {
   fixtures.push(root);
   const installed = new Set(["/tools/yt-dlp", "/tools/ffmpeg", "/tools/node", "/tools/google-chrome", "/tools/firefox"]);
   const detector = createYoutubeHostDetector({ platform: "linux", home: "/fixture", env: { PATH: "/tools" }, isExecutable: file => installed.has(file) });
-  let browser = "chrome";
+  let browser: unknown = ["chrome"];
   const metadata = { id: "dQw4w9WgXcQ", title: "A fixture video", duration: 120, language: "en", subtitles: { en: [{}], fr: [{}] }, automatic_captions: { en: [{}] } };
   const run = vi.fn<YoutubeCommandRunner>(async (_executable, args, options) => {
-    if (args.includes("--dump-single-json")) return { stdout: JSON.stringify(metadata) };
+    if (args.includes("--print")) {
+      const { subtitles, automatic_captions, ...details } = metadata;
+      return { stdout: JSON.stringify({ metadata: details, subtitleLanguages: Object.keys(subtitles).join(", "), automaticCaptionLanguages: Object.keys(automatic_captions).join(", ") }) };
+    }
     if (args.includes("--write-subs")) fs.writeFileSync(path.join(options.cwd, "captions.en.json3"), JSON.stringify({ events: [
       { tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: "Hello" }] },
       { tStartMs: 1000, dDurationMs: 1000, segs: [{ utf8: "world." }] }
@@ -25,7 +28,7 @@ function setup() {
     return { stdout: "" };
   });
   const downloader = new BrowserYoutubeDownloader({ tempRoot: root, getBrowser: () => browser, detector, run });
-  return { root, run, downloader, metadata, installed, select: (value: string) => { browser = value; } };
+  return { root, run, downloader, metadata, installed, select: (value: unknown) => { browser = value; } };
 }
 
 describe("browser-authenticated YouTube download (mocked commands only)", () => {
@@ -71,6 +74,107 @@ describe("browser-authenticated YouTube download (mocked commands only)", () => 
     fixture.select(browser);
     await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-browser-required" });
     expect(fixture.run).not.toHaveBeenCalled();
+    expect(fs.readdirSync(fixture.root)).toEqual([]);
+  });
+
+  it.each([
+    { value: [] }, { value: ["chrome", "invalid"] }, { value: ["chrome:/private/profile"] }
+  ])("rejects an empty or invalid browser list before any subprocess: $value", async ({ value }) => {
+    const fixture = setup();
+    fixture.select(value);
+    await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-browser-required" });
+    expect(fixture.run).not.toHaveBeenCalled();
+  });
+
+  it.each(["--print", "--format", "--write-subs"])("tries the next selected browser after an authentication error during %s", async stage => {
+    const fixture = setup();
+    fixture.select(["chrome", "firefox"]);
+    const successfulRun = fixture.run.getMockImplementation()!;
+    fixture.run.mockImplementation(async (executable, args, options) => {
+      if (args.includes(stage) && args[args.indexOf("--cookies-from-browser") + 1] === "chrome") throw { stderr: "Sign in to confirm you are not a bot" };
+      return successfulRun(executable, args, options);
+    });
+    const result = await fixture.downloader.download("dQw4w9WgXcQ");
+    expect(result.video.warnings).toEqual([]);
+    expect(result.video.transcript).toHaveLength(1);
+    const failedIndex = fixture.run.mock.calls.findIndex(([, args]) => args.includes(stage));
+    const attempted = fixture.run.mock.calls.map(([, args]) => args[args.indexOf("--cookies-from-browser") + 1]);
+    expect(attempted.slice(0, failedIndex + 1).every(browser => browser === "chrome")).toBe(true);
+    expect(attempted.slice(failedIndex + 1).every(browser => browser === "firefox")).toBe(true);
+    expect(fixture.run.mock.calls[failedIndex + 1][1]).toContain(stage);
+    result.cleanup();
+    expect(fs.readdirSync(fixture.root)).toEqual([]);
+  });
+
+  it("skips unavailable choices and tries available browsers only in the saved order", async () => {
+    const fixture = setup();
+    fixture.select(["edge", "firefox", "chrome"]);
+    fixture.run.mockRejectedValueOnce({ stderr: "Could not decrypt cookies /private/profile TOKEN" });
+    const result = await fixture.downloader.download("dQw4w9WgXcQ");
+    expect(fixture.run.mock.calls.map(([, args]) => args[args.indexOf("--cookies-from-browser") + 1])).toEqual(["firefox", "chrome", "chrome", "chrome"]);
+    result.cleanup();
+  });
+
+  it("sanitizes the last authentication error and cleans up when every selected browser fails", async () => {
+    const fixture = setup();
+    fixture.select(["chrome", "firefox"]);
+    fixture.run.mockRejectedValue({ stderr: "Could not decrypt cookies /private/profile TOKEN" });
+    const error = await fixture.downloader.download("dQw4w9WgXcQ").catch(value => value);
+    expect(error).toMatchObject({ code: "youtube-cookies" });
+    expect(error.message).not.toMatch(/TOKEN|private/);
+    expect(fixture.run).toHaveBeenCalledTimes(2);
+    expect(fs.readdirSync(fixture.root)).toEqual([]);
+  });
+
+  it("reads only caption language keys when complete metadata exceeds the output buffer", async () => {
+    const fixture = setup();
+    Object.assign(fixture.metadata.automatic_captions.en[0], { url: "x".repeat(9 * 1024 * 1024) });
+    const successfulRun = fixture.run.getMockImplementation()!;
+    fixture.run.mockImplementation(async (executable, args, options) => {
+      if (args.includes("--dump-single-json") && Buffer.byteLength(JSON.stringify(fixture.metadata)) > options.maxBuffer) {
+        throw { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" };
+      }
+      return successfulRun(executable, args, options);
+    });
+    const result = await fixture.downloader.download("dQw4w9WgXcQ");
+    const args = fixture.run.mock.calls[0][1];
+    expect(args).not.toContain("--dump-single-json");
+    expect(args[args.indexOf("--print") + 1]).toContain("%(automatic_captions|)l");
+    expect(result.video.transcript).toHaveLength(1);
+    result.cleanup();
+  });
+
+  it("preserves the download failure if Windows cannot remove its temporary directory", async () => {
+    const fixture = setup();
+    fixture.run.mockRejectedValueOnce({ stderr: "Sign in to confirm you are not a bot" });
+    const remove = vi.spyOn(fs, "rmSync").mockImplementation(() => { throw Object.assign(new Error("Private path"), { code: "EPERM" }); });
+    await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-login" });
+    expect(remove).toHaveBeenCalledWith(expect.stringContaining("youtube-"), expect.objectContaining({ maxRetries: 5 }));
+    remove.mockRestore();
+  });
+
+  it("does not invalidate a successful download if temporary cleanup fails", async () => {
+    const fixture = setup();
+    const result = await fixture.downloader.download("dQw4w9WgXcQ");
+    const remove = vi.spyOn(fs, "rmSync").mockImplementation(() => { throw Object.assign(new Error("Private path"), { code: "EPERM" }); });
+    expect(() => result.cleanup()).not.toThrow();
+    remove.mockRestore();
+  });
+
+  it("does not mistake command arguments for a cookie error", async () => {
+    const fixture = setup();
+    fixture.select(["chrome", "firefox"]);
+    fixture.run.mockRejectedValue({ message: "Command failed: yt-dlp --cookies-from-browser chrome", stderr: "HTTP Error 403 TOKEN" });
+    await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-download-failed" });
+    expect(fixture.run).toHaveBeenCalledOnce();
+  });
+
+  it("does not switch browsers for a timeout unrelated to browser sign-in", async () => {
+    const fixture = setup();
+    fixture.select(["chrome", "firefox"]);
+    fixture.run.mockRejectedValue({ killed: true });
+    await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-timeout" });
+    expect(fixture.run).toHaveBeenCalledOnce();
     expect(fs.readdirSync(fixture.root)).toEqual([]);
   });
 
@@ -153,7 +257,7 @@ describe("browser-authenticated YouTube download (mocked commands only)", () => 
     const fixture = setup();
     fixture.run.mockResolvedValueOnce({ stdout: "not json" });
     await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-invalid-output" });
-    fixture.run.mockResolvedValueOnce({ stdout: JSON.stringify(fixture.metadata) }).mockResolvedValueOnce({ stdout: "" });
+    fixture.run.mockResolvedValueOnce({ stdout: JSON.stringify({ metadata: fixture.metadata }) }).mockResolvedValueOnce({ stdout: "" });
     await expect(fixture.downloader.download("dQw4w9WgXcQ")).rejects.toMatchObject({ code: "youtube-invalid-output" });
     expect(fs.readdirSync(fixture.root)).toEqual([]);
   });

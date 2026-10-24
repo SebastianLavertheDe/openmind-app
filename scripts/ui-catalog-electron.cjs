@@ -6,7 +6,7 @@ const { app, BrowserWindow } = require("electron");
 const { comparePng } = require("./ui-contract/visual-compare.cjs");
 const scenarios = require("./fixtures/ui-catalog/scenarios.json");
 const pixelScenarios = scenarios.filter(scenario => !scenario.pixelPlatforms || scenario.pixelPlatforms.includes(`${process.platform}-${process.arch}`));
-const selectScenarios = new Set(["select-menu", "select-rect-open", "select-quiet-permission"]);
+const selectScenarios = new Set(["select-menu", "select-rect-open", "select-quiet-permission", "select-multiple-open"]);
 const modelScenarios = new Set(["composer-model-menu", "composer-model-submenu"]);
 
 const root = path.resolve(__dirname, "..");
@@ -72,6 +72,10 @@ app.whenReady().then(async () => {
     if (selectScenarios.has(scenario.id)) {
       await click('.ui-select-trigger');
       await waitForSelector('.ui-select-menu [role="option"]');
+      if (scenario.id === "select-multiple-open") {
+        await click('.ui-select-menu [data-value="edge"]');
+        await settled();
+      }
     }
     if (modelScenarios.has(scenario.id)) {
       await click('.composer-model-picker .ui-select-trigger');
@@ -83,6 +87,7 @@ app.whenReady().then(async () => {
       }
     }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
+    if (scenario.id === "composer-queue-detail") await click('.queue-tray-item:last-child [aria-haspopup="dialog"]');
     if (scenario.id === "popover") await click('.project-icon-picker-trigger');
     // Remove transient hover from the trigger without changing keyboard focus.
     win.webContents.sendInputEvent({ type: "mouseMove", x: 0, y: 0 });
@@ -90,15 +95,34 @@ app.whenReady().then(async () => {
     const contract = await inspect(scenario.id);
     assert.ok(contract.overflow <= 1, `${name}: horizontal overflow ${contract.overflow}px`);
     assert.ok(contract.controlCount > 0, `${name}: no production UI controls rendered`);
+    if (scenario.id.startsWith("composer-queue-")) {
+      const queue = await win.webContents.executeJavaScript(`(() => {
+        const list = document.querySelector('.queue-tray');
+        const editor = document.querySelector('.composer-flow');
+        const rows = [...list.querySelectorAll('.queue-tray-item')];
+        const box = list.getBoundingClientRect(), inputBox = editor.getBoundingClientRect();
+        return { rows: rows.length, separate: list.parentElement === editor.parentElement && box.bottom <= inputBox.top,
+          aligned: Math.abs(box.left - inputBox.left) < 1 && Math.abs(box.right - inputBox.right) < 1,
+          compact: rows.every(row => row.getBoundingClientRect().height <= 40),
+          contained: rows.every(row => [...row.querySelectorAll('button')].every(button => button.getBoundingClientRect().right <= box.right)),
+          truncated: rows.length < 2 || rows[1].querySelector('.queue-tray-preview').scrollWidth > rows[1].querySelector('.queue-tray-preview').clientWidth,
+          fullDetails: !!document.querySelector('.queue-message-prompt')?.textContent.includes('preserve the full article titles') };
+      })()`);
+      assert.equal(queue.rows, scenario.id === "composer-queue-single" ? 1 : 2, `${name}: queued messages are missing`);
+      for (const key of ["separate", "aligned", "compact", "contained", "truncated"]) assert.equal(queue[key], true, `${name}: ${key}`);
+      assert.equal(queue.fullDetails, scenario.id === "composer-queue-detail", `${name}: detail state`);
+      report.geometry.push({ name, queue });
+    }
     if (scenario.id === "form-dialog" || scenario.id === "confirm-dialog" || scenario.id === "search-dialog") assert.equal(contract.dialogs, 1, `${name}: modal shell is missing`);
     if (selectScenarios.has(scenario.id) || scenario.id === "action-menu") assert.equal(contract.menus, 1, `${name}: expected an open choice/action menu`);
     if (selectScenarios.has(scenario.id)) {
       assert.equal(contract.choice.expanded, true, `${name}: choice trigger did not open`);
-      assert.equal(contract.choice.shape, scenario.id === "select-rect-open" ? "rect" : "pill", `${name}: choice shape is wrong`);
+      assert.equal(contract.choice.shape, ["select-rect-open", "select-multiple-open"].includes(scenario.id) ? "rect" : "pill", `${name}: choice shape is wrong`);
       assert.equal(contract.choice.variant, scenario.id === "select-quiet-permission" ? "quiet" : "default", `${name}: choice variant is wrong`);
       assert.equal(contract.choice.options, 3, `${name}: choice options are missing`);
-      assert.equal(contract.choice.selectedOptions, 1, `${name}: current choice is not indicated`);
-      assert.equal(contract.choice.disabledOptions, scenario.id === "select-quiet-permission" ? 0 : 1, `${name}: disabled choice is wrong`);
+      assert.equal(contract.choice.selectedOptions, scenario.id === "select-multiple-open" ? 2 : 1, `${name}: current choice is not indicated`);
+      assert.equal(contract.choice.disabledOptions, ["select-quiet-permission", "select-multiple-open"].includes(scenario.id) ? 0 : 1, `${name}: disabled choice is wrong`);
+      if (scenario.id === "select-multiple-open") assert.equal(contract.choice.multiple, true, `${name}: multi-select semantics are missing`);
       if (scenario.id === "select-quiet-permission") {
         assert.equal(contract.choice.tone, "warning", `${name}: automatic permission lost its warning tone`);
         assert.equal(contract.choice.warningOptions, 1, `${name}: automatic permission option lost its warning tone`);
@@ -219,6 +243,7 @@ async function inspect(id) {
       dialogs: document.querySelectorAll('[role="dialog"], [role="alertdialog"]').length,
       menus: document.querySelectorAll('[role="menu"], [role="listbox"]').length,
       choice: trigger ? { expanded: trigger.getAttribute('aria-expanded') === 'true', shape: trigger.dataset.shape, variant: trigger.dataset.variant, tone: trigger.dataset.tone,
+        multiple: document.querySelector('.ui-select-menu')?.getAttribute('aria-multiselectable') === 'true',
         options: document.querySelectorAll('.ui-select-menu [role="option"]').length,
         selectedOptions: document.querySelectorAll('.ui-select-menu [role="option"][aria-selected="true"]').length,
         disabledOptions: document.querySelectorAll('.ui-select-menu [role="option"]:disabled').length,

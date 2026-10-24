@@ -105,6 +105,12 @@ pill, while the model trigger uses `shape="rect"` and its established 7px radius
 An option's `tone="warning"` also colors its selected trigger. Shared ownership
 preserves these distinct designs instead of forcing every control to one height.
 
+`Select multiple` accepts an ordered array and toggles choices without closing
+the menu. Its trigger lists selected labels in selection order; the listbox
+exposes `aria-multiselectable`. Space/Enter toggles the focused option, arrows
+move focus, and Escape/Tab or an outside click closes the menu. Single choice
+behavior remains the default. The catalog includes a multiple-browser example.
+
 Tabs always retain `ui-tabs`; `className` adds layout classes. Use typed variants
 `default` (segmented surface), `pill` (compact navigation), `underline` (detail
 sections), `bordered` (counted choices), and `editor` (document modes).
@@ -217,10 +223,10 @@ stable input identity. Motion preference uses one OS subscription for all
 controls, released after the final consumer unmounts. Simple actions add no
 timers, subscriptions or wrapper DOM.
 
-The Electron visual runner captures thirteen scenarios in two themes and two
+The Electron visual runner captures fourteen scenarios in two themes and two
 viewport widths. Linux arm64 retains its 48 reviewed pixel baselines; Windows x64
-has 52, including the added Tabs/SegmentedControl/ToggleSwitch scene. That scene
-still runs geometry checks on Linux; its additional pixel baselines currently
+has 56, including the Tabs/SegmentedControl/ToggleSwitch and multiple-browser
+scenes. These scenes still run geometry checks on Linux; their pixel baselines currently
 target Windows only. Both platform jobs run in CI. It checks geometry
 and actual open overlays before comparing pixels, and records an input-update
 budget with 500 memoized unrelated actions. This measures controlled React

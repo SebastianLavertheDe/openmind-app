@@ -28,6 +28,28 @@ beforeEach(() => {
 });
 
 describe("AiFilePreviewPane", () => {
+  it("opens an OPML reference with visible source and preserves edits when returning to preview", async () => {
+    const path = ".agent/skills/example/subscriptions.opml";
+    const raw = '<?xml version="1.0"?>\n<opml version="2.0"><body><outline text="Example Feed" xmlUrl="https://example.invalid/feed.xml" /></body></opml>';
+    const readContent = vi.fn(async () => ({ path, name: "subscriptions.opml", content: raw }));
+    const writeContent = vi.fn(async (_path: string, content: string) => ({ path, name: "subscriptions.opml", content }));
+    window.openmind = { onAiEvent: () => () => {}, readContent, writeContent } as unknown as DesktopApi;
+    const { container } = render(<AiProvider initial={snapshot}>
+      <AiFilePreviewPane surface={{ kind: "workspace" }}><PreviewTrigger path={path} /></AiFilePreviewPane>
+    </AiProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "打开引用" }));
+    await waitFor(() => expect(container.querySelector(".document-plain .document-flow")?.textContent).toBe(raw));
+    expect(readContent).toHaveBeenCalledExactlyOnceWith(path);
+    fireEvent.click(screen.getByRole("button", { name: "编辑文件" }));
+    const edited = raw.replace("Example Feed", "Updated Feed");
+    fireEvent.change(await screen.findByLabelText("编辑文件内容"), { target: { value: edited } });
+    fireEvent.click(screen.getByRole("button", { name: "保存文件" }));
+    await waitFor(() => expect(writeContent).toHaveBeenCalledExactlyOnceWith(path, edited));
+    await waitFor(() => expect(container.querySelector('[data-action-id="save"]')?.hasAttribute("disabled")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "预览" }));
+    await waitFor(() => expect(container.querySelector(".document-plain .document-flow")?.textContent).toBe(edited));
+  });
+
   it.each([["video", "final.mp4", "video/mp4"], ["audio", "voice.wav", "audio/wav"]])("opens a local %s in the file pane and keeps it read-only", async (kind, name, mimeType) => {
     const path = `assets/${name}`;
     const readContent = vi.fn();

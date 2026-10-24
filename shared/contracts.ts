@@ -1025,7 +1025,7 @@ export const UserPreferencesSchema = z.object({
   contentPreviewMode: z.enum(["inline", "sidebar"]).default("sidebar"),
   markReadOnOpen: z.boolean().default(true),
   defaultProvider: z.string().default(""),
-  youtubeBrowser: YoutubeBrowserPreferenceSchema.default(""),
+  youtubeBrowser: YoutubeBrowserPreferenceSchema.default([]),
   defaultPermissionProfile: z.enum(["read-only", "edit", "auto"]).default("auto"),
   notesDir: z.string().default("openmind"),
   destructiveOpsRequireApproval: z.boolean().default(true),

@@ -11,14 +11,14 @@ import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { useMotionPreference } from "../../design-system/use-motion-preference";
 import { createPortal } from "react-dom";
-import { ArrowUp, ChevronDown, Clock3, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, ChevronDown, FilePlus2, FolderOpen, LoaderCircle, Plus, Quote, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import type { ContextReference, InteractionMode, PermissionProfile, ProjectFileMatch, SkillDefinition } from "@shared/contracts";
 import { slashCommandValidationError } from "@shared/slash-commands";
 import { messages as m } from "@shared/messages";
 import type { ImageSelection } from "@shared/image-generation";
 import { ComposerModelPicker } from "./ComposerModelPicker";
 import { useAiActions, useAiDraft, useAiSnapshot, useAiUi } from "../../ai-context";
-import { AnimatedDisclosure } from "../../design-system/animated-disclosure";
+import { QueuedMessages } from "./QueuedMessages";
 import { useAnchoredPopover } from "../../design-system/use-anchored-popover";
 import { ComposerSuggestionMenu } from "./composer-suggestion-menu";
 import { useExitPresence } from "../../design-system/use-exit-presence";
@@ -182,7 +182,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const [activeSuggestion, setActiveSuggestion] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
   const [customSending, setCustomSending] = useState(false);
-  const [queueOpen, setQueueOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLElement>(null);
   const suggestionAnchorRef = useRef<HTMLSpanElement>(null);
@@ -438,6 +437,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
 
   return (
     <footer className="composer" ref={composerRef}>
+      <QueuedMessages key={activeSession?.id || "new-session"} runs={queuedRuns} cancellingRunIds={ui.cancellingRunIds}
+        onCancel={id => { void actions.cancel(id).catch(() => { /* The controller displays cancellation errors. */ }); }} />
       <div className="composer-flow">
         <ContextTrayPresence contexts={referenceContexts} />
         {errorVisible && stashedError ? (
@@ -445,19 +446,6 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             <span>{stashedError}</span>
             <IconButton data-motion="icon" onClick={() => { setLocalError(null); ui.clearError(); }}  label={m.ai.composer.closeError}><X size={13} /></IconButton>
           </div>
-        ) : null}
-        {queuedRuns.length ? (
-          <AnimatedDisclosure
-            className="queue-tray"
-            open={queueOpen}
-            onOpenChange={setQueueOpen}
-            summary={<><span className="queue-tray-summary"><Clock3 size={14} aria-hidden />{m.ai.composer.queuedSummary(queuedRuns.length)}</span><ChevronDown size={14} aria-hidden /></>}
-          >
-            {queuedRuns.map((run, index) => {
-              const cancelling = ui.cancellingRunIds.has(run.id);
-              return <div key={run.id}><span>{index + 1}</span><p>{run.prompt}</p><IconButton variant="ghost" size="sm" data-motion="icon" label={cancelling ? m.ai.composer.stopping : m.ai.composer.cancelQueued} aria-busy={cancelling || undefined} disabled={cancelling} onClick={() => void actions.cancel(run.id)}>{cancelling ? <LoaderCircle size={12} className="spin" /> : <X size={12} />}</IconButton></div>;
-            })}
-          </AnimatedDisclosure>
         ) : null}
         <div className="composer-editor">
           <ContextTrayPresence contexts={imageContexts} />

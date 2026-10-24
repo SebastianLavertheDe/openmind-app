@@ -1,7 +1,7 @@
 import { focusAfterTrigger } from "./tab-navigation";
 import { SelectTrigger } from "./SelectTrigger";
 import { SelectItem } from "./SelectItem";
-import type { SelectTone, SelectVariant } from "./control-contract";
+import type { SelectSelection, SelectTone, SelectVariant } from "./control-contract";
 import { useLocale } from "../i18n";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -25,31 +25,8 @@ import { useDismissableLayer } from "./use-dismissable-layer";
  *  - 点外部关闭,aria-expanded/aria-selected 完整
  *  - 可选 placeholder / leading icon
  */
-export function Select<T extends string>({
-  value,
-  options,
-  onChange,
-  label,
-  placeholder,
-  size = "pill",
-  variant = "default",
-  leadingIcon,
-  disabled = false,
-  ariaLabel,
-  className,
-  title,
-  autoFocus,
-  menuAlign = "start",
-  menuSide = "bottom",
-  id,
-  "aria-label": explicitAriaLabel,
-  "aria-labelledby": ariaLabelledBy,
-  "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid
-}: {
-  value: T | "";
+type SelectProps<T extends string> = {
   options: Array<{ value: T; label: string; disabled?: boolean; tone?: SelectTone }>;
-  onChange(value: T): void;
   /** 可见 label,渲染在 trigger 内的弱化前缀;screen reader 通过 aria-label 读 */
   label?: string;
   placeholder?: string;
@@ -71,8 +48,16 @@ export function Select<T extends string>({
   "aria-labelledby"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: React.AriaAttributes["aria-invalid"];
-}) {
-  const locale = useLocale();
+} & SelectSelection<T>;
+
+export function Select<T extends string>(props: SelectProps<T>) {
+  const {
+    value, options, label, placeholder, size = "pill", variant = "default", leadingIcon,
+    disabled = false, ariaLabel, className, title, autoFocus, menuAlign = "start", menuSide = "bottom", id,
+    "aria-label": explicitAriaLabel, "aria-labelledby": ariaLabelledBy,
+    "aria-describedby": ariaDescribedBy, "aria-invalid": ariaInvalid
+  } = props;
+  useLocale();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const listId = useId();
@@ -94,11 +79,13 @@ export function Select<T extends string>({
     matchAnchorWidth: true
   });
 
-  const selectedIndex = useMemo(
-    () => options.findIndex((option) => option.value === value),
-    [options, value, locale]
+  const selectedValues = useMemo(
+    () => props.multiple ? props.value : [props.value],
+    [props.multiple, value]
   );
+  const selectedIndex = options.findIndex(option => selectedValues.includes(option.value));
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const selectedLabel = selectedValues.map(value => options.find(option => option.value === value)?.label).filter(Boolean).join(" / ");
   const initialActiveIndex = selected && !selected.disabled ? selectedIndex : options.findIndex((option) => !option.disabled);
   const accessibleName = explicitAriaLabel || ariaLabel || label || placeholder || m.designSystem.selectLabel;
   // A referenced field label overrides aria-label, so expose its current value separately.
@@ -117,7 +104,7 @@ export function Select<T extends string>({
     setMenuMounted(false);
   }, [menuMounted, open, leaving]);
 
-  // 打开时定位到当前选中项
+  // Focus the current choice only when opening, so multi-select toggles keep focus.
   useEffect(() => {
     if (!open) {
       if (focusFrameRef.current !== null) {
@@ -131,7 +118,7 @@ export function Select<T extends string>({
       focusFrameRef.current = null;
       listRef.current?.querySelector<HTMLButtonElement>(`[data-index="${initialActiveIndex}"]`)?.focus();
     });
-  }, [open, initialActiveIndex]);
+  }, [open]);
 
   useDismissableLayer({
     open, contentRefs: [rootRef, listRef], triggerRef, restoreFocus: false,
@@ -164,7 +151,11 @@ export function Select<T extends string>({
 
   const choose = (option: { value: T; disabled?: boolean } | undefined) => {
     if (disabled || !option || option.disabled) return;
-    onChange(option.value);
+    if (props.multiple) {
+      props.onChange(props.value.includes(option.value) ? props.value.filter(value => value !== option.value) : [...props.value, option.value]);
+      return;
+    }
+    props.onChange(option.value);
     shouldRestoreFocusRef.current = true;
     setOpen(false);
   };
@@ -213,14 +204,19 @@ export function Select<T extends string>({
     >
       <select
         className="ui-select-native-proxy"
+        aria-hidden={props.multiple || undefined}
         aria-label={accessibleName}
         aria-labelledby={ariaLabelledBy}
-        value={selected ? value : ""}
+        multiple={props.multiple}
+        value={props.multiple ? props.value : selected ? props.value : ""}
         disabled={disabled}
         tabIndex={-1}
-        onChange={(event) => onChange(event.target.value as T)}
+        onChange={(event) => {
+          if (props.multiple) props.onChange(Array.from(event.target.selectedOptions, option => option.value as T));
+          else props.onChange(event.target.value as T);
+        }}
       >
-        {!selected ? <option value="">{placeholder || ""}</option> : null}
+        {!props.multiple && !selected ? <option value="">{placeholder || ""}</option> : null}
         {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
       <SelectTrigger shape={size} variant={variant} tone={selected?.tone}
@@ -234,7 +230,7 @@ export function Select<T extends string>({
         aria-invalid={ariaInvalid}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        aria-label={`${accessibleName}${selected ? `：${selected.label}` : ""} ${m.designSystem.selectButton}`}
+        aria-label={`${accessibleName}${selectedLabel ? `：${selectedLabel}` : ""} ${m.designSystem.selectButton}`}
         disabled={disabled}
         title={title}
         autoFocus={autoFocus}
@@ -254,7 +250,7 @@ export function Select<T extends string>({
       >
         {leadingIcon ? <span className="ui-select-leading">{leadingIcon}</span> : null}
         {label ? <span className="ui-select-label">{label}</span> : null}
-        <span id={valueId} className="ui-select-value">{selected?.label || placeholder || "\u00A0"}</span>
+        <span id={valueId} className="ui-select-value">{selectedLabel || placeholder || "\u00A0"}</span>
         <ChevronDown size={14} className="ui-select-chevron" />
       </SelectTrigger>
       {visible ? createPortal(
@@ -263,6 +259,7 @@ export function Select<T extends string>({
           id={listId}
           className={`ui-select-menu${className ? ` ${className.split(/\s+/).filter(Boolean).map((token) => `${token}-menu`).join(" ")}` : ""}`}
           role="listbox"
+          aria-multiselectable={props.multiple || undefined}
           aria-label={accessibleName}
           aria-labelledby={ariaLabelledBy}
           data-leaving={leaving || undefined}
@@ -283,15 +280,16 @@ export function Select<T extends string>({
               data-index={index}
               data-value={option.value}
               data-motion="selection"
-              aria-selected={option.value === value}
+              aria-selected={selectedValues.includes(option.value)}
               tabIndex={open && index === activeIndex ? 0 : -1}
               disabled={option.disabled}
-              className={`ui-select-option${option.value === value ? " active" : ""}`}
+              className={`ui-select-option${selectedValues.includes(option.value) ? " active" : ""}`}
+              onFocus={() => setActiveIndex(index)}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => choose(option)}
             >
               <span className="ui-select-option-label">{option.label}</span>
-              {option.value === value ? <Check size={13} className="ui-select-check" /> : null}
+              {selectedValues.includes(option.value) ? <Check size={13} className="ui-select-check" /> : null}
             </SelectItem>
           ))}
           </SelectMenuSurface>

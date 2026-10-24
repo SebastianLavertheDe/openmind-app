@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UserPreferencesSchema } from "@shared/contracts";
 import { setLocale } from "@shared/messages";
@@ -34,7 +35,42 @@ describe("YouTube import browser settings", () => {
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /^YouTube 登录浏览器.*下拉菜单/ }));
     fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: "Firefox" }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith({ youtubeBrowser: "firefox" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ youtubeBrowser: ["firefox"] }));
+  });
+
+  it("keeps the menu open for rapid multi-selection, saves in order, and can clear every browser", async () => {
+    const pending: Array<() => void> = [];
+    const save = vi.fn((patch: Partial<ReturnType<typeof UserPreferencesSchema.parse>>) => new Promise<void>(resolve => pending.push(() => {
+      update(patch);
+      resolve();
+    })));
+    let update: (patch: Partial<ReturnType<typeof UserPreferencesSchema.parse>>) => void;
+    function Harness() {
+      const [prefs, setPrefs] = useState(UserPreferencesSchema.parse({ youtubeBrowser: "chrome" }));
+      update = patch => setPrefs(current => ({ ...current, ...patch }));
+      return <YoutubeImportSettingsSection prefs={prefs} save={save} />;
+    }
+    window.openmind = { getYoutubeImportStatus: vi.fn().mockResolvedValue(ready) } as never;
+    const view = render(<Harness />);
+    await screen.findByText("已检测到下载工具");
+    fireEvent.click(screen.getByRole("button", { name: /^YouTube 登录浏览器/ }));
+    const list = screen.getByRole("listbox");
+    expect(list.getAttribute("aria-multiselectable")).toBe("true");
+    fireEvent.click(within(list).getByRole("option", { name: "Firefox" }));
+    fireEvent.click(within(list).getByRole("option", { name: "Google Chrome" }));
+    expect(save.mock.calls.map(([patch]) => patch.youtubeBrowser)).toEqual([["chrome", "firefox"], ["firefox"]]);
+    await act(async () => pending.shift()!());
+    expect(within(screen.getByRole("listbox")).getByRole("option", { name: "Google Chrome" }).getAttribute("aria-selected")).toBe("false");
+    await act(async () => pending.shift()!());
+    expect(screen.getByRole("button", { name: /^YouTube 登录浏览器/ }).textContent).toContain("Firefox");
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Firefox" }));
+    await act(async () => pending.shift()!());
+    expect(save).toHaveBeenLastCalledWith({ youtubeBrowser: [] });
+    expect(screen.getByRole("button", { name: /^YouTube 登录浏览器/ }).textContent).toContain("请选择浏览器");
+    view.unmount();
+    render(<YoutubeImportSettingsSection prefs={UserPreferencesSchema.parse({ youtubeBrowser: ["firefox", "chrome"] })} save={save} />);
+    await screen.findByText("已检测到下载工具");
+    expect(screen.getByRole("button", { name: /^YouTube 登录浏览器/ }).textContent).toContain("Firefox / Google Chrome");
   });
 
   it("refreshes the list and reports an unavailable saved browser without switching accounts", async () => {
@@ -46,6 +82,9 @@ describe("YouTube import browser settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "重新检测" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("所选浏览器已不可用"));
     expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^YouTube 登录浏览器/ }));
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { selected: true }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ youtubeBrowser: [] }));
   });
 
   it("shows empty detection and missing-tool states in English", async () => {

@@ -27,6 +27,9 @@ export type SelectVariant = typeof SELECT_VARIANTS[number];
 export const SELECT_ITEM_VARIANTS = ["option", "group", "detail"] as const;
 export type SelectItemVariant = typeof SELECT_ITEM_VARIANTS[number];
 export type SelectTone = "neutral" | "warning";
+export type SelectSelection<T extends string> =
+  | { multiple: true; value: T[]; onChange(value: T[]): void }
+  | { multiple?: false; value: T | ""; onChange(value: T): void };
 
 export const TAB_VARIANTS = ["default", "pill", "underline", "bordered", "editor"] as const;
 export type TabVariant = typeof TAB_VARIANTS[number];

@@ -39,6 +39,7 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
   const [adding, setAdding] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [retryingPath, setRetryingPath] = useState("");
+  const [retryError, setRetryError] = useState<{ relativePath: string; message: string } | null>(null);
   const materialRef = useRef(material);
   materialRef.current = material;
   const selectedRef = useRef<ProjectMaterial | null>(null);
@@ -56,8 +57,9 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
     selectedPathRef.current = "";
   }, []);
 
-  const openMaterial = useCallback(async (relativePath: string) => {
-    if (relativePath === selectedPathRef.current && selectedRef.current?.status === "ready" && previewResourceRef.current) return;
+  const openMaterial = useCallback(async (relativePath: string, force = false) => {
+    if (!force && relativePath === selectedPathRef.current && selectedRef.current?.status === "ready" && previewResourceRef.current) return;
+    setRetryError(null);
     selectedPathRef.current = relativePath;
     onSelectionChangeRef.current?.(relativePath);
     const known = materialRef.current?.relativePath === relativePath ? materialRef.current : undefined;
@@ -159,14 +161,18 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
   const retry = async (material: ProjectMaterial) => {
     if (retryingPath) return;
     setRetryingPath(material.relativePath);
+    setRetryError(null);
     try {
       const next = await projectsApi.retryMaterial(project.name, material.relativePath);
-      materialRef.current = next;
-      setSelected(next);
-      if (next.status === "ready") await openMaterial(next.relativePath);
+      if (selectedPathRef.current === material.relativePath) {
+        materialRef.current = next;
+        setSelected(next);
+        if (next.status === "ready") await openMaterial(next.relativePath, true);
+      }
       await load();
       feedback.notify(next.status === "ready" ? messages.projectUi.materialConverted : next.error || messages.projectUi.materialConversionStillFailed, next.status === "ready" ? "success" : "error");
     } catch (cause) {
+      if (selectedPathRef.current === material.relativePath) setRetryError({ relativePath: material.relativePath, message: errorText(cause) });
       feedback.notify(errorText(cause), "error");
     } finally {
       setRetryingPath("");
@@ -225,6 +231,7 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
       resource={preview.resource}
       projectName={project.name}
       retrying={retryingPath === selected.relativePath}
+      retryError={retryError?.relativePath === selected.relativePath ? retryError.message : undefined}
       onRetry={() => void retry(selected)}
       onOpenExternal={() => void preview.source?.openExternal?.()}
     />
@@ -235,7 +242,7 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
   return <>{renderDetail ? detail : null}{addDialog}</>;
 }
 
-function MaterialDetail({ material, resource, projectName, retrying, onRetry, onOpenExternal }: { material: ProjectMaterial; resource: PreviewResource | null; projectName: string; retrying: boolean; onRetry(): void; onOpenExternal(): void }) {
+function MaterialDetail({ material, resource, projectName, retrying, retryError, onRetry, onOpenExternal }: { material: ProjectMaterial; resource: PreviewResource | null; projectName: string; retrying: boolean; retryError?: string; onRetry(): void; onOpenExternal(): void }) {
   useLocale();
   return (
     <div className={`project-material-detail${material.truncated ? " is-truncated" : ""}`}>
@@ -245,7 +252,7 @@ function MaterialDetail({ material, resource, projectName, retrying, onRetry, on
       {material.truncated ? <div className="project-material-warning" role="status"><AlertTriangle size={18} /><div><strong>{messages.projectUi.partialMaterialPreview}</strong><p>{messages.projectUi.truncatedMaterialHint}</p></div></div> : null}
       {material.status === "failed" ? <div className="project-material-error"><div><strong>{messages.projectUi.materialConversionFailed}</strong><p>{material.error || messages.projectUi.noConversionResult}</p></div><Button variant="ghost" type="button" data-motion="action" disabled={retrying} onClick={onRetry}>{retrying ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{retrying ? messages.projectUi.retrying : messages.projectUi.retry}</Button></div> : null}
       {material.status === "importing" || material.status === "converting" ? <div className="project-material-processing"><LoaderCircle size={18} className="spin" /><div><strong>{material.status === "importing" ? messages.projectUi.importing : messages.projectUi.convertingToMarkdown}</strong><p>{messages.projectUi.reopenAfterConversion}</p></div></div> : null}
-      {material.status === "ready" && material.kind === "video" && resource?.kind === "video" ? <PreviewRenderer resource={resource} onOpenExternal={onOpenExternal} onRetryTranscript={onRetry} retryingTranscript={retrying} /> : null}
+      {material.status === "ready" && material.kind === "video" && resource?.kind === "video" ? <PreviewRenderer resource={resource} onOpenExternal={onOpenExternal} onRetryTranscript={onRetry} retryingTranscript={retrying} retryError={retryError} /> : null}
       {material.status === "ready" && material.kind !== "video" && resource?.kind === "document" ? <DocumentMaterialDetail material={material} resource={resource} projectName={projectName} /> : null}
       {material.status === "ready" && resource?.kind === "unsupported" ? <PreviewRenderer resource={resource} /> : null}
     </div>

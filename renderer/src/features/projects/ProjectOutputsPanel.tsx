@@ -1,7 +1,7 @@
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileOutput, Plus } from "lucide-react";
+import { FileOutput, Plus, Search } from "lucide-react";
 import { messages, getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { useFeedback } from "../../feedback-context";
@@ -67,7 +67,7 @@ export function ProjectOutputsPanel({ project, initialOutputPath, createRequeste
   const list = (
     <>
       {!hosted ? <header className="project-local-list-header"><div><span className="eyebrow">{messages.projectUi.markdownWriting}</span><h2>{messages.projectUi.document}</h2></div><IconButton  onClick={() => { setLocalCreate(true); }} label={messages.projectUi.newDocument}><Plus size={16} /></IconButton></header> : null}
-      <SearchInput className="project-local-search" variant="outlined" aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
+      <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={<Search aria-hidden />} aria-label={messages.projectUi.searchOutputs} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={messages.projectUi.searchOutputs} />
       <div className="project-local-count">{messages.projectUi.allOutputs}<span>{filtered.length}</span></div>
       <div className="project-item-list project-output-list" data-project-list-motion={listMotion.enabled || undefined} aria-busy={loading || undefined}>
         {loading ? Array.from({ length: 5 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}

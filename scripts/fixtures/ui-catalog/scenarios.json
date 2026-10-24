@@ -60,6 +60,34 @@
     "height": 800
   },
   {
+    "id": "select-multiple-open",
+    "title": "Multiple browser choices",
+    "height": 800,
+    "pixelPlatforms": ["win32-x64"],
+    "navigation": false
+  },
+  {
+    "id": "composer-queue-single",
+    "title": "Single queued message",
+    "height": 800,
+    "pixelPlatforms": [],
+    "navigation": false
+  },
+  {
+    "id": "composer-queue-multiple",
+    "title": "Multiple queued messages",
+    "height": 800,
+    "pixelPlatforms": [],
+    "navigation": false
+  },
+  {
+    "id": "composer-queue-detail",
+    "title": "Queued message details",
+    "height": 800,
+    "pixelPlatforms": [],
+    "navigation": false
+  },
+  {
     "id": "navigation-controls",
     "title": "Tabs, segmented choices and switches",
     "height": 1200,

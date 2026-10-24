@@ -149,7 +149,7 @@ export function installBrowserPreviewApi(): boolean {
     contentPreviewMode: "sidebar" as const,
     markReadOnOpen: true,
     defaultProvider: "",
-    youtubeBrowser: "",
+    youtubeBrowser: [],
     defaultPermissionProfile: "auto" as const,
     notesDir: "openmind",
     destructiveOpsRequireApproval: true,

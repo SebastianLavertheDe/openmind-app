@@ -103,9 +103,7 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 .column-splitter button, .workbench-splitter button { position: absolute; z-index: 2; top: 12px; display: grid; place-items: center; }
 .column-splitter button:not([data-ui-control]), .workbench-splitter button:not([data-ui-control]) { width: 20px; }
 .column-splitter button:not([data-ui-control]), .workbench-splitter button:not([data-ui-control]) { height: 22px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); color: var(--muted); cursor: pointer; }
-.queue-tray .ui-disclosure-content-inner > div { animation: list-item-in var(--dur-normal, 200ms) var(--ease-emphasized, cubic-bezier(.3, 0, 0, 1)) both; }
 @keyframes list-item-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .queue-tray .ui-disclosure-content-inner > div { animation: none; } }
 .session-list { min-height: 0; overflow-y: auto; }
 .conversation-pane { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
 .conversation-header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--border); }
@@ -896,10 +894,6 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 .composer textarea { width: 100%; resize: none; }
 .composer-error { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 7px; margin-bottom: 7px; padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--red) 30%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--red) 7%, var(--panel)); color: var(--red); font-size: var(--fs-xs); }
 .composer-error button:not([data-ui-control]) { border: 0; background: transparent; color: inherit; }
-.queue-tray { margin-bottom: 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); font-size: var(--fs-xs); }
-.queue-tray > .ui-disclosure-trigger:not([data-ui-control]) { padding: 6px 8px; cursor: pointer; }
-.queue-tray .ui-disclosure-content-inner > div { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 5px 8px; border-top: 1px solid var(--border); }
-.queue-tray p { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
 .new-session-controls { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 6px; margin-bottom: 7px; }
 .new-session-controls label { display: grid; gap: 3px; color: var(--muted); font-size: var(--fs-xs); }
 .new-session-controls select { min-width: 0; }

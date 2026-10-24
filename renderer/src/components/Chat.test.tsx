@@ -1614,7 +1614,7 @@ describe("chat timeline", () => {
     ]);
   });
 
-  it("loads conversation history through complete-turn cursor pages", async () => {
+  it.each([false, true])("loads conversation history through complete-turn cursor pages (compact=%s)", async (compact) => {
     const oldRun = {
       ...makeRun(),
       id: "old-run",
@@ -1650,7 +1650,7 @@ describe("chat timeline", () => {
 
     const { container } = render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [newRun, oldRun] }}>
-        <Chat />
+        <Chat compact={compact} />
       </AiProvider>
     );
 
@@ -1662,7 +1662,7 @@ describe("chat timeline", () => {
     expect(listTurns).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps paged history inside the render budget until the user scrolls upward", async () => {
+  it.each([false, true])("keeps paged history inside the render budget until the user scrolls upward (compact=%s)", async (compact) => {
     const oldRun = {
       ...makeRun(),
       id: "paged-old-run",
@@ -1700,7 +1700,7 @@ describe("chat timeline", () => {
 
     const { container } = render(
       <AiProvider initial={{ ...snapshotForRun(newRun, "idle"), runs: [oldRun, newRun] }}>
-        <Chat />
+        <Chat compact={compact} />
       </AiProvider>
     );
 
@@ -1710,13 +1710,13 @@ describe("chat timeline", () => {
     expect(await screen.findByText("paged older prompt")).toBeTruthy();
   });
 
-  it("loads only near the top, locks duplicate requests, and reveals an oversized older turn", async () => {
+  it.each([false, true])("loads only near the top, locks duplicate requests, and reveals an oversized older turn (compact=%s)", async (compact) => {
     const fixture = historyFixture(1100);
     let finish!: (page: AiTurnPage) => void;
     const list = vi.fn(async (_id: string, input?: { cursor?: string | null }) => input?.cursor
       ? new Promise<AiTurnPage>(resolve => { finish = resolve; }) : fixture.recent);
     window.openmind.aiListTurns = list;
-    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat compact={compact} /></AiProvider>);
     await screen.findByText("recent history prompt");
     const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
     const geometry = mockChatScroller(scroller);
@@ -1738,12 +1738,12 @@ describe("chat timeline", () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the visible message anchored when older rows are prepended", async () => {
+  it.each([false, true])("keeps the visible message anchored when older rows are prepended (compact=%s)", async (compact) => {
     const fixture = historyFixture();
     let finish!: (page: AiTurnPage) => void;
     window.openmind.aiListTurns = async (_id, input) => input?.cursor
       ? new Promise<AiTurnPage>(resolve => { finish = resolve; }) : fixture.recent;
-    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat compact={compact} /></AiProvider>);
     await screen.findByText("recent history prompt");
     const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
     const geometry = mockChatScroller(scroller);
@@ -1768,7 +1768,7 @@ describe("chat timeline", () => {
     vi.restoreAllMocks();
   });
 
-  it("retries a failed page on a later upward scroll without an automatic retry loop", async () => {
+  it.each([false, true])("retries a failed page on a later upward scroll without an automatic retry loop (compact=%s)", async (compact) => {
     const fixture = historyFixture();
     let olderRequests = 0;
     const list = vi.fn(async (_id: string, input?: { cursor?: string | null }) => {
@@ -1777,7 +1777,7 @@ describe("chat timeline", () => {
       return fixture.older;
     });
     window.openmind.aiListTurns = list;
-    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat /></AiProvider>);
+    const { container } = render(<AiProvider initial={fixture.snapshot}><Chat compact={compact} /></AiProvider>);
     await screen.findByText("recent history prompt");
     const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
     await act(async () => { fireEvent.wheel(scroller, { deltaY: -100 }); });
@@ -1787,6 +1787,23 @@ describe("chat timeline", () => {
     await act(async () => { fireEvent.wheel(scroller, { deltaY: -100 }); });
     expect(await screen.findByText("old history prompt")).toBeTruthy();
     expect(list).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not treat filtered compact output as hidden older history", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00Z" };
+    const events = [
+      makeEvent("user", "user-message", { text: "compact history prompt" }, 1),
+      ...Array.from({ length: 500 }, (_, index) => makeEvent(`output-${index}`, "tool-output", { text: "output chunk" }, index + 2)),
+      makeEvent("answer", "assistant-message", { text: "compact history answer", phase: "final" }, 502)
+    ];
+    const list = vi.fn(async () => ({ data: [makeTurn(run, events)], nextCursor: null, total: 1, parseErrors: 0 }));
+    window.openmind.aiListTurns = list;
+    const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat compact /></AiProvider>);
+    await screen.findByText("compact history answer");
+    const scroller = container.querySelector<HTMLElement>(".chat-scroll")!;
+    fireEvent.wheel(scroller, { deltaY: -100 });
+    expect(scroller.hasAttribute("data-history-prepend")).toBe(false);
+    expect(list).toHaveBeenCalledTimes(1);
   });
 
   it("renders the latest prompt when an older run is larger than the history budget", async () => {

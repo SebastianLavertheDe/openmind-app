@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { VideoPreviewResource } from "../model";
 import { trustedYoutubeEmbedUrl, VideoPreview } from "./VideoPreview";
@@ -62,12 +63,12 @@ describe("VideoPreview", () => {
     act(() => window.dispatchEvent(new MessageEvent("message", { origin: "https://player.bilibili.com", source: frame.contentWindow,
       data: JSON.stringify({ event: "infoDelivery", info: { currentTime: 8 } }) })));
     expect(screen.getByText("拼接字幕。").closest(".project-transcript-row")?.classList.contains("active")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    fireEvent.click(screen.getByText("拼接字幕。"));
     const seekFrame = screen.getByTitle("Video") as HTMLIFrameElement;
     expect(seekFrame).not.toBe(frame);
     expect(seekFrame.src).toBe(bilibiliEmbedUrl({ videoId, page: 2 }, 7250));
     expect(screen.getByText("拼接字幕。").closest(".project-transcript-row")?.classList.contains("active")).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    fireEvent.click(screen.getByText("00:07"));
     expect(screen.getByTitle("Video")).not.toBe(seekFrame);
     rerender(<VideoPreview resource={{ ...video, id: "another-material" }} />);
     expect((screen.getByTitle("Video") as HTMLIFrameElement).src).toBe(embedUrl);
@@ -107,7 +108,7 @@ describe("VideoPreview", () => {
     expect(player.getAttribute("src")).toBe(localUrl);
     expect(player.controls).toBe(true);
     expect(container.querySelector("iframe")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    fireEvent.click(screen.getByText("Stitched sentence."));
     fireEvent.loadedMetadata(player);
     expect(player.currentTime).toBe(7);
     player.currentTime = 8;
@@ -118,6 +119,52 @@ describe("VideoPreview", () => {
     expect(screen.getByText("Stitched sentence.").closest(".project-transcript-row")?.classList.contains("active")).toBe(false);
     fireEvent.error(player);
     expect(screen.getByRole("status").textContent).toContain("本地视频无法播放");
+  });
+
+  it.each([true, false])("seeks from the subtitle text, row and timestamp while preserving paused=%s", paused => {
+    const video: VideoPreviewResource = {
+      ...resource(""), playback: { kind: "local-video", mediaUrl: projectVideoMediaUrl("Fixture", "materials/videos/test.video.md") },
+      transcript: [{ id: "cue", startMs: 7250, endMs: 12000, text: "Click this sentence." }]
+    };
+    render(<VideoPreview resource={video} />);
+    const player = screen.getByTitle("Video") as HTMLVideoElement;
+    Object.defineProperty(player, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    Object.defineProperty(player, "paused", { configurable: true, value: paused });
+    const play = vi.spyOn(player, "play").mockResolvedValue();
+    const pause = vi.spyOn(player, "pause").mockImplementation(() => {});
+    const row = screen.getByRole("button", { name: "00:07 Click this sentence." });
+
+    for (const target of [screen.getByText("Click this sentence."), row, screen.getByText("00:07")]) {
+      player.currentTime = 0;
+      fireEvent.timeUpdate(player);
+      expect(row.getAttribute("aria-pressed")).toBe("false");
+      fireEvent.click(target);
+      expect(player.currentTime).toBe(7.25);
+      expect(row.getAttribute("aria-pressed")).toBe("true");
+      expect(player.paused).toBe(paused);
+    }
+    expect(play).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("allows seeking to a subtitle with Enter and Space", async () => {
+    const user = userEvent.setup();
+    const video: VideoPreviewResource = {
+      ...resource(""), playback: { kind: "local-video", mediaUrl: projectVideoMediaUrl("Fixture", "materials/videos/test.video.md") },
+      transcript: [{ id: "cue", startMs: 7250, endMs: 12000, text: "Keyboard subtitle." }]
+    };
+    render(<VideoPreview resource={video} />);
+    const player = screen.getByTitle("Video") as HTMLVideoElement;
+    Object.defineProperty(player, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    const row = screen.getByRole("button", { name: "00:07 Keyboard subtitle." });
+    row.focus();
+    for (const key of ["{Enter}", " "]) {
+      player.currentTime = 0;
+      fireEvent.timeUpdate(player);
+      await user.keyboard(key);
+      expect(player.currentTime).toBe(7.25);
+      expect(row.getAttribute("aria-pressed")).toBe("true");
+    }
   });
 
   it("does not accept arbitrary file or remote URLs as local playback", () => {
@@ -189,7 +236,7 @@ describe("VideoPreview", () => {
     expect(cue.classList.contains("active")).toBe(true);
 
     postMessage.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "00:07" }));
+    fireEvent.click(screen.getByText("字幕内容"));
     expect(postMessage).toHaveBeenCalledWith(
       JSON.stringify({ event: "command", func: "seekTo", args: [7, true] }),
       "https://www.youtube-nocookie.com"

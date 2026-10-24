@@ -137,24 +137,24 @@ describe("settings path handling", () => {
 
   it("keeps YouTube browser selection opt-in, persists it, and rejects arbitrary profile or shell values", () => {
     saveSettings({ defaultLanguage: "zh-CN" });
-    expect(getPreferences().youtubeBrowser).toBe("");
-    updatePreferences({ youtubeBrowser: "firefox" });
-    expect(getPreferences().youtubeBrowser).toBe("firefox");
-    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).youtubeBrowser).toBe("firefox");
-    expect(() => updatePreferences({ youtubeBrowser: "chrome:/private/profile" as "chrome" })).toThrow();
-    expect(getPreferences().youtubeBrowser).toBe("firefox");
-    updatePreferences({ youtubeBrowser: "" });
-    expect(getPreferences().youtubeBrowser).toBe("");
+    expect(getPreferences().youtubeBrowser).toEqual([]);
+    updatePreferences({ youtubeBrowser: ["firefox", "chrome", "firefox"] });
+    expect(getPreferences().youtubeBrowser).toEqual(["firefox", "chrome"]);
+    expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).youtubeBrowser).toEqual(["firefox", "chrome"]);
+    expect(() => updatePreferences({ youtubeBrowser: ["chrome:/private/profile" as "chrome"] })).toThrow();
+    expect(getPreferences().youtubeBrowser).toEqual(["firefox", "chrome"]);
+    updatePreferences({ youtubeBrowser: [] });
+    expect(getPreferences().youtubeBrowser).toEqual([]);
     saveSettings({ youtubeBrowser: "unrecognized-legacy-browser" });
-    expect(getPreferences().youtubeBrowser).toBe("");
+    expect(getPreferences().youtubeBrowser).toEqual([]);
   });
 
   it("ignores retired Bilibili browser preferences without changing the YouTube selection", () => {
     saveSettings({ youtubeBrowser: "chrome", bilibiliBrowser: "firefox" });
-    expect(getPreferences().youtubeBrowser).toBe("chrome");
+    expect(getPreferences().youtubeBrowser).toEqual(["chrome"]);
     expect(getPreferences()).not.toHaveProperty("bilibiliBrowser");
-    updatePreferences({ youtubeBrowser: "firefox" });
-    expect(getPreferences().youtubeBrowser).toBe("firefox");
+    updatePreferences({ youtubeBrowser: ["firefox", "chrome"] });
+    expect(getPreferences().youtubeBrowser).toEqual(["firefox", "chrome"]);
     expect(getPreferences()).not.toHaveProperty("bilibiliBrowser");
   });
 

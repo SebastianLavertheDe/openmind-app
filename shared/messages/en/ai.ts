@@ -34,6 +34,9 @@ export const aiMessages = {
   permission: { label: "Permissions", readOnly: "Read only", edit: "Edit", auto: "Run automatically", autoShort: "Auto" },
   mode: { label: "Mode", default: "Execute", plan: "Plan", planActive: "Plan mode" },
   composer: {
+    queuedMessage: (n: number) => `Queued message ${n}`,
+    removeQueuedMessage: (n: number) => `Remove queued message ${n}`,
+    viewQueuedMessage: (n: number) => `View queued message ${n}`,
     closeError: "Dismiss error", queuedSummary: (n: number) => `${count(n, "message")} queued`, cancelQueued: "Cancel queued messages", messageInput: "AI message", placeholderContinue: (title: string) => `Continue ${title}`,
     placeholderNew: "Describe content to organize, create, or automate…", addAttachment: "Add attachment", stop: "Stop", stopping: "Stopping", enqueue: "Add to queue", send: "Send", charCount: (n: number) => count(n, "character"), sendShortcut: "⌘↵ Send",
     provider: "Provider", openWorkspace: "Open current project", projectTargetHint: (name: string) => `New conversations are automatically created as tasks in “${name}”`, moreActions: "More actions",

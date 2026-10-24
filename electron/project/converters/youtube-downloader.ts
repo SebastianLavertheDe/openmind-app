@@ -24,9 +24,11 @@ type Metadata = {
   language?: string;
   is_live?: boolean;
   live_status?: string;
-  subtitles?: Record<string, unknown>;
-  automatic_captions?: Record<string, unknown>;
 };
+type MetadataOutput = { metadata: Metadata; subtitleLanguages?: string; automaticCaptionLanguages?: string };
+// URLs for every translated caption language can exceed the subprocess buffer.
+// Only the language keys are needed to choose the separate subtitle download.
+const METADATA_TEMPLATE = '{"metadata":%(.{id,title,duration,language,is_live,live_status})j,"subtitleLanguages":"%(subtitles|)l","automaticCaptionLanguages":"%(automatic_captions|)l"}';
 const execute = promisify(execFile);
 const runCommand: YoutubeCommandRunner = (executable, args, options) => execute(executable, args, {
   ...options, encoding: "utf8", windowsHide: true, shell: false, killSignal: "SIGKILL"
@@ -39,7 +41,9 @@ function importError(code: string, message: string): Error {
 /** Return only our actionable messages: subprocess stderr may contain profile paths and signed URLs. */
 function downloadError(error: unknown): Error {
   const value = error as { message?: string; stderr?: string; code?: string; killed?: boolean };
-  const diagnostic = `${value?.message || ""} ${value?.stderr || ""}`;
+  // execFile's message also includes the command's --cookies-from-browser flag.
+  // Prefer stderr so network failures are not mistaken for cookie failures.
+  const diagnostic = value?.stderr || value?.message || "";
   if (value?.killed || value?.code === "ETIMEDOUT") return importError("youtube-timeout", messages.desktopErrors.youtube.timeout);
   if (/cookie|keyring|decrypt|DPAPI|database.*locked/i.test(diagnostic)) return importError("youtube-cookies", messages.desktopErrors.youtube.cookiesFailed);
   if (/sign.?in|login|confirm.*bot|age.restrict|private video|members.only/i.test(diagnostic)) return importError("youtube-login", messages.desktopErrors.youtube.loginRequired);
@@ -47,9 +51,11 @@ function downloadError(error: unknown): Error {
   return importError("youtube-download-failed", messages.desktopErrors.youtube.downloadFailed);
 }
 
-function subtitleLanguage(metadata: Metadata, preferred?: string): string | undefined {
-  const manual = Object.keys(metadata.subtitles || {});
-  const automatic = Object.keys(metadata.automatic_captions || {});
+function subtitleLanguage(output: MetadataOutput, preferred?: string): string | undefined {
+  const { metadata } = output;
+  const languages = (value?: string) => typeof value === "string" ? value.split(",").map(language => language.trim()) : [];
+  const manual = languages(output.subtitleLanguages);
+  const automatic = languages(output.automaticCaptionLanguages);
   const all = [...manual, ...automatic].filter(language => /^[A-Za-z0-9_-]+$/.test(language) && language !== "live_chat");
   for (const language of [preferred, metadata.language, "en"].filter((value): value is string => Boolean(value))) {
     const base = language.split("-")[0];
@@ -71,9 +77,11 @@ export class BrowserYoutubeDownloader implements YoutubeDownloader {
   async download(videoId: string, preferredLanguage?: string): Promise<YoutubeDownload> {
     if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw importError("youtube-invalid-video", messages.desktopErrors.youtube.invalidOutput);
     const selected = YoutubeBrowserPreferenceSchema.safeParse(this.options.getBrowser());
-    if (!selected.success || !selected.data) throw importError("youtube-browser-required", messages.desktopErrors.youtube.selectBrowser);
+    if (!selected.success || !selected.data.length) throw importError("youtube-browser-required", messages.desktopErrors.youtube.selectBrowser);
     const host = this.options.detector ?? createYoutubeHostDetector();
-    if (!host.browsers().some(browser => browser.id === selected.data)) throw importError("youtube-browser-missing", messages.desktopErrors.youtube.browserMissing);
+    const installed = new Set(host.browsers().map(browser => browser.id));
+    const browsers = selected.data.filter(browser => installed.has(browser));
+    if (!browsers.length) throw importError("youtube-browser-missing", messages.desktopErrors.youtube.browserMissing);
     const tools = this.options.resolveTools ? await this.options.resolveTools() : {
       "yt-dlp": host.findTool("yt-dlp"), ffmpeg: host.findTool("ffmpeg"), deno: host.findTool("deno"), node: host.findTool("node")
     };
@@ -83,23 +91,38 @@ export class BrowserYoutubeDownloader implements YoutubeDownloader {
 
     fs.mkdirSync(this.options.tempRoot, { recursive: true, mode: 0o700 });
     const directory = fs.mkdtempSync(path.join(this.options.tempRoot, "youtube-"));
-    const cleanup = () => fs.rmSync(directory, { recursive: true, force: true });
+    const cleanup = () => {
+      try { fs.rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+      catch {
+        // Windows may still hold a subprocess working-directory handle. Cleanup
+        // must not replace the download error or invalidate an adopted video.
+      }
+    };
     const run = this.options.run ?? runCommand;
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const common = [
       "--ignore-config", "--no-plugin-dirs", "--no-playlist", "--no-cache-dir", "--no-progress", "--no-colors",
-      "--cookies-from-browser", selected.data, "--no-js-runtimes", "--js-runtimes", deno ? `deno:${deno}` : `node:${node}`,
+      "--no-js-runtimes", "--js-runtimes", deno ? `deno:${deno}` : `node:${node}`,
       "--ffmpeg-location", ffmpeg, "--socket-timeout", "30", "--retries", "2", "--fragment-retries", "2"
     ];
+    let browserIndex = 0;
     const command = async (args: string[], timeout: number) => {
-      try { return await run(executable, [...common, ...args, "--", url], { cwd: directory, timeout, maxBuffer: 8 * 1024 * 1024 }); }
-      catch (error) { throw downloadError(error); }
+      for (;;) {
+        try {
+          return await run(executable, [...common, "--cookies-from-browser", browsers[browserIndex], ...args, "--", url], { cwd: directory, timeout, maxBuffer: 8 * 1024 * 1024 });
+        } catch (error) {
+          const failure = downloadError(error) as Error & { code: string };
+          if (!["youtube-cookies", "youtube-login"].includes(failure.code) || browserIndex + 1 >= browsers.length) throw failure;
+          browserIndex++;
+        }
+      }
     };
     try {
-      const { stdout } = await command(["--dump-single-json", "--skip-download"], 90_000);
-      let metadata: Metadata;
-      try { metadata = JSON.parse(stdout) as Metadata; }
+      const { stdout } = await command(["--print", METADATA_TEMPLATE, "--skip-download"], 90_000);
+      let output: MetadataOutput;
+      try { output = JSON.parse(stdout) as MetadataOutput; }
       catch { throw importError("youtube-invalid-output", messages.desktopErrors.youtube.invalidOutput); }
+      const metadata = output?.metadata;
       if (!metadata || metadata.id !== videoId || metadata.is_live || ["is_live", "is_upcoming", "post_live"].includes(metadata.live_status || "")) {
         throw importError("youtube-invalid-output", messages.desktopErrors.youtube.invalidOutput);
       }
@@ -115,7 +138,7 @@ export class BrowserYoutubeDownloader implements YoutubeDownloader {
       if (!filename) throw importError("youtube-invalid-output", messages.desktopErrors.youtube.invalidOutput);
       const warnings: string[] = [];
       let transcript: ProjectVideoDescriptor["transcript"] = [];
-      const language = subtitleLanguage(metadata, preferredLanguage);
+      const language = subtitleLanguage(output, preferredLanguage);
       if (language) {
         try {
           await command([

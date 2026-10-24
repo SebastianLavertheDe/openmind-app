@@ -323,7 +323,7 @@ function orphanEventVisible(event: AiEvent): boolean {
   return event.kind !== "tool-output";
 }
 
-export function compactEvents(events: AiEvent[], activeRunId?: string): AiEvent[] {
+export function compactEvents(events: AiEvent[], activeRunId?: string, eventBudget = 80): AiEvent[] {
   const useful = events.filter((event) => {
     if (event.kind === "usage" || event.kind === "reasoning-delta") return false;
     if (event.kind === "assistant-delta") return event.runId === activeRunId;
@@ -346,7 +346,7 @@ export function compactEvents(events: AiEvent[], activeRunId?: string): AiEvent[
       "status"
     ].includes(event.kind);
   });
-  return selectRecentTurnEvents(useful, 80);
+  return selectRecentTurnEvents(useful, eventBudget);
 }
 
 export function firstLine(value: string): string {

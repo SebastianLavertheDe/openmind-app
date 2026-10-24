@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ProvidersYamlInputSchema,
   ProvidersYamlSchema,
-  ProvidersYamlViewSchema
+  ProvidersYamlViewSchema,
+  processProviderEnvironment,
+  providerEndpoint
 } from "./providers-yaml";
 
 function provider(
@@ -21,6 +23,23 @@ function provider(
     ...overrides
   };
 }
+
+describe("provider request endpoints", () => {
+  it.each([
+    ["https://api.anthropic.com", "https://api.anthropic.com/v1/messages"],
+    ["https://open.bigmodel.cn/api/anthropic", "https://open.bigmodel.cn/api/anthropic/v1/messages"],
+    ["https://api.deepseek.com/anthropic/v1", "https://api.deepseek.com/anthropic/v1/messages"],
+    ["https://gateway.example.com/v1/", "https://gateway.example.com/v1/messages"],
+    ["https://gateway.example.com/custom/messages/", "https://gateway.example.com/custom/messages"]
+  ])("resolves the Messages endpoint for %s", (base, expected) => {
+    expect(providerEndpoint(base, "anthropic-messages")).toBe(expected);
+    expect(providerEndpoint(expected, "anthropic-messages")).toBe(expected);
+    const entry = ProvidersYamlSchema.parse({
+      schemaVersion: 1, default: "summary", providers: [provider("summary", "anthropic-messages", { baseUrl: base })]
+    }).providers[0];
+    expect(processProviderEnvironment(entry).OPENMIND_PROVIDER_BASE_URL).toBe(expected);
+  });
+});
 
 describe("providers.yaml schemas", () => {
   it("keeps shared image capabilities on one text provider and validates supported generation models", () => {

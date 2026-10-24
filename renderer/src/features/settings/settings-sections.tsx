@@ -623,6 +623,9 @@ export function YoutubeImportSettingsSection({ prefs, save }: { prefs: UserPrefe
   const [status, setStatus] = useState<YoutubeImportStatus | null>(null);
   const [detecting, setDetecting] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedBrowsers, setSelectedBrowsers] = useState(prefs.youtubeBrowser);
+  const pendingBrowserSaves = useRef(0);
+  useEffect(() => { if (!saving) setSelectedBrowsers(prefs.youtubeBrowser); }, [prefs.youtubeBrowser, saving]);
   const [failed, setFailed] = useState(false);
   const [action, setAction] = useState<{ id: YoutubeToolId; kind: "checking" | "installing" } | null>(null);
   const [toolError, setToolError] = useState<{ id: YoutubeToolId; kind: "checkFailed" | "installFailed" | "downgradeRefused" } | null>(null);
@@ -666,7 +669,8 @@ export function YoutubeImportSettingsSection({ prefs, save }: { prefs: UserPrefe
     }
   };
   const busy = detecting || Boolean(action) || backgroundBusy;
-  const selectedMissing = Boolean(status && prefs.youtubeBrowser && !status.browsers.some(browser => browser.id === prefs.youtubeBrowser));
+  const missingBrowsers = status ? selectedBrowsers.filter(id => !status.browsers.some(browser => browser.id === id)) : [];
+  const selectedMissing = missingBrowsers.length > 0;
   const available = (id: YoutubeToolId) => status?.tools.some(tool => tool.id === id && tool.state === "ready");
   const ready = available("yt-dlp") && available("ffmpeg") && (available("deno") || available("node"));
   return <SettingsPanel title={copy.title} scope={copy.scope} action={
@@ -675,12 +679,16 @@ export function YoutubeImportSettingsSection({ prefs, save }: { prefs: UserPrefe
     </Button>
   }>
     <PreferenceRow title={copy.browser} description={copy.description}>
-      <Select value={prefs.youtubeBrowser} ariaLabel={copy.browser} size="rect" disabled={detecting || saving || !status}
-        options={[{ value: "", label: copy.none }, ...(status?.browsers || []).map(browser => ({ value: browser.id, label: browser.name })),
-          ...(selectedMissing ? [{ value: prefs.youtubeBrowser, label: copy.missingBrowser, disabled: true }] : [])]}
+      <Select multiple value={selectedBrowsers} ariaLabel={copy.browser} placeholder={copy.none} size="rect" disabled={detecting || !status}
+        options={[...(status?.browsers || []).map(browser => ({ value: browser.id, label: browser.name })),
+          ...missingBrowsers.map(id => ({ value: id, label: `${id} · ${copy.unavailableBrowser}` }))]}
         onChange={value => {
+          setSelectedBrowsers(value);
+          pendingBrowserSaves.current++;
           setSaving(true);
-          void save({ youtubeBrowser: YoutubeBrowserPreferenceSchema.parse(value) }).finally(() => setSaving(false));
+          void save({ youtubeBrowser: YoutubeBrowserPreferenceSchema.parse(value) }).finally(() => {
+            if (--pendingBrowserSaves.current === 0) setSaving(false);
+          });
         }} />
     </PreferenceRow>
     {failed || selectedMissing || (status && !status.browsers.length) ? <p className="settings-note" role="status">{failed ? copy.failed : selectedMissing ? copy.missingBrowser : copy.noBrowsers}</p> : null}

@@ -165,7 +165,10 @@ export function processProviderEnvironment(entry: ProviderYamlEntry): Record<str
 /** Append the protocol-specific request path to the base URL (idempotent). */
 export function providerEndpoint(baseUrl: string, protocol: ProviderProtocol): string {
   const base = baseUrl.replace(/\/+$/, "");
-  if (protocol === "anthropic-messages") return base.endsWith("/messages") ? base : `${base}/messages`;
+  if (protocol === "anthropic-messages") {
+    if (base.endsWith("/messages")) return base;
+    return `${base.endsWith("/v1") ? base : `${base}/v1`}/messages`;
+  }
   if (protocol === "openai-responses") return base.endsWith("/responses") ? base : `${base}/responses`;
   if (protocol === "openai-chat") return base.endsWith("/chat/completions") ? base : `${base}/chat/completions`;
   return base;

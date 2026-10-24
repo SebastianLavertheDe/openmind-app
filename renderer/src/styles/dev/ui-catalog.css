@@ -22,3 +22,6 @@ body { margin: 0; overflow: auto; background: var(--app-bg); }
 .ui-catalog-composer-example { width: min(640px, 100%); margin: 40px auto; }
 .ui-catalog-composer-stage { position: relative; min-height: 420px; display: flex; align-items: flex-end; }
 .ui-catalog-benchmark-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-block: var(--space-4); }
+.ui-catalog-queue-example { width: min(480px, 100%); margin: 40px auto; --ai-flow-width: 760px; }
+.ui-catalog-queue-example .composer { padding: 0; }
+.ui-catalog-queue-example .composer-editor-actions { justify-content: space-between; }

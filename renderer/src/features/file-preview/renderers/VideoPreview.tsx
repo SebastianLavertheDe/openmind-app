@@ -12,11 +12,12 @@ import { bilibiliEmbedUrl, parseTrustedBilibiliEmbed } from "@shared/bilibili-vi
 
 export const VIDEO_PREVIEW_SPLIT_MIN_INLINE_SIZE = 720;
 
-export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retryingTranscript = false }: {
+export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retryingTranscript = false, retryError }: {
   resource: VideoPreviewResource;
   onOpenExternal?(): void;
   onRetryTranscript?(): void;
   retryingTranscript?: boolean;
+  retryError?: string;
 }) {
   const locale = useLocale();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -124,6 +125,7 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
               </div>
             )}
           </section>
+          {retryError ? <div className="project-video-playback-help" role="alert"><p>{retryError}</p></div> : null}
           {localUrl && playerError ? <div className="project-video-playback-help" role="status">
             <p>{uiMessages.interface.videoLocalPlaybackFailed}</p>
             {onOpenExternal ? <Button variant="ghost" type="button" data-motion="action" onClick={onOpenExternal}><ExternalLink size={14} />{uiMessages.interface.openExternalMedia}</Button> : null}
@@ -143,10 +145,11 @@ export function VideoPreview({ resource, onOpenExternal, onRetryTranscript, retr
               {resource.transcript.map((item) => {
                 const active = currentMs >= item.startMs && currentMs < Math.max(item.startMs + 1, item.endMs);
                 return (
-                  <div className={`project-transcript-row${active ? " active" : ""}`} key={item.id}>
-                    <button aria-pressed={Boolean(active)} className="project-timecode" data-motion="selection" onClick={() => seek(item.startMs)}>{formatDisplayTime(item.startMs)}</button>
+                  <button type="button" className={`project-transcript-row${active ? " active" : ""}`} key={item.id}
+                    aria-pressed={active} data-motion="selection" onClick={() => seek(item.startMs)}>
+                    <span className="project-timecode">{formatDisplayTime(item.startMs)}</span>
                     <span>{item.speaker ? <strong>{item.speaker} </strong> : null}{item.text}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>

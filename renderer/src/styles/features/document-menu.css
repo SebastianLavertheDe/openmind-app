@@ -1,7 +1,6 @@
 /* Shared surface and row contract for toolbar menus and Crepe's slash menu. */
 :is(.document-menu, .markdown-editor-shell .milkdown .milkdown-slash-menu) {
   --document-menu-width: 280px;
-  --document-menu-row-height: 36px;
   --document-menu-icon-size: 20px;
   --document-menu-gap: 10px;
   width: var(--document-menu-width);
@@ -64,13 +63,11 @@
   display: inline-flex;
   align-items: center;
 }
-.document-menu-footer { flex-shrink: 0; }
-:is(.document-menu .document-menu-footer, .markdown-editor-shell .milkdown .milkdown-slash-menu)::after {
-  content: "↑↓ 选择   ↵ 确认   esc 关闭";
-  display: block;
-}
-/* Adapt only the structure Crepe owns; geometry and appearance stay shared. */
+/* Crepe's command menu uses compact rows and stays inside the editor pane. */
 .markdown-editor-shell .milkdown .milkdown-slash-menu {
+  --document-menu-width: 260px;
+  --document-menu-icon-size: 18px;
+  --document-menu-gap: 8px;
   max-width: calc(100cqi - 16px);
   display: block;
   visibility: hidden;
@@ -80,5 +77,22 @@
 .markdown-editor-shell .milkdown .milkdown-slash-menu[data-show="true"] { visibility: visible; opacity: 1; pointer-events: auto; }
 .markdown-editor-shell .milkdown .milkdown-slash-menu[data-show="false"] { display: block; pointer-events: none; }
 .markdown-editor-shell .milkdown .milkdown-slash-menu .tab-group { display: none; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-groups {
+  max-height: min(420px, var(--document-menu-height, calc(100dvh - 16px)));
+  padding: 4px;
+}
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group h6 {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+}
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  min-height: 32px;
+  padding: 6px 8px;
+}
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li > span { font-weight: 400; }
+.markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li .document-menu-icon svg { height: var(--document-menu-icon-size); }
 .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group ul { margin: 0; padding: 0; }
 .markdown-editor-shell .milkdown .milkdown-slash-menu .menu-group li > .milkdown-icon { display: contents; }

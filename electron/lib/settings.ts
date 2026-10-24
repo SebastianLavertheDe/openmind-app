@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { OnboardingStateSchema, type OpenmindRootPreview, type OnboardingState, type UserPreferences, type UserPreferencesPatch } from "../../shared/contracts";
-import { YOUTUBE_COOKIE_BROWSERS } from "../../shared/youtube-import";
+import { YoutubeBrowserPreferenceSchema } from "../../shared/youtube-import";
 import { messages, zhCN } from "../../shared/messages";
 import { buildAppPaths, detectPathConflicts, type AppPaths } from "../paths/app-paths-service";
 import { assertOutsideAppManagedProjects, computeRootId, OpenmindPathResolver, resolvePathInsideCanonicalRoot } from "../paths/openmind-path-resolver";
@@ -420,7 +420,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   contentPreviewMode: "sidebar",
   markReadOnOpen: true,
   defaultProvider: "",
-  youtubeBrowser: "",
+  youtubeBrowser: [],
   defaultPermissionProfile: "auto",
   notesDir: "openmind",
   destructiveOpsRequireApproval: true,
@@ -524,7 +524,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     contentPreviewMode: enumPref(source.contentPreviewMode, ["inline", "sidebar"], DEFAULT_PREFERENCES.contentPreviewMode, strict, "contentPreviewMode"),
     markReadOnOpen: boolPref(source.markReadOnOpen, DEFAULT_PREFERENCES.markReadOnOpen, strict, "markReadOnOpen"),
     defaultProvider: stringPref(source.defaultProvider, DEFAULT_PREFERENCES.defaultProvider, strict, "defaultProvider", 200),
-    youtubeBrowser: enumPref(source.youtubeBrowser, ["", ...YOUTUBE_COOKIE_BROWSERS], DEFAULT_PREFERENCES.youtubeBrowser, strict, "youtubeBrowser"),
+    youtubeBrowser: youtubeBrowsersPref(source.youtubeBrowser, strict),
     defaultPermissionProfile: enumPref(storedPermissionProfile, ["read-only", "edit", "auto"], DEFAULT_PREFERENCES.defaultPermissionProfile, strict, "defaultPermissionProfile"),
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     destructiveOpsRequireApproval: boolPref(source.destructiveOpsRequireApproval, DEFAULT_PREFERENCES.destructiveOpsRequireApproval, strict, "destructiveOpsRequireApproval"),
@@ -540,6 +540,14 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     workflowPublishChecklistEnabled: boolPref(source.workflowPublishChecklistEnabled, DEFAULT_PREFERENCES.workflowPublishChecklistEnabled, strict, "workflowPublishChecklistEnabled"),
     workflowAutoArchiveEnabled: boolPref(source.workflowAutoArchiveEnabled, DEFAULT_PREFERENCES.workflowAutoArchiveEnabled, strict, "workflowAutoArchiveEnabled")
   };
+}
+
+function youtubeBrowsersPref(value: unknown, strict: boolean): UserPreferences["youtubeBrowser"] {
+  if (value === undefined || value === null) return [];
+  const parsed = YoutubeBrowserPreferenceSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  if (strict) throw new Error(messages.errors.preferences.invalidSetting("youtubeBrowser"));
+  return [];
 }
 
 function stringPref(value: unknown, fallback: string, strict: boolean, key: string, max: number): string {

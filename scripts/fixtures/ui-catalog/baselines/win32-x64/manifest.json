@@ -71,6 +71,10 @@
       "sha256": "3da548fbfe5572b67b4aec8c416233ca70ac85129c2e838ae636e97dcec67ee6"
     },
     {
+      "name": "light-720-select-multiple-open.png",
+      "sha256": "ddda8752a4e4d81dadda5760bb281b29aa6b9589811537c307850e076e499341"
+    },
+    {
       "name": "light-720-navigation-controls.png",
       "sha256": "1c343823e7caf32331e9f842ee3de4dd0e07b265fe8fbf1d106a492bc9247071"
     },
@@ -121,6 +125,10 @@
     {
       "name": "light-1280-popover.png",
       "sha256": "41258ea8fc04f58404f466d60a4096fe939af1f1ea90ba47b494a06f680b0a05"
+    },
+    {
+      "name": "light-1280-select-multiple-open.png",
+      "sha256": "c1e55fbc78a7df88b7b0735eabead45d4fee2ec89af902eadc731e0864c1c0af"
     },
     {
       "name": "light-1280-navigation-controls.png",
@@ -175,6 +183,10 @@
       "sha256": "19e66d5fcbe687cadf04a57fdeeb94edd0243ed0a586bd3150feab41ff537e9b"
     },
     {
+      "name": "dark-720-select-multiple-open.png",
+      "sha256": "7e6f12b599c09c76efb3a6060895a1b75ae80ff9a8f21b60023eb74b9206babb"
+    },
+    {
       "name": "dark-720-navigation-controls.png",
       "sha256": "78b7a256a34ab4c43bad2032740308564ddbcbab5916923fc5d73d0fb1833755"
     },
@@ -225,6 +237,10 @@
     {
       "name": "dark-1280-popover.png",
       "sha256": "16dfc53b534136c2f69976800de79f1c9c61fab4de9df423b5ca42c8d4b46a8c"
+    },
+    {
+      "name": "dark-1280-select-multiple-open.png",
+      "sha256": "7f327d43c7ca6b4193dc556f0119bf5b5b5b52188743daa9582b6e5bdf1bc1ea"
     },
     {
       "name": "dark-1280-navigation-controls.png",

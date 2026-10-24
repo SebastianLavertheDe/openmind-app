@@ -692,7 +692,7 @@
 .project-transcript { display: grid; grid-template-rows: minmax(0, 1fr); }
 .project-transcript-list { min-height: 0; overflow-y: auto; padding: 7px; }
 .project-transcript-list > .ui-empty-state { min-height: 100%; }
-.project-transcript-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; padding: 8px; border-radius: 8px; color: var(--text-dim); }
+.project-transcript-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; width: 100%; min-width: 0; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); text-align: start; }
 .project-transcript-row:hover { background: var(--control-hover); }
 .project-transcript-row.active { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
 .project-timecode:not([data-ui-control]) { padding: 2px 5px; border: 0; border-radius: 5px; background: var(--panel-muted); color: var(--accent); font: 600 10px/1.4 var(--font-mono); }

@@ -34,6 +34,34 @@ function ModalHarness({ onDismiss }: { onDismiss(): void }) {
 }
 
 describe("Select (custom dropdown)", () => {
+  it("toggles multiple choices with mouse and keyboard while preserving focus and selection order", async () => {
+    const user = userEvent.setup();
+    function MultipleHarness() {
+      const [value, setValue] = useState<Array<"a" | "b" | "c">>([]);
+      return <><Select multiple value={value} onChange={setValue} options={OPTIONS} placeholder="请选择" /><button>after select</button></>;
+    }
+    const { container } = render(<MultipleHarness />);
+    await user.click(getTrigger());
+    const list = screen.getByRole("listbox");
+    expect(list.getAttribute("aria-multiselectable")).toBe("true");
+    await user.click(within(list).getByRole("option", { name: "Beta" }));
+    await waitFor(() => expect(document.activeElement).toBe(within(list).getByRole("option", { name: "Beta" })));
+    await user.keyboard("{ArrowUp}");
+    await waitFor(() => expect(document.activeElement).toBe(within(list).getByRole("option", { name: "Alpha" })));
+    await user.keyboard(" ");
+    expect(getTrigger().textContent).toContain("Beta / Alpha");
+    expect(within(list).getAllByRole("option", { selected: true })).toHaveLength(2);
+    expect(Array.from(container.querySelector("select")!.selectedOptions, option => option.value)).toEqual(["a", "b"]);
+    await user.keyboard("{Enter}");
+    expect(getTrigger().textContent).toContain("Beta");
+    await user.click(within(list).getByRole("option", { name: "Beta" }));
+    expect(getTrigger().textContent).toContain("请选择");
+    expect(within(list).queryAllByRole("option", { selected: true })).toHaveLength(0);
+    await user.keyboard("{Tab}");
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after select" }));
+  });
+
   it.each(["", "missing"])("keeps an unmatched value (%s) unselected until the user chooses", async (value) => {
     const onChange = vi.fn();
     const options = [{ value: "a", label: "Alpha", disabled: true }, { value: "b", label: "Beta" }];
