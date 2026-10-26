@@ -223,11 +223,12 @@ stable input identity. Motion preference uses one OS subscription for all
 controls, released after the final consumer unmounts. Simple actions add no
 timers, subscriptions or wrapper DOM.
 
-The Electron visual runner captures fourteen scenarios in two themes and two
-viewport widths. Linux arm64 retains its 48 reviewed pixel baselines; Windows x64
-has 56, including the Tabs/SegmentedControl/ToggleSwitch and multiple-browser
-scenes. These scenes still run geometry checks on Linux; their pixel baselines currently
-target Windows only. Both platform jobs run in CI. It checks geometry
+The Electron visual runner captures the configured scenarios in two themes and two
+viewport widths. Visual gates target Windows and macOS. Windows x64 has 56 reviewed
+pixel baselines, including the Tabs/SegmentedControl/ToggleSwitch and multiple-browser
+scenes. macOS CI runs geometry checks and captures evidence with `--capture-only`
+until native pixel baselines have been reviewed; this does not count as a pixel
+comparison. Additional queue scenarios run geometry checks on both platforms. The runner checks geometry
 and actual open overlays before comparing pixels, and records an input-update
 budget with 500 memoized unrelated actions. This measures controlled React
 updates and synchronous layout, not end-to-end typing or paint latency. Fonts, runtime, device scale and motion
@@ -241,8 +242,12 @@ focused at narrow widths in both themes. The application screenshot runner also
 checks responsive layouts, coarse-pointer targets, resized textareas and overlay
 geometry using synthetic content and the production renderer.
 
-The canonical CI baseline is Linux arm64. Other platforms need their own reviewed
-baseline. A missing baseline or changed rendering runtime fails explicitly.
+The canonical CI pixel baseline is Windows x64. Other platforms need their own reviewed
+baseline for comparison mode. A missing baseline or changed rendering runtime fails explicitly.
+Linux CI retains build, unit, integration and Electron E2E checks, but runs no visual
+gates. The default `visual:snapshot`, `visual:inputs` and `visual:ui` commands explicitly
+skip Linux. Catalog preview, capture-only diagnostics and performance checks remain
+available there; historical Linux PNGs are retained as reference fixtures.
 Actual, expected, difference images and reports are written under
 `.tmp/ui-regression/`. Catalog/tests use synthetic content and temporary
 Electron userData; they never load a real OpenMind data repository or Provider.

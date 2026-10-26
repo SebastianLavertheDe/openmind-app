@@ -17,7 +17,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json --noEmit",
     "lint:reporoot": "node scripts/audit-no-reporoot.js",
     "lint:manifests": "tsx scripts/validate-all-skill-manifests.mjs",
-    "build": "npm run clean && npm run check:ui && npm run audit:ui-copy-hardcode && npm run typecheck && npm run lint:reporoot && npm run lint:manifests && npm run build:renderer && npm run build:electron",
+    "build": "npm run clean && npm run prepare:skill-library && npm run check:ui && npm run audit:ui-copy-hardcode && npm run typecheck && npm run lint:reporoot && npm run lint:manifests && npm run build:renderer && npm run build:electron",
     "start": "npm run build && npm run prepare:python-runtime -- --if-missing && electron .",
     "dev": "vite --host 127.0.0.1",
     "dev:electron": "node scripts/dev-electron.mjs",
@@ -73,7 +73,8 @@
     "check:ui": "npm run audit:styles && npm run test:ui-contract",
     "visual:ui": "node scripts/ui-catalog.js",
     "ui:catalog": "node scripts/ui-catalog.js --preview",
-    "perf:ui": "node scripts/ui-catalog.js --performance-only"
+    "perf:ui": "node scripts/ui-catalog.js --performance-only",
+    "prepare:skill-library": "tsx scripts/prepare-skill-library.ts"
   },
   "devDependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
@@ -123,6 +124,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": ".build/skill-library",
+        "to": "skill-library"
       }
     ],
     "directories": {

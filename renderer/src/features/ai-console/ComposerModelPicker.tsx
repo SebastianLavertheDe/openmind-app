@@ -34,12 +34,13 @@ function useImageConfiguration() {
   return { configuration, error, refresh };
 }
 
-export function ComposerModelPicker({ providers: agents, providerId: agentId, onProviderChange, value, onChange }: {
+export function ComposerModelPicker({ providers: agents, providerId: agentId, onProviderChange, value, onChange, textModel }: {
   providers: AiSnapshot["providers"];
   providerId: string;
   onProviderChange(id: string): void;
   value: ImageSelection | null | undefined;
   onChange(value: ImageSelection | null): void;
+  textModel?: string | null;
 }) {
   useLocale();
   const { configuration, error: configurationError, refresh } = useImageConfiguration();
@@ -81,7 +82,7 @@ export function ComposerModelPicker({ providers: agents, providerId: agentId, on
   // removed Provider's models as interactive choices during configuration refresh.
   const visibleProvider = activeProvider || (submenuPresence.visible ? previousProvider.current : undefined);
   const definition = IMAGE_PROVIDERS.find(item => item.id === visibleProvider?.provider);
-  const label = [activeAgent?.label, selectedModel?.name].filter(Boolean).join(" · ") || uiMessages.interface.selectModel;
+  const label = [activeAgent?.label, textModel && textModel !== "auto" ? textModel : null, selectedModel?.name].filter(Boolean).join(" · ") || uiMessages.interface.selectModel;
   useEffect(() => {
     if (!configuration) return;
     if (value === undefined || (value && (!selected || value.providerId !== selected.providerId))) onChange(selected);

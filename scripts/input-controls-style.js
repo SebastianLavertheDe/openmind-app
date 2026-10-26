@@ -1,3 +1,6 @@
+const { skipUnsupportedVisualPlatform } = require("./ui-contract/visual-platform.cjs");
+if (skipUnsupportedVisualPlatform("Input visual checks")) process.exit(0);
+
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");

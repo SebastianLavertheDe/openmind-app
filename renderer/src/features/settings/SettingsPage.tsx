@@ -1,3 +1,4 @@
+import type { SkillLibraryMode } from "@shared/skill-library";
 import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
@@ -44,7 +45,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image" }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
   const feedback = useFeedback();
@@ -63,6 +64,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const [refreshingSkills, setRefreshingSkills] = useState(false);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(initialSection || "general");
+  const [providerCategory, setProviderCategory] = useState(initialProviderCategory);
   const [compactDetailOpen, setCompactDetailOpen] = useState(Boolean(initialSection));
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
@@ -346,9 +348,14 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                   <PathSettingsSection openmind={prefs.openmindRoot ? initialRepo : m.settings.paths.unset} notes={prefs.notesDir || "openmind"} onSelectOpenmind={() => void selectOpenmindRoot()} onOpenNotes={() => void openNotesDir()} />
                 </>
               ) : null}
-              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={feedback.notify} initialCategory={initialProviderCategory} /></> : null}
+              {activeSection === "providers" ? <><ProviderSettingsSection providers={providers} defaultProviderId={defaultProviderId} providerConfiguration={providersYaml} providerConfigurationBusy={providersYamlBusy} save={save} onSaveProviderConfiguration={saveProvidersYaml} /><AiProvidersSettingsSection view={providersYaml} busy={providersYamlBusy} onSave={saveProvidersYaml} notify={feedback.notify} initialCategory={providerCategory} /></> : null}
               {activeSection === "runtime" ? <><SharedPythonRuntimeSection status={sharedPythonRuntime} busy={runtimeBusy !== null} onToggle={(enabled) => void toggleSharedPythonRuntime(enabled)} onRefresh={() => void loadSharedPythonRuntime()} /><YoutubeImportSettingsSection prefs={prefs} save={save} /></> : null}
-              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
+              {activeSection === "skills" ? <SkillsPage embedded skills={ai.skills} providers={ai.snapshot.providers} storageScope={initialRepo} initialMode={initialSkillLibraryMode} onConfigure={kind => { if (kind === "image") setProviderCategory("image"); selectSection(kind === "image" ? "providers" : "runtime"); }} onUseSkill={async entry => {
+                const target = skillReturnSessionId === undefined ? null : skillReturnSessionId;
+                await actions.setActiveSession(target?.startsWith("project:") ? null : target);
+                actions.selectSkill(entry, target);
+                onOpenSession?.();
+              }} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}

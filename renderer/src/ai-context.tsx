@@ -1,3 +1,4 @@
+import type { SkillLibraryEntry, SkillSelectionInput } from "@shared/skill-library";
 import { FeedbackBoundary, useFeedback, useFeedbackState, type FeedbackActions, type FeedbackState } from "./feedback-context";
 import {
   createContext,
@@ -43,6 +44,7 @@ type PanelMode = "collapsed" | "default" | "wide" | "full";
 export type { ConfirmAction, ConfirmOptions } from "./feedback-context";
 
 type SendOptions = {
+  selectedSkill?: SkillSelectionInput | null;
   imageGeneration?: import("@shared/image-generation").ImageSelection | null;
   providerId?: string;
   permissionProfile?: PermissionProfile;
@@ -71,6 +73,7 @@ export interface AiSnapshotValue {
   sessionActiveRun: AiRun | null;
   queuedRuns: AiRun[];
   pendingContexts: ContextReference[];
+  contextsByDraft: Record<string, ContextReference[]>;
   skills: SkillDefinition[];
 }
 
@@ -91,21 +94,25 @@ export interface AiUiValue {
   setPanelMode(mode: PanelMode): void;
   composerFocusRequest: number;
   focusComposer(): void;
+  skillSettingsRequest: number;
+  openSkillSettings(): void;
   /** 项目详情页打开时选定的「新对话归属项目」；null = 常规工作区会话。 */
   projectComposeTarget: { projectId: string; projectName: string } | null;
   setProjectComposeTarget(target: { projectId: string; projectName: string } | null): void;
 }
 
 export interface AiActionsValue {
+  selectSkill(skill: SkillLibraryEntry | null, sessionId?: string | null): void;
   setActiveSession(id: string | null): Promise<void>;
   updateSession(id: string, patch: SessionPatch): Promise<AiSession>;
   setActiveRun(id: string | null): void;
-  addContext(context: ContextReference): void;
-  removeContext(id: string): void;
-  moveContext(id: string, direction: -1 | 1): void;
-  reorderContexts(fromId: string, toId: string): void;
-  clearContexts(): void;
-  addFiles(): Promise<void>;
+  addContext(context: ContextReference, draftKey?: string): void;
+  removeContext(id: string, draftKey?: string): void;
+  moveContext(id: string, direction: -1 | 1, draftKey?: string): void;
+  reorderContexts(fromId: string, toId: string, draftKey?: string): void;
+  clearContexts(draftKey?: string): void;
+  clearDraft(draftKey?: string): void;
+  addFiles(draftKey?: string): Promise<void>;
   send(prompt: string, options?: SendOptions): Promise<AiRun>;
   rerun(runId: string): Promise<void>;
   editRun(runId: string): void;
@@ -138,13 +145,18 @@ interface AiDraftStore {
   subscribe(key: string, listener: () => void): () => void;
   getSnapshot(key: string): string;
   set(key: string, value: string): void;
+  getSkill(key: string): SkillLibraryEntry | null;
+  setSkill(key: string, value: SkillLibraryEntry | null): void;
   flush(): void;
   dispose(): void;
 }
 
 export type AiDraftController = {
   draft: string;
+  draftKey: string;
   setDraft(value: string): void;
+  selectedSkill: SkillLibraryEntry | null;
+  setSelectedSkill(skill: SkillLibraryEntry | null): void;
 };
 
 const SnapshotContext = createContext<AiSnapshotValue | null>(null);
@@ -154,6 +166,10 @@ const ActionsContext = createContext<AiActionsValue | null>(null);
 const StreamingContext = createContext<AiStreamingStore | null>(null);
 const DraftStoreContext = createContext<AiDraftStore | null>(null);
 const DraftKeyContext = createContext(NEW_SESSION_DRAFT);
+const ScopedDraftContext = createContext<string | null>(null);
+export function AiDraftScope({ draftKey, children }: { draftKey: string; children: ReactNode }) {
+  return <ScopedDraftContext.Provider value={draftKey}><DraftKeyContext.Provider value={draftKey}>{children}</DraftKeyContext.Provider></ScopedDraftContext.Provider>;
+}
 const EMPTY_STREAMING_STATE: AiStreamingState = Object.freeze({ streaming: "", reasoningStreaming: "", assistantBlocks: Object.freeze([]) });
 const EMPTY_STREAMING_SUBSCRIBE = () => () => undefined;
 const EMPTY_EVENTS: AiEvent[] = [];
@@ -205,6 +221,7 @@ function scopedStorageJson<T>(base: string, scope: string, fallback: T): T {
 
 function createAiDraftStore(storageKey: string, initial: Record<string, string>): AiDraftStore {
   let drafts = initial;
+  let skillDrafts = storageJson<Record<string, SkillLibraryEntry | null>>(`${storageKey}.skills`, {});
   let persistTimer = 0;
   const listeners = new Map<string, Set<() => void>>();
   const flush = () => {
@@ -217,6 +234,12 @@ function createAiDraftStore(storageKey: string, initial: Record<string, string>)
     persistTimer = window.setTimeout(flush, DRAFT_PERSIST_DELAY_MS);
   };
   return {
+    getSkill: key => skillDrafts[key] || null,
+    setSkill(key, value) {
+      skillDrafts = { ...skillDrafts, [key]: value };
+      writeStorage(`${storageKey}.skills`, skillDrafts);
+      for (const listener of listeners.get(key) || []) listener();
+    },
     subscribe(key, listener) {
       const subscribers = listeners.get(key) || new Set<() => void>();
       subscribers.add(listener);
@@ -678,6 +701,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
         cwd: targetSession?.cwd || ".",
         prompt,
         contexts,
+        selectedSkill: options.selectedSkill !== undefined ? options.selectedSkill : (() => { const skill = draftStore.getSkill(sourceKey); return skill?.key && skill.digest ? { key: skill.key, digest: skill.digest } : null; })(),
         imageGeneration: options.imageGeneration,
         ...(acknowledgeProviderChange ? { acknowledgeProviderChange: true } : {})
       });
@@ -699,6 +723,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
       }
       if (!options.preserveDraft) {
         draftStore.set(sourceKey, "");
+        draftStore.setSkill(sourceKey, null);
         setContextsByDraft((current) => ({ ...current, [sourceKey]: [] }));
       }
       activeSessionRef.current = result.session.id;
@@ -756,6 +781,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
       providerId: run.providerId,
       permissionProfile: run.permissionProfile,
       interactionMode: run.interactionMode,
+      selectedSkill: run.selectedSkill?.installed ? { key: run.selectedSkill.installed.key, digest: run.selectedSkill.installed.digest } : null,
       imageGeneration: run.imageGeneration,
       contexts: run.contexts
     });
@@ -765,6 +791,9 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
     if (!run) return;
     draftStore.set(run.sessionId, run.prompt);
+    const skill = run.selectedSkill;
+    if (skill?.installed) draftStore.setSkill(run.sessionId, { id: skill.definition.id, title: skill.definition.title, inputHint: skill.definition.inputHint || "", key: skill.installed.key, digest: skill.installed.digest, skillId: skill.definition.id, installed: true, enabled: true, usable: true, reason: null, category: null, origin: "local", subtitle: "", description: "", version: skill.installed.version, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "", executionModel: skill.executionModel });
+    else draftStore.setSkill(run.sessionId, null);
     setContextsByDraft((current) => ({ ...current, [run.sessionId]: run.contexts }));
   }, [draftStore]);
 
@@ -785,8 +814,8 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
   }, [draftStore, setActiveSession]);
 
   const clearError = useCallback(() => setError(null), []);
-  const addContext = useCallback((context: ContextReference) => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+  const addContext = useCallback((context: ContextReference, draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => {
       const existing = current[key] || EMPTY_CONTEXTS;
       return existing.some((item) => item.id === context.id)
@@ -794,16 +823,16 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
         : { ...current, [key]: [...existing, context] };
     });
   }, []);
-  const removeContext = useCallback((id: string) => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+  const removeContext = useCallback((id: string, draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => {
       const existing = current[key] || EMPTY_CONTEXTS;
       const next = existing.filter((item) => item.id !== id);
       return next.length === existing.length ? current : { ...current, [key]: next };
     });
   }, []);
-  const moveContext = useCallback((id: string, direction: -1 | 1) => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+  const moveContext = useCallback((id: string, direction: -1 | 1, draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => {
       const items = [...(current[key] || EMPTY_CONTEXTS)];
       const index = items.findIndex((item) => item.id === id);
@@ -813,8 +842,8 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
       return { ...current, [key]: items };
     });
   }, []);
-  const reorderContexts = useCallback((fromId: string, toId: string) => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+  const reorderContexts = useCallback((fromId: string, toId: string, draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => {
       const items = [...(current[key] || EMPTY_CONTEXTS)];
       const from = items.findIndex((item) => item.id === fromId);
@@ -825,13 +854,13 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
       return { ...current, [key]: items };
     });
   }, []);
-  const clearContexts = useCallback(() => {
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
+  const clearContexts = useCallback((draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => current[key]?.length ? { ...current, [key]: [] } : current);
   }, []);
-  const addFiles = useCallback(async () => {
+  const addFiles = useCallback(async (draftKey?: string) => {
+    const key = draftKey || activeSessionRef.current || NEW_SESSION_DRAFT;
     const files = await window.openmind.selectFiles();
-    const key = activeSessionRef.current || NEW_SESSION_DRAFT;
     setContextsByDraft((current) => {
       const existing = current[key] || EMPTY_CONTEXTS;
       const additions = files
@@ -867,6 +896,17 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     }
   }, [refresh, streamingStore]);
 
+  const [skillSettingsRequest, setSkillSettingsRequest] = useState(0);
+  const openSkillSettings = useCallback(() => setSkillSettingsRequest(value => value + 1), []);
+  const selectSkill = useCallback((skill: SkillLibraryEntry | null, sessionId?: string | null) => {
+    draftStore.setSkill((sessionId === undefined ? activeSessionRef.current : sessionId) || NEW_SESSION_DRAFT, skill);
+  }, [draftStore]);
+
+  const clearDraft = useCallback((key?: string) => {
+    const target = key || activeSessionRef.current || NEW_SESSION_DRAFT;
+    draftStore.set(target, ""); draftStore.setSkill(target, null); clearContexts(target);
+  }, [draftStore, clearContexts]);
+
   const snapshotValue = useMemo<AiSnapshotValue>(() => ({
     snapshot,
     activeSession,
@@ -874,8 +914,9 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     sessionActiveRun,
     queuedRuns,
     pendingContexts,
+    contextsByDraft,
     skills
-  }), [snapshot, activeSession, activeRun, sessionActiveRun, queuedRuns, pendingContexts, skills]);
+  }), [snapshot, activeSession, activeRun, sessionActiveRun, queuedRuns, pendingContexts, contextsByDraft, skills]);
 
   const eventsValue = useMemo<AiEventsValue>(() => ({
     events,
@@ -893,6 +934,8 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     panelMode,
     setPanelMode: setPanelModeState,
     composerFocusRequest,
+    skillSettingsRequest,
+    openSkillSettings,
     focusComposer,
     projectComposeTarget,
     setProjectComposeTarget
@@ -903,12 +946,15 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     cancellingRunIds,
     panelMode,
     composerFocusRequest,
+    skillSettingsRequest,
+    openSkillSettings,
     focusComposer,
     projectComposeTarget,
     setProjectComposeTarget
   ]);
 
   const actionsValue = useMemo<AiActionsValue>(() => ({
+    selectSkill,
     setActiveSession,
     updateSession,
     setActiveRun: selectRun,
@@ -917,6 +963,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     moveContext,
     reorderContexts,
     clearContexts,
+    clearDraft,
     addFiles,
     send,
     rerun,
@@ -926,6 +973,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     refresh,
     refreshSkills
   }), [
+    selectSkill,
     setActiveSession,
     updateSession,
     selectRun,
@@ -934,6 +982,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     moveContext,
     reorderContexts,
     clearContexts,
+    clearDraft,
     addFiles,
     send,
     rerun,
@@ -981,8 +1030,16 @@ export function useAiUi(): AiUiValue {
 
 export function useAiActions(): AiActionsValue {
   const value = useContext(ActionsContext);
+  const override = useContext(ScopedDraftContext);
   if (!value) throw new Error("useAiActions must be used within AiProvider");
-  return value;
+  return useMemo(() => !override ? value : ({ ...value,
+    addContext: (context: ContextReference) => value.addContext(context, override),
+    removeContext: (id: string) => value.removeContext(id, override),
+    moveContext: (id: string, direction: -1 | 1) => value.moveContext(id, direction, override),
+    reorderContexts: (from: string, to: string) => value.reorderContexts(from, to, override),
+    addFiles: () => value.addFiles(override), clearContexts: () => value.clearContexts(override), clearDraft: () => value.clearDraft(override),
+    selectSkill: (skill: SkillLibraryEntry | null) => value.selectSkill(skill, override)
+  }), [value, override]);
 }
 
 /**
@@ -1011,8 +1068,9 @@ function useDraftStoreAndKey(): [AiDraftStore, string] {
   return [store, key];
 }
 
-export function useSetAiDraft(): (value: string) => void {
-  const [store, key] = useDraftStoreAndKey();
+export function useSetAiDraft(overrideKey?: string): (value: string) => void {
+  const [store, currentKey] = useDraftStoreAndKey();
+  const key = overrideKey || currentKey;
   return useCallback((value: string) => store.set(key, value), [key, store]);
 }
 
@@ -1022,7 +1080,10 @@ export function useAiDraft(): AiDraftController {
   const getSnapshot = useCallback(() => store.getSnapshot(key), [key, store]);
   const draft = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setDraft = useCallback((value: string) => store.set(key, value), [key, store]);
-  return useMemo(() => ({ draft, setDraft }), [draft, setDraft]);
+  const getSkill = useCallback(() => store.getSkill(key), [key, store]);
+  const selectedSkill = useSyncExternalStore(subscribe, getSkill, getSkill);
+  const setSelectedSkill = useCallback((skill: SkillLibraryEntry | null) => store.setSkill(key, skill), [key, store]);
+  return useMemo(() => ({ draft, draftKey: key, setDraft, selectedSkill, setSelectedSkill }), [draft, key, setDraft, selectedSkill, setSelectedSkill]);
 }
 
 export function useAiStreaming(runId: string | null): AiStreamingState {

@@ -1,3 +1,6 @@
+import { SkillLibraryPage } from "./SkillLibraryPage";
+import type { SkillLibraryEntry, SkillLibraryMode } from "@shared/skill-library";
+import type { ProviderCapabilities } from "@shared/contracts";
 import { FormField } from "../../design-system/components";
 import { DialogHeader, DialogBody, DialogFooter } from "../../design-system/components";
 import { Button } from "../../design-system/components";
@@ -57,7 +60,16 @@ type SkillSourceUpdateState = {
   message: string;
 };
 
-export function SkillsPage({ initialSkillId, embedded = false, initialSourcePickerOpen = false, onInstallationChange, onAvailabilityChange }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown }) {
+export type SkillsPageProps = { skills: SkillDefinition[]; providers?: ProviderCapabilities[]; storageScope?: string; initialMode?: SkillLibraryMode; onUseSkill?(entry: SkillLibraryEntry): void | Promise<void>; onConfigure?(kind: "image" | "runtime"): void; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown };
+
+export function SkillsPage(props: SkillsPageProps) {
+  if (!window.openmind.listSkillLibrary) return <InstalledSkillsManager {...props} />;
+  return <SkillLibraryPage providers={props.providers || []} initialMode={props.initialMode} storageScope={props.storageScope || "default"} initialSourcePickerOpen={props.initialSourcePickerOpen} initialManagementSkillId={props.initialSkillId} onUseSkill={props.onUseSkill} onConfigure={props.onConfigure} onCatalogChange={props.onAvailabilityChange}
+    renderManagement={id => <InstalledSkillsManager {...props} initialSkillId={id} initialSourcePickerOpen={false} />}
+    renderImport={(done, close) => <SkillSourcePicker open onToggle={close} onInstalled={async () => { await props.onInstallationChange?.(); await props.onAvailabilityChange?.(); await done(); }} />} />;
+}
+
+export function InstalledSkillsManager({ initialSkillId, embedded = false, initialSourcePickerOpen = false, onInstallationChange, onAvailabilityChange }: { skills: SkillDefinition[]; initialSkillId?: string; embedded?: boolean; initialSourcePickerOpen?: boolean; onInstallationChange?(): Promise<unknown> | unknown; onAvailabilityChange?(): Promise<unknown> | unknown }) {
   const locale = useLocale();
   const [installed, setInstalled] = useState<InstalledSkillView[]>([]);
   const [installedInspections, setInstalledInspections] = useState<Record<string, SkillPackageInspectionView>>({});

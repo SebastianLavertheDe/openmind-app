@@ -49,7 +49,7 @@ export interface SchedulerExecutionHost {
 
 export async function persistScheduledTurnAndPump(host: SchedulerExecutionHost, run: AiRun): Promise<void> {
   try {
-    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, host.store.getSession(run.sessionId), run.prompt);
+    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, host.store.getSession(run.sessionId), run.prompt, run);
     const modelInput = skillInvocation
       ? skillBridge
         ? composeNativeSkillTaskPrompt(run, skillInvocation)
@@ -118,7 +118,7 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     }
     const turnImages = extractImageContexts(sessionRoot, run.contexts, host.stateRoot);
     if (turnImages.length && provider.supportsImages === false) throw new Error("当前 Provider 不支持图片附件。");
-    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt);
+    const { skillInvocation, skillBridge } = resolveSessionSkillInvocation(host, session, run.prompt, run);
     const usesExternalSession = host.adapters[session.provider].usesExternalSession !== false;
     // Dynamic tools are registered at thread/start, not thread/resume. Upgrade
     // old threads through the app's existing recovered-history path once.
@@ -179,7 +179,7 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
       } : null,
       // Discovery and explicit invocation share the verified Installed catalog.
       skillBridge,
-      providerModel: host.resolveProviderModel(session.provider),
+      providerModel: run.executionModel || host.resolveProviderModel(session.provider),
       skillCatalog: host.skillTools.providerSkillCatalog(session.skillSnapshot ?? []),
       protectedPaths: session.scope?.type === "project-task" ? [] : host.protectedPaths,
       stateRoot: host.stateRoot,
@@ -314,7 +314,21 @@ function isProviderFinalReply(kind: AiEvent["kind"], payload: Record<string, unk
   return Boolean(String(payload.text || payload.message || "").trim());
 }
 
-function resolveSessionSkillInvocation(host: SchedulerExecutionHost, session: AiSession, prompt: string) {
+function resolveSessionSkillInvocation(host: SchedulerExecutionHost, session: AiSession, prompt: string, run?: AiRun) {
+  if (run?.selectedSkill) {
+    const selected = run.selectedSkill;
+    const bridge = host.skillTools.providerSkillBridge(selected);
+    const parsed = parseSkillSlashInvocation(prompt, [selected.definition]);
+    const invocation = parsed || { skill: selected.definition, argument: prompt, raw: `/${selected.definition.id} ${prompt}` };
+    if (bridge && selected.dependencies.length) {
+      bridge.instructions += "\n\n" + selected.dependencies.map(dependency => {
+        const reference = host.skillTools.providerSkillBridge(dependency);
+        if (!reference) throw new Error("Referenced Skill is unavailable");
+        return `<referenced_skill id=${JSON.stringify(reference.id)} path=${JSON.stringify(reference.skillPath)}>\n${reference.instructions}\n</referenced_skill>`;
+      }).join("\n\n");
+    }
+    return { skillInvocation: invocation, skillBridge: bridge };
+  }
   const snapshot = session.skillSnapshot;
   if (!snapshot) throw new Error("AI 会话缺少 Skill 快照；请重启应用完成兼容迁移。 ");
   const skillInvocation = parseSkillSlashInvocation(prompt, snapshot.map((entry) => entry.definition));

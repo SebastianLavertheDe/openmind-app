@@ -12,7 +12,7 @@ export type ProviderSkillBridge = {
   referencePaths: string[];
   openmindRoot: string;
   capabilities: Pick<SkillManifest["capabilities"], "openmind" | "network" | "subprocess" | "browser">;
-  /** Standard SKILL.md packages have no capability manifest. */
+  /** False for standard and library Agent Skills that inherit session permissions. */
   capabilitiesDeclared?: boolean;
 };
 
@@ -25,7 +25,7 @@ export function buildProviderSkillContext(bridge: ProviderSkillBridge): string {
     `skill_digest: ${bridge.digest}`,
     `openmind_root: ${bridge.openmindRoot}`,
     ...(bridge.capabilitiesDeclared === false ? [
-      "capabilities: standard_agent_skill_without_manifest; current_session_permissions_apply"
+      "capabilities: agent_skill; current_session_permissions_apply"
     ] : [
       `openmind_read: ${bridge.capabilities.openmind.read.join(", ") || "none"}`,
       `openmind_write: ${bridge.capabilities.openmind.write.join(", ") || "none"}`,

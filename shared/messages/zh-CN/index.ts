@@ -1,3 +1,4 @@
+import { skillLibraryMessages } from "./skill-library";
 import { coreMessages } from "./core";
 import { appMessages } from "./app";
 import { electronMessages } from "./electron";
@@ -19,6 +20,7 @@ const { settings: settingsPage, brief: briefPage, ...featureRest } = featureMess
 
 /** Canonical message keys and interpolation signatures for every supported locale. */
 export const zhCN = {
+  ...skillLibraryMessages,
   ...editorMessages,
   ...interfaceMessages,
   ...providerUiMessages,

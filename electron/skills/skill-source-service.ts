@@ -122,7 +122,7 @@ export class SkillSourceService {
     return true;
   }
 
-  async install(input: SkillPackageSourceInput, selectedRefs?: string[]): Promise<InstalledSkillRecord[]> {
+  async install(input: SkillPackageSourceInput, selectedRefs?: string[], managedIds?: readonly string[]): Promise<InstalledSkillRecord[]> {
     const source = parseSkillPackageSourceInput(input);
     if (source.type !== "git") {
       return [this.packages.install(source.locator, toInstallMetadata(source))];
@@ -136,7 +136,8 @@ export class SkillSourceService {
         );
       }
 
-      const selected = selectGitPackageCandidates(candidates, selectedRefs);
+      const managedCandidates = managedIds ? candidates.filter(candidate => { const manifest = this.packages.inspect(candidate.absPath).manifest; return manifest && managedIds.includes(manifest.id); }) : candidates;
+      const selected = selectGitPackageCandidates(managedCandidates, selectedRefs);
       const inspected = selected.chosen.map((candidate) => ({
         ...candidate,
         inspection: this.packages.inspect(candidate.absPath)

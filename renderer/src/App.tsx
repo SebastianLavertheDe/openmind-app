@@ -146,6 +146,12 @@ function Workspace({
     window.addEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openImageSettings);
     return () => window.removeEventListener(OPEN_IMAGE_PROVIDER_SETTINGS, openImageSettings);
   }, [navigate]);
+  useEffect(() => {
+    if (!ui.skillSettingsRequest) return;
+    const scope = activeSession?.scope;
+    navigate("settings", { settingsSection: "skills", skillLibraryMode: "mine", skillReturnSessionId: activeSession?.id ?? (ui.projectComposeTarget ? `project:${ui.projectComposeTarget.projectId}:new` : null),
+      ...(scope?.type === "project-task" ? { projectName: scope.projectName, projectSection: "tasks" as const, projectItem: scope.taskId } : ui.projectComposeTarget ? { projectName: ui.projectComposeTarget.projectName, projectSection: "tasks" as const } : {}) });
+  }, [ui.skillSettingsRequest]);
   const openNewTask = useCallback(() => {
     // A new task owns a fresh conversation canvas. Clear both preview surfaces
     // and force a new AI route instance so an in-flight file load cannot keep

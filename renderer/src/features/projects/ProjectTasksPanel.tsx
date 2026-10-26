@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { getLocale, messages } from "@shared/messages";
-import { useAiActions, useAiSnapshot, useSetAiDraft } from "../../ai-context";
+import { AiDraftScope, useAiActions, useAiSnapshot, useSetAiDraft } from "../../ai-context";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea, Select } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
@@ -46,7 +46,7 @@ export function ProjectTasksPanel({
   const ai = useAiSnapshot();
   const feedback = useFeedback();
   const actions = useAiActions();
-  const setDraft = useSetAiDraft();
+  const setDraft = useSetAiDraft(`project:${project.id}:new`);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [selectedId, setSelectedId] = useState(initialTaskId || "");
   const [creating, setCreating] = useState(false);
@@ -124,7 +124,7 @@ export function ProjectTasksPanel({
     if (handledCreateRequestRef.current) return;
     handledCreateRequestRef.current = true;
     void setActiveSession(null);
-    actions.clearContexts();
+    actions.clearContexts(`project:${project.id}:new`);
     setDraft(seed?.prompt || "");
     setCreating(true);
     setSelectedId("");
@@ -145,7 +145,7 @@ export function ProjectTasksPanel({
   }, [activationNonce, selected?.sessionId]);
   const newTask = () => {
     void setActiveSession(null);
-    actions.clearContexts();
+    actions.clearContexts(`project:${project.id}:new`);
     setDraft("");
     setCreating(true);
     setSelectedId("");
@@ -260,12 +260,12 @@ export function ProjectTasksPanel({
         input.contexts,
         input.permissionProfile,
         undefined,
-        input.imageGeneration
+        input.imageGeneration,
+        input.selectedSkill
       );
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
-      setDraft("");
-      actions.clearContexts();
+      actions.clearDraft(`project:${project.id}:new`);
       await actions.refresh();
       await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
@@ -303,10 +303,10 @@ export function ProjectTasksPanel({
         input.contexts,
         input.permissionProfile,
         selected.sessionId,
-        input.imageGeneration
+        input.imageGeneration,
+        input.selectedSkill
       );
-      setDraft("");
-      actions.clearContexts();
+      actions.clearDraft();
       await actions.refresh();
       await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
@@ -373,7 +373,7 @@ export function ProjectTasksPanel({
       onStart={() => void start()}
     />;
   const projectDraftWorkbench = <div className="project-task-session is-draft">
-    <AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={startFromWorkbench} />
+    <AiDraftScope draftKey={`project:${project.id}:new`}><AiWorkbench surface={{ kind: "project-task", projectName: project.name }} onDraftSubmit={startFromWorkbench} /></AiDraftScope>
   </div>;
   const detail = creating ? projectDraftWorkbench : selected && !selected.sessionId ? (
     <div className="project-task-recovered">

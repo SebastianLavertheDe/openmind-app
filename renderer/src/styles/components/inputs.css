@@ -23,9 +23,9 @@
 .ui-input::placeholder,
 .ui-textarea::placeholder { color: var(--muted-2); opacity: 1; }
 .ui-input:where(:hover:not(:disabled)),
-.ui-textarea:where(:hover:not(:disabled)) { border-color: var(--border-strong); }
+.ui-textarea:where(:hover:not(:disabled)) { background: var(--input-hover-bg); }
 .ui-input:focus,
-.ui-textarea:focus { border-color: var(--input-focus-border); outline: none; box-shadow: none; }
+.ui-textarea:focus { border-color: var(--input-focus-border); background: var(--input-focus-bg); outline: none; box-shadow: none; }
 
 .ui-input[data-variant="inline"],
 .ui-textarea[data-variant="inline"] {
@@ -88,11 +88,13 @@
 .ui-search-input:hover,
 .ui-search-input:focus-within { background: var(--control-hover); }
 .ui-search-input[data-variant="outlined"] { border-color: var(--input-border); background: var(--input-bg); }
-.ui-search-input[data-variant="outlined"]:focus-within { border-color: var(--input-border); }
+.ui-search-input[data-variant="outlined"]:where(:hover:not([data-disabled])) { background: var(--input-hover-bg); }
+.ui-search-input[data-variant="outlined"]:focus-within { border-color: var(--input-focus-border); background: var(--input-focus-bg); }
 .ui-search-input[data-variant="outlined"]:focus-within .ui-search-input-icon { color: var(--text); }
 .ui-input-group { border-color: var(--input-border); background: var(--input-bg); }
-.ui-input-group:focus-within { border-color: var(--input-focus-border); }
-.ui-input-group > span { border-left: 1px solid var(--input-border); color: var(--muted); }
+.ui-input-group:where(:hover:not(:has(.ui-input:disabled))) { background: var(--input-hover-bg); }
+.ui-input-group:focus-within { border-color: var(--input-focus-border); background: var(--input-focus-bg); }
+.ui-input-group > span { border-left: 1px solid var(--border); color: var(--muted); }
 .ui-search-input .ui-input,
 .ui-search-input .ui-input:focus,
 .ui-input-group .ui-input,

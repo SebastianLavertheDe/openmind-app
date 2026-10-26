@@ -86,6 +86,8 @@ app.whenReady().then(async () => {
         await waitForSelector('.composer-image-submenu [role="menuitemradio"]');
       }
     }
+    if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
+    if (scenario.id === "skill-composer-menu") { await click('.composer-skill-picker [aria-haspopup="dialog"]'); await waitForSelector(".composer-skill-options"); }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
     if (scenario.id === "composer-queue-detail") await click('.queue-tray-item:last-child [aria-haspopup="dialog"]');
     if (scenario.id === "popover") await click('.project-icon-picker-trigger');

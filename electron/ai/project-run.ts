@@ -1,3 +1,4 @@
+import { SkillSelectionInputSchema } from "../../shared/skill-library";
 import { z } from "zod";
 import { ImageSelectionSchema } from "../../shared/image-generation";
 import { ContextReferenceSchema, PermissionProfileSchema } from "../../shared/contracts";
@@ -19,6 +20,7 @@ export const TrustedProjectRunInputSchema = z.union([
     providerId: z.string().min(1).max(160),
     permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
+    selectedSkill: SkillSelectionInputSchema.nullable().optional(),
     imageGeneration: ImageSelectionSchema.nullable().optional(),
     contexts: ProjectRunContextsSchema
   }).strict(),
@@ -26,6 +28,7 @@ export const TrustedProjectRunInputSchema = z.union([
     sessionId: z.string().min(1).max(160),
     permissionProfile: PermissionProfileSchema.default("auto"),
     prompt: ProjectRunPromptSchema,
+    selectedSkill: SkillSelectionInputSchema.nullable().optional(),
     imageGeneration: ImageSelectionSchema.nullable().optional(),
     contexts: ProjectRunContextsSchema
   }).strict()

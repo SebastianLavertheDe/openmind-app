@@ -3,6 +3,17 @@ import { IPC, PROJECT_IPC } from "./ipc-channels";
 
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [
+  { method: "listSkillLibrary", channel: IPC.SKILL_LIBRARY_LIST },
+  { method: "installLibraryPreset", channel: IPC.SKILL_LIBRARY_INSTALL },
+  { method: "getSkillEditor", channel: IPC.SKILL_LIBRARY_EDITOR },
+  { method: "saveSkillDraft", channel: IPC.SKILL_LIBRARY_DRAFT },
+  { method: "publishSkill", channel: IPC.SKILL_LIBRARY_PUBLISH },
+  { method: "copyLibrarySkill", channel: IPC.SKILL_LIBRARY_COPY },
+  { method: "deleteAuthoredSkill", channel: IPC.SKILL_LIBRARY_DELETE },
+  { method: "importSkillAssets", channel: IPC.SKILL_LIBRARY_ASSETS },
+  { method: "readSkillAssetImage", channel: IPC.SKILL_LIBRARY_IMAGE },
+  { method: "suggestSkillField", channel: IPC.SKILL_LIBRARY_SUGGEST },
+
   { method: "getWechatAccount", channel: IPC.WECHAT_ACCOUNT_GET },
   { method: "saveWechatAccount", channel: IPC.WECHAT_ACCOUNT_SAVE },
   { method: "disconnectWechatAccount", channel: IPC.WECHAT_ACCOUNT_DISCONNECT },

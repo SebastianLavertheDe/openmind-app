@@ -1,3 +1,4 @@
+import { SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
@@ -287,6 +288,7 @@ export const ProjectTaskMessageSchema = z.object({
 export type ProjectTaskMessage = z.infer<typeof ProjectTaskMessageSchema>;
 
 export const ProjectStartTaskRunInputSchema = z.object({
+  selectedSkill: SkillSelectionInputSchema.nullable().optional(),
   projectName: ProjectNameSchema,
   taskId: z.string().uuid(),
   sessionId: z.string().min(1).max(160).optional(),

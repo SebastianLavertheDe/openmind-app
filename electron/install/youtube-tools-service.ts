@@ -127,7 +127,7 @@ export class YoutubeToolsService {
   private async detect(id: YoutubeToolId): Promise<Detection> {
     const manifest = this.manifest(id);
     const privatePath = manifest && path.join(this.directory(id), "versions", manifest.generation, this.binaryName(id));
-    const executable = privatePath && fs.existsSync(privatePath) ? privatePath : this.host.findTool(id);
+    const executable = this.candidateTool(id);
     const source = executable ? executable === privatePath ? "app" : "system" : null;
     const detected = executable ? await this.inspect(id, executable) : { state: "missing" as const, version: null };
     const release = this.releases.get(id)?.value;
@@ -144,6 +144,13 @@ export class YoutubeToolsService {
       id, ...detected, source, canInstall: toolInstallSupported(id, this.platform, this.arch),
       operation: this.operations.get(id) ?? "idle", update, latestVersion: release?.label ?? null
     } };
+  }
+
+  /** Candidate path only; callers must probe it before declaring it ready. */
+  candidateTool(id: YoutubeToolId): string | undefined {
+    const manifest = this.manifest(id);
+    const privatePath = manifest && path.join(this.directory(id), "versions", manifest.generation, this.binaryName(id));
+    return privatePath && fs.existsSync(privatePath) ? privatePath : this.host.findTool(id);
   }
 
   async status(): Promise<YoutubeImportStatus> {

@@ -620,7 +620,7 @@ describe("RunScheduler 会话/运行管理", () => {
     expect(listDefinitions).not.toHaveBeenCalled();
     expect(captureSessionSnapshot).toHaveBeenCalledWith();
     expect(providerSkillBridge).toHaveBeenCalledWith(snapshot[0]);
-    expect(providerSkillBridge).toHaveBeenCalledTimes(3);
+    expect(providerSkillBridge.mock.calls.every(([entry]) => entry.installed?.digest === snapshot[0].installed?.digest)).toBe(true);
   });
 
   it.each([

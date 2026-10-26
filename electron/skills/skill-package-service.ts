@@ -241,6 +241,8 @@ export class SkillPackageService {
    */
   private readonly installedInspectionCache = new Map<string, InstalledInspectionCacheEntry>();
 
+  get appPaths(): AppPaths { return this.paths; }
+
   constructor(paths: AppPaths = getAppPaths()) {
     this.paths = paths;
     this.repository = new InstalledSkillRepository(paths.skillRegistryFile);

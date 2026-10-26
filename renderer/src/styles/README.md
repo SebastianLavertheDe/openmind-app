@@ -45,6 +45,10 @@ skins. The full API and extension workflow are in
 
 Input and Textarea use `default` for forms and `inline` for text embedded in an
 existing surface. Textarea additionally supports `composer` and `code`.
+Default fields, InputGroup, outlined search surfaces and default Select triggers
+use a muted fill with a transparent border at rest. Hover changes the fill;
+focus and validation reveal the border without changing dimensions or adding
+shadows. Shared input tokens keep these surfaces consistent in both themes.
 SearchInput owns its complete search surface, supports `quiet` and `outlined`,
 and accepts `clearAction={{ label, onClear }}`. Use `InputGroup` for unit suffixes;
 FormField connects labels and validation to its native input. Native props,

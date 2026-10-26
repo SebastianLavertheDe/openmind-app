@@ -2,6 +2,8 @@
 
 整改状态：**五项任务已完成**（2026-10-23），实现与验收记录见第 6 节。第 1–5 节保留原始审查结论及当时的验证边界。
 
+2026-10-26 复核后补修两项详情/列表边界，并按当前产品范围将视觉门禁限定为 Windows/macOS，见第 6.5 节。
+
 审查日期：2026-10-23；项目：OpenMind Desktop；审查基准：`f64dbc8`。
 
 方式：只读源码审查、UI 静态检查、设计系统单元测试、Electron 视觉回归，以及隔离组件场景复现。评审没有修改应用源码或视觉基线。
@@ -218,3 +220,12 @@ Windows 目录比较使用离屏渲染，避免 Windows 窗口被遮挡时动画
 - Skill 发现用例解析输出中的 JSON 记录后比较 skill_path 与 package_root；Provider 路径映射使用含空格、中文和反斜杠的 Windows 路径，确保 POSIX 主机也能覆盖路径转义。
 
 4 项定向复跑全部通过；这两个测试文件完整运行得到 9 项通过、1 项因符号链接 EPERM 失败。类型检查通过。本次没有跳过或删除源文件中的测试，没有修改生产实现或系统权限设置，也没有重跑全量测试；其余符号链接权限与 POSIX 权限位两类仍待处理。日志见 .tmp/review-portable-targeted.log、.tmp/review-portable-tests.log、.tmp/review-portable-types.log。
+
+### 6.5 复核修正与视觉平台范围（2026-10-26）
+
+- 视觉门禁现限定为 Windows/macOS。Linux CI 保留构建、单元测试、集成与 Electron E2E，移除三项视觉步骤；本地 `visual:snapshot`、`visual:inputs` 和默认 `visual:ui` 也明确跳过 Linux。历史 Linux PNG 保留作参考，目录预览、显式截图取证及性能检查仍可使用。
+- Windows CI 继续执行正式像素比较，并承接应用截图和输入控件检查。新增 macOS CI 执行应用截图、输入控件与目录几何检查；目录使用 `--capture-only` 保存证据。macOS 尚无已审阅的原生像素基线，不能将该任务记为像素比较通过。本轮执行主机为 Linux，没有执行这两个原生平台的 CI。
+- 产物详情卸载时清理当前路径标记，使 StrictMode 重放 effect 后能够重新读取被 controller 取消的资源。回归覆盖指定初始路径和列表自动选择两种入口。
+- 独立资料/产物列表在列表 IPC 失败时展示共享 `ErrorState`，重试仍由列表 owner 发起；成功后清除错误。回归同时覆盖独立布局和 portal 宿主布局。
+
+新增 6 项回归用例在修复前全部失败，修复后项目相关用例及文件预览 controller 共 93 项全部通过；`npm run build`（含 UI 契约与类型检查）、集成 smoke 和真实 Electron E2E 通过。三个默认视觉命令在 Linux 均明确报告跳过；另已解析 CI YAML 并核对平台分工。本轮未重跑全量单测或 `verify`，也未修改视觉基线。定向结果见 .tmp/component-fix-before.json、.tmp/component-fix-tests.json，构建日志见 .tmp/component-fix-build.log。

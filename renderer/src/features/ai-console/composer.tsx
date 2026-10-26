@@ -1,3 +1,5 @@
+import type { SkillSelectionInput } from "@shared/skill-library";
+import { ComposerSkillPicker } from "./ComposerSkillPicker";
 import { PopoverSurface } from "../../design-system/components";
 import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
@@ -134,6 +136,7 @@ async function ingestPastedImage(
 }
 
 export type ChatDraftSubmitInput = {
+  selectedSkill?: SkillSelectionInput | null;
   imageGeneration?: ImageSelection | null;
   prompt: string;
   providerId: string;
@@ -148,12 +151,13 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const locale = useLocale();
   // Slices instead of the full controller: the composer must not re-render on
   // every streamed event flush, only on the snapshot/UI/actions values it renders.
-  const { snapshot, activeSession, sessionActiveRun, queuedRuns, pendingContexts, skills } = useAiSnapshot();
+  const { snapshot, activeSession, sessionActiveRun, queuedRuns, contextsByDraft, skills } = useAiSnapshot();
+  const { draft, draftKey, setDraft, selectedSkill, setSelectedSkill } = useAiDraft();
+  const pendingContexts = contextsByDraft[draftKey] || [];
   const imageContexts = useMemo(() => pendingContexts.filter(context => context.kind === "image"), [pendingContexts]);
   const referenceContexts = useMemo(() => pendingContexts.filter(context => context.kind !== "image"), [pendingContexts]);
   const ui = useAiUi();
   const actions = useAiActions();
-  const { draft, setDraft } = useAiDraft();
   const availableProviders = snapshot.providers.filter((provider) => provider.available);
   const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
@@ -293,6 +297,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       if (onDraftSubmit) {
         setCustomSending(true);
         await onDraftSubmit({
+          selectedSkill: selectedSkill?.key && selectedSkill.digest ? { key: selectedSkill.key, digest: selectedSkill.digest } : undefined,
           prompt: draft,
           providerId,
           permissionProfile,
@@ -356,7 +361,15 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const chooseSkill = (skill: SkillDefinition) => {
     if (!trigger || trigger.kind !== "command") return;
     menuSnapRef.current = true;
-    applyDraftAtCaret(replaceComposerTrigger(draft, trigger, `/${skill.id} `));
+    if (window.openmind.listSkillLibrary) {
+      const currentTrigger = trigger;
+      void window.openmind.listSkillLibrary().then(entries => {
+        const entry = entries.find(item => item.skillId === skill.id && item.installed && item.enabled);
+        if (!entry) { setLocalError(m.skillLibrary.errors.stale); return; }
+        setSelectedSkill(entry);
+        applyDraftAtCaret(replaceComposerTrigger(draft, currentTrigger, ""));
+      }).catch(cause => setLocalError(String(cause)));
+    } else applyDraftAtCaret(replaceComposerTrigger(draft, trigger, `/${skill.id} `));
   };
 
   const browseFiles = async () => {
@@ -490,7 +503,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 void submit();
               }
             }}
-            placeholder={activeSession ? m.ai.composer.placeholderContinue(activeSession.title) : m.ai.composer.placeholderNew}
+            placeholder={selectedSkill?.inputHint || (activeSession ? m.ai.composer.placeholderContinue(activeSession.title) : m.ai.composer.placeholderNew)}
           />
           {/* P2-CMP-2: 空状态 prompt 提示 chip —— 空 draft 时显示快捷入口 */}
           {/* P2-CMP-3: textarea 到底渐变遮罩 —— 由 CSS 控制 */}
@@ -519,6 +532,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             )
           ) : null}
           <div className="composer-editor-actions">
+            <ComposerSkillPicker selected={selectedSkill} onSelect={setSelectedSkill} onManage={ui.openSkillSettings} />
             <IconButton type="button" className="composer-add-context" onClick={() => void actions.addFiles()} label={m.ai.composer.addAttachment}>
               <Plus size={20} />
             </IconButton>
@@ -562,6 +576,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
               </Button>
             )}
             <ComposerModelPicker
+              textModel={activeSession?.executionModel || selectedSkill?.executionModel?.model}
               providers={availableProviders}
               providerId={providerId}
               onProviderChange={(id) => { userChoseProviderRef.current = true; setProviderId(id); }}

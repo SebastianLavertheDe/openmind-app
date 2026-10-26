@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
 import { OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "./skill-package-service";
@@ -26,7 +27,7 @@ function harness() {
   };
   const installPackage = (id: string, locator = OPENMIND_SKILLS_REPO_URL) =>
     packages.install(source(id), { sourceType: "git", sourceLocator: locator });
-  const install = vi.fn(async () => [installPackage("default-one"), installPackage("default-two")]);
+  const install = vi.fn(async () => [installPackage("rss-article-saver"), installPackage("daily-article-summarizer")]);
   const automation = { stop: vi.fn(async () => undefined), refresh: vi.fn(async () => undefined), setEnabled: vi.fn(async (_enabled: boolean) => undefined) };
   const service = new DefaultSkillsService(packages, { install } as unknown as SkillSourceService, automation);
   return { root, content, paths, packages, installPackage, install, automation, service };
@@ -36,7 +37,7 @@ describe("DefaultSkillsService", () => {
   it("installs and enables defaults before enabling jobs, and removes only official packages on disable", async () => {
     const h = harness();
     const custom = h.installPackage("custom-skill", "https://github.com/example/skills");
-    const personal = path.join(h.content, ".agent", "skill-data", "default-one", "settings.json");
+    const personal = path.join(h.content, ".agent", "skill-data", "rss-article-saver", "settings.json");
     const article = path.join(h.content, "article", "saved.md");
     for (const file of [personal, article]) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -44,13 +45,13 @@ describe("DefaultSkillsService", () => {
     }
     h.automation.setEnabled.mockImplementation(async (enabled) => {
       if (enabled) {
-        expect(h.packages.listInstalledViews().filter((item) => item.id.startsWith("default-")).every((item) => item.enabled)).toBe(true);
+        expect(h.packages.listInstalledViews().filter((item) => ["rss-article-saver", "daily-article-summarizer"].includes(item.id)).every((item) => item.enabled)).toBe(true);
         expect(h.packages.listInstalled()).toHaveLength(3);
         expect(h.automation.refresh).toHaveBeenCalled();
       }
     });
     expect(await h.service.setEnabled(true)).toBe(true);
-    expect(h.install).toHaveBeenCalledWith({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
+    expect(h.install).toHaveBeenCalledWith({ type: "git", locator: OPENMIND_SKILLS_REPO_URL }, undefined, ALL_SKILL_IDS);
     h.automation.stop.mockImplementation(async () => { expect(h.packages.listInstalled()).toHaveLength(3); });
     expect(await h.service.setEnabled(false)).toBe(false);
     expect(h.packages.listInstalled().map((item) => item.key)).toEqual([custom.key]);
@@ -61,9 +62,9 @@ describe("DefaultSkillsService", () => {
 
   it("rolls back a partial install without deleting pre-existing packages", async () => {
     const h = harness();
-    const existing = h.installPackage("default-one");
+    const existing = h.installPackage("rss-article-saver");
     h.install.mockImplementation(async () => {
-      h.installPackage("default-two");
+      h.installPackage("daily-article-summarizer");
       throw new Error("download failed");
     });
     await expect(h.service.setEnabled(true)).rejects.toThrow("download failed");
@@ -79,6 +80,17 @@ describe("DefaultSkillsService", () => {
     await expect(h.service.setEnabled(false)).rejects.toThrow("still running");
     expect(h.packages.listInstalled()).toHaveLength(2);
     expect(h.automation.setEnabled).not.toHaveBeenCalledWith(false);
+  });
+
+  it("preserves scene packages and explicitly imported official packages when defaults are disabled", async () => {
+    const h = harness();
+    const scene = h.installPackage("om-research-brief");
+    const retained = h.installPackage("rss-article-saver");
+    h.installPackage("daily-article-summarizer");
+    const service = new DefaultSkillsService(h.packages, { install: h.install } as unknown as SkillSourceService, h.automation, key => key === retained.key);
+    await service.setEnabled(false);
+    expect(h.packages.listInstalled().map(record => record.key).sort()).toEqual([scene.key, retained.key].sort());
+    expect(h.automation.stop).toHaveBeenCalled();
   });
 
   it("keeps the switch retryable on removal failure and supports enabling again", async () => {

@@ -1,3 +1,4 @@
+import { skillLibraryMessages } from "./skill-library";
 import { coreMessages } from "./core";
 import { appMessages } from "./app";
 import { electronMessages } from "./electron";
@@ -18,6 +19,7 @@ const { settings: settingsDefaults, brief: briefBackend, ...electronRest } = ele
 const { settings: settingsPage, brief: briefPage, ...featureRest } = featureMessages;
 
 export const en: Messages = {
+  ...skillLibraryMessages,
   ...editorMessages,
   ...interfaceMessages,
   ...providerUiMessages,

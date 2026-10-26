@@ -63,7 +63,9 @@
     "id": "select-multiple-open",
     "title": "Multiple browser choices",
     "height": 800,
-    "pixelPlatforms": ["win32-x64"],
+    "pixelPlatforms": [
+      "win32-x64"
+    ],
     "navigation": false
   },
   {
@@ -91,7 +93,37 @@
     "id": "navigation-controls",
     "title": "Tabs, segmented choices and switches",
     "height": 1200,
-    "pixelPlatforms": ["win32-x64"],
+    "pixelPlatforms": [
+      "win32-x64"
+    ],
     "navigation": false
+  },
+  {
+    "id": "skill-library-explore",
+    "title": "Skills: Explore",
+    "height": 2100,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "skill-library-mine",
+    "title": "Skills: My skills",
+    "height": 1300,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "skill-editor",
+    "title": "Skill editor",
+    "height": 2000,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "skill-composer-menu",
+    "title": "Skill selection",
+    "height": 800,
+    "navigation": false,
+    "pixelPlatforms": []
   }
 ]

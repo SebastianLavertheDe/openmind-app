@@ -1,3 +1,5 @@
+import type { SkillSelectionInput } from "../../shared/skill-library";
+import { messages } from "../../shared/messages";
 import path from "node:path";
 import {
   ApprovalDecisionSchema,
@@ -326,6 +328,7 @@ export class RunScheduler {
       permissionProfile: input.permissionProfile,
       interactionMode: input.interactionMode,
       cwd,
+      selectedSkill: input.selectedSkill,
       prompt: input.prompt,
       imageGeneration: input.imageGeneration,
       contexts: input.contexts,
@@ -350,7 +353,8 @@ export class RunScheduler {
         permissionProfile: input.permissionProfile,
         interactionMode: session.interactionMode ?? "default",
         cwd: session.cwd,
-        prompt: input.prompt,
+        selectedSkill: input.selectedSkill,
+      prompt: input.prompt,
         imageGeneration: input.imageGeneration,
         contexts: input.contexts
       });
@@ -365,6 +369,7 @@ export class RunScheduler {
       permissionProfile: input.permissionProfile,
       interactionMode: "default",
       cwd: ".",
+      selectedSkill: input.selectedSkill,
       prompt: input.prompt,
       imageGeneration: input.imageGeneration,
       contexts: input.contexts
@@ -380,6 +385,7 @@ export class RunScheduler {
     interactionMode: NonNullable<AiSession["interactionMode"]>;
     cwd: string;
     prompt: string;
+    selectedSkill?: SkillSelectionInput | null;
     contexts: AiRun["contexts"];
     imageGeneration?: ImageSelection | null;
     acknowledgeProviderChange?: boolean;
@@ -394,7 +400,11 @@ export class RunScheduler {
       ? this.store.refreshSessionSkillSnapshot(input.session.id, skillSnapshot)
       : null;
     const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
-    const commandError = skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
+    const slashEntry = skillInvocation && skillSnapshot.find(entry => entry.definition.id === skillInvocation.skill.id);
+    if (input.selectedSkill && slashEntry?.installed && input.selectedSkill.key !== slashEntry.installed.key) throw new Error(messages.skillLibrary.errors.skillConflict);
+    const selection = input.selectedSkill || slashEntry?.installed;
+    const selectedSkill = selection ? this.skillTools.resolveSelection(selection, skillSnapshot, input.selectedSkill ? "picker" : "slash") : null;
+    const commandError = selectedSkill || skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
     const provider = this.registry.detect().find((item) => item.id === input.providerId);
     let pinnedManagedProvider: ProviderYamlEntry | null = null;
@@ -423,6 +433,8 @@ export class RunScheduler {
     if (!provider?.available && !(pinnedManagedProvider && provider?.version)) {
       throw new Error(provider?.diagnostic || "所选 AI Provider 当前不可用。");
     }
+    const chosenModel = selectedSkill?.executionModel;
+    if (chosenModel && (chosenModel.provider !== provider.provider || session && (session.executionModel || this.resolveProviderModel(provider.provider)) !== chosenModel.model)) throw new Error(messages.skillLibrary.errors.model);
     if (session && session.providerId !== provider.id) throw new Error("会话 Provider 已锁定，不能中途切换。");
     if (!session) {
       const selectedServiceProvider = resolveCliProvider(provider.provider);
@@ -465,7 +477,9 @@ export class RunScheduler {
       : new ImageConfigurationStore(this.openmindRoot).view().defaultSelection;
     session = this.store.updateSession(session.id, { imageGeneration });
     const materializedContexts = materializeImages(session.projectRoot, runId, contexts, this.stateRoot);
-    const run = this.store.createRun(session, input.prompt, materializedContexts, runId);
+    if (chosenModel && !session.executionModel) session = this.store.updateSession(session.id, { executionModel: chosenModel.model });
+    let run = this.store.createRun(session, input.prompt, materializedContexts, runId);
+    run = this.store.updateRun(run.id, { selectedSkill, executionModel: session.executionModel || this.resolveProviderModel(provider.provider) });
     if (projectScoped) this.store.setProjectTaskStatus(session.id, "active");
     this.queue.push(run.id);
     this.publishSnapshot();

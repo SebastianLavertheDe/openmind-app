@@ -1,3 +1,6 @@
+const { skipUnsupportedVisualPlatform } = require("./ui-contract/visual-platform.cjs");
+if (skipUnsupportedVisualPlatform("App visual snapshots")) process.exit(0);
+
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");

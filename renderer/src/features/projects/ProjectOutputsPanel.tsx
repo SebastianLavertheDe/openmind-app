@@ -75,6 +75,7 @@ export function ProjectOutputsPanel({ project, initialOutputPath, createRequeste
         {filtered.map((item) => <button aria-pressed={Boolean(item.relativePath === selectedPath)} key={item.relativePath} className={`project-content-row${item.relativePath === selectedPath ? " active" : ""}`} data-motion="selection" onClick={() => {
           void canNavigate().then(allowed => { if (allowed) select(item.relativePath); });
         }}><FileOutput size={15} /><span><strong>{item.title}</strong><small>{item.sourceTaskId ? messages.projectUi.fromProjectTask(formatTime(item.updatedAt)) : formatTime(item.updatedAt)}</small></span></button>)}
+        {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
       </div>
     </>
   );

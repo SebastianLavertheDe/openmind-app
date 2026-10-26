@@ -389,7 +389,8 @@ export const projectsApi = {
     contexts: ContextReference[] = [],
     permissionProfile: PermissionProfile = "auto",
     sessionId?: string,
-    imageGeneration?: import("@shared/image-generation").ImageSelection | null
+    imageGeneration?: import("@shared/image-generation").ImageSelection | null,
+    selectedSkill?: import("@shared/skill-library").SkillSelectionInput | null
   ): Promise<ProjectTaskRunResult> {
     const result = record(await invoke("projectStartTaskRun", {
       projectName,
@@ -397,6 +398,7 @@ export const projectsApi = {
       providerId,
       permissionProfile,
       prompt,
+      ...(selectedSkill !== undefined ? { selectedSkill } : {}),
       ...(imageGeneration !== undefined ? { imageGeneration } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(contexts.length ? { contexts } : {})

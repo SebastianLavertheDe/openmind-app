@@ -15,6 +15,8 @@ export function isDefaultSkillsPage(page: AppPage): boolean {
 }
 
 export type AppRouteState = {
+  skillLibraryMode?: "explore" | "mine";
+  skillReturnSessionId?: string | null;
   date?: string;
   projectDir?: string;
   projectName?: string;

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SKILL_LIBRARY_PRESETS } from "../../shared/skill-library-catalog";
 import { buildAppPaths, ensureAppPaths, type AppPaths } from "../paths/app-paths-service";
 import {
   SkillPackageError,
@@ -420,9 +421,8 @@ describe("SkillPackageService", () => {
       .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // All 16 skills now have formal cctools.skill.yaml manifests
-    // (12 process / 1 workflow / 3 agent). `_shared` has no manifest and is
-    // therefore not an install candidate.
+    // Existing formal packages and the scene library share this source repo.
+    // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
       "agent-browser",
       "ai-media-topic-selector",
@@ -439,9 +439,10 @@ describe("SkillPackageService", () => {
       "skill-run-reporter",
       "video-burnin-subtitles",
       "video-download",
-      "x-following-fetcher"
-    ]);
-    expect(installed.length).toBe(16);
+      "x-following-fetcher",
+      ...SKILL_LIBRARY_PRESETS.map(preset => preset.id)
+    ].sort());
+    expect(installed.length).toBe(16 + SKILL_LIBRARY_PRESETS.length);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");

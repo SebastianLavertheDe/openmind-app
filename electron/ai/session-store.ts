@@ -259,7 +259,7 @@ export class SessionStore {
       projectRoot: source.projectRoot,
       scope: source.scope
     });
-    target = this.updateSession(target.id, { imageGeneration: source.imageGeneration });
+    target = this.updateSession(target.id, { imageGeneration: source.imageGeneration, executionModel: source.executionModel });
     const lines: AiRolloutLine[] = [];
     for (const sourceTurn of sourceTurns) {
       const sourceRun = this.runs.get(sourceTurn.id);
@@ -271,6 +271,8 @@ export class SessionStore {
         completedAt: sourceTurn.completedAt,
         error: sourceTurn.error,
         turnContext: sourceRun.turnContext,
+        selectedSkill: sourceRun.selectedSkill,
+        executionModel: sourceRun.executionModel,
         imageGeneration: sourceRun.imageGeneration
       });
       lines.push(makeRolloutLine(turnStartedItem(targetRun), sourceTurn.startedAt));
@@ -497,7 +499,7 @@ export class SessionStore {
         runId: run.id,
         provider: run.provider,
         kind: "user-message",
-        payload: { text: run.prompt, contexts: run.contexts, modelInput },
+        payload: { text: run.prompt, contexts: run.contexts, modelInput, ...(run.selectedSkill ? { selectedSkill: run.selectedSkill } : {}), ...(run.executionModel ? { executionModel: run.executionModel } : {}) },
         risks: scanRisks({ text: run.prompt, contexts: run.contexts, modelInput })
       });
       events.push(event);
@@ -873,7 +875,7 @@ export class SessionStore {
           runId: run.id,
           provider: run.provider,
           kind: "user-message",
-          payload: { text: run.prompt, contexts: run.contexts },
+          payload: { text: run.prompt, contexts: run.contexts, selectedSkill: run.selectedSkill, executionModel: run.executionModel },
           risks: []
         });
         legacyEvents.unshift(userEvent);

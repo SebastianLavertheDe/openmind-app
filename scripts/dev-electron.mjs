@@ -31,6 +31,7 @@ function runStep(command, args, label) {
 }
 
 // 主进程与 preload 是编译产物，启动前先重建，避免渲染层新代码调到旧桥。
+await runStep("npm", ["run", "prepare:skill-library"], "[dev-electron] prepare:skill-library");
 await runStep("npm", ["run", "build:electron"], "[dev-electron] build:electron");
 console.log("[dev-electron] main/preload 已重新构建。");
 

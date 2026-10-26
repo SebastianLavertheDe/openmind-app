@@ -628,6 +628,21 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       const automationRules = await api.listAutomationRules();
       if (defaultSkillsEnabled || automationRules.length) throw new Error("Fresh startup enabled default Skills or schedules");
       if (await api.setDefaultSkillsEnabled(false)) throw new Error("Default Skills opt-out failed");
+      const library = await api.listSkillLibrary();
+      if (library.filter(entry => entry.origin === "preset").length !== 12) throw new Error("Scene Skill library is incomplete");
+      const preset = await api.installLibraryPreset("om-research-brief");
+      if (!preset.key || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate a verified package");
+      const skillDocument = await api.getSkillEditor();
+      skillDocument.name = "Electron E2E personal skill";
+      skillDocument.instructions[0].text = "Summarize only the supplied evidence.";
+      skillDocument.inputHint = "Provide the evidence.";
+      const published = await api.publishSkill({ document: skillDocument, operationId: crypto.randomUUID() });
+      const restored = await api.getSkillEditor(skillDocument.id);
+      if (published.revision !== 1 || restored.instructions[0].text !== skillDocument.instructions[0].text) throw new Error("Skill authoring did not persist through the real IPC bridge");
+      await api.deleteAuthoredSkill(skillDocument.id);
+      await api.setDefaultSkillsEnabled(false);
+      const remaining = await api.listSkillLibrary();
+      if (!remaining.find(entry => entry.id === preset.id)?.installed || remaining.some(entry => entry.id === skillDocument.id)) throw new Error("Skill removal or default-package ownership is incorrect");
       return {
         documentReady: document.readyState,
         rootMounted: Boolean(document.querySelector("#root")),
@@ -637,7 +652,8 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
         articleReadable: Boolean(article?.content?.includes("real Electron preload and IPC bridge")),
         fileSearchCount: Array.isArray(fileSearch?.items) ? fileSearch.items.length : 0,
         themeMode: preferences.themeMode,
-        browserStatus: browser?.ready ?? false
+        browserStatus: browser?.ready ?? false,
+        sceneSkillCount: library.filter(entry => entry.origin === "preset").length
       };
     })()`, true) as {
       documentReady?: string;

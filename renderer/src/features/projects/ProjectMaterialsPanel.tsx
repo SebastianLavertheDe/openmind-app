@@ -69,6 +69,7 @@ export function ProjectMaterialsPanel({ project, initialMaterialPath, createRequ
           const Icon = materialIcon(item.kind);
           return <button aria-pressed={Boolean(item.relativePath === selectedPath)} key={item.relativePath} className={item.relativePath === selectedPath ? "active" : ""} data-motion="selection" onClick={() => void select(item.relativePath)}><Icon size={15} /><span><strong>{item.title}</strong><small>{materialKindLabel(item.kind)} · {materialStatusLabel(item.status)}</small></span></button>;
         })}
+        {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
       </div>
     </>
   );

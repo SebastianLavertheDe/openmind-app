@@ -1,3 +1,4 @@
+import { SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
@@ -204,6 +205,7 @@ export const SkillDefinitionSchema = z.object({
   runner: z.string().optional(),
   args: z.array(z.string()).optional(),
   envFile: z.string().nullable().optional(),
+  inputHint: z.string().optional(),
   group: z.string().optional(),
   permission: z.enum(["read-only", "edit", "auto"]).optional(),
   outputArtifacts: z.array(z.string()).optional(),
@@ -228,6 +230,13 @@ export const AiSessionSkillSnapshotEntrySchema = z.object({
   }).nullable().default(null)
 });
 export type AiSessionSkillSnapshotEntry = z.infer<typeof AiSessionSkillSnapshotEntrySchema>;
+export const SelectedSkillSnapshotSchema = AiSessionSkillSnapshotEntrySchema.extend({
+  selectionSource: z.enum(["picker", "slash"]),
+  dependencies: z.array(AiSessionSkillSnapshotEntrySchema).max(10).default([]),
+  executionModel: z.object({ provider: ProviderKindSchema, model: z.string().max(200) }).nullable().default(null)
+});
+export type SelectedSkillSnapshot = z.infer<typeof SelectedSkillSnapshotSchema>;
+
 export const AiSessionSkillSnapshotSchema = z.array(AiSessionSkillSnapshotEntrySchema).superRefine((entries, context) => {
   const ids = new Set<string>();
   const keys = new Set<string>();
@@ -271,6 +280,7 @@ export const AiSessionSchema = z.object({
   projectRoot: z.string(),
   scope: AiSessionScopeSchema,
   title: z.string(),
+  executionModel: z.string().nullable().optional(),
   provider: ProviderKindSchema,
   providerId: z.string(),
   /** API profile from config/providers.yaml frozen when the session is created. */
@@ -314,6 +324,8 @@ export const AiRunSchema = z.object({
   interactionMode: InteractionModeSchema.default("default"),
   imageGeneration: ImageSelectionSchema.nullable().optional(),
   status: RunStatusSchema,
+  selectedSkill: SelectedSkillSnapshotSchema.nullable().optional(),
+  executionModel: z.string().nullable().optional(),
   prompt: z.string(),
   /** Project runs keep the user-message body in Project storage and persist only this reference. */
   promptMessageId: z.string().uuid().nullable().default(null),
@@ -567,6 +579,7 @@ export const CliInstallProgressSchema = z.object({
 export type CliInstallProgress = z.infer<typeof CliInstallProgressSchema>;
 
 export const StartRunInputSchema = z.object({
+  selectedSkill: SkillSelectionInputSchema.nullable().optional(),
   sessionId: z.string().optional(),
   providerId: z.string(),
   permissionProfile: PermissionProfileSchema,
@@ -1278,6 +1291,17 @@ export interface DesktopApi {
   /** 静态检查 App 私有安装包，不执行包内代码。 */
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
+  listSkillLibrary?(): Promise<import("./skill-library").SkillLibraryEntry[]>;
+  installLibraryPreset?(id: string): Promise<import("./skill-library").SkillLibraryEntry>;
+  getSkillEditor?(id?: string): Promise<import("./skill-library").AuthoredSkill>;
+  saveSkillDraft?(document: import("./skill-library").AuthoredSkill): Promise<import("./skill-library").AuthoredSkill>;
+  publishSkill?(input: { document: import("./skill-library").AuthoredSkill; operationId: string }): Promise<import("./skill-library").SkillLibraryEntry>;
+  copyLibrarySkill?(selection: import("./skill-library").SkillSelectionInput): Promise<import("./skill-library").AuthoredSkill>;
+  deleteAuthoredSkill?(id: string): Promise<boolean>;
+  importSkillAssets?(id: string, imageOnly: boolean): Promise<import("./skill-library").SkillAsset[]>;
+  readSkillAssetImage?(id: string, asset: import("./skill-library").SkillAsset): Promise<string>;
+  suggestSkillField?(input: { field: "name" | "subtitle" | "inputHint" | "description"; document: import("./skill-library").AuthoredSkill; providerId: string }): Promise<string>;
+
   getDefaultSkillsEnabled(): Promise<boolean>;
   setDefaultSkillsEnabled(enabled: boolean): Promise<boolean>;
   /** Process/Workflow catalog for Automation and Broker UI; never includes Agent Skills. */

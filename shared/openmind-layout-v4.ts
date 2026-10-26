@@ -21,6 +21,7 @@ export const OPENMIND_LAYOUT_VERSION_V4 = "openmind-layout-v4" as const;
 
 export const OPENMIND_LAYOUT_V4: readonly OpenmindLayoutEntry[] = [
   ...OPENMIND_LAYOUT_V3,
+  { logicalPath: ".agent/authored-skills", category: "app-managed", owner: "desktop-app SkillLibraryService", note: "User-authored Skill sources and assets; separate from replaceable installations" },
   {
     logicalPath: "projects",
     category: "app-managed",

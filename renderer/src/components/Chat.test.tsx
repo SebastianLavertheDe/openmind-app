@@ -10,6 +10,7 @@ import { FilePreviewProvider } from "../features/ai-console/file-preview-context
 import { CommandGroup } from "../features/ai-console/tool";
 import { FILE_DELIVERABLES_START_FENCE } from "@shared/file-deliverables";
 import type { GeneratedImage } from "@shared/image-generation";
+import type { SkillLibraryEntry } from "@shared/skill-library";
 
 const declareFiles = (...paths: string[]) => `${FILE_DELIVERABLES_START_FENCE}\n${JSON.stringify(paths.map(path => ({ path })))}\n~~~~`;
 const generatedImage = (index: number): GeneratedImage => ({
@@ -168,6 +169,30 @@ afterEach(() => {
 });
 
 describe("Chat composer", () => {
+  it("sends the chosen Skill identity with ordinary text and preserves selection after failure", async () => {
+    const entry: SkillLibraryEntry = {
+      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "", description: "",
+      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: true, enabled: true,
+      usable: true, reason: null, key: "cctools/om-article-writer", digest: "a".repeat(64), version: "1.0.0",
+      authoringId: null, revision: 0, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null
+    };
+    window.openmind.listSkillLibrary = vi.fn(async () => [entry]);
+    render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
+    const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "写一篇关于阅读的文章" } });
+    fireEvent.click(screen.getByRole("button", { name: m.skillLibrary.use }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /长文写作/ }));
+    expect(input.placeholder).toBe(entry.inputHint);
+    expect(input.value).toBe("写一篇关于阅读的文章");
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await screen.findByText("provider failed");
+    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ prompt: "写一篇关于阅读的文章", selectedSkill: { key: entry.key, digest: entry.digest } }));
+    expect(screen.getByRole("button", { name: m.skillLibrary.clearSelection })).toBeTruthy();
+    expect(input.value).toBe("写一篇关于阅读的文章");
+    fireEvent.click(screen.getByRole("button", { name: m.skillLibrary.clearSelection }));
+    expect(input.placeholder).toBe(m.ai.composer.placeholderNew);
+  });
+
   it("grounds the empty state in the content workspace without task cards or shortcut hints", () => {
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
 
@@ -2418,16 +2443,17 @@ describe("run waiting and queue", () => {
     await screen.findByText("排队中");
     expect(container.querySelectorAll(".completed-process.processing")).toHaveLength(1);
     expect(container.querySelector(".queued-process small")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "1 条消息正在排队" }));
-    expect(screen.getByRole("button", { name: "1 条消息正在排队" }).getAttribute("aria-expanded")).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: m.ai.composer.cancelQueued }));
+    expect(screen.getByRole("list", { name: "1 条消息正在排队" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "查看排队消息 1" }));
+    expect(screen.getByRole("button", { name: "查看排队消息 1" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "删除排队消息 1" }));
     await waitFor(() => expect(cancel).toHaveBeenCalledWith(queued.id));
     fireEvent.click(screen.getByRole("button", { name: "停止" }));
     await waitFor(() => expect(cancel).toHaveBeenCalledWith(active.id));
 
     aiListener?.({ kind: "snapshot", snapshot: { ...state, runs: [{ ...active, status: "completed", completedAt: "2026-01-02T00:00:01.000Z" }, { ...queued, status: "running" }] } });
     await waitFor(() => expect(screen.queryByText("排队中")).toBeNull());
-    expect(screen.queryByRole("button", { name: "1 条消息正在排队" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "1 条消息正在排队" })).toBeNull();
     expect(container.querySelectorAll(".completed-process.processing")).toHaveLength(1);
   });
 
@@ -2449,7 +2475,7 @@ describe("run waiting and queue", () => {
     window.openmind.aiGetEvents = async () => [makeEvent("user-active", "user-message", { text: "first" }, 1)];
     render(<AiProvider initial={twoRunSnapshot}><Chat /></AiProvider>);
     await screen.findByText("first");
-    expect(screen.getByText(/1 条消息正在排队/)).toBeTruthy();
+    expect(screen.getByRole("list", { name: "1 条消息正在排队" })).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "停止" })[0]);
     await waitFor(() => expect(cancelSpy).toHaveBeenCalledWith("run-active"));
   });

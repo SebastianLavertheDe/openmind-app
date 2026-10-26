@@ -19,6 +19,7 @@ import { useExitPresence } from "../../design-system/use-exit-presence";
 import { useMotionTokens } from "../../design-system/motion-tokens";
 import { IMAGE_PROVIDERS } from "@shared/image-generation";
 import { ProviderImageCapability, defaultImageCapability } from "./ProviderImageCapability";
+import { SettingsPanel } from "./SettingsPanel";
 import { YOUTUBE_TOOL_INSTALL_GUIDES, YoutubeBrowserPreferenceSchema, type YoutubeImportStatus, type YoutubeToolId, type YoutubeToolStatus } from "@shared/youtube-import";
 
 const m = messages;
@@ -1245,11 +1246,6 @@ export function AiProvidersSettingsSection({
           </Dialog> : null}
     </>
   );
-}
-
-function SettingsPanel({ title, scope, action, variant = "standard", children }: { title: string; scope: string; action?: ReactNode; variant?: "standard" | "resource" | "mcp"; children: ReactNode }) {
-  useLocale();
-  return <section className={`settings-card settings-card--${variant}`} data-entrance-item><header><div className="settings-card-title"><h2>{title}</h2><span>{scope}</span></div>{action}</header><div className="settings-card-body">{children}</div></section>;
 }
 
 function PreferenceRow({ title, description, children }: { title: string; description: string; children: ReactNode }) {

@@ -52,7 +52,7 @@ export async function prewarmProviderSession(input: {
     permissionProfile,
     interactionMode,
     providerSessionId,
-    providerModel: input.resolveProviderModel(input.provider),
+    providerModel: session?.executionModel || input.resolveProviderModel(input.provider),
     skillCatalog: input.skillCatalog,
     protectedPaths: session?.scope?.type === "project-task" ? [] : input.protectedPaths,
     images: []

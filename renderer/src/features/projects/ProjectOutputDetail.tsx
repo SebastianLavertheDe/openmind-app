@@ -166,6 +166,9 @@ export function ProjectOutputDetail({ project, outputPath, createRequested, onCr
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      // The controller cancels its pending load during StrictMode cleanup.
+      // Let the replayed effect reload this selection instead of keeping it pending.
+      selectedPathRef.current = "";
       if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
     };
   }, []);

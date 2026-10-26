@@ -1,3 +1,7 @@
+const { skipUnsupportedVisualPlatform } = require("./ui-contract/visual-platform.cjs");
+const diagnostic = process.argv.some(argument => ["--preview", "--capture-only", "--performance-only"].includes(argument));
+if (!diagnostic && skipUnsupportedVisualPlatform("UI visual comparisons")) process.exit(0);
+
 const fs = require("node:fs");
 const path = require("node:path");
 const { runWithTemporaryProfile } = require("./ui-contract/temporary-profile.cjs");

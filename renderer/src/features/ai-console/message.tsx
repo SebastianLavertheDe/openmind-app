@@ -35,6 +35,7 @@ const markdownCache = new Map<string, { text: string; node: ReactNode }>();
 export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent }) {
   useLocale();
   const actions = useAiActions();
+  const selectedSkill = event.payload.selectedSkill as import("@shared/contracts").SelectedSkillSnapshot | undefined;
   const text = String(event.payload.text || "");
   const contexts = Array.isArray(event.payload.contexts) ? event.payload.contexts as ContextReference[] : [];
   const images = contexts.filter(context => context.kind === "image");
@@ -47,6 +48,7 @@ export const UserMessage = memo(function UserMessage({ event }: { event: AiEvent
           {images.map(context => <ChatImage key={context.id} source={context.content || context.path || ""} title={context.label} variant="attachment" />)}
         </div></ChatImageGallery> : null}
         {text || references.length ? <div className="user-message-bubble">
+          {selectedSkill ? <span className="user-message-skill">{selectedSkill.definition.title}</span> : null}
           {text ? <UserMessageText key={event.id} text={text} /> : null}
           {references.length ? <SentContexts contexts={references} /> : null}
         </div> : null}

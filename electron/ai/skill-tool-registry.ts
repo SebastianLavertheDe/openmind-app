@@ -1,3 +1,7 @@
+import { readSkillLibraryMetadata } from "../skills/skill-library-service";
+import { resolveSkillLibraryTools } from "../skills/skill-library-runtime";
+import type { SkillSelectionInput } from "../../shared/skill-library";
+import type { SelectedSkillSnapshot } from "../../shared/contracts";
 import path from "node:path";
 import type { AiSessionSkillSnapshotEntry, SkillDefinition } from "../../shared/contracts";
 import type { BrokerRunEvent, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
@@ -62,8 +66,10 @@ export class SkillToolRegistry {
   private readonly onRunEvent: (event: BrokerRunEvent) => void;
   private readonly onWorkflowEvent: (event: WorkflowRunRecord) => void;
   private readonly workflow: WorkflowEngine | null;
+  private readonly runtimePaths: AppPaths | null;
 
   constructor(private projectRoot: string, brokerOptions?: BrokerSkillRegistryOptions) {
+    this.runtimePaths = brokerOptions?.paths || null;
     this.executionOpenmindRoot = brokerOptions?.openmindRoot ? path.resolve(brokerOptions.openmindRoot) : "";
     this.executionRootGeneration = brokerOptions?.rootGeneration ?? 0;
     this.installedResolver = brokerOptions?.installedResolver || null;
@@ -116,7 +122,27 @@ export class SkillToolRegistry {
     return this.installedResolver?.providerSkillBridge(snapshot) || null;
   }
 
+  resolveSelection(input: SkillSelectionInput, snapshot: AiSessionSkillSnapshotEntry[], selectionSource: "picker" | "slash"): SelectedSkillSnapshot {
+    const entry = snapshot.find(item => item.installed?.key === input.key && item.installed.digest === input.digest);
+    if (!entry) throw new Error(messages.skillLibrary.errors.stale);
+    let bridge: ProviderSkillBridge | null;
+    try { bridge = this.providerSkillBridge(entry); } catch (error) {
+      if (selectionSource === "picker") throw error;
+      return { ...entry, selectionSource, dependencies: [], executionModel: null };
+    }
+    if (!bridge && selectionSource === "picker") throw new Error(messages.skillLibrary.errors.stale);
+    const metadata = bridge ? readSkillLibraryMetadata(bridge.packageRoot) : null;
+    const dependencies = (metadata?.dependencies || []).map(reference => {
+      const dependency = snapshot.find(item => item.installed?.key === reference.key && item.installed.digest === reference.digest);
+      if (!dependency || reference.key === input.key) throw new Error(messages.skillLibrary.errors.dependency);
+      this.providerSkillBridge(dependency);
+      return dependency;
+    });
+    return { ...entry, selectionSource, dependencies, executionModel: metadata?.executionModel || null };
+  }
+
   providerSkillCatalog(snapshot: readonly AiSessionSkillSnapshotEntry[]): ProviderSkillCatalogEntry[] {
+    const tools = this.runtimePaths && snapshot.some(entry => ["om-short-video", "om-slide-deck"].includes(entry.definition.id)) ? resolveSkillLibraryTools(this.runtimePaths) : undefined;
     return snapshot.flatMap((entry) => {
       const bridge = this.providerSkillBridge(entry);
       if (!bridge) return [];
@@ -126,7 +152,8 @@ export class SkillToolRegistry {
         digest: bridge.digest,
         skillPath: bridge.skillPath,
         packageRoot: bridge.packageRoot,
-        description: entry.definition.description
+        description: entry.definition.description,
+        ...(tools && ["om-short-video", "om-slide-deck"].includes(bridge.id) ? { tools } : {})
       }];
     });
   }

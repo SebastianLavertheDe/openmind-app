@@ -123,6 +123,14 @@ export class SharedPythonRuntimeService {
     };
   }
 
+  /** Read-only discovery for agent Skills that use standard-library scripts. */
+  readyExecutable(): string | null {
+    const state = this.readState();
+    if (!state.enabled || state.phase !== "ready" || !state.currentFingerprint) return null;
+    const executable = environmentPython(this.generationRoot(state.currentFingerprint));
+    return fs.existsSync(executable) ? fs.realpathSync(executable) : null;
+  }
+
   async setEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus> {
     if (!enabled) {
       const current = this.readState();

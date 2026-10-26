@@ -802,8 +802,8 @@
   align-items: center;
   gap: var(--control-icon-gap);
   padding: 5px 10px;
-  border: 1px solid var(--border);
-  background: var(--panel-bg);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
   color: var(--text);
   border-radius: 999px;
   font: inherit;
@@ -824,17 +824,18 @@
   min-height: 36px;
   padding: 0 10px;
 }
-.ui-select-trigger:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover, var(--control-hover));
+.ui-select-trigger:where(:hover:not(:disabled)) {
+  background: var(--input-hover-bg);
 }
 .ui-select-trigger:focus-visible {
   border-color: var(--input-focus-border);
+  background: var(--input-focus-bg);
   outline: none;
   box-shadow: none;
 }
 .ui-select-trigger[aria-expanded="true"] {
   border-color: var(--input-focus-border);
+  background: var(--input-focus-bg);
   box-shadow: none;
 }
 .ui-select-trigger:disabled {

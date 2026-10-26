@@ -66,6 +66,7 @@ Install **Node.js 22.12+**, **Git**, and **uv**, then run:
 
 ```bash
 git clone https://github.com/SebastianLavertheDe/openmind-app.git
+git clone https://github.com/SebastianLavertheDe/cctools-skills.git
 cd openmind-app
 npm ci
 npm run prepare:python-runtime
@@ -73,6 +74,8 @@ npm run dev:electron
 ```
 
 The runtime preparation step downloads the Python runtime used by Skills. After the app opens, follow the same first-launch setup above.
+
+The scene Skill library is built from the separate sibling `cctools-skills` checkout (the 12 `om-*` packages). For a different location, set `OPENMIND_SKILLS_REPO_ROOT` to its absolute path. Both `build` and `dev:electron` validate and copy only those packages into ignored build output; packaging includes that bundle. Keep the two repositories on compatible revisions. The bundle records each package digest, its source commit and whether that checkout contained uncommitted changes.
 
 Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](docs/AI_WORKSPACE.md), [WeChat export](docs/wechat-export.md), and [support and recovery](docs/SUPPORT_AND_RECOVERY.md).
 

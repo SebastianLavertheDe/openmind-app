@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { FeedbackProvider } from "../../feedback-context";
@@ -28,6 +29,45 @@ function mount(save = vi.fn(async (input: { relativePath: string; title: string;
 }
 
 describe("project file detail ownership", () => {
+  it.each([false, true])("loads an output after StrictMode effect replay (initial path: %s)", async initialPath => {
+    const read = vi.fn(async ({ relativePath }: { relativePath: string }) => ({ output: outputs.find(item => item.relativePath === relativePath), content: "# Fixture" }));
+    window.openmind = {
+      listProjectMaterials: vi.fn().mockResolvedValue([]),
+      listProjectOutputs: vi.fn().mockResolvedValue(outputs),
+      readProjectOutput: read
+    } as unknown as DesktopApi;
+    const list = document.createElement("div"), detail = document.createElement("div");
+    document.body.append(list, detail);
+    render(<StrictMode><FeedbackProvider><ProjectFilesPanel project={project}
+      initialSection={initialPath ? "outputs" : "materials"} initialItem={initialPath ? outputs[0].relativePath : undefined}
+      createRequested={null} onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()}
+      listHost={list} detailHost={detail} /></FeedbackProvider></StrictMode>);
+    expect((await within(detail).findByRole("textbox", { name: "Output title" }) as HTMLInputElement).value).toBe("One");
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(detail.querySelector(".project-detail-loading")).toBeNull();
+  });
+
+  it.each([
+    { kind: "outputs", hosted: false }, { kind: "outputs", hosted: true },
+    { kind: "materials", hosted: false }, { kind: "materials", hosted: true }
+  ])("shows a list failure and retries it ($kind, hosted: $hosted)", async ({ kind, hosted }) => {
+    const listFiles = vi.fn().mockRejectedValueOnce(new Error("List unavailable")).mockResolvedValue([]);
+    window.openmind = { listProjectOutputs: listFiles, listProjectMaterials: listFiles } as unknown as DesktopApi;
+    const list = document.createElement("div"), detail = document.createElement("div");
+    if (hosted) document.body.append(list, detail);
+    const props = { project, createRequested: false, onCreateHandled: vi.fn(), onChanged: vi.fn(),
+      listHost: hosted ? list : undefined, detailHost: hosted ? detail : undefined };
+    render(<FeedbackProvider>{kind === "outputs"
+      ? <ProjectOutputsPanel {...props} />
+      : <ProjectMaterialsPanel {...props} onCreateTask={vi.fn()} />}</FeedbackProvider>);
+    const error = await screen.findByRole("alert");
+    expect(within(error).getByText("List unavailable")).toBeTruthy();
+    if (hosted) expect(list.contains(error)).toBe(true);
+    fireEvent.click(within(error).getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   it("resolves a missing initial output through the list before reading a detail", async () => {
     const read = vi.fn(async () => ({ output: outputs[0], content: "# Fixture" }));
     window.openmind = { listProjectOutputs: vi.fn().mockResolvedValue(outputs), readProjectOutput: read } as unknown as DesktopApi;

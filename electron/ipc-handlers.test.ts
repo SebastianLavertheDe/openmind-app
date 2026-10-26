@@ -50,9 +50,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(138);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(138);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(138);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(148);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(148);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(148);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -515,6 +515,11 @@ describe("handler forwarding — Skill package installation", () => {
   });
 
   it("forwards Git/local source inspection and install through the source adapter", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-source-ipc-"));
+    const settings = await import("./lib/settings");
+    vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue(directory);
+    const { buildAppPaths } = await import("./paths/app-paths-service");
+    const appPaths = buildAppPaths(path.join(directory, "state"), path.join(directory, ".agent", "skills"));
     const source = { type: "git" as const, locator: "https://github.com/example/skill.git", ref: "main" };
     const sourceInspection = {
       sourcePath: source.locator,
@@ -533,8 +538,10 @@ describe("handler forwarding — Skill package installation", () => {
       inspect: vi.fn(async () => ({ source, packages: [{ ...sourceInspection, packageRef: "demo" }] })),
       install: vi.fn(async () => [{ key: "openmind/git-demo", digest: "digest-git" }])
     };
-    const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never });
+    const ctx = makeCtx({ ensureSkillSourceService: () => sourceService as never,
+      ensureSkillPackageService: () => ({ appPaths, toInstalledView: (record: unknown) => record }) as never });
 
+    try {
     await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.inspectSkillSource, source)).resolves.toEqual({
       source,
       packages: [expect.objectContaining({ sourceKind: "git", sourcePath: source.locator, packageRef: "demo" })]
@@ -544,6 +551,7 @@ describe("handler forwarding — Skill package installation", () => {
     expect(sourceService.inspect).toHaveBeenCalledWith(source, undefined);
     expect(sourceService.install).toHaveBeenNthCalledWith(1, source, ["demo"]);
     expect(sourceService.install).toHaveBeenNthCalledWith(2, source, ["demo", ""]);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); vi.restoreAllMocks(); }
   });
 
   it("updates exact Skill enablement without restarting or refreshing the AI worker", () => {

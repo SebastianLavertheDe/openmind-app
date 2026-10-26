@@ -66,6 +66,7 @@ AI 功能会向你配置的 Provider 发送请求。请使用自己的凭据，�
 
 ```bash
 git clone https://github.com/SebastianLavertheDe/openmind-app.git
+git clone https://github.com/SebastianLavertheDe/cctools-skills.git
 cd openmind-app
 npm ci
 npm run prepare:python-runtime
@@ -73,6 +74,8 @@ npm run dev:electron
 ```
 
 运行时准备步骤会下载 Skill 使用的 Python 运行时。应用打开后，按上面的首次启动流程完成设置。
+
+场景技能库的 12 个 `om-*` 包来自相邻的独立 `cctools-skills` 源码目录；如位置不同，可用绝对路径设置 `OPENMIND_SKILLS_REPO_ROOT`。`build` 和 `dev:electron` 会校验这些包并将其复制到忽略的构建输出，打包时一同分发。两个仓库需要使用相互兼容的版本；构建清单会记录源提交、是否存在未提交改动，以及每个包的实际 digest。
 
 开发约定见 [AGENTS.md](AGENTS.md)。更多说明：[AI 工作台](docs/AI_WORKSPACE.md)、[公众号导出](docs/wechat-export.md)、[支持与恢复](docs/SUPPORT_AND_RECOVERY.md)。
 

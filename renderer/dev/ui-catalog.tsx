@@ -1,3 +1,10 @@
+import { SkillLibraryPage } from "../src/features/skills/SkillLibraryPage";
+import { SkillEditor } from "../src/features/skills/SkillEditor";
+import { ComposerSkillPicker } from "../src/features/ai-console/ComposerSkillPicker";
+import { FeedbackProvider } from "../src/feedback-context";
+import { SKILL_LIBRARY_PRESETS } from "../../shared/skill-library-catalog";
+import { AuthoredSkillSchema, type SkillLibraryEntry } from "../../shared/skill-library";
+import { messages } from "../../shared/messages";
 import { memo, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -202,6 +209,18 @@ function QueuedMessagesExample() {
   </section>;
 }
 
+function SkillLibraryExample() {
+  const presets: SkillLibraryEntry[] = SKILL_LIBRARY_PRESETS.map((preset, index) => {
+    const copy = messages.skillLibrary.presets[preset.id as keyof typeof messages.skillLibrary.presets];
+    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.subtitle, inputHint: copy.hint, category: preset.category, origin: "preset", installed: index === 0, enabled: index === 0, usable: true, reason: null, key: index === 0 ? "cctools/research" : null, digest: index === 0 ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 1, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null };
+  });
+  const entries: SkillLibraryEntry[] = [...presets, { ...presets[2], id: "personal-writing", title: "My publication style", origin: "authored", installed: true, enabled: true, key: "user/writing", digest: "b".repeat(64), authoringId: "7b9a8203-f9e0-4ddd-8832-fda5f04c4d19" }, { ...presets[0], id: "imported", title: "Repository helper", origin: "git", category: null, source: "https://github.com/example/skills" }];
+  const [selected, setSelected] = useState<SkillLibraryEntry | null>(entries[0]);
+  const [document] = useState(() => AuthoredSkillSchema.parse({ id: "7b9a8203-f9e0-4ddd-8832-fda5f04c4d19", name: "My publication style", subtitle: "Clear, source-based writing for our readers", category: "writing", instructions: [{ id: "00000000-0000-4000-8000-000000000001", text: "Read the supplied materials. Identify the intended reader and explain the main idea with concrete examples." }, { id: "00000000-0000-4000-8000-000000000002", text: "Review factual claims and cite the sources. Deliver a complete article with concise paragraphs." }], inputHint: "Describe the topic and attach your source materials.", description: "Use this skill to turn research notes into a clear article for our publication." }));
+  window.openmind = { listSkillLibrary: async () => entries, saveSkillDraft: async (value: import("../../shared/skill-library").AuthoredSkill) => value, getSkillEditor: async () => document } as unknown as DesktopApi;
+  return <FeedbackProvider>{current === "skill-editor" ? <SkillEditor initial={document} entries={entries} providers={modelFixtureAgents} onClose={() => {}} onSaved={() => {}} /> : current === "skill-composer-menu" ? <div className="composer-flow"><Textarea variant="composer" aria-label="Message" placeholder={selected?.inputHint} /><div className="composer-editor-actions"><ComposerSkillPicker selected={selected} onSelect={setSelected} onManage={() => {}} /></div></div> : <SkillLibraryPage storageScope="catalog" initialMode={current === "skill-library-mine" ? "mine" : "explore"} providers={modelFixtureAgents} renderManagement={() => null} renderImport={() => null} />}</FeedbackProvider>;
+}
+
 const StaticActions = memo(function StaticActions() {
   return <div className="ui-catalog-benchmark-actions">{Array.from({ length: 500 }, (_, index) => <Button key={index} size="sm">Action {index}</Button>)}</div>;
 });
@@ -240,7 +259,7 @@ function Catalog() {
     <header className="ui-catalog-header"><h1>OpenMind UI</h1><p>Production components · supported variants and interaction states</p>
       <nav aria-label="Component examples">{scenarios.filter(item => !("navigation" in item) || item.navigation !== false).map(item => <a key={item.id} href={`?case=${item.id}&theme=${document.documentElement.dataset.theme}`}>{item.title}</a>)}</nav>
     </header>
-    {current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
+    {current.startsWith("skill-") ? <SkillLibraryExample /> : current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
       : current === "confirm-dialog" ? <ConfirmDialog open title="Remove this project?" description="The project will be moved to the archive." tone="danger" confirmLabel="Remove project" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "long-confirmation" ? <ConfirmDialog open title={"Long confirmation title ".repeat(60)} description={Array.from({ length: 100 }, (_, index) => `Confirmation detail ${index + 1}`).join("\n")} tone="danger" confirmLabel="Confirm" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "search-dialog" ? <SearchExample /> : current === "select-menu" || current === "action-menu" ? <MenuExample select={current === "select-menu"} />

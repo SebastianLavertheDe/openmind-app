@@ -1,3 +1,4 @@
+import { readSkillLibraryMetadata } from "./skill-library-service";
 import fs from "node:fs";
 import path from "node:path";
 import type { SkillRunRequest } from "../../shared/execution-contracts";
@@ -10,6 +11,7 @@ import type { ExecutionPlan } from "../execution/execution-broker";
 import type { ExternalBinding } from "../execution/artifact-collector";
 import type { ProviderSkillBridge } from "../ai/providers/skill-bridge";
 import { readDefaultProviderEnv } from "../config/providers-yaml";
+import { messages } from "../../shared/messages";
 import type { WorkflowAdmission } from "../execution/workflow-engine";
 
 const FORBIDDEN_ENV_NAMES = new Set(["PATH", "HOME", "NODE_OPTIONS", "PYTHONPATH", "LD_PRELOAD"]);
@@ -135,7 +137,8 @@ export class InstalledSkillExecutionResolver {
       referencePaths: listReferenceFiles(packageRoot),
       openmindRoot: canonicalDirectory(this.openmindRoot),
       capabilities: inspection.manifest.capabilities,
-      capabilitiesDeclared: ["cctools.skill.yaml", "openmind.skill.yaml"].some((name) => fs.existsSync(path.join(packageRoot, name)))
+      capabilitiesDeclared: !(inspection.manifest.kind === "agent" && readSkillLibraryMetadata(packageRoot)?.capabilityMode === "session")
+        && ["cctools.skill.yaml", "openmind.skill.yaml"].some((name) => fs.existsSync(path.join(packageRoot, name)))
     };
   }
 
@@ -311,13 +314,17 @@ export class InstalledSkillExecutionResolver {
     const inspection = this.packages.inspectInstalledCopy(record);
     if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
     const manifest = inspection.manifest;
+    const metadata = readSkillLibraryMetadata(record.packagePath);
+    const preset = metadata?.origin === "preset" && metadata.presetId === manifest.id
+      ? messages.skillLibrary.presets[manifest.id as keyof typeof messages.skillLibrary.presets] : null;
     // Slash-command surfaces expose every installed kind uniformly; `kind` is
     // carried as an internal marker so execution routing can stay explicit.
     return {
       definition: {
         id: manifest.id,
-        title: manifest.display.name,
-        description: manifest.display.description,
+        title: preset?.title || manifest.display.name,
+        inputHint: preset?.hint || metadata?.inputHint,
+        description: preset?.subtitle || manifest.display.description,
         // Logical metadata only. Physical paths remain Main-only and are
         // recovered from exact installed provenance at execution time.
         cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,

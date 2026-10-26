@@ -1,3 +1,4 @@
+import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
 import { isCctoolsSkillsSourceLocator, OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
 import type { SkillPackageService } from "./skill-package-service";
 import type { SkillSourceService } from "./skill-source-service";
@@ -13,14 +14,15 @@ export class DefaultSkillsService {
   constructor(
     private readonly packages: SkillPackageService,
     private readonly sources: SkillSourceService,
-    private readonly automation: DefaultSkillsAutomation
+    private readonly automation: DefaultSkillsAutomation,
+    private readonly userRetained: (key: string) => boolean = () => false
   ) {}
 
   async setEnabled(enabled: boolean): Promise<boolean> {
     if (enabled) {
       const previousKeys = new Set(this.packages.listInstalled().map((record) => record.key));
       try {
-        const records = await this.sources.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL });
+        const records = await this.sources.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL }, undefined, ALL_SKILL_IDS);
         for (const record of records) this.packages.setEnabled(record.key, record.digest, true);
         await this.automation.refresh();
         await this.automation.setEnabled(true);
@@ -46,6 +48,6 @@ export class DefaultSkillsService {
 
   private defaultPackages() {
     return this.packages.listInstalled().filter((record) =>
-      record.sourceType === "git" && isCctoolsSkillsSourceLocator(record.sourceLocator || record.sourcePath));
+      !this.userRetained(record.key) && ALL_SKILL_IDS.includes(record.id) && record.sourceType === "git" && isCctoolsSkillsSourceLocator(record.sourceLocator || record.sourcePath));
   }
 }

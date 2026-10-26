@@ -5,6 +5,8 @@ on:
     branches: [main]
 permissions:
   contents: read
+env:
+  OPENMIND_SKILLS_REPO_ROOT: ${{ github.workspace }}/.build-sources/cctools-skills
 concurrency:
   group: ui-contract-${{ github.ref }}
   cancel-in-progress: true
@@ -14,6 +16,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SebastianLavertheDe/cctools-skills
+          path: .build-sources/cctools-skills
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -28,14 +34,29 @@ jobs:
         run: npm run test:unit -- --maxWorkers=2 --testTimeout=20000 --hookTimeout=20000
       - run: npm run test:integration
       - run: npm run test:e2e
+  ui-contract-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SebastianLavertheDe/cctools-skills
+          path: .build-sources/cctools-skills
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       - run: npm run visual:snapshot
       - run: npm run visual:inputs
       - run: npm run visual:ui
-      - name: Upload UI comparison evidence
+      - name: Upload Windows UI comparison evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-comparisons
+          name: ui-comparisons-windows
           path: |
             .tmp/ui-regression
             .build/input-controls-style
@@ -43,22 +64,34 @@ jobs:
             .build/visual-snapshot-report.json
           if-no-files-found: ignore
           retention-days: 14
-  ui-contract-windows:
-    runs-on: windows-latest
+  ui-contract-macos:
+    runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SebastianLavertheDe/cctools-skills
+          path: .build-sources/cctools-skills
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run visual:ui
-      - name: Upload Windows UI comparison evidence
+      - run: npm run build
+      - run: npm run visual:snapshot
+      - run: npm run visual:inputs
+      # Capture and validate geometry until macOS pixel baselines are reviewed.
+      - run: npm run visual:ui -- --capture-only
+      - name: Upload macOS UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-comparisons-windows
-          path: .tmp/ui-regression
+          name: ui-comparisons-macos
+          path: |
+            .tmp/ui-regression
+            .build/input-controls-style
+            .build/visual-snapshots
+            .build/visual-snapshot-report.json
           if-no-files-found: ignore
           retention-days: 14
