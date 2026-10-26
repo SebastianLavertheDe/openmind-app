@@ -31,6 +31,7 @@ import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
 import { ensureClaudeAgentLink, ensureClaudeSkillAliases } from "./paths/claude-agent-link";
 import { SkillPackageService } from "./skills/skill-package-service";
+import { resolveSkillLibraryBundleRoot } from "./skills/skill-library-catalog";
 import { SkillSourceService } from "./skills/skill-source-service";
 import { logRedactor } from "./security/log-redactor";
 import { AppStateBackupService } from "./backup/app-state-backup";
@@ -151,6 +152,7 @@ class AiWorkerClient {
         ...(settings.resolveOpenmindRoot() ? { OPENMIND_ROOT: settings.resolveOpenmindRoot() } : {}),
         OPENMIND_ROOT_GENERATION: String(settings.getOpenmindRootSnapshot()?.rootGeneration || 1),
         OPENMIND_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
+        OPENMIND_SKILL_LIBRARY_BUNDLE: resolveSkillLibraryBundleRoot(),
         ...(browserCli ? {
           OPENMIND_BROWSER_SKILL_CLI: browserCli,
           PATH: [path.dirname(browserCli), process.env.PATH || process.env.Path || ""].join(path.delimiter)
@@ -629,9 +631,12 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       if (defaultSkillsEnabled || automationRules.length) throw new Error("Fresh startup enabled default Skills or schedules");
       if (await api.setDefaultSkillsEnabled(false)) throw new Error("Default Skills opt-out failed");
       const library = await api.listSkillLibrary();
-      if (library.filter(entry => entry.origin === "preset").length !== 12) throw new Error("Scene Skill library is incomplete");
-      const preset = await api.installLibraryPreset("om-research-brief");
-      if (!preset.key || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate a verified package");
+      const availablePreset = library.find(entry => entry.origin === "preset" && entry.usable);
+      if (!availablePreset) throw new Error("Scene Skill library has no usable configured preset");
+      const preset = await api.installLibraryPreset(availablePreset.id);
+      if (preset.key !== "openmind-library/" + preset.skillId || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate an independent App package");
+      const chatPreset = (await api.aiRefreshSkills()).find(skill => skill.id === preset.skillId);
+      if (chatPreset?.title !== preset.title || chatPreset?.inputHint !== preset.inputHint) throw new Error("Chat Skill metadata differs from the configured library");
       const skillDocument = await api.getSkillEditor();
       skillDocument.name = "Electron E2E personal skill";
       skillDocument.instructions[0].text = "Summarize only the supplied evidence.";

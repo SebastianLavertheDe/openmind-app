@@ -1,5 +1,6 @@
 import { readSkillLibraryMetadata } from "../skills/skill-library-service";
 import { resolveSkillLibraryTools } from "../skills/skill-library-runtime";
+import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "../skills/skill-library-catalog";
 import type { SkillSelectionInput } from "../../shared/skill-library";
 import type { SelectedSkillSnapshot } from "../../shared/contracts";
 import path from "node:path";
@@ -142,10 +143,19 @@ export class SkillToolRegistry {
   }
 
   providerSkillCatalog(snapshot: readonly AiSessionSkillSnapshotEntry[]): ProviderSkillCatalogEntry[] {
-    const tools = this.runtimePaths && snapshot.some(entry => ["om-short-video", "om-slide-deck"].includes(entry.definition.id)) ? resolveSkillLibraryTools(this.runtimePaths) : undefined;
+    let tools: ReturnType<typeof resolveSkillLibraryTools> | undefined;
     return snapshot.flatMap((entry) => {
       const bridge = this.providerSkillBridge(entry);
       if (!bridge) return [];
+      const installed = this.installedResolver?.installed(bridge.id);
+      const metadata = installed && isAppLibraryInstall(installed) ? readSkillLibraryMetadata(bridge.packageRoot) : null;
+      let requirement = metadata?.requirement;
+      if (!requirement && installed && isLegacyAppLibraryInstall(installed)) {
+        try { requirement = readSkillLibraryCatalog().skills.find(preset => preset.id === bridge.id)?.requirement; }
+        catch { /* An unavailable discovery catalog does not invalidate installed instructions. */ }
+      }
+      const needsTools = requirement === "python" || requirement === "ffmpeg";
+      if (needsTools && this.runtimePaths) tools ??= resolveSkillLibraryTools(this.runtimePaths);
       return [{
         id: bridge.id,
         version: bridge.version,
@@ -153,7 +163,7 @@ export class SkillToolRegistry {
         skillPath: bridge.skillPath,
         packageRoot: bridge.packageRoot,
         description: entry.definition.description,
-        ...(tools && ["om-short-video", "om-slide-deck"].includes(bridge.id) ? { tools } : {})
+        ...(tools && needsTools ? { tools } : {})
       }];
     });
   }

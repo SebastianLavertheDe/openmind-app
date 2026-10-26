@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SKILL_LIBRARY_PRESETS } from "../../shared/skill-library-catalog";
 import { buildAppPaths, ensureAppPaths, type AppPaths } from "../paths/app-paths-service";
 import {
   SkillPackageError,
@@ -421,7 +420,7 @@ describe("SkillPackageService", () => {
       .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // Existing formal packages and the scene library share this source repo.
+    // GitHub packages are independent from the App-owned skill library.
     // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
       "agent-browser",
@@ -439,10 +438,9 @@ describe("SkillPackageService", () => {
       "skill-run-reporter",
       "video-burnin-subtitles",
       "video-download",
-      "x-following-fetcher",
-      ...SKILL_LIBRARY_PRESETS.map(preset => preset.id)
+      "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(16 + SKILL_LIBRARY_PRESETS.length);
+    expect(installed.length).toBe(16);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");

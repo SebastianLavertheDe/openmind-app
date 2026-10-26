@@ -2,7 +2,8 @@ import { SkillLibraryPage } from "../src/features/skills/SkillLibraryPage";
 import { SkillEditor } from "../src/features/skills/SkillEditor";
 import { ComposerSkillPicker } from "../src/features/ai-console/ComposerSkillPicker";
 import { FeedbackProvider } from "../src/feedback-context";
-import { SKILL_LIBRARY_PRESETS } from "../../shared/skill-library-catalog";
+import { SkillLibraryCatalogSchema, resolveSkillLibraryCopy } from "../../shared/skill-library-catalog";
+import skillLibraryCatalog from "../../config/skill-library/catalog.json";
 import { AuthoredSkillSchema, type SkillLibraryEntry } from "../../shared/skill-library";
 import { messages } from "../../shared/messages";
 import { memo, useLayoutEffect, useRef, useState } from "react";
@@ -210,9 +211,9 @@ function QueuedMessagesExample() {
 }
 
 function SkillLibraryExample() {
-  const presets: SkillLibraryEntry[] = SKILL_LIBRARY_PRESETS.map((preset, index) => {
-    const copy = messages.skillLibrary.presets[preset.id as keyof typeof messages.skillLibrary.presets];
-    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.subtitle, inputHint: copy.hint, category: preset.category, origin: "preset", installed: index === 0, enabled: index === 0, usable: true, reason: null, key: index === 0 ? "cctools/research" : null, digest: index === 0 ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 1, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null };
+  const presets: SkillLibraryEntry[] = SkillLibraryCatalogSchema.parse(skillLibraryCatalog).skills.map((preset, index) => {
+    const copy = resolveSkillLibraryCopy(preset);
+    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: index === 0, enabled: index === 0, usable: true, reason: null, key: index === 0 ? `openmind-library/${preset.id}` : null, digest: index === 0 ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 1, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null };
   });
   const entries: SkillLibraryEntry[] = [...presets, { ...presets[2], id: "personal-writing", title: "My publication style", origin: "authored", installed: true, enabled: true, key: "user/writing", digest: "b".repeat(64), authoringId: "7b9a8203-f9e0-4ddd-8832-fda5f04c4d19" }, { ...presets[0], id: "imported", title: "Repository helper", origin: "git", category: null, source: "https://github.com/example/skills" }];
   const [selected, setSelected] = useState<SkillLibraryEntry | null>(entries[0]);

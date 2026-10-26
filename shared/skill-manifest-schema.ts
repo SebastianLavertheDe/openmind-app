@@ -46,7 +46,7 @@ function isSemverRangeExpression(value: string): boolean {
 }
 
 /** Skill id: lowercase, digits, `-`, `.`, must start with a letter. */
-const SkillIdSchema = z
+export const SkillIdSchema = z
   .string()
   .min(1)
   .max(128)

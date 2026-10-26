@@ -150,7 +150,7 @@ export type SkillPackageInspection = {
 };
 
 export type SkillPackageSourceMetadata = {
-  sourceType: "directory" | "zip" | "git";
+  sourceType: "directory" | "zip" | "git" | "builtin";
   sourceLocator: string;
   sourceRef?: string;
   /** Path of this package inside a multi-package source repository. */
@@ -356,7 +356,7 @@ export class SkillPackageService {
    * Different content replaces the directory in a staging→rename transaction;
    * identical, intact content only refreshes source provenance.
    */
-  install(sourcePath: string, sourceMetadata?: SkillPackageSourceMetadata): InstalledSkillRecord {
+  install(sourcePath: string, sourceMetadata?: SkillPackageSourceMetadata, replaceIdentity?: { key: string; digest: string }): InstalledSkillRecord {
     const inspection = this.inspect(sourcePath);
     if (!inspection.valid || !inspection.manifest) {
       const first = inspection.issues[0];
@@ -368,9 +368,12 @@ export class SkillPackageService {
     // The official manifest namespace changed from openmind/* to cctools/*.
     // Replace only that known compatibility identity; unrelated publishers
     // with the same id still fail the repository's global-id invariant.
-    const compatibilityIdentity = manifest.publisher.id === "cctools"
+    const compatibilityIdentity = replaceIdentity ? this.repository.get(replaceIdentity.key, replaceIdentity.digest) : manifest.publisher.id === "cctools"
       ? this.repository.get(`openmind/${manifest.id}`)
       : undefined;
+    if (replaceIdentity && (!compatibilityIdentity || compatibilityIdentity.id !== manifest.id || compatibilityIdentity.key === key)) {
+      throw new SkillPackageError("manifest-invalid", "The installed identity to replace no longer matches this Skill.");
+    }
     const existing = this.repository.get(
       key,
       inspection.digest

@@ -11,7 +11,8 @@ import type { ExecutionPlan } from "../execution/execution-broker";
 import type { ExternalBinding } from "../execution/artifact-collector";
 import type { ProviderSkillBridge } from "../ai/providers/skill-bridge";
 import { readDefaultProviderEnv } from "../config/providers-yaml";
-import { messages } from "../../shared/messages";
+import { resolveSkillLibraryCopy } from "../../shared/skill-library-catalog";
+import { isAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 import type { WorkflowAdmission } from "../execution/workflow-engine";
 
 const FORBIDDEN_ENV_NAMES = new Set(["PATH", "HOME", "NODE_OPTIONS", "PYTHONPATH", "LD_PRELOAD"]);
@@ -315,16 +316,24 @@ export class InstalledSkillExecutionResolver {
     if (!inspection.manifest) throw new InstalledSkillExecutionError("Installed Skill Manifest 校验失败。 ");
     const manifest = inspection.manifest;
     const metadata = readSkillLibraryMetadata(record.packagePath);
-    const preset = metadata?.origin === "preset" && metadata.presetId === manifest.id
-      ? messages.skillLibrary.presets[manifest.id as keyof typeof messages.skillLibrary.presets] : null;
+    let preset: ReturnType<typeof resolveSkillLibraryCopy> | undefined;
+    if (isAppLibraryInstall(record) && metadata?.origin === "preset" && metadata.presetId === manifest.id) {
+      try {
+        const entry = readSkillLibraryCatalog().skills.find(item => item.id === manifest.id);
+        if (entry) preset = resolveSkillLibraryCopy(entry);
+      } catch {
+        // An installed package remains usable if the optional discovery catalog
+        // is unavailable. Its verified manifest still owns the fallback labels.
+      }
+    }
     // Slash-command surfaces expose every installed kind uniformly; `kind` is
     // carried as an internal marker so execution routing can stay explicit.
     return {
       definition: {
         id: manifest.id,
         title: preset?.title || manifest.display.name,
-        inputHint: preset?.hint || metadata?.inputHint,
-        description: preset?.subtitle || manifest.display.description,
+        inputHint: preset?.inputHint ?? metadata?.inputHint,
+        description: preset?.description ?? preset?.subtitle ?? manifest.display.description,
         // Logical metadata only. Physical paths remain Main-only and are
         // recovered from exact installed provenance at execution time.
         cwd: `installed/${record.publisherId}/${record.id}/${record.version}`,

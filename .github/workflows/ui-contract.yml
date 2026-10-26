@@ -5,8 +5,6 @@ on:
     branches: [main]
 permissions:
   contents: read
-env:
-  OPENMIND_SKILLS_REPO_ROOT: ${{ github.workspace }}/.build-sources/cctools-skills
 concurrency:
   group: ui-contract-${{ github.ref }}
   cancel-in-progress: true
@@ -16,10 +14,6 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: SebastianLavertheDe/cctools-skills
-          path: .build-sources/cctools-skills
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -39,10 +33,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: SebastianLavertheDe/cctools-skills
-          path: .build-sources/cctools-skills
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -69,10 +59,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: SebastianLavertheDe/cctools-skills
-          path: .build-sources/cctools-skills
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -2,13 +2,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillSelectionInput } from "../../shared/skill-library";
-import { SKILL_LIBRARY_PRESETS } from "../../shared/skill-library-catalog";
+import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE } from "../../shared/skill-library-catalog";
 import { messages } from "../../shared/messages";
 import type { AppPaths } from "../paths/app-paths-service";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import type { SkillPackageService } from "./skill-package-service";
 import { ImageConfigurationStore } from "../images/image-configuration";
 import { resolveSkillLibraryTools } from "./skill-library-runtime";
+import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -47,17 +48,17 @@ export class SkillLibraryService {
     const dependencyUnavailable = (packagePath: string) => (readSkillLibraryMetadata(packagePath)?.dependencies || []).some(reference =>
       !installed.some(record => record.key === reference.key && record.digest === reference.digest && record.enabled && record.usable));
     const presetKeys = new Set<string>();
-    const result: SkillLibraryEntry[] = SKILL_LIBRARY_PRESETS.map(preset => {
+    const result: SkillLibraryEntry[] = readSkillLibraryCatalog(this.bundleRoot).skills.map(preset => {
       const binding = bindings[preset.id];
-      const record = binding && installed.find(item => item.key === binding.key && item.digest === binding.digest);
+      const record = binding && installed.find(item => item.key === binding.key && item.digest === binding.digest && isAppLibraryInstall(item));
       if (record) presetKeys.add(record.key);
-      const copy = m.presets[preset.id as keyof typeof m.presets];
+      const copy = resolveSkillLibraryCopy(preset);
       let reason: string | null = !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
       if (!reason && record && !record.usable) reason = m.errors.stale;
       if (!reason && preset.requirement === "image" && !new ImageConfigurationStore(this.root).view().defaultSelection) reason = m.errors.imageSetup;
       if (!reason && ["python", "ffmpeg"].includes(preset.requirement || "") && !tools.python) reason = m.errors.pythonSetup;
       if (!reason && preset.requirement === "ffmpeg" && !tools.ffmpeg) reason = m.errors.videoSetup;
-      return { id: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.subtitle, inputHint: copy.hint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null, updatedAt: record?.installedAt };
+      return { id: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt };
     });
     const authored = this.documents();
     for (const doc of authored) {
@@ -71,20 +72,26 @@ export class SkillLibraryService {
       if (presetKeys.has(record.key)) continue;
       const inspection = this.packages.inspectInstalledCopy(this.packages.getInstalled(record.key, record.digest)!);
       const display = inspection.manifest?.display;
-      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: record.sourceType === "git" ? "git" : "local", installed: true, enabled: record.enabled, usable: record.usable, reason: record.usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt });
+      const builtin = isAppLibraryInstall(record);
+      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable: record.usable, reason: record.usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt });
     }
     return result;
   }
 
   installPreset(id: string): SkillLibraryEntry {
-    const preset = SKILL_LIBRARY_PRESETS.find(item => item.id === id);
+    const preset = readSkillLibraryCatalog(this.bundleRoot).skills.find(item => item.id === id);
     if (!preset) throw new Error(m.errors.missing);
+    const occupant = this.packages.getInstalledById(id);
+    if (occupant && !isAppLibraryInstall(occupant)) throw new Error(m.errors.sourceConflict);
     const source = path.join(this.bundleRoot, preset.id);
     if (!fs.existsSync(path.join(source, "SKILL.md"))) throw new Error(m.errors.bundle);
     const manifest = JSON.parse(fs.readFileSync(path.join(this.bundleRoot, "bundle.json"), "utf8")) as { packages: Record<string, string> };
     const inspection = this.packages.inspect(source);
-    if (!inspection.valid || inspection.digest !== manifest.packages[id]) throw new Error(m.errors.stale);
-    const record = this.packages.install(source);
+    if (!inspection.valid || inspection.manifest?.id !== id || inspection.manifest.publisher.id !== SKILL_LIBRARY_PUBLISHER || inspection.digest !== manifest.packages[id]) throw new Error(m.errors.stale);
+    const binding = this.bindings()[id];
+    const previous = binding && this.packages.getInstalled(binding.key, binding.digest);
+    const legacy = previous && isLegacyAppLibraryInstall(previous) ? { key: previous.key, digest: previous.digest } : undefined;
+    const record = this.packages.install(source, { sourceType: "builtin", sourceLocator: SKILL_LIBRARY_SOURCE, sourcePackageRef: id }, legacy);
     this.packages.setEnabled(record.key, record.digest, true);
     writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
     return this.list().find(entry => entry.id === id)!;

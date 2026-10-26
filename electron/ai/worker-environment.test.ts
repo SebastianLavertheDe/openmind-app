@@ -18,6 +18,7 @@ describe("AI Worker environment", () => {
     }, {
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
+      OPENMIND_SKILL_LIBRARY_BUNDLE: "/app-resources/skill-library",
       OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
       BSK_HOME: "/browser-runtime"
     });
@@ -29,6 +30,7 @@ describe("AI Worker environment", () => {
       TZ: "Asia/Shanghai",
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
+      OPENMIND_SKILL_LIBRARY_BUNDLE: "/app-resources/skill-library",
       OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
       BSK_HOME: "/browser-runtime"
     });

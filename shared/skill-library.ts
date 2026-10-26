@@ -33,6 +33,7 @@ export const SkillPublishInputSchema = z.object({ document: AuthoredSkillSchema,
 export const SkillLibraryMetadataSchema = z.object({
   schemaVersion: z.literal(1), origin: z.enum(["preset", "authored"]), presetId: z.string().optional(),
   capabilityMode: z.literal("session").optional(),
+  requirement: z.enum(["image", "python", "ffmpeg"]).optional(),
   document: AuthoredSkillSchema.optional(), category: SkillSceneSchema, inputHint: z.string().max(1000).default(""),
   executionModel: z.object({ provider: z.enum(["codex", "claude"]), model: z.string().max(200) }).nullable().default(null),
   dependencies: z.array(SkillSelectionInputSchema).max(10).default([])
@@ -49,11 +50,12 @@ export interface SkillLibraryEntry {
   icon?: SkillScene | "auto";
   updatedAt?: string;
   images?: SkillAsset[];
+  discoverable?: boolean;
 }
 
 export function filterSkillLibrary(entries: SkillLibraryEntry[], mode: SkillLibraryMode, section: SkillLibrarySection, query = "", origin = "all"): SkillLibraryEntry[] {
   const q = query.trim().toLocaleLowerCase();
-  return entries.filter(entry => (mode === "explore" ? entry.origin === "preset" : entry.installed || entry.origin === "authored")
+  return entries.filter(entry => (mode === "explore" ? entry.origin === "preset" && entry.discoverable !== false : entry.installed || entry.origin === "authored")
     && (section === "all" || section === "github-installed" ? section !== "github-installed" || entry.origin === "git"
       : section === "local-imported" ? entry.origin === "local" : entry.category === section)
     && (mode === "explore" || origin === "all" || entry.origin === origin || origin === "imported" && ["git", "local"].includes(entry.origin))

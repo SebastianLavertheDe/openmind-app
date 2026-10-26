@@ -6,6 +6,10 @@ Each English module uses `satisfies TranslationOf<typeof ChineseMessages>` to
 check keys and interpolation arguments without restricting translations to
 Chinese string literals. Add both translations in the same change.
 
+Preset Skill titles, descriptions and input hints are configurable catalog content
+in `config/skill-library/catalog.json`, with their translations beside each entry.
+Keep general Skill interface controls and category labels in this directory.
+
 Use complete messages with named interpolation arguments. Avoid joining sentence
 fragments in components. Keep protocol IDs, disk folder names, user content and
 provider/model IDs independent of the interface language.

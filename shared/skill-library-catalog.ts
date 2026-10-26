@@ -1,11 +1,51 @@
-import type { SkillScene } from "./skill-library";
+import { z } from "zod";
+import { DEFAULT_LOCALE, getLocale, type Locale } from "./messages";
+import { SkillSceneSchema } from "./skill-library";
+import { SkillIdSchema } from "./skill-manifest-schema";
 
-/** Rules live in cctools-skills. The build copies only these reviewed packages into an ignored bundle. */
-export const SKILL_LIBRARY_PRESETS: readonly { id: string; category: SkillScene; requirement?: "image" | "ffmpeg" | "python" }[] = [
-  { id: "om-research-brief", category: "research" }, { id: "om-source-compare", category: "research" },
-  { id: "om-article-writer", category: "writing" }, { id: "om-text-rewriter", category: "writing" },
-  { id: "om-poster-maker", category: "image", requirement: "image" }, { id: "om-image-editor", category: "image", requirement: "image" },
-  { id: "om-slide-outline", category: "slides" }, { id: "om-slide-deck", category: "slides", requirement: "python" },
-  { id: "om-storyboard", category: "video" }, { id: "om-short-video", category: "video", requirement: "ffmpeg" },
-  { id: "om-landing-page", category: "web" }, { id: "om-mini-tool", category: "web" }
-];
+export const SKILL_LIBRARY_CATALOG_FILE = "catalog.json";
+export const SKILL_LIBRARY_PUBLISHER = "openmind-library";
+export const SKILL_LIBRARY_SOURCE = "openmind:skill-library";
+
+const InstructionSchema = z.string().trim().min(1).max(20_000);
+const AssetPathSchema = z.string().min(1).max(512).refine(value =>
+  !value.includes("\\") && !value.includes(":") && value.split("/").every(part => part && part !== "." && part !== ".."), "Use a relative asset path without traversal");
+
+const SkillLibraryCopySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  subtitle: z.string().max(1_000).default(""),
+  description: z.string().max(5_000).optional(),
+  inputHint: z.string().max(1_000).default("")
+}).strict();
+
+export const SkillLibraryPresetSchema = z.object({
+  id: SkillIdSchema,
+  version: z.string().regex(/^\d+\.\d+\.\d+$/).default("1.0.0"),
+  category: SkillSceneSchema,
+  instructions: z.array(InstructionSchema).min(1).max(50),
+  files: z.array(AssetPathSchema).max(50).default([]),
+  requirement: z.enum(["image", "ffmpeg", "python"]).optional(),
+  display: z.object({
+    "zh-CN": SkillLibraryCopySchema.optional(),
+    en: SkillLibraryCopySchema.optional()
+  }).strict().refine(value => Boolean(value["zh-CN"] || value.en), "Provide at least one display language")
+}).strict();
+
+export const SkillLibraryCatalogSchema = z.object({
+  schemaVersion: z.literal(1),
+  executionRules: z.array(InstructionSchema).max(20).default([]),
+  skills: z.array(SkillLibraryPresetSchema)
+}).strict().superRefine((catalog, context) => {
+  const ids = new Set<string>();
+  catalog.skills.forEach((skill, index) => {
+    if (ids.has(skill.id)) context.addIssue({ code: "custom", path: ["skills", index, "id"], message: `Duplicate Skill id: ${skill.id}` });
+    ids.add(skill.id);
+  });
+});
+
+export type SkillLibraryCatalog = z.infer<typeof SkillLibraryCatalogSchema>;
+export type SkillLibraryPreset = z.infer<typeof SkillLibraryPresetSchema>;
+
+export function resolveSkillLibraryCopy(preset: SkillLibraryPreset, locale: Locale = getLocale()) {
+  return preset.display[locale] ?? preset.display[DEFAULT_LOCALE] ?? preset.display.en!;
+}

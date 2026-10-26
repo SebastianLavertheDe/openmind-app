@@ -11,13 +11,13 @@ import { SkillEditor } from "./SkillEditor";
 const previous = window.openmind;
 const digest = "a".repeat(64);
 function entry(patch: Partial<SkillLibraryEntry> = {}): SkillLibraryEntry {
-  return { id: "preset", title: "Research report", subtitle: "Read the sources", description: "Traceable findings", inputHint: "What would you like to investigate?", category: "research", origin: "preset", installed: false, enabled: false, usable: true, reason: null, key: null, digest: null, version: null, skillId: "om-research-brief", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null, ...patch };
+  return { id: "preset", title: "Research report", subtitle: "Read the sources", description: "Traceable findings", inputHint: "What would you like to investigate?", category: "research", origin: "preset", installed: false, enabled: false, usable: true, reason: null, key: null, digest: null, version: null, skillId: "om-research-brief", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "App presets", executionModel: null, ...patch };
 }
 let entries: SkillLibraryEntry[];
 beforeEach(() => {
   setLocale("en"); localStorage.clear();
   entries = [entry(), entry({ id: "personal", title: "My article", origin: "authored", category: "writing", installed: true, enabled: true, key: "user/article", digest, authoringId: "b5b4cb2a-55ce-4fa6-a0db-e521870f217b" }), entry({ id: "git", title: "Git utility", origin: "git", category: null, installed: true, enabled: true, key: "test/git", digest })];
-  window.openmind = { listSkillLibrary: vi.fn(async () => entries), getSkillEditor: vi.fn(async () => document()), saveSkillDraft: vi.fn(async value => value), publishSkill: vi.fn(async () => entries[1]), readSkillAssetImage: vi.fn(), setInstalledSkillEnabled: vi.fn(), installLibraryPreset: vi.fn(async () => ({ ...entries[0], installed: true, enabled: true, key: "cctools/report", digest })) } as unknown as DesktopApi;
+  window.openmind = { listSkillLibrary: vi.fn(async () => entries), getSkillEditor: vi.fn(async () => document()), saveSkillDraft: vi.fn(async value => value), publishSkill: vi.fn(async () => entries[1]), readSkillAssetImage: vi.fn(), setInstalledSkillEnabled: vi.fn(), installLibraryPreset: vi.fn(async () => ({ ...entries[0], installed: true, enabled: true, key: "openmind-library/report", digest })) } as unknown as DesktopApi;
 });
 afterEach(() => { cleanup(); window.openmind = previous; localStorage.clear(); setLocale("zh-CN"); vi.restoreAllMocks(); });
 function document() { return AuthoredSkillSchema.parse({ id: "1375bbe7-b4b7-4fbe-852d-8c9432b830ab", name: "", subtitle: "", category: "writing", instructions: [{ id: "1f52bf04-b372-4fc2-8551-5f0c7a36c4c8", text: "" }], inputHint: "", description: "" }); }
@@ -51,7 +51,7 @@ describe("Skill library product flows", () => {
     const user = userEvent.setup(); const use = vi.fn(); page(use);
     await screen.findByText("Research report");
     await user.click(screen.getByRole("button", { name: "Install and use" }));
-    await waitFor(() => expect(use).toHaveBeenCalledWith(expect.objectContaining({ key: "cctools/report", digest })));
+    await waitFor(() => expect(use).toHaveBeenCalledWith(expect.objectContaining({ key: "openmind-library/report", digest })));
     expect(window.openmind.installLibraryPreset).toHaveBeenCalledWith("preset");
   });
 

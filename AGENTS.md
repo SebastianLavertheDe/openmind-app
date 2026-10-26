@@ -8,7 +8,10 @@ committed here.
 
 - App source: this repository.
 - Private content/runtime data: the separately selected OpenMind data repository.
-- Skill package source: the independent `cctools-skills` repository.
+- External GitHub Skill source: the independent `cctools-skills` repository.
+- App Skill library source: `config/skill-library/`, maintained independently.
+  Generate its installable packages into ignored build output; do not read or
+  add these definitions to `cctools-skills`.
 - Installed Skills: `<openmindRoot>/.agent/skills/`.
 - Persistent per-Skill runtime state: `<openmindRoot>/.agent/skill-data/<skill>/`.
 - App-private state: Electron `userData`, optionally selected with the absolute

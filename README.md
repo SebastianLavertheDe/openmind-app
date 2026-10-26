@@ -66,7 +66,6 @@ Install **Node.js 22.12+**, **Git**, and **uv**, then run:
 
 ```bash
 git clone https://github.com/SebastianLavertheDe/openmind-app.git
-git clone https://github.com/SebastianLavertheDe/cctools-skills.git
 cd openmind-app
 npm ci
 npm run prepare:python-runtime
@@ -75,7 +74,7 @@ npm run dev:electron
 
 The runtime preparation step downloads the Python runtime used by Skills. After the app opens, follow the same first-launch setup above.
 
-The scene Skill library is built from the separate sibling `cctools-skills` checkout (the 12 `om-*` packages). For a different location, set `OPENMIND_SKILLS_REPO_ROOT` to its absolute path. Both `build` and `dev:electron` validate and copy only those packages into ignored build output; packaging includes that bundle. Keep the two repositories on compatible revisions. The bundle records each package digest, its source commit and whether that checkout contained uncommitted changes.
+The App Skill library is maintained independently in [`config/skill-library/catalog.json`](config/skill-library/catalog.json), including display text, instructions, categories and runtime requirements. Add a configuration entry and run `npm run prepare:skill-library`; optional scripts live beside the configuration under `assets/`. App builds require no `cctools-skills` checkout. Both `build` and `dev:electron` prepare the App-owned bundle automatically. GitHub Skills such as `cctools-skills` remain separate external sources, installed through source management. See the [catalog guide](config/skill-library/README.md).
 
 Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](docs/AI_WORKSPACE.md), [WeChat export](docs/wechat-export.md), and [support and recovery](docs/SUPPORT_AND_RECOVERY.md).
 

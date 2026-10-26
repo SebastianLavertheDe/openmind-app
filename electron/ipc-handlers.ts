@@ -1,7 +1,8 @@
 import { AuthoredSkillSchema, SkillAssetSchema, SkillPublishInputSchema, SkillSelectionInputSchema } from "../shared/skill-library";
 import { SkillLibraryService } from "./skills/skill-library-service";
+import { resolveSkillLibraryBundleRoot } from "./skills/skill-library-catalog";
 import { buildAppPaths, resolveSkillStoreRoot } from "./paths/app-paths-service";
-import { app, dialog, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { dialog, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -203,9 +204,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     const root = settings.resolveOpenmindRoot();
     if (!root) throw new Error(messages.skillLibrary.errors.root);
     const paths = skillPackages().appPaths || buildAppPaths(undefined, resolveSkillStoreRoot(root));
-    const bundle = process.env.OPENMIND_SKILL_LIBRARY_BUNDLE || (app?.isPackaged
-      ? path.join(process.resourcesPath, "skill-library") : path.resolve(__dirname, "../../skill-library"));
-    return new SkillLibraryService(root, paths, skillPackages(), bundle);
+    return new SkillLibraryService(root, paths, skillPackages(), resolveSkillLibraryBundleRoot());
   };
   const skillSources = () => ctx.ensureSkillSourceService?.() || new SkillSourceServiceImpl(skillPackages());
   const sharedPython = () => {

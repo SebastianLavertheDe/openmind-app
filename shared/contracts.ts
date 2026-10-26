@@ -761,7 +761,7 @@ export interface InstalledSkillView {
   version: string;
   digest: string;
   sourcePath: string;
-  sourceType?: "directory" | "zip" | "git";
+  sourceType?: "directory" | "zip" | "git" | "builtin";
   sourceLocator?: string;
   sourceRef?: string;
   sourcePackageRef?: string;

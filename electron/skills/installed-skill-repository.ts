@@ -11,7 +11,7 @@ export const INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION = 3 as const;
 export type InstalledSkillSignatureStatus = "unsigned" | "valid" | "invalid" | "revoked";
 export type InstalledSkillReviewStatus = "unreviewed" | "automated-scan" | "manually-reviewed";
 export type InstalledSkillUpdatePolicy = "manual" | "download-only";
-export type InstalledSkillSourceType = "directory" | "zip" | "git";
+export type InstalledSkillSourceType = "directory" | "zip" | "git" | "builtin";
 
 export type InstalledSkillRecord = {
   schemaVersion: typeof INSTALLED_SKILL_REGISTRY_SCHEMA_VERSION;
@@ -51,7 +51,7 @@ type LegacyInstalledSkillRecord = Omit<InstalledSkillRecord, "schemaVersion"> & 
 const SIGNATURE_STATUSES = ["unsigned", "valid", "invalid", "revoked"] as const;
 const REVIEW_STATUSES = ["unreviewed", "automated-scan", "manually-reviewed"] as const;
 const UPDATE_POLICIES = ["manual", "download-only"] as const;
-const SOURCE_TYPES = ["directory", "zip", "git"] as const;
+const SOURCE_TYPES = ["directory", "zip", "git", "builtin"] as const;
 const V1_STATUSES = ["quarantined", "installed-not-ready", "active", "previous"] as const;
 const V2_STATUSES = ["quarantined", "active"] as const;
 const LEGACY_READINESS = ["installed-not-ready", "ready", "blocked", "stale"] as const;
